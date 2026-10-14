@@ -1,0 +1,134 @@
+exclude = [
+    # Gitignored working space for throwaway scripts; library standards do not apply there.
+    "scratchpad",
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+line-length = 100
+indent-width = 4
+
+target-version = "py314"
+
+[lint]
+# Required: rules are selected and suppressed by name, which ruff accepts only in preview mode, and
+# several flake8-bandit rules are preview-gated. Without it ruff refuses to load this file.
+preview = true
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "TID",    # flake8-tidy-imports: absolute imports only
+    "complex-structure",  # mccabe: cyclomatic complexity
+    "D",      # pydocstyle: Google convention
+    "UP",     # pyupgrade, at `target-version`
+    "SIM",    # flake8-simplify
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+    "TRY",    # tryceratops: exception handling
+    "RSE",    # flake8-raise
+    "PIE",    # flake8-pie
+    "PT",     # flake8-pytest-style
+    "S",      # flake8-bandit: security
+    "A",      # flake8-builtins: no shadowed builtins
+    "ISC",    # implicit string concatenation
+    "ICN",    # import conventions
+    "G",      # flake8-logging-format
+    "LOG",    # flake8-logging
+    "PL",     # Pylint subset
+    "RUF",    # Ruff-specific rules
+    "pytest-fixture-autouse",
+    "PERF",   # Perflint
+    "T20",    # flake8-print: no print() in library code
+    "FA",     # flake8-future-annotations
+    "DTZ",    # flake8-datetimez: no naive datetimes
+    "ERA",    # eradicate: no commented-out code
+    "FLY",    # flynt: prefer f-strings
+    "FURB",   # refurb
+    "PGH",    # pygrep-hooks: no blanket noqa or type: ignore
+    "PTH",    # flake8-use-pathlib
+]
+ignore = [
+    "undocumented-public-module",   # module docstrings optional
+    "undocumented-public-package",  # package docstrings optional
+    "undocumented-magic-method",    # magic-method docstrings optional
+    "undocumented-public-init",     # the class docstring covers __init__ (Google style)
+    "magic-value-comparison",       # too noisy
+    "raise-vanilla-args",           # long exception messages are fine
+    "single-line-implicit-string-concatenation",  # conflicts with the formatter
+    "redefined-loop-name",          # rebinding the loop variable is intentional in normalizing loops
+    "unnecessary-assign",           # an assignment before return names the returned value
+]
+
+fixable = ["ALL"]
+unfixable = []
+
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.isort]
+force-single-line = false
+lines-after-imports = 2
+known-first-party = ["bko"]
+
+[lint.mccabe]
+max-complexity = 15
+
+[lint.pylint]
+max-args = 10
+max-bool-expr = 5
+max-branches = 15
+max-nested-blocks = 5
+max-returns = 8
+max-statements = 45
+
+[lint.flake8-pytest-style]
+fixture-parentheses = false
+
+[lint.per-file-ignores]
+"**/tests/**/*.py" = ["ARG", "D", "commented-out-code", "import-outside-top-level", "compare-to-empty-string", "import-private-name", "too-many-return-statements", "too-many-locals", "magic-value-comparison", "no-self-use", "unused-async", "assert", "hardcoded-password-string", "hardcoded-password-default", "hardcoded-temp-file", "suspicious-subprocess-import", "start-process-with-partial-path", "SLF"]
+
+# The checkers report to the terminal by design.
+"tools/**/*.py" = ["print"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+# Formats Python inside docstrings and markdown fences.
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
