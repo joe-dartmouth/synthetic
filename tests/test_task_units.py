@@ -314,7 +314,8 @@ def _plant(tmp_path: Path, units: dict[str, tuple[str, str]], board: list[str]) 
     for name in board:
         depends = units[name][0] if name in units else ""
         rows.append(
-            f"| [`{name}`]({name}.md) | {_status(depends)} | {depends or '--'} | Joe | final-report |"
+            f"| [`{name}`]({name}.md) | {_status(depends)} | {depends or '--'} "
+            "| Joe | final-report |"
         )
     edges = [f"    {d} --> {name}" for name, (depends, _) in units.items() for d in _names(depends)]
     diagram = "```mermaid\nflowchart LR\n" + "\n".join(edges) + "\n```\n" if edges else ""

@@ -89,7 +89,7 @@ def test_no_link_definition_is_unused(doc: Path):
 
 @pytest.mark.parametrize("doc", CITING_DOCS, ids=str)
 def test_every_defined_key_has_a_registry_entry(doc: Path):
-    """The registry is the single home for a citation, so a key invented at the point of use fails."""
+    """The registry is a citation's single home, so a key invented at the point of use fails."""
     unregistered = sorted({key for key, _ in definitions(read(doc))} - REGISTRY_KEYS)
     assert not unregistered, f"{doc} defines keys absent from {REGISTRY}: {unregistered}"
 

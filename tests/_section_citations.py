@@ -49,7 +49,10 @@ BRACKETED_SECTION_CITATION = re.compile(
     rf"\[`?([A-Za-z0-9_.-]+\.md)`?\s+(?:\*\*)?{_NUMBER}{_TITLE}[^\[\]\n]*\]\(([^)\s]*)\)"
 )
 
-"""A citation with the number inside the link text: ``[RESEARCH §4](RESEARCH.md#4-success-criteria)``."""
+"""A citation with the number inside the link text.
+
+For example ``[RESEARCH §4](RESEARCH.md#4-success-criteria)``.
+"""
 
 SECTION_SHAPES = (SECTION_CITATION, LINKED_SECTION_CITATION, BRACKETED_SECTION_CITATION)
 
