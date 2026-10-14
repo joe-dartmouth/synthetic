@@ -3,10 +3,10 @@
 `ruff` cannot express this: it lints per line and per construct, never per file. So the rule is
 custom code, and it runs from `make check` through the `sizes` target (ADR `tooling/file-size-cap`).
 
-**Caps are per tree, first match wins.** 500 lines under `src/` and `tools/`; 1000 under `tests/`.
-Tests get twice as much because a test file's length tracks the number of cases it holds rather
-than the number of ideas, and splitting a suite past the point where its cases are grouped by
-subject buys nothing a reader can use.
+**Caps are per tree, first match wins**, and `CAPS` is the one home for the numbers. Tests get a
+looser cap because a test file's length tracks the number of cases it holds rather than the number
+of ideas, and splitting a suite past the point where its cases are grouped by subject buys nothing a
+reader can use.
 
 **`tools/` is under its own cap.** A size checker that exempts itself would do so invisibly.
 
@@ -17,10 +17,14 @@ untracked stray belongs under no gate until someone commits it.
 
 Exit codes are the contract, because the Makefile is what reads them and nothing else does:
 
-* ``0`` -- every file is within its cap.
-* ``1`` -- at least one file is over. Offenders go to stdout worst-first.
+* ``0`` -- every file is within its cap. The success line is the only output, on stdout.
+* ``1`` -- at least one file is over. Offenders go to stderr worst-first.
 * ``2`` -- the check could not be trusted: `git ls-files` failed, a tracked `.py` matched no rule,
-  or fewer files were discovered than `DISCOVERY_FLOOR`.
+  was a symlink or could not be read, or fewer files were discovered than `DISCOVERY_FLOOR`. The
+  reason goes to stderr.
+
+Failure text goes to stderr for the reason `tools/check_lock_drift.py` gives: a failure stays
+attributable when the streams are split.
 
 **The floor is not optional.** A pathspec that matches nothing exits 0 and reads exactly like a
 clean tree. A floor cannot be a frozen set, because the population grows on nearly every branch;
@@ -67,13 +71,34 @@ is not the guard for that. `tools._git.require_toplevel` and the stripped `GIT_*
 
 
 class UnmeasuredPathError(Exception):
-    """A tracked Python file that no rule in `CAPS` covers.
+    """A tracked Python file this check refuses to measure.
 
-    Its own type rather than `ValueError`, because `text=True` decodes git's output with the
-    locale encoding and a path carrying non-UTF-8 bytes raises `UnicodeDecodeError` -- a
-    `ValueError` subclass, which a broad `except ValueError` would report as "matched no rule".
-    Two unrelated failures under one message is how a diagnostic stops being one.
+    Three causes: no rule in `CAPS` covers it, it is a symlink, or it could not be read. Its own
+    type so `main` catches exactly these refusals: a broad `except ValueError` or `except OSError`
+    would also catch an unrelated failure and report it under one of these messages, and two
+    failures under one message is how a diagnostic stops being one.
+
+    **A path that is not valid UTF-8 is not one of the causes.** `tools._git.run` decodes with
+    `surrogateescape`, so such a path arrives as a string that `root / name` turns back into its
+    original bytes, and it is measured like any other. Where the filesystem cannot hold the name
+    (APFS refuses invalid UTF-8), the file is absent from the working tree and is refused as
+    unreadable. Either way the outcome is a measurement or an exit 2, never a traceback.
     """
+
+
+def _shown(name: str) -> str:
+    r"""Render a path for a message, with any byte that is not UTF-8 as a `\x` escape.
+
+    A lone surrogate from :func:`tools._git.run`'s decoding cannot be written to a strict stream,
+    so it is escaped here rather than left to whichever error handler the stream has.
+
+    Args:
+        name: A repo-relative path as `tracked_python_files` returns it.
+
+    Returns:
+        The path, printable on any UTF-8 stream.
+    """
+    return name.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
 
 
 def tracked_python_files(root: Path) -> list[str]:
@@ -142,7 +167,8 @@ def offenders(root: Path) -> tuple[list[tuple[str, int, int]], int]:
         floor, so the check and its anti-vacuity guard read the same number.
 
     Raises:
-        UnmeasuredPathError: If a tracked `.py` file matches no rule in `CAPS`.
+        UnmeasuredPathError: If a tracked `.py` file matches no rule in `CAPS`, is a symlink, or
+            cannot be read.
     """
     found: list[tuple[str, int, int]] = []
     paths = tracked_python_files(root)
@@ -150,19 +176,26 @@ def offenders(root: Path) -> tuple[list[tuple[str, int, int]], int]:
         cap = cap_for(name)
         if cap is None:
             raise UnmeasuredPathError(
-                f"{name} is a tracked Python file under no rule in CAPS. Add its directory to "
-                "CAPS with a cap, rather than letting it grow unmeasured."
+                f"{_shown(name)} is a tracked Python file under no rule in CAPS. Add its directory "
+                "to CAPS with a cap, rather than letting it grow unmeasured."
             )
         path = root / name
         # A tracked symlink is refused rather than followed. `read_bytes` on one measures whatever
         # it points at: a file outside the tree, or a fifo that never returns.
         if path.is_symlink():
             raise UnmeasuredPathError(
-                f"{name} is a tracked symlink. Its length is a property of whatever it points at, "
-                "which may be outside this repository entirely, so it is refused rather than "
-                "measured."
+                f"{_shown(name)} is a tracked symlink. Its length is a property of whatever it "
+                "points at, which may be outside this repository entirely, so it is refused rather "
+                "than measured."
             )
-        lines = line_count(path)
+        try:
+            lines = line_count(path)
+        except OSError as exc:
+            raise UnmeasuredPathError(
+                f"{_shown(name)} is tracked but could not be read ({exc.strerror or exc}), so its "
+                "length is unknown. A file deleted from the working tree without `git rm` is the "
+                "usual cause: stage the deletion or restore the file."
+            ) from exc
         if lines > cap:
             found.append((name, lines, cap))
     found.sort(key=lambda row: (row[2] - row[1], row[0]))
@@ -180,27 +213,32 @@ def main() -> int:
     except subprocess.CalledProcessError as exc:
         # git's own diagnosis is on stderr and `capture_output` swallows it, so the bare
         # `CalledProcessError` string says only "returned non-zero exit status N".
-        print(f"could not list tracked files: {exc}\n{(exc.stderr or '').strip()}")
+        print(f"could not list tracked files: {exc}\n{(exc.stderr or '').strip()}", file=sys.stderr)
         return 2
     except (subprocess.TimeoutExpired, OSError, RuntimeError) as exc:
-        print(f"could not list tracked files: {exc}")
+        # `offenders` turns a failed read into `UnmeasuredPathError`, so an `OSError` here is git
+        # failing to run, and the message can say the listing failed.
+        print(f"could not list tracked files: {exc}", file=sys.stderr)
         return 2
     except UnmeasuredPathError as exc:
-        print(str(exc))
+        print(str(exc), file=sys.stderr)
         return 2
 
     if scanned < DISCOVERY_FLOOR:
         print(
             f"only {scanned} tracked Python files were found, below the floor of "
             f"{DISCOVERY_FLOOR}. A scan that matches nothing exits clean and reads exactly like a "
-            "tree with no violations, so this is a failure rather than a pass."
+            "tree with no violations, so this is a failure rather than a pass.",
+            file=sys.stderr,
         )
         return 2
 
     if found:
         for name, lines, cap in found:
-            print(f"{name}: {lines} lines (cap {cap}, over by {lines - cap})")
-        print(f"{len(found)} of {scanned} tracked Python files are over cap.")
+            print(
+                f"{_shown(name)}: {lines} lines (cap {cap}, over by {lines - cap})", file=sys.stderr
+            )
+        print(f"{len(found)} of {scanned} tracked Python files are over cap.", file=sys.stderr)
         return 1
 
     print(f"{scanned} tracked Python files checked against {len(CAPS)} rules; none over cap.")

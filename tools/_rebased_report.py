@@ -37,7 +37,8 @@ class CanonicalReport:
     Attributes:
         contained: Each remote whose trunk HEAD contains, with that commit.
         degraded: Each remote that could not answer, with why.
-        refusal: Set when a canonical trunk is not contained or git could not say; else None.
+        refusal: Set when a canonical trunk is not contained, or git could not say whether it is
+            or whether the remote is configured; else None.
     """
 
     contained: tuple[tuple[str, str], ...] = ()
@@ -90,21 +91,41 @@ class CanonicalReport:
         return "\n".join(lines)
 
     @classmethod
-    def unanswered(cls, remote: str, commit: str) -> CanonicalReport:
+    def unanswered(cls, remote: str, commit: str, why: str) -> CanonicalReport:
         """A structural refusal: git could not say whether HEAD contains `remote`'s trunk.
 
         Args:
             remote: The canonical remote.
             commit: The trunk commit it advertised.
+            why: Whether git did not run or which status it exited with, and the next action, as
+                the checker words it; this module never sees the status itself.
 
         Returns:
             A result whose refusal exits 2.
         """
         message = (
-            f"git could not say whether HEAD contains `{remote}`'s trunk ({commit[:8]}): it did "
-            "not run, or it reported a missing or corrupt object rather than an answer. Not a "
-            "pass, and not a rebase either.\n"
-            "Run `git fsck` to check the object store, then run the gate again."
+            f"git could not say whether HEAD contains `{remote}`'s trunk ({commit[:8]}). Not a "
+            f"pass, and not a rebase either: {why}"
+        )
+        return cls(refusal=Refusal(2, message))
+
+    @classmethod
+    def unconfirmed(cls, remote: str, why: str) -> CanonicalReport:
+        """A structural refusal: git could not say whether `remote` is configured at all.
+
+        Args:
+            remote: The canonical remote.
+            why: Whether git did not run or which status it exited with.
+
+        Returns:
+            A result whose refusal exits 2.
+        """
+        message = (
+            f"git could not say whether `{remote}` is a configured remote ({why}), so whether HEAD "
+            "contains the canonical trunk was never established. Not a pass: skipping the remote "
+            "would pass over a canonical trunk that may be ahead.\n"
+            f"Run `git config --get remote.{remote}.url` to see git's own message, then run the "
+            "gate again."
         )
         return cls(refusal=Refusal(2, message))
 

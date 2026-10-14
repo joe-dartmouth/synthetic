@@ -54,7 +54,8 @@ mode a gate has instead of a bug:
 strongest sentence in this file would be printed about a tree that is neither the branch's nor the
 result's. A bisect is worse than useless: the ancestry test fails, and the fix the failure prints,
 `git rebase`, would end the bisect and destroy the investigation. Running the suite is exactly what
-a bisect is for, so those states take the does-not-apply path.
+a bisect is for, so those states exit 0 without a verdict and say so on stderr. A git that cannot
+report the git directory, so cannot say whether either is in progress, is structural.
 
 Exit codes, on the contract `tools/check_file_size.py` shares:
 
@@ -62,9 +63,11 @@ Exit codes, on the contract `tools/check_file_size.py` shares:
   or the check does not apply. A pass whose freshness could not be established is `0` too.
 - `1`: the branch is behind; its cached trunk ref is stale and HEAD does not contain what the remote
   advertises; or a configured `upstream` advertises a trunk HEAD does not contain.
-- `2`: structural. Git could not be consulted, answered about a different repository, or reported
-  a missing or corrupt object where an answer was needed, at any call site, `upstream`'s included,
-  because stating containment from such a status is a fact git did not establish.
+- `2`: structural. Git could not be consulted, answered about a different repository, could not
+  say whether `upstream` is configured, found no commit at HEAD, or reported a missing or corrupt
+  object where an answer was needed, at any call site, `upstream`'s included, because stating
+  containment from such a status is a fact git did not establish. Each message says whether git
+  did not run or which status it exited with, since the next action differs.
 
 A stale ref is `1` rather than `2` because it is the same defect one step earlier: fetch and the
 branch *is* behind, so the fix is the same command and the tree is equally unfit to gate.
@@ -75,9 +78,10 @@ branch *is* behind, so the fix is the same command and the tree is equally unfit
 canonical trunk is ahead.
 
 **The stream split is by what the operator must read, not by pass and fail.** `stdout` carries only
-an outcome that needs nothing from them: a confirmed pass, or a stated does-not-apply. Everything
-else goes to `stderr`, including the *passing* run whose freshness could not be established, which
-is neither a failure nor a confirmed pass and which `make check >/dev/null` would otherwise hide.
+an outcome that needs nothing from them: a confirmed pass, or no trunk to compare against.
+Everything else goes to `stderr`, including two exit-0 runs that `make check >/dev/null` would
+otherwise hide: the pass whose freshness could not be established, and the abstention mid-rebase
+or mid-bisect, which measured nothing.
 **Exit `0` therefore still conflates a confirmed pass with a degraded one.** A third code would
 separate them for a consumer that branches on it, and there is none without CI; `rebased-final`
 makes the degraded notice the gate's last line instead.
@@ -101,7 +105,6 @@ from tools._remote import (
     CANONICAL_REMOTES,
     REMOTE,
     TRUNK_LABEL,
-    UNCONSULTED,
     _remote_trunk,
     advertised_trunk,
     configured,
@@ -161,6 +164,37 @@ def _git(*args: str, root: Path) -> tuple[int, str]:
     except subprocess.TimeoutExpired, OSError:
         return COULD_NOT_RUN, ""
     return finished.returncode, finished.stdout.strip()
+
+
+def _failure(status: int) -> str:
+    """Say how a git call that gave no answer failed: it did not run, or the status it exited with.
+
+    Args:
+        status: What :func:`_git` returned.
+
+    Returns:
+        A clause for an exit-2 message.
+    """
+    return "git did not run" if status == COULD_NOT_RUN else f"git exited with status {status}"
+
+
+def _unanswered(status: int) -> str:
+    """Why a containment test got no answer, and the next action, which differ by the failure.
+
+    Args:
+        status: What :func:`_git` returned for `cat-file` or `merge-base`, other than 0 and 1.
+
+    Returns:
+        The end of an exit-2 message: the failure, a newline, and what to run.
+    """
+    if status == COULD_NOT_RUN:
+        return (
+            "git did not run.\nCheck that git is on PATH and responding, then run the gate again."
+        )
+    return (
+        f"{_failure(status)}, which means a missing or corrupt object rather than an answer.\n"
+        "Run `git fsck` to check the object store, then run the gate again."
+    )
 
 
 def _mid_operation(git_dir: Path) -> str | None:
@@ -223,12 +257,20 @@ def _preflight(root: Path) -> int | None:
         return 2
 
     status, git_dir = _git("rev-parse", "--absolute-git-dir", root=root)
-    operation = _mid_operation(Path(git_dir)) if status == 0 else None
+    if status != 0:
+        print(
+            f"git could not report this checkout's git directory ({_failure(status)}), so whether "
+            "a rebase or bisect is in progress was never established. Not a pass.",
+            file=sys.stderr,
+        )
+        return 2
+    operation = _mid_operation(Path(git_dir))
     if operation is not None:
         print(
             f"a {operation} is in progress, so this check does not apply. Mid-{operation} the "
             "working tree is neither the branch's nor the result's, and during a bisect the fix "
-            "this check would print -- a rebase -- would end the bisect."
+            "this check would print -- a rebase -- would end the bisect.",
+            file=sys.stderr,
         )
         return 0
     return None
@@ -254,9 +296,9 @@ def _resolve_ends(root: Path) -> tuple[int | None, str, str]:
         return 2, "", ""
     if status != 0:
         print(
-            "HEAD does not resolve to a commit, so there is nothing to compare. That is an "
-            "unborn branch; git could not be consulted is reported separately above, because a "
-            "failure must never be stated as a fact about the repository.",
+            f"HEAD does not resolve to a commit ({_failure(status)}), so there is nothing to "
+            "compare: the branch has no commits yet, or HEAD names a ref that is missing or "
+            "corrupt. Not a pass.",
             file=sys.stderr,
         )
         return 2, "", ""
@@ -279,8 +321,10 @@ def _probe_canonical(root: Path, head: str) -> CanonicalReport:
     """Ask each configured canonical remote for its trunk and whether HEAD contains it.
 
     A remote that is not configured is skipped without a word, so a checkout with no `upstream`
-    prints what it printed before this probe existed. One that is configured and cannot answer
-    degrades the pass, exactly as an unreachable `origin` does.
+    prints only `origin`'s line. One that is configured and cannot answer degrades the pass,
+    exactly as an unreachable `origin` does. One git cannot say is configured or not refuses as
+    structural: the lookup is local, so the failure is git's rather than the network's, and a
+    skip would pass over a canonical trunk that may be ahead.
 
     Args:
         root: The repository to read.
@@ -292,10 +336,12 @@ def _probe_canonical(root: Path, head: str) -> CanonicalReport:
     contained: list[tuple[str, str]] = []
     degraded: list[tuple[str, str]] = []
     for remote in CANONICAL_REMOTES:
-        known = configured(root, remote)
-        if known is False:
+        known, why = configured(root, remote)
+        if known is None:
+            return CanonicalReport.unconfirmed(remote, why)
+        if not known:
             continue
-        commit, why_not = advertised_trunk(root, remote) if known else (None, UNCONSULTED)
+        commit, why_not = advertised_trunk(root, remote)
         if commit is None:
             degraded.append((remote, why_not))
             continue
@@ -306,7 +352,7 @@ def _probe_canonical(root: Path, head: str) -> CanonicalReport:
         # so the refusal says "no readable copy" rather than claiming which.
         present, _ = _git("cat-file", "-e", f"{commit}^{{commit}}", root=root)
         if present == COULD_NOT_RUN:
-            return CanonicalReport.unanswered(remote, commit)
+            return CanonicalReport.unanswered(remote, commit, _unanswered(present))
         if present != 0:
             return CanonicalReport.behind(remote, commit, head, fetched=False)
         ancestry, _ = _git("merge-base", "--is-ancestor", commit, head, root=root)
@@ -315,7 +361,7 @@ def _probe_canonical(root: Path, head: str) -> CanonicalReport:
         elif ancestry == 1:
             return CanonicalReport.behind(remote, commit, head, fetched=True)
         else:
-            return CanonicalReport.unanswered(remote, commit)
+            return CanonicalReport.unanswered(remote, commit, _unanswered(ancestry))
     return CanonicalReport(contained=tuple(contained), degraded=tuple(degraded))
 
 
@@ -359,10 +405,8 @@ def _freshness(root: Path, head: str, trunk: str) -> tuple[int | None, str, str]
     if ancestry != 1:
         print(
             f"`{TRUNK_LABEL}` is stale -- this checkout caches {trunk[:8]}, the remote has "
-            f"{remote[:8]} -- and git could not say whether HEAD contains the remote's commit: it "
-            "did not run, or it reported a missing or corrupt object. Not a pass, and not a "
-            "rebase either.\n"
-            "Run `git fsck` to check the object store, then run the gate again.",
+            f"{remote[:8]} -- and git could not say whether HEAD contains the remote's commit. "
+            f"Not a pass, and not a rebase either: {_unanswered(ancestry)}",
             file=sys.stderr,
         )
         return 2, why_not, ""
@@ -394,20 +438,13 @@ def _judge_ancestry(
         The exit code.
     """
     status, _ = _git("merge-base", "--is-ancestor", trunk, head, root=root)
-    if status == COULD_NOT_RUN:
-        print(
-            "git could not be consulted about the merge base, so whether this tree is current was "
-            "never established.",
-            file=sys.stderr,
-        )
-        return 2
     if status == 0:
         return report_current(head, trunk, why_not, canonical)
     if status != 1:
         print(
-            f"git could not decide whether `{TRUNK_LABEL}` is an ancestor of HEAD (status "
-            f"{status}), which means a missing or corrupt object rather than a branch that is "
-            "behind. Not a pass, and not a rebase either.",
+            f"git could not decide whether `{TRUNK_LABEL}` is an ancestor of HEAD, so whether this "
+            "tree is current was never established. Not a pass, and not a rebase either: "
+            f"{_unanswered(status)}",
             file=sys.stderr,
         )
         return 2
@@ -416,7 +453,7 @@ def _judge_ancestry(
         f"`{TRUNK_LABEL}` ({trunk[:8]}) is not an ancestor of HEAD ({head[:8]}), so the trunk "
         "carries commits this tree has never been measured against. Two individually-green "
         "branches merging into a red trunk is the failure this refuses.\n"
-        f"Run `git fetch origin main && git rebase {TRUNK_LABEL}`, then run the gate again.",
+        f"Run `git fetch {REMOTE} && git rebase {TRUNK_LABEL}`, then run the gate again.",
         file=sys.stderr,
     )
     return 1

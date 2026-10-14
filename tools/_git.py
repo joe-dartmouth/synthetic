@@ -34,7 +34,7 @@ Long enough for git to remove a lock file, short enough that a Ctrl-C still feel
 
 
 def child_environment() -> dict[str, str]:
-    """A child environment for `git` that answers about this tree and runs no foreign config.
+    """A child environment for `git` that answers about this tree and skips the user's config.
 
     **`cwd` alone is not a trust boundary.** `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` are
     read from the environment and take precedence over the working directory. With
@@ -51,8 +51,17 @@ def child_environment() -> dict[str, str]:
     two keys. `tests/test_git_runner.py` reproduces it with `GIT_CONFIG_GLOBAL` unset against a
     fixture `HOME`.
 
-    No global config also means no `alias`, no `core.worktree` and no sparse-checkout setting can
-    reach the tracked set, so the blanking buys determinism and the execution defence.
+    **What the blanking excludes, and what still reaches git.** Excluded: the global files
+    (`~/.gitconfig` and `$XDG_CONFIG_HOME/git/config`, both replaced by `GIT_CONFIG_GLOBAL`), the
+    system file under git's own prefix (replaced by `GIT_CONFIG_SYSTEM`), and command-line config
+    passed down in `GIT_CONFIG_PARAMETERS` or `GIT_CONFIG_COUNT` (removed by the `GIT_*` strip).
+    Still read: the repository's own `.git/config`, its `config.worktree` and whatever they
+    include, which belong to the tree being measured; and on Apple's git (Xcode or the Command Line
+    Tools) a root-owned file in the developer directory, such as
+    `/Applications/Xcode.app/Contents/Developer/usr/share/git-core/gitconfig`, which sets
+    `credential.helper=osxkeychain` and which neither key replaces. A contributor cannot edit that
+    file without root, so it is outside the defence above; it does mean "no foreign config" holds
+    for the files a contributor controls, not for every file git reads.
 
     Exposed separately from :func:`run` so a caller that reads bytes can build its own
     `subprocess.run` on the same environment.
@@ -131,7 +140,11 @@ def run(
         timeout: Seconds before git is killed.
 
     Returns:
-        The completed process, with `stdout` and `stderr` decoded.
+        The completed process, with `stdout` and `stderr` decoded as UTF-8 with
+        `surrogateescape`. A byte that is not valid UTF-8, in a path or anywhere else git prints,
+        becomes a lone surrogate rather than a `UnicodeDecodeError`: a traceback exits 1, which
+        the checkers' contract reads as a violation. `os.fsencode` and `Path` turn such a string
+        back into the original bytes, so a path decoded here still names its file.
 
     Raises:
         subprocess.CalledProcessError: If git exits non-zero and `check` is true.
@@ -148,7 +161,8 @@ def run(
         argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        encoding="utf-8",
+        errors="surrogateescape",
         cwd=root,
         env=child_environment(),
         stdin=subprocess.DEVNULL,

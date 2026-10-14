@@ -19,7 +19,7 @@ import pytest
 import tools.check_rebased as subject
 from tests._git_fixtures import advance_remote, init_repo, rebased_verdict, run_git, with_remote
 from tools._rebased_report import CanonicalReport
-from tools._remote import NO_TRUNK, UNCONSULTED, advertised_trunk
+from tools._remote import NO_TRUNK, advertised_trunk
 
 
 def _commit(repo, name):
@@ -159,30 +159,40 @@ def test_a_missing_origin_cache_still_probes_upstream(tmp_path, capsys):
     assert moved[:8] in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("site", ["canonical", "origin"])
-def test_a_corrupt_object_status_is_structural_rather_than_behind(
-    tmp_path, monkeypatch, capsys, site
+@pytest.mark.parametrize("failure", ["exited", "did-not-run"])
+@pytest.mark.parametrize("site", ["canonical", "origin", "trunk"])
+def test_a_containment_test_git_cannot_answer_is_structural_and_says_how(
+    tmp_path, monkeypatch, capsys, site, failure
 ):
     """`merge-base` exiting 128 is a missing or corrupt object, never "HEAD does not contain it".
 
-    Both containment tests are driven: `upstream`'s, and `origin`'s on a lagging cache. Neither may
-    state containment as a fact on that status, as the ancestry test in `main` already says
-    structural.
+    All three containment tests are driven: `upstream`'s, `origin`'s on a lagging cache, and the
+    ancestry test against the cache. None may state containment as a fact on that status, and each
+    message says whether git did not run or which status it exited with, because the next action
+    differs: `git fsck` for a status, the git installation for a git that never ran.
     """
     repo, _, trunk = _fork(tmp_path)
+    if site == "trunk":
+        run_git(repo, "remote", "remove", "upstream")
     asked = _lagging(repo, trunk) if site == "origin" else trunk
+    status = 128 if failure == "exited" else subject.COULD_NOT_RUN
     real = subject._git
 
     def corrupt(*args, root):
         if args[:2] == ("merge-base", "--is-ancestor") and args[2] == asked:
-            return 128, ""
+            return status, ""
         return real(*args, root=root)
 
     monkeypatch.setattr(subject, "_git", corrupt)
     assert subject.main(repo) == 2
-    failure = capsys.readouterr().err
-    assert "missing or corrupt object" in failure
-    assert "does not contain it" not in failure
+    said = capsys.readouterr().err
+    assert "does not contain it" not in said
+    if failure == "exited":
+        assert "git exited with status 128, which means a missing or corrupt object" in said
+        assert "Run `git fsck`" in said
+    else:
+        assert "git did not run.\nCheck that git is on PATH" in said
+        assert "git fsck" not in said
 
 
 # --- passes -----------------------------------------------------------------------------------
@@ -342,15 +352,39 @@ def test_an_unreachable_origin_carries_what_upstream_said(tmp_path, capsys, cano
         assert "Whether HEAD contains the canonical trunk was NOT established" in captured.err
 
 
-def test_a_git_that_cannot_say_whether_upstream_is_configured_degrades(
-    tmp_path, monkeypatch, capsys
+@pytest.mark.parametrize("failure", ["exited", "did-not-run"])
+def test_a_git_that_cannot_say_whether_upstream_is_configured_refuses(
+    tmp_path, monkeypatch, capsys, failure
 ):
-    """`configured` answering None is "could not be consulted", not "not configured"."""
-    repo, _, _ = _fork(tmp_path)
-    monkeypatch.setattr(subject, "configured", lambda root, remote: None)
+    """`configured` answering None is structural for `upstream`, never a silent skip.
 
-    assert rebased_verdict(repo) == 0
-    assert f"`upstream`: {UNCONSULTED}" in capsys.readouterr().err
+    `git config --get` exits 1 for an unset key and 3 for a config file it cannot parse; reading
+    every non-zero status as "unset" would skip the canonical probe without a word. The lookup is
+    local, so no fetch can fix it, and the refusal says whether git did not run or its status.
+    """
+    import tools._remote as probe
+
+    repo, _, _ = _fork(tmp_path)
+    real = probe.run
+
+    def broken(args, **kwargs):
+        if list(args) != ["config", "--get", "remote.upstream.url"]:
+            return real(args, **kwargs)
+        if failure == "did-not-run":
+            raise OSError("git is not on PATH")
+        return subprocess.CompletedProcess(args, 3, stdout="", stderr="fatal: bad config")
+
+    monkeypatch.setattr(probe, "run", broken)
+
+    assert rebased_verdict(repo) == 2
+    captured = capsys.readouterr()
+    why = (
+        "git did not run"
+        if failure == "did-not-run"
+        else "`git config --get remote.upstream.url` exited with status 3"
+    )
+    assert f"git could not say whether `upstream` is a configured remote ({why})" in captured.err
+    assert captured.out == ""
 
 
 # --- several canonical remotes ------------------------------------------------------------------

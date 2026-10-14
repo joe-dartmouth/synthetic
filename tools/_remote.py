@@ -8,7 +8,8 @@ It runs its own git calls through `tools._git.run` rather than through `check_re
 `_git` wrapper, which is what makes the split acyclic. That also means it does not use that
 module's `COULD_NOT_RUN` sentinel: every way the trunk lookup fails is a *reason string*, because
 a freshness probe that cannot answer is a supported outcome rather than a structural one, and the
-caller degrades on it. :func:`configured` answers None instead, for the reason its docstring gives.
+caller degrades on it. :func:`configured` answers None with a reason, for the reason its docstring
+gives, and the checker decides per remote whether that degrades or refuses.
 
 ADR `tooling/refuse-a-stale-trunk-ref` owns why this exists.
 """
@@ -33,7 +34,11 @@ TRUNK_LABEL: Final = f"{REMOTE}/main"
 """How the trunk is named in operator-facing text, where the qualified form only adds noise."""
 
 UNCONSULTED: Final = "git could not be consulted about the remote"
-"""The reason given when git did not run to answer whether a remote is configured."""
+"""The reason :func:`_remote_trunk` gives when git could not say whether a remote is configured.
+
+:func:`configured`'s own reason follows it in parentheses, naming whether git did not run or which
+status it exited with.
+"""
 
 CANONICAL_REMOTES: Final = ("upstream",)
 """Remotes that, when configured, hold the canonical trunk of a fork.
@@ -81,15 +86,19 @@ never fix this one, so the two need different next actions.
 """
 
 
-def configured(root: Path, remote: str) -> bool | None:
-    """Whether `remote` is a configured remote of `root`, or None when git could not say.
+def configured(root: Path, remote: str) -> tuple[bool | None, str]:
+    """Whether `remote` is a configured remote of `root`, or None and why git could not say.
 
     **A configured remote, not a path.** `git ls-remote <name>` falls back to resolving the name as
     a *directory* when no such remote is configured, so a bare repository committed at `./origin`
     would answer for the trunk. That is the same shadowing class as a local branch named
-    `origin/main`, which `check_rebased.TRUNK` closes by qualifying the ref. None rather than False
-    when git itself did not run: False would state a fact about the repository off the back of a
-    call that never happened, which is the defect `check_rebased.COULD_NOT_RUN` exists to prevent.
+    `origin/main`, which `check_rebased.TRUNK` closes by qualifying the ref.
+
+    **None rather than False unless git answered "unset".** `git config --get` exits 1 for a key
+    that is not set and 3 for a config file it cannot parse, among other statuses; only 1 is an
+    answer. False off any other status, or off a call that never ran, would state a fact about the
+    repository that git did not establish, which is the defect `check_rebased.COULD_NOT_RUN`
+    exists to prevent, and for `upstream` it would skip the canonical probe without a word.
 
     Args:
         root: The repository to read.
@@ -97,13 +106,18 @@ def configured(root: Path, remote: str) -> bool | None:
 
     Returns:
         True when `remote.<name>.url` is set to a non-empty value, False when it is unset or empty
-        (git would refuse an empty URL anyway), None when git could not run.
+        (git would refuse an empty URL anyway), each with an empty reason; or None with a reason
+        naming why git could not say: it did not run, or the status it exited with.
     """
     try:
         found = run(["config", "--get", f"remote.{remote}.url"], root=root, check=False)
     except subprocess.TimeoutExpired, OSError:
-        return None
-    return found.returncode == 0 and bool(found.stdout.strip())
+        return None, "git did not run"
+    if found.returncode == 1:
+        return False, ""
+    if found.returncode != 0:
+        return None, f"`git config --get remote.{remote}.url` exited with status {found.returncode}"
+    return bool(found.stdout.strip()), ""
 
 
 def _remote_trunk(root: Path, remote: str = REMOTE) -> tuple[str | None, str]:
@@ -135,9 +149,9 @@ def _remote_trunk(root: Path, remote: str = REMOTE) -> tuple[str | None, str]:
     """
     # The configured-remote guard is :func:`configured`'s, and its two failure cases take different
     # reasons for the reason that function's docstring gives.
-    known = configured(root, remote)
+    known, why = configured(root, remote)
     if known is None:
-        return None, UNCONSULTED
+        return None, f"{UNCONSULTED} ({why})"
     if not known:
         return None, f"no `{remote}` remote is configured"
     return advertised_trunk(root, remote)

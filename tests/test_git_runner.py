@@ -206,6 +206,27 @@ def test_the_runner_closes_stdin():
     assert finished.stdout.strip() == EMPTY_BLOB
 
 
+def test_the_runner_decodes_output_that_is_not_utf8_rather_than_raising(tmp_path):
+    """A byte that is not UTF-8 comes back as a lone surrogate, and encodes back to itself.
+
+    A strict decode raises `UnicodeDecodeError` out of :func:`tools._git.run`, a traceback that
+    exits 1, which `check_file_size` would report as a file over its cap and `check_rebased` as a
+    branch that is behind. The blob holds bytes that open no valid UTF-8 sequence, so `cat-file`
+    prints them verbatim; the round trip is what lets a decoded path still name its file.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init(repo)
+    raw = b"\xff\xfe not utf-8\n"
+    (repo / "blob.bin").write_bytes(raw)
+    blob = run(["hash-object", "-w", "--", "blob.bin"], root=repo, check=True).stdout.strip()
+
+    shown = run(["cat-file", "blob", blob], root=repo, check=True).stdout
+
+    assert shown.startswith("\udcff\udcfe"), f"the bytes did not decode to surrogates: {shown!r}"
+    assert shown.encode("utf-8", "surrogateescape") == raw
+
+
 def test_the_runner_raises_on_a_failing_command_when_the_caller_asks():
     """`check=True` is forwarded, which `check_file_size.py` reads to notice a failed listing."""
     with pytest.raises(subprocess.CalledProcessError):
@@ -474,6 +495,13 @@ def test_the_rebase_check_admits_a_case_changed_spelling_of_the_checkout(tmp_pat
     assert subject._preflight(_respelled_checkout(tmp_path)) is None
 
 
+_NETWORK_RECIPES = frozenset({"tools.check_rebased"})
+"""The checkers whose real run reaches the network: `check_rebased` asks `origin` with `ls-remote`.
+
+Its recipe case is marked `integration`; the other two read only the checkout and the environment.
+"""
+
+
 def _checker_recipes() -> list[list[str]]:
     """Every Makefile recipe line that runs something under `tools/`, as argv.
 
@@ -497,7 +525,17 @@ def _checker_recipes() -> list[list[str]]:
     return [list(recipe) for recipe in distinct]
 
 
-@pytest.mark.parametrize("recipe", _checker_recipes(), ids=operator.itemgetter(-1))
+@pytest.mark.parametrize(
+    "recipe",
+    [
+        pytest.param(
+            recipe,
+            id=recipe[-1],
+            marks=[pytest.mark.integration] if recipe[-1] in _NETWORK_RECIPES else [],
+        )
+        for recipe in _checker_recipes()
+    ],
+)
 def test_each_checker_recipe_still_runs(recipe):
     """Run what the Makefile runs, with `uv run` replaced by this interpreter.
 

@@ -23,19 +23,22 @@ drifted, `2` structural. Make reads only zero against non-zero; the `1`/`2` spli
 operator and for `tests/test_repo_checkers.py`. Failure text goes to **stderr** and only the success
 line to stdout, so a failure stays attributable when the streams are split.
 
-Structural covers an unreadable or unparseable `uv.lock` and, the case that matters, **fewer
-comparisons than `COMPARISON_FLOOR`**. A lock this module fails to parse into names would compare
-nothing and exit clean, which reads exactly like an environment in agreement, so a scan that finds
-too little is a failure rather than a pass.
+Structural covers every way `uv.lock` fails to read as one version per package, each with its own
+message (:class:`LockReadError`), and, the case that matters, **fewer comparisons than
+`COMPARISON_FLOOR`**. A lock this module fails to parse into names would compare nothing and exit
+clean, which reads exactly like an environment in agreement, so a scan that finds too little is a
+failure rather than a pass. For the same reason a `[[package]]` entry it cannot read refuses the
+lock rather than being skipped: a skipped entry is a package whose drift goes unchecked.
 
 **A locked package that is not installed is reported and does not fail.** `make setup` installs the
 `dev` extra rather than the whole lock, so absence is the ordinary state and treating it as drift
 would make this refuse the environment `make setup` produces.
 
-**So this module cannot see a missing extra, and the step after it can.** A tree that has not
-re-run `make setup` since an extra joined it passes here, because absence is not drift, and is
-refused by `make typecheck` one step later: `ty` reports `unresolved-import` per site, with the
-file, the line and the interpreter it searched, and `ty.toml` sets `error-on-warning = true`.
+**So this module cannot see a missing extra, and a later step of the gate can.** A tree that has
+not re-run `make setup` since an extra joined it passes here, because absence is not drift, and is
+refused by `make typecheck`, which `make check` runs after this step: `ty` reports
+`unresolved-import` per site, with the file, the line and the interpreter it searched, and
+`ty.toml` sets `error-on-warning = true`.
 """
 
 from __future__ import annotations
@@ -81,6 +84,16 @@ written here.
 """
 
 
+class LockReadError(Exception):
+    """`uv.lock` could not be read as one version per package; the message names how.
+
+    One type for every cause, because `main` refuses them all the same way, and a message per cause,
+    because the operator's next step differs: an unreadable file, a file that is not UTF-8 TOML, a
+    lock with no `[[package]]` array, an entry that is not a table or lacks a string `name` or
+    `version`, and a package pinned at two versions.
+    """
+
+
 def normalize(name: str) -> str:
     """Return the PEP 503 normalized form of a distribution name.
 
@@ -110,30 +123,43 @@ def locked_versions(lock_path: Path = LOCK_PATH) -> dict[str, str]:
         lock_path: The `uv.lock` to read.
 
     Returns:
-        Normalized name to locked version. Empty when the file cannot be read or parsed, which the
-        caller reports as structural rather than clean.
+        Normalized name to locked version, never empty.
+
+    Raises:
+        LockReadError: If the lock cannot be read as one version per package, naming the cause.
     """
     # **`UnicodeDecodeError` is named explicitly, and it has to be.** A lock with invalid UTF-8
     # raises it, and it is a `ValueError`, neither `OSError` nor `TOMLDecodeError`, so without the
-    # explicit name it would escape this handler, exit 1 with a traceback, and the Makefile would
-    # read that as "drifted". `tomllib.load` calls `b.decode()` itself and lets the error
-    # propagate, so handing it bytes does not convert the error. Reading bytes is kept because it
-    # is the documented entry point.
+    # explicit name it would escape, exit 1 with a traceback, and the Makefile would read that as
+    # "drifted". `tomllib.load` calls `b.decode()` itself and lets the error propagate, so handing
+    # it bytes does not convert the error. Reading bytes is kept because it is the documented entry
+    # point.
     try:
         with lock_path.open("rb") as handle:
             document = tomllib.load(handle)
-    except OSError, tomllib.TOMLDecodeError, UnicodeDecodeError:
-        return {}
+    except OSError as exc:
+        raise LockReadError(f"could not be read ({exc.strerror or exc})") from exc
+    except UnicodeDecodeError as exc:
+        raise LockReadError(f"is not valid UTF-8 ({exc.reason} at byte {exc.start})") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise LockReadError(f"is not valid TOML ({exc})") from exc
     packages = document.get("package")
     if not isinstance(packages, list):
-        return {}
+        found = "no `package` key" if packages is None else f"a `package` {type(packages).__name__}"
+        raise LockReadError(f"holds {found} rather than a `[[package]]` array of tables")
+    if not packages:
+        raise LockReadError("holds an empty `[[package]]` array, so it pins nothing")
     versions: dict[str, str] = {}
-    for package in packages:
+    for index, package in enumerate(packages):
         if not isinstance(package, dict):
-            continue
+            raise LockReadError(f"has a `[[package]]` entry at index {index} that is not a table")
         name, locked = package.get("name"), package.get("version")
-        if not isinstance(name, str) or not isinstance(locked, str):
-            continue
+        if not isinstance(name, str):
+            raise LockReadError(f"has a `[[package]]` entry at index {index} with no string `name`")
+        if not isinstance(locked, str):
+            raise LockReadError(
+                f"has a `[[package]]` entry at index {index} (`{name}`) with no string `version`"
+            )
         key = normalize(name)
         # **Last-wins would be a silent wrong answer**, so a repeated name refuses the whole lock
         # instead. `uv.lock` can hold two `[[package]]` blocks for one name when a resolution
@@ -141,7 +167,10 @@ def locked_versions(lock_path: Path = LOCK_PATH) -> dict[str, str]:
         # whichever block came last reports drift that is not drift. **No entry count is written
         # here**: `grep -c '^name = ' uv.lock` is the derivation.
         if key in versions and versions[key] != locked:
-            return {}
+            raise LockReadError(
+                f"pins `{key}` at two versions, {versions[key]} and {locked} (index {index}), and "
+                "one installed version cannot be compared against both"
+            )
         versions[key] = locked
     return versions
 
@@ -175,18 +204,19 @@ def main() -> int:
 
     Returns:
         0 when every compared package agrees, 1 when any disagrees, 2 when the lock could not be
-        read or too few packages were compared to mean anything.
+        read as one version per package or too few packages were compared to mean anything.
     """
     # `LOCK_PATH` is passed explicitly rather than left to the parameter default, which binds at
     # definition time: a caller that repoints the module attribute, which is how the tests drive
-    # the unreadable-lock arm, would otherwise still read the original path, and the arm would
+    # the unreadable-lock arms, would otherwise still read the original path, and the arm would
     # pass while testing nothing.
-    locked = locked_versions(LOCK_PATH)
-    if not locked:
+    try:
+        locked = locked_versions(LOCK_PATH)
+    except LockReadError as exc:
         print(
-            f"{LOCK_PATH} could not be read as a uv lock file holding one version per package, so "
-            "nothing was compared. A gate that compares nothing exits clean and reads exactly "
-            "like an environment in agreement, so this is a failure rather than a pass.",
+            f"{LOCK_PATH} {exc}, so it was not compared against this environment. Comparing what "
+            "could be read would pass the rest unchecked, and a gate that compares nothing reads "
+            "exactly like an environment in agreement, so this is a failure rather than a pass.",
             file=sys.stderr,
         )
         return 2

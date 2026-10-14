@@ -89,7 +89,47 @@ def test_the_rebase_check_refuses_a_branch_the_trunk_has_moved_past(tmp_path, mo
     run_git(repo, "switch", "main")
 
     assert rebased_verdict(repo) == 1
-    assert "git fetch origin main" in capsys.readouterr().err
+    assert "Run `git fetch origin && git rebase origin/main`" in capsys.readouterr().err
+
+
+def test_the_rebase_check_refuses_a_repository_with_no_commits(tmp_path, capsys):
+    """An unborn HEAD has no commit to compare, so it is structural rather than a pass.
+
+    The message carries git's status, and says what an unborn branch is, because "HEAD does not
+    resolve" alone does not tell the operator that committing is the fix.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run_git(repo, "init", "--initial-branch", "main")
+
+    assert rebased_verdict(repo) == 2
+    failure = capsys.readouterr().err
+    assert "HEAD does not resolve to a commit (git exited with status " in failure
+    assert "the branch has no commits yet" in failure
+
+
+def test_a_git_that_cannot_run_for_head_is_not_reported_as_an_unborn_branch(
+    tmp_path, monkeypatch, capsys
+):
+    """A git that did not run says so; it must not be stated as a fact about HEAD."""
+    import tools.check_rebased as subject
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_repo(repo)
+    real = subject._git
+
+    def unrunnable(*args, root):
+        if args == ("rev-parse", "HEAD"):
+            return subject.COULD_NOT_RUN, ""
+        return real(*args, root=root)
+
+    monkeypatch.setattr(subject, "_git", unrunnable)
+
+    assert subject.main(repo) == 2
+    failure = capsys.readouterr().err
+    assert "git could not be consulted about HEAD" in failure
+    assert "does not resolve to a commit" not in failure
 
 
 def test_the_rebase_check_does_not_apply_without_a_trunk_ref(tmp_path, capsys):
@@ -148,7 +188,8 @@ def test_the_rebase_check_does_not_apply_mid_rebase(tmp_path, capsys):
 
     Mid-rebase the working tree is neither the branch's nor the result's, and the message this
     check prints on success is the strongest sentence in the module: "the measured tree is the
-    tree that will land". Abstaining is the honest answer.
+    tree that will land". Abstaining is the honest answer, and it goes to stderr: exit 0 with
+    nothing measured is a run the operator must read, which `make check >/dev/null` hides on stdout.
     """
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -156,7 +197,9 @@ def test_the_rebase_check_does_not_apply_mid_rebase(tmp_path, capsys):
     (repo / ".git" / "rebase-merge").mkdir()
 
     assert rebased_verdict(repo) == 0
-    assert "rebase is in progress" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "rebase is in progress" in captured.err
+    assert captured.out == ""
 
 
 def test_the_rebase_check_does_not_apply_mid_bisect(tmp_path, capsys):
@@ -172,7 +215,38 @@ def test_the_rebase_check_does_not_apply_mid_bisect(tmp_path, capsys):
     (repo / ".git" / "BISECT_LOG").write_text("", encoding="utf-8")
 
     assert rebased_verdict(repo) == 0
-    assert "bisect is in progress" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "bisect is in progress" in captured.err
+    assert captured.out == ""
+
+
+@pytest.mark.parametrize("failure", ["exited", "did-not-run"])
+def test_a_git_directory_git_cannot_report_is_structural(tmp_path, monkeypatch, capsys, failure):
+    """Without the git directory, whether a rebase or bisect is in progress is unknown.
+
+    Proceeding would run the ancestry test mid-rebase, where a pass describes a tree that is
+    neither the branch's nor the result's. The message says whether git did not run or which
+    status it exited with.
+    """
+    import tools.check_rebased as subject
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    init_repo(repo)
+    (repo / ".git" / "rebase-merge").mkdir()
+    status = 128 if failure == "exited" else subject.COULD_NOT_RUN
+    real = subject._git
+
+    def broken(*args, root):
+        if args == ("rev-parse", "--absolute-git-dir"):
+            return status, ""
+        return real(*args, root=root)
+
+    monkeypatch.setattr(subject, "_git", broken)
+
+    assert subject.main(repo) == 2
+    expected = "git exited with status 128" if failure == "exited" else "git did not run"
+    assert f"could not report this checkout's git directory ({expected})" in capsys.readouterr().err
 
 
 def test_a_git_that_cannot_run_is_structural_at_every_call_site(tmp_path, monkeypatch, capsys):
@@ -228,7 +302,7 @@ def test_a_git_that_cannot_run_is_structural_at_every_call_site(tmp_path, monkey
             f"a git failure at call {fail_after + 1} did not report as structural; a verdict "
             "of 0 here would be a claim about refs that was never measured"
         )
-        assert "could not be" in capsys.readouterr().err
+        assert "could not" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -295,74 +369,106 @@ def test_the_lock_drift_check_fails_rather_than_only_reporting(tmp_path, monkeyp
     assert subject.REMEDIATION in captured
 
 
-def test_the_lock_drift_check_refuses_a_lock_that_names_one_package_twice(tmp_path, monkeypatch):
-    """A forked lock must refuse rather than silently pick whichever block came last.
+_ONE = '[[package]]\nname = "a"\nversion = "1"\n'
+"""A well-formed entry, so a malformed one after it sits at index 1."""
 
-    `uv.lock` can hold two `[[package]]` blocks for one name when a resolution forks on a platform
-    or Python marker. Comparing the installed version against the last one reports drift that is
-    not drift, and `COMPARISON_FLOOR` cannot see it because the count is unaffected.
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (None, "could not be read (No such file or directory)"),
+        (b'[[package]]\nname = "\xff\xfe"\n', "is not valid UTF-8 (invalid start byte"),
+        (b"[[package]\n", "is not valid TOML ("),
+        (b"version = 1\n", "holds no `package` key rather than a `[[package]]` array"),
+        (b'package = "x"\n', "holds a `package` str rather than a `[[package]]` array"),
+        (b"package = []\n", "holds an empty `[[package]]` array"),
+        (b"package = [1]\n", "has a `[[package]]` entry at index 0 that is not a table"),
+        (
+            b'[[package]]\nversion = "1"\n',
+            "has a `[[package]]` entry at index 0 with no string `name`",
+        ),
+        (
+            (_ONE + '[[package]]\nname = "b"\nversion = 2\n').encode(),
+            "has a `[[package]]` entry at index 1 (`b`) with no string `version`",
+        ),
+        (
+            (
+                b'[[package]]\nname = "PyTest"\nversion = "9.1.1"\n\n'
+                b'[[package]]\nname = "pytest"\nversion = "8.0.0"\n'
+            ),
+            "pins `pytest` at two versions, 9.1.1 and 8.0.0 (index 1)",
+        ),
+    ],
+    ids=[
+        "absent",
+        "not-utf8",
+        "not-toml",
+        "no-package-key",
+        "package-not-array",
+        "empty-array",
+        "entry-not-table",
+        "entry-without-name",
+        "entry-without-version",
+        "two-versions",
+    ],
+)
+def test_a_lock_that_is_not_one_version_per_package_is_structural_and_says_why(
+    tmp_path, monkeypatch, capsys, content, expected
+):
+    """Every way the lock fails to read is exit 2, and the message names which way.
+
+    One generic message for all of them would send the operator to the wrong fix. Two cases carry
+    the reasoning: invalid UTF-8 raises `UnicodeDecodeError`, neither `OSError` nor
+    `TOMLDecodeError`, which unhandled would exit 1 and read as drift; and a forked lock, two
+    `[[package]]` blocks for one name, would otherwise be compared against whichever came last,
+    reporting drift that is not drift where `COMPARISON_FLOOR` cannot see it.
+
+    `main` reads `LOCK_PATH` at call time, so repointing it is how `main` is driven here; a
+    parameter default would still read the real lock, which is well formed, and exit 0.
     """
     import tools.check_lock_drift as subject
 
-    lock = tmp_path / "forked.lock"
-    lock.write_text(
-        '[[package]]\nname = "pytest"\nversion = "9.1.1"\n\n'
-        '[[package]]\nname = "pytest"\nversion = "8.0.0"\n',
-        encoding="utf-8",
+    lock = tmp_path / "uv.lock"
+    if content is not None:
+        lock.write_bytes(content)
+
+    with pytest.raises(subject.LockReadError, match=re.escape(expected)):
+        subject.locked_versions(lock)
+    monkeypatch.setattr(subject, "LOCK_PATH", lock)
+    assert subject.main() == 2
+    captured = capsys.readouterr()
+    assert f"{lock} {expected}" in captured.err
+    assert captured.out == ""
+
+
+def test_an_entry_the_lock_cannot_read_refuses_a_lock_that_would_otherwise_pass(
+    tmp_path, monkeypatch, capsys
+):
+    """A malformed entry is not skipped: skipping it is a package whose drift goes unchecked.
+
+    Every other entry names an installed package at its installed version, enough to clear
+    `COMPARISON_FLOOR`, so a checker that skipped the malformed one would exit 0 with "agree". The
+    control runs the well-formed entries alone and must pass.
+    """
+    import tools.check_lock_drift as subject
+
+    names = sorted(
+        {subject.normalize(d.metadata["Name"]) for d in _installed() if d.metadata["Name"]}
     )
-
-    assert subject.locked_versions(lock) == {}
-    monkeypatch.setattr(subject, "LOCK_PATH", lock)
-    assert subject.main() == 2
-
-
-def test_the_lock_drift_check_treats_undecodable_bytes_as_structural(tmp_path, monkeypatch, capsys):
-    """A lock that is not valid UTF-8 is unparseable, not drifted.
-
-    A lock with invalid UTF-8 raises `UnicodeDecodeError`, which is a `ValueError` and neither
-    `OSError` nor `TOMLDecodeError`, and `tomllib.load` lets it propagate. Unhandled it would exit 1
-    with a traceback, which the Makefile reads as drift, so the checker names it explicitly.
-    """
-    import tools.check_lock_drift as subject
-
-    lock = tmp_path / "binary.lock"
-    lock.write_bytes(b'[[package]]\nname = "\xff\xfe"\n')
+    assert len(names) > subject.COMPARISON_FLOOR, "the fixture cannot clear the comparison floor"
+    good = "".join(
+        f'[[package]]\nname = "{name}"\nversion = "{version(name)}"\n\n' for name in names
+    )
+    lock = tmp_path / "uv.lock"
     monkeypatch.setattr(subject, "LOCK_PATH", lock)
 
+    lock.write_text(good, encoding="utf-8")
+    assert subject.main() == 0, "the control: the well-formed entries alone agree"
+    capsys.readouterr()
+
+    lock.write_text(good + '[[package]]\nname = "unversioned"\n', encoding="utf-8")
     assert subject.main() == 2
-    assert "could not be read" in capsys.readouterr().err
-
-
-def test_the_lock_drift_check_refuses_a_lock_that_is_not_a_package_table(tmp_path, monkeypatch):
-    """A readable lock whose `package` key is the wrong shape compares nothing, so it is structural.
-
-    Parseable TOML is not the same property as "a uv lock", and a gate that compares nothing must
-    not exit clean.
-    """
-    import tools.check_lock_drift as subject
-
-    lock = tmp_path / "wrong.lock"
-    lock.write_text('package = "not a list"\n', encoding="utf-8")
-
-    assert subject.locked_versions(lock) == {}
-    monkeypatch.setattr(subject, "LOCK_PATH", lock)
-    assert subject.main() == 2
-
-
-def test_the_lock_drift_check_refuses_a_lock_it_cannot_read(tmp_path, monkeypatch, capsys):
-    """An unreadable lock compares nothing, and comparing nothing must not read as agreement.
-
-    `main` must read `LOCK_PATH` at call time: a parameter default binds at definition time, so
-    repointing the module attribute would leave the original path in place and the arm would pass
-    while measuring the real lock.
-    """
-    import tools.check_lock_drift as subject
-
-    assert subject.locked_versions(tmp_path / "absent.lock") == {}
-    monkeypatch.setattr(subject, "LOCK_PATH", tmp_path / "absent.lock")
-
-    assert subject.main() == 2
-    assert "could not be read" in capsys.readouterr().err
+    assert "(`unversioned`) with no string `version`" in capsys.readouterr().err
 
 
 def test_the_lock_drift_check_refuses_a_lock_too_small_to_mean_anything(
@@ -804,7 +910,7 @@ def test_a_git_that_cannot_answer_about_the_remote_is_not_reported_as_no_remote(
     real = probe.run
 
     def broken(args, **kwargs):
-        if args[:2] == ["config", "--get"]:
+        if args == ["config", "--get", "remote.origin.url"]:
             raise OSError("git could not be executed")
         return real(args, **kwargs)
 
@@ -812,7 +918,7 @@ def test_a_git_that_cannot_answer_about_the_remote_is_not_reported_as_no_remote(
 
     assert rebased_verdict(repo) == 0
     failure = capsys.readouterr().err
-    assert "git could not be consulted about the remote" in failure
+    assert "git could not be consulted about the remote (git did not run)" in failure
     assert "no `origin` remote is configured" not in failure, (
         "a git that never ran must not be reported as a repository with no remote"
     )

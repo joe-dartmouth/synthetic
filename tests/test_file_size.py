@@ -15,12 +15,14 @@ silently stop posing its question.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
 import pytest
 
 from tests._corpus import REPO_ROOT
+from tests._git_fixtures import run_git
 from tools.check_file_size import (
     CAPS,
     DISCOVERY_FLOOR,
@@ -206,7 +208,12 @@ def test_the_count_matches_wc_l_on_a_file_with_no_trailing_newline(tmp_path):
 
     # Fixed argv, and the only interpolated word is a `tmp_path` this test just wrote.
     measured = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-        ["wc", "-l", str(ragged)], capture_output=True, text=True, check=True
+        ["wc", "-l", str(ragged)],
+        capture_output=True,
+        text=True,
+        check=True,
+        stdin=subprocess.DEVNULL,
+        timeout=30,
     ).stdout
     assert int(measured.split()[0]) == line_count(ragged)
 
@@ -290,6 +297,8 @@ def test_main_returns_one_when_a_file_is_over_cap(tmp_path, monkeypatch, capsys)
     `make sizes` reads only the process exit code, so a `main` that found offenders and returned 0
     would be a gate that reports and does not fail.
 
+    The offender lines go to stderr and nothing to stdout, which carries only the success line.
+
     Args:
         tmp_path: A directory to synthesize a tree in.
         monkeypatch: To replace the listing and point the checker at the synthetic root.
@@ -303,9 +312,10 @@ def test_main_returns_one_when_a_file_is_over_cap(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr("tools.check_file_size.DISCOVERY_FLOOR", 1)
 
     assert main() == 1
-    out = capsys.readouterr().out
-    assert "src/big.py" in out
-    assert "over by 200" in out
+    captured = capsys.readouterr()
+    assert "src/big.py" in captured.err
+    assert "over by 200" in captured.err
+    assert captured.out == "", "a failure writes nothing to stdout"
 
 
 def test_main_returns_two_when_the_scan_finds_almost_nothing(tmp_path, monkeypatch, capsys):
@@ -326,7 +336,7 @@ def test_main_returns_two_when_the_scan_finds_almost_nothing(tmp_path, monkeypat
     monkeypatch.setattr("tools.check_file_size.tracked_python_files", lambda root: ["src/one.py"])
 
     assert main() == 2, "one file found is a broken scan, not a small repository"
-    assert "below the floor" in capsys.readouterr().out
+    assert "below the floor" in capsys.readouterr().err
 
 
 def test_main_returns_two_when_a_tracked_file_is_under_no_rule(tmp_path, monkeypatch, capsys):
@@ -345,7 +355,7 @@ def test_main_returns_two_when_a_tracked_file_is_under_no_rule(tmp_path, monkeyp
     )
 
     assert main() == 2
-    assert "under no rule in CAPS" in capsys.readouterr().out
+    assert "under no rule in CAPS" in capsys.readouterr().err
 
 
 def test_main_returns_two_when_git_cannot_list(tmp_path, monkeypatch, capsys):
@@ -364,7 +374,7 @@ def test_main_returns_two_when_git_cannot_list(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("tools.check_file_size.tracked_python_files", boom)
 
     assert main() == 2
-    assert "could not list tracked files" in capsys.readouterr().out
+    assert "could not list tracked files" in capsys.readouterr().err
 
 
 def test_main_returns_two_when_the_root_is_not_the_git_toplevel(tmp_path, monkeypatch, capsys):
@@ -386,7 +396,101 @@ def test_main_returns_two_when_the_root_is_not_the_git_toplevel(tmp_path, monkey
     monkeypatch.setattr("tools.check_file_size.tracked_python_files", boom)
 
     assert main() == 2
-    assert "could not list tracked files" in capsys.readouterr().out
+    assert "could not list tracked files" in capsys.readouterr().err
+
+
+def _checkout(tmp_path):
+    """A git checkout holding one small tracked `src/` file, for driving `main` against real git.
+
+    Returns:
+        The checkout's root.
+    """
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    run_git(repo, "init", "--initial-branch", "main")
+    (repo / "src" / "kept.py").write_bytes(b"\n" * 3)
+    run_git(repo, "add", "src/kept.py")
+    return repo
+
+
+def test_a_tracked_file_missing_from_the_working_tree_is_refused_as_unreadable(
+    tmp_path, monkeypatch, capsys
+):
+    """A read failure is its own refusal, not a failure to list the tracked files.
+
+    A file deleted without `git rm` is still listed, so the listing succeeds and the read fails.
+    Reporting that as "could not list tracked files" would send the operator to debug git.
+
+    Args:
+        tmp_path: A directory to build the checkout in.
+        monkeypatch: To point the checker at the checkout and lower the floor.
+        capsys: To read the refusal.
+    """
+    repo = _checkout(tmp_path)
+    (repo / "src" / "gone.py").write_bytes(b"\n")
+    run_git(repo, "add", "src/gone.py")
+    (repo / "src" / "gone.py").unlink()
+    monkeypatch.setattr("tools.check_file_size.REPO_ROOT", repo)
+    monkeypatch.setattr("tools.check_file_size.DISCOVERY_FLOOR", 1)
+
+    assert main() == 2
+    captured = capsys.readouterr()
+    assert "src/gone.py is tracked but could not be read" in captured.err
+    assert "could not list tracked files" not in captured.err
+    assert captured.out == ""
+
+
+NOT_UTF8 = os.fsdecode(b"src/\xff.py")
+"""A tracked path holding a byte that opens no UTF-8 sequence, as `tools._git.run` decodes it."""
+
+
+def test_a_tracked_path_that_is_not_utf8_is_listed_and_refused_when_unreadable(
+    tmp_path, monkeypatch, capsys
+):
+    """git lists such a path without a decode error, and an absent file refuses with exit 2.
+
+    A strict decode would raise `UnicodeDecodeError` out of the listing: a traceback, exit 1,
+    which `make sizes` reads as a file over its cap. The entry goes into the index directly,
+    because APFS refuses to create the file; with no file behind it, the read fails and the refusal
+    names the path with the byte escaped.
+
+    Args:
+        tmp_path: A directory to build the checkout in.
+        monkeypatch: To point the checker at the checkout and lower the floor.
+        capsys: To read the refusal.
+    """
+    repo = _checkout(tmp_path)
+    blob = run_git(repo, "hash-object", "-w", "--", "src/kept.py").stdout.strip()
+    run_git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{NOT_UTF8}")
+
+    assert sorted(tracked_python_files(repo)) == sorted(["src/kept.py", NOT_UTF8])
+    monkeypatch.setattr("tools.check_file_size.REPO_ROOT", repo)
+    monkeypatch.setattr("tools.check_file_size.DISCOVERY_FLOOR", 1)
+
+    assert main() == 2
+    assert r"src/\xff.py is tracked but could not be read" in capsys.readouterr().err
+
+
+def test_a_tracked_file_whose_name_is_not_utf8_is_measured(tmp_path, monkeypatch, capsys):
+    """Where the filesystem holds such a name, the decoded path names the file and it is measured.
+
+    Args:
+        tmp_path: A directory to build the checkout in.
+        monkeypatch: To point the checker at the checkout and lower the floor.
+        capsys: To read the offender line.
+    """
+    repo = _checkout(tmp_path)
+    cap = BY_PREFIX["src/"]
+    try:
+        (repo / NOT_UTF8).write_bytes(b"\n" * (cap + 1))
+    except OSError:
+        pytest.skip("this filesystem refuses a name that is not valid UTF-8")
+    run_git(repo, "add", "--", NOT_UTF8)
+    monkeypatch.setattr("tools.check_file_size.REPO_ROOT", repo)
+    monkeypatch.setattr("tools.check_file_size.DISCOVERY_FLOOR", 1)
+
+    assert main() == 1, "the file is one line over its cap, so it was measured"
+    assert rf"src/\xff.py: {cap + 1} lines" in capsys.readouterr().err
 
 
 def test_the_documented_exit_codes_are_what_the_process_returns():
@@ -401,8 +505,11 @@ def test_the_documented_exit_codes_are_what_the_process_returns():
         text=True,
         check=False,
         cwd=REPO_ROOT,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stderr == "", "a clean run writes only its success line, and only to stdout"
     assert "none over cap" in result.stdout
     assert f"against {len(CAPS)} rules" in result.stdout, (
         "the success line names how many rules were applied. Matched as a phrase, not as a bare "
@@ -423,6 +530,8 @@ def test_the_success_line_names_what_was_checked():
         text=True,
         check=False,
         cwd=REPO_ROOT,
+        stdin=subprocess.DEVNULL,
+        timeout=120,
     )
     scanned = len(tracked_python_files(REPO_ROOT))
     assert f"{scanned} tracked Python files checked" in result.stdout

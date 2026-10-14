@@ -9,9 +9,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     """Register `--live` and `--allow-all-skipped`.
 
     `--live` is a dedicated flag rather than a reading of `-m`, because no inspection of a marker
-    expression is sound: a hand-written `-m` replaces the one in `addopts`, and an expression such
-    as `not live or e2e` selects a `live` test whenever its other marker matches. A flag has one
-    meaning.
+    expression is sound: an expression such as `not live or e2e` selects a `live` test whenever its
+    other marker matches. A flag has one meaning, and `--live` alone is enough to run paid tests.
 
     Args:
         parser: The pytest argument parser.
@@ -20,7 +19,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--live",
         action="store_true",
         default=False,
-        help="run tests that call a paid API (they are skipped otherwise)",
+        help="run tests marked `live`, which call a paid API; without it they are skipped, "
+        "whatever `-m` selects",
     )
     # The opt-out from `_SkipFloor`, for a run whose every case skipping is what the operator
     # meant -- `-k` over the paid tests without `--live`, say. A flag rather than a default,
@@ -109,9 +109,10 @@ class _SkipFloor:
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Skip `live` tests unless `--live` was passed, whatever `-m` says.
 
-    `addopts`' `-m 'not live'` is not a floor: pytest's `-m` replaces the one in `addopts` instead
-    of composing with it, so any hand-written selector re-enables every `live` test. `-m live`
-    still selects them, and this hook then skips them, naming the flag.
+    **This hook is the only gate on paid tests.** `addopts` carries no `-m`, so every `live` test is
+    collected and then skipped here, with a reason naming the flag. `-m` chooses among collected
+    tests and cannot lift the skip: `-m live` without `--live` reports each paid test skipped, and
+    `--live` alone runs them.
 
     The skip keys on the `live` marker itself, never on `item.keywords`: a test's keywords hold the
     name of every collection node above it, so a checkout in a directory named `live` would skip

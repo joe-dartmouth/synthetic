@@ -56,7 +56,10 @@ def run_git(path, *args):
             ["git", *args],
             cwd=path,
             capture_output=True,
-            text=True,
+            # Decoded as `tools._git.run` decodes, so a fixture that plants a path that is not
+            # valid UTF-8 reads back the same string the checker sees.
+            encoding="utf-8",
+            errors="surrogateescape",
             check=True,
             stdin=subprocess.DEVNULL,
             timeout=30,
