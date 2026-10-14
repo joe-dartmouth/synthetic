@@ -19,8 +19,8 @@ representation. The planned pipeline:
 
 1. **Represent.** Load MONDO and HPO as BKO fragments, and the dataset as a second fragment weighted
    by observed frequency.
-2. **Detect.** Statements the ontology implies but the data does not support are the formal
-   definition of a dataset gap.
+2. **Detect.** Statements the ontology implies but the data does not support are the plan's formal
+   definition of a dataset gap (ADR `research/bko-formal-gap-definition`).
 3. **Generate and validate.** Generate candidate records for each gap through the Anthropic
    Messages API, guided by the ontology, and validate each before augmentation.
 4. **Evaluate.** On UCI Heart Disease, compare rare-class recall and AUC-PR against no

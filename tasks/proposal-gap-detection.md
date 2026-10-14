@@ -23,7 +23,8 @@ Detect: statements the fused ontology implies but the dataset fragment does not 
 
 **In.**
 
-- Add the dataset as a fragment weighted by observed frequency and list ungrounded statements in `src/bko/gaps/`.
+- Add the dataset as a fragment weighted by observed frequency and list ungrounded statements in
+  `src/bko/gaps/`.
 - List count-based gaps from the cell counts.
 - Run both on the Synthea ablation, where the removed cases are the ground truth.
 
@@ -31,5 +32,9 @@ Detect: statements the fused ontology implies but the dataset fragment does not 
 
 ## Acceptance
 
-- Both gap lists reproduce with one command; the Synthea ablation's recovery of removed cases is recorded in `docs/EVIDENCE.md`.
+- If BKO instantiation cannot run on the fused fragments by Status Update 1, say so in
+  `docs/EVIDENCE.md`: ADR `research/bko-formal-gap-definition` then makes the count-based
+  definition primary.
+- Both gap lists reproduce with one command; the Synthea ablation's recovery of removed cases is
+  recorded in `docs/EVIDENCE.md`.
 - `make check`.

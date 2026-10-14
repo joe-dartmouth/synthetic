@@ -17,13 +17,15 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 ## Why this unit exists
 
-Each candidate record is validated before augmentation, and the validity criterion asks for at least 95% passing ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)).
+Each candidate record is validated before augmentation, and the validity criterion asks for at least
+95% passing ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)).
 
 ## Scope
 
 **In.**
 
-- Consistency checks in `src/bko/validate/` built from the mapping table's range constraints and ontology relationships, with a per-check rejection count.
+- Consistency checks in `src/bko/validate/` built from the mapping table's range constraints and
+  ontology relationships, with a per-check rejection count.
 
 **Out.** Generating the records.
 

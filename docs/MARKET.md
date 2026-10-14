@@ -29,11 +29,11 @@ The brief (E12) calls synthetic health data a real, funded market with recent M&
   workflow-centric product.
 - **MOSTLY AI** (Vienna, founded 2017). Raised ~$31M, including a $25M Series B (Jan 2022) led by
   Molten Ventures ("Europe's largest synthetic-data investment"). Released an open-source Synthetic
-  Data SDK (Feb 2025). The brand was acquired by Syntho, confirmed by a Syntho press release (June 9,
-  2026): "Syntho … today announced the acquisition of the MOSTLY AI Brand. Going forward, the MOSTLY
-  AI brand will continue under the name 'MOSTLY AI, powered by Syntho,'" with Syntho acquiring the
-  trademark and related assets after the company wound down operations. *Caution*: the wind-down is
-  among the statuses the brief says to cite cautiously.
+  Data SDK (Feb 2025). The brand was acquired by Syntho, confirmed by a Syntho press release (June
+  9, 2026): "Syntho … today announced the acquisition of the MOSTLY AI Brand. Going forward, the
+  MOSTLY AI brand will continue under the name 'MOSTLY AI, powered by Syntho,'" with Syntho
+  acquiring the trademark and related assets after the company wound down operations. *Caution*: the
+  wind-down is among the statuses the brief says to cite cautiously.
 - **Tonic.ai** (SF, founded 2018). Raised $45M, including a $35M Series B (Sep 2021) led by Insight
   Partners. Developer-focused synthetic and de-identified test data; publishes HIPAA Expert
   Determination guidance as marketing.

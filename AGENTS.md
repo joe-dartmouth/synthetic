@@ -84,7 +84,8 @@ synthetic/
 - **A quotation mark means byte-for-byte.** Paraphrase without them.
 - **Cite works through the registry.** [`docs/literature.md`](docs/literature.md) holds every work;
   `docs/RESEARCH.md` and `docs/IDEAS.md` cite it reference-style. `tests/test_docs_citations.py`
-  checks citations, relative links, anchors and `§N` references across the docs.
+  checks citations, relative links and anchors across the docs, and that a link reading "section N"
+  points at section N.
 - **Task sets:** `tasks/<set>-index.md` is a set's graph and status board, and each unit is one PR.
   A landed unit's file is deleted after rehoming what it deferred; a set gets no companion page
   under `docs/`. `tests/test_task_units.py` enforces the unit schema.

@@ -85,8 +85,9 @@ and the completeness criterion counts the detected gaps that close after fusion
 ### Two kinds of gap, evaluated separately
 
 Count-based gaps and BKO-detected gaps are evaluated separately. The ADR fixes count-based gaps as
-the age–sex subgroup-label combinations under the [section 2](#2-intended-users-and-evaluation-setting)
-threshold, kept as the comparison the formal definition is measured against.
+the age–sex subgroup-label combinations under the
+[section 2](#2-intended-users-and-evaluation-setting) threshold, kept as the comparison the formal definition
+is measured against.
 
 ## 4. Success criteria
 
@@ -111,8 +112,11 @@ The 2-pager leaves three readings open. Each experiment fixes them in its config
 
 - Whether "at least 10%" is a relative improvement or a difference in percentage points.
 - Which class "rare-class recall" measures: the positive label overall, or the label within the
-  underrepresented subgroup-label combinations of [section 2](#2-intended-users-and-evaluation-setting).
+  underrepresented subgroup-label combinations of
+  [section 2](#2-intended-users-and-evaluation-setting).
 - ADASYN is a baseline in 2-pager section 4 but is not named in the primary criterion.
+- 2-pager section 4 joins its four baselines (CTGAN, TVAE, SMOTE, ADASYN) with "or". The plan runs
+  all four, and E1's configuration records that choice.
 
 ## 5. Evaluation contract
 
@@ -135,8 +139,7 @@ SynthEval, TableEvaluator and Anonymeter. The repository uses:
 - SDMetrics for fidelity;
 - SDMetrics' `DCRBaselineProtection` and `DCROverfittingProtection` for distance to closest record.
 
-synthcity is not a dependency: its newest release (0.2.12) pins torch<2.3 and numpy<2.0 and does not
-resolve on Python 3.14 (ADR
+synthcity is not a dependency; it does not resolve on this repository's interpreter (ADR
 [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). SynthEval,
 TableEvaluator and Anonymeter are not dependencies either. The brief warns that SDMetrics aggregates
 metrics into single scores, which limits per-metric comparison, and that SynthEval is more granular.
@@ -181,6 +184,10 @@ during high-volume periods. The brief's advice is to build the whole pipeline on
 project never blocks on credentialing, and to start credentialing on day one as a parallel,
 non-blocking track.
 
+**Credentialed data stays local.** The pipeline sends records and their context to the Anthropic
+Messages API. Data held under a DUA must not reach that API or any other third-party service unless
+the DUA permits it; check its current terms before any such run.
+
 ## 7. Augmentation versus resampling
 
 Whether synthetic augmentation beats SMOTE, ADASYN or class weighting is genuinely mixed (brief
@@ -205,8 +212,8 @@ the 2-pager adopted:
 | 5 | "Compare LLM synthesis vs autoencoders (VAE) vs GANs" | Achievable; should be the headline comparison, scored with SDMetrics/synthcity | Adopted: CTGAN, TVAE, SMOTE and ADASYN baselines with no-augmentation and class-weighting controls ([section 4](#4-success-criteria)), scored without synthcity ([section 5](#5-evaluation-contract)) |
 
 The brief's recommended primary thrust is bullets 1, 2, 3 and 5; the 2-pager adopts 1, 3 and 5. The
-verdicts assume three students and 10 weeks. The plan has four members and runs Oct 10 – Nov 25 (47
-days counting both ends), so read each verdict as relative feasibility, not as a schedule.
+verdicts assume three students and 10 weeks. The plan has four members and the [ROADMAP](ROADMAP.md)
+schedule, so read each verdict as relative feasibility, not as a schedule.
 
 ## 9. Source reconciliation
 
@@ -215,8 +222,8 @@ Where the brief and the 2-pager disagree:
 | Topic | Brief | 2-pager / repository | Governs |
 |---|---|---|---|
 | Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition | 2-pager (paper metadata verified 2026-10-13); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
-| BKB library | Not discussed | "no public BKB library exists" | Superseded: [pybkb](ARCHITECTURE.md#pybkb) exists; port planned in [tasks/proposal-bkb-port.md](../tasks/proposal-bkb-port.md) |
-| Team and time | Three students, 10 weeks | Four members, Oct 10 – Nov 25 | 2-pager |
+| BKB library | Not discussed | "no public BKB library exists" | A public library, [pybkb](ARCHITECTURE.md#pybkb), exists; port planned in [tasks/proposal-bkb-port.md](../tasks/proposal-bkb-port.md) |
+| Team and time | Three students, 10 weeks | Four members, the [ROADMAP](ROADMAP.md) schedule | 2-pager |
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |
 | Evaluation stack | SDMetrics + synthcity | scikit-learn, SDMetrics, synthcity | Repository drops synthcity (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)) |
 | Datasets | UCI, Pima, Synthea; MIMIC optional | UCI Heart Disease + Synthea | 2-pager |

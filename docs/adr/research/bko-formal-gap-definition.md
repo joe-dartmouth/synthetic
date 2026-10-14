@@ -45,8 +45,9 @@ reproduced, which is the first milestone in `docs/ROADMAP.md`.
 
 ## Rationale
 
-The ungrounded-statement definition comes with a proof that such statements contribute nothing to
-the distribution, which is what makes it a definition rather than a heuristic. The coverage score
+By the 2-pager's account, Santos et al. prove that such statements contribute nothing to the
+distribution, which would make it a definition rather than a heuristic; the paper is not yet
+fetched, and reproducing its MONDO/DO fusion is what checks the account. The coverage score
 needs a prior and a threshold chosen by the team, and a different choice moves the gap set.
 Evaluating count-based gaps separately keeps the simple definition in the results, so a null result
 for the formal one is still reportable against it.
@@ -61,8 +62,8 @@ schedule depends on it.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Coverage score with a Dirichlet prior as the gap definition | Rests on the premise that BKOs are not an established formalism, which Santos et al. contradicts; its threshold and prior are free choices. Kept as the count-based comparison | 2026-10-07 |
-| PR-OWL / MEBN implementation | Heavyweight, with no maintained tooling; BKOs are the formalism the proposal builds on | 2026-10-07 |
+| Coverage score with a Dirichlet prior as the gap definition | Rests on the premise that BKOs are not an established formalism, which Santos et al. contradicts; its threshold and prior are free choices. Kept as the count-based comparison | 2026-10-13 |
+| PR-OWL / MEBN implementation | Heavyweight, with no maintained tooling; BKOs are the formalism the proposal builds on | 2026-10-13 |
 
 ## Enforcement
 
@@ -72,8 +73,8 @@ schedule depends on it.
 ## Reversal Conditions
 
 **The formal definition is replaced by the count-based one if BKO instantiation cannot run on the
-fused MONDO, HPO and dataset fragments by Status Update 1** (the unit `proposal-gap-detection` in
-`tasks/` reports it). The count-based definition then becomes primary and this record is rewritten.
+fused MONDO, HPO and dataset fragments by Status Update 1** (an acceptance item of
+[`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md)). The count-based definition then becomes primary and this record is rewritten.
 
 **The record becomes `accepted` when the MONDO/DO fusion from Santos et al. is reproduced** with the
 BKB layer.

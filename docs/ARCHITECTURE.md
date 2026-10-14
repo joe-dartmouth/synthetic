@@ -24,9 +24,8 @@ The tools the 2-pager names (section 4):
 | Data | UCI Heart Disease and Synthea, both openly available | [RESEARCH.md](RESEARCH.md#6-datasets) |
 
 **Principal risk.** The 2-pager states: "The principal risk is that no public BKB library exists, so
-the inference layer will be built by the team." That statement is superseded: pybkb is a public BKB
-library ([Prior code](#pybkb)). The inference layer is planned as a port of its core rather than a
-build from nothing, and porting any of it makes this repository GPL-3.0 if distributed.
+the inference layer will be built by the team." A public BKB library exists ([pybkb](#pybkb)); how
+the inference layer uses it is decided in [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
 
 ## Pipeline
 
@@ -50,6 +49,12 @@ flowchart LR
 The dotted edge is the fusion of validated records back into the BKO, after which the completeness
 criterion counts the gaps that close; [BACKGROUND.md](BACKGROUND.md#fusion) explains that reading
 of "after fusion". The Streamlit front end (`bko.app`) sits over every stage.
+
+## Run records
+
+Every experiment run is recorded in [EVIDENCE.md](EVIDENCE.md): its configuration, including the
+dataset snapshot and the generator's model and sampling parameters, and one Runs row per run with
+its id, date, commit, log location and API spend.
 
 ## Package map
 
@@ -89,9 +94,9 @@ and an LLM API.
    implausible rows live, with a rejected-row counter on screen.
 4. **"Human-in-the-loop"** (an optional tab). For the thinnest gaps, the app drafts questions for a
    human expert or an LLM to supply real values.
-5. **"Evaluate".** A one-click dashboard: fidelity (KS/TVD, correlation heatmaps), a TSTR-versus-TRTR
-   AUC/F1 bar chart, and privacy (DCR). The headline number is the rare-class recall/AUC improvement
-   over the no-augmentation baseline.
+5. **"Evaluate".** A one-click dashboard: fidelity (KS/TVD, correlation heatmaps), a
+   TSTR-versus-TRTR AUC/F1 bar chart, and privacy (DCR). The headline number is the rare-class
+   recall/AUC improvement over the no-augmentation baseline.
 6. **Download** the augmented dataset and a one-page "synthetic data quality report".
 
 What the judge sees: an upload, an ontology coverage tree that lights up red and green, a choice of
@@ -113,9 +118,11 @@ The 2-pager's method choices govern where they differ from the flow:
 ### pybkb
 
 [pybkb](https://github.com/di2ag/pybkb), by Chase Yakaboski, is a Python package for reasoning and
-learning with Bayesian Knowledge Bases.
+learning with Bayesian Knowledge Bases. The facts below were read from its repository through the
+GitHub API on 2026-10-13.
 
-- **License**: GPL-3.0. Porting any of it makes this repository GPL-3.0 if distributed.
+- **License**: GPL-3.0. Whether to port its code under that license or build clean-room is the first
+  decision of [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
 - **State**: last commit 2023-11-09; not on PyPI; the README is empty.
 - **Pins**: Python ~3.11, torch 2.0.1, numpy 1.24.4, pandas 1.x, gurobipy 10.0.2, pygobnilp (a
   Bitbucket git dependency) and ray. It therefore cannot be a dependency on this repository's
@@ -131,12 +138,11 @@ The core, with line counts at the last commit:
 | `pybkb/reason/bkb.py` | 158 | `BKBReasoner.update` |
 | `pybkb/utils/probability.py` | 779 | Probability routines, using numba |
 
-The port is the task unit [tasks/proposal-bkb-port.md](../tasks/proposal-bkb-port.md). pybkb's
-existence supersedes the 2-pager's statement that no public BKB library exists
-([RESEARCH.md](RESEARCH.md#9-source-reconciliation)).
+[RESEARCH section 9](RESEARCH.md#9-source-reconciliation) records how this changes the 2-pager's
+principal risk.
 
 ### ofs_app
 
 [di2ag/ofs_app](https://github.com/di2ag/ofs_app) describes itself as "Ontology Fusion Service using
-Bayesian Knowledge Base Fusion and Reasoning". It is a TRAPI service template with no fusion code
-and no license, and it is not used.
+Bayesian Knowledge Base Fusion and Reasoning". Read through the GitHub API on 2026-10-13, it is a
+TRAPI service template with no fusion code and no license, and it is not used.

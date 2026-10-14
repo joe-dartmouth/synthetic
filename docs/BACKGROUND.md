@@ -1,6 +1,7 @@
 # Background
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; facts verified outside the PDFs (Santos et al. metadata, pybkb).
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; facts gathered outside the PDFs on 2026-10-13: Santos et al.'s metadata and a search summary of
+its abstract, and pybkb's repository read through the GitHub API.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.
@@ -17,28 +18,29 @@ biomedical ontologies: MONDO, whose entries include disease subtypes, and HPO, w
 phenotypes (brief A2 speaks of "an HPO phenotype or a MONDO disease subtype"). The first milestone
 reproduces the fusion of MONDO with DO from Santos et al. (2-pager section 6).
 
-Description logic is the formal logic behind the OWL web ontology language (general background);
-the brief identifies OWL 2 DL with the description logic SROIQ(D). A description-logic reasoner derives statements that an ontology
-implies without stating them (general background). Those implied statements are what the plan's
-gap detector tests against the data.
+Description logic is the formal logic behind the OWL web ontology language (general background); the
+brief identifies OWL 2 DL with the description logic SROIQ(D). A description-logic reasoner derives
+statements that an ontology implies without stating them (general background). Those implied
+statements are what the plan's gap detector tests against the data.
 
 ### Bayesian Knowledge Bases
 
 A Bayesian Knowledge Base (BKB) is the probabilistic half of a BKO. The sources support this much:
 
 - **BKOs unite the two.** Santos et al. unite description-logic reasoning with BKBs, extending an
-  earlier BKO framework.
-- **BKBs are built from fragments and fused.** Santos et al. fuse conflicting ontologies
-  probabilistically instead of deleting knowledge. pybkb's fusion entry point is
-  `fuse(bkfs, reliabilities, ...)`: it takes a set of fragments and a reliability for each.
+  earlier BKO framework (from a search summary of the paper's abstract; the paper is not fetched).
+- **BKBs are built from fragments and fused.** By the same abstract summary, Santos et al. fuse
+  conflicting ontologies probabilistically instead of deleting knowledge. pybkb's fusion entry point
+  is `fuse(bkfs, reliabilities, ...)`: it takes a set of fragments and a reliability for each.
 - **The plan builds three fragments.** MONDO and HPO each become a fragment, and the dataset becomes
   a second kind of fragment, weighted by observed frequency (2-pager section 3).
 - **Reasoning runs over the fused result.** In pybkb that is `BKBReasoner.update` in
   `pybkb/reason/bkb.py`.
 
 The sources do not describe a BKB's internal structure: what its nodes are and how probabilities
-attach to them. Read Santos et al. and `pybkb/bkb.py` before building `bko.bkb`
-([ARCHITECTURE.md](ARCHITECTURE.md#prior-code)).
+attach to them. Santos et al. is the reference. Reading pybkb's source is part of the port path
+only; [`proposal-bkb-port`](../tasks/proposal-bkb-port.md) decides between a port and a clean-room
+build first, and a clean-room build must not start from pybkb's code.
 
 ### Incompleteness as a property of the representation
 
@@ -73,8 +75,8 @@ Works: [Probabilistic ontologies and BKOs](literature.md#probabilistic-ontologie
 
 The brief (A1) surveys the older formalisms for putting probabilities into ontologies. They are
 background to BKOs, not alternatives the plan weighs. The brief's advice not to implement MEBN or
-PR-OWL concerns those formalisms; its claim that the BKO term is non-standard is superseded
-([RESEARCH.md](RESEARCH.md#9-source-reconciliation)).
+PR-OWL concerns those formalisms; [RESEARCH section 9](RESEARCH.md#9-source-reconciliation) records
+why its claim that the BKO term is non-standard does not govern.
 
 - **PR-OWL** (Probabilistic OWL) extends the OWL web ontology language with formal probabilistic
   semantics (Costa & Laskey, FOIS 2006). It is built on MEBN.
@@ -91,7 +93,8 @@ PR-OWL concerns those formalisms; its claim that the BKO term is non-standard is
 **Tooling.** Multiple survey papers from 2008–2017 say PR-OWL and MEBN have historically "lacked a
 software tool that implements their underlying concepts". The brief calls this a red flag for a
 10-week implementation; it assumed three students and 10 weeks, where the plan has four members and
-runs Oct 10 – Nov 25.
+the
+[ROADMAP](ROADMAP.md) schedule.
 
 **What a distribution over an ontology means.** In these formalisms, putting "a probability
 distribution over an ontology's classes and relations" means representing, for each class or
@@ -108,11 +111,11 @@ them. [IDEAS.md](IDEAS.md#alternative-gap-detectors) records them as unscheduled
 
 ### Open-world and closed-world assumptions
 
-OWL uses the open-world assumption: a statement that is absent is unknown rather than false
-(general background; the brief says only that OWL uses it). SHACL uses the closed-world assumption: "what is not stated is
-false". The brief calls this the key conceptual pivot: completeness checking requires temporarily
-adopting the closed-world assumption, because under the open-world one a missing fact is never a
-violation.
+OWL uses the open-world assumption: a statement that is absent is unknown rather than false (general
+background; the brief says only that OWL uses it). SHACL uses the closed-world assumption: "what is
+not stated is false". The brief calls this the key conceptual pivot: completeness checking requires
+temporarily adopting the closed-world assumption, because under the open-world one a missing fact is
+never a violation.
 
 ### SHACL and ShEx
 
@@ -136,8 +139,8 @@ Knowledge-graph completion, or link prediction, infers edges missing from a know
 Coverage or enrichment analysis compares observed instance counts per ontology concept against
 expected distributions, to flag under-represented regions of concept space. The brief calls it the
 most student-friendly way to operationalize gap detection, and defines a gap as an ontology concept
-(such as an HPO phenotype or a MONDO disease subtype) that is present in the ontology but has zero or
-statistically under-represented support in the dataset relative to an ontology-weighted prior. It
+(such as an HPO phenotype or a MONDO disease subtype) that is present in the ontology but has zero
+or statistically under-represented support in the dataset relative to an ontology-weighted prior. It
 suggests computing this with OLS/BioPortal APIs, pandas and a simple SHACL or count check, and (A1)
 a Bayesian/Dirichlet smoothing prior over expected and observed counts.
 
@@ -204,8 +207,8 @@ What the literature says about relative performance, per the brief:
   CTGAN, TVAE, TabDDPM, SMOTE and GReaT), with gains "especially noticeable in the low-data regime
   (n<100)" and "for underrepresented subgroups". The brief calls this the single most important
   finding for the team; its code is public.
-- **"Why LLMs Are Bad at Synthetic Table Generation"** argues that in-context LLM generation has real
-  failure modes and proposes fine-tuning fixes. The brief recommends citing it for balance.
+- **"Why LLMs Are Bad at Synthetic Table Generation"** argues that in-context LLM generation has
+  real failure modes and proposes fine-tuning fixes. The brief recommends citing it for balance.
 - **A prosumer-hardware benchmark** (CODATA Data Science Journal 2025) gives head-to-head
   CTGAN/TVAE/GReaT numbers on imbalance, augmentation, privacy (DCR) and ML utility, which makes it
   a methodological template.

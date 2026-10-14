@@ -17,14 +17,18 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 ## Why this unit exists
 
-Represent loads MONDO and HPO as BKO fragments and maps ontology concepts to dataset fields, starting with the disease label and chest-pain type ([RESEARCH, Represent](../docs/RESEARCH.md#represent)).
+Represent loads MONDO and HPO as BKO fragments and maps ontology concepts to dataset fields,
+starting with the disease label and chest-pain type
+([RESEARCH, Represent](../docs/RESEARCH.md#represent)).
 
 ## Scope
 
 **In.**
 
 - Load MONDO and HPO through owlready2, pronto or OLS4 in `src/bko/ontology/`.
-- A mapping table from concepts to UCI fields recording each mapping's source, encoding and limits; numeric fields get separately specified range constraints; concepts with no defensible field are listed as out of scope.
+- A mapping table from concepts to UCI fields recording each mapping's source, encoding and limits;
+  numeric fields get separately specified range constraints; concepts with no defensible field are
+  listed as out of scope.
 
 **Out.** Clinician review, which the 2-pager makes conditional on availability.
 

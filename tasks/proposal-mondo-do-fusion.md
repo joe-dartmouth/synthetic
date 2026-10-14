@@ -17,13 +17,16 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 ## Why this unit exists
 
-The first timeline row of the 2-pager is reproducing Santos et al.'s MONDO/DO fusion ([ROADMAP](../docs/ROADMAP.md#status-update-1)). It proves the BKB layer and the ontology loading work together before the dataset joins.
+The first timeline row of the 2-pager is reproducing Santos et al.'s MONDO/DO fusion
+([ROADMAP](../docs/ROADMAP.md#status-update-1)). It proves the BKB layer and the ontology loading
+work together before the dataset joins.
 
 ## Scope
 
 **In.**
 
-- Fuse MONDO and DO as BKO fragments with the BKB layer and compare against what Santos et al. report.
+- Fuse MONDO and DO as BKO fragments with the BKB layer and compare against what Santos et al.
+  report.
 
 **Out.** The dataset fragment, which joins in `proposal-gap-detection`.
 

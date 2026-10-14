@@ -17,7 +17,9 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 ## Why this unit exists
 
-The completeness criterion asks that at least half the detected gaps close after fusion ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)). Fusion is in Shirley's workstream while `fuse` lives in `bko.bkb`; this unit settles the interface between the two.
+The completeness criterion asks that at least half the detected gaps close after fusion
+([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)). Fusion is in Shirley's workstream while `fuse`
+lives in `bko.bkb`; this unit settles the interface between the two.
 
 ## Scope
 

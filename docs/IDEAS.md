@@ -14,10 +14,10 @@ bullet 4 of the original project description).
 **Why it is not in the plan.** The 2-pager has no distillation thrust. The brief rates it high risk:
 the tabular comparison and the distillation each "is a full project", and the engineering and
 evaluation load is too much on top of the core. That estimate assumed three students and 10 weeks,
-with "~6 usable weeks" for this work; the plan has four members and runs Oct 10 – Nov 25. The brief
-also notes that frontier models score ~95% on MedQA, so beating a frontier LLM on a public medical
-benchmark is effectively off the table for a student team; any claim should be scoped to a narrow,
-self-defined slice with a cost and efficiency framing.
+with "~6 usable weeks" for this work; the plan has four members and the [ROADMAP](ROADMAP.md)
+schedule. The brief also notes that frontier models score ~95% on MedQA, so beating a frontier LLM
+on a public medical benchmark is effectively off the table for a student team; any claim should be
+scoped to a narrow, self-defined slice with a cost and efficiency framing.
 
 **The evidence that it can work** (brief C7):
 
@@ -98,8 +98,8 @@ Track A, which requires a product. The brief gives no design for the copilot bey
 generate questions for an LLM to fill the gaps. The original bullet reads: "Ontology identifies gaps
 → go back to human expert for real data; generate questions for an LLM to fill gaps". The brief
 rates it achievable as a lightweight UI feature that doubles as the safeguard for clinical
-plausibility and against model collapse. Its Demo-Day flow shows it as an optional tab where, for the
-thinnest gaps, the app drafts questions for a human expert or an LLM to supply real values
+plausibility and against model collapse. Its Demo-Day flow shows it as an optional tab where, for
+the thinnest gaps, the app drafts questions for a human expert or an LLM to supply real values
 ([ARCHITECTURE.md](ARCHITECTURE.md#demo-day-flow)).
 
 **Why it is not in the plan.** The 2-pager does not include it. The plan's safeguards are
@@ -139,8 +139,8 @@ modes of in-context generation, which the Messages API approach is.
 
 **Why it is not in the plan.** The plan's formal gap is an ungrounded BKO statement, and the ADR
 [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) rules out the
-coverage score as the gap definition, keeping count-based gaps as the comparison instead. SHACL could
-still serve the Validate stage, as the brief suggests for post-generation checks (B6, F16).
+coverage score as the gap definition, keeping count-based gaps as the comparison instead. SHACL
+could still serve the Validate stage, as the brief suggests for post-generation checks (B6, F16).
 
 **Sources.** Brief A1, A2, B6, F16. Details:
 [BACKGROUND.md](BACKGROUND.md#gap-detection).
