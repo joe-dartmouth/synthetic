@@ -109,6 +109,18 @@ def numbered_prose_lines(text: str) -> list[tuple[int, str]]:
     return _scan_fences(text)[0]
 
 
+def fences_balanced(text: str) -> bool:
+    """Whether every fence in ``text`` closes, so no fence silently swallows the rest of it.
+
+    Args:
+        text: A document's full text.
+
+    Returns:
+        ``True`` when the scan ends outside a fence.
+    """
+    return _scan_fences(text)[1] is None
+
+
 def _scan_fences(text: str) -> tuple[list[tuple[int, str]], str | None]:
     """Split ``text`` into numbered prose lines and the fence left open at the end, if any.
 
