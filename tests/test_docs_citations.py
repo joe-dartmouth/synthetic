@@ -1,13 +1,15 @@
 """Consistency tests for the hand-authored documentation set.
 
-Citations resolve to `docs/literature.md`, link-definition blocks are sorted and complete, DOIs are
-not truncated at a parenthesis, relative links and intra-repo anchors resolve, and every `§N`
-citation of another document names a section that document has.
+Citations resolve to `docs/literature.md` and carry its URLs, link-definition blocks are sorted and
+complete, DOIs are not truncated at a parenthesis, relative links, link definitions and intra-repo
+anchors resolve, every `§N` citation of another document names a section that document has, and a
+link whose text says "section N" targets section N. Every failure names its line.
 """
 
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
@@ -24,9 +26,16 @@ from tests._registry import (
     ENTRY_KEY,
     REGISTRY,
     definitions,
+    numbered_definitions,
     read,
+    registry_entries,
 )
-from tests._section_citations import section_citations, unresolved_section_citations
+from tests._section_citations import (
+    numbered_section_citations,
+    section_citations,
+    section_link_mismatches,
+    unresolved_section_citations,
+)
 
 
 # ``[`key`][key]`` -- the label is itself a code span, so this matches the target half.
@@ -34,6 +43,8 @@ CITATION = re.compile(r"\]\[([a-z][a-z0-9-]*)\]")
 ANCHOR_LINK = re.compile(r"\]\(([^)\s]*#[^)\s]+)\)")
 PATH_LINK = re.compile(r"\]\(([^)\s]+)\)")
 TRUNCATED_DOI = re.compile(r"\]\(https://doi\.org/[^)]*\([^)]*\)")
+ANY_DEFINITION = re.compile(r"^ {0,3}\[[^\]\n]+\]:\s*<?([^>\s]+)>?")
+"""Any reference-style link definition, whatever its label, capturing the target."""
 INLINE_CODE = re.compile(r"`[^`]*`")
 EXTERNAL = ("http://", "https://", "mailto:")
 
@@ -58,14 +69,29 @@ def linkable_lines(text: str) -> list[tuple[int, str]]:
     return [(number, INLINE_CODE.sub("", line)) for number, line in numbered_prose_lines(text)]
 
 
-def citations(text: str) -> set[str]:
-    """Keys cited reference-style."""
-    return {key for _, line in linkable_lines(text) for key in CITATION.findall(line)}
+def citations(text: str) -> dict[str, int]:
+    """Keys cited reference-style, each with the line of its first citation."""
+    found: dict[str, int] = {}
+    for number, line in linkable_lines(text):
+        for key in CITATION.findall(line):
+            found.setdefault(key, number)
+    return found
 
 
 ALL_DOCS = doc_files()
 ANCHORS: dict[Path, frozenset[str]] = {p: anchors_of(p) for p in ALL_DOCS}
-REGISTRY_KEYS = set(ENTRY_KEY.findall(read(REGISTRY)))
+REGISTRY_ENTRIES = registry_entries(read(REGISTRY))
+REGISTRY_KEYS = {key for _, key, _ in REGISTRY_ENTRIES}
+REGISTRY_URLS = {key: url for _, key, url in REGISTRY_ENTRIES}
+
+CORPUS_WITNESSES = (
+    Path("AGENTS.md"),
+    Path("docs/RESEARCH.md"),
+    Path("src/bko/bkb/README.md"),
+    Path("tasks/proposal-index.md"),
+    Path("tools/README.md"),
+)
+"""One file per root :func:`doc_files` walks, so a root that stops matching fails by name."""
 
 
 # --- citations resolve ----------------------------------------------------
@@ -75,7 +101,9 @@ REGISTRY_KEYS = set(ENTRY_KEY.findall(read(REGISTRY)))
 def test_every_cited_key_has_a_link_definition(doc: Path):
     """A citation with no definition renders as literal ``[`key`][key]`` text."""
     defined = {key for key, _ in definitions(read(doc))}
-    undefined = sorted(citations(read(doc)) - defined)
+    undefined = [
+        f"line {line}: {key}" for key, line in citations(read(doc)).items() if key not in defined
+    ]
     assert not undefined, f"{doc} cites keys it never defines: {undefined}"
 
 
@@ -83,15 +111,70 @@ def test_every_cited_key_has_a_link_definition(doc: Path):
 def test_no_link_definition_is_unused(doc: Path):
     """A definition for a key the document no longer cites is stale weight."""
     cited = citations(read(doc))
-    unused = sorted({key for key, _ in definitions(read(doc))} - cited)
+    unused = [
+        f"line {n}: {key}" for n, key, _ in numbered_definitions(read(doc)) if key not in cited
+    ]
     assert not unused, f"{doc} defines keys it never cites: {unused}"
 
 
 @pytest.mark.parametrize("doc", CITING_DOCS, ids=str)
 def test_every_defined_key_has_a_registry_entry(doc: Path):
     """The registry is a citation's single home, so a key invented at the point of use fails."""
-    unregistered = sorted({key for key, _ in definitions(read(doc))} - REGISTRY_KEYS)
+    unregistered = [
+        f"line {n}: {key}"
+        for n, key, _ in numbered_definitions(read(doc))
+        if key not in REGISTRY_KEYS
+    ]
     assert not unregistered, f"{doc} defines keys absent from {REGISTRY}: {unregistered}"
+
+
+@pytest.mark.parametrize("doc", CITING_DOCS, ids=str)
+def test_every_definition_points_where_its_registry_entry_does(doc: Path):
+    """A definition is a copy of the entry's canonical URL, so the two must not drift apart."""
+    drifted = [
+        f"line {n}: {key} -> {target}, registry has {REGISTRY_URLS[key]}"
+        for n, key, target in numbered_definitions(read(doc))
+        if key in REGISTRY_URLS and REGISTRY_URLS[key] != target
+    ]
+    assert not drifted, f"{doc} defines keys whose URL disagrees with {REGISTRY}: {drifted}"
+
+
+def test_no_registry_key_is_listed_twice():
+    """Two entries under one key make every citation of it ambiguous."""
+    lines: dict[str, list[int]] = {}
+    for number, key, _ in REGISTRY_ENTRIES:
+        lines.setdefault(key, []).append(number)
+    duplicated = {key: found for key, found in lines.items() if len(found) > 1}
+    assert not duplicated, f"{REGISTRY} lists these keys more than once (lines): {duplicated}"
+
+
+def test_registry_entries_reports_a_duplicate_key():
+    """Positive control: the parser keeps both copies, so the check above can see them."""
+    text = "- `smith-2020` · [a](https://a) · x\n- `smith-2020` · [b](https://b) · y\n"
+    assert registry_entries(text) == [
+        (1, "smith-2020", "https://a"),
+        (2, "smith-2020", "https://b"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("key", "matches"),
+    [
+        ("smith-2020", True),
+        ("smith-2020b", True),
+        ("abecto-nd", True),
+        ("abecto-ndb", True),
+        ("smith-20", False),
+        ("smith-ndx2", False),
+    ],
+)
+def test_the_entry_key_pattern_keeps_every_verdict(key: str, matches: bool):
+    """A year or ``nd``, each with an optional disambiguating letter, and the near-misses."""
+    assert bool(ENTRY_KEY.search(f"- `{key}` · id")) is matches
+
+
+def test_a_definition_may_carry_a_title():
+    assert definitions('[smith-2020]: https://a "A title"\n') == [("smith-2020", "https://a")]
 
 
 # --- definition blocks are tidy -------------------------------------------
@@ -99,15 +182,18 @@ def test_every_defined_key_has_a_registry_entry(doc: Path):
 
 @pytest.mark.parametrize("doc", CITING_DOCS, ids=str)
 def test_link_definitions_are_alphabetically_sorted(doc: Path):
-    keys = [key for key, _ in definitions(read(doc))]
-    assert keys == sorted(keys), f"{doc}'s link block is not sorted"
+    found = numbered_definitions(read(doc))
+    for (_, before, _), (line, key, _) in pairwise(found):
+        assert before <= key, f"{doc}'s link block is not sorted: line {line}: {key} after {before}"
 
 
 @pytest.mark.parametrize("doc", CITING_DOCS, ids=str)
 def test_no_key_is_defined_twice(doc: Path):
-    keys = [key for key, _ in definitions(read(doc))]
-    duplicated = sorted({key for key in keys if keys.count(key) > 1})
-    assert not duplicated, f"{doc} defines these keys more than once: {duplicated}"
+    lines: dict[str, list[int]] = {}
+    for number, key, _ in numbered_definitions(read(doc)):
+        lines.setdefault(key, []).append(number)
+    duplicated = {key: found for key, found in lines.items() if len(found) > 1}
+    assert not duplicated, f"{doc} defines these keys more than once (lines): {duplicated}"
 
 
 # --- links resolve --------------------------------------------------------
@@ -122,20 +208,49 @@ def test_no_doi_link_is_truncated_by_a_parenthesis(doc: Path):
     assert not offenders, f"{doc} has DOI links truncated at a parenthesis on lines {offenders}"
 
 
+@pytest.mark.parametrize(
+    ("line", "truncated"),
+    [
+        ("[x](https://doi.org/10.1016/S0140-6736(20)30183-5)", True),
+        ("[x](https://doi.org/10.1016/S0140-6736%2820%2930183-5)", False),
+    ],
+    ids=["raw-parenthesis", "percent-encoded"],
+)
+def test_the_truncated_doi_pattern_keeps_every_verdict(line: str, truncated: bool):
+    """Positive control: the live corpus is clean, so only a planted DOI shows the check bites."""
+    assert bool(TRUNCATED_DOI.search(line)) is truncated
+
+
+def broken_targets(doc: Path, targets: list[tuple[int, str]]) -> list[str]:
+    """The relative targets, resolved from ``doc``'s directory, that name no file."""
+    broken: list[str] = []
+    for number, target in targets:
+        if target.startswith(EXTERNAL) or target.startswith("#"):
+            continue
+        path = target.partition("#")[0]
+        if path and not (REPO_ROOT / doc).parent.joinpath(path).exists():
+            broken.append(f"line {number}: {target}")
+    return broken
+
+
 @pytest.mark.parametrize("doc", ALL_DOCS, ids=str)
 def test_every_relative_link_target_exists(doc: Path):
     """A relative link to a moved or renamed file is a dead link on GitHub."""
-    broken: list[str] = []
-    for number, line in linkable_lines(read(doc)):
-        for target in PATH_LINK.findall(line):
-            if target.startswith(EXTERNAL) or target.startswith("#"):
-                continue
-            path = target.partition("#")[0]
-            if not path:
-                continue
-            if not (REPO_ROOT / doc).parent.joinpath(path).exists():
-                broken.append(f"line {number}: {target}")
+    targets = [(n, t) for n, line in linkable_lines(read(doc)) for t in PATH_LINK.findall(line)]
+    broken = broken_targets(doc, targets)
     assert not broken, f"{doc} links to missing files: {broken}"
+
+
+@pytest.mark.parametrize("doc", ALL_DOCS, ids=str)
+def test_every_reference_definition_target_exists(doc: Path):
+    """``[label]: target`` is a link too, and inline-link parsing never sees it."""
+    targets = [
+        (n, m.group(1))
+        for n, line in numbered_prose_lines(read(doc))
+        if (m := ANY_DEFINITION.match(line))
+    ]
+    broken = broken_targets(doc, targets)
+    assert not broken, f"{doc} defines links to missing files: {broken}"
 
 
 @pytest.mark.parametrize("doc", ALL_DOCS, ids=str)
@@ -146,49 +261,114 @@ def test_every_section_number_citation_resolves(doc: Path):
     and one inside a fence is still a citation that should resolve. A bare `§N` naming no document
     is a self-reference and is out of scope.
     """
-    problems = unresolved_section_citations(section_citations(read(doc)), cited_from=doc)
+    problems: list[str] = []
+    for number, citation in numbered_section_citations(read(doc)):
+        for problem in unresolved_section_citations([citation], cited_from=doc):
+            if (found := f"line {number}: {problem}") not in problems:
+                problems.append(found)
     assert not problems, f"{doc} cites sections that do not resolve: {problems}"
 
 
-def test_the_section_citation_resolver_refuses_a_number_that_is_not_there():
-    """Positive control, because every case above passes on a corpus that resolves.
+@pytest.mark.parametrize("doc", ALL_DOCS, ids=str)
+def test_every_section_link_names_the_section_it_targets(doc: Path):
+    """``[RESEARCH section 4](RESEARCH.md#5-...)`` resolves as an anchor and still misleads."""
+    problems = section_link_mismatches(read(doc))
+    assert not problems, f"{doc} has links naming one section and targeting another: {problems}"
 
-    One synthetic citation per shape against `docs/RESEARCH.md`, which numbers its headings, plus
-    the branches the live corpus cannot reach: a wrong italic title, a lettered subsection, a link
-    whose text and target disagree, a nested link, and a relative target.
-    """
-    for shape in (
-        "`RESEARCH.md` §99",
-        "[`RESEARCH.md`](RESEARCH.md) §99",
-        "[`RESEARCH.md` §99](RESEARCH.md)",
-    ):
-        citations = section_citations(f"Tracked in {shape}, which is where it lives.")
-        assert citations, f"the resolver no longer matches the shape {shape!r}"
-        assert unresolved_section_citations(citations), f"{shape!r} must not resolve"
 
+# --- positive controls for the section resolvers ---------------------------
+#
+# Every repository case above passes on a corpus that resolves, so each branch gets a synthetic
+# citation of its own, against `docs/RESEARCH.md`, which numbers its headings. One test per branch,
+# so one regression does not mask another, and each refusal pins its branch by message.
+
+SHAPES = (
+    "`RESEARCH.md` {n}",
+    "[`RESEARCH.md`](RESEARCH.md) {n}",
+    "[`RESEARCH.md` {n}](RESEARCH.md)",
+)
+"""The three `§N` shapes, with the section number to plant."""
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_missing_section_number_is_refused(shape: str):
+    found = section_citations(f"Tracked in {shape.format(n='§99')}, which is where it lives.")
+    # A set: the bracketed shape also matches the code-span shape, and the resolver dedupes.
+    assert set(found) == {("RESEARCH.md", "99", "")}, f"the shape {shape!r} no longer matches"
+    refused = unresolved_section_citations(found)
+    assert len(refused) == 1, refused
+    assert "has sections" in refused[0], f"the refusal came from the wrong branch: {refused[0]!r}"
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_a_lettered_multi_digit_subsection_is_not_a_section(shape: str):
+    """`§11e` must not backtrack to `§1`; the letter-only lookahead failed exactly this."""
+    assert section_citations(f"See {shape.format(n='§11e')}, a subsection.") == []
+
+
+@pytest.mark.parametrize("shape", SHAPES)
+def test_an_existing_section_resolves(shape: str):
+    found = section_citations(f"Tracked in {shape.format(n='§4')}.")
+    # A set: the bracketed shape also matches the code-span shape, and the resolver dedupes.
+    assert set(found) == {("RESEARCH.md", "4", "")}, f"the shape {shape!r} no longer matches"
+    assert unresolved_section_citations(found) == []
+
+
+def test_a_wrong_title_is_refused():
     refused = unresolved_section_citations(
         section_citations("See `RESEARCH.md` §4 *Nothing at all* for it.")
     )
-    assert refused, "a title that is not the cited section's title must be refused"
+    assert len(refused) == 1, refused
     assert "that section is" in refused[0], (
         f"the refusal came from the wrong branch: {refused[0]!r}"
     )
 
-    assert section_citations("See `docs/RESEARCH.md` §4e, a subsection.") == []
 
+def test_the_link_target_wins_over_the_link_text():
     disagreeing = section_citations("See [`RESEARCH.md`](ROADMAP.md) §4 for the rule.")
     assert disagreeing == [("ROADMAP.md", "4", "")], f"the link target must win, got {disagreeing}"
-    assert unresolved_section_citations(disagreeing), "ROADMAP.md has no numbered section 4"
+    refused = unresolved_section_citations(disagreeing)
+    assert len(refused) == 1, refused
+    assert "has no numbered" in refused[0], (
+        f"the refusal came from the wrong branch: {refused[0]!r}"
+    )
 
+
+def test_a_nested_link_is_not_a_citation():
     assert section_citations("See [`RESEARCH.md` and [a note](ROADMAP.md) §4] for it.") == []
 
+
+def test_a_relative_target_resolves_only_from_its_citing_document():
     rel = section_citations("See [`RESEARCH.md` §4](../RESEARCH.md#4-success-criteria).")
     assert unresolved_section_citations(rel, cited_from=Path("docs/adr/README.md")) == []
-    assert unresolved_section_citations(rel), "a relative target needs the citing document"
+    refused = unresolved_section_citations(rel)
+    assert len(refused) == 1, refused
+    assert "no such document" in refused[0], (
+        f"the refusal came from the wrong branch: {refused[0]!r}"
+    )
 
-    resolving = section_citations("Tracked in [`RESEARCH.md`](RESEARCH.md) §4.")
-    assert resolving, "precondition: the live shape still matches"
-    assert unresolved_section_citations(resolving) == [], "an existing section must resolve"
+
+def test_a_citation_reports_the_line_it_starts_on():
+    body = "First line.\nSee `RESEARCH.md` §4 here.\n"
+    assert numbered_section_citations(body) == [(2, ("RESEARCH.md", "4", ""))]
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ("[RESEARCH section 4](../docs/RESEARCH.md#5-evaluation-contract)", ["line 1:"]),
+        ("[Section 9](#2-intended-users)", ["line 1:"]),
+        ("[RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)", []),
+        ("[section 4](../docs/RESEARCH.md#approach)", []),
+        ("[RESEARCH](../docs/RESEARCH.md#5-evaluation-contract)", []),
+        ("```\n[section 4](RESEARCH.md#5-x)\n```", []),
+    ],
+    ids=["disagree", "disagree-in-document", "agree", "unnumbered-fragment", "no-number", "fenced"],
+)
+def test_a_section_link_must_target_the_number_it_names(body: str, expected: list[str]):
+    problems = section_link_mismatches(body)
+    assert [p[: len("line 1:")] for p in problems] == expected, problems
+    assert all("names section" in p for p in problems), problems
 
 
 @pytest.mark.parametrize("doc", ALL_DOCS, ids=str)
@@ -226,14 +406,22 @@ def test_the_document_set_is_not_silently_empty():
     """Every check above is parametrized, so an empty corpus would pass them all.
 
     A glob that stops matching -- a renamed directory, a move out of ``docs/`` -- would
-    turn this module into a no-op that still reports green. These floors are deliberately
-    below the current counts, so they pin the discovery rather than the content.
+    turn this module into a no-op that still reports green. These floors sit near half the
+    current counts, so they pin the discovery rather than the content, and
+    :data:`CORPUS_WITNESSES` pins which roots it reaches.
     """
-    assert len(ALL_DOCS) >= 15, f"only found {len(ALL_DOCS)} docs; discovery is likely broken"
+    assert len(ALL_DOCS) >= 23, f"only found {len(ALL_DOCS)} docs; discovery is likely broken"
     assert REGISTRY in ALL_DOCS
-    assert Path("tools/README.md") in ALL_DOCS, "the tools/ root is no longer walked"
     for doc in CITING_DOCS:
         assert doc in ALL_DOCS
-    assert Path("tasks/proposal-index.md") in ALL_DOCS, "the tasks/ root is no longer walked"
-    assert len(REGISTRY_KEYS) >= 10, f"only parsed {len(REGISTRY_KEYS)} registry keys"
-    assert sum(len(a) for a in ANCHORS.values()) >= 50
+    assert len(REGISTRY_KEYS) >= 23, f"only parsed {len(REGISTRY_KEYS)} registry keys"
+    anchors = sum(len(a) for a in ANCHORS.values())
+    assert anchors >= 125, f"only found {anchors} anchors"
+
+
+@pytest.mark.parametrize("witness", CORPUS_WITNESSES, ids=str)
+def test_every_walked_root_still_reaches_the_corpus(witness: Path):
+    """A root that stops matching takes its whole contribution silently, floor or no floor."""
+    assert witness in ALL_DOCS, (
+        f"{witness} is absent from the corpus, so the root it represents is not being walked"
+    )

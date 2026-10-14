@@ -1,10 +1,16 @@
-"""Resolve a `§N` section-number citation against the headings of the document it names.
+"""Resolve a document's cross-references to the numbered sections of another document.
 
-`tests/test_docs_citations.py` drives this over the documentation. Three citation shapes are
-matched, because a document can name its target three ways: a code span with the number beside it,
-a link with the number after it, and a link with the number inside its text. A bare `§N` naming no
-document is a self-reference and is out of scope. A site may match two shapes, so
-:func:`unresolved_section_citations` deduplicates its findings.
+`tests/test_docs_citations.py` drives this over the documentation. Two notations are checked.
+
+**`§N`.** Three citation shapes are matched, because a document can name its target three ways: a
+code span with the number beside it, a link with the number after it, and a link with the number
+inside its text. A bare `§N` naming no document is a self-reference and is out of scope. A site may
+match two shapes, so :func:`unresolved_section_citations` deduplicates its findings.
+
+**A link whose text says "section N".** The corpus writes most cross-references this way, as
+``[RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)``. The anchor check proves the
+fragment exists; :func:`section_link_mismatches` proves the number in the text is the number in
+the fragment, which the anchor check cannot see.
 """
 
 from __future__ import annotations
@@ -12,16 +18,17 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from tests._corpus import REPO_ROOT
+from tests._corpus import REPO_ROOT, numbered_prose_lines
 
 
-# `(?![\dA-Za-z])` and not `(?![A-Za-z])`, which was the first revision and is worse than nothing.
-# `docs/MATH.md` numbers subsections `§11d` and `§11e`, a different space from the `## N.` headings
-# these resolve against. With only the letter excluded, `\d+` *backtracks*: `11` fails the lookahead
-# on `e`, the engine retries `1`, whose next character is `1` rather than a letter, and the citation
-# matches as `§1` -- resolving silently against `## 1. Notation`. Measured:
-# `re.compile(r"§(\d+)(?![A-Za-z])").findall("§11e")` returns `['1']`, while excluding the digit too
-# returns `[]`. Refusing the whole run is the behaviour the docstrings claimed and did not have.
+# `(?![\dA-Za-z])` and not `(?![A-Za-z])`, which is worse than nothing. A lettered subsection
+# such as `§11e` lives in a different numbering space from the `## N.` headings these resolve
+# against. With only the letter excluded, `\d+` *backtracks*: `11` fails the lookahead on `e`, the
+# engine retries `1`, whose next character is `1` rather than a letter, and the citation matches
+# as `§1`, resolving silently against section 1.
+# `re.compile(r"§(\d+)(?![A-Za-z])").findall("§11e")` returns `['1']`; excluding the digit too
+# returns `[]`. The positive controls in `tests/test_docs_citations.py` plant `§11e` in every
+# shape, so a regression to the letter-only lookahead fails.
 _NUMBER = r"§(\d+)(?![\dA-Za-z])"
 # An italic title beside the number, optional: `§13 *Deliberately deferred*`.
 _TITLE = r"(?:\s+\*([^*\n]+)\*)?"
@@ -65,9 +72,9 @@ def resolve_document(name: str, *, cited_from: Path | None = None) -> Path | Non
     Args:
         name: The path as it appears in the citation. A ``#fragment`` is stripped.
         cited_from: The document the citation was read from, whose directory is tried first.
-            Without it a relative path cannot resolve at all: five live citations spell
-            ``../RESEARCH.md`` or ``../../ROADMAP.md`` from under ``docs/adr/``, and the
-            fixed roots below find none of them.
+            Without it a relative path cannot resolve at all: a citation written from a
+            subdirectory, such as ``../RESEARCH.md`` from under ``docs/adr/`` or
+            ``../docs/RESEARCH.md`` from ``tasks/``, matches none of the fixed roots below.
 
     Returns:
         The first existing candidate, or ``None``.
@@ -114,12 +121,65 @@ def section_citations(body: str) -> list[tuple[str, str, str]]:
         document is the link *target* where the shape has one, falling back to the link text
         when that target is not a markdown path.
     """
-    found = [(name, number, title) for name, number, title in SECTION_CITATION.findall(body)]
-    for name, target, number, title in LINKED_SECTION_CITATION.findall(body):
-        found.append((target if target.partition("#")[0].endswith(".md") else name, number, title))
-    for name, number, title, target in BRACKETED_SECTION_CITATION.findall(body):
-        found.append((target if target.partition("#")[0].endswith(".md") else name, number, title))
+    return [citation for _, citation in numbered_section_citations(body)]
+
+
+def numbered_section_citations(body: str) -> list[tuple[int, tuple[str, str, str]]]:
+    """:func:`section_citations`, each with the 1-indexed line its match starts on."""
+
+    def line_of(match: re.Match[str]) -> int:
+        return body.count("\n", 0, match.start()) + 1
+
+    def document(name: str, target: str) -> str:
+        return target if target.partition("#")[0].endswith(".md") else name
+
+    found = [
+        (line_of(m), (m.group(1), m.group(2), m.group(3) or ""))
+        for m in SECTION_CITATION.finditer(body)
+    ]
+    for m in LINKED_SECTION_CITATION.finditer(body):
+        name, target, number, title = m.groups()
+        found.append((line_of(m), (document(name, target), number, title or "")))
+    for m in BRACKETED_SECTION_CITATION.finditer(body):
+        name, number, title, target = m.groups()
+        found.append((line_of(m), (document(name, target), number, title or "")))
     return found
+
+
+INLINE_LINK = re.compile(r"\[([^\[\]\n]*)\]\(([^)\s]*)\)")
+"""An inline link: its text (no nested brackets) and its target."""
+
+SECTION_WORD = re.compile(r"\bsection\s+(\d+)\b", re.IGNORECASE)
+"""The section number a link's text names: ``RESEARCH section 4``, ``Section 9``."""
+
+NUMBERED_FRAGMENT = re.compile(r"(\d+)-")
+"""A fragment naming a numbered heading's anchor, ``#4-success-criteria``."""
+
+
+def section_link_mismatches(body: str) -> list[str]:
+    """Links whose text names ``section N`` while the fragment targets a different number.
+
+    Only a link whose fragment is a numbered heading's anchor is compared; a link saying "section
+    4" into an unnumbered anchor has no second number to disagree with. Lines inside fences are
+    skipped, since a fenced example is not a live link.
+
+    Args:
+        body: The citing document's text.
+
+    Returns:
+        ``line N: [text](target) ...`` per disagreeing link, in document order.
+    """
+    problems: list[str] = []
+    for number, line in numbered_prose_lines(body):
+        for text, target in INLINE_LINK.findall(line):
+            named = SECTION_WORD.search(text)
+            fragment = NUMBERED_FRAGMENT.match(target.partition("#")[2])
+            if named and fragment and named.group(1) != fragment.group(1):
+                problems.append(
+                    f"line {number}: [{text}]({target}) names section {named.group(1)} "
+                    f"but targets section {fragment.group(1)}"
+                )
+    return problems
 
 
 def unresolved_section_citations(

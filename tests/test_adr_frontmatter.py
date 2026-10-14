@@ -565,9 +565,9 @@ def test_ruled_out_is_a_dated_table(doc: Path):
     ]
     assert len(rows) >= 2, f"{doc}'s Ruled Out is not a table with at least one row"
     for row in rows[1:]:
-        assert re.search(r"\|\s*\d{4}-\d{2}-\d{2}\s*\|?\s*$", row), (
-            f"{doc} has a Ruled Out row with no ISO date: {row[:80]}"
-        )
+        dated = re.search(r"\|\s*(\d{4}-\d{2}-\d{2})\s*\|?\s*$", row)
+        assert dated, f"{doc} has a Ruled Out row with no ISO date: {row[:80]}"
+        iso_date(doc, "a Ruled Out date", dated.group(1))
 
 
 UNCHECKABLE = (
@@ -635,7 +635,10 @@ def test_the_readme_names_every_status_and_no_more():
     A stale one invites a value the guard rejects, from the file that documents the guard.
     """
     body = read(ADR_DIR / "README.md")
-    line = next(row for row in body.splitlines() if row.startswith("status:") and "#" in row)
+    line = next(
+        (row for row in body.splitlines() if row.startswith("status:") and "#" in row), None
+    )
+    assert line is not None, "docs/adr/README.md's example has no commented `status:` line"
     shown = {value.strip() for value in line.partition("#")[2].split("|")}
     assert shown == set(STATUSES), (
         f"docs/adr/README.md's status comment names {sorted(shown)}, expected {sorted(STATUSES)}"
