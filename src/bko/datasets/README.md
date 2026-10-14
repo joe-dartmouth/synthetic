@@ -4,4 +4,4 @@ Load the evaluation datasets: UCI Heart Disease, the primary heart-disease predi
 
 - **Dependencies:** The `data` extra (`pyproject.toml`).
 - **Owner:** Joe Laws
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-datasets`](../../../tasks/proposal-datasets.md).

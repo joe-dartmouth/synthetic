@@ -24,6 +24,15 @@ Each kind of statement has one home:
 | Kind of statement | Home |
 |---|---|
 | Project summary for a human arriving at the repository | `README.md` |
+| The research plan: problem, approach, success criteria, datasets, source reconciliation | `docs/RESEARCH.md` |
+| Background explained from scratch, and the prior work behind it | `docs/BACKGROUND.md` |
+| The planned pipeline and which stage each subpackage serves | `docs/ARCHITECTURE.md` |
+| Milestones, dates and workstreams | `docs/ROADMAP.md` |
+| What each experiment measured | `docs/EVIDENCE.md` |
+| Untried or deferred techniques | `docs/IDEAS.md` |
+| Market, vendors and regulation | `docs/MARKET.md` |
+| A cited work and its identifier | `docs/literature.md` |
+| Pending work, one PR per unit, and its dependency graph | `tasks/<set>-index.md` and its unit files |
 | Working guidance for agents and contributors: commands, layout, gotchas, conventions, document index | `AGENTS.md` |
 | Environment, platforms, every Make target, gate hazards | `docs/DEVELOPMENT.md` |
 | A design decision, its alternatives and its reversal conditions | `docs/adr/<topic>/<slug>.md` |
@@ -56,7 +65,8 @@ tools' configuration files.
 ## Enforcement
 
 - Owner: `docs/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_companion_guard.py`
+- The guard refuses a task-set companion page under `docs/`; the rest of the table is convention.
 
 ## Reversal Conditions
 

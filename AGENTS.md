@@ -6,7 +6,9 @@ clinical tabular dataset and guide synthetic-record generation that fills them, 
 heart-disease prediction for underrepresented groups. The Python package is `bko`.
 
 > Status: scaffold. The toolchain and gate run; every `src/bko/` subpackage is a docstring-only
-> stub.
+> stub. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md), converted from the team's
+> [proposal 2-pager](papers/proposal-2-pager.pdf); the [research brief](papers/research-brief.pdf)
+> is background, and where the two disagree the 2-pager governs (RESEARCH section 9).
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
 import it (ADR `tooling/agent-config-single-home`).
@@ -32,7 +34,9 @@ runs, and its hazards.
 synthetic/
 ├── AGENTS.md / CLAUDE.md / GEMINI.md / README.md / Makefile / pyproject.toml / uv.lock
 ├── ruff.toml / ty.toml / pyrightconfig.json
-├── docs/        # development guide and ADRs (docs/adr/)
+├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
+├── papers/      # the source PDFs: the proposal 2-pager and the research brief
+├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
@@ -78,9 +82,26 @@ synthetic/
   frontmatter; [`docs/adr/README.md`](docs/adr/README.md) holds the format. A record whose decision
   no longer exists is deleted, not archived.
 - **A quotation mark means byte-for-byte.** Paraphrase without them.
+- **Cite works through the registry.** [`docs/literature.md`](docs/literature.md) holds every work;
+  `docs/RESEARCH.md` and `docs/IDEAS.md` cite it reference-style. `tests/test_docs_citations.py`
+  checks citations, relative links and anchors across the docs, and that a link reading "section N"
+  points at section N.
+- **Task sets:** `tasks/<set>-index.md` is a set's graph and status board, and each unit is one PR.
+  A landed unit's file is deleted after rehoming what it deferred; a set gets no companion page
+  under `docs/`. `tests/test_task_units.py` enforces the unit schema.
 
 **Document index:**
 
+- Research plan, success criteria, datasets, source reconciliation:
+  [`docs/RESEARCH.md`](docs/RESEARCH.md)
+- Background, explained from scratch: [`docs/BACKGROUND.md`](docs/BACKGROUND.md)
+- Planned architecture and pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Milestones and workload: [`docs/ROADMAP.md`](docs/ROADMAP.md); work units:
+  [`tasks/proposal-index.md`](tasks/proposal-index.md)
+- Results register: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
+- Unscheduled ideas: [`docs/IDEAS.md`](docs/IDEAS.md); market and regulation:
+  [`docs/MARKET.md`](docs/MARKET.md)
+- Citation registry: [`docs/literature.md`](docs/literature.md); source PDFs: `papers/`
 - Environment, platforms, Make targets, gate hazards: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - Decisions: [`docs/adr/`](docs/adr/README.md)
 - The repository's own checkers: [`tools/README.md`](tools/README.md)

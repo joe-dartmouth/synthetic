@@ -4,4 +4,4 @@ Generate candidate records for each detected gap through the Anthropic Messages 
 
 - **Dependencies:** The `llm` extra (`pyproject.toml`).
 - **Owner:** Shirley Asangi
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-llm-generation`](../../../tasks/proposal-llm-generation.md) and [`proposal-fusion-repair`](../../../tasks/proposal-fusion-repair.md).
