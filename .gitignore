@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -212,10 +212,14 @@ marimo/_lsp/
 __marimo__/
 
 # Streamlit
-.streamlit/secrets.toml
+**/.streamlit/secrets.toml
 
 # Secrets and credentials
 *.pem
+*.key
+.env.*
+!.env.example
+.netrc
 
 # Claude Code: the shared settings.json is tracked; personal settings and worktrees are not
 .claude/settings.local.json

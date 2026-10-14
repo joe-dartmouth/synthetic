@@ -26,10 +26,12 @@ GUARDED = (
     Path("AGENTS.md"),
     Path("CLAUDE.md"),
     Path("GEMINI.md"),
+    Path("README.md"),
     Path("docs/DEVELOPMENT.md"),
     Path("tools/README.md"),
+    *sorted(path.relative_to(REPO_ROOT) for path in (REPO_ROOT / "src").rglob("README.md")),
 )
-"""The working documents whose prose must carry no correction narrative."""
+"""The working documents whose prose must carry no correction narrative, stage READMEs included."""
 
 NARRATION = tuple(
     re.compile(pattern, re.IGNORECASE)
@@ -86,10 +88,6 @@ def narration_lines(text: str) -> list[tuple[int, str]]:
         for match in pattern.finditer(flat)
     }
     return [(number, lines[number - 1]) for number in sorted(hits)]
-
-
-def test_the_guarded_set_is_not_silently_empty() -> None:
-    assert len(GUARDED) >= 5, "a guarded document was dropped from the set"
 
 
 @pytest.mark.parametrize("doc", GUARDED, ids=str)

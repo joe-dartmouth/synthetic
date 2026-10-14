@@ -6,30 +6,25 @@ clinical tabular dataset and guide synthetic-record generation that fills them, 
 heart-disease prediction for underrepresented groups. The Python package is `bko`.
 
 > Status: scaffold. The toolchain and gate run; every `src/bko/` subpackage is a docstring-only
-> stub. The proposal 2-pager is the plan of record and the research brief is background; where they
-> disagree, the 2-pager governs.
+> stub.
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
 import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-| Command | Purpose |
-|---|---|
-| `make setup` | Install the `dev` extra from `uv.lock` (`uv sync --frozen`) |
-| `make sync` | Install the exact lock with every extra |
-| `make lint` / `make format` | `ruff check` + `ruff format --check` / apply formatting |
-| `make typecheck` | `ty check` |
-| `make test` | `pytest` across all cores, with line and branch coverage |
-| `make sizes` | Refuse a tracked Python file over its line cap (`CAPS` in `tools/check_file_size.py`) |
-| `make synced` | Refuse an environment that has drifted from `uv.lock` |
-| `make rebased` | Refuse a tree `origin/main` has moved past; probes the remote |
-| `make check` | The whole gate: rebased, synced, lint, sizes, typecheck, test, rebased-final |
+- `make setup`: install the `dev` extra from `uv.lock`.
+- `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
+  before opening a PR.
+- `make format`: apply formatting.
+- A targeted run while working:
 
-There is no CI and there are no git hooks: `make check` is the whole gate, and a person runs it.
-Use targeted tests while working (`uv run pytest tests/<file> -q -p no:cacheprovider --no-cov
-</dev/null`) and `make check` before opening a PR. [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is
-the full record of the environment, every target and the gate hazards.
+  ```
+  uv run --no-sync pytest tests/<file> -q -p no:cacheprovider --no-cov </dev/null
+  ```
+
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#make-targets) holds every Make target, what the gate
+runs, and its hazards.
 
 ## Layout
 
@@ -48,11 +43,13 @@ synthetic/
 - **synthcity is not a dependency.** It pins `torch<2.3` and `numpy<2.0` and does not resolve on
   Python 3.14 (ADR `tooling/python-314-without-synthcity`). Evaluation uses SDMetrics and
   scikit-learn.
-- **`make setup` installs `dev` only.** Runtime dependencies are declared and locked as extras
-  (`data`, `ontology`, `llm`, `synth`, `eval`, `app`); an extra joins `make setup` when something in
-  `src/`, `tests/` or `tools/` imports it (ADR `tooling/uv-ruff-ty`). To add one, copy the `setup`
-  recipe out of the `Makefile` and append `--extra <name>`. Never `uv pip install`: it resolves past
-  the lock and `make synced` refuses the result.
+- **`make setup` installs `dev` only.** Runtime dependencies are locked extras installed on
+  demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install one. Never
+  `uv pip install`: it resolves past the lock and `make synced` refuses the result.
+- **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install
+  targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
+  `uv lock`, then `make setup`.
 - **Stage new files before running the gate.** `make sizes` and several repository tests read
   `git ls-files`, so an untracked file is invisible to them.
 - **`ruff format` formats Python inside markdown fences**, so an unformatted ```` ```python ````

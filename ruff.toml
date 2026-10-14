@@ -65,7 +65,7 @@ select = [
     "LOG",    # flake8-logging
     "PL",     # Pylint subset
     "RUF",    # Ruff-specific rules
-    "pytest-fixture-autouse",
+    "pytest-fixture-autouse",  # preview rule with no code, so no prefix above selects it: flags autouse=True
     "PERF",   # Perflint
     "T20",    # flake8-print: no print() in library code
     "FA",     # flake8-future-annotations

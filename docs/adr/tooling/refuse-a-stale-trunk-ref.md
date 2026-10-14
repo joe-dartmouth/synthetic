@@ -35,6 +35,8 @@ the ancestry test still passes.
 3. Probes a configured `upstream` remote as well and refuses unless `HEAD` contains its trunk.
 4. When a probe cannot answer (no remote, no network, an unreadable credential, a timeout), proceeds
    on the ancestry test alone and says so on stderr in a different sentence from a confirmed pass.
+   A local git failure (git did not run, or could not say whether `upstream` is configured) is a
+   structural exit 2 that names the cause.
 
 `make check` asks the question twice: `rebased` first, and `rebased-final` last, so a merge that
 lands while the tests run is refused at the end.
@@ -54,8 +56,11 @@ This gates the merge base, not the merge result. With squash merges, a trunk tha
 **Gained**: two green branches can no longer merge into a red trunk unnoticed, as long as each
 rebases before its gate.
 **Accepted**: the gate needs network access to give a confirmed verdict; offline, it passes on the
-ancestry test with a degraded notice. A merge after the gate and before the squash is outside what
-a local check can see.
+ancestry test with a degraded notice. The checker runs `git` with global config blanked, so an
+HTTPS remote that relies on a global credential helper is not probed and the run degrades (Apple
+git still reads its Xcode gitconfig, whose `osxkeychain` helper applies);
+`docs/DEVELOPMENT.md` asks for an SSH remote. A merge after the gate and before the squash is
+outside what a local check can see.
 
 ## Ruled Out
 

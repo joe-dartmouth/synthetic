@@ -26,7 +26,7 @@ and that no citation anywhere names a record that does not exist.
 A topic is a single directory level naming the area a decision constrains. The names come from this
 repository's own boundaries.
 
-- `tooling` — how the repository is built and worked in: toolchain, package layout, the gate, and
+- `tooling`: how the repository is built and worked in: toolchain, package layout, the gate, and
   the conventions code and documents are held to.
 
 Adding a topic is the one case that edits this file.

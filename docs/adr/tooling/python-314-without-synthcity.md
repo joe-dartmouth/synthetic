@@ -8,10 +8,10 @@ updated: 2026-10-14
 
 ## Context
 
-The proposal names synthcity, alongside scikit-learn and SDMetrics, for evaluation. The reference
-repository whose structure this one follows runs on Python 3.14, where coverage's
-`sys.monitoring` core measures branch coverage; on earlier interpreters coverage falls back to its
-slower C tracer whenever `branch = true`.
+The team's ENGG 119 proposal (dated 2026-10-07) names synthcity, alongside scikit-learn and
+SDMetrics, for evaluation. The reference repository whose structure this one follows runs on
+Python 3.14, where coverage's `sys.monitoring` core measures branch coverage; on earlier
+interpreters coverage falls back to its slower C tracer whenever `branch = true`.
 
 Resolution was measured on 2026-10-13 with `uv pip compile` for `aarch64-apple-darwin`:
 
@@ -29,7 +29,7 @@ Resolution was measured on 2026-10-13 with `uv pip compile` for `aarch64-apple-d
 
 * **Must run every library the pipeline imports in one environment.**
 * **Should match the reference repository's interpreter and gate.**
-* **Must cover the evaluation the proposal specifies**: utility, fidelity and privacy
+* **Must cover the evaluation the project specifies**: utility, fidelity and privacy
   (distance to closest record).
 
 ## Decision
@@ -45,16 +45,16 @@ The interpreter version has six homes, each stated once: `.python-version`, `req
 ## Rationale
 
 Keeping synthcity would hold the whole stack to torch 2.2 and numpy 1.x and an SDV release
-nine minor versions old, for metrics SDMetrics and scikit-learn already provide. The proposal's
-privacy criterion is distance to closest record, which SDMetrics implements; nothing in the
-proposal requires a metric only synthcity has.
+nine minor versions old, for metrics SDMetrics and scikit-learn already provide. The project's
+privacy criterion is distance to closest record, which SDMetrics implements; no criterion requires a
+metric only synthcity has.
 
 ## Consequences
 
 **Gained**: one current environment on the reference repository's interpreter; the fast coverage
 core with branch coverage.
-**Accepted**: a departure from the proposal's tool list, recorded here and in the research plan.
-Any metric only synthcity offers would need reimplementing.
+**Accepted**: a departure from the proposal's tool list, recorded here. Any metric only synthcity
+offers would need reimplementing.
 
 ## Ruled Out
 

@@ -8,7 +8,7 @@ updated: 2026-10-14
 
 ## Context
 
-The proposal's pipeline has distinct stages (Represent, Detect, Generate, Validate, Evaluate, and
+The project's pipeline has distinct stages (Represent, Detect, Generate, Validate, Evaluate, and
 a user interface) with different owners and different heavy dependencies. Each teammate needs a
 home for their stage that exists before any code does, so work can start in parallel without
 arguing about where files go.
@@ -37,8 +37,9 @@ pipeline stage:
 | `evaluate` | Utility, fidelity and privacy metrics | `eval` |
 | `app` | The Streamlit interface | `app` |
 
-Every subpackage carries a `README.md` giving its role, its extra, its owner and its status. The
-package ships a `py.typed` marker. Tests live in a top-level `tests/`.
+Every subpackage carries a `README.md` giving its role, its extra, its owner and its status; the
+READMEs are excluded from the wheel. The package carries a `py.typed` marker, which the wheel ships
+because it sits inside the package. Tests live in a top-level `tests/`.
 
 ## Rationale
 
@@ -46,7 +47,7 @@ With a flat layout the working directory shadows the installed package, so an im
 works from the repository root passes every local run and fails for anyone installing the package.
 The `src/` layout makes the test suite import what was installed.
 
-One subpackage per stage gives each owner a boundary that matches the proposal's division of work,
+One subpackage per stage gives each owner a boundary that matches the team's division of work,
 and keeps a stage's heavy imports out of every other stage.
 
 ## Consequences
@@ -68,8 +69,10 @@ needs a deliberate home rather than an ad-hoc import across stages.
 
 - Owner: `src/bko/`
 - Pinned by: `tests/test_package_layout.py`
-- The test asserts that every subpackage in the table imports and has a README, that no unlisted
-  subpackage exists, and that `py.typed` ships.
+- The test asserts that this table, `SUBPACKAGES` and the directories under `src/bko/` name the
+  same stages; that every subpackage imports and its README carries the dependency, owner and
+  status lines; that each README's extra matches this table's; that every named extra exists in
+  `pyproject.toml`; and that `py.typed` exists.
 
 ## Reversal Conditions
 

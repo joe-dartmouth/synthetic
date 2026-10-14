@@ -3,5 +3,5 @@
   "pythonPlatform": "All",
   "venvPath": ".",
   "venv": ".venv",
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "tools"]
 }

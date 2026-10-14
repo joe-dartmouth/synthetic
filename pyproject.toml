@@ -6,10 +6,9 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
-# Runtime dependencies are declared and locked here but installed on demand: an extra joins
-# `make setup` when something in `src/`, `tests/` or `tools/` imports it (ADR `tooling/uv-ruff-ty`).
-# Floors are the registry's major.minor at the time each was declared; `uv.lock` holds the exact
-# versions.
+# Runtime dependencies are locked extras installed on demand (ADR `tooling/uv-ruff-ty` holds the
+# rule for when one joins `make setup`). Runtime floors are the registry's major.minor when each was
+# declared; dev floors are the majors the gate runs on. `uv.lock` holds the exact versions.
 [project.optional-dependencies]
 data = ["numpy>=2.5", "pandas>=2.3"]
 ontology = ["owlready2>=0.51", "pronto>=2.7"]
@@ -35,15 +34,26 @@ requires = ["hatchling>=1.32"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
+# `py.typed` ships because it sits inside the package; the stage READMEs are repository docs.
 packages = ["src/bko"]
-# Ship the PEP 561 marker so consumers get inline type information.
-force-include = { "src/bko/py.typed" = "bko/py.typed" }
+exclude = ["src/bko/**/README.md"]
+
+[tool.uv]
+# Pin the build backends uv resolves outside the lock: hatchling builds `bko` itself, and the
+# setuptools/wheel/Cython trio builds owlready2, whose release ships only an sdist.
+build-constraint-dependencies = [
+    "hatchling==1.32.4",
+    "setuptools==84.0.0",
+    "wheel==0.48.0",
+    "cython==3.3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # `--strict-markers` turns a mistyped marker into an error. `-ra` prints every skip, because a skip
-# nobody reads is indistinguishable from a pass. Paid tests need `--live` (`tests/conftest.py`).
-addopts = "-m 'not live' --strict-markers -ra"
+# nobody reads is indistinguishable from a pass. Paid tests are skipped unless `--live` is passed
+# (`tests/conftest.py`); no `-m` expression selects them.
+addopts = "--strict-markers -ra"
 # pytest's own removal warnings fail the suite now rather than at the next major release.
 filterwarnings = ["error::pytest.PytestRemovedIn10Warning"]
 # A parametrization over an empty set is an error, not a skip that reads as a pass.
@@ -57,7 +67,6 @@ markers = [
 # `tools` is measured as well as the library: the checkers are part of the gate, and a gate
 # with untested branches is what this floor exists to surface.
 source = ["src/bko", "tools"]
-omit = ["tests/*"]
 branch = true
 
 [tool.coverage.report]

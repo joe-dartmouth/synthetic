@@ -35,7 +35,7 @@ Applying it from the first commit means no grandfather list is ever needed. Coun
 ## Consequences
 
 **Gained**: no module grows past what a reviewer reads in one sitting; the cap is visible in one
-dictionary.
+tuple, `CAPS`.
 **Accepted**: a cohesive module just over the cap is split anyway. An untracked file is measured
 only once it is staged, because discovery reads `git ls-files`.
 

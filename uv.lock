@@ -7,6 +7,14 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+build-constraints = [
+    { name = "cython", specifier = "==3.3.0" },
+    { name = "hatchling", specifier = "==1.32.4" },
+    { name = "setuptools", specifier = "==84.0.0" },
+    { name = "wheel", specifier = "==0.48.0" },
+]
+
 [[package]]
 name = "altair"
 version = "6.3.0"

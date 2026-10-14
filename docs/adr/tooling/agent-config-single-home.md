@@ -23,10 +23,10 @@ Code resolves an `@path` import in `CLAUDE.md`, and Gemini CLI's memory import p
 
 - **`AGENTS.md` holds all repository guidance.** `CLAUDE.md` opens with `@AGENTS.md` and
   `GEMINI.md` opens with `@./AGENTS.md`; each adds only notes specific to its tool.
-- **`.claude/settings.json` is committed** with a `permissions.allow` list of exact Make targets
-  (`lint`, `format`, `typecheck`, `test`, `sizes`, `synced`, `rebased`, `check`). Claude Code merges
-  these entries with each developer's own rules. `make setup` and `make sync` install packages and
-  are not allowed.
+- **`.claude/settings.json` is committed** with a `permissions.allow` list of exact Make targets:
+  the gate's (`lint`, `typecheck`, `test`, `sizes`, `synced`, `rebased`, `check`) and `format`.
+  Claude Code merges these entries with each developer's own rules. `make setup` and `make sync`
+  install packages and are not allowed.
 - **`.gitignore` ignores `.claude/settings.local.json` and `.claude/worktrees/`, not all of
   `.claude/`**, so the shared settings file is versioned.
 - **No `.codex/config.toml`**: Codex's only project-level levers are the repo-wide
@@ -39,14 +39,16 @@ Code resolves an `@path` import in `CLAUDE.md`, and Gemini CLI's memory import p
 
 Importing one file keeps the guidance identical across tools with no drift. A committed allow list
 is a standing grant to everyone who clones the repository, so it names exact invocations and no
-general-purpose runner (`uv run *`, `make *`); the targets listed only read the tree and run the
-gate.
+general-purpose runner (`uv run *`, `make *`). The targets listed run the gate or format the tree;
+none installs packages or re-locks, because every one of them runs `uv run --no-sync`.
 
 ## Consequences
 
 **Gained**: one place to edit guidance; Claude Code runs the gate without a prompt.
 **Accepted**: a tool that stops resolving imports would see only its two-line file until the
-guidance is inlined.
+guidance is inlined. The allowed targets execute repository code (`make test` runs the suite, and
+`format` rewrites files), so the grant reaches whatever code a developer has accepted into the
+working tree; an untracked `GNUmakefile` would take precedence over `Makefile` for every entry.
 
 ## Ruled Out
 
@@ -61,7 +63,9 @@ guidance is inlined.
 
 - Owner: `AGENTS.md`
 - Pinned by: `tests/test_repo_gate.py`
-- `test_claude_and_gemini_import_agents_md` asserts the first line of `CLAUDE.md` and `GEMINI.md`.
+- `test_claude_and_gemini_import_agents_md` asserts the first line of `CLAUDE.md` and `GEMINI.md`,
+  and `test_the_committed_allow_list_is_exactly_the_make_targets` holds the allow list to the
+  exact entries above, with no wildcard.
 
 ## Reversal Conditions
 
