@@ -1,0 +1,26 @@
+[environment]
+python-version = "3.14"
+# Pinned so the verdict does not depend on the host running `make typecheck`.
+python-platform = "linux"
+# `.` resolves `tests` and `tools` as top-level packages; `src` resolves `bko`. A missing
+# directory here is a fatal error, so list only directories that exist.
+extra-paths = [".", "src"]
+root = ["."]
+
+[src]
+include = ["src", "tests", "tools"]
+
+[rules]
+ambiguous-protocol-member = "error"
+deprecated = "error"
+ignore-comment-unknown-rule = "error"
+ineffective-final = "error"
+invalid-enum-member-annotation = "error"
+invalid-ignore-comment = "error"
+invalid-legacy-positional-parameter = "error"
+division-by-zero = "error"
+possibly-unresolved-reference = "error"
+unused-ignore-comment = "error"
+
+[terminal]
+error-on-warning = true

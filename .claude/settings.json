@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make lint)",
+      "Bash(make format)",
+      "Bash(make typecheck)",
+      "Bash(make test)",
+      "Bash(make sizes)",
+      "Bash(make synced)",
+      "Bash(make rebased)",
+      "Bash(make check)"
+    ]
+  }
+}
