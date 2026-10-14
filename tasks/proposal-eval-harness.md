@@ -24,7 +24,7 @@ The criteria need rare-class recall and AUC-PR, fidelity, privacy as distance to
 **In.**
 
 - Train-on-synthetic and train-on-real scoring with scikit-learn, SDMetrics fidelity, and SDMetrics' DCR metrics in `src/bko/evaluate/`.
-- Fix the three open readings of the criteria ([RESEARCH section 4]({R}#4-success-criteria)) in the experiment configuration before any run.
+- Fix the three open readings of the criteria ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)) in the experiment configuration before any run.
 
 **Out.** Running the final comparison.
 

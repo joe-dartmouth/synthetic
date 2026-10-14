@@ -94,7 +94,7 @@ def adr_files() -> list[Path]:
 
 def source_files() -> list[Path]:
     """Every hand-authored file that can carry an ADR citation in prose or a docstring."""
-    found = markdown_under(".", "docs", "src", "tools")
+    found = markdown_under(".", "docs", "src", "tasks", "tools")
     found += python_under("src")
     found += python_under("tests")
     found += python_under("tools")
@@ -364,7 +364,7 @@ PINNED = re.compile(r"^- Pinned by: (.+)$", re.MULTILINE)
 
 # Directories git tracks. A path under a gitignored root such as `data/` or `logs/` names a local
 # artifact a fresh clone does not have, so its absence is not a dead citation.
-TRACKED_ROOTS = frozenset({"docs", "src", "tests", "tools"})
+TRACKED_ROOTS = frozenset({"docs", "papers", "src", "tasks", "tests", "tools"})
 CODE_SPAN = re.compile(r"`([^`\s]+)`")
 # A pytest node id, then a line or line range, both trailing the path they qualify.
 PATH_SUFFIX = re.compile(r"(?:::\S*)?(?::\d+(?:-\d+)?)?$")
@@ -660,6 +660,7 @@ CORPUS_WITNESSES = (
     Path("AGENTS.md"),
     Path("docs/DEVELOPMENT.md"),
     Path("src/bko/bkb/README.md"),
+    Path("tasks/proposal-index.md"),
     Path("tools/README.md"),
     Path("src/bko/__init__.py"),
     Path("tests/test_adr_frontmatter.py"),
