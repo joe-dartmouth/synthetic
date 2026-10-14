@@ -4,4 +4,4 @@ Load MONDO and HPO through owlready2, pronto and OLS4, and map ontology concepts
 
 - **Dependencies:** The `ontology` extra (`pyproject.toml`).
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-ontology-mapping`](../../../tasks/proposal-ontology-mapping.md).

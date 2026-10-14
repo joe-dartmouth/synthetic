@@ -4,4 +4,4 @@ The Streamlit front end over the pipeline: pick a dataset, analyze its gaps, fil
 
 - **Dependencies:** The `app` extra (`pyproject.toml`).
 - **Owner:** Krish Sapru
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-streamlit-app`](../../../tasks/proposal-streamlit-app.md).

@@ -4,4 +4,4 @@ Find statements the ontology implies but the data does not support. These ungrou
 
 - **Dependencies:** No optional extra.
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).

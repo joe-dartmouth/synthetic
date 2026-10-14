@@ -4,4 +4,4 @@ Rare-class recall and AUC-PR (scikit-learn), fidelity (SDMetrics), privacy as di
 
 - **Dependencies:** The `eval` extra (`pyproject.toml`).
 - **Owner:** Joe Laws
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-eval-harness`](../../../tasks/proposal-eval-harness.md) and [`proposal-final-evaluation`](../../../tasks/proposal-final-evaluation.md).

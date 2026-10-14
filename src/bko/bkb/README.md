@@ -4,4 +4,4 @@ Represent, fuse and reason over Bayesian Knowledge Bases: the inference layer a 
 
 - **Dependencies:** The `data` extra (`pyproject.toml`).
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring.
+- **Status:** not built; the package holds only its docstring. Planned in [`proposal-bkb-port`](../../../tasks/proposal-bkb-port.md) and [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md).
