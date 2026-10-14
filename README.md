@@ -38,6 +38,8 @@ make check     # the whole gate
 
 ## Repository guide
 
-[`AGENTS.md`](AGENTS.md) holds the commands, layout, conventions and document index.
+The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md); the source documents are in
+[`papers/`](papers/proposal-2-pager.pdf). [`AGENTS.md`](AGENTS.md) holds the commands, layout,
+conventions and document index.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the full record of the environment and the gate.
 Decisions are in [`docs/adr/`](docs/adr/README.md).

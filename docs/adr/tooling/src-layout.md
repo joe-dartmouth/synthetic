@@ -8,7 +8,7 @@ updated: 2026-10-14
 
 ## Context
 
-The project's pipeline has distinct stages (Represent, Detect, Generate, Validate, Evaluate, and
+The project's pipeline ([`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md)) has distinct stages (Represent, Detect, Generate, Validate, Evaluate, and
 a user interface) with different owners and different heavy dependencies. Each teammate needs a
 home for their stage that exists before any code does, so work can start in parallel without
 arguing about where files go.

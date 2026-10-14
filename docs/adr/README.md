@@ -29,6 +29,8 @@ repository's own boundaries.
 - `tooling`: how the repository is built and worked in: toolchain, package layout, the gate, and
   the conventions code and documents are held to.
 
+- `research`: decisions about the research method itself rather than the system.
+
 Adding a topic is the one case that edits this file.
 
 ## Slugs

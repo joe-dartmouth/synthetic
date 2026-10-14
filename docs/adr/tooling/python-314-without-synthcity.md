@@ -8,7 +8,8 @@ updated: 2026-10-14
 
 ## Context
 
-The team's ENGG 119 proposal (dated 2026-10-07) names synthcity, alongside scikit-learn and
+The team's ENGG 119 [proposal](../../../papers/proposal-2-pager.pdf) (dated 2026-10-07) names
+synthcity, alongside scikit-learn and
 SDMetrics, for evaluation. The reference repository whose structure this one follows runs on
 Python 3.14, where coverage's `sys.monitoring` core measures branch coverage; on earlier
 interpreters coverage falls back to its slower C tracer whenever `branch = true`.
@@ -53,7 +54,8 @@ metric only synthcity has.
 
 **Gained**: one current environment on the reference repository's interpreter; the fast coverage
 core with branch coverage.
-**Accepted**: a departure from the proposal's tool list, recorded here. Any metric only synthcity
+**Accepted**: a departure from the proposal's tool list, recorded here and in
+[`docs/RESEARCH.md`](../../RESEARCH.md#9-source-reconciliation). Any metric only synthcity
 offers would need reimplementing.
 
 ## Ruled Out
