@@ -6,8 +6,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
-# Runtime dependencies are locked extras installed on demand (ADR `tooling/uv-ruff-ty` holds the
-# rule for when one joins `make setup`). Runtime floors are the registry's major.minor when each was
+# Runtime dependencies are locked extras; `make setup` installs the ones something imports (ADR
+# `tooling/uv-ruff-ty` holds the rule). Runtime floors are the registry's major.minor when each was
 # declared; dev floors are the majors the gate runs on. `uv.lock` holds the exact versions.
 [project.optional-dependencies]
 data = ["numpy>=2.5", "pandas>=2.3"]
@@ -23,10 +23,12 @@ dev = [
     # Declared rather than taken through pytest-cov: `tests/test_repo_gate.py` imports it.
     "coverage>=7.16",
     "pytest-xdist>=3.8",
-    # Pinned exactly: a floating linter or checker changes the verdict on an unchanged tree.
-    # `tests/test_repo_gate.py` asserts the installed versions match.
+    # Pinned exactly: a floating linter, checker or the stubs the checker reads change the verdict
+    # on an unchanged tree. `tests/test_repo_gate.py` asserts the installed versions match, and
+    # that the pandas-stubs release describes the installed pandas.
     "ruff==0.17.0",
     "ty==0.0.87",
+    "pandas-stubs==2.3.3.260113",
 ]
 
 [build-system]

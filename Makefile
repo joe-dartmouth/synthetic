@@ -1,11 +1,11 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
 # the interpreter flag is one of the pin's homes `tests/test_repo_gate.py` checks.
 setup:
-	uv sync --locked --python 3.14 --extra dev
+	uv sync --locked --python 3.14 --extra dev --extra data
 
 # Install the exact lock across every extra.
 sync:
@@ -49,6 +49,12 @@ synced:
 # Refuse a tracked Python file over its line cap (ADR tooling/file-size-cap).
 sizes:
 	uv run --no-sync python -m tools.check_file_size
+
+# Fetch UCI Heart Disease into data/ if absent, verify it, and print the training split's
+# age-sex subgroup-label cell counts as CSV (docs/DEVELOPMENT.md, Data). Not part of the gate.
+# `@` keeps make from echoing the command into stdout, so `make cells > counts.csv` is pure CSV.
+cells:
+	@uv run --no-sync python -m bko.datasets cells
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final

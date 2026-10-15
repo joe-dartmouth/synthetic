@@ -4,7 +4,7 @@ There is no CI: `make check`, run by hand, is the whole gate. So the gate's own 
 load-bearing, and it can drift from the lock after it is created. The failure it produces reads
 as a repository defect rather than an environment one: `make lint` and `make typecheck` both report
 errors that belong to newer tools disagreeing with a tree that is fine. `make setup` installs from
-the lock (`uv sync --frozen`), but a lock-faithful setup says nothing about what the environment
+the lock (`uv sync --locked`), but a lock-faithful setup says nothing about what the environment
 looks like a month later.
 
 **No drift figure is quoted.** The quantity is unbounded and machine-local. Run this script for the
@@ -31,8 +31,8 @@ failure rather than a pass. For the same reason a `[[package]]` entry it cannot 
 lock rather than being skipped: a skipped entry is a package whose drift goes unchecked.
 
 **A locked package that is not installed is reported and does not fail.** `make setup` installs the
-`dev` extra rather than the whole lock, so absence is the ordinary state and treating it as drift
-would make this refuse the environment `make setup` produces.
+extras its recipe names rather than the whole lock, so absence is the ordinary state and treating
+it as drift would make this refuse the environment `make setup` produces.
 
 **So this module cannot see a missing extra, and a later step of the gate can.** A tree that has
 not re-run `make setup` since an extra joined it passes here, because absence is not drift, and is
@@ -56,13 +56,13 @@ LOCK_PATH: Final = Path(__file__).resolve().parent.parent / "uv.lock"
 REMEDIATION: Final = "make setup"
 """The command that reconciles this environment to the lock.
 
-**Not `make sync`.** `make sync` is `uv sync --frozen --all-extras`, so on a correctly configured
+**Not `make sync`.** `make sync` is `uv sync --locked --all-extras`, so on a correctly configured
 tree it installs every extra on top of what the gate needs. The prescribed fix for a small drift
 would then change the shape of the environment the gate should have, and invalidate this module's
 own success line about why the absent packages are absent. The remediation must not widen the
 environment past what the gate declares.
 
-`make setup` is the right command because it installs *from the lock* (`uv sync --frozen` over
+`make setup` is the right command because it installs *from the lock* (`uv sync --locked` over
 the extras the gate needs), which lands on exactly the package set this module compares. **No
 package count is written here**: this module prints the current one on every successful run.
 """

@@ -510,8 +510,8 @@ def test_the_lock_drift_check_reports_drift_and_spares_an_absent_package():
     """Both arms of the comparison, driven rather than reasoned about.
 
     A locked package that is not installed must not count as drift: `make setup` installs the
-    `dev` extra rather than the whole lock, so failing on absence would refuse the environment that
-    target produces.
+    extras its recipe names rather than the whole lock, so failing on absence would refuse the
+    environment that target produces.
     """
     import tools.check_lock_drift as subject
 

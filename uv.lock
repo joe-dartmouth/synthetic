@@ -95,6 +95,7 @@ data = [
 ]
 dev = [
     { name = "coverage" },
+    { name = "pandas-stubs" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
@@ -125,6 +126,7 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'data'", specifier = ">=2.5" },
     { name = "owlready2", marker = "extra == 'ontology'", specifier = ">=0.51" },
     { name = "pandas", marker = "extra == 'data'", specifier = ">=2.3" },
+    { name = "pandas-stubs", marker = "extra == 'dev'", specifier = "==2.3.3.260113" },
     { name = "pronto", marker = "extra == 'ontology'", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=7" },
@@ -1191,6 +1193,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pandas-stubs"
+version = "2.3.3.260113"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "types-pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/92/5d/be23854a73fda69f1dbdda7bc10fbd6f930bd1fa87aaec389f00c901c1e8/pandas_stubs-2.3.3.260113.tar.gz", hash = "sha256:076e3724bcaa73de78932b012ec64b3010463d377fa63116f4e6850643d93800", size = 116131, upload-time = "2026-01-13T22:30:16.704Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d1/c6/df1fe324248424f77b89371116dab5243db7f052c32cc9fe7442ad9c5f75/pandas_stubs-2.3.3.260113-py3-none-any.whl", hash = "sha256:ec070b5c576e1badf12544ae50385872f0631fc35d99d00dc598c2954ec564d3", size = 168246, upload-time = "2026-01-13T22:30:15.244Z" },
+]
+
+[[package]]
 name = "pillow"
 version = "12.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2010,6 +2025,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/79/39/09f9274119899ed4e15630a544735c31b32f6bbaeea4c40a788cecf8df3d/ty-0.0.87-py3-none-win32.whl", hash = "sha256:12c85c47d62d3b03c3ef00e1e74a31788aac5de3102d86b687d928d889cfbe83", size = 13137336, upload-time = "2026-10-13T23:06:59.816Z" },
     { url = "https://files.pythonhosted.org/packages/4e/6e/ecfc716c98bb1eeac9d8743221403c5e7f2f0ed69858af881a0e5b775739/ty-0.0.87-py3-none-win_amd64.whl", hash = "sha256:767219b8fedd2f48875c1ea3557f39734642073a2e039c6ab67ce5a50b65ddf0", size = 13660330, upload-time = "2026-10-13T23:07:02.568Z" },
     { url = "https://files.pythonhosted.org/packages/94/89/aa0eb234360cb6c8efc6ac45694000dfe3c3e590a30e87f2f9631190d339/ty-0.0.87-py3-none-win_arm64.whl", hash = "sha256:db4aa3a464c43d155ac8a3387a76173183ce4c141a8de1b6cb956e6a5a5e7d52", size = 13217514, upload-time = "2026-10-13T23:07:06.177Z" },
+]
+
+[[package]]
+name = "types-pytz"
+version = "2026.5.0.20261006"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/47/b493f47f2dd0971db06459439ebdeb114cf95029188268099b331bbc4727/types_pytz-2026.5.0.20261006.tar.gz", hash = "sha256:1a522c2ec03aad8d4baaf97105958019ad51704b1e471c882d1c6ccea3e5e64b", size = 11073, upload-time = "2026-10-06T08:15:12.87Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/38/e375026fb4ff74fed6bdb84d7d336571d0603b6b9675751579cec84cfc9b/types_pytz-2026.5.0.20261006-py3-none-any.whl", hash = "sha256:9e4a893b362a8eed4e10a348c80603ade65bdb3819419e589364afafe2ea08b1", size = 10168, upload-time = "2026-10-06T08:15:11.985Z" },
 ]
 
 [[package]]
