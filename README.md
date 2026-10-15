@@ -32,7 +32,7 @@ Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the int
 `.python-version`.
 
 ```bash
-make setup     # dev tools and the data extra from the lock
+make setup     # dev tools and the data and synth extras from the lock
 make check     # the whole gate
 make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 make synthea   # generate the Synthea population (needs a JDK) and ablate one cell
@@ -45,3 +45,9 @@ The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md); the source documen
 conventions and document index.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the full record of the environment and the gate.
 Decisions are in [`docs/adr/`](docs/adr/README.md).
+
+## License
+
+Copyright (C) 2026 Dartmouth College. The code is licensed under the GNU General Public
+License, version 3 only ([`LICENSE`](LICENSE)); ADR
+[`tooling/gpl-3-license`](docs/adr/tooling/gpl-3-license.md) records why.

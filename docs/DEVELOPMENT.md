@@ -7,14 +7,15 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev` and `data` extras from the lock, and
+the machine lacks it. `make setup` installs the `dev`, `data` and `synth` extras from the lock, and
 `source .venv/bin/activate` enters the environment.
 
-- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas) is
-  installed by `make setup`; `ontology` (owlready2, pronto), `llm` (anthropic), `synth` (sdv,
-  imbalanced-learn), `eval` (scikit-learn, sdmetrics) and `app` (streamlit) are installed on
-  demand. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins
-  `make setup`. `make sync` installs every extra.
+- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas) and
+  `synth` (sdv, imbalanced-learn, torch) are installed by `make setup`; `ontology` (owlready2,
+  pronto), `llm` (anthropic), `eval` (scikit-learn, sdmetrics) and `app` (streamlit) are installed
+  on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA
+  packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra
+  joins `make setup`. `make sync` installs every extra.
 - **Install an extra the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
   append `--extra <name>`. `uv sync` is exact, so a bare `uv sync --extra <name>` removes the
   others. Never `uv pip install -e ".[...]"`: it resolves fresh rather than from the lock, and
@@ -67,6 +68,32 @@ root or to see the module's own code, run it directly:
 - **The gate is offline.** No test reads `data/` or the network; each builds its input in
   `tmp_path`, and no test runs Java.
 
+## Baselines
+
+`bko.baselines` ([README](../src/bko/baselines/README.md)) builds each comparison method's training
+set from the training split `bko.datasets` computes (ADR
+[`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)). One
+command per method, inside `.venv`:
+
+    uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+
+- **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
+  `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
+  method and writes the training set to stdout as CSV: `record_id` (negative for an added row), the
+  predictors, `target` and `weight`. `--seed` defaults to `BASELINE_SEED` in
+  `bko.baselines.request`.
+- **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
+  with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
+  row counts and the output's sha256, the fit and fill lines of CTGAN and TVAE, and the method's
+  parameters. An experiment copies them into its configuration in
+  [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
+  versions.
+- **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
+  method whose output breaks the contract.
+- **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN and
+  TVAE promise no more, so the logged sha256 is the record.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -80,7 +107,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev` and `data` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data` and `synth` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -131,3 +158,6 @@ A targeted run while working:
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.
+- **Importing SDV writes outside the repository.** `sdv.single_table` creates SDV's user data
+  directory (`platformdirs.user_data_dir("sdv", "sdv-dev")`) and copies its logger configuration
+  there on import, so the baselines tests touch it. No test reads it.

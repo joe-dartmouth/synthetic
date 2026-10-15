@@ -3,6 +3,8 @@ name = "bko"
 version = "0.0.0"
 description = "Bayesian Knowledge-driven Ontologies for synthetic clinical data"
 readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = []
 
@@ -13,8 +15,8 @@ dependencies = []
 data = ["numpy>=2.5", "pandas>=2.3"]
 ontology = ["owlready2>=0.51", "pronto>=2.7"]
 llm = ["anthropic>=1.13"]
-# CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn.
-synth = ["sdv>=1.38", "imbalanced-learn>=0.14"]
+# CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn; torch is seeded directly.
+synth = ["sdv>=1.38", "imbalanced-learn>=0.14", "torch>=2.14"]
 eval = ["scikit-learn>=1.9", "sdmetrics>=0.32"]
 app = ["streamlit>=1.65"]
 dev = [

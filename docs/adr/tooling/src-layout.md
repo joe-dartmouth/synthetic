@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 # src layout, one subpackage per pipeline stage
 
@@ -80,8 +80,10 @@ needs a deliberate home rather than an ad-hoc import across stages.
 and `SUBPACKAGES` in `tests/test_package_layout.py` change in the same commit; the test fails if
 they disagree.
 
-**Shared code gets a `bko.core` subpackage the first time two stages import the same helper.** Until
-then nothing needs it.
+**Shared code gets a `bko.core` subpackage the first time two stages import the same helper.** A
+stage importing an upstream stage's public API (its frames, constants, loaders, errors and data root,
+as `bko.baselines` imports `bko.datasets`) is a pipeline dependency, not a shared helper. Until a
+helper belongs to neither stage, nothing needs `bko.core`.
 
 ## Related
 

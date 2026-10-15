@@ -57,7 +57,7 @@ because a new release adds rules, so ruff and ty carry `==` pins and a bump is a
 
 Declaring and locking every extra proves the whole stack resolves on the chosen interpreter before
 any stage is built, while installing only `dev` and the extras something imports keeps
-`make setup` from downloading `torch` for a teammate who is writing ontology code.
+`make setup` from downloading the libraries of stages nothing imports yet.
 
 ## Consequences
 
@@ -65,7 +65,9 @@ any stage is built, while installing only `dev` and the extras something imports
 verdicts that move only when a pin moves.
 **Accepted**: a new lint rule never arrives on its own; a ruff or ty bump needs a commit and
 `make setup`. A developer working on a stage installs its extra by hand until the stage's first
-import moves it into `make setup`.
+import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
+it, so every clone downloads `torch`, and on Linux the lock adds the NVIDIA CUDA packages and
+`triton`.
 
 ## Ruled Out
 
@@ -84,8 +86,9 @@ import moves it into `make setup`.
 - Owner: `pyproject.toml`
 - Pinned by: `tests/test_repo_gate.py`
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
-  distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, and that
-  every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
+  distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
+  `make setup` installs at least the `dev`, `data` and `synth` extras, and that every `uv run`
+  recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
 
 ## Reversal Conditions
 

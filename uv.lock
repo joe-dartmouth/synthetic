@@ -116,6 +116,7 @@ ontology = [
 synth = [
     { name = "imbalanced-learn" },
     { name = "sdv" },
+    { name = "torch" },
 ]
 
 [package.metadata]
@@ -136,6 +137,7 @@ requires-dist = [
     { name = "sdmetrics", marker = "extra == 'eval'", specifier = ">=0.32" },
     { name = "sdv", marker = "extra == 'synth'", specifier = ">=1.38" },
     { name = "streamlit", marker = "extra == 'app'", specifier = ">=1.65" },
+    { name = "torch", marker = "extra == 'synth'", specifier = ">=2.14" },
     { name = "ty", marker = "extra == 'dev'", specifier = "==0.0.87" },
 ]
 provides-extras = ["data", "ontology", "llm", "synth", "eval", "app", "dev"]

@@ -26,9 +26,9 @@ here; its core can be ported. Everything that detects a gap needs this layer
 
 **In.**
 
-- First, the license decision: port pybkb's code under GPL-3.0 (adding a `LICENSE`), or implement
-  clean-room from the papers with pybkb as a test oracle in a separate Python 3.11 environment. A
-  new ADR under `docs/adr/research/` records it.
+- First, the source decision: port pybkb's code under the repository's GPL-3.0 `LICENSE` (ADR
+  `tooling/gpl-3-license`), or implement clean-room from the papers with pybkb as a test oracle in a
+  separate Python 3.11 environment. A new ADR under `docs/adr/research/` records it.
 - The BKB structure, `fuse` (source-weighted fusion) and the `BKBReasoner.update` path, plus the
   probability utilities they need, in `src/bko/bkb/` on Python 3.14 with numpy 2.
 

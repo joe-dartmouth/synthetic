@@ -29,11 +29,14 @@ validity rate, and gap closure ([RESEARCH section 4](../docs/RESEARCH.md#4-succe
   DCR metrics in `src/bko/evaluate/`.
 - Fix the three open readings of the criteria
   ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)) in the experiment configuration before any run.
+- Fix in the experiment configuration the request each baseline is given and the reference rows for
+  generator fidelity and train-on-synthetic scoring: a baseline fills exactly the rows per stratum it
+  is asked for (ADR `research/baseline-augmentation-design`).
 
 **Out.** Running the final comparison.
 
 ## Acceptance
 
-- The harness scores a baseline dataset end to end.
+- The harness scores every baseline end to end, class weighting's sample weights included.
 - The `eval` extra joins `make setup`.
 - `make check`.
