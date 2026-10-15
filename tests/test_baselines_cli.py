@@ -37,6 +37,8 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 ARGS = {
     Method.NONE: [],
     Method.CLASS_WEIGHT: [],
+    Method.SMOTE: ["--rows", "5"],
+    Method.ADASYN: ["--rows", "5"],
     Method.CTGAN: ["--rows", "5"],
     Method.TVAE: ["--rows", "5"],
 }
@@ -157,7 +159,7 @@ def test_the_module_entry_point_runs():
     assert all(method.value in result.stdout for method in METHODS)
 
 
-@pytest.mark.parametrize("method", [Method.CTGAN], ids=str)
+@pytest.mark.parametrize("method", [Method.SMOTE, Method.CTGAN], ids=str)
 def test_a_second_run_writes_the_same_bytes(tmp_path, method):
     argv = [method.value, *ARGS[method]]
     assert run(tmp_path, *argv) == run(tmp_path, *argv)
@@ -216,3 +218,17 @@ def test_stdout_carries_only_the_csv(tmp_path):
     assert int((read(result.stdout).index < 0).sum()) == 5
     assert "INFO bko.baselines: method=ctgan" in result.stderr
     assert "INFO SingleTableSynthesizer" not in result.stderr
+
+
+def test_label_strata_match_the_logged_quota(tmp_path, caplog):
+    with caplog.at_level(logging.INFO):
+        code, out = run(tmp_path, "smote", "--rows", "5", "--strata", "label")
+    assert code == 0
+    added = read(out).loc[lambda frame: frame.index < 0, "target"]
+    logged = {
+        int(message.split("stratum=")[1].split()[0]): int(message.split("rows=")[1])
+        for message in caplog.messages
+        if message.startswith("quota ")
+    }
+    assert logged == added.value_counts().to_dict()
+    assert sum(logged.values()) == 5

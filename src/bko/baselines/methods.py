@@ -10,6 +10,7 @@ import pandas as pd
 
 from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.errors import BaselineError
+from bko.baselines.oversample import adasyn, smote
 from bko.baselines.records import Baseline, check
 from bko.baselines.request import Method, Request
 from bko.baselines.synthesizers import ctgan, tvae
@@ -22,6 +23,8 @@ METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
     {
         Method.NONE: no_augmentation,
         Method.CLASS_WEIGHT: class_weighting,
+        Method.SMOTE: smote,
+        Method.ADASYN: adasyn,
         Method.CTGAN: ctgan,
         Method.TVAE: tvae,
     }

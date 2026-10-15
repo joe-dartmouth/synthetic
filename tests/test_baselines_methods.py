@@ -2,15 +2,27 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import pandas as pd
 import pytest
 
 from bko.baselines.controls import no_augmentation
 from bko.baselines.errors import BaselineError, OutputContractError
-from bko.baselines.methods import augment
+from bko.baselines.methods import METHODS, augment
+from bko.baselines.oversample import adasyn, smote
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Method, Request, Strata
-from tests._baselines_fixtures import EVALUATION_COLUMNS, EVALUATION_DTYPES, QUOTA, full_records
+from bko.baselines.synthesizers import ctgan, tvae
+from tests._baselines_fixtures import (
+    EVALUATION_COLUMNS,
+    EVALUATION_DTYPES,
+    QUOTA,
+    TINY_CTGAN,
+    TINY_TVAE,
+    cells_of,
+    full_records,
+)
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -50,3 +62,19 @@ def test_a_row_adding_method_refuses_an_empty_request():
 def test_augment_refuses_a_broken_output():
     with pytest.raises(OutputContractError, match="rows per stratum"):
         augment(TRAIN, Method.SMOTE, Request(quota=QUOTA), methods={Method.SMOTE: no_augmentation})
+
+
+def test_every_method_has_a_runner():
+    assert set(METHODS) == set(Method)
+
+
+def test_one_request_gives_every_method_the_same_rows_per_cell():
+    runners = [
+        smote,
+        adasyn,
+        partial(ctgan, parameters=TINY_CTGAN),
+        partial(tvae, parameters=TINY_TVAE),
+    ]
+    request = Request(quota=QUOTA)
+    cells = [cells_of(runner(TRAIN, request).added) for runner in runners]
+    assert all(cell == cells[0] for cell in cells)
