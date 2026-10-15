@@ -75,3 +75,28 @@ def test_a_spec_matching_no_patient_names_the_funnel(population):
 def test_an_unknown_band_is_refused(population):
     with pytest.raises(DatasetError, match="age band"):
         ablate(population, AblationSpec(codes=IHD, age_band="65-70", sex=1))
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        (AblationSpec(codes=frozenset(), age_band=None, sex=None), "at least one condition code"),
+        (AblationSpec(codes=IHD, age_band=None, sex=2), "sex must be 0, 1 or None"),
+        (AblationSpec(codes=IHD, age_band=None, sex=True), "sex must be 0, 1 or None"),
+        (AblationSpec(codes=IHD, age_band=None, sex=None, edges=(60, 40)), "strictly increasing"),
+    ],
+    ids=["no-codes", "sex-2", "sex-bool", "bad-edges"],
+)
+def test_a_malformed_spec_is_refused(population, spec, message):
+    with pytest.raises(DatasetError, match=message):
+        ablate(population, spec)
+
+
+def test_every_code_in_the_spec_makes_a_case(population):
+    spec = AblationSpec(codes=IHD | {"22298006"}, age_band=None, sex=None)
+    assert list(ablate(population, spec).removed) == ["p1", "p2", "p3", "p4"]
+
+
+def test_a_whole_population_spec_that_matches_nothing_says_so(population):
+    with pytest.raises(DatasetError, match=r"0 patients have \['999'\], none in the population$"):
+        ablate(population, AblationSpec(codes=frozenset({"999"}), age_band=None, sex=None))

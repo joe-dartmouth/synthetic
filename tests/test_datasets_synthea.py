@@ -117,3 +117,54 @@ def test_subjects_are_counted_by_the_cell_grid(tmp_path):
     assert cell["60-69", "male", 1] == 2
     assert cell["60-69", "female", 1] == 1
     assert counts["count"].sum() == 4
+
+
+def test_the_snapshot_day_counts_births_and_onsets_but_not_deaths(tmp_path):
+    """Born on the snapshot: in. Died on it: out. An onset on it: a case."""
+    patients = [
+        patient("b", "2026-01-01", "F"),
+        patient("d", "1960-01-01", "M", death="2026-01-01"),
+        patient("o", "1960-01-01", "M"),
+    ]
+    conditions = [
+        condition("o", "414545008", "2026-01-01"),
+        condition("d", "414545008", "2020-01-01"),
+    ]
+    population = load(tmp_path, patients, conditions)
+    assert list(population.patients.index) == ["b", "o"]
+    assert subjects(population, codes=IHD)["target"].to_dict() == {"b": 0, "o": 1}
+
+
+@pytest.mark.parametrize(
+    ("patients", "conditions", "where"),
+    [
+        ([patient("p1", "", "M")], [], "BIRTHDATE"),
+        ([patient("p1", "1960-01-01", "M")], [condition("p1", "414545008", "")], "START"),
+        ([patient("p1", "1960-01-01", "M", death="2020/01/01")], [], "DEATHDATE"),
+        ([patient("p1", "1960-1-5", "M")], [], "BIRTHDATE"),
+    ],
+    ids=["blank-birth", "blank-start", "malformed-death", "unpadded-birth"],
+)
+def test_a_blank_or_malformed_date_is_refused(tmp_path, patients, conditions, where):
+    with pytest.raises(ContractError, match=f"{where}: .* is not a YYYY-MM-DD date"):
+        load(tmp_path, patients, conditions)
+
+
+@pytest.mark.parametrize(
+    ("birth", "age"),
+    [
+        ("1960-06-14", 66),
+        ("1960-06-15", 66),
+        ("1960-06-16", 65),
+        ("1960-07-01", 65),
+        ("1960-05-31", 66),
+    ],
+)
+def test_age_on_a_mid_year_snapshot(birth, age):
+    assert ages(pd.Series(pd.to_datetime([birth])), date(2026, 6, 15)).tolist() == [age]
+
+
+def test_a_leap_day_birth_ages_on_the_first_of_march():
+    births = pd.Series(pd.to_datetime(["2000-02-29"]))
+    assert ages(births, date(2026, 2, 28)).tolist() == [25]
+    assert ages(births, date(2026, 3, 1)).tolist() == [26]

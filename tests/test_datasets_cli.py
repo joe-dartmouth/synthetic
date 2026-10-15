@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import io
 import logging
 import subprocess
@@ -13,10 +14,11 @@ from pathlib import Path
 import pytest
 
 from bko.datasets.__main__ import Context, default_data_dir, main
-from bko.datasets.ablation import AblationSpec
+from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec
+from bko.datasets.cells import SEXES, age_band_labels
 from bko.datasets.errors import UnavailableError
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
-from bko.datasets.synthea_run import SyntheaRun
+from bko.datasets.synthea_run import DEFAULT_RUN, SyntheaRun
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, FakeSynthea, archive, cleveland_line, pin
 from tools._git import child_environment
@@ -231,3 +233,44 @@ def test_synthea_prints_counts_before_and_after_and_reuses_the_population(tmp_pa
     assert outs[0].splitlines()[0] == "age_band,sex,target,before,after"
     assert "60-69,male,1,2,0" in outs[0].splitlines()
     assert len(runner.calls) == 1
+
+
+def test_synthea_reports_every_cell_and_only_the_target_cell_changes(tmp_path):
+    out = io.StringIO()
+    main(["synthea", "--data-dir", str(tmp_path)], context=synthea_context(FakeSynthea()), out=out)
+    header, *rows = out.getvalue().splitlines()
+    assert header == "age_band,sex,target,before,after"
+    assert len(rows) == 6 * 2 * 2
+    changed = [row for row in rows if row.split(",")[3] != row.split(",")[4]]
+    assert changed == ["60-69,male,1,2,0"]
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ({"runner": FakeSynthea(status=4)}, 2),
+        ({"open_url": FakeOpener(b"x" * len(JAR))}, 3),
+        (
+            {
+                "ablation": AblationSpec(
+                    codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band="40-49", sex=0
+                )
+            },
+            2,
+        ),
+    ],
+    ids=["synthea-fails", "jar-fails-its-pin", "spec-selects-nothing"],
+)
+def test_a_failed_synthea_command_exits_with_its_code_and_writes_nothing(tmp_path, change, code):
+    context = dataclasses.replace(synthea_context(FakeSynthea()), **change)
+    out = io.StringIO()
+    assert main(["synthea", "--data-dir", str(tmp_path)], context=context, out=out) == code
+    assert out.getvalue() == ""
+
+
+def test_the_default_context_ablates_a_cell_of_the_default_grid():
+    context = Context()
+    assert context.run == DEFAULT_RUN
+    assert context.ablation == DEFAULT_ABLATION
+    assert DEFAULT_ABLATION.age_band in age_band_labels(DEFAULT_ABLATION.edges)
+    assert DEFAULT_ABLATION.sex in SEXES

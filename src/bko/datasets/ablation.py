@@ -43,8 +43,8 @@ class AblationSpec:
 DEFAULT_ABLATION: Final = AblationSpec(
     codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band="60-69", sex=1
 )
-"""The command's demonstration cell, the largest one a pilot run measured. E2's configuration
-fixes its own targets."""
+"""The command's demonstration cell, chosen by the pilot ADR `research/synthea-ablation-design`
+records. E2's configuration fixes its own targets."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -77,16 +77,20 @@ def ablate(population: Population, spec: AblationSpec) -> Ablation:
         The ablation.
 
     Raises:
-        DatasetError: If `spec` names no code, an unknown band or sex, or selects no patient.
+        DatasetError: If `spec` names no code, bad band edges, an unknown band or sex, or selects
+            no patient.
     """
-    labels = age_band_labels(spec.edges)
+    try:
+        labels = age_band_labels(spec.edges)
+    except ValueError as exc:
+        raise DatasetError(str(exc)) from exc
     if not spec.codes:
         msg = "an ablation needs at least one condition code"
         raise DatasetError(msg)
     if spec.age_band is not None and spec.age_band not in labels:
         msg = f"age band {spec.age_band!r} is not one of {labels}"
         raise DatasetError(msg)
-    if spec.sex is not None and spec.sex not in SEXES:
+    if spec.sex is not None and (isinstance(spec.sex, bool) or spec.sex not in SEXES):
         msg = f"sex must be 0, 1 or None, not {spec.sex}"
         raise DatasetError(msg)
     people = subjects(population, codes=spec.codes)
@@ -98,9 +102,13 @@ def ablate(population: Population, spec: AblationSpec) -> Ablation:
         selected &= keys["sex"] == SEXES[spec.sex]
     removed = people.index[selected.to_numpy()].sort_values()
     if removed.empty:
+        where = [
+            *([f"age band {spec.age_band}"] if spec.age_band is not None else []),
+            *([f"sex {SEXES[spec.sex]}"] if spec.sex is not None else []),
+        ]
         msg = (
             f"the spec selects no patient: {int(people[LABEL].sum())} patients have "
-            f"{sorted(spec.codes)}, none in age band {spec.age_band} with sex {spec.sex}"
+            f"{sorted(spec.codes)}, none in {' and '.join(where) or 'the population'}"
         )
         raise DatasetError(msg)
     conditions = population.conditions

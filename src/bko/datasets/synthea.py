@@ -3,7 +3,8 @@
 Only the columns the ablation and the cell counts read are loaded (`PATIENT_COLUMNS`,
 `CONDITION_COLUMNS`), so the synthetic SSNs, names and addresses Synthea writes never enter a
 frame. Codes are read as text and matched exactly; descriptions are not read. Dates must be
-`YYYY-MM-DD`.
+`YYYY-MM-DD`, and only `DEATHDATE` may be blank. A patient who dies on the snapshot date is not in
+the population.
 """
 
 from __future__ import annotations
@@ -66,26 +67,33 @@ def load_population(directory: Path, *, snapshot_date: date) -> Population:
     Raises:
         UnavailableError: If a table is absent.
         ContractError: If a column is missing, an id repeats, a gender is not F or M, a condition
-            names no patient, or a date is not `YYYY-MM-DD`.
+            names no patient, or a date is blank where it may not be or not `YYYY-MM-DD`.
     """
-    patients = _read(directory / "csv" / "patients.csv", PATIENT_COLUMNS)
-    conditions = _read(directory / "csv" / "conditions.csv", CONDITION_COLUMNS)
+    patients_csv = directory / "csv" / "patients.csv"
+    conditions_csv = directory / "csv" / "conditions.csv"
+    patients = _read(patients_csv, PATIENT_COLUMNS)
+    conditions = _read(conditions_csv, CONDITION_COLUMNS)
     if not patients["Id"].is_unique:
-        msg = "patients.csv: duplicate Id"
+        msg = f"{patients_csv}: duplicate Id"
         raise ContractError(msg)
     unknown = ~patients["GENDER"].isin(list(SEX_CODES))
     if unknown.any():
-        msg = f"patients.csv: GENDER {patients['GENDER'][unknown].iloc[0]!r} is not F or M"
+        msg = f"{patients_csv}: GENDER {patients['GENDER'][unknown].iloc[0]!r} is not F or M"
         raise ContractError(msg)
     orphans = ~conditions["PATIENT"].isin(patients["Id"])
     if orphans.any():
-        msg = f"conditions.csv: {int(orphans.sum())} rows name no patient"
+        msg = f"{conditions_csv}: {int(orphans.sum())} rows name no patient"
         raise ContractError(msg)
-    birth = _dates(patients["BIRTHDATE"], "patients.csv BIRTHDATE")
-    death = _dates(patients["DEATHDATE"], "patients.csv DEATHDATE")
+    birth = _dates(patients["BIRTHDATE"], f"{patients_csv} BIRTHDATE", blank=False)
+    death = _dates(patients["DEATHDATE"], f"{patients_csv} DEATHDATE", blank=True)
     snapshot = pd.Timestamp(snapshot_date)
     alive = ((birth <= snapshot) & (death.isna() | (death > snapshot))).to_numpy()
-    logger.info("patients=%d alive_on_snapshot=%d", len(patients), int(alive.sum()))
+    logger.info(
+        "population %s patients=%d alive_on_snapshot=%d",
+        directory.name,
+        len(patients),
+        int(alive.sum()),
+    )
     people = pd.DataFrame(
         {
             "birth_date": birth[alive].to_numpy(),
@@ -97,7 +105,7 @@ def load_population(directory: Path, *, snapshot_date: date) -> Population:
         {
             "patient": conditions["PATIENT"],
             "code": conditions["CODE"],
-            "start": _dates(conditions["START"], "conditions.csv START"),
+            "start": _dates(conditions["START"], f"{conditions_csv} START", blank=False),
         }
     )
     onsets = onsets.loc[onsets["patient"].isin(people.index)].reset_index(drop=True)
@@ -148,9 +156,16 @@ def _read(path: Path, columns: tuple[str, ...]) -> pd.DataFrame:
         raise ContractError(msg) from exc
 
 
-def _dates(values: pd.Series, what: str) -> pd.Series:
+def _dates(values: pd.Series, what: str, *, blank: bool) -> pd.Series:
+    """Parse `YYYY-MM-DD` dates; a blank is missing when `blank` allows it, else an error."""
+    empty = values.eq("")
+    malformed = ~empty & ~values.str.fullmatch(r"\d{4}-\d{2}-\d{2}")
+    bad = malformed if blank else malformed | empty
+    if bad.any():
+        msg = f"{what}: {values[bad].iloc[0]!r} is not a YYYY-MM-DD date"
+        raise ContractError(msg)
     try:
-        return pd.to_datetime(values.mask(values.eq("")), format="%Y-%m-%d")
+        return pd.to_datetime(values.mask(empty), format="%Y-%m-%d")
     except ValueError as exc:
         msg = f"{what}: {exc}"
         raise ContractError(msg) from exc
