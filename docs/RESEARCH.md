@@ -43,6 +43,11 @@ The initial evaluation setting is heart-disease prediction on the UCI Heart Dise
 - **Status of that threshold**: a prototype convenience criterion. It does not claim to define
   clinical rarity.
 
+The archive's site, the label coding, the age bands, the handling of missing values and the
+train/test split are fixed for every experiment by ADR
+[`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md); `bko.datasets` holds the
+values.
+
 A complementary Synthea experiment assesses gap detection by deliberately ablating selected cases
 from the generated population, which gives the detector a known set of removed cases to find.
 
@@ -107,7 +112,7 @@ included, and results will be reported transparently if knowledge guidance provi
 The comparison set is therefore: no augmentation, class weighting, SMOTE, ADASYN, CTGAN and TVAE
 [`xu-2019`][xu-2019]. A result where knowledge guidance gives no benefit is reported, not dropped.
 
-The 2-pager leaves three readings open. Each experiment fixes them in its configuration in
+The 2-pager leaves these readings open. Each experiment fixes them in its configuration in
 [EVIDENCE.md](EVIDENCE.md) before it runs:
 
 - Whether "at least 10%" is a relative improvement or a difference in percentage points.

@@ -2,8 +2,7 @@
 
 Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 3, 4, 5 and 6; [research brief](../papers/research-brief.pdf) F16; facts verified outside the PDFs (pybkb, ofs_app, synthcity resolution).
 
-> **Status: planned; no stage is built.** Every `src/bko/` subpackage holds only its docstring and
-> README.
+> **Status: planned.** Each stage's README says whether the stage is built.
 
 How the planned system fits together. The method each stage implements is in
 [RESEARCH.md](RESEARCH.md#3-approach); each stage's README is the home for its role, extra, owner

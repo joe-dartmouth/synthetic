@@ -7,14 +7,14 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev` extra from the lock, and
+the machine lacks it. `make setup` installs the `dev` and `data` extras from the lock, and
 `source .venv/bin/activate` enters the environment.
 
-- **Runtime dependencies are optional extras, declared and locked but installed on demand**: `data`
-  (numpy, pandas), `ontology` (owlready2, pronto), `llm` (anthropic), `synth` (sdv,
-  imbalanced-learn), `eval` (scikit-learn, sdmetrics) and `app` (streamlit). ADR
-  [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
-  `make sync` installs every extra.
+- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas) is
+  installed by `make setup`; `ontology` (owlready2, pronto), `llm` (anthropic), `synth` (sdv,
+  imbalanced-learn), `eval` (scikit-learn, sdmetrics) and `app` (streamlit) are installed on
+  demand. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins
+  `make setup`. `make sync` installs every extra.
 - **Install an extra the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
   append `--extra <name>`. `uv sync` is exact, so a bare `uv sync --extra <name>` removes the
   others. Never `uv pip install -e ".[...]"`: it resolves fresh rather than from the lock, and
@@ -26,6 +26,27 @@ the machine lacks it. `make setup` installs the `dev` extra from the lock, and
 - **Build backends are pinned** in `[tool.uv] build-constraint-dependencies`, because uv resolves
   them outside the lock: hatchling for `bko`, and setuptools, wheel and Cython for owlready2, which
   ships only an sdist.
+
+## Data
+
+The evaluation data is downloaded, never committed. It lives under `data/` at the repository
+root, which `.gitignore` ignores, and only [`bko.datasets`](../src/bko/datasets/README.md) writes
+there. Each download is pinned by size and sha256 in `bko.datasets.sources`, and a download or a
+snapshot on disk that differs from its pin is refused.
+
+- **The cell counts**: `make cells`, which runs `python -m bko.datasets cells` inside the
+  project's virtual environment (`.venv`, built by `make setup`). It fetches UCI Heart Disease if
+  `data/` lacks it, verifies it, and writes the age-sex subgroup-label cell counts of the
+  training split to stdout as CSV, the same bytes on every run. The underrepresented cells and
+  the snapshot identity go to stderr. The module exits 0 when done, 1 when the data contradicts its
+  pin or schema, and 2 when the command could not run; `make` reports any failure as its own exit
+  2. To use another data root or to see 1 apart from 2, run the module directly:
+  `uv run --no-sync python -m bko.datasets cells --data-dir <dir>`.
+- **Snapshot identity**: each snapshot directory holds `source.json` with the URL, size, sha256
+  and download time. An experiment copies them into its configuration in
+  [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
+- **The gate is offline.** No test reads `data/` or the network; each builds its input in
+  `tmp_path`.
 
 ## Platforms
 
@@ -40,13 +61,14 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev` extra and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev` and `data` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
 | `typecheck` | `ty check` | `ty.toml` sets the platform and paths; `pyrightconfig.json` is for editors |
 | `test` | `pytest -n auto --dist worksteal --cov` | Sources, branch coverage and `fail_under` live in `pyproject.toml` |
 | `sizes` | `python -m tools.check_file_size` | ADR [`tooling/file-size-cap`](adr/tooling/file-size-cap.md) |
+| `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |

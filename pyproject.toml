@@ -6,8 +6,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
-# Runtime dependencies are locked extras installed on demand (ADR `tooling/uv-ruff-ty` holds the
-# rule for when one joins `make setup`). Runtime floors are the registry's major.minor when each was
+# Runtime dependencies are locked extras; `make setup` installs the ones something imports (ADR
+# `tooling/uv-ruff-ty` holds the rule). Runtime floors are the registry's major.minor when each was
 # declared; dev floors are the majors the gate runs on. `uv.lock` holds the exact versions.
 [project.optional-dependencies]
 data = ["numpy>=2.5", "pandas>=2.3"]

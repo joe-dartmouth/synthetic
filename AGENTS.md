@@ -5,20 +5,22 @@ medical knowledge, held as a Bayesian Knowledge-driven Ontology (BKO), can find 
 clinical tabular dataset and guide synthetic-record generation that fills them, improving
 heart-disease prediction for underrepresented groups. The Python package is `bko`.
 
-> Status: scaffold. The toolchain and gate run; every `src/bko/` subpackage is a docstring-only
-> stub. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md), converted from the team's
-> [proposal 2-pager](papers/proposal-2-pager.pdf); the [research brief](papers/research-brief.pdf)
-> is background, and where the two disagree the 2-pager governs (RESEARCH section 9).
+> Status: scaffold. The toolchain and gate run; each `src/bko/` subpackage's README says whether
+> its stage is built. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md), converted from
+> the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
+> [research brief](papers/research-brief.pdf) is background, and where the two disagree the
+> 2-pager governs (RESEARCH section 9).
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
 import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-- `make setup`: install the `dev` extra from `uv.lock`.
+- `make setup`: install the `dev` and `data` extras from `uv.lock`.
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
+- `make cells`: fetch UCI Heart Disease into `data/` and print its cell counts ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
 - A targeted run while working:
 
   ```
@@ -47,13 +49,15 @@ synthetic/
 - **synthcity is not a dependency.** It pins `torch<2.3` and `numpy<2.0` and does not resolve on
   Python 3.14 (ADR `tooling/python-314-without-synthcity`). Evaluation uses SDMetrics and
   scikit-learn.
-- **`make setup` installs `dev` only.** Runtime dependencies are locked extras installed on
-  demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
+- **`make setup` installs `dev` and `data`.** The other runtime dependencies are locked extras
+  installed on demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install one. Never
   `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install
   targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
   `uv lock`, then `make setup`.
+- **Downloaded data lives under the gitignored `data/`, and the gate never reads it.** Tests build
+  their input in `tmp_path`; [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data) has the commands.
 - **Stage new files before running the gate.** `make sizes` and several repository tests read
   `git ls-files`, so an untracked file is invisible to them.
 - **`ruff format` formats Python inside markdown fences**, so an unformatted ```` ```python ````
@@ -102,7 +106,8 @@ synthetic/
 - Unscheduled ideas: [`docs/IDEAS.md`](docs/IDEAS.md); market and regulation:
   [`docs/MARKET.md`](docs/MARKET.md)
 - Citation registry: [`docs/literature.md`](docs/literature.md); source PDFs: `papers/`
-- Environment, platforms, Make targets, gate hazards: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- Environment, data, platforms, Make targets, gate hazards:
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - Decisions: [`docs/adr/`](docs/adr/README.md)
 - The repository's own checkers: [`tools/README.md`](tools/README.md)
 - Each pipeline stage: `src/bko/<stage>/README.md`

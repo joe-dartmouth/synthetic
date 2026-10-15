@@ -5,8 +5,8 @@ Partiban Anathurai, Shirley Asangi, Joe Laws, Krish Sapru. ENGG 119 project.
 Testing whether medical knowledge can guide synthetic patient-data generation to fill coverage gaps
 and improve heart-disease prediction for underrepresented groups.
 
-> **Status: scaffold.** The toolchain and the `make check` gate run. Every pipeline stage under
-> `src/bko/` is a stub with a README naming its role and owner.
+> **Status: scaffold.** The toolchain and the `make check` gate run. Each pipeline stage under
+> `src/bko/` has a README naming its role, its owner and whether the stage is built.
 
 ## Overview
 
@@ -32,8 +32,9 @@ Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the int
 `.python-version`.
 
 ```bash
-make setup     # dev tools from the lock
+make setup     # dev tools and the data extra from the lock
 make check     # the whole gate
+make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 ```
 
 ## Repository guide
