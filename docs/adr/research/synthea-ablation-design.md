@@ -31,8 +31,11 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
 - **Generate** with the Synthea v4.0.0 jar whose size and sha256 `bko.datasets.sources` holds, on
   JDK 17 or newer, passing `-s`, `-cs` and `-p`, `-r` and `-e` both equal to the snapshot date (a
   past date), the state, CSV export of `patients.csv` and `conditions.csv` only,
-  `exporter.years_of_history=0`, `generate.thread_pool_size=1`, and `TZ=UTC` with
-  `-Duser.timezone=UTC`.
+  `exporter.years_of_history=0`, `generate.thread_pool_size=1`, and the machine's settings fixed:
+  `TZ=UTC`, `LANG` and `LC_ALL` `C.UTF-8`, and the JVM's time zone, locale (`en`, `US`) and file
+  encoding (UTF-8). Java gets no other environment variable.
+- **Reuse** a population only while its `run.json` records these settings and each CSV still
+  matches its recorded sha256; otherwise it is generated again.
 - **The population is the patients alive on the snapshot date.**
 - **A case is a patient**: the ablation removes every patient who has one of the spec's condition
   codes by the snapshot date, with all their condition rows. The spec narrows the cases to one age
@@ -41,8 +44,14 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 
 `bko.datasets.synthea_run`, `bko.datasets.synthea` and `bko.datasets.ablation` hold the values. The
-command's default spec is a demonstration cell sized from a pilot run; E2's configuration fixes its
-own target cells and whether they are cells or whole conditions.
+command's default spec is a demonstration cell; E2's configuration fixes its own target cells and
+whether they are cells or whole conditions.
+
+The default size comes from a pilot of these settings at `-p 1000`, seed 1, on JDK 17: two runs
+gave byte-identical CSVs, and its largest ischemic heart disease cell between ages 40 and 79 was men
+aged 60 to 69, with 20 cases. The default population is that cell's size scaled to 27.9 expected
+cases, the Poisson mean at which a cell holds 20 or more with probability 0.95, rounded up to a
+thousand: 2000. That cell is the default spec.
 
 ## Rationale
 
@@ -58,7 +67,8 @@ the sex.
 
 **Gained**: a population recreated from its parameters; a ground truth at the cell level, where
 both detectors report.
-**Accepted**: a JDK on every machine that generates; a 201 MB jar download; one thread, so
+**Accepted**: a JDK on every machine that generates; a jar download of the size
+`bko.datasets.sources` pins; one thread, so
 generation is slower; cross-platform identity is not promised, so each run records its CSV
 checksums.
 
