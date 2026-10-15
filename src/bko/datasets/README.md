@@ -7,4 +7,4 @@ with the age-sex subgroup-label cells of the training records counted (ADR [`res
 
 - **Dependencies:** The `data` extra (`pyproject.toml`).
 - **Owner:** Joe Laws
-- **Status:** UCI Heart Disease built; Synthea planned in [`proposal-synthea-ablation`](../../../tasks/proposal-synthea-ablation.md).
+- **Status:** built.

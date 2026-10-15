@@ -3,8 +3,7 @@
 **What this set is.** The work the 2-pager proposes, from the BKB layer to the final evaluation,
 split into units of one pull request each. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md),
 the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none), and owners follow
-2-pager section 6, except `proposal-synthea-ablation`, whose work no member's section 6 workstream
-names; it sits with Joe's experiments. Each unit's `milestone` names the ROADMAP heading it serves.
+2-pager section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 
 ## Graph and status
 
@@ -12,9 +11,8 @@ names; it sits with Joe's experiments. Each unit's `milestone` names the ROADMAP
 |---|---|---|---|---|
 | [`proposal-bkb-port`](proposal-bkb-port.md) | ready | -- | Partiban | status-update-1 |
 | [`proposal-ontology-mapping`](proposal-ontology-mapping.md) | ready | -- | Partiban | status-update-1 |
-| [`proposal-synthea-ablation`](proposal-synthea-ablation.md) | ready | -- | Joe | status-update-1 |
 | [`proposal-mondo-do-fusion`](proposal-mondo-do-fusion.md) | blocked | proposal-bkb-port, proposal-ontology-mapping | Partiban | status-update-1 |
-| [`proposal-gap-detection`](proposal-gap-detection.md) | blocked | proposal-mondo-do-fusion, proposal-synthea-ablation | Partiban | status-update-1 |
+| [`proposal-gap-detection`](proposal-gap-detection.md) | blocked | proposal-mondo-do-fusion | Partiban | status-update-1 |
 | [`proposal-baselines`](proposal-baselines.md) | ready | -- | Joe | status-update-1 |
 | [`proposal-eval-harness`](proposal-eval-harness.md) | ready | -- | Joe | status-update-2 |
 | [`proposal-llm-generation`](proposal-llm-generation.md) | blocked | proposal-gap-detection | Shirley | status-update-2 |
@@ -28,7 +26,6 @@ flowchart LR
     bkb_port[proposal-bkb-port] --> mondo_do_fusion[proposal-mondo-do-fusion]
     ontology_mapping[proposal-ontology-mapping] --> mondo_do_fusion[proposal-mondo-do-fusion]
     mondo_do_fusion[proposal-mondo-do-fusion] --> gap_detection[proposal-gap-detection]
-    synthea_ablation[proposal-synthea-ablation] --> gap_detection[proposal-gap-detection]
     gap_detection[proposal-gap-detection] --> llm_generation[proposal-llm-generation]
     ontology_mapping[proposal-ontology-mapping] --> record_validation[proposal-record-validation]
     llm_generation[proposal-llm-generation] --> fusion_repair[proposal-fusion-repair]
