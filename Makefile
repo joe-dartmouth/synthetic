@@ -1,5 +1,5 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
@@ -55,6 +55,11 @@ sizes:
 # `@` keeps make from echoing the command into stdout, so `make cells > counts.csv` is pure CSV.
 cells:
 	@uv run --no-sync python -m bko.datasets cells
+
+# Generate the pinned Synthea population into data/ if absent (needs a JDK; JAVA_HOME is
+# honored), ablate the default cell, and print the cell counts before and after as CSV.
+synthea:
+	@uv run --no-sync python -m bko.datasets synthea
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final

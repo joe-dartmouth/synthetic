@@ -7,14 +7,18 @@ import logging
 import subprocess
 import sys
 import urllib.error
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from bko.datasets.__main__ import Context, default_data_dir, main
+from bko.datasets.ablation import AblationSpec
 from bko.datasets.errors import UnavailableError
+from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
+from bko.datasets.synthea_run import SyntheaRun
 from tests._corpus import REPO_ROOT
-from tests._datasets_fixtures import FakeOpener, archive, cleveland_line, pin
+from tests._datasets_fixtures import FakeOpener, FakeSynthea, archive, cleveland_line, pin
 from tools._git import child_environment
 
 
@@ -188,7 +192,7 @@ def test_the_module_entry_point_runs():
     assert "cells" in result.stdout
 
 
-@pytest.mark.parametrize("command", ["cells"])
+@pytest.mark.parametrize("command", ["cells", "synthea"])
 def test_each_command_has_a_phony_make_target_in_the_project_environment(command):
     """`make <command>` runs the CLI through `uv run --no-sync`, inside `.venv`, and is phony.
 
@@ -199,3 +203,31 @@ def test_each_command_has_a_phony_make_target_in_the_project_environment(command
     assert recipe == f"\t@uv run --no-sync python -m bko.datasets {command}"
     phony = next(line for line in lines if line.startswith(".PHONY:"))
     assert command in phony.split()
+
+
+JAR = b"jar" * 100
+
+
+def synthea_context(runner):
+    return Context(
+        open_url=FakeOpener(JAR),
+        synthea_jar=pin(JAR, "synthea-jar"),
+        resolve_java=lambda: (Path("/opt/jdk/bin/java"), 'openjdk version "21.0.4"'),
+        runner=runner,
+        run=SyntheaRun(seed=1, clinician_seed=1, population=10, snapshot_date=date(2026, 1, 1)),
+        ablation=AblationSpec(codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band="60-69", sex=1),
+    )
+
+
+def test_synthea_prints_counts_before_and_after_and_reuses_the_population(tmp_path):
+    runner = FakeSynthea()
+    context = synthea_context(runner)
+    outs = []
+    for _ in range(2):
+        out = io.StringIO()
+        assert main(["synthea", "--data-dir", str(tmp_path)], context=context, out=out) == 0
+        outs.append(out.getvalue())
+    assert outs[0] == outs[1]
+    assert outs[0].splitlines()[0] == "age_band,sex,target,before,after"
+    assert "60-69,male,1,2,0" in outs[0].splitlines()
+    assert len(runner.calls) == 1

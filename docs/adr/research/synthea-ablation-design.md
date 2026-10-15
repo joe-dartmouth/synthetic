@@ -75,7 +75,8 @@ checksums.
 ## Enforcement
 
 - Owner: `src/bko/datasets/`
-- Pinned by: `tests/test_datasets_synthea_run.py`, `tests/test_datasets_synthea.py`
+- Pinned by: `tests/test_datasets_synthea_run.py`, `tests/test_datasets_synthea.py`,
+  `tests/test_datasets_ablation.py`
 
 ## Reversal Conditions
 
