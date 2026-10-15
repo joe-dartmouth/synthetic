@@ -91,7 +91,7 @@ criteria.
 ## Enforcement
 
 - Owner: `src/bko/datasets/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_datasets_cells.py`
 
 ## Reversal Conditions
 

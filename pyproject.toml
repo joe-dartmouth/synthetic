@@ -27,6 +27,7 @@ dev = [
     # `tests/test_repo_gate.py` asserts the installed versions match.
     "ruff==0.17.0",
     "ty==0.0.87",
+    "pandas-stubs==2.3.3.260113",
 ]
 
 [build-system]
