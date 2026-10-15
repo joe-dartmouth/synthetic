@@ -31,19 +31,23 @@ the machine lacks it. `make setup` installs the `dev` and `data` extras from the
 
 The evaluation data is downloaded, never committed. It lives under `data/` at the repository
 root, which `.gitignore` ignores, and only [`bko.datasets`](../src/bko/datasets/README.md) writes
-there. Each download is pinned by size and sha256 in `bko.datasets.sources`, and a download or a
-snapshot on disk that differs from its pin is refused.
+there. Each download is pinned by size and sha256 in `bko.datasets.sources`. A download that
+differs from its pin is refused; `make cells` deletes and fetches again a snapshot on disk that
+fails its pin, and the loaders refuse one.
 
 - **The cell counts**: `make cells`, which runs `python -m bko.datasets cells` inside the
   project's virtual environment (`.venv`, built by `make setup`). It fetches UCI Heart Disease if
   `data/` lacks it, verifies it, and writes the age-sex subgroup-label cell counts of the
   training split to stdout as CSV, the same bytes on every run. The underrepresented cells and
-  the snapshot identity go to stderr. The module exits 0 when done, 1 when the data contradicts its
-  pin or schema, and 2 when the command could not run; `make` reports any failure as its own exit
-  2. To use another data root or to see 1 apart from 2, run the module directly:
+  the snapshot identity go to stderr. The module exits 0 when done, 1 on an unexpected error (with
+  its traceback), 2 when the command could not run, and 3 when the data contradicts its pin or
+  schema; `make` reports any failure as its own exit 2. To use another data root or to see the
+  module's own code, run it directly:
   `uv run --no-sync python -m bko.datasets cells --data-dir <dir>`.
-- **Snapshot identity**: each snapshot directory holds `source.json` with the URL, size, sha256
-  and download time. An experiment copies them into its configuration in
+- **Layout**: a snapshot is the directory `data/<source>/<first 16 hex digits of its sha256>/`,
+  for example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`.
+- **Snapshot identity**: `source.json` holds `url`, `size`, `sha256` and `retrieved_at` (the
+  download time, UTC). An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test reads `data/` or the network; each builds its input in
   `tmp_path`.

@@ -7,6 +7,7 @@ import logging
 import subprocess
 import sys
 import urllib.error
+from pathlib import Path
 
 import pytest
 
@@ -73,12 +74,12 @@ def test_stderr_names_the_underrepresented_cells_and_the_split(tmp_path, caplog)
     assert "dropped 1 records with a missing value" in caplog.text
 
 
-def test_a_checksum_mismatch_exits_one_and_writes_nothing(tmp_path, caplog):
+def test_a_checksum_mismatch_exits_three_and_writes_nothing(tmp_path, caplog):
     data = archive(TEXT)
     tampered = data[:-1] + bytes([data[-1] ^ 1])
     with caplog.at_level(logging.ERROR):
         code, out = run_cells(tmp_path, data, FakeOpener(tampered))
-    assert (code, out) == (1, "")
+    assert (code, out) == (3, "")
     assert pin(data).sha256 in caplog.text
 
 
@@ -108,6 +109,55 @@ def test_outside_a_checkout_there_is_no_default_data_root(tmp_path):
         default_data_dir(tmp_path / "site-packages" / "bko" / "datasets" / "__main__.py")
 
 
+def test_a_shallow_anchor_has_no_default_data_root():
+    with pytest.raises(UnavailableError, match="pass --data-dir"):
+        default_data_dir(Path("/__main__.py"))
+
+
+FULL = "\n".join(
+    cleveland_line(age=age, sex=sex, num=num)
+    for age in (40, 60)
+    for sex in (0, 1)
+    for num in (0, 1)
+    for _ in range(25)
+)
+"""Twenty-five records in each of the 8 cells, so every cell keeps 20 training records."""
+
+
+def test_with_no_underrepresented_cell_stderr_says_none(tmp_path, caplog):
+    data = archive(FULL)
+    context = Context(open_url=FakeOpener(data), uci=pin(data))
+    with caplog.at_level(logging.INFO):
+        main(["cells", "--data-dir", str(tmp_path)], context=context, out=io.StringIO())
+    assert "0 of 8 cells hold fewer than 20 training records: none" in caplog.text
+
+
+DRIVER = """
+import sys
+from bko.datasets.__main__ import Context, configure_logging, main
+from tests._datasets_fixtures import FakeOpener, archive, pin
+from tests.test_datasets_cli import TEXT
+data = archive(TEXT)
+configure_logging()
+context = Context(open_url=FakeOpener(data), uci=pin(data))
+sys.exit(main(["cells", "--data-dir", sys.argv[1]], context=context))
+"""
+"""The command as `__main__` runs it, with the opener and the pin replaced."""
+
+
+def test_stdout_carries_only_the_csv_and_stderr_the_logs(tmp_path):
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+        [sys.executable, "-c", DRIVER, str(tmp_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert (result.returncode, result.stdout) == (0, EXPECTED)
+    assert "INFO bko.datasets: split seed=0 train=16 test=4" in result.stderr
+
+
 def test_the_default_data_root_is_gitignored():
     result = subprocess.run(
         [
@@ -120,6 +170,7 @@ def test_the_default_data_root_is_gitignored():
         cwd=REPO_ROOT,
         env=child_environment(),
         check=False,
+        timeout=60,
     )
     assert result.returncode == 0
 
@@ -131,6 +182,7 @@ def test_the_module_entry_point_runs():
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
     assert result.returncode == 0
     assert "cells" in result.stdout

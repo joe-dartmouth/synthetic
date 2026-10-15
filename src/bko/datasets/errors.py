@@ -1,4 +1,8 @@
-"""The failures `bko.datasets` reports, each carrying the CLI exit code it maps to."""
+"""The failures `bko.datasets` reports, each carrying the CLI exit code it maps to.
+
+Exit 1 is left to Python, which uses it for an uncaught exception, so a defect never reads as a
+contract failure.
+"""
 
 from __future__ import annotations
 
@@ -18,4 +22,4 @@ class UnavailableError(DatasetError):
 class ContractError(DatasetError):
     """The bytes obtained contradict their pin or their documented schema."""
 
-    exit_code: ClassVar[int] = 1
+    exit_code: ClassVar[int] = 3
