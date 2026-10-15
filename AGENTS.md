@@ -16,7 +16,7 @@ import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-- `make setup`: install the `dev` and `data` extras from `uv.lock`.
+- `make setup`: install the `dev`, `data` and `synth` extras from `uv.lock`.
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
@@ -24,6 +24,9 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
 - `make synthea`: generate the pinned Synthea population and print the default ablation's cell
   counts (needs a JDK).
+- `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
+  training set from the UCI training split and print it as CSV
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
 - A targeted run while working:
 
   ```
@@ -53,8 +56,8 @@ synthetic/
 - **synthcity is not a dependency.** It pins `torch<2.3` and `numpy<2.0` and does not resolve on
   Python 3.14 (ADR `tooling/python-314-without-synthcity`). Evaluation uses SDMetrics and
   scikit-learn.
-- **`make setup` installs `dev` and `data`.** The other runtime dependencies are locked extras
-  installed on demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
+- **`make setup` installs `dev`, `data` and `synth`.** The other runtime dependencies are locked
+  extras installed on demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install one. Never
   `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install

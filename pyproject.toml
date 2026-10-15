@@ -13,7 +13,7 @@ dependencies = []
 data = ["numpy>=2.5", "pandas>=2.3"]
 ontology = ["owlready2>=0.51", "pronto>=2.7"]
 llm = ["anthropic>=1.13"]
-# CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn.
+# CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn; torch is seeded directly.
 synth = ["sdv>=1.38", "imbalanced-learn>=0.14"]
 eval = ["scikit-learn>=1.9", "sdmetrics>=0.32"]
 app = ["streamlit>=1.65"]

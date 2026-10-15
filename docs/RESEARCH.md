@@ -113,6 +113,8 @@ included, and results will be reported transparently if knowledge guidance provi
 
 The comparison set is therefore: no augmentation, class weighting, SMOTE, ADASYN, CTGAN and TVAE
 [`xu-2019`][xu-2019]. A result where knowledge guidance gives no benefit is reported, not dropped.
+ADR [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md) records
+how each method fills a requested quota of rows.
 
 The 2-pager leaves these readings open. Each experiment fixes them in its configuration in
 [EVIDENCE.md](EVIDENCE.md) before it runs:
