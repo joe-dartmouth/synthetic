@@ -10,16 +10,21 @@ the bands split at 55.
 
 from __future__ import annotations
 
-import bisect
 import itertools
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Final
 
+import numpy as np
 import pandas as pd
 
 from bko.datasets.errors import ContractError
-from bko.datasets.uci import CODEBOOK, LABEL
 
+
+LABEL: Final = "target"
+"""The binary label column: 1 where the condition is present."""
+
+SEXES: Final[Mapping[int, str]] = {0: "female", 1: "male"}
+"""The `sex` codes and their labels."""
 
 UNDERREPRESENTED_BELOW: Final = 20
 """RESEARCH section 2: a cell with fewer training records than this is underrepresented."""
@@ -64,24 +69,31 @@ def cell_keys(frame: pd.DataFrame, *, edges: Sequence[int] = AGE_BAND_EDGES) -> 
         A frame with the `CELL_COLUMNS`.
 
     Raises:
-        ContractError: If a `sex` or `target` value is outside its codes.
+        ContractError: If an `age` is missing or not finite, or a `sex` or `target` value is outside
+            its codes.
     """
-    sexes = CODEBOOK["sex"]
-    for column, codes in (("sex", list(sexes)), (LABEL, [0, 1])):
-        outside = ~frame[column].isin(codes)
-        if outside.any():
-            first = frame.index[outside][0]
-            msg = f"{column} of record {first} is {frame.loc[first, column]}, outside {codes}"
-            raise ContractError(msg)
-    labels = age_band_labels(edges)
+    ages = frame["age"].to_numpy(dtype="float64")
+    _refuse_first(frame, "age", ~np.isfinite(ages), "a finite number")
+    for column, codes in (("sex", list(SEXES)), (LABEL, [0, 1])):
+        _refuse_first(frame, column, ~frame[column].isin(codes).to_numpy(), f"in {codes}")
+    labels = np.asarray(age_band_labels(edges))
     return pd.DataFrame(
         {
-            "age_band": [labels[bisect.bisect_right(edges, age)] for age in frame["age"]],
-            "sex": frame["sex"].map(dict(sexes)),
+            "age_band": labels[np.searchsorted(np.asarray(edges), ages, side="right")],
+            "sex": frame["sex"].map(dict(SEXES)),
             LABEL: frame[LABEL].astype("int64"),
         },
         index=frame.index,
     )
+
+
+def _refuse_first(frame: pd.DataFrame, column: str, bad: np.ndarray, expected: str) -> None:
+    """Raise `ContractError` naming the first row where `bad` holds, if there is one."""
+    if bad.any():
+        position = int(np.flatnonzero(bad)[0])
+        record, value = frame.index[position], frame[column].iloc[position]
+        msg = f"{column} of record {record} is {value}, not {expected}"
+        raise ContractError(msg)
 
 
 def cell_counts(
@@ -102,7 +114,7 @@ def cell_counts(
         the `COUNT_COLUMNS`.
     """
     grid = pd.MultiIndex.from_product(
-        [list(age_band_labels(edges)), list(CODEBOOK["sex"].values()), [0, 1]],
+        [list(age_band_labels(edges)), list(SEXES.values()), [0, 1]],
         names=list(CELL_COLUMNS),
     )
     sizes = cell_keys(frame, edges=edges).groupby(list(CELL_COLUMNS)).size()

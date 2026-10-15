@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import bisect
 import collections
 import hashlib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -69,6 +69,40 @@ def test_a_cell_at_the_threshold_is_not_underrepresented_and_one_below_is():
     assert not bool(counts.loc[counts["count"] == below, "underrepresented"].item())
 
 
+def test_a_given_threshold_replaces_the_default():
+    counts = cell_counts(records({(OLD, 1, 0): 4, (OLD, 1, 1): 5}), below=5)
+    assert counts.loc[counts["count"] > 0, "underrepresented"].tolist() == [True, False]
+
+
+def test_given_edges_band_the_ages_and_the_grid():
+    """An independent answer for edges (40, 60): each boundary age starts the older band."""
+    frame = records({(39, 0, 0): 1, (40, 0, 0): 2, (59, 0, 0): 3, (60, 0, 0): 4})
+    counts = cell_counts(frame, edges=(40, 60))
+    female_healthy = counts.loc[(counts["sex"] == "female") & (counts["target"] == 0)]
+    assert female_healthy[["age_band", "count"]].values.tolist() == [
+        ["<40", 1],
+        ["40-59", 5],
+        [">=60", 4],
+    ]
+    assert len(counts) == 12
+
+
+@pytest.mark.parametrize("age", [float("nan"), float("inf")])
+def test_a_missing_or_infinite_age_is_refused(age):
+    frame = records({(YOUNG, 0, 0): 2}).astype({"age": "float64"})
+    frame.loc[2, "age"] = age
+    with pytest.raises(ContractError, match="age of record 2 is"):
+        cell_keys(frame)
+
+
+def test_a_refusal_names_one_value_even_with_a_duplicate_index():
+    frame = records({(YOUNG, 0, 0): 2})
+    frame.index = pd.Index([1, 1], name="record_id")
+    frame["sex"] = [5, 0]
+    with pytest.raises(ContractError, match=r"^sex of record 1 is 5, not in \[0, 1\]$"):
+        cell_keys(frame)
+
+
 def test_counts_do_not_depend_on_row_order():
     frame = records({(YOUNG, 0, 0): 4, (OLD, 1, 1): 7, (OLD, 0, 1): 2})
     shuffled = frame.sample(frac=1, random_state=1)
@@ -86,9 +120,8 @@ def test_counts_match_a_counter_oracle(seed):
             "target": rng.integers(0, 2, n),
         }
     )
-    labels = age_band_labels()
     oracle = collections.Counter(
-        (labels[bisect.bisect_right(AGE_BAND_EDGES, age)], ("female", "male")[sex], target)
+        (f"<{EDGE}" if age < EDGE else f">={EDGE}", ("female", "male")[sex], target)
         for age, sex, target in zip(frame["age"], frame["sex"], frame["target"], strict=True)
     )
     counts = cell_counts(frame)
@@ -153,6 +186,24 @@ def test_training_counts_are_the_same_for_every_seed():
 def test_the_same_seed_gives_the_same_split():
     frame = records(SPEC)
     assert list(split(frame, seed=3).test.index) == list(split(frame, seed=3).test.index)
+    assert split(frame, seed=3).seed == 3
+
+
+def test_split_stratifies_on_the_given_edges():
+    frame = records({(39, 0, 0): 10, (45, 0, 0): 10})
+    parts = split(frame, edges=(40,))
+    held = cell_counts(parts.test, edges=(40,))
+    assert held.loc[held["count"] > 0, "count"].tolist() == [2, 2]
+
+
+def test_the_parts_can_be_changed_without_a_warning_or_touching_the_frame():
+    frame = records(SPEC)
+    parts = split(frame)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        parts.train["age"] = 0
+        parts.test["age"] = 0
+    assert (frame["age"] != 0).all()
 
 
 def test_a_different_seed_gives_a_different_split():

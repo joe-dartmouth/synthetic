@@ -79,6 +79,24 @@ def test_crlf_and_trailing_blank_lines_parse_like_lf():
     assert lf.equals(crlf)
 
 
+def test_record_id_counts_blank_lines():
+    """A blank or whitespace-only line keeps its number, so later ids stay line numbers."""
+    text = "\n".join([cleveland_line(), "", "   ", cleveland_line(age=41)])
+    assert list(parse_cleveland(text).index) == [1, 4]
+
+
+@pytest.mark.parametrize("token", ["nan", "inf", "-inf"])
+def test_a_non_finite_oldpeak_is_refused(token):
+    with pytest.raises(ContractError, match=r"line 1: oldpeak is .*, not a finite number"):
+        parse_cleveland(cleveland_line(oldpeak=token))
+
+
+def test_padded_fields_parse_like_bare_ones():
+    padded = parse_cleveland(with_field(with_field(cleveland_line(), "cp", " 1.0 "), "ca", " ? "))
+    assert padded.loc[1, "cp"] == pytest.approx(1.0)
+    assert padded["ca"].isna().all()
+
+
 def test_record_id_is_the_line_number():
     frame = parse_cleveland("\n".join(cleveland_line(age=40 + i) for i in range(3)))
     assert list(frame.index) == [1, 2, 3]
@@ -103,6 +121,11 @@ def test_incomplete_records_are_dropped_and_logged(caplog):
         frame = complete_records(parse_cleveland(text))
     assert list(frame.index) == [1]
     assert "dropped 2 records with a missing value, record_ids=2,3" in caplog.text
+
+
+def test_a_member_with_no_complete_record_is_refused():
+    with pytest.raises(ContractError, match="no complete records"):
+        complete_records(parse_cleveland(cleveland_line(ca="?")))
 
 
 def test_features_are_integers_except_oldpeak():
@@ -130,6 +153,19 @@ def test_load_uci_refuses_an_archive_without_the_member(tmp_path):
     source = pin(data)
     plant(tmp_path, source, data)
     with pytest.raises(ContractError, match=r"cannot read processed\.cleveland\.data"):
+        load_uci(tmp_path, source=source)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [b"not a zip archive", archive(cleveland_line() + "\u00e9")],
+    ids=["not-a-zip", "not-ascii"],
+)
+def test_load_uci_refuses_an_unreadable_member(tmp_path, data):
+    source = pin(data)
+    plant(tmp_path, source, data)
+    pattern = r"cannot read processed\.cleveland\.data: (BadZipFile|UnicodeDecodeError): "
+    with pytest.raises(ContractError, match=pattern):
         load_uci(tmp_path, source=source)
 
 

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -32,6 +32,7 @@ documents only absence (0) against presence.
 - **Cleveland only**: the frame is `processed.cleveland.data`.
 - **Binary label**: `target` is 1 where `num` is 1 to 4 and 0 where it is 0; `num` is dropped.
 - **Complete records only**: a record with a `?` is dropped before anything else reads the frame.
+  A `?` in `age`, `sex` or `num` refuses the archive instead, since that record's cell is unknown.
 - **Two age bands, split at 55**: `<55` and `>=55`, so 8 cells with the 2 sexes and 2 labels.
 - **The split**: one record in five of every cell is held out, rounded half up, the lowest-ranked
   by the sha256 of `<seed>:<record_id>`; the seed is 0.

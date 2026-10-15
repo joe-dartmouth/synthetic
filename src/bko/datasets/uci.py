@@ -13,16 +13,20 @@ import io
 import logging
 import math
 import zipfile
+import zlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
+from bko.datasets.cells import LABEL, SEXES
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 
+
+logger = logging.getLogger(__name__)
 
 MEMBER: Final = "processed.cleveland.data"
 """The archive member the frame is read from."""
@@ -48,17 +52,17 @@ COLUMNS: Final = (
 FEATURES: Final = COLUMNS[:-1]
 """The 13 predictors."""
 
-LABEL: Final = "target"
-"""The binary label column: 1 where `num` is 1 to 4."""
-
 NUMERIC: Final = ("age", "trestbps", "chol", "thalach", "oldpeak")
 """The measured predictors."""
+
+FRACTIONAL: Final = ("oldpeak",)
+"""The predictors that may hold a fraction; every other field is a whole number."""
 
 CATEGORICAL: Final = ("sex", "cp", "fbs", "restecg", "exang", "slope", "ca", "thal")
 """The coded predictors; each one's codes are in `CODEBOOK`."""
 
 CODEBOOK: Final[Mapping[str, Mapping[int, str]]] = {
-    "sex": {0: "female", 1: "male"},
+    "sex": SEXES,
     "cp": {1: "typical angina", 2: "atypical angina", 3: "non-anginal pain", 4: "asymptomatic"},
     "fbs": {0: "fasting blood sugar <= 120 mg/dl", 1: "fasting blood sugar > 120 mg/dl"},
     "restecg": {0: "normal", 1: "ST-T wave abnormality", 2: "left ventricular hypertrophy"},
@@ -71,8 +75,6 @@ CODEBOOK: Final[Mapping[str, Mapping[int, str]]] = {
 
 NUM_CODES: Final = frozenset(range(5))
 """`num` runs from 0 (no disease) to 4."""
-
-logger = logging.getLogger(__name__)
 
 REQUIRED: Final = ("age", "sex", "num")
 """The fields a record's cell needs; a record missing one is refused, not dropped."""
@@ -118,6 +120,9 @@ def complete_records(raw: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         The evaluation frame the module docstring describes.
+
+    Raises:
+        ContractError: If no record is complete.
     """
     incomplete = raw.isna().any(axis=1)
     if incomplete.any():
@@ -127,7 +132,10 @@ def complete_records(raw: pd.DataFrame) -> pd.DataFrame:
             ",".join(str(record) for record in raw.index[incomplete]),
         )
     kept = raw.loc[~incomplete]
-    integers = {name: "int64" for name in FEATURES if name != "oldpeak"}
+    if kept.empty:
+        msg = f"{MEMBER} holds no complete records"
+        raise ContractError(msg)
+    integers = {name: "int64" for name in FEATURES if name not in FRACTIONAL}
     frame = kept.drop(columns="num").astype(integers)
     frame[LABEL] = (kept["num"] > 0).astype("int64")
     return frame
@@ -153,8 +161,11 @@ def load_uci(data_dir: Path, *, source: Source = UCI_HEART_DISEASE) -> pd.DataFr
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as bundle:
             text = bundle.read(MEMBER).decode("ascii")
-    except (KeyError, zipfile.BadZipFile, UnicodeDecodeError) as exc:
-        msg = f"{source.name}: cannot read {MEMBER}: {exc}"
+    except KeyError as exc:
+        msg = f"{source.name}: cannot read {MEMBER}: the archive has no such member"
+        raise ContractError(msg) from exc
+    except (zipfile.BadZipFile, zlib.error, UnicodeDecodeError) as exc:
+        msg = f"{source.name}: cannot read {MEMBER}: {type(exc).__name__}: {exc}"
         raise ContractError(msg) from exc
     return complete_records(parse_cleveland(text))
 
@@ -171,8 +182,11 @@ def _value(field: str, name: str, number: int) -> float:
     except ValueError:
         msg = f"{MEMBER} line {number}: {name} is {raw!r}, not a number"
         raise ContractError(msg) from None
-    if not math.isfinite(value) or (name != "oldpeak" and not value.is_integer()):
-        msg = f"{MEMBER} line {number}: {name} is {raw!r}, not a finite whole number"
+    if not math.isfinite(value):
+        msg = f"{MEMBER} line {number}: {name} is {raw!r}, not a finite number"
+        raise ContractError(msg)
+    if name not in FRACTIONAL and not value.is_integer():
+        msg = f"{MEMBER} line {number}: {name} is {raw!r}, not a whole number"
         raise ContractError(msg)
     return value
 
