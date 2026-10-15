@@ -191,6 +191,15 @@ def test_every_interpreter_pin_agrees():
     assert len(set(declared.values())) == 1, f"the interpreter pins disagree: {declared}"
 
 
+def test_setup_installs_the_extras_something_imports():
+    """`synth` is installed because `bko.baselines` imports it (ADR `tooling/uv-ruff-ty`).
+
+    A subset, not equality: `proposal-eval-harness` adds `eval` to the same line.
+    """
+    extras = set(re.findall(r"--extra\s+([a-z]+)", "\n".join(_recipe("setup"))))
+    assert {"dev", "data", "synth"} <= extras
+
+
 def test_the_running_interpreter_matches_the_declared_pin():
     """A pin nothing runs on is a comment. This is the half the string checks cannot see."""
     import sys
