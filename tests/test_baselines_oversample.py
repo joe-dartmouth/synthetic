@@ -83,7 +83,7 @@ def test_adasyn_takes_each_code_from_one_parent():
 
 
 class Refusing:
-    """An ADASYN that refuses, as imbalanced-learn does when no neighbour is in the majority."""
+    """A sampler that refuses, as imbalanced-learn does when it cannot fill a class."""
 
     def __init__(self, **_kwargs: object) -> None:
         pass
@@ -97,3 +97,9 @@ def test_adasyn_reports_a_library_refusal(monkeypatch):
     monkeypatch.setattr("bko.baselines.oversample.ADASYN", Refusing)
     with pytest.raises(BaselineError, match="adasyn cannot fill"):
         adasyn(TRAIN, Request(quota=QUOTA))
+
+
+def test_smote_reports_a_library_refusal(monkeypatch):
+    monkeypatch.setattr("bko.baselines.oversample.SMOTENC", Refusing)
+    with pytest.raises(BaselineError, match="smote cannot fill"):
+        smote(TRAIN, Request(quota=QUOTA))
