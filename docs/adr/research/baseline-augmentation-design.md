@@ -108,7 +108,8 @@ creates SDV's user data directory.
 ## Enforcement
 
 - Owner: `src/bko/baselines/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_baselines_request.py`, `tests/test_baselines_records.py`,
+  `tests/test_baselines_methods.py`, `tests/test_baselines_cli.py`
 
 ## Reversal Conditions
 
