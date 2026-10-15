@@ -12,13 +12,19 @@ from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.errors import BaselineError
 from bko.baselines.records import Baseline, check
 from bko.baselines.request import Method, Request
+from bko.baselines.synthesizers import ctgan, tvae
 
 
 type Runner = Callable[[pd.DataFrame, Request], Baseline]
 """Builds one method's `Baseline` from a training split and a request."""
 
 METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
-    {Method.NONE: no_augmentation, Method.CLASS_WEIGHT: class_weighting}
+    {
+        Method.NONE: no_augmentation,
+        Method.CLASS_WEIGHT: class_weighting,
+        Method.CTGAN: ctgan,
+        Method.TVAE: tvae,
+    }
 )
 """Each built method's runner; the command offers exactly these."""
 

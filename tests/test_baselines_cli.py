@@ -7,6 +7,8 @@ import logging
 import subprocess
 import sys
 import urllib.error
+from functools import partial
+from types import MappingProxyType
 
 import pandas as pd
 import pytest
@@ -16,20 +18,38 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.methods import METHODS
 from bko.baselines.records import Baseline, no_rows, unit_weights
 from bko.baselines.request import Method
+from bko.baselines.synthesizers import ctgan, tvae
 from bko.datasets.split import split
 from bko.datasets.uci import complete_records, parse_cleveland
-from tests._baselines_fixtures import CLI_TEXT, EVALUATION_COLUMNS, UNBALANCED_TEXT
+from tests._baselines_fixtures import (
+    CLI_TEXT,
+    EVALUATION_COLUMNS,
+    TINY_CTGAN,
+    TINY_TVAE,
+    UNBALANCED_TEXT,
+)
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, archive, pin
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-ARGS = {Method.NONE: [], Method.CLASS_WEIGHT: []}
+ARGS = {
+    Method.NONE: [],
+    Method.CLASS_WEIGHT: [],
+    Method.CTGAN: ["--rows", "5"],
+    Method.TVAE: ["--rows", "5"],
+}
 """Each built method's arguments in these tests."""
 
-FAST = METHODS
-"""The methods the in-process tests run."""
+FAST = MappingProxyType(
+    {
+        **METHODS,
+        Method.CTGAN: partial(ctgan, parameters=TINY_CTGAN),
+        Method.TVAE: partial(tvae, parameters=TINY_TVAE),
+    }
+)
+"""The methods the in-process tests run, with small SDV models."""
 
 TRAIN_SPLIT = split(complete_records(parse_cleveland(CLI_TEXT))).train
 
@@ -135,3 +155,64 @@ def test_the_module_entry_point_runs():
     )
     assert result.returncode == 0, result.stderr
     assert all(method.value in result.stdout for method in METHODS)
+
+
+@pytest.mark.parametrize("method", [Method.CTGAN], ids=str)
+def test_a_second_run_writes_the_same_bytes(tmp_path, method):
+    argv = [method.value, *ARGS[method]]
+    assert run(tmp_path, *argv) == run(tmp_path, *argv)
+
+
+def test_the_method_seed_never_moves_the_split(tmp_path):
+    ids = []
+    for seed in ("0", "1"):
+        code, out = run(tmp_path, "ctgan", "--rows", "5", "--seed", seed)
+        assert code == 0
+        frame = read(out)
+        ids.append(frame.index[frame.index > 0].tolist())
+    assert ids[0] == ids[1] == TRAIN_SPLIT.index.tolist()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["ctgan", "--rows", "0"], ["ctgan", "--rows", "1", "--seed", "-1"]],
+    ids=["no rows", "negative seed"],
+)
+def test_rows_and_seed_are_checked_before_running(argv):
+    with pytest.raises(SystemExit) as excinfo:
+        main(argv)
+    assert excinfo.value.code == 2
+
+
+DRIVER = """
+import sys
+from functools import partial
+from types import MappingProxyType
+from bko.baselines.__main__ import Context, configure_logging, main
+from bko.baselines.methods import METHODS
+from bko.baselines.request import Method
+from bko.baselines.synthesizers import ctgan
+from tests._baselines_fixtures import CLI_TEXT, TINY_CTGAN
+from tests._datasets_fixtures import FakeOpener, archive, pin
+data = archive(CLI_TEXT)
+methods = MappingProxyType({**METHODS, Method.CTGAN: partial(ctgan, parameters=TINY_CTGAN)})
+configure_logging()
+context = Context(open_url=FakeOpener(data), uci=pin(data), methods=methods)
+sys.exit(main(["ctgan", "--rows", "5", "--data-dir", sys.argv[1]], context=context))
+"""
+"""The command as `__main__` runs it, with the opener, the pin and CTGAN's size replaced."""
+
+
+def test_stdout_carries_only_the_csv(tmp_path):
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+        [sys.executable, "-c", DRIVER, str(tmp_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+    assert int((read(result.stdout).index < 0).sum()) == 5
+    assert "INFO bko.baselines: method=ctgan" in result.stderr
+    assert "INFO SingleTableSynthesizer" not in result.stderr
