@@ -45,3 +45,9 @@ The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md); the source documen
 conventions and document index.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the full record of the environment and the gate.
 Decisions are in [`docs/adr/`](docs/adr/README.md).
+
+## License
+
+Copyright (C) 2026 Dartmouth College. The code is licensed under the GNU General Public
+License, version 3 only ([`LICENSE`](LICENSE)); ADR
+[`tooling/gpl-3-license`](docs/adr/tooling/gpl-3-license.md) records why.

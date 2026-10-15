@@ -3,6 +3,8 @@ name = "bko"
 version = "0.0.0"
 description = "Bayesian Knowledge-driven Ontologies for synthetic clinical data"
 readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.14"
 dependencies = []
 

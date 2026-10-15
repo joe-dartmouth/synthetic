@@ -120,8 +120,10 @@ The 2-pager's method choices govern where they differ from the flow:
 learning with Bayesian Knowledge Bases. The facts below were read from its repository through the
 GitHub API on 2026-10-13.
 
-- **License**: GPL-3.0. Whether to port its code under that license or build clean-room is the first
-  decision of [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
+- **License**: GPL-3.0, the repository's own license (ADR
+  [`tooling/gpl-3-license`](adr/tooling/gpl-3-license.md)), so its code may be ported. Whether to
+  port it or build clean-room is the first decision of
+  [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
 - **State**: last commit 2023-11-09; not on PyPI; the README is empty.
 - **Pins**: Python ~3.11, torch 2.0.1, numpy 1.24.4, pandas 1.x, gurobipy 10.0.2, pygobnilp (a
   Bitbucket git dependency) and ray. It therefore cannot be a dependency on this repository's

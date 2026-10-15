@@ -32,7 +32,7 @@ TEXT_SUFFIXES = frozenset(
 )
 """Suffixes whose files are text a conflict marker could survive in. PDFs are skipped."""
 
-TEXT_NAMES = frozenset({".gitignore", ".gitattributes", ".python-version", "Makefile"})
+TEXT_NAMES = frozenset({".gitignore", ".gitattributes", ".python-version", "Makefile", "LICENSE"})
 """Tracked text files whose names carry no scanned suffix."""
 
 
@@ -405,7 +405,7 @@ def test_the_conflict_marker_scan_reaches_the_files_it_is_for():
     assert not CONFLICT_MARKER.match("<<< not a marker"), "the pattern is too loose"
 
 
-ROOT_WITHOUT_SUFFIX = frozenset({"Makefile"})
+ROOT_WITHOUT_SUFFIX = frozenset({"Makefile", "LICENSE"})
 """The only top-level tracked files that legitimately carry no extension.
 
 A closed set rather than a pattern, because the failure this catches is a name nobody chose: a
@@ -426,6 +426,16 @@ def test_no_unnamed_scratch_file_is_tracked_at_the_repository_root():
     )
     for expected in ROOT_WITHOUT_SUFFIX:
         assert expected in top_level, f"{expected} is allowed but no longer tracked"
+
+
+def test_the_license_file_and_the_package_metadata_agree():
+    """`LICENSE` is the GPL version 3 text that the package names (ADR `tooling/gpl-3-license`)."""
+    text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")
+    assert text.lstrip().splitlines()[0].strip() == "GNU GENERAL PUBLIC LICENSE"
+    assert "Version 3, 29 June 2007" in text
+    project = pyproject()["project"]
+    assert project["license"] == "GPL-3.0-only"
+    assert project["license-files"] == ["LICENSE"]
 
 
 AGENT_IMPORTS = (("CLAUDE.md", "@AGENTS.md"), ("GEMINI.md", "@./AGENTS.md"))

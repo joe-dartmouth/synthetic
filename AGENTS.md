@@ -40,7 +40,7 @@ runs, and its hazards.
 
 ```
 synthetic/
-├── AGENTS.md / CLAUDE.md / GEMINI.md / README.md / Makefile / pyproject.toml / uv.lock
+├── AGENTS.md / CLAUDE.md / GEMINI.md / README.md / LICENSE / Makefile / pyproject.toml / uv.lock
 ├── ruff.toml / ty.toml / pyrightconfig.json
 ├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
