@@ -6,7 +6,8 @@ match their pin, so a snapshot directory that exists is complete. `source.json` 
 size, sha256 and download time an experiment cites in `docs/EVIDENCE.md`; verification reads the
 pin in `bko.datasets.sources`, never the record.
 
-Only `ensure` touches the network. Loaders call `read_verified`, which never fetches.
+Only `ensure` touches the network, and it replaces a snapshot that fails its pin. Loaders call
+`read_verified`, which never fetches and refuses such a snapshot.
 """
 
 from __future__ import annotations
@@ -14,15 +15,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import secrets
 import shutil
-import tempfile
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from datetime import UTC, datetime
-from http.client import HTTPException
+from http.client import HTTPException, HTTPMessage
 from pathlib import Path
-from typing import BinaryIO, Final
+from typing import IO, BinaryIO, Final
 
 from bko.datasets.errors import ContractError, DatasetError, UnavailableError
 from bko.datasets.sources import Source
@@ -31,10 +33,13 @@ from bko.datasets.sources import Source
 logger = logging.getLogger(__name__)
 
 CHUNK_BYTES: Final = 1 << 20
-"""Bytes read from the network per call."""
+"""Bytes read per call, from the network or from disk."""
 
 TIMEOUT_SECONDS: Final = 60.0
 """The per-operation socket timeout of a download, in seconds."""
+
+DEADLINE_SECONDS: Final = 600.0
+"""The longest a whole download may take, in seconds, checked after each chunk."""
 
 RECORD_NAME: Final = "source.json"
 """The file in a snapshot directory that records where and when its bytes came from."""
@@ -43,8 +48,34 @@ type UrlOpener = Callable[[str, float], BinaryIO]
 """Open an HTTPS URL with a per-operation timeout in seconds and return the response body."""
 
 
+class HttpsOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only to another HTTPS address."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        """Refuse a redirect to any scheme but HTTPS, and otherwise follow it as urllib does.
+
+        Raises:
+            UnavailableError: If `newurl` is not an HTTPS address.
+        """
+        if not newurl.startswith("https://"):
+            text = f"refusing a redirect from {req.full_url} to {newurl}: only https:// is fetched"
+            raise UnavailableError(text)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER: Final = urllib.request.build_opener(HttpsOnlyRedirects)
+
+
 def open_https(url: str, timeout: float) -> BinaryIO:
-    """Open `url` for reading, refusing every scheme but HTTPS.
+    """Open `url` for reading, refusing every scheme but HTTPS, redirects included.
 
     Args:
         url: The address to open.
@@ -54,13 +85,12 @@ def open_https(url: str, timeout: float) -> BinaryIO:
         The response body.
 
     Raises:
-        UnavailableError: If `url` is not an HTTPS address.
+        UnavailableError: If `url`, or a redirect it answers with, is not an HTTPS address.
     """
     if not url.startswith("https://"):
         msg = f"refusing {url}: only https:// sources are fetched"
         raise UnavailableError(msg)
-    # The scheme is checked above, which is the audit this rule asks for.
-    return urllib.request.urlopen(url, timeout=timeout)  # ruff: ignore[suspicious-url-open-usage]
+    return _OPENER.open(url, timeout=timeout)
 
 
 def _utc_now() -> datetime:
@@ -75,17 +105,22 @@ def snapshot_dir(source: Source, data_dir: Path) -> Path:
 def verify(path: Path, source: Source) -> None:
     """Check the file at `path` against `source`'s size and sha256, reading it in chunks.
 
+    The size and the sha256 are taken from the same bytes.
+
     Raises:
         UnavailableError: If the file is absent.
         ContractError: If its size or sha256 differs from the pin.
     """
+    digest = hashlib.sha256()
+    size = 0
     try:
         with path.open("rb") as handle:
-            digest = hashlib.file_digest(handle, "sha256")
+            while chunk := handle.read(CHUNK_BYTES):
+                size += len(chunk)
+                digest.update(chunk)
     except FileNotFoundError as exc:
-        msg = f"no snapshot of {source.name} at {path}"
-        raise UnavailableError(msg) from exc
-    _match(source, path.stat().st_size, digest.hexdigest(), where=str(path))
+        raise _no_snapshot(source, path) from exc
+    _match(source, size, digest.hexdigest(), where=str(path))
 
 
 def read_verified(source: Source, data_dir: Path) -> bytes:
@@ -101,8 +136,7 @@ def read_verified(source: Source, data_dir: Path) -> bytes:
     try:
         data = path.read_bytes()
     except FileNotFoundError as exc:
-        msg = f"no snapshot of {source.name} at {path}"
-        raise UnavailableError(msg) from exc
+        raise _no_snapshot(source, path) from exc
     _match(source, len(data), hashlib.sha256(data).hexdigest(), where=str(path))
     return data
 
@@ -116,9 +150,9 @@ def ensure(
 ) -> Path:
     """Make `source`'s snapshot present and verified under `data_dir`, and return its file.
 
-    A verified snapshot is used as it is, with no request. One that fails its pin is removed and
-    fetched again. A download is written into a staging directory beside the snapshot and renamed
-    into place only once it matches the pin.
+    A verified snapshot is used as it is, with no request. One that fails its pin or its record is
+    removed and fetched again. A download is written into a staging directory beside the snapshot
+    and renamed into place only once it matches the pin. The snapshot's identity is logged.
 
     Args:
         source: The pinned download.
@@ -132,28 +166,38 @@ def ensure(
     Raises:
         UnavailableError: If the download cannot be completed.
         ContractError: If the downloaded bytes differ from the pin.
+        OSError: If the data root cannot be written.
     """
     final = snapshot_dir(source, data_dir)
     path = final / source.filename
     if final.is_dir():
         try:
             verify(path, source)
-            retrieved = read_record(source, data_dir)["retrieved_at"]
-        except (DatasetError, OSError, ValueError, KeyError, TypeError) as exc:
-            logger.warning("replacing a snapshot that fails its pin or record: %s", exc)
+            retrieved = _retrieved_at(source, data_dir)
+        except (DatasetError, FileNotFoundError, ValueError, KeyError, TypeError) as exc:
+            logger.warning(
+                "replacing snapshot %s of %s, which fails its pin or record: %s: %s",
+                final,
+                source.name,
+                type(exc).__name__,
+                exc,
+            )
             shutil.rmtree(final)
         else:
-            logger.info("snapshot present path=%s retrieved_at=%s", path, retrieved)
+            _log_identity("snapshot present", source, path, retrieved)
             return path
+    logger.info("fetching %s url=%s size=%d", source.name, source.url, source.size)
     final.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(dir=final.parent, prefix=f".{final.name}."))
+    # `mkdir` honours the umask, so the snapshot gets the same mode as the directories around it.
+    staging = final.parent / f".{final.name}.{secrets.token_hex(8)}"
+    staging.mkdir()
     try:
         _download(source, staging / source.filename, open_url)
-        _write_record(staging / RECORD_NAME, source, now())
-        staging.rename(final)
+        retrieved = _write_record(staging / RECORD_NAME, source, now())
+        _publish(staging, final, path, source)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
-    logger.info("fetched path=%s sha256=%s", path, source.sha256)
+    _log_identity("fetched", source, path, retrieved)
     return path
 
 
@@ -163,11 +207,42 @@ def read_record(source: Source, data_dir: Path) -> dict[str, object]:
     return json.loads(text)
 
 
+def _retrieved_at(source: Source, data_dir: Path) -> str:
+    value = read_record(source, data_dir)["retrieved_at"]
+    if not isinstance(value, str):
+        msg = f"{RECORD_NAME} of {source.name}: retrieved_at is {value!r}, not a string"
+        raise TypeError(msg)
+    return value
+
+
+def _log_identity(event: str, source: Source, path: Path, retrieved_at: str) -> None:
+    logger.info(
+        "%s %s path=%s sha256=%s retrieved_at=%s",
+        event,
+        source.name,
+        path,
+        source.sha256,
+        retrieved_at,
+    )
+
+
+def _publish(staging: Path, final: Path, path: Path, source: Source) -> None:
+    """Rename `staging` to `final`; if a concurrent run published first, verify its snapshot."""
+    try:
+        staging.rename(final)
+    except OSError:
+        if not final.is_dir():
+            raise
+        logger.info("snapshot %s was published by a concurrent run; verifying it", final)
+        verify(path, source)
+
+
 def _download(source: Source, dest: Path, open_url: UrlOpener) -> None:
     try:
         with open_url(source.url, TIMEOUT_SECONDS) as response, dest.open("wb") as out:
-            size, sha256 = _copy(response, out, limit=source.size)
+            size, sha256 = _copy(response, out, limit=source.size, where=source.url)
     except urllib.error.HTTPError as exc:
+        exc.close()
         msg = f"{source.url} answered HTTP {exc.code} {exc.reason}"
         raise UnavailableError(msg) from exc
     except urllib.error.URLError as exc:
@@ -176,18 +251,25 @@ def _download(source: Source, dest: Path, open_url: UrlOpener) -> None:
     except (TimeoutError, HTTPException) as exc:
         msg = f"download of {source.url} failed: {exc!r}"
         raise UnavailableError(msg) from exc
+    except OSError as exc:
+        msg = f"download of {source.url} into {dest} failed: {exc!r}"
+        raise UnavailableError(msg) from exc
     _match(source, size, sha256, where=source.url)
 
 
-def _copy(response: BinaryIO, out: BinaryIO, *, limit: int) -> tuple[int, str]:
+def _copy(response: BinaryIO, out: BinaryIO, *, limit: int, where: str) -> tuple[int, str]:
     """Copy `response` to `out`, refusing more than `limit` bytes; return the size and sha256."""
+    deadline = time.monotonic() + DEADLINE_SECONDS
     digest = hashlib.sha256()
     size = 0
     while chunk := response.read(CHUNK_BYTES):
         size += len(chunk)
         if size > limit:
-            msg = f"more than the pinned {limit} bytes arrived"
+            msg = f"{where}: more than the pinned {limit} bytes arrived"
             raise ContractError(msg)
+        if time.monotonic() > deadline:
+            msg = f"{where}: the download took longer than {DEADLINE_SECONDS:g} s"
+            raise UnavailableError(msg)
         digest.update(chunk)
         out.write(chunk)
     return size, digest.hexdigest()
@@ -202,11 +284,18 @@ def _match(source: Source, size: int, sha256: str, *, where: str) -> None:
         raise ContractError(msg)
 
 
-def _write_record(path: Path, source: Source, retrieved_at: datetime) -> None:
+def _no_snapshot(source: Source, path: Path) -> UnavailableError:
+    return UnavailableError(f"no snapshot of {source.name} at {path}")
+
+
+def _write_record(path: Path, source: Source, retrieved_at: datetime) -> str:
+    """Write the snapshot's record and return its `retrieved_at`."""
+    stamp = retrieved_at.isoformat()
     record = {
-        "retrieved_at": retrieved_at.isoformat(),
+        "retrieved_at": stamp,
         "sha256": source.sha256,
         "size": source.size,
         "url": source.url,
     }
     path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return stamp

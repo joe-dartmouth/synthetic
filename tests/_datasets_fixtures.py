@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import zipfile
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -50,18 +51,51 @@ def plant(data_dir: Path, source: Source, data: bytes) -> Path:
     return path
 
 
-class FakeOpener:
-    """Serve one body for any URL, or raise; record every call."""
+class FailingBody(io.BytesIO):
+    """A response body that serves its first read, then raises `error` on the next."""
 
-    def __init__(self, body: bytes = b"", error: BaseException | None = None) -> None:
+    def __init__(self, body: bytes, error: BaseException) -> None:
+        super().__init__(body)
+        self.error = error
+        self.served = False
+
+    def read(self, size: int | None = -1, /) -> bytes:
+        """Return one chunk the first time, then raise."""
+        if self.served:
+            raise self.error
+        self.served = True
+        return super().read(size)
+
+
+class FakeOpener:
+    """Serve one body for any URL, or raise; record every call.
+
+    `error` is raised on open, `mid_stream` after the first chunk, and `on_open` runs before the
+    body is served.
+    """
+
+    def __init__(
+        self,
+        body: bytes = b"",
+        error: BaseException | None = None,
+        *,
+        mid_stream: BaseException | None = None,
+        on_open: Callable[[], object] | None = None,
+    ) -> None:
         self.body = body
         self.error = error
+        self.mid_stream = mid_stream
+        self.on_open = on_open
         self.calls: list[tuple[str, float]] = []
 
     def __call__(self, url: str, timeout: float) -> io.BytesIO:
         self.calls.append((url, timeout))
         if self.error is not None:
             raise self.error
+        if self.on_open is not None:
+            self.on_open()
+        if self.mid_stream is not None:
+            return FailingBody(self.body, self.mid_stream)
         return io.BytesIO(self.body)
 
 
