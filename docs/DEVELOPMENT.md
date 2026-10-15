@@ -44,6 +44,12 @@ fails its pin, and the loaders refuse one.
   schema; `make` reports any failure as its own exit 2. To use another data root or to see the
   module's own code, run it directly:
   `uv run --no-sync python -m bko.datasets cells --data-dir <dir>`.
+- **The Synthea ablation**: `make synthea`, which runs `python -m bko.datasets synthea` inside
+  `.venv`. It needs a JDK, 17 or newer, and Synthea recommends an LTS release: `JAVA_HOME` when
+  set, else `java` on `PATH`, so `JAVA_HOME=<jdk home> make synthea` picks one. The first run
+  fetches the pinned 201 MB Synthea jar and generates the population under `data/synthea/`,
+  recording its parameters, Java version and CSV checksums in `run.json`; later runs reuse it.
+  It writes each cell's count before and after the default ablation to stdout as CSV.
 - **Layout**: a snapshot is the directory `data/<source>/<first 16 hex digits of its sha256>/`,
   for example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`.
 - **Snapshot identity**: `source.json` holds `url`, `size`, `sha256` and `retrieved_at` (the
@@ -73,6 +79,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `test` | `pytest -n auto --dist worksteal --cov` | Sources, branch coverage and `fail_under` live in `pyproject.toml` |
 | `sizes` | `python -m tools.check_file_size` | ADR [`tooling/file-size-cap`](adr/tooling/file-size-cap.md) |
 | `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
+| `synthea` | `python -m bko.datasets synthea` | Not part of the gate; needs a JDK, and fetches the Synthea jar and generates on its first run ([Data](#data)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |

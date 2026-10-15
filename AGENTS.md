@@ -22,6 +22,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `make format`: apply formatting.
 - `make cells`: fetch UCI Heart Disease into `data/` and print its cell counts
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
+- `make synthea`: generate the pinned Synthea population and print the default ablation's cell
+  counts (needs a JDK).
 - A targeted run while working:
 
   ```
