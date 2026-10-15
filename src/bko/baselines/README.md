@@ -8,4 +8,4 @@ add no rows. The methods, their parameters and the output contract are in ADR [`
 
 - **Dependencies:** The `synth` extra (`pyproject.toml`).
 - **Owner:** Joe Laws
-- **Status:** not built; the package holds only its docstring. Planned in [`proposal-baselines`](../../../tasks/proposal-baselines.md).
+- **Status:** built.

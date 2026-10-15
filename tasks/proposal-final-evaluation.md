@@ -2,7 +2,7 @@
 id: proposal-final-evaluation
 title: Final evaluation
 status: blocked
-depends_on: proposal-baselines, proposal-eval-harness, proposal-fusion-repair
+depends_on: proposal-eval-harness, proposal-fusion-repair
 blocks: --
 parallel_safe: true
 owner: Joe
