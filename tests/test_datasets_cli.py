@@ -13,10 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from bko.datasets.__main__ import Context, default_data_dir, main
+from bko.datasets.__main__ import Context, main
 from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec
 from bko.datasets.cells import SEXES, age_band_labels
 from bko.datasets.errors import UnavailableError
+from bko.datasets.fetch import default_data_dir
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.synthea_run import DEFAULT_RUN, SyntheaRun
 from tests._corpus import REPO_ROOT

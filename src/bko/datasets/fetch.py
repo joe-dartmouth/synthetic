@@ -102,6 +102,30 @@ def snapshot_dir(source: Source, data_dir: Path) -> Path:
     return data_dir / source.name / source.sha256[:16]
 
 
+_THIS_FILE: Final = Path(__file__)
+
+
+def default_data_dir(anchor: Path = _THIS_FILE) -> Path:
+    """Return `data/` at the root of the checkout this module runs from.
+
+    The editable install runs this file from `src/bko/datasets/`, three levels below the root,
+    whose `.gitignore` ignores `/data/`. Elsewhere, as in an installed wheel, there is no default.
+
+    Raises:
+        UnavailableError: If `anchor` does not sit in a checkout's `src/bko/datasets/`.
+    """
+    parents = anchor.resolve().parents
+    root = parents[3] if len(parents) > 3 else None
+    if (
+        root is None
+        or not (root / "pyproject.toml").is_file()
+        or not (root / "src" / "bko").is_dir()
+    ):
+        msg = f"no repository root above {anchor}; pass --data-dir"
+        raise UnavailableError(msg)
+    return root / "data"
+
+
 def verify(path: Path, source: Source) -> None:
     """Check the file at `path` against `source`'s size and sha256, reading it in chunks.
 

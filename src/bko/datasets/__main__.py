@@ -20,12 +20,12 @@ import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TextIO
+from typing import TextIO
 
 from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec, ablate
 from bko.datasets.cells import CELL_COLUMNS, LABEL, UNDERREPRESENTED_BELOW, cell_counts
-from bko.datasets.errors import DatasetError, UnavailableError
-from bko.datasets.fetch import UrlOpener, ensure, open_https
+from bko.datasets.errors import DatasetError
+from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.split import split
 from bko.datasets.synthea import load_population
@@ -123,30 +123,6 @@ def _parser() -> argparse.ArgumentParser:
         help="ablate the default Synthea cell; write counts before and after",
     )
     return parser
-
-
-_THIS_FILE: Final = Path(__file__)
-
-
-def default_data_dir(anchor: Path = _THIS_FILE) -> Path:
-    """Return `data/` at the root of the checkout this module runs from.
-
-    The editable install runs this file from `src/bko/datasets/`, three levels below the root,
-    whose `.gitignore` ignores `/data/`. Elsewhere, as in an installed wheel, there is no default.
-
-    Raises:
-        UnavailableError: If `anchor` does not sit in a checkout's `src/bko/datasets/`.
-    """
-    parents = anchor.resolve().parents
-    root = parents[3] if len(parents) > 3 else None
-    if (
-        root is None
-        or not (root / "pyproject.toml").is_file()
-        or not (root / "src" / "bko").is_dir()
-    ):
-        msg = f"no repository root above {anchor}; pass --data-dir"
-        raise UnavailableError(msg)
-    return root / "data"
 
 
 def _cells(data_dir: Path, context: Context, out: TextIO) -> None:
