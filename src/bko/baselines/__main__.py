@@ -2,7 +2,7 @@
 
 Each subcommand fetches UCI Heart Disease into the data root if it is absent, splits it, builds one
 method's training set from the training split and writes it to stdout as CSV: `record_id`
-(negative for an added row), the 13 predictors, `target` and `weight`. The split, the quota, the row
+(negative for an added row), the predictors, `target` and `weight`. The split, the quota, the row
 counts, the output's sha256 and the method's parameters go to stderr through logging.
 `docs/DEVELOPMENT.md` (Baselines) is the usage home.
 
@@ -71,6 +71,7 @@ def main(
 
     Returns:
         0 done, 2 the command could not run, 3 the data or the output contradicts its contract.
+        Any other exception propagates, so the process exits 1 with its traceback.
     """
     context = context or Context()
     args = _parser(context.methods).parse_args(argv)
@@ -124,11 +125,11 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, out: TextIO
         logger.info("quota stratum=%s rows=%d", "/".join(map(str, stratum)), rows)
     baseline = augment(train, method, request, methods=context.methods)
     text = render(train, baseline)
+    request_fields = f" seed={request.seed} strata={request.strata}" if method.adds_rows else ""
     logger.info(
-        "method=%s seed=%d strata=%s real=%d synthetic=%d total=%d sha256=%s",
+        "method=%s%s real=%d synthetic=%d total=%d sha256=%s",
         method,
-        request.seed,
-        request.strata,
+        request_fields,
         len(train),
         len(baseline.added),
         len(train) + len(baseline.added),

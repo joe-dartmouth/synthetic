@@ -78,3 +78,11 @@ def test_one_request_gives_every_method_the_same_rows_per_cell():
     request = Request(quota=QUOTA)
     cells = [cells_of(runner(TRAIN, request).added) for runner in runners]
     assert all(cell == cells[0] for cell in cells)
+
+
+def test_each_name_runs_its_own_method():
+    assert METHODS[Method.NONE] is no_augmentation
+    assert METHODS[Method.SMOTE] is smote
+    assert METHODS[Method.ADASYN] is adasyn
+    assert METHODS[Method.CTGAN] is ctgan
+    assert METHODS[Method.TVAE] is tvae

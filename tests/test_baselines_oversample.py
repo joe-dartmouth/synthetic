@@ -27,7 +27,9 @@ def oversampler(request):
 
 
 def test_a_method_meets_the_contract(oversampler):
-    assert_contract(oversampler(TRAIN, Request(quota=QUOTA)).added, TRAIN, QUOTA)
+    result = oversampler(TRAIN, Request(quota=QUOTA))
+    assert_contract(result.added, TRAIN, QUOTA)
+    assert set(result.params["neighbors"].values()) == {5}  # 14 records: the cap of 5 applies
 
 
 def test_the_input_frame_is_not_modified(oversampler):

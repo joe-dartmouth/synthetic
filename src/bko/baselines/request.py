@@ -74,7 +74,7 @@ def stratum_keys(frame: pd.DataFrame, strata: Strata) -> list[Stratum]:
     return list(zip(*(cells[column].tolist() for column in strata.columns), strict=True))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Request:
     """The rows a row-adding method adds, stratum by stratum, and the seed it derives from.
 
@@ -97,13 +97,13 @@ class Request:
         """
         grid = self.strata.grid()
         for stratum, rows in self.quota.items():
-            if stratum not in grid or rows < 1:
+            if stratum not in grid or not _is_int(rows) or rows < 1:
                 msg = (
                     f"quota {stratum}: {rows} is not a positive row count "
                     f"for a {self.strata} stratum"
                 )
                 raise ValueError(msg)
-        if not 0 <= self.seed < SEED_LIMIT:
+        if not _is_int(self.seed) or not 0 <= self.seed < SEED_LIMIT:
             msg = f"seed {self.seed} is outside [0, {SEED_LIMIT})"
             raise ValueError(msg)
         ordered = {stratum: self.quota[stratum] for stratum in grid if stratum in self.quota}
@@ -113,6 +113,10 @@ class Request:
     def rows(self) -> int:
         """The rows the request adds in all."""
         return sum(self.quota.values())
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def water_fill(counts: Mapping[Stratum, int], rows: int) -> dict[Stratum, int]:

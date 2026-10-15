@@ -81,11 +81,12 @@ command per method, inside `.venv`:
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
   method and writes the training set to stdout as CSV: `record_id` (negative for an added row), the
-  13 predictors, `target` and `weight`. `--seed` defaults to `BASELINE_SEED` in
+  predictors, `target` and `weight`. `--seed` defaults to `BASELINE_SEED` in
   `bko.baselines.request`.
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
-  with the method, seed, strata, real, synthetic and total row counts and the output's sha256, and
-  the method's parameters. An experiment copies them into its configuration in
+  with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
+  row counts and the output's sha256, the fit and fill lines of CTGAN and TVAE, and the method's
+  parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a

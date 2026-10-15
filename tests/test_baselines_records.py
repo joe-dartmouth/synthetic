@@ -28,6 +28,12 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 TRAIN = full_records()
 REQUEST = Request(quota=QUOTA)
 
+DERIVED = 1368430203
+"""`derived_seed(0, "smote", "<55", "female", 1)` at the commit this test was written."""
+
+KEPT = [2, 5, 9]
+"""`keep(3, 10, seed=0, label="adasyn")` at the same commit."""
+
 
 def valid_rows() -> pd.DataFrame:
     """The quota's rows, taken from the training frame itself, numbered as added rows."""
@@ -94,6 +100,11 @@ BROKEN_ROWS = {
     "range": lambda rows: _set_last(rows, "chol", int(TRAIN["chol"].max()) + 1),
     "decimals": lambda rows: _set_last(rows, "oldpeak", float(rows["oldpeak"].iloc[-1]) + 0.05),
     "stratum": _flip_sex,
+    "missing": lambda rows: _set_last(rows, "oldpeak", float("nan")),
+    "below range": lambda rows: _set_last(rows, "chol", int(TRAIN["chol"].min()) - 1),
+    "index name": lambda rows: rows.rename_axis("id"),
+    "column order": lambda rows: rows.loc[:, [*rows.columns[1:], rows.columns[0]]],
+    "strata order": lambda rows: rows.iloc[::-1].set_axis(rows.index),
 }
 """Each plants one broken promise in an otherwise valid added frame."""
 
@@ -108,6 +119,8 @@ def test_each_broken_row_promise_is_refused(plant):
 BROKEN_WEIGHTS = {
     "weights index": lambda weights: weights.set_axis(weights.index + 1000),
     "weight": lambda weights: weights.where(weights.index != weights.index[0], 0.0),
+    "negative weight": lambda weights: weights.where(weights.index != weights.index[0], -1.0),
+    "missing weight": lambda weights: weights.where(weights.index != weights.index[0], np.nan),
 }
 """Each plants one broken promise in otherwise valid weights."""
 
@@ -144,3 +157,9 @@ def test_keep_is_a_sorted_seeded_subset():
     assert any(
         keep(3, 10, seed=0, label=label) != keep(3, 10, seed=1, label=label) for label in labels
     )
+
+
+def test_derived_seeds_and_kept_positions_are_pinned():
+    """Golden values: a run reproduces across commits only while these stay fixed."""
+    assert derived_seed(0, "smote", "<55", "female", 1) == DERIVED
+    assert keep(3, 10, seed=0, label="adasyn") == KEPT

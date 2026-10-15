@@ -89,7 +89,11 @@ def _smote_stratum(
         k_neighbors=k,
         random_state=seed,
     )
-    resampled, _ = sampler.fit_resample(x, inside.astype("int64"))
+    try:
+        resampled, _ = sampler.fit_resample(x, inside.astype("int64"))
+    except (RuntimeError, ValueError) as exc:
+        msg = f"smote cannot fill a stratum of {int(inside.sum())} records: {exc}"
+        raise BaselineError(msg) from exc
     new = resampled[len(x) :]
     return _restore(scaled, new[:, : len(NUMERIC)], new[:, len(NUMERIC) :])
 

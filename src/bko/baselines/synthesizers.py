@@ -11,6 +11,8 @@ restored afterwards; SDV seeds its own sampling after every fit. Training runs o
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -27,6 +29,8 @@ from bko.baselines.records import FRAME_COLUMNS, Baseline, number, unit_weights,
 from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.uci import FRACTIONAL, NUMERIC
 
+
+logger = logging.getLogger(__name__)
 
 CTGAN_PARAMETERS: Final[Mapping[str, object]] = MappingProxyType({})
 """Departures from SDV's CTGAN defaults: none (ADR `research/baseline-augmentation-design`)."""
@@ -114,15 +118,21 @@ def fill(
     Each stratum keeps its first matching rows in draw order; the strata follow the quota's order.
 
     Raises:
-        BaselineError: If `limit` rows are drawn before every quota is met.
+        BaselineError: If the request exceeds `limit`, or `limit` rows are asked for before
+            every quota is met.
     """
+    if request.rows > limit:
+        msg = f"{method} cannot add {request.rows} rows; it draws at most {limit}"
+        raise BaselineError(msg)
     needed = dict(request.quota)
     kept: dict[Stratum, list[pd.DataFrame]] = {stratum: [] for stratum in needed}
     drawn = 0
     while any(needed.values()):
         if drawn >= limit:
-            short = {stratum: n for stratum, n in needed.items() if n}
-            msg = f"{method} drew {drawn} rows and still lacks {short}"
+            short = ", ".join(
+                f"{'/'.join(map(str, stratum))}={n}" for stratum, n in needed.items() if n
+            )
+            msg = f"{method} asked for {drawn} rows and still lacks {short}"
             raise BaselineError(msg)
         rows = whole(draw(batch))
         drawn += batch
@@ -132,6 +142,7 @@ def fill(
                 hits = rows.loc[[key == stratum for key in keys]].head(need)
                 kept[stratum].append(hits)
                 needed[stratum] = need - len(hits)
+    logger.info("filled method=%s drawn=%d added=%d", method, drawn, request.rows)
     return number(pd.concat([frame for frames in kept.values() for frame in frames]))
 
 
@@ -145,7 +156,9 @@ def _synthesize(
 ) -> Baseline:
     synthesizer = build_synthesizer(factory, parameters)
     with seeded(request.seed):
+        start = time.perf_counter()
         synthesizer.fit(train.loc[:, list(FRAME_COLUMNS)])
+        logger.info("fit method=%s seconds=%.1f", method, time.perf_counter() - start)
         added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)
     params = {**synthesizer.get_parameters(), "torch_threads": TORCH_THREADS}
     return Baseline(added=added, weights=unit_weights(train), params=params)

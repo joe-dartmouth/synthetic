@@ -31,8 +31,8 @@ not allowed, so the repository's license decides whether the port is possible at
 ## Rationale
 
 GPL-3.0 is pybkb's license, so either path of `proposal-bkb-port` stays open: porting its code is
-licensing compatible, and a clean-room build is unaffected. "GPL 3.0" was read as version 3 only
-(SPDX `GPL-3.0-only`) rather than version 3 or later.
+licensing compatible, and a clean-room build is unaffected. The team asked for GPL version 3, read as
+version 3 only (SPDX `GPL-3.0-only`) rather than version 3 or later.
 
 ## Consequences
 

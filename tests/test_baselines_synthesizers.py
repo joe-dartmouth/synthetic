@@ -66,7 +66,7 @@ def test_fill_takes_a_stratums_first_matches_in_draw_order():
 
 def test_fill_refuses_a_stratum_the_model_never_reaches():
     model = FakeModel(TRAIN.loc[TRAIN["sex"] == 1])
-    with pytest.raises(BaselineError, match="fake drew 200 rows and still lacks"):
+    with pytest.raises(BaselineError, match="fake asked for 200 rows and still lacks"):
         fill(model, Request(quota=QUOTA), method="fake", batch=50, limit=200)
     assert model.calls == [50, 50, 50, 50]
 
@@ -136,3 +136,25 @@ def test_the_locked_parameters_fit_this_frame(adapter, parameters):
     """SDV's defaults with one epoch: batch 500 on 112 records, the geometry the real run uses."""
     result = adapter(TRAIN, Request(quota=QUOTA), parameters={**parameters, "epochs": 1})
     assert_contract(result.added, TRAIN, QUOTA)
+
+
+def test_fill_refuses_a_request_beyond_its_limit():
+    with pytest.raises(BaselineError, match="draws at most 5"):
+        fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=5, limit=5)
+
+
+def _raise_while_seeded() -> None:
+    with seeded(5):
+        np.random.random()
+        msg = "boom"
+        raise RuntimeError(msg)
+
+
+def test_seeded_restores_the_generators_when_the_body_raises():
+    np.random.seed(11)
+    threads = torch.get_num_threads()
+    with pytest.raises(RuntimeError, match="boom"):
+        _raise_while_seeded()
+    after = np.random.random()
+    np.random.seed(11)
+    assert (after, torch.get_num_threads()) == (np.random.random(), threads)

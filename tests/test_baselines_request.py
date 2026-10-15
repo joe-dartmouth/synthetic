@@ -79,15 +79,27 @@ def test_stratum_keys_follow_the_cell_columns():
 
 @pytest.mark.parametrize(
     "quota",
-    [{("<55", "female", 1): 0}, {("nonsense",): 1}, {(1,): 1}],
-    ids=["zero rows", "unknown stratum", "label key under cell strata"],
+    [
+        {("<55", "female", 1): 0},
+        {("<55", "female", 1): 1.5},
+        {("<55", "female", 1): True},
+        {("nonsense",): 1},
+        {(1,): 1},
+    ],
+    ids=[
+        "zero rows",
+        "fractional rows",
+        "boolean rows",
+        "unknown stratum",
+        "label key under cell strata",
+    ],
 )
 def test_a_malformed_quota_is_refused(quota):
     with pytest.raises(ValueError, match="not a positive row count"):
         Request(quota=quota)
 
 
-@pytest.mark.parametrize("seed", [-1, 2**32])
+@pytest.mark.parametrize("seed", [-1, 2**32, True, 1.0])
 def test_a_seed_outside_numpys_range_is_refused(seed):
     with pytest.raises(ValueError, match="outside"):
         Request(seed=seed)

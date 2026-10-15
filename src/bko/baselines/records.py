@@ -133,8 +133,10 @@ def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:
     for name in FRACTIONAL:
         scaled = added[name].to_numpy() * 10**FRACTION_DIGITS
         _require(bool(np.allclose(scaled, np.rint(scaled))), f"{name} has extra decimals")
-    produced = Counter(stratum_keys(added, request.strata))
-    _require(produced == Counter(request.quota), f"rows per stratum are {dict(produced)}")
+    keys = stratum_keys(added, request.strata)
+    _require(Counter(keys) == Counter(request.quota), f"rows per stratum are {dict(Counter(keys))}")
+    in_order = [stratum for stratum, rows in request.quota.items() for _ in range(rows)]
+    _require(keys == in_order, "the strata are not together in the quota's order")
     _require(weights.index.equals(train.index), "the weights are not on the training index")
     finite = bool(np.isfinite(weights.to_numpy()).all())
     _require(finite and bool((weights > 0).all()), "a weight is not a positive number")
