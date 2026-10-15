@@ -1,8 +1,8 @@
 ---
 id: proposal-baselines
 title: Baseline augmentation methods
-status: blocked
-depends_on: proposal-datasets
+status: ready
+depends_on: --
 blocks: proposal-final-evaluation
 parallel_safe: true
 owner: Joe

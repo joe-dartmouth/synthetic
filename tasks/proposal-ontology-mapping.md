@@ -29,6 +29,9 @@ starting with the disease label and chest-pain type
 - A mapping table from concepts to UCI fields recording each mapping's source, encoding and limits;
   numeric fields get separately specified range constraints; concepts with no defensible field are
   listed as out of scope.
+- The same table maps the SNOMED-CT codes of the Synthea conditions the ablation removes (the
+  codes `bko.datasets.synthea` names) to MONDO or HPO concepts, each row naming its source, so
+  the BKO can ground the Synthea population that E2 ablates.
 
 **Out.** Clinician review, which the 2-pager makes conditional on availability.
 

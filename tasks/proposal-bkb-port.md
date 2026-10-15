@@ -39,5 +39,4 @@ here; its core can be ported. Everything that detects a gap needs this layer
 - On the port path, pybkb's example `.bkb` files load, fuse and answer an update query with the same
   result as pybkb. On the clean-room path, pybkb runs only as an oracle outside the repository, and
   neither its code nor its example files are committed.
-- The `data` extra joins `make setup` if `bko.bkb` imports it (ADR `tooling/uv-ruff-ty`).
 - `make check`.

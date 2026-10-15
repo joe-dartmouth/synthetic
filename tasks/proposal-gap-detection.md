@@ -2,7 +2,7 @@
 id: proposal-gap-detection
 title: BKO and count-based gap detection
 status: blocked
-depends_on: proposal-mondo-do-fusion, proposal-datasets
+depends_on: proposal-mondo-do-fusion, proposal-synthea-ablation
 blocks: proposal-llm-generation
 parallel_safe: true
 owner: Partiban
@@ -25,7 +25,7 @@ Detect: statements the fused ontology implies but the dataset fragment does not 
 
 - Add the dataset as a fragment weighted by observed frequency and list ungrounded statements in
   `src/bko/gaps/`.
-- List count-based gaps from the cell counts.
+- List count-based gaps from the cell counts `bko.datasets.cells` computes.
 - Run both on the Synthea ablation, where the removed cases are the ground truth.
 
 **Out.** Generating records for the gaps.
