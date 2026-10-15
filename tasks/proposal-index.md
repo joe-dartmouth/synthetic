@@ -3,8 +3,8 @@
 **What this set is.** The work the 2-pager proposes, from the BKB layer to the final evaluation,
 split into units of one pull request each. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md),
 the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none), and owners follow
-2-pager section 6, except `proposal-synthea-ablation`, whose work no member's section 6 workstream names;
-it sits with Joe's experiments. Each unit's `milestone` names the ROADMAP heading it serves.
+2-pager section 6, except `proposal-synthea-ablation`, whose work no member's section 6 workstream
+names; it sits with Joe's experiments. Each unit's `milestone` names the ROADMAP heading it serves.
 
 ## Graph and status
 

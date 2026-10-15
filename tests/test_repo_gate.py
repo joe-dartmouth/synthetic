@@ -314,8 +314,9 @@ def test_the_stray_test_filter_reports_a_test_outside_the_tests_tree():
     assert stray_tests(paths) == ["tools/test_b.py"]
 
 
-PINNED_LINTERS = ("ruff", "ty")
-"""The two tools `make lint` and `make typecheck` run. Both must be exact."""
+PINNED_LINTERS = ("ruff", "ty", "pandas-stubs")
+"""The tools that decide `make lint` and `make typecheck`, including the stubs ty reads pandas
+through. Each must be exact."""
 
 
 def pinned_version(tool: str) -> str:
@@ -342,6 +343,17 @@ def test_the_linters_are_pinned_exactly_rather_than_floated():
     """A floating linter can turn the gate red with no commit in between."""
     for tool in PINNED_LINTERS:
         pinned_version(tool)
+
+
+def test_the_pandas_stubs_describe_the_installed_pandas():
+    """Stubs for another pandas release type calls the runtime lacks, or miss ones it has.
+
+    pandas-stubs versions are the pandas version they describe plus a build stamp.
+    """
+    assert version("pandas-stubs").startswith(version("pandas") + "."), (
+        f"pandas-stubs {version('pandas-stubs')} does not describe pandas {version('pandas')}; "
+        "pin the stubs release whose version starts with the pandas one"
+    )
 
 
 def test_the_pinned_linters_are_the_ones_actually_installed():

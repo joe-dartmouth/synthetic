@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 # uv, ruff and ty, wrapped by a Makefile
 
@@ -36,7 +36,8 @@ We will use:
 - **`ruff`** for linting and formatting, configured in `ruff.toml`, **pinned exactly** in the `dev`
   extra.
 - **`ty`** as the type checker, configured in `ty.toml`, **pinned exactly**. `pyrightconfig.json`
-  is kept for editor integration only.
+  is kept for editor integration only. **`pandas-stubs`**, which ty reads pandas through, is pinned
+  exactly too, to the release that describes the locked pandas.
 - **`hatchling`** as the build backend.
 - **Runtime dependencies as optional extras** (`data`, `ontology`, `llm`, `synth`, `eval`, `app`),
   declared and locked now. **An extra joins `make setup` when something in `src/`, `tests/` or

@@ -20,7 +20,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
-- `make cells`: fetch UCI Heart Disease into `data/` and print its cell counts ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
+- `make cells`: fetch UCI Heart Disease into `data/` and print its cell counts
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
 - A targeted run while working:
 
   ```
@@ -36,6 +37,7 @@ runs, and its hazards.
 synthetic/
 ├── AGENTS.md / CLAUDE.md / GEMINI.md / README.md / Makefile / pyproject.toml / uv.lock
 ├── ruff.toml / ty.toml / pyrightconfig.json
+├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
 ├── papers/      # the source PDFs: the proposal 2-pager and the research brief
 ├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)
