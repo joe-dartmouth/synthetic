@@ -29,28 +29,43 @@ the machine lacks it. `make setup` installs the `dev` and `data` extras from the
 
 ## Data
 
-The evaluation data is downloaded, never committed. It lives under `data/` at the repository
-root, which `.gitignore` ignores, and only [`bko.datasets`](../src/bko/datasets/README.md) writes
-there. Each download is pinned by size and sha256 in `bko.datasets.sources`. A download that
-differs from its pin is refused; `make cells` deletes and fetches again a snapshot on disk that
-fails its pin, and the loaders refuse one.
+The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
+repository root, which `.gitignore` ignores, and only
+[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease and
+the Synthea jar) is pinned by size and sha256 in `bko.datasets.sources`. A download that differs
+from its pin is refused; the commands delete and fetch again a snapshot on disk that fails its pin,
+and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
+commands regenerate one whose CSVs or recorded settings differ.
 
-- **The cell counts**: `make cells`, which runs `python -m bko.datasets cells` inside the
-  project's virtual environment (`.venv`, built by `make setup`). It fetches UCI Heart Disease if
-  `data/` lacks it, verifies it, and writes the age-sex subgroup-label cell counts of the
-  training split to stdout as CSV, the same bytes on every run. The underrepresented cells and
-  the snapshot identity go to stderr. The module exits 0 when done, 1 on an unexpected error (with
-  its traceback), 2 when the command could not run, and 3 when the data contradicts its pin or
-  schema; `make` reports any failure as its own exit 2. To use another data root or to see the
-  module's own code, run it directly:
-  `uv run --no-sync python -m bko.datasets cells --data-dir <dir>`.
-- **Layout**: a snapshot is the directory `data/<source>/<first 16 hex digits of its sha256>/`,
-  for example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`.
-- **Snapshot identity**: `source.json` holds `url`, `size`, `sha256` and `retrieved_at` (the
-  download time, UTC). An experiment copies them into its configuration in
+Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
+their report to stdout as CSV and their logs to stderr. The module exits 0 when done, 1 on an
+unexpected error (with its traceback), 2 when the command could not run, and 3 when the data
+contradicts its pin or schema; `make` reports any failure as its own exit 2. To use another data
+root or to see the module's own code, run it directly:
+`uv run --no-sync python -m bko.datasets <cells|synthea> --data-dir <dir>`.
+
+- **The cell counts**: `make cells` runs `python -m bko.datasets cells`. It fetches UCI Heart
+  Disease if `data/` lacks it, verifies it, and writes the age-sex subgroup-label cell counts of
+  the training split, the same bytes on every run. The underrepresented cells and the snapshot
+  identity go to stderr.
+- **The Synthea ablation**: `make synthea` runs `python -m bko.datasets synthea`. It needs a JDK,
+  17 or newer: `JAVA_HOME` when set, else `java` on `PATH`, so `JAVA_HOME=<jdk home> make synthea`
+  picks one. The first run fetches the pinned Synthea jar and generates the population
+  `DEFAULT_RUN` in `bko.datasets.synthea_run` names; later runs reuse it. It removes the cases
+  `DEFAULT_ABLATION` in `bko.datasets.ablation` names and writes `age_band`, `sex`, `target`,
+  `before` and `after` for every cell.
+- **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
+  example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
+  population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
+  the snapshot date and the state; it holds Synthea's `csv/`, its log `synthea.log` and `run.json`.
+  A failed generation leaves its log at `data/synthea/<key>.log`.
+- **Identity**: `source.json` holds `url`, `size`, `sha256` and `retrieved_at` (the download time,
+  UTC). `run.json` holds `run` (the parameters), `config`, `jvm_options`, `environment`,
+  `jar_sha256`, `java_version`, `started_at`, `finished_at` and, per CSV, `rows` and `sha256`. An
+  experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test reads `data/` or the network; each builds its input in
-  `tmp_path`.
+  `tmp_path`, and no test runs Java.
 
 ## Platforms
 
@@ -73,6 +88,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `test` | `pytest -n auto --dist worksteal --cov` | Sources, branch coverage and `fail_under` live in `pyproject.toml` |
 | `sizes` | `python -m tools.check_file_size` | ADR [`tooling/file-size-cap`](adr/tooling/file-size-cap.md) |
 | `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
+| `synthea` | `python -m bko.datasets synthea` | Not part of the gate; needs a JDK, and fetches the Synthea jar and generates on its first run ([Data](#data)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |

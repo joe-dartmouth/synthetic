@@ -38,3 +38,15 @@ UCI_HEART_DISEASE: Final = Source(
     sha256="b17cd273da9ce1caa4710fce80227ea454d4dbf9fcbc8e6a9121672751563adc",
 )
 """UCI Heart Disease (CC BY 4.0); `bko.datasets.uci` reads its Cleveland file."""
+
+SYNTHEA_JAR: Final = Source(
+    name="synthea-jar",
+    url=(
+        "https://github.com/synthetichealth/synthea/releases/download/v4.0.0/"
+        "synthea-with-dependencies.jar"
+    ),
+    filename="synthea-with-dependencies.jar",
+    size=201_164_144,
+    sha256="ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1",
+)
+"""Synthea v4.0.0 (Apache-2.0); size and sha256 are GitHub's release asset metadata."""

@@ -12,7 +12,7 @@ section that holds them rather than restating them.
 |---|---|
 | Status | `not yet run`, `running` or `complete` |
 | Question | What the experiment answers |
-| Configuration | Everything needed to rerun it: dataset and split with the dataset snapshot's identity (download date and checksum; for Synthea its version and seed), the generator's model id, sampling parameters and prompt, baselines and controls, metrics and library versions, seeds, the commit, and how the readings [RESEARCH.md](RESEARCH.md#4-success-criteria) leaves open were fixed |
+| Configuration | Everything needed to rerun it: dataset and split with the dataset snapshot's identity (download date and checksum; for Synthea its `run.json`: jar checksum, seeds, snapshot date, population size and CSV checksums), the generator's model id, sampling parameters and prompt, baselines and controls, metrics and library versions, seeds, the commit, and how the readings [RESEARCH.md](RESEARCH.md#4-success-criteria) leaves open were fixed |
 | Runs | One dated row per run: run id, date, commit, where its logs and artifacts live, and API spend for runs that call a paid API. A rerun adds a row; a superseded or failed run keeps its row with the reason |
 | Result | What was measured, with units, and the command that produced it. Empty until the status is `complete` |
 | Read against | The RESEARCH.md section whose criteria judge the result, and the verdict: met, not met, or a null result reported as such |

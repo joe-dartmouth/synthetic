@@ -187,10 +187,7 @@ def ensure(
             _log_identity("snapshot present", source, path, retrieved)
             return path
     logger.info("fetching %s url=%s size=%d", source.name, source.url, source.size)
-    final.parent.mkdir(parents=True, exist_ok=True)
-    # `mkdir` honours the umask, so the snapshot gets the same mode as the directories around it.
-    staging = final.parent / f".{final.name}.{secrets.token_hex(8)}"
-    staging.mkdir()
+    staging = staging_beside(final)
     try:
         _download(source, staging / source.filename, open_url)
         retrieved = _write_record(staging / RECORD_NAME, source, now())
@@ -199,6 +196,18 @@ def ensure(
         shutil.rmtree(staging, ignore_errors=True)
     _log_identity("fetched", source, path, retrieved)
     return path
+
+
+def staging_beside(final: Path) -> Path:
+    """Create an empty, hidden staging directory beside `final` and return it.
+
+    Work is written there and renamed to `final` once complete, so `final` never holds a partial
+    result. `mkdir` honours the umask, so the renamed directory gets the mode of those around it.
+    """
+    final.parent.mkdir(parents=True, exist_ok=True)
+    staging = final.parent / f".{final.name}.{secrets.token_hex(8)}"
+    staging.mkdir()
+    return staging
 
 
 def read_record(source: Source, data_dir: Path) -> dict[str, object]:

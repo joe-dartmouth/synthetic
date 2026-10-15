@@ -2,7 +2,7 @@
 id: proposal-gap-detection
 title: BKO and count-based gap detection
 status: blocked
-depends_on: proposal-mondo-do-fusion, proposal-synthea-ablation
+depends_on: proposal-mondo-do-fusion
 blocks: proposal-llm-generation
 parallel_safe: true
 owner: Partiban

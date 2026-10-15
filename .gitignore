@@ -225,7 +225,8 @@ __marimo__/
 .claude/settings.local.json
 .claude/worktrees/
 
-# Local working space and downloaded data (anchored, so a future src/bko/data/ is not ignored)
+# Local working space and downloaded or generated data (anchored, so a future src/bko/data/ is
+# not ignored)
 scratchpad/
 /data/
 /logs/

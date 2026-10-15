@@ -50,6 +50,8 @@ values, and an experiment's configuration may fix another split seed.
 
 A complementary Synthea experiment assesses gap detection by deliberately ablating selected cases
 from the generated population, which gives the detector a known set of removed cases to find.
+ADR [`research/synthea-ablation-design`](adr/research/synthea-ablation-design.md) fixes how the
+population is generated and what a removed case is.
 
 The two experiments are register entries
 [E1](EVIDENCE.md#e1-uci-heart-disease-augmentation) and

@@ -43,8 +43,8 @@ We will use:
   declared and locked now. **An extra joins `make setup` when something in `src/`, `tests/` or
   `tools/` imports it, and not before.** `make sync` installs every extra.
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
-  `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, and `cells`, which runs a
-  dataset command outside the gate.
+  `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, and `cells` and `synthea`,
+  which run dataset commands outside the gate.
 
 ## Rationale
 
