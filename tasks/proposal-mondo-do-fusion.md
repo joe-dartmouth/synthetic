@@ -2,7 +2,7 @@
 id: proposal-mondo-do-fusion
 title: Reproduce the paper's MONDO/DO fusion
 status: blocked
-depends_on: proposal-bkb-port, proposal-ontology-mapping
+depends_on: proposal-ontology-mapping
 blocks: proposal-gap-detection
 parallel_safe: true
 owner: Partiban
