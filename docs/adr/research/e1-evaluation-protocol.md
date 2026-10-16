@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 topic: research
 created: 2026-10-15
 updated: 2026-10-15
@@ -142,7 +142,10 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 ## Enforcement
 
 - Owner: `src/bko/evaluate/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_evaluate_criteria.py`, `tests/test_evaluate_experiment.py`,
+  `tests/test_evaluate_run.py`, `tests/test_evaluate_classifier.py`,
+  `tests/test_evaluate_utility.py`, `tests/test_evaluate_fidelity.py`,
+  `tests/test_evaluate_privacy.py`, `tests/test_evaluate_scores.py`, `tests/test_evaluate_cli.py`
 
 ## Reversal Conditions
 
