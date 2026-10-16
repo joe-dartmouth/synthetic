@@ -145,6 +145,21 @@ could still serve the Validate stage, as the brief suggests for post-generation 
 **Sources.** Brief A1, A2, B6, F16. Details:
 [BACKGROUND.md](BACKGROUND.md#gap-detection).
 
+## Exact belief updating over a BKB
+
+**What it is.** The probability of each state of a target component given partial evidence: sum
+over the components the evidence leaves open, over acyclic inferences only, then normalize across
+the target's states. [pybkb](ARCHITECTURE.md#pybkb) implements no such update to port.
+
+**Why it is not in the plan.** `bko.bkb` ports the one inference pybkb implements, the log joint
+mass of each state of a target under complete evidence (ADR
+[research/bkb-layer-source](adr/research/bkb-layer-source.md)). No planned unit reads a posterior:
+gap detection lists ungrounded statements and fusion repair re-runs detection after fusing records
+back. Adopting it means changing [RESEARCH.md](RESEARCH.md) and adding a unit whose acceptance
+reads a posterior, with a hand-worked case to check it against, since pybkb has none.
+
+**Sources.** pybkb at the commit the ADR names.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

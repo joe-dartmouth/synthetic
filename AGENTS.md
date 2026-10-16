@@ -61,6 +61,10 @@ synthetic/
 - **synthcity is not a dependency.** It pins `torch<2.3` and `numpy<2.0` and does not resolve on
   Python 3.14 (ADR `tooling/python-314-without-synthcity`). Evaluation uses SDMetrics and
   scikit-learn.
+- **pybkb is not a dependency.** It pins Python ~3.11 and numpy 1.24.4, so it does not resolve
+  here. `bko.bkb` holds the part of it this project ports (ADR `research/bkb-layer-source`), and
+  its test fixtures are exported from pybkb outside the lock
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#bkb-fixtures)).
 - **`make setup` installs `dev`, `data`, `synth` and `eval`.** The other runtime dependencies are
   locked extras installed on demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install one. Never

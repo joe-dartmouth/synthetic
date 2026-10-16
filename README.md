@@ -51,3 +51,7 @@ Decisions are in [`docs/adr/`](docs/adr/README.md).
 Copyright (C) 2026 Dartmouth College. The code is licensed under the GNU General Public
 License, version 3 only ([`LICENSE`](LICENSE)); ADR
 [`tooling/gpl-3-license`](docs/adr/tooling/gpl-3-license.md) records why.
+`src/bko/bkb/` and its tests under `tests/` adapt code and data from
+[pybkb](https://github.com/di2ag/pybkb) by Chase Yakaboski, also licensed under the GNU General
+Public License, version 3; ADR [`research/bkb-layer-source`](docs/adr/research/bkb-layer-source.md)
+records the commit and the changes.

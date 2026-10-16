@@ -23,8 +23,8 @@ The tools the 2-pager names (section 4):
 | Data | UCI Heart Disease and Synthea, both openly available | [RESEARCH.md](RESEARCH.md#6-datasets) |
 
 **Principal risk.** The 2-pager states: "The principal risk is that no public BKB library exists, so
-the inference layer will be built by the team." A public BKB library exists ([pybkb](#pybkb)); how
-the inference layer uses it is decided in [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
+the inference layer will be built by the team." A public BKB library exists ([pybkb](#pybkb)), and
+`bko.bkb` ports its core under GPL-3.0 (ADR [`research/bkb-layer-source`](adr/research/bkb-layer-source.md)).
 
 ## Pipeline
 
@@ -118,26 +118,26 @@ The 2-pager's method choices govern where they differ from the flow:
 
 [pybkb](https://github.com/di2ag/pybkb), by Chase Yakaboski, is a Python package for reasoning and
 learning with Bayesian Knowledge Bases. The facts below were read from its repository through the
-GitHub API on 2026-10-13.
+GitHub API on 2026-10-16.
 
 - **License**: GPL-3.0, the repository's own license (ADR
-  [`tooling/gpl-3-license`](adr/tooling/gpl-3-license.md)), so its code may be ported. Whether to
-  port it or build clean-room is the first decision of
-  [`proposal-bkb-port`](../tasks/proposal-bkb-port.md).
-- **State**: last commit 2023-11-09; not on PyPI; the README is empty.
+  [`tooling/gpl-3-license`](adr/tooling/gpl-3-license.md)), so its code may be ported, and `bko.bkb`
+  ports its core (ADR [`research/bkb-layer-source`](adr/research/bkb-layer-source.md)).
+- **State**: the default branch, `master`, ends at commit `1e1b62a02faa0abc73db4597076c2d38c1313df6`,
+  dated 2023-07-28; not on PyPI; its README says documentation is to come.
 - **Pins**: Python ~3.11, torch 2.0.1, numpy 1.24.4, pandas 1.x, gurobipy 10.0.2, pygobnilp (a
   Bitbucket git dependency) and ray. It therefore cannot be a dependency on this repository's
   Python 3.14, but its core is portable.
 - **`learn/`** needs gobnilp and gurobi.
 
-The core, with line counts at the last commit:
+The core, with line counts at that commit:
 
 | Path | Lines | Holds |
 |---|---|---|
 | `pybkb/bkb.py` | 682 | The BKB structure |
 | `pybkb/fusion/__init__.py` | 198 | `fuse(bkfs, reliabilities, ...)` |
-| `pybkb/reason/bkb.py` | 158 | `BKBReasoner.update` |
-| `pybkb/utils/probability.py` | 779 | Probability routines, using numba |
+| `pybkb/reason/bkb.py` | 160 | `BKBReasoner.update`, which raises `NotImplementedError`, and `heuristic_update_complete_fused`, the one working inference |
+| `pybkb/utils/probability.py` | 779 | Probability routines, using numba; they serve `BKB.score` only |
 
 [RESEARCH section 9](RESEARCH.md#9-source-reconciliation) records how this changes the 2-pager's
 principal risk.
