@@ -35,7 +35,8 @@ documents only absence (0) against presence.
   A `?` in `age`, `sex` or `num` refuses the archive instead, since that record's cell is unknown.
 - **Two age bands, split at 55**: `<55` and `>=55`, so 8 cells with the 2 sexes and 2 labels.
 - **The split**: one record in five of every cell is held out, rounded half up, the lowest-ranked
-  by the sha256 of `<seed>:<record_id>`; the seed is 0.
+  by the sha256 of `<seed>:<record_id>`; the seed is 0, and an experiment's configuration may fix
+  others (`bko.evaluate.experiment.E1` does).
 - **Training records only before Evaluate**: the cell counts, the BKO dataset fragment, count-based
   gaps, baselines and generators read the training split; only `bko.evaluate` reads the test split.
 

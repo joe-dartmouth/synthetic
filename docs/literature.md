@@ -1,9 +1,10 @@
 # Literature registry
 
-Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs.
+Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs; the works ADR `research/e1-evaluation-protocol` cites, with metadata from each work's landing page (checked 2026-10-15).
 
 This file is the citation registry: one entry per work, report, docket or identifier the two sources
-cite. Other documents cite a work by its key and link here for the identifier.
+or the repository's ADRs cite. Other documents cite a work by its key and link here for the
+identifier.
 
 ## How this registry works
 
@@ -69,9 +70,12 @@ is the citing source's claim, not a checked one.
 
 ## Evaluation and failure modes
 
+- `bouckaert-2004` · [doi:10.1007/978-3-540-24775-3_3](https://doi.org/10.1007/978-3-540-24775-3_3) · `not-fetched` · Bouckaert & Frank, "Evaluating the replicability of significance tests for comparing learning algorithms", PAKDD 2004 (Springer), pp. 3–12. Corrected resampled tests replicate their verdicts across seed sets at about 100 runs. Cited in: ADR `research/e1-evaluation-protocol`.
 - `colorectal-nd` · [PMC11330441](https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/) · `not-fetched` · A colorectal-cancer synthetic-data study reporting TSTR/TRTS AUC of 0.99/0.98 and pMSE 0.223. Authors, title and year not given in source. Cited in: brief B5.
 - `gerstgrasser-2024` · identifier not given in source · `not-fetched` · Gerstgrasser et al. (2024): accumulating real data alongside synthetic data avoids model collapse. Title not given in source. Cited in: brief B6.
+- `nadeau-2003` · [doi:10.1023/A:1024068626366](https://doi.org/10.1023/A:1024068626366) · `not-fetched` · Nadeau & Bengio, "Inference for the Generalization Error", Machine Learning 52(3):239–281 (2003). The corrected resampled t interval for repeated random holdouts. Cited in: ADR `research/e1-evaluation-protocol`.
 - `shumailov-2024` · [doi:10.1038/s41586-024-07566-y](https://doi.org/10.1038/s41586-024-07566-y) · `not-fetched` · Shumailov et al., "AI models collapse when trained on recursively generated data", Nature 631:755–759 (2024). Cited in: brief B6, Key Papers 4.
+- `zhao-2021` · [arXiv:2102.08369](https://arxiv.org/abs/2102.08369) · `not-fetched` · Zhao, Kunar, Van der Scheer, Birke & Chen, "CTAB-GAN: Effective Table Data Synthesizing", arXiv 2021. Reads distance to closest record at its 5th percentile. Cited in: ADR `research/e1-evaluation-protocol`.
 
 ## Augmentation versus resampling
 

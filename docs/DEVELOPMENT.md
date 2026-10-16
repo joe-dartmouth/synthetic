@@ -7,13 +7,13 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data` and `synth` extras from the lock, and
-`source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth` and `eval` extras from the
+lock, and `source .venv/bin/activate` enters the environment.
 
-- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas) and
-  `synth` (sdv, imbalanced-learn, torch) are installed by `make setup`; `ontology` (owlready2,
-  pronto), `llm` (anthropic), `eval` (scikit-learn, sdmetrics) and `app` (streamlit) are installed
-  on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA
+- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas),
+  `synth` (sdv, imbalanced-learn, torch) and `eval` (scikit-learn, sdmetrics, scipy) are installed
+  by `make setup`; `ontology` (owlready2, pronto), `llm` (anthropic) and `app` (streamlit) are
+  installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA
   packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra
   joins `make setup`. `make sync` installs every extra.
 - **Install an extra the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
@@ -94,6 +94,41 @@ command per method, inside `.venv`:
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN and
   TVAE promise no more, so the logged sha256 is the record.
 
+## Evaluation
+
+`bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every comparison method on E1's
+repeated holdouts and judges a candidate arm against E1's criteria (ADR
+[`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). Two commands, inside
+`.venv`, writing to the gitignored `scratchpad/`:
+
+    uv run --no-sync python -m bko.evaluate score [--data-dir <dir>] > scratchpad/scores.csv
+    uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv [--candidate <arm>]
+
+- **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
+  `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
+  and the request that fills each underrepresented cell up to the threshold. A classifier fit on
+  the real rows, weighted as the arm says, and the added rows is scored on the test split. The
+  replica arms also fill the training split's own cell counts; those rows alone train a classifier
+  and are compared with the training split for fidelity. It writes one row per holdout, arm,
+  source, measure and scope to stdout as CSV; a measure a scope cannot define is empty.
+- **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
+  criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
+  arm it is set against, the measure, and the contrast's mean, interval and holdout counts. It
+  refuses a scores file whose holdouts are not `E1`'s. E1's candidate is `bko`; `--candidate`
+  judges another row-adding arm, a dry run whose verdict is not E1's.
+- **What it logs**: `score` logs an `experiment` line and the installed versions of the evaluation
+  stack, then per holdout the split line `cells` prints, one `quota` line per stratum, one `arm`
+  line per fill (a replica fill is named `<arm>-replica`) with its added rows' sha256, and the
+  holdout's seconds, then the CSV's row count and sha256. `compare` logs one `criterion` line per
+  criterion with its verdict. An experiment copies them into its Runs row in
+  [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
+- **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value.
+- **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
+  does not converge, a method that cannot fill a request or scores that cannot be judged, and 3
+  for a method's output or a scores file that breaks its contract.
+- **Reproducibility**: a holdout seed gives the same split and requests; the scores keep the
+  promise of [Baselines](#baselines).
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -107,7 +142,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data` and `synth` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth` and `eval` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -160,4 +195,4 @@ A targeted run while working:
   `-m "not integration"` deselects it.
 - **Importing SDV writes outside the repository.** `sdv.single_table` creates SDV's user data
   directory (`platformdirs.user_data_dir("sdv", "sdv-dev")`) and copies its logger configuration
-  there on import, so the baselines tests touch it. No test reads it.
+  there on import, so the baselines and evaluation tests touch it. No test reads it.

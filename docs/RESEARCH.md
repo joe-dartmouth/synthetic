@@ -46,7 +46,7 @@ The initial evaluation setting is heart-disease prediction on the UCI Heart Dise
 The archive's site, the label coding, the age bands, the handling of missing values and the
 train/test split are set by ADR
 [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md); `bko.datasets` holds the
-values, and an experiment's configuration may fix another split seed.
+values, and an experiment's configuration may fix other split seeds.
 
 A complementary Synthea experiment assesses gap detection by deliberately ablating selected cases
 from the generated population, which gives the detector a known set of removed cases to find.
@@ -126,6 +126,12 @@ The 2-pager leaves these readings open. Each experiment fixes them in its config
 - ADASYN is a baseline in 2-pager section 4 but is not named in the primary criterion.
 - 2-pager section 4 joins its four baselines (CTGAN, TVAE, SMOTE, ADASYN) with "or". The plan runs
   all four, and E1's configuration records that choice.
+- What "matches or outperforms" counts as a match once results carry intervals.
+- Which comparison "real-data baseline" names for distance to closest record
+  ([section 5](#5-evaluation-contract)).
+
+E1 departs from the primary and privacy criteria as worded; [section 9](#9-source-reconciliation)
+records how.
 
 ## 5. Evaluation contract
 
@@ -146,7 +152,7 @@ SynthEval, TableEvaluator and Anonymeter. The repository uses:
 
 - scikit-learn for utility;
 - SDMetrics for fidelity;
-- SDMetrics' `DCRBaselineProtection` and `DCROverfittingProtection` for distance to closest record.
+- SDMetrics' `calculate_dcr` for distance to closest record, read against the test rows (ADR [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)).
 
 synthcity is not a dependency; it does not resolve on this repository's interpreter (ADR
 [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). SynthEval,
@@ -237,6 +243,8 @@ Where the brief and the 2-pager disagree:
 | Evaluation stack | SDMetrics + synthcity | scikit-learn, SDMetrics, synthcity | Repository drops synthcity (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)) |
 | Datasets | UCI, Pima, Synthea; MIMIC optional | UCI Heart Disease + Synthea | 2-pager |
 | SLM distillation | Stretch goal or Track B | Absent | [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) |
+| Primary criterion | Not discussed | 2-pager: at least 10% over no augmentation, and matching CTGAN, TVAE and SMOTE; repository: separation from every comparison method by a margin `E1` fixes, judged on paired intervals ([section 4](#4-success-criteria)) | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
+| Privacy criterion | Not discussed | 2-pager: distance to closest record remains above the real-data baseline; repository: the added rows' 5th-percentile distance reaches a share `E1` fixes of the test rows', judged on paired intervals | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/

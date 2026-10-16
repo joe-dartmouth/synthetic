@@ -192,12 +192,13 @@ def test_every_interpreter_pin_agrees():
 
 
 def test_setup_installs_the_extras_something_imports():
-    """`synth` is installed because `bko.baselines` imports it (ADR `tooling/uv-ruff-ty`).
+    """`synth` and `eval` are installed because `bko.baselines` and `bko.evaluate` import them.
 
-    A subset, not equality: `proposal-eval-harness` adds `eval` to the same line.
+    ADR `tooling/uv-ruff-ty`. A subset, not equality: a stage that imports another extra adds it
+    to the same line.
     """
     extras = set(re.findall(r"--extra\s+([a-z]+)", "\n".join(_recipe("setup"))))
-    assert {"dev", "data", "synth"} <= extras
+    assert {"dev", "data", "synth", "eval"} <= extras
 
 
 def test_the_running_interpreter_matches_the_declared_pin():

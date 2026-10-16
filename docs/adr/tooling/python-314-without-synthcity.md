@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 ---
 # Python 3.14, without synthcity
 
@@ -36,8 +36,9 @@ Resolution was measured on 2026-10-13 with `uv pip compile` for `aarch64-apple-d
 ## Decision
 
 We will use **Python 3.14**, and **synthcity is not a dependency**. Evaluation uses scikit-learn
-for utility, SDMetrics for fidelity, and SDMetrics' `DCRBaselineProtection` and
-`DCROverfittingProtection` for distance to closest record.
+for utility, SDMetrics for fidelity, and SDMetrics' `calculate_dcr` for distance to closest record,
+read as ADR `research/e1-evaluation-protocol` says; that record rules out SDMetrics'
+`DCRBaselineProtection` and `DCROverfittingProtection`.
 
 The interpreter version has six homes, each stated once: `.python-version`, `requires-python` in
 `pyproject.toml`, `target-version` in `ruff.toml`, `python-version` in `ty.toml`, `pythonVersion` in
