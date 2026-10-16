@@ -16,7 +16,7 @@ import sys
 from bko.bkb.fusion import fuse
 from bko.bkb.reason import log_joint_complete
 from bko.bkb.serialize import render
-from tests._bkb_fixtures import PIRATE, RELIABILITIES, exported, exported_queries
+from tests._bkb_fixtures import PIRATE, RELIABILITIES, build, exported, exported_queries
 
 fragments = [exported(name) for name in PIRATE]
 query = next(q for q in exported_queries() if q.bkb == "pirate_fused_r1")
@@ -26,6 +26,12 @@ for collapse in (False, True):
     result = log_joint_complete(fused, query.target, query.evidence)
     pairs = [(s, None if v is None else v.hex()) for s, v in sorted(result.items())]
     sys.stdout.write(repr(pairs) + "\\n")
+    sys.stdout.write(repr(fused.non_mutex_pair()) + "\\n")
+sources = [(f"__Source__[{name}]", "s") for name in "ABCDEFGH"]
+priors = [(c, s, 0.1 + index / 10, []) for index, (c, s) in enumerate(sources)]
+rows = [("A", "1", 0.5, sources), *priors]
+result = log_joint_complete(build("many sources", rows), "A", {})
+sys.stdout.write(result["1"].hex() + "\\n")
 """
 
 
@@ -52,4 +58,7 @@ def run_driver(seed: str) -> str:
 def test_fusion_and_queries_do_not_depend_on_the_hash_seed():
     outputs = {run_driver(seed) for seed in ("0", "1", "2", "4294967295")}
     assert len(outputs) == 1
-    assert len(outputs.pop().splitlines()) == 4
+    lines = outputs.pop().splitlines()
+    assert len(lines) == 7
+    assert "0x" in lines[1]
+    assert lines[2] == lines[5] == "None"

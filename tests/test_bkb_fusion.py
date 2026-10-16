@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -137,6 +138,13 @@ def test_is_source_matches_only_the_names_fuse_writes():
     assert not is_source("X")
 
 
+NOT_A_NAME: Any = 1
+
+
+def repeated_snode() -> BKB:
+    return build("repeated", [("Y", "0", 0.5, []), ("Y", "0", 0.5, [])])
+
+
 def fused_h2() -> BKB:
     return fuse(list(h2_fragments()), [1, 1])
 
@@ -151,6 +159,18 @@ REFUSED: dict[str, Callable[[], BKB]] = {
     "an infinite reliability": lambda: fuse(list(h2_fragments()), [1, math.inf]),
     "a boolean reliability": lambda: fuse(list(h2_fragments()), [1, True]),
     "a repeated source name": lambda: fuse(list(h2_fragments()), [1, 1], sources=["a", "a"]),
+    "a source name that is not a string": lambda: fuse(
+        list(h2_fragments()), [1, 1], sources=["a", NOT_A_NAME]
+    ),
+    "an empty source name": lambda: fuse(list(h2_fragments()), [1, 1], sources=["", "b"]),
+    "source names as one string": lambda: fuse(list(h2_fragments()), [1, 1], sources="ab"),
+    "a fragment holding one S-node twice": lambda: fuse([repeated_snode()], [1]),
+    "reliabilities that overflow when summed": lambda: fuse(
+        list(h2_fragments()), [1e308, 1e308], collapse=False
+    ),
+    "reliabilities that overflow when collapsed": lambda: fuse(
+        list(h2_fragments()), [1e308, 1e308], collapse=True
+    ),
     "fragments sharing a name": lambda: fuse([h2_fragments()[0]] * 2, [1, 1]),
     "a fused fragment": lambda: fuse([fused_h2()], [1]),
 }
@@ -160,3 +180,8 @@ REFUSED: dict[str, Callable[[], BKB]] = {
 def test_fuse_refuses(make):
     with pytest.raises(FusionError):
         make()
+
+
+def test_a_repeated_source_name_is_named():
+    with pytest.raises(FusionError, match="the source name 'a'"):
+        fuse(list(h2_fragments()), [1, 1], sources=["a", "a"])

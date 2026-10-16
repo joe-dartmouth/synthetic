@@ -48,16 +48,25 @@ def test_matches_pybkbs_heuristic_update(query: Query):
     assert_matches(got, query.result)
 
 
-def test_the_golden_queries_cover_unsupported_and_supported_states():
+def test_the_golden_queries_cover_unsupported_zero_and_supported_states():
     values = [value for query in QUERIES for value in query.result.values()]
     assert any(value is None for value in values)
+    assert any(value == -math.inf for value in values)
     assert any(value is not None and math.isfinite(value) for value in values)
+    # exp() underflows near -745, where pybkb's log(exp(a) + exp(b)) loses terms; no finite
+    # golden is near that, so pybkb's sum and the port's stable one should agree.
     assert all(value is None or value == -math.inf or value > -700 for value in values)
 
 
+def first_two(bkb: str) -> list[int]:
+    return [i for i, q in enumerate(QUERIES) if q.bkb == bkb][:2]
+
+
 REFERENCED = [i for i, q in enumerate(QUERIES) if q.bkb == "aquatic_eco"] + [
-    i for i, q in enumerate(QUERIES) if q.bkb == "pirate_fused_r1"
-][:2]
+    i
+    for bkb in ("pirate_fused_r1", "pirate_fused_mixed", "pirate_fused_mixed_collapsed")
+    for i in first_two(bkb)
+]
 
 
 @pytest.mark.parametrize("index", REFERENCED, ids=[IDS[i] for i in REFERENCED])
@@ -143,6 +152,48 @@ def test_a_contradiction_outranks_a_missing_component():
     assert log_joint_complete(bkb, "X", {"Y": "0"}) == {"0": None}
 
 
+def test_a_contradiction_anywhere_outranks_a_missing_component_anywhere():
+    bkb = build(
+        "order",
+        [
+            ("W", "0", 1.0, [("Z", "0")]),
+            ("Y", "0", 1.0, [("V", "1")]),
+            ("V", "0", 1.0, []),
+            ("V", "1", 1.0, []),
+            ("X", "0", 0.5, []),
+            ("X", "1", 0.5, []),
+            ("Z", "0", 1.0, []),
+        ],
+    )
+    for evidence in ({"W": "0", "Y": "0", "V": "0"}, {"V": "0", "Y": "0", "W": "0"}):
+        assert log_joint_complete(bkb, "X", evidence) == {"0": None, "1": None}
+
+
+def test_an_evidence_inode_without_snodes_makes_every_state_none():
+    bkb = build("bare", [("X", "0", 1.0, [])])
+    bkb.add_inode("Y", "0")
+    assert log_joint_complete(bkb, "X", {"Y": "0"}) == {"0": None}
+
+
+def test_a_tail_with_two_sources_multiplies_both_priors():
+    bkb = build(
+        "two sources",
+        [
+            ("A", "1", 0.5, [("__Source__[A]", "s"), ("__Source__[B]", "t")]),
+            ("__Source__[A]", "s", 0.25, []),
+            ("__Source__[B]", "t", 0.75, []),
+        ],
+    )
+    assert log_joint_complete(bkb, "A", {}) == {"1": close(math.log(0.5 * 0.25 * 0.75))}
+
+
+def mixed_support() -> BKB:
+    return build("mixed", [("X", "0", 0.5, []), ("X", "0", 0.5, [("Z", "0")]), ("Z", "0", 1.0, [])])
+
+
+NOT_A_STATE: Any = ["1"]
+
+
 def two_priors() -> BKB:
     return build(
         "two priors",
@@ -169,6 +220,8 @@ REFUSED: dict[str, Callable[[], object]] = {
     "source evidence": lambda: log_joint_complete(h1(), "X", {"Y": "1", "__Source__[Y]": "a"}),
     "a source with two priors": lambda: log_joint_complete(two_priors(), "X", {"Y": "0"}),
     "a source with no prior": lambda: log_joint_complete(no_prior(), "X", {"Y": "0"}),
+    "an agreeing and an undetermined S-node": lambda: log_joint_complete(mixed_support(), "X", {}),
+    "a non-string evidence state": lambda: log_joint_complete(h1(), "X", {"Y": NOT_A_STATE}),
 }
 
 

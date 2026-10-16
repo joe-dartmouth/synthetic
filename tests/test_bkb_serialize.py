@@ -42,6 +42,7 @@ EXAMPLES: dict[str, Callable[[], BKB]] = {
     "described": lambda: BKB("described", "a description"),
     "unicode": lambda: build("名前", [("Ünïcode [x]", "état", 0.9057551260540134, [])]),
     "tiny": lambda: build("tiny", [("A", "1", 5e-324, []), ("A", "2", 0.0, [])]),
+    "negative zero": lambda: build("negative zero", [("A", "1", -0.0, [])]),
 }
 
 
@@ -136,6 +137,7 @@ MALFORMED: dict[str, Callable[[], str]] = {
     "a boolean probability": lambda: with_snode(prob=True),
     "a string probability": lambda: with_snode(prob="0.9"),
     "a probability above one": lambda: with_snode(prob=1.5),
+    "an integer probability that overflows a float": lambda: with_snode(prob=10**400),
     "a tail on the head's component": lambda: with_snode(tail=[3]),
 }
 
@@ -147,6 +149,11 @@ def test_parse_refuses(make):
 
 
 def test_a_broken_bkb_rule_is_reported_with_its_cause():
-    with pytest.raises(DocumentFormatError) as caught:
+    with pytest.raises(DocumentFormatError, match="S-node 1 breaks a BKB rule") as caught:
         parse(with_snode(prob=1.5))
     assert isinstance(caught.value.__cause__, StructureError)
+
+
+def test_a_repeated_inode_is_named():
+    with pytest.raises(DocumentFormatError, match=r"the I-node \('A', '1'\) twice"):
+        parse(document(inodes=[["A", "1"], ["A", "1"]], snodes=[]))

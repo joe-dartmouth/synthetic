@@ -69,19 +69,22 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
 - **Deviations from pybkb**, each on a path pybkb's fixtures never take: I-nodes keep first-seen
   order; a probability must be a number in [0, 1] (pybkb lets NaN and `True` through); a tail may
   not name its head's component or a component twice; `fuse` refuses an empty fragment list,
-  mismatched lengths, a reliability that is not finite and positive, a repeated source name and a
-  fragment that is already fused; `is_mutex` returns False instead of raising; `find_snodes` with
+  mismatched lengths, a reliability that is not finite and positive, reliabilities that overflow
+  when summed, a source name that is not a non-empty string, a repeated source name, a fragment
+  that is already fused and a fragment holding one S-node twice; `is_mutex` returns False instead of raising; `find_snodes` with
   `prob=0.0` filters instead of raising, and with an empty `tail_subset` returns every S-node on
-  the head (pybkb returns none); the update refuses an unknown or source target or evidence and a
-  source I-node without exactly one prior, makes a state None when an S-node contradicts the
+  the head (pybkb returns none); the update refuses an unknown, source or non-string target or
+  evidence and a source I-node without exactly one prior, sums a tail's source priors in a fixed
+  order, makes a state None when an S-node contradicts the
   evidence before it notices a missing component (pybkb's `KeyError` depends on tail order), and
   its log-sum stays finite where pybkb's `log(exp(a) + exp(b))` underflows. Everything else,
   including merging S-nodes only on exactly equal probabilities and summing source totals left to
   right, is pybkb's.
 - **Fixtures are JSON, exported once by pybkb.** A committed exporter runs pybkb at the commit
   above under Python 3.11 with pybkb's declared versions, except scipy 1.10.1, the last release
-  that reads pybkb's own pickles. It checks every input against its sha256 at that commit,
-  statically scans each pickle's globals against an allow-list before pybkb loads it, replays
+  that reads pybkb's own pickles. It checks every input against its sha256 at that commit, which
+  is the guarantee, refuses a pybkb tree holding any other file, statically scans each pickle's
+  globals against an allow-list before pybkb loads it as a second check, replays
   pybkb's own test assertions, and writes the example BKBs, fused BKBs and update results in the
   format `bko.bkb.serialize` reads, with a manifest of the commit, every sha256 and the versions.
   No pickle, lz4 or `.bkb` file is committed. `docs/DEVELOPMENT.md` (BKB fixtures) holds the
@@ -92,7 +95,9 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
   and minus infinity exact.
 - **Attribution.** Every module and test module adapted from pybkb opens its docstring with a
   notice naming pybkb, its author, GPL version 3 and the date it was modified, and citing this
-  record; the fixtures' manifest carries the same notice; `README.md` names what was adapted.
+  record; `bko.bkb.errors`, `bko.bkb.serialize` and the serialize, reason and determinism tests
+  are this project's own and carry none. The fixtures' manifest carries a notice naming pybkb,
+  its author and GPL version 3; `README.md` names what was adapted.
   pybkb's files carry no copyright line of their own, so none is retained.
 
 ## Rationale

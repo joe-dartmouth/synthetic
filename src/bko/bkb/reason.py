@@ -40,14 +40,15 @@ def log_joint_complete(
 
     Returns:
         For each state of `target`, in the BKB's order: the natural log of its joint mass with
-        the evidence, minus infinity when that mass is 0, or None when no choice of S-nodes
-        supports it.
+        the evidence, minus infinity when that mass is 0, or None when some I-node of the
+        assignment has no S-node whose tail agrees with it. None takes precedence over the
+        missing-component refusal below, whichever I-node either concerns.
 
     Raises:
         QueryError: If `target` has no I-nodes, is a source component or is in `evidence`; an
-            evidence I-node is not in the BKB or is on a source component; the answer depends on
-            a component `evidence` leaves out; or a source I-node does not head exactly one
-            prior.
+            evidence component or state is not a string, or its I-node is not in the BKB or is
+            on a source component; the answer depends on a component `evidence` leaves out; or a
+            source I-node does not head exactly one prior.
     """
     _check_query(bkb, target, evidence)
     snodes = bkb.snodes
@@ -64,6 +65,9 @@ def _check_query(bkb: BKB, target: str, evidence: Mapping[str, str]) -> None:
         msg = f"the target {target!r} is also in the evidence"
         raise QueryError(msg)
     for component, state in evidence.items():
+        if not isinstance(component, str) or not isinstance(state, str):
+            msg = f"the evidence {component!r}={state!r} is not a pair of strings"
+            raise QueryError(msg)
         if is_source(component) or (component, state) not in bkb:
             msg = f"the evidence {component}={state!r} is on a source or not in {bkb.name!r}"
             raise QueryError(msg)
@@ -105,9 +109,9 @@ def _agrees(tail: frozenset[INode], assignment: Mapping[str, State]) -> bool | N
 
 def _log_weight(bkb: BKB, snodes: tuple[SNode, ...], snode: SNode) -> float:
     weight = _log(snode.prob)
-    for member in snode.tail:
-        if is_source(member[0]):
-            weight += _log(_prior(bkb, snodes, member))
+    # A fixed order, so a tail with several source I-nodes sums the same under every hash seed.
+    for member in sorted((m for m in snode.tail if is_source(m[0])), key=repr):
+        weight += _log(_prior(bkb, snodes, member))
     return weight
 
 

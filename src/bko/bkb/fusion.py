@@ -68,8 +68,9 @@ def fuse(
 
     Raises:
         FusionError: If there are no fragments, the sequences differ in length, a reliability is
-            not a finite positive number, two fragments share a source name, or a fragment holds
-            a source component already.
+            not a finite positive number or the reliabilities overflow when summed, a source
+            name is not a non-empty string or two fragments share one, a fragment holds a source
+            component already, or a fragment holds one S-node twice.
     """
     names = _check(fragments, reliabilities, sources)
     supports: dict[_Key, list[tuple[float, str]]] = {}
@@ -99,6 +100,9 @@ def _check(
     if not fragments:
         msg = "there are no fragments to fuse"
         raise FusionError(msg)
+    if isinstance(sources, str):
+        msg = f"the source names {sources!r} are one string, not one name per fragment"
+        raise FusionError(msg)
     names = [fragment.name for fragment in fragments] if sources is None else list(sources)
     if not len(fragments) == len(reliabilities) == len(names):
         msg = (
@@ -115,15 +119,31 @@ def _check(
         ):
             msg = f"the reliability {reliability!r} is not a finite positive number"
             raise FusionError(msg)
-    if len(set(names)) != len(names):
-        msg = f"two fragments share a source name: {names}"
+    for source in names:
+        if not isinstance(source, str) or not source:
+            msg = f"the source name {source!r} is not a non-empty string"
+            raise FusionError(msg)
+    repeated = [source for source in names if names.count(source) > 1]
+    if repeated:
+        msg = f"two fragments share the source name {repeated[0]!r}"
         raise FusionError(msg)
     for fragment in fragments:
-        held = [component for component in fragment.components() if is_source(component)]
-        if held:
-            msg = f"{fragment.name!r} holds the source component {held[0]!r}; fuse its fragments"
-            raise FusionError(msg)
+        _check_fragment(fragment)
     return names
+
+
+def _check_fragment(fragment: BKB) -> None:
+    held = [component for component in fragment.components() if is_source(component)]
+    if held:
+        msg = f"{fragment.name!r} holds the source component {held[0]!r}; fuse its fragments"
+        raise FusionError(msg)
+    seen: set[_Key] = set()
+    for index, snode in enumerate(fragment.snodes):
+        key = (snode.head, snode.tail, snode.prob)
+        if key in seen:
+            msg = f"{fragment.name!r} holds S-node {index} on {snode.head!r} twice"
+            raise FusionError(msg)
+        seen.add(key)
 
 
 def _per_source(supports: dict[_Key, list[tuple[float, str]]]) -> list[_Row]:
@@ -155,6 +175,10 @@ def _add(fused: BKB, rows: list[_Row]) -> None:
     totals: dict[str, float] = {}
     for (component, _), weight in weights.items():
         totals[component] = totals.get(component, 0.0) + weight
+    for component, total in totals.items():
+        if not math.isfinite(total):
+            msg = f"the reliabilities of the sources of {component!r} overflow when summed"
+            raise FusionError(msg)
     primed: set[INode] = set()
     for (head, tail, prob), source, _ in rows:
         fused.add_snode(head[0], head[1], prob, [*tail, source])

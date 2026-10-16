@@ -55,7 +55,7 @@ def exported(name: str) -> BKB:
     return parse(fixture_text(name))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Query:
     bkb: str
     target: str

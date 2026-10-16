@@ -51,12 +51,7 @@ def parse(text: str) -> BKB:
         DocumentFormatError: If `text` is not a document of the module docstring's shape, or it
             breaks a rule of `bko.bkb.structure.BKB`.
     """
-    document = _load(text)
-    try:
-        return _build(document)
-    except StructureError as exc:
-        msg = f"the document breaks a BKB rule: {exc}"
-        raise DocumentFormatError(msg) from exc
+    return _build(_load(text))
 
 
 def _state_value(state: State) -> str | list[str]:
@@ -104,16 +99,20 @@ def _build(document: dict[str, object]) -> BKB:
         msg = "the name is not a string, or the description is neither a string nor null"
         raise DocumentFormatError(msg)
     bkb = BKB(name, description)
-    items = _list(document["inodes"], "inodes")
-    for item in items:
-        bkb.add_inode(*_inode(item))
+    for item in _list(document["inodes"], "inodes"):
+        inode = _inode(item)
+        if inode in bkb:
+            msg = f"the document lists the I-node {inode!r} twice"
+            raise DocumentFormatError(msg)
+        bkb.add_inode(*inode)
     order = bkb.inodes
-    if len(order) != len(items):
-        msg = "the document lists an I-node twice"
-        raise DocumentFormatError(msg)
-    for item in _list(document["snodes"], "snodes"):
+    for index, item in enumerate(_list(document["snodes"], "snodes")):
         head, prob, tail = _snode(item, len(order))
-        bkb.add_snode(order[head][0], order[head][1], prob, [order[j] for j in tail])
+        try:
+            bkb.add_snode(order[head][0], order[head][1], prob, [order[j] for j in tail])
+        except StructureError as exc:
+            msg = f"S-node {index} breaks a BKB rule: {exc}"
+            raise DocumentFormatError(msg) from exc
     return bkb
 
 
@@ -139,7 +138,11 @@ def _snode(item: object, count: int) -> tuple[int, float, list[int]]:
     if isinstance(item, dict) and set(item) == SNODE_KEYS:
         head, prob, tail = item["head"], item["prob"], item["tail"]
         if _is_index(head, count) and _is_number(prob) and _is_tail(tail, count):
-            return head, float(prob), tail
+            try:
+                return head, float(prob), tail
+            except OverflowError as exc:
+                msg = f"the probability of {item!r} overflows a float"
+                raise DocumentFormatError(msg) from exc
     msg = f"{item!r} is not an S-node: head, prob and an ascending tail of I-node indices"
     raise DocumentFormatError(msg)
 

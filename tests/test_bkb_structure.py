@@ -84,6 +84,26 @@ def test_snodes_on_one_head_that_can_hold_together_are_not_mutex(snodes):
     assert bkb.non_mutex_pair() == (0, 1)
 
 
+def test_non_mutex_pair_takes_heads_in_order_then_pairs_in_index_order():
+    bkb = build(
+        "order",
+        [
+            ("1", "T", 0.3, [("2", "T")]),
+            ("3", "T", 0.5, []),
+            ("3", "T", 0.5, []),
+            ("1", "T", 0.4, [("2", "F")]),
+            ("1", "T", 0.2, [("4", "T")]),
+        ],
+    )
+    assert bkb.non_mutex_pair() == (0, 4)
+
+
+def test_find_snodes_on_a_head_without_snodes_is_empty():
+    bkb = build("bare", [("A", "1", 0.5, [])])
+    bkb.add_inode("A", "2")
+    assert bkb.find_snodes("A", "2") == []
+
+
 def test_tails_that_disagree_on_a_shared_component_are_mutex():
     bkb = build(
         "mutex",

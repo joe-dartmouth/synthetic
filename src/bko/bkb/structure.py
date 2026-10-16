@@ -7,8 +7,9 @@ under the GNU General Public License, version 3 only (`LICENSE`).
 
 An I-node pairs a component with one of its states. An S-node gives its head I-node a probability
 given its tail, a set of I-nodes on other components; an S-node with an empty tail is a prior.
-Components and states are strings, except that a collapsed source I-node (`bko.bkb.fusion`) has
-the set of its source names as its state. A BKB keeps I-nodes and S-nodes in the order they were
+Components and states are strings; a state may also be a non-empty set of source names, which
+`bko.bkb.fusion` writes for a collapsed source I-node. The structure does not check which
+components carry set states. A BKB keeps I-nodes and S-nodes in the order they were
 added, and an S-node's index is its position. Two BKBs are equal when they hold the same I-nodes
 and the same S-nodes, counted with multiplicity, whatever their names, descriptions and order; a
 BKB is mutable, so it is unhashable.
@@ -168,7 +169,10 @@ class BKB:
         ]
 
     def non_mutex_pair(self) -> tuple[int, int] | None:
-        """The first two S-nodes on one head that do not exclude each other, or None.
+        """The first pair of S-nodes on one head that do not exclude each other, or None.
+
+        Heads are taken in the order their first S-node was added, and pairs within a head in
+        index order.
 
         Two S-nodes on one head exclude each other when both tails are non-empty and some
         component is in both tails with different states, as in pybkb's `are_snodes_mutex`.
@@ -184,7 +188,7 @@ class BKB:
         return self.non_mutex_pair() is None
 
     def _check_tail(self, head: INode, tail: frozenset[INode]) -> None:
-        for inode in tail:
+        for inode in sorted(tail, key=repr):  # Sorted, so the error names the same I-node.
             if inode not in self._index:
                 msg = (
                     f"the tail I-node {inode!r} of an S-node on {head!r} "
