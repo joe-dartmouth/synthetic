@@ -17,6 +17,7 @@ import hashlib
 import importlib.metadata
 import json
 import logging
+import platform
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -32,7 +33,7 @@ from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.criteria import judge, table
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import parse, render
@@ -134,9 +135,20 @@ def _score(args: argparse.Namespace, context: Context) -> str:
 
 
 def _compare(args: argparse.Namespace, context: Context) -> str:
-    contrasts = judge(
-        parse(args.scores.read_text(encoding="utf-8")), context.experiment, candidate=args.candidate
+    data = args.scores.read_bytes()
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        msg = f"the scores are not UTF-8: {exc}"
+        raise ScoresFormatError(msg) from exc
+    candidate = context.experiment.candidate if args.candidate is None else args.candidate
+    logger.info(
+        "compare candidate=%s dry_run=%s scores_sha256=%s",
+        candidate,
+        candidate != context.experiment.candidate,
+        hashlib.sha256(data).hexdigest(),
     )
+    contrasts = judge(parse(text), context.experiment, candidate=candidate)
     for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
         outcome = next(c.verdict for c in contrasts if c.criterion == criterion)
         logger.info("criterion=%s verdict=%s", criterion, outcome)
@@ -144,7 +156,13 @@ def _compare(args: argparse.Namespace, context: Context) -> str:
 
 
 def _versions() -> dict[str, str]:
-    return {name: importlib.metadata.version(name) for name in VERSIONED}
+    found = {"python": platform.python_version(), "platform": platform.platform()}
+    for name in VERSIONED:
+        try:
+            found[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            found[name] = "absent"
+    return found
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -160,7 +178,7 @@ def _parser() -> argparse.ArgumentParser:
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
     comparing.add_argument(
-        "--candidate", default=None, help="the arm judged; default: the experiment's own"
+        "--candidate", default=None, help="the row-adding arm judged; default: the experiment's own"
     )
     return parser
 

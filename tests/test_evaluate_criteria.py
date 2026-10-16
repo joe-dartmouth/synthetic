@@ -69,8 +69,9 @@ def test_an_interval_needs_two_finite_contrasts(contrast):
         ([(0.1, 0.3), (-0.3, -0.01)], Verdict.NOT_MET),
         ([(0.1, 0.3), (-0.1, 0.2)], Verdict.INCONCLUSIVE),
         ([(0.0, 0.2)], Verdict.INCONCLUSIVE),
+        ([(-0.2, 0.0)], Verdict.INCONCLUSIVE),
     ],
-    ids=["all above", "one below", "one straddles", "touches zero"],
+    ids=["all above", "one below", "one straddles", "touches zero", "tops out at zero"],
 )
 def test_the_verdict_reads_every_interval(bounds, expected):
     assert verdict([Interval(0.0, low, high, 4) for low, high in bounds]) is expected
@@ -171,3 +172,34 @@ def test_the_table_has_one_row_per_contrast():
     assert lines[0] == ",".join(CONTRAST_COLUMNS)
     assert len(lines) == 6
     assert lines[1].startswith("primary,all,met,bko,none,recall,")
+
+
+def test_a_gain_inside_the_margin_is_not_separation():
+    gain = [0.01] * 4
+    assert verdicts(judge(scored(gain), EXPERIMENT))["primary"] is Verdict.NOT_MET
+    unmargined = dataclasses.replace(EXPERIMENT, margin=0.0)
+    assert verdicts(judge(scored(gain), unmargined))["primary"] is Verdict.MET
+
+
+def test_the_largest_held_out_ratio_widens_every_interval():
+    gain = [0.05, 0.06, 0.05, 0.06]
+    rows = [
+        dataclasses.replace(s, value=0.5)
+        if s.measure is Measure.HELD_OUT_RATIO and s.holdout == 3
+        else s
+        for s in scored(gain)
+    ]
+    first = judge(rows, EXPERIMENT)[0]
+    contrast = [0.5 + g - 0.5 - EXPERIMENT.margin for g in gain]
+    expected = corrected_interval(contrast, ratio=0.5, confidence=EXPERIMENT.confidence)
+    assert (first.interval.low, first.interval.high) == pytest.approx((expected.low, expected.high))
+
+
+def test_a_series_missing_a_holdout_on_both_sides_is_refused():
+    def kept(score):
+        recall = score.measure is Measure.RECALL and score.scope is Scope.ALL
+        return not (recall and score.source is Source.AUGMENTED and score.holdout == 3)
+
+    rows = [score for score in scored([0.05] * 4) if kept(score)]
+    with pytest.raises(EvaluationError, match="different holdouts"):
+        judge(rows, EXPERIMENT)

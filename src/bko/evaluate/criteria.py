@@ -154,7 +154,7 @@ def judge(
             augmented scores of the candidate, leave it no comparator, hold no held-out ratio, or
             miss a series the criteria read.
     """
-    arm = candidate or experiment.candidate
+    arm = experiment.candidate if candidate is None else candidate
     holdouts = sorted({score.holdout for score in scores})
     if holdouts != sorted(experiment.holdout_seeds):
         msg = f"the scores cover {len(holdouts)} holdouts, not the experiment's"
@@ -183,6 +183,7 @@ def judge(
             scope,
             pairs,
             series,
+            holdouts=set(holdouts),
             ratio=ratio,
             factor=1.0,
             margin=experiment.margin,
@@ -199,6 +200,7 @@ def judge(
         Scope.ALL,
         privacy,
         series,
+        holdouts=set(holdouts),
         ratio=ratio,
         factor=experiment.privacy_margin,
         margin=0.0,
@@ -236,12 +238,13 @@ def _criterion(
     pairs: Sequence[tuple[Key, Key]],
     series: dict[Key, dict[int, float]],
     *,
+    holdouts: set[int],
     ratio: float,
     factor: float,
     margin: float,
     confidence: float,
 ) -> list[Contrast]:
-    paired = [_paired(series, left, right) for left, right in pairs]
+    paired = [_paired(series, left, right, holdouts) for left, right in pairs]
     intervals = [
         corrected_interval(
             [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)],
@@ -267,16 +270,16 @@ def _criterion(
 
 
 def _paired(
-    series: dict[Key, dict[int, float]], left: Key, right: Key
+    series: dict[Key, dict[int, float]], left: Key, right: Key, holdouts: set[int]
 ) -> tuple[list[float], list[float]]:
-    """The left and right scores, holdout by holdout in seed order."""
+    """The left and right scores, holdout by holdout in seed order, each on every holdout."""
     for key in (left, right):
         if key not in series:
             msg = f"the scores hold no {key.measure} of {key.source} rows of {key.arm}"
             raise EvaluationError(msg)
     ours, theirs = series[left], series[right]
-    if ours.keys() != theirs.keys():
-        msg = f"{left.arm} and {right.arm} cover different holdouts"
+    if ours.keys() != holdouts or theirs.keys() != holdouts:
+        msg = f"{left.arm} and {right.arm} cover different holdouts from the experiment's"
         raise EvaluationError(msg)
     order = sorted(ours)
     return [ours[holdout] for holdout in order], [theirs[holdout] for holdout in order]

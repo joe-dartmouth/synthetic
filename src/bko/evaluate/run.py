@@ -7,7 +7,9 @@ the request, never the test rows, so no generator sees a test record. A runner r
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import json
 import logging
 import time
 from collections.abc import Mapping
@@ -79,10 +81,12 @@ def run(
         msg = f"no runner for arms {missing}"
         raise EvaluationError(msg)
     scores: list[Score] = []
-    for seed in experiment.holdout_seeds:
+    total = len(experiment.holdout_seeds)
+    for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
         scores += score_holdout(split(frame, seed=seed), experiment, arms, factory=factory)
-        logger.info("holdout=%d seconds=%.1f", seed, time.perf_counter() - started)
+        elapsed = time.perf_counter() - started
+        logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
     return scores
 
 
@@ -105,7 +109,9 @@ def score_holdout(
     held_out = {Measure.HELD_OUT_RATIO: held_out_ratio(parts), **distances(test, train)}
     scores = _rows(seed, HELD_OUT_ARM, Source.HELD_OUT, held_out)
     for name in experiment.arms:
-        baseline = _fill(arms[name], train, gap, attempts=experiment.attempts, name=name)
+        baseline = _fill(
+            arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name
+        )
         scores += _rows(seed, name, Source.ADDED, {Measure.ROWS: float(len(baseline.added))})
         if len(baseline.added):
             scores += _rows(seed, name, Source.ADDED, distances(baseline.added, train))
@@ -119,31 +125,58 @@ def score_holdout(
 
 
 def _fill(
-    runner: Runner, train: pd.DataFrame, request: Request, *, attempts: int, name: str
+    runner: Runner,
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    holdout: int,
+    attempts: int,
+    name: str,
 ) -> Baseline:
     """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
 
+    The runner gets a copy of `train` on every attempt, so one that changes its input changes
+    nothing the harness reads.
+
     Raises:
-        BaselineError: The last refusal, if every attempt is refused.
+        BaselineError: The last refusal, if every attempt is refused, or a contract break.
+        EvaluationError: If `attempts` is below 1.
     """
-    seed = request.seed
-    for attempt in range(1, attempts):
+    first = request.seed
+    for attempt in range(1, attempts + 1):
         try:
-            return _logged(runner(train.copy(), request), seed=seed, name=name)
+            baseline = runner(train.copy(), request)
         except OutputContractError:
+            # The context only; the caller logs the error itself, without a traceback.
+            logger.error(  # ruff: ignore[error-instead-of-exception]
+                "contract holdout=%d arm=%s attempt=%d", holdout, name, attempt
+            )
             raise
         except BaselineError as exc:
-            logger.warning("retry holdout=%d arm=%s attempt=%d reason=%s", seed, name, attempt, exc)
-        request = Request(
-            quota=request.quota, strata=request.strata, seed=derived_seed(seed, "attempt", attempt)
+            if attempt == attempts:
+                logger.error(  # ruff: ignore[error-instead-of-exception]
+                    "refused holdout=%d arm=%s attempts=%d", holdout, name, attempts
+                )
+                raise
+            logger.warning(
+                "retry holdout=%d arm=%s attempt=%d reason=%s", holdout, name, attempt, exc
+            )
+            request = dataclasses.replace(request, seed=derived_seed(first, "attempt", attempt))
+            continue
+        digest = hashlib.sha256(baseline.added.to_csv(lineterminator="\n").encode()).hexdigest()
+        logger.info(
+            "arm holdout=%d arm=%s attempt=%d seed=%d added=%d sha256=%s params=%s",
+            holdout,
+            name,
+            attempt,
+            request.seed,
+            len(baseline.added),
+            digest,
+            json.dumps(baseline.params, sort_keys=True, default=str),
         )
-    return _logged(runner(train.copy(), request), seed=seed, name=name)
-
-
-def _logged(baseline: Baseline, *, seed: int, name: str) -> Baseline:
-    digest = hashlib.sha256(baseline.added.to_csv(lineterminator="\n").encode()).hexdigest()
-    logger.info("arm holdout=%d arm=%s added=%d sha256=%s", seed, name, len(baseline.added), digest)
-    return baseline
+        return baseline
+    msg = f"attempts {attempts}: an arm needs at least one attempt"
+    raise EvaluationError(msg)
 
 
 def _replica(
@@ -156,7 +189,14 @@ def _replica(
     factory: Factory,
 ) -> list[Score]:
     request = replica_request(parts.train, seed=parts.seed)
-    replica = _fill(runner, parts.train, request, attempts=attempts, name=f"{name}-replica").added
+    replica = _fill(
+        runner,
+        parts.train,
+        request,
+        holdout=parts.seed,
+        attempts=attempts,
+        name=f"{name}-replica",
+    ).added
     fitted = probabilities(replica.assign(weight=1.0), parts.test, factory=factory)
     return [
         *_scoped(parts.seed, name, Source.REPLICA, utility(parts.test, fitted, cells)),

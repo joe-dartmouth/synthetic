@@ -15,6 +15,7 @@ from typing import Final
 
 import pandas as pd
 
+from bko.baselines.request import Method
 from bko.evaluate.errors import ScoresFormatError
 
 
@@ -78,7 +79,7 @@ class Score:
 SCORE_COLUMNS: Final = ("holdout", "arm", "source", "measure", "scope", "value")
 """The scores CSV's columns, in order."""
 
-HELD_OUT_ARM: Final = "none"
+HELD_OUT_ARM: Final = Method.NONE.value
 """The arm the held-out rows' scores sit under: no augmentation, whose rows are the real ones."""
 
 
@@ -95,16 +96,26 @@ def parse(text: str) -> list[Score]:
 
     Raises:
         ScoresFormatError: If the text is not CSV, its columns differ, a row is malformed or names
-            an unknown source, measure or scope, or two rows share a holdout, arm, source, measure
+            an unknown source, measure or scope, a holdout is not an integer, an arm is empty, or
+            two rows share a holdout, arm, source, measure
             and scope.
     """
     try:
-        frame = pd.read_csv(io.StringIO(text), dtype={"arm": str}, float_precision="round_trip")
+        frame = pd.read_csv(
+            io.StringIO(text),
+            dtype={"arm": str},
+            keep_default_na=False,
+            na_values={"value": [""]},
+            float_precision="round_trip",
+        )
     except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
         msg = f"the scores are not CSV: {exc}"
         raise ScoresFormatError(msg) from exc
     if tuple(frame.columns) != SCORE_COLUMNS:
         msg = f"the scores' columns are {list(frame.columns)}, not {list(SCORE_COLUMNS)}"
+        raise ScoresFormatError(msg)
+    if not pd.api.types.is_integer_dtype(frame["holdout"]) or frame["arm"].str.len().eq(0).any():
+        msg = "a score row has a holdout that is not an integer or an empty arm"
         raise ScoresFormatError(msg)
     try:
         scores = [

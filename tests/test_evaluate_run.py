@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from collections import Counter
 from types import MappingProxyType
 
@@ -137,8 +138,48 @@ def test_a_contract_break_is_not_retried():
 
 def test_a_rerun_writes_the_same_bytes():
     experiment = dataclasses.replace(
-        SMALL, arms=("none", "smote", "adasyn"), comparators=(), replica_arms=("smote",)
+        SMALL,
+        arms=("none", "smote", "adasyn", "ctgan", "tvae"),
+        comparators=(),
+        replica_arms=("smote",),
     )
     first = render(run(GRADED, experiment, FAST_ARMS))
     np.random.seed(1)
     assert render(run(GRADED, experiment, FAST_ARMS)) == first
+
+
+def test_a_runner_that_changes_its_input_changes_nothing_else():
+    def vandal(train, request):
+        baseline = FAST_ARMS["smote"](train, request)
+        train.loc[:, "target"] = 0
+        train.drop(train.index[:10], inplace=True)
+        return baseline
+
+    experiment = dataclasses.replace(
+        SMALL, arms=("smote", "none"), comparators=(), replica_arms=("smote",)
+    )
+    honest = render(run(GRADED, experiment, FAST_ARMS))
+    assert render(run(GRADED, experiment, {**FAST_ARMS, "smote": vandal})) == honest
+
+
+def test_every_retry_is_logged_with_its_own_derived_seed(caplog):
+    seeds = []
+
+    def twice_refused_replica(train, request):
+        if request.rows == len(train):
+            seeds.append(request.seed)
+            if len(seeds) < 3:
+                msg = "refused"
+                raise BaselineError(msg)
+        return FAST_ARMS["smote"](train, request)
+
+    experiment = dataclasses.replace(
+        SMALL, arms=("smote",), comparators=(), replica_arms=("smote",)
+    )
+    with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
+        run(GRADED, experiment, {"smote": twice_refused_replica})
+    first = SMALL.holdout_seeds[0]
+    derived = [derived_seed(first, "attempt", attempt) for attempt in (1, 2)]
+    assert seeds[:3] == [first, *derived]
+    assert f"retry holdout={first} arm=smote-replica attempt=2 reason=refused" in caplog.text
+    assert f"arm holdout={first} arm=smote-replica attempt=3 seed={derived[1]}" in caplog.text

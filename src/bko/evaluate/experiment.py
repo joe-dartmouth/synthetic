@@ -53,7 +53,8 @@ class Experiment:
         Raises:
             ValueError: If there are fewer than 2 holdout seeds, a seed repeats or leaves
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
-                arm, the candidate is among its comparators, or there is no attempt.
+                arm, the candidate is among its comparators, the confidence is not in (0, 1), or
+                there is no attempt.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -71,6 +72,9 @@ class Experiment:
             raise ValueError(msg)
         if self.candidate in self.comparators:
             msg = f"the candidate {self.candidate} cannot be one of its comparators"
+            raise ValueError(msg)
+        if not 0 < self.confidence < 1:
+            msg = f"confidence {self.confidence} must lie strictly between 0 and 1"
             raise ValueError(msg)
         if self.attempts < 1:
             msg = f"attempts {self.attempts}: an arm needs at least one attempt"
@@ -113,7 +117,7 @@ def gap_request(train: pd.DataFrame, experiment: Experiment, *, seed: int) -> Re
 
 def replica_request(train: pd.DataFrame, *, seed: int) -> Request:
     """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells."""
-    quota = {cell: count for cell, count, _ in _cells(train, UNDERREPRESENTED_BELOW) if count}
+    quota = {cell: count for cell, count, _ in _cells(train) if count}
     return Request(quota=quota, strata=Strata.CELL, seed=seed)
 
 
@@ -125,7 +129,9 @@ def _short(train: pd.DataFrame, experiment: Experiment) -> dict[Stratum, int]:
     }
 
 
-def _cells(train: pd.DataFrame, below: int) -> list[tuple[Stratum, int, bool]]:
+def _cells(
+    train: pd.DataFrame, below: int = UNDERREPRESENTED_BELOW
+) -> list[tuple[Stratum, int, bool]]:
     counts = cell_counts(train, below=below)
     return [
         ((str(band), str(sex), int(label)), int(count), bool(short))

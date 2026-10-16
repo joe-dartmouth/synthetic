@@ -4,6 +4,6 @@ Rare-class recall and AUC-PR (scikit-learn), fidelity (SDMetrics), privacy as di
 
 The harness scores every arm on E1's repeated holdouts and judges a candidate arm against E1's criteria. `bko.evaluate.experiment.E1` holds the configuration, ADR [`research/e1-evaluation-protocol`](../../../docs/adr/research/e1-evaluation-protocol.md) records the protocol, and [`docs/EVIDENCE.md`](../../../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation) states how each criterion is read. The commands are in [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#evaluation).
 
-- **Dependencies:** The `eval` extra (`pyproject.toml`).
+- **Dependencies:** The `eval` extra (`pyproject.toml`), and `bko.baselines` and `bko.datasets` with their `synth` and `data` extras.
 - **Owner:** Joe Laws
 - **Status:** built for utility, fidelity, privacy and the criteria. The BKO arm, the validity rate and gap closure join in [`proposal-final-evaluation`](../../../tasks/proposal-final-evaluation.md).

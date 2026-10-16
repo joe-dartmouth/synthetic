@@ -84,6 +84,24 @@ def test_compare_refuses_scores_from_other_holdouts_than_e1s(scores_file):
     assert out.getvalue() == ""
 
 
+def test_a_scores_file_that_is_not_utf8_exits_three(tmp_path):
+    path = tmp_path / "scores.csv"
+    path.write_bytes(b"\xff\xfe")
+    out = io.StringIO()
+    assert main(["compare", str(path)], out=out) == 3
+    assert out.getvalue() == ""
+
+
+def test_compare_logs_the_candidate_and_the_scores_digest(scores_file, caplog):
+    with caplog.at_level(logging.INFO):
+        main(
+            ["compare", str(scores_file), "--candidate", "tvae"], context=Context(experiment=SMALL)
+        )
+    digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
+    assert f"compare candidate=tvae dry_run=True scores_sha256={digest}" in caplog.text
+    assert "criterion=primary verdict=" in caplog.text
+
+
 def test_a_malformed_scores_file_exits_three(tmp_path):
     path = tmp_path / "scores.csv"
     path.write_text("a,b\n1,2\n", encoding="utf-8")
@@ -127,7 +145,7 @@ def test_stderr_carries_the_split_quota_versions_and_digest(tmp_path, caplog):
     assert f"sha256={hashlib.sha256(out.encode()).hexdigest()}" in caplog.text
 
 
-def test_configure_logging_routes_warnings_and_quiets_sdv():
+def test_configure_logging_captures_warnings_and_quiets_sdv():
     loggers = [logging.getLogger(name) for name in ("sdv", "SingleTableSynthesizer")]
     levels = [logger.level for logger in loggers]
     try:

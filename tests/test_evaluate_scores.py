@@ -42,9 +42,25 @@ def test_parse_reads_render_back_exactly():
         render(SCORES).replace("recall", "accuracy"),
         render(SCORES[:1] * 2),
         "holdout,arm,source,measure,scope,value\nx,none,held-out,rows,all,1\n",
+        "holdout,arm,source,measure,scope,value\n1.5,none,held-out,rows,all,1\n",
+        "holdout,arm,source,measure,scope,value\n1,,held-out,rows,all,1\n",
     ],
-    ids=["empty", "columns", "unknown measure", "repeated key", "bad holdout"],
+    ids=[
+        "empty",
+        "columns",
+        "unknown measure",
+        "repeated key",
+        "bad holdout",
+        "fractional holdout",
+        "empty arm",
+    ],
 )
 def test_a_malformed_scores_file_is_refused(text):
     with pytest.raises(ScoresFormatError):
         parse(text)
+
+
+@pytest.mark.parametrize("arm", ["None", "NA", "null", "nan"])
+def test_an_arm_named_like_a_missing_value_reads_back_as_itself(arm):
+    score = Score(0, arm, Source.ADDED, Measure.ROWS, Scope.ALL, 1.0)
+    assert parse(render([score])) == [score]

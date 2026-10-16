@@ -69,6 +69,7 @@ def test_the_replica_asks_for_every_cells_training_count():
         ({"replica_arms": ("bko",)}, "not arms"),
         ({"candidate": "smote"}, "its comparators"),
         ({"attempts": 0}, "at least one attempt"),
+        ({"confidence": 1.0}, "strictly between"),
     ],
     ids=[
         "one seed",
@@ -78,6 +79,7 @@ def test_the_replica_asks_for_every_cells_training_count():
         "stray arm",
         "self",
         "no attempt",
+        "certain",
     ],
 )
 def test_a_configuration_that_cannot_run_is_refused(change, message):
