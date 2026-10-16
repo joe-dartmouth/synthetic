@@ -13,7 +13,7 @@
     "simple_build_equals_saved": true
   },
   "commit": "1e1b62a02faa0abc73db4597076c2d38c1313df6",
-  "exporter": "f22454635ba6d7fa2e8dc2b1de2a7ec2b3a1211bda084f37860d8a80b2df30ae",
+  "exporter": "fe777202f1becbc9066a45e6cada1e63527f6aba0e78729c0f113595da7353af",
   "inputs": {
     "bkbs/aquatic_eco.bkb": "6099120d31e8770825ec5cece230e541e2e6e15277ae94e1db007896639eea10",
     "bkbs/fisherman.bkb": "32f0ac8239b9ca9eedf7bbff440bcbc95d10634f43dc1eb134f41cd071a93d1e",

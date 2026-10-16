@@ -173,7 +173,7 @@ def main(argv: list[str]) -> int:
         sys.exit("usage: export.py PYBKB_ROOT OUT_DIR")
     root, out = Path(argv[1]), Path(argv[2])
     seed = os.environ.get("PYTHONHASHSEED", "")
-    if not seed.isdigit():
+    if not (seed.isascii() and seed.isdigit()):
         sys.exit("set PYTHONHASHSEED to an integer before starting the interpreter")
     _verify(root)
     sys.path.insert(0, str(root))
@@ -217,37 +217,43 @@ def _verify(root: Path) -> None:
             unexpected = _globals(lz4_frame.decompress(data)) - GLOBALS
             if unexpected:
                 sys.exit(f"{path} names globals outside the allow-list: {sorted(unexpected)}")
+    present = {p.relative_to(root).as_posix() for p in root.rglob("*") if not p.is_dir()}
+    extra = present - {path for path, _ in FILES}
+    if extra:
+        sys.exit(f"{root} holds files outside FILES, which could shadow imports: {sorted(extra)}")
 
 
 def _globals(raw: bytes) -> set[tuple[str, str]]:
+    # `pending` holds the strings pushed since the last opcode that is not a string push or a
+    # memo store, so they are the top of the stack; STACK_GLOBAL with fewer than two is refused.
     found: set[tuple[str, str]] = set()
-    strings: list[str] = []
+    pending: list[str] = []
     memo: dict[int, object] = {}
     last: object = None
     for opcode, arg, _ in pickletools.genops(raw):
         name = opcode.name
         if name in {"SHORT_BINUNICODE", "BINUNICODE", "BINUNICODE8", "UNICODE"}:
             last = str(arg)
-            strings.append(last)
+            pending.append(last)
         elif name == "MEMOIZE":
             memo[len(memo)] = last
         elif name in {"PUT", "BINPUT", "LONG_BINPUT"}:
             memo[_memo_index(arg)] = last
         elif name in {"GET", "BINGET", "LONG_BINGET"}:
             last = memo.get(_memo_index(arg))
-            if isinstance(last, str):
-                strings.append(last)
+            pending = [*pending, last] if isinstance(last, str) else []
         elif name == "STACK_GLOBAL":
-            found.add((strings[-2], strings[-1]))
-            last = None
+            found.add((pending[-2], pending[-1]) if len(pending) >= 2 else ("refused", name))
+            pending, last = [], None
         elif name in {"GLOBAL", "INST"}:
             module, attribute = str(arg).split(" ", 1)
             found.add((module, attribute))
-            last = None
+            pending, last = [], None
         elif name in {"EXT1", "EXT2", "EXT4", "PERSID", "BINPERSID"}:
             found.add(("refused", name))
+            pending, last = [], None
         else:
-            last = None
+            pending, last = [], None
     return found
 
 
@@ -371,7 +377,14 @@ def _document(bkb: Any) -> dict[str, Any]:
 
 
 def _components(bkb: Any) -> list[Any]:
-    return sorted((c for c in bkb.inodes_map if "__Source__" not in str(c)), key=str)
+    components = [c for c in bkb.inodes_map if not _is_source(str(c))]
+    if not components:
+        sys.exit(f"{bkb.name!r} has no component to query")
+    return sorted(components, key=str)
+
+
+def _is_source(component: str) -> bool:
+    return component.startswith("__Source__[") and component.endswith("]")
 
 
 def _states(bkb: Any, component: Any) -> list[Any]:
@@ -422,7 +435,11 @@ def _value(value: Any) -> float | str | None:
     if value is None:
         return None
     number = float(value)
-    return "-inf" if number == -math.inf else number
+    if number == -math.inf:
+        return "-inf"
+    if not math.isfinite(number):
+        sys.exit(f"pybkb returned {number!r}, which no log of a probability can be")
+    return number
 
 
 def _write(path: Path, payload: Any) -> str:

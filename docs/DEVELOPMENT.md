@@ -149,12 +149,12 @@ and the gate never runs pybkb.
   and per fused BKB, in the format `bko.bkb.serialize` reads; `queries.json`, pybkb's update
   results; `manifest.json`, with the pybkb commit, the sha256 of every input, every output and the
   exporter, the versions it ran under and pybkb's own test checks; and `run.json`, the hash seed.
-- **Regenerating**: fetch every path `FILES` in `export.py` names, at the commit it names, into
-  `/tmp/bko-pybkb-oracle/src`, then from the repository root build a throwaway Python 3.11
-  environment outside the repository and run the exporter in it. That environment is not the
+- **Regenerating**: make a private scratch directory with `O=$(mktemp -d)`, fetch every path
+  `FILES` in `export.py` names, at the commit it names, into `$O/src` and nothing else (the
+  exporter refuses any other file there), then from the repository root build a throwaway Python
+  3.11 environment outside the repository and run the exporter in it. That environment is not the
   project's, so `uv pip install` there leaves `uv.lock` and `.venv` untouched:
 
-      O=/tmp/bko-pybkb-oracle
       UV_PYTHON_PREFERENCE=only-managed UV_PYTHON_INSTALL_DIR=$O/python UV_CACHE_DIR=$O/cache \
         uv venv --no-config --python 3.11 $O/venv
       UV_CACHE_DIR=$O/cache uv pip install --no-config --python $O/venv/bin/python \
@@ -164,7 +164,7 @@ and the gate never runs pybkb.
 
   Hash seeds 0, 1 and 2, each into its own `out/seed-N`, must give the same files, `run.json`
   aside. Copy the seed-0 output's `*.json` into `tests/pybkb/`, stage it, and delete
-  `/tmp/bko-pybkb-oracle`. `-P` keeps the script's directory off `sys.path`; `-I` would ignore
+  `$O`. `-P` keeps the script's directory off `sys.path`; `-I` would ignore
   `PYTHONHASHSEED`.
 - **What holds the fixtures to the run**: the tests ADR
   [`research/bkb-layer-source`](adr/research/bkb-layer-source.md) lists under Enforcement.

@@ -6,6 +6,7 @@ import ast
 import hashlib
 import json
 import re
+import runpy
 
 import pytest
 
@@ -25,7 +26,7 @@ PORTED = (
     "src/bko/bkb/reason.py",
     "tests/_bkb_reference.py",
 )
-"""Every module adapted from pybkb; later phases add theirs."""
+"""Every module adapted from pybkb."""
 
 NOTICE = re.compile(
     r"Adapted from pybkb \(https://github\.com/di2ag/pybkb\), by Chase Yakaboski, which is"
@@ -64,6 +65,27 @@ def test_the_manifest_names_the_committed_exporter():
 
 def test_the_exporter_parses_with_the_python_311_grammar():
     ast.parse((PYBKB_DIR / "export.py").read_text(encoding="utf-8"), feature_version=(3, 11))
+
+
+def short_string(text: str) -> bytes:
+    data = text.encode()
+    return b"\x8c" + bytes([len(data)]) + data
+
+
+def test_the_exporters_globals_scan_traces_stack_globals_and_refuses_the_rest():
+    scan = runpy.run_path(str(PYBKB_DIR / "export.py"), run_name="scan")["_globals"]
+    # Opcode bytes: PROTO 4, then MEMOIZE \x94, BINGET h, POP 0, STACK_GLOBAL \x93, STOP.
+    names = b"".join(short_string(text) for text in ("os", "system", "builtins", "dict"))
+    popped = b"\x80\x04" + names + b"00\x93."
+    memoized = b"\x80\x04" + short_string("builtins") + b"\x94" + short_string("complex")
+    traced = memoized + b"\x94\x93" + b"h\x00h\x01\x93."
+    assert scan(popped) == {("refused", "STACK_GLOBAL")}
+    assert scan(traced) == {("builtins", "complex")}
+    assert scan(b"\x80\x04}\x94.") == set()
+
+
+def test_the_export_ran_under_python_311():
+    assert manifest()["python"].startswith("3.11.")
 
 
 def test_the_export_ran_with_hash_seed_zero():
