@@ -15,6 +15,7 @@ from bko.baselines.records import (
     derived_seed,
     keep,
     number,
+    training_set,
     unit_weights,
     whole,
 )
@@ -163,3 +164,12 @@ def test_derived_seeds_and_kept_positions_are_pinned():
     """Golden values: a run reproduces across commits only while these stay fixed."""
     assert derived_seed(0, "smote", "<55", "female", 1) == DERIVED
     assert keep(3, 10, seed=0, label="adasyn") == KEPT
+
+
+def test_training_set_puts_the_real_rows_first_with_their_weights():
+    added = valid_rows()
+    weights = unit_weights(TRAIN).mul(2.0)
+    frame = training_set(TRAIN, Baseline(added=added, weights=weights, params={}))
+    assert list(frame.columns) == [*FRAME_COLUMNS, "weight"]
+    assert frame.index.tolist() == [*TRAIN.index, *added.index]
+    assert frame["weight"].tolist() == [2.0] * len(TRAIN) + [1.0] * len(added)

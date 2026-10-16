@@ -47,6 +47,9 @@ DRAW_BATCH: Final = 10_000
 MAX_DRAWN_ROWS: Final = 1_000_000
 """Rows drawn before a quota still short is refused."""
 
+QUIET_LOGGERS: Final = ("sdv", "SingleTableSynthesizer")
+"""SDV's loggers, held at WARNING so their INFO records stay off stderr."""
+
 
 def _sdtype(name: str) -> dict[str, str]:
     if name not in NUMERIC:

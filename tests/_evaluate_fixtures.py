@@ -10,11 +10,15 @@ import dataclasses
 from functools import partial
 from types import MappingProxyType
 
+import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 
 from bko.baselines.methods import METHODS
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
+from bko.evaluate.classifier import build
 from bko.evaluate.experiment import E1
 from tests._baselines_fixtures import EDGE, TINY_CTGAN, TINY_TVAE, cell_list, full_records
 
@@ -50,3 +54,25 @@ GRADED = graded()
 
 SMALL = dataclasses.replace(E1, holdout_seeds=(0, 1))
 """E1 on two holdouts."""
+
+
+class Recording(LogisticRegression):
+    """A logistic regression that keeps the labels and weights of its last fit."""
+
+    def fit(self, features, labels, sample_weight=None):
+        self.seen = (np.asarray(labels), np.asarray(sample_weight))
+        return super().fit(features, labels, sample_weight=sample_weight)
+
+
+class Spy:
+    """A classifier factory that keeps every model it builds."""
+
+    def __init__(self) -> None:
+        self.models: list[Recording] = []
+
+    def __call__(self) -> Pipeline:
+        model = Recording(**build().named_steps["model"].get_params())
+        self.models.append(model)
+        pipeline = build()
+        pipeline.set_params(model=model)
+        return pipeline

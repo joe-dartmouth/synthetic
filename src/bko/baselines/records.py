@@ -72,6 +72,15 @@ def unit_weights(train: pd.DataFrame) -> pd.Series:
     return pd.Series(1.0, index=train.index, name="weight")
 
 
+def training_set(train: pd.DataFrame, baseline: Baseline) -> pd.DataFrame:
+    """The rows a classifier fits on: real rows with their weights, then added rows at 1.0.
+
+    The frame has `FRAME_COLUMNS` and `weight`; the real rows keep `baseline.weights`.
+    """
+    real = train.loc[:, list(FRAME_COLUMNS)].assign(weight=baseline.weights)
+    return pd.concat([real, baseline.added.assign(weight=1.0)])
+
+
 def whole(values: pd.DataFrame) -> pd.DataFrame:
     """Round generated values to the archive's precision and cast them to `FRAME_DTYPES`.
 
