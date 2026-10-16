@@ -17,7 +17,8 @@ ontology = ["owlready2>=0.51", "pronto>=2.7"]
 llm = ["anthropic>=1.13"]
 # CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn; torch is seeded directly.
 synth = ["sdv>=1.38", "imbalanced-learn>=0.14", "torch>=2.14"]
-eval = ["scikit-learn>=1.9", "sdmetrics>=0.32"]
+# scipy is imported directly for the t quantile of the corrected interval.
+eval = ["scikit-learn>=1.9", "sdmetrics>=0.32", "scipy>=1.18"]
 app = ["streamlit>=1.65"]
 dev = [
     "pytest>=9",

@@ -20,14 +20,15 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TextIO
+from typing import TextIO
 
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
 from bko.baselines.methods import METHODS, Runner, augment
-from bko.baselines.records import FRAME_COLUMNS, Baseline
+from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import BASELINE_SEED, SEED_LIMIT, Method, Request, Strata, plan
+from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
@@ -36,9 +37,6 @@ from bko.datasets.uci import load_uci
 
 
 logger = logging.getLogger("bko.baselines")
-
-QUIET_LOGGERS: Final = ("sdv", "SingleTableSynthesizer")
-"""SDV's loggers, held at WARNING so their INFO records stay off stderr."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,9 +97,7 @@ def configure_logging() -> None:
 
 def render(train: pd.DataFrame, baseline: Baseline) -> str:
     """The training set a method hands a classifier, as CSV: the real rows, then the added ones."""
-    real = train.loc[:, list(FRAME_COLUMNS)].assign(weight=baseline.weights)
-    added = baseline.added.assign(weight=1.0)
-    return pd.concat([real, added]).to_csv(lineterminator="\n")
+    return training_set(train, baseline).to_csv(lineterminator="\n")
 
 
 def _run(args: argparse.Namespace, data_dir: Path, context: Context, out: TextIO) -> None:

@@ -5,7 +5,7 @@
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
 # the interpreter flag is one of the pin's homes `tests/test_repo_gate.py` checks.
 setup:
-	uv sync --locked --python 3.14 --extra dev --extra data --extra synth
+	uv sync --locked --python 3.14 --extra dev --extra data --extra synth --extra eval
 
 # Install the exact lock across every extra.
 sync:

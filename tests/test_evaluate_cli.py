@@ -1,0 +1,205 @@
+"""`python -m bko.evaluate`: score writes the scores, compare judges them, stdout holds only CSV."""
+
+from __future__ import annotations
+
+import dataclasses
+import hashlib
+import io
+import logging
+import subprocess
+import sys
+import urllib.error
+import warnings
+from types import MappingProxyType
+
+import pandas as pd
+import pytest
+
+from bko.evaluate.__main__ import Context, configure_logging, main
+from bko.evaluate.criteria import CONTRAST_COLUMNS
+from bko.evaluate.run import method_arms
+from bko.evaluate.scores import SCORE_COLUMNS
+from tests._baselines_fixtures import cleveland_text, full_records
+from tests._corpus import REPO_ROOT
+from tests._datasets_fixtures import FakeOpener, archive, pin
+from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
+
+
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
+FAST_ARMS = MappingProxyType(method_arms(FAST_METHODS))
+TEXT = cleveland_text(GRADED)
+LIGHT = dataclasses.replace(SMALL, arms=("none", "smote"), comparators=(), replica_arms=())
+SCORED = dataclasses.replace(SMALL, replica_arms=("smote", "adasyn", "ctgan"))
+"""`SMALL` without TVAE's replica: the archive renumbers `GRADED`'s records, and on the splits that
+gives, the tiny TVAE never draws some cells. `tests/test_evaluate_run.py` covers TVAE's replica."""
+
+
+def score(tmp_path, *, experiment=SCORED, data=None, opener=None):
+    data = data or archive(TEXT)
+    out = io.StringIO()
+    context = Context(
+        open_url=opener or FakeOpener(data), uci=pin(data), experiment=experiment, arms=FAST_ARMS
+    )
+    code = main(["score", "--data-dir", str(tmp_path)], context=context, out=out)
+    return code, out.getvalue()
+
+
+@pytest.fixture(scope="module")
+def scores_file(tmp_path_factory):
+    code, out = score(tmp_path_factory.mktemp("data"))
+    assert code == 0
+    path = tmp_path_factory.mktemp("scores") / "scores.csv"
+    path.write_text(out, encoding="utf-8")
+    return path
+
+
+def test_score_writes_every_arm_on_every_holdout(scores_file):
+    frame = pd.read_csv(scores_file)
+    assert tuple(frame.columns) == SCORE_COLUMNS
+    assert set(frame["holdout"]) == set(SMALL.holdout_seeds)
+    assert set(frame["arm"]) == set(SMALL.arms)
+
+
+def test_compare_judges_a_candidate_from_the_scores_file(scores_file):
+    out = io.StringIO()
+    argv = ["compare", str(scores_file), "--candidate", "tvae"]
+    assert main(argv, context=Context(experiment=SMALL), out=out) == 0
+    frame = pd.read_csv(io.StringIO(out.getvalue()))
+    assert tuple(frame.columns) == CONTRAST_COLUMNS
+    assert list(dict.fromkeys(frame["criterion"])) == ["primary", "secondary", "privacy"]
+    assert set(frame["verdict"]) <= {"met", "not met", "inconclusive"}
+    assert len(frame) == 2 * 2 * (len(SMALL.comparators) - 1) + 1
+
+
+def test_compare_without_the_candidates_scores_exits_two(scores_file):
+    out = io.StringIO()
+    assert main(["compare", str(scores_file)], context=Context(experiment=SMALL), out=out) == 2
+    assert out.getvalue() == ""
+
+
+def test_compare_refuses_scores_from_other_holdouts_than_e1s(scores_file):
+    out = io.StringIO()
+    assert main(["compare", str(scores_file), "--candidate", "tvae"], out=out) == 2
+    assert out.getvalue() == ""
+
+
+def test_a_scores_file_that_is_not_utf8_exits_three(tmp_path):
+    path = tmp_path / "scores.csv"
+    path.write_bytes(b"\xff\xfe")
+    out = io.StringIO()
+    assert main(["compare", str(path)], out=out) == 3
+    assert out.getvalue() == ""
+
+
+def test_compare_logs_the_candidate_and_the_scores_digest(scores_file, caplog):
+    with caplog.at_level(logging.INFO):
+        main(
+            ["compare", str(scores_file), "--candidate", "tvae"], context=Context(experiment=SMALL)
+        )
+    digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
+    assert f"compare candidate=tvae dry_run=True scores_sha256={digest}" in caplog.text
+    assert "criterion=primary verdict=" in caplog.text
+
+
+def test_a_malformed_scores_file_exits_three(tmp_path):
+    path = tmp_path / "scores.csv"
+    path.write_text("a,b\n1,2\n", encoding="utf-8")
+    out = io.StringIO()
+    assert main(["compare", str(path)], out=out) == 3
+    assert out.getvalue() == ""
+
+
+def test_a_missing_scores_file_exits_two(tmp_path):
+    assert main(["compare", str(tmp_path / "absent.csv")], out=io.StringIO()) == 2
+
+
+def test_nothing_to_fill_exits_two_and_writes_nothing(tmp_path):
+    data = archive(cleveland_text(full_records(26)))
+    assert score(tmp_path, experiment=LIGHT, data=data) == (2, "")
+
+
+def test_an_unreachable_archive_exits_two(tmp_path):
+    opener = FakeOpener(error=urllib.error.URLError("down"))
+    assert score(tmp_path, opener=opener) == (2, "")
+
+
+def test_an_archive_that_contradicts_its_pin_exits_three(tmp_path):
+    data = archive(TEXT)
+    tampered = data[:-1] + bytes([data[-1] ^ 1])
+    context = Context(
+        open_url=FakeOpener(tampered), uci=pin(data), experiment=LIGHT, arms=FAST_ARMS
+    )
+    out = io.StringIO()
+    assert main(["score", "--data-dir", str(tmp_path)], context=context, out=out) == 3
+    assert out.getvalue() == ""
+
+
+def test_stderr_carries_the_split_quota_versions_and_digest(tmp_path, caplog):
+    with caplog.at_level(logging.INFO):
+        code, out = score(tmp_path, experiment=LIGHT)
+    assert code == 0
+    assert "split seed=1 train=146 test=35" in caplog.text
+    assert "quota holdout=0 stratum=<55/female/1 rows=18" in caplog.text
+    assert "versions {" in caplog.text
+    assert f"sha256={hashlib.sha256(out.encode()).hexdigest()}" in caplog.text
+
+
+def test_configure_logging_captures_warnings_and_quiets_sdv():
+    loggers = [logging.getLogger(name) for name in ("sdv", "SingleTableSynthesizer")]
+    levels = [logger.level for logger in loggers]
+    try:
+        configure_logging()
+        assert [logger.level for logger in loggers] == [logging.WARNING] * 2
+        assert warnings.showwarning.__module__ == "logging"
+    finally:
+        logging.captureWarnings(False)
+        for logger, level in zip(loggers, levels, strict=True):
+            logger.setLevel(level)
+
+
+def test_the_module_entry_point_runs():
+    result = subprocess.run(
+        [sys.executable, "-m", "bko.evaluate", "--help"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "score" in result.stdout
+    assert "compare" in result.stdout
+
+
+DRIVER = """
+import dataclasses, sys
+from bko.evaluate.__main__ import Context, configure_logging, main
+from bko.evaluate.run import method_arms
+from tests._baselines_fixtures import cleveland_text
+from tests._datasets_fixtures import FakeOpener, archive, pin
+from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
+data = archive(cleveland_text(GRADED))
+experiment = dataclasses.replace(
+    SMALL, arms=("none", "smote"), comparators=(), replica_arms=("smote",)
+)
+configure_logging()
+arms = method_arms(FAST_METHODS)
+context = Context(open_url=FakeOpener(data), uci=pin(data), experiment=experiment, arms=arms)
+sys.exit(main(["score", "--data-dir", sys.argv[1]], context=context))
+"""
+"""The command as `__main__` runs it, with the opener, the pin and the experiment replaced."""
+
+
+def test_stdout_carries_only_the_csv(tmp_path):
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+        [sys.executable, "-c", DRIVER, str(tmp_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert result.returncode == 0, result.stderr
+    assert tuple(pd.read_csv(io.StringIO(result.stdout)).columns) == SCORE_COLUMNS
+    assert "INFO bko.evaluate: scores rows=" in result.stderr

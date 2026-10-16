@@ -2,7 +2,7 @@
 id: proposal-streamlit-app
 title: Streamlit interface
 status: blocked
-depends_on: proposal-fusion-repair, proposal-eval-harness
+depends_on: proposal-fusion-repair
 blocks: --
 parallel_safe: true
 owner: Krish
