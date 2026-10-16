@@ -127,8 +127,12 @@ def corrected_interval(
             `refuting_confidence(confidence, family)`.
 
     Raises:
-        EvaluationError: If fewer than 2 contrasts are given or one is not finite.
+        EvaluationError: If fewer than 2 contrasts are given, one is not finite, or `family` is
+            under 1.
     """
+    if family < 1:
+        msg = f"an interval's family needs 1 or more intervals; got {family}"
+        raise EvaluationError(msg)
     values = np.asarray(contrast, dtype="float64")
     finite = int(np.isfinite(values).sum())
     if len(values) < 2 or finite < len(values):
