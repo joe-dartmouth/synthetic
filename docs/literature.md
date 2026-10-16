@@ -1,6 +1,6 @@
 # Literature registry
 
-Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs; the works ADR `research/e1-evaluation-protocol` cites, with metadata from each work's landing page (checked 2026-10-15).
+Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs; the works ADRs `research/e1-evaluation-protocol` and `research/uci-evaluation-frame` cite, with metadata from each work's landing page (checked 2026-10-15 and 2026-10-16).
 
 This file is the citation registry: one entry per work, report, docket or identifier the two sources
 or the repository's ADRs cite. Other documents cite a work by its key and link here for the
@@ -98,6 +98,8 @@ is the citing source's claim, not a checked one.
 ## Datasets
 
 - `walonoski-2018` · identifier not given in source · `not-fetched` · Walonoski et al., "Synthea", JAMIA 2018 (25(3):230). Brief D10 attributes Synthea's documented fidelity flaws to "the JAMIA 2018 paper"; this registry reads that as the same work, which the brief does not state outright. Cited in: brief D10, Key Papers 10.
+- `fedesoriano-2021` · [kaggle.com/datasets/fedesoriano/heart-failure-prediction](https://www.kaggle.com/datasets/fedesoriano/heart-failure-prediction) · `not-fetched` · fedesoriano, "Heart Failure Prediction Dataset", Kaggle (2021). 918 observations combining the Cleveland (303), Hungarian (294), Switzerland (123) and Long Beach VA (200) records with Statlog (Heart) (270), less 272 duplicates. Metadata from the Kaggle landing record, checked 2026-10-16. Cited in: ADR `research/uci-evaluation-frame`.
+- `statlog-nd` · [doi:10.24432/C57303](https://doi.org/10.24432/C57303) · `not-fetched` · "Statlog (Heart)" [Dataset], UCI Machine Learning Repository, CC BY 4.0. 270 records on UCI Heart Disease's 13 predictors, with no missing values. Year not given in source. Metadata from the UCI landing page, checked 2026-10-16. Cited in: ADR `research/uci-evaluation-frame`.
 
 ## Regulation and market
 

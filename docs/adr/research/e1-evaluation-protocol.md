@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -90,9 +90,10 @@ Every arm fills the same per-cell request so that equal row counts hold by const
 the BKO arm fill its own detected gaps would make the baselines' request depend on its output and
 send SMOTE cells it refuses.
 
-The whole split resolves small effects. The flagged subgroups are what the project targets, but
-they hold 5 positive test records per holdout, so their verdict is secondary and likely
-inconclusive until the data grows. AUC-PR inside the underrepresented cells is not a scope: both
+The whole split resolves small effects. The flagged subgroups are what the project targets, but they
+hold 5 positive test records per holdout, so their verdict is secondary and likely inconclusive, and
+no other frame from the archive adds records of women with heart disease (ADR
+`research/uci-evaluation-frame`). AUC-PR inside the underrepresented cells is not a scope: both
 cells hold one label, so every scorer gets 1.0.
 
 The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the same on every
@@ -103,19 +104,29 @@ training split; a replica of the training split's cells is the conventional trai
 a paid generation per holdout, is left to the unit that adds the arm.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
-scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives.
-The test rows are real records no generator saw, the natural real-data baseline for distance to
-closest record, and the 5th percentile is the reading that catches near-copies
-([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). An ideal generator ties the test
-rows in expectation, so a rule at a share of 1 would fail it about half the time; the share of 0.9
-allows for the sampling noise of 59 test records and still fails a generator that copies training
-rows. A refused holdout would leave the comparison unpaired. Default TVAE refuses the gap request
-on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling draws 1,000,000 rows and
-still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is a
-property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
-third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the
-request the same; dropping the holdout would select splits on how one generator behaved. The run
-still stops when every attempt is refused.
+scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
+test rows are real records no generator saw, the natural real-data baseline for distance to closest
+record, and the 5th percentile is the reading that catches near-copies
+([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). The gap cells are cells of women
+with heart disease, and a training row of the other label or sex already sits 1/14 (0.071) away
+through that one column, against the 0.9 x 0.0225 = 0.020 the share asks of the added rows' 5th
+percentile (the test rows' mean, measured 2026-10-16). A gap row falls under the share only by
+nearly copying a training record of a woman with heart disease, so the share fails a generator that
+copies or barely perturbs training rows and passes one that draws new records. Real records of the
+gap cells agree (measured 2026-10-16 over `E1`'s holdouts, each training record of a gap cell
+against the other training rows): their mean 5th percentile is 0.038 to 0.064, and the contrast
+reads met at a share of 0.9 and of 1 whether each cell's records are taken once, cycled to its
+requested rows or weighted to them; `<55 female 1` holds only 2 records, so this check rests mostly
+on them. The share stays below 1 as room for the noise of a 5th percentile over 20 rows, which costs
+nothing against near-copies. Records of the flagged subgroups' two labels, mostly without disease,
+sit nearer the training rows and read inconclusive at 0.9; the gap request asks only for records
+with disease. A refused holdout would leave the comparison unpaired. Default TVAE refuses the gap
+request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling draws 1,000,000 rows
+and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
+a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
+third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
+the same; dropping the holdout would select splits on how one generator behaved. The run still stops
+when every attempt is refused.
 
 ## Consequences
 
@@ -151,6 +162,9 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 | A TOML configuration file | A parser for one reader, and no type checking | 2026-10-15 |
 | The BKO arm filling its own detected gaps | The baselines' request would depend on its output, and SMOTE refuses cells under 2 records | 2026-10-15 |
 | Equal gap rows per underrepresented cell | Not derived from the threshold; chosen only to move rows toward the cell with test records | 2026-10-15 |
+| A privacy share of 1 | Fails no near-copy that 0.9 passes, and leaves no room for the noise of a 5th percentile over 20 rows | 2026-10-16 |
+| Real gap-cell records as the privacy reference | `<55 female 1` holds 2 records, never held out, too few to serve as a reference | 2026-10-16 |
+| A privacy share calibrated on records of the flagged subgroups | Mostly records without disease, nearer the training rows than the gap cells the request fills | 2026-10-16 |
 
 ## Enforcement
 
@@ -165,8 +179,8 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 **A reading changes only while E1's Runs field in `docs/EVIDENCE.md` has no row**; after the first
 run, a changed reading is a new experiment entry.
 
-**The holdout count and the margins are re-chosen if `proposal-evaluation-data` grows the frame
-before E1's first run**; this record and `E1` change together.
+**The holdout count and the margins are re-chosen if the frame changes before E1's first run**; this
+record and `E1` change together.
 
 **`calculate_dcr` is replaced if an SDMetrics release removes
 `sdmetrics.single_table.privacy.dcr_utils.calculate_dcr`.**

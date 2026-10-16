@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -19,6 +19,13 @@ The archive holds four sites' `processed.*.data` files. In the archive whose siz
 `?` (4 in `ca`, 2 in `thal`); the Hungarian, Switzerland and VA files have a `?` in 293 of 294, 123
 of 123 and 199 of 200 records. `num` grades disease from 0 to 4, and the archive's `heart-disease.names`
 documents only absence (0) against presence.
+
+Dropping `slope`, `ca` and `thal`, where most of those `?` sit, leaves 740 complete records across
+the four sites, and 661 once a cholesterol of 0 is read as missing (measured 2026-10-16): no living
+patient has one, though `heart-disease.names` gives -9.0 as the missing-value code. All 123
+Switzerland records and 49 of VA's 200 hold a cholesterol of 0. Among the 661, disease is present in
+0.459 of Cleveland's records, 0.375 of Hungarian's and 0.794 of VA's; VA holds 5 women among its 97;
+and 40 records are of women with heart disease, 25 of them Cleveland's.
 
 ## Decision Drivers
 
@@ -44,9 +51,23 @@ documents only absence (0) against presence.
 
 ## Rationale
 
-The names file says the Cleveland file is the only one ML researchers have used, and the other
-three sites would need their missing values imputed, which puts model-made values in the real
-baseline and makes site composition part of every cell.
+The names file says the Cleveland file is the only one ML researchers had used, the dataset's
+standard use. Pooling the other sites costs E1 more than it adds. Imputing their missing values
+would put model-made values in the real baseline. Dropping the three columns instead (measured
+2026-10-16 on the 661 records, with the bands and split above) raises every holdout's test records
+from 59 to 132, but the flagged subgroup's positive test records fall from 5 to 3, the gap request
+falls from 20 rows to 10 in one cell, three predictors go, and site rides along with every cell.
+Default TVAE fit on the pooled training rows generates almost no women and, in each of four
+measurements, exhausted E1's 5 attempts at the `<55 female 1` request on most of the first 20
+holdouts, so `score` stops early. Alone, VA (5 women) and Switzerland (1 record without disease
+among the 46 complete once cholesterol is set aside) cannot test a classifier, and Hungarian (261
+records) loses the same three predictors and flags 5 of 8 cells at the 55 edge, so the threshold
+stops discriminating. The open heart-disease sets in this schema copy these sites:
+[`fedesoriano-2021`](../../literature.md#datasets) is their records and Statlog's less duplicates,
+and [`statlog-nd`](../../literature.md#datasets) repeats Cleveland records in every row checked
+(checked 2026-10-16); the independent ones need a data request or change the schema and the label.
+No arrangement of this archive adds many records of women with heart disease, the records E1's
+secondary criterion lacks.
 
 The names file says Cleveland experiments distinguish presence (1 to 4) from absence (0). Five
 labels would spread about 240 training records over 20 cells.
@@ -76,13 +97,15 @@ improvement.
 leak; a split every unit recomputes identically from the pinned archive.
 **Accepted**: 6 records and three sites unused; two coarse age bands; about five test records of
 women with heart disease per split, so E1 needs repeated holdouts and intervals to resolve its
-criteria.
+criteria, and no other frame from this archive adds records of women with heart disease.
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Pooling the four sites | Missing values in almost every non-Cleveland record; needs imputation and confounds cells with site | 2026-10-14 |
+| Pooling the four sites | Needs imputation, or drops three predictors for fewer flagged test positives, half the gap rows, site in every cell and a TVAE that cannot fill the gap request; see Rationale | 2026-10-16 |
+| Each site as its own frame | VA and Switzerland cannot test a classifier alone; Hungarian loses three predictors and flags 5 of 8 cells; see Rationale | 2026-10-16 |
+| Another open dataset | The open sets in this schema copy these four sites, and the independent ones need a data request or change the schema and the label; see Rationale | 2026-10-16 |
 | `num` as a five-class label | 20 cells for about 240 training records; only presence against absence is documented | 2026-10-14 |
 | Imputing missing values | Model-made values in the real baseline; see Rationale | 2026-10-14 |
 | Three or more age bands | Flag half or more of the cells on the pinned archive; see Rationale | 2026-10-14 |
@@ -101,6 +124,9 @@ criteria.
 or all 8 cells**; `python -m bko.datasets cells` shows which.
 
 **The test share changes if E1's configuration fixes another one**; this record is then edited.
+
+**The frame is re-chosen if an open archive in this schema adds as many complete records of women
+with heart disease as Cleveland holds**; the counts in Context are the baseline.
 
 ## Related
 
