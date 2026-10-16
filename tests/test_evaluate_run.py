@@ -9,7 +9,8 @@ from types import MappingProxyType
 import numpy as np
 import pytest
 
-from bko.baselines.errors import BaselineError
+from bko.baselines.errors import BaselineError, OutputContractError
+from bko.baselines.records import derived_seed
 from bko.datasets.split import split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS, gap_request
@@ -91,13 +92,47 @@ def test_an_arm_without_a_runner_is_refused():
         run(GRADED, SMALL, {"none": FAST_ARMS["none"]})
 
 
-def test_a_refusing_arm_stops_the_run():
+def test_a_refusing_arm_stops_the_run_after_every_attempt():
+    calls = []
+
     def refuse(train, request):
+        calls.append(request.seed)
         msg = "refused"
         raise BaselineError(msg)
 
     with pytest.raises(BaselineError, match="refused"):
         run(GRADED, SMALL, {**FAST_ARMS, "smote": refuse})
+    assert len(calls) == SMALL.attempts
+
+
+def test_a_refusal_is_retried_with_a_derived_seed():
+    seeds = []
+
+    def flaky(train, request):
+        seeds.append(request.seed)
+        if request.seed in SMALL.holdout_seeds:
+            msg = "refused"
+            raise BaselineError(msg)
+        return FAST_ARMS["smote"](train, request)
+
+    experiment = dataclasses.replace(SMALL, arms=("smote",), comparators=(), replica_arms=())
+    scores = run(GRADED, experiment, {"smote": flaky})
+    expected = [s for seed in SMALL.holdout_seeds for s in (seed, derived_seed(seed, "attempt", 1))]
+    assert seeds == expected
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+
+
+def test_a_contract_break_is_not_retried():
+    calls = []
+
+    def broken(train, request):
+        calls.append(request.seed)
+        msg = "broken"
+        raise OutputContractError(msg)
+
+    with pytest.raises(OutputContractError, match="broken"):
+        run(GRADED, SMALL, {**FAST_ARMS, "smote": broken})
+    assert len(calls) == 1
 
 
 def test_a_rerun_writes_the_same_bytes():

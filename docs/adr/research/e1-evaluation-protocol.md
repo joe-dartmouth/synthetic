@@ -29,8 +29,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 ## Decision
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
-  candidate (`bko`), the comparators, the replica arms, the fill level, the two margins and the
-  confidence. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a value;
+  candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
+  confidence and the attempts per fill. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a value;
   `compare --candidate` judges another arm as a dry run, never as E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
@@ -60,7 +60,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   flagged subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy
   share of the test rows' has an interval above zero. A criterion is met when every interval it
   reads lies above zero, not met when one lies below zero, and inconclusive otherwise.
-- **All or nothing.** A refusal by any arm on any holdout stops the run with no output.
+- **Retries, then all or nothing.** An arm that refuses a request tries it again with a seed
+  derived from the holdout seed and the attempt, up to `E1`'s attempts, and each retry is logged.
+  A refusal on the last attempt stops the run with no output; a method output that breaks its
+  contract stops it at once.
 
 ## Rationale
 
@@ -104,7 +107,13 @@ closest record, and the 5th percentile is the reading that catches near-copies
 ([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). An ideal generator ties the test
 rows in expectation, so a rule at a share of 1 would fail it about half the time; the share of 0.9
 allows for the sampling noise of 59 test records and still fails a generator that copies training
-rows. A refused holdout would leave the comparison unpaired, so the run stops instead.
+rows. A refused holdout would leave the comparison unpaired. Default TVAE refuses the gap request
+on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling draws 1,000,000 rows and
+still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is a
+property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
+third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the
+request the same; dropping the holdout would select splits on how one generator behaved. The run
+still stops when every attempt is refused.
 
 ## Consequences
 
@@ -115,7 +124,8 @@ which arm looked best; a harness that takes any frame in the evaluation schema.
 shows only through other test records; subgroup verdicts are likely inconclusive at this size;
 distance to closest record is weak evidence of privacy, blind to attacks that need no near-copy;
 `calculate_dcr` is not a public SDMetrics export; baseline results on the real test split were in
-view when the readings were fixed, no BKO result was; the BKO pipeline runs once per holdout, so
+view when the readings were fixed, no BKO result was; on a retried holdout, that arm's rows
+come from a derived seed rather than the holdout seed; the BKO pipeline runs once per holdout, so
 its paid generation grows with the holdout count; E1 does not exercise BKO gap detection.
 
 ## Ruled Out
@@ -134,6 +144,7 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 | Fidelity and train-on-synthetic on the gap rows | The gap rows hold one label in two cells | 2026-10-15 |
 | A random forest | Its own seed moves subgroup recall by one of 5 positives | 2026-10-15 |
 | Recording a refused arm and continuing | Unpairs the comparison at that holdout | 2026-10-15 |
+| Dropping, for every arm, a holdout where one arm refuses | Selects splits on one generator's behaviour, and lowers the holdout count | 2026-10-15 |
 | Flags for the readings or the holdout count | Lets a run choose its reading after the fact | 2026-10-15 |
 | A TOML configuration file | A parser for one reader, and no type checking | 2026-10-15 |
 | The BKO arm filling its own detected gaps | The baselines' request would depend on its output, and SMOTE refuses cells under 2 records | 2026-10-15 |

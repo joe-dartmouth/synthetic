@@ -68,8 +68,17 @@ def test_the_replica_asks_for_every_cells_training_count():
         ({"arms": ("none", "none")}, "twice"),
         ({"replica_arms": ("bko",)}, "not arms"),
         ({"candidate": "smote"}, "its comparators"),
+        ({"attempts": 0}, "at least one attempt"),
     ],
-    ids=["one seed", "repeated seed", "negative seed", "repeated arm", "stray arm", "self"],
+    ids=[
+        "one seed",
+        "repeated seed",
+        "negative seed",
+        "repeated arm",
+        "stray arm",
+        "self",
+        "no attempt",
+    ],
 )
 def test_a_configuration_that_cannot_run_is_refused(change, message):
     with pytest.raises(ValueError, match=message):

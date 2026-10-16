@@ -32,6 +32,8 @@ class Experiment:
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
             reach.
         confidence: The two-sided level of every interval.
+        attempts: Each arm's tries at one request; a retry follows a refusal and takes a seed
+            derived from the request's seed and the attempt.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -43,6 +45,7 @@ class Experiment:
     margin: float = 0.02
     privacy_margin: float = 0.9
     confidence: float = 0.95
+    attempts: int = 5
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -50,7 +53,7 @@ class Experiment:
         Raises:
             ValueError: If there are fewer than 2 holdout seeds, a seed repeats or leaves
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
-                arm, or the candidate is among its comparators.
+                arm, the candidate is among its comparators, or there is no attempt.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -68,6 +71,9 @@ class Experiment:
             raise ValueError(msg)
         if self.candidate in self.comparators:
             msg = f"the candidate {self.candidate} cannot be one of its comparators"
+            raise ValueError(msg)
+        if self.attempts < 1:
+            msg = f"attempts {self.attempts}: an arm needs at least one attempt"
             raise ValueError(msg)
 
 

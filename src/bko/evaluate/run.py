@@ -17,8 +17,9 @@ from typing import Final
 
 import pandas as pd
 
+from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, Runner, augment
-from bko.baselines.records import Baseline, training_set
+from bko.baselines.records import Baseline, derived_seed, training_set
 from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.cells import cell_counts
 from bko.datasets.split import Split, split
@@ -104,31 +105,58 @@ def score_holdout(
     held_out = {Measure.HELD_OUT_RATIO: held_out_ratio(parts), **distances(test, train)}
     scores = _rows(seed, HELD_OUT_ARM, Source.HELD_OUT, held_out)
     for name in experiment.arms:
-        baseline = _fill(arms[name], train, gap, seed=seed, name=name)
+        baseline = _fill(arms[name], train, gap, attempts=experiment.attempts, name=name)
         scores += _rows(seed, name, Source.ADDED, {Measure.ROWS: float(len(baseline.added))})
         if len(baseline.added):
             scores += _rows(seed, name, Source.ADDED, distances(baseline.added, train))
         fitted = probabilities(training_set(train, baseline), test, factory=factory)
         scores += _scoped(seed, name, Source.AUGMENTED, utility(test, fitted, cells))
         if name in experiment.replica_arms:
-            scores += _replica(arms[name], parts, cells, name=name, factory=factory)
+            scores += _replica(
+                arms[name], parts, cells, attempts=experiment.attempts, name=name, factory=factory
+            )
     return scores
 
 
 def _fill(
-    runner: Runner, train: pd.DataFrame, request: Request, *, seed: int, name: str
+    runner: Runner, train: pd.DataFrame, request: Request, *, attempts: int, name: str
 ) -> Baseline:
-    baseline = runner(train.copy(), request)
+    """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
+
+    Raises:
+        BaselineError: The last refusal, if every attempt is refused.
+    """
+    seed = request.seed
+    for attempt in range(1, attempts):
+        try:
+            return _logged(runner(train.copy(), request), seed=seed, name=name)
+        except OutputContractError:
+            raise
+        except BaselineError as exc:
+            logger.warning("retry holdout=%d arm=%s attempt=%d reason=%s", seed, name, attempt, exc)
+        request = Request(
+            quota=request.quota, strata=request.strata, seed=derived_seed(seed, "attempt", attempt)
+        )
+    return _logged(runner(train.copy(), request), seed=seed, name=name)
+
+
+def _logged(baseline: Baseline, *, seed: int, name: str) -> Baseline:
     digest = hashlib.sha256(baseline.added.to_csv(lineterminator="\n").encode()).hexdigest()
     logger.info("arm holdout=%d arm=%s added=%d sha256=%s", seed, name, len(baseline.added), digest)
     return baseline
 
 
 def _replica(
-    runner: Runner, parts: Split, cells: tuple[Stratum, ...], *, name: str, factory: Factory
+    runner: Runner,
+    parts: Split,
+    cells: tuple[Stratum, ...],
+    *,
+    attempts: int,
+    name: str,
+    factory: Factory,
 ) -> list[Score]:
     request = replica_request(parts.train, seed=parts.seed)
-    replica = _fill(runner, parts.train, request, seed=parts.seed, name=f"{name}-replica").added
+    replica = _fill(runner, parts.train, request, attempts=attempts, name=f"{name}-replica").added
     fitted = probabilities(replica.assign(weight=1.0), parts.test, factory=factory)
     return [
         *_scoped(parts.seed, name, Source.REPLICA, utility(parts.test, fitted, cells)),

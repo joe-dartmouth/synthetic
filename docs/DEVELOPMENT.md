@@ -118,14 +118,14 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
   judges another row-adding arm, a dry run whose verdict is not E1's.
 - **What it logs**: `score` logs an `experiment` line and the installed versions of the evaluation
   stack, then per holdout the split line `cells` prints, one `quota` line per stratum, one `arm`
-  line per fill (a replica fill is named `<arm>-replica`) with its added rows' sha256, and the
-  holdout's seconds, then the CSV's row count and sha256. `compare` logs one `criterion` line per
+  line per fill (a replica fill is named `<arm>-replica`) with its added rows' sha256, a `retry`
+  warning for each refused attempt before the last, and the holdout's seconds, then the CSV's row count and sha256. `compare` logs one `criterion` line per
   criterion with its verdict. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
-  does not converge, a method that cannot fill a request or scores that cannot be judged, and 3
-  for a method's output or a scores file that breaks its contract.
+  does not converge, a method that refuses a request on every attempt or scores that cannot be
+  judged, and 3 for a method's output or a scores file that breaks its contract.
 - **Reproducibility**: a holdout seed gives the same split and requests; the scores keep the
   promise of [Baselines](#baselines).
 
