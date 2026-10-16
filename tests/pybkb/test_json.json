@@ -1,0 +1,38 @@
+{
+  "description": "Random bkb used to test json functionality.",
+  "inodes": [
+    [
+      "RV_1",
+      "2"
+    ],
+    [
+      "RV_2",
+      "0"
+    ],
+    [
+      "RV_3",
+      "0"
+    ]
+  ],
+  "name": "f3defa5d-8e5a-4cb1-8fbd-08f2182e53ec",
+  "snodes": [
+    {
+      "head": 0,
+      "prob": 0.9057551260540134,
+      "tail": []
+    },
+    {
+      "head": 1,
+      "prob": 0.961779626127865,
+      "tail": []
+    },
+    {
+      "head": 2,
+      "prob": 0.3706564149505228,
+      "tail": [
+        0,
+        1
+      ]
+    }
+  ]
+}

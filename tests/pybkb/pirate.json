@@ -1,0 +1,484 @@
+{
+  "description": null,
+  "inodes": [
+    [
+      "(B) Attitude towards piracy",
+      "Negative"
+    ],
+    [
+      "(B) Attitude towards piracy",
+      "Positive"
+    ],
+    [
+      "(B) Has a skiff",
+      "No"
+    ],
+    [
+      "(B) Has a skiff",
+      "Yes"
+    ],
+    [
+      "(B) Has piracy equipment",
+      "No"
+    ],
+    [
+      "(B) Has piracy equipment",
+      "Yes"
+    ],
+    [
+      "(B) Has piracy skills",
+      "No"
+    ],
+    [
+      "(B) Has piracy skills",
+      "Yes"
+    ],
+    [
+      "(B) Piracy benefit is ok",
+      "No"
+    ],
+    [
+      "(B) Piracy benefit is ok",
+      "Yes"
+    ],
+    [
+      "(B) Piracy cost is ok",
+      "No"
+    ],
+    [
+      "(B) Piracy cost is ok",
+      "Yes"
+    ],
+    [
+      "(B) Weapons are obtainable",
+      "No"
+    ],
+    [
+      "(B) Weapons are obtainable",
+      "Yes"
+    ],
+    [
+      "(G) Livelihood is piracy",
+      "No"
+    ],
+    [
+      "(G) Livelihood is piracy",
+      "Yes"
+    ],
+    [
+      "(X) Boarding skills",
+      "No"
+    ],
+    [
+      "(X) Boarding skills",
+      "Yes"
+    ],
+    [
+      "(X) Seafaring skills",
+      "No"
+    ],
+    [
+      "(X) Seafaring skills",
+      "Yes"
+    ]
+  ],
+  "name": "Pirate",
+  "snodes": [
+    {
+      "head": 6,
+      "prob": 0.5,
+      "tail": [
+        17,
+        18
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.7,
+      "tail": [
+        1,
+        9,
+        10
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.5,
+      "tail": [
+        16,
+        19
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.3,
+      "tail": [
+        5,
+        7
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.95,
+      "tail": []
+    },
+    {
+      "head": 11,
+      "prob": 0.1,
+      "tail": [
+        4,
+        6
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.01,
+      "tail": []
+    },
+    {
+      "head": 6,
+      "prob": 0.5,
+      "tail": [
+        16,
+        19
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.3,
+      "tail": [
+        5,
+        6
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.6,
+      "tail": [
+        1,
+        8,
+        11
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.005,
+      "tail": [
+        0,
+        8,
+        11
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.6,
+      "tail": [
+        2,
+        13
+      ]
+    },
+    {
+      "head": 19,
+      "prob": 0.9,
+      "tail": []
+    },
+    {
+      "head": 6,
+      "prob": 0.1,
+      "tail": [
+        17,
+        19
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.4,
+      "tail": [
+        1,
+        8,
+        11
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.05,
+      "tail": [
+        1,
+        9,
+        11
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.05,
+      "tail": [
+        3,
+        13
+      ]
+    },
+    {
+      "head": 18,
+      "prob": 0.1,
+      "tail": []
+    },
+    {
+      "head": 8,
+      "prob": 0.3,
+      "tail": []
+    },
+    {
+      "head": 10,
+      "prob": 0.7,
+      "tail": [
+        5,
+        6
+      ]
+    },
+    {
+      "head": 12,
+      "prob": 0.65,
+      "tail": []
+    },
+    {
+      "head": 14,
+      "prob": 0.95,
+      "tail": [
+        0,
+        9,
+        11
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.995,
+      "tail": [
+        0,
+        9,
+        10
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.95,
+      "tail": [
+        3,
+        13
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.9,
+      "tail": [
+        4,
+        6
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.9,
+      "tail": []
+    },
+    {
+      "head": 0,
+      "prob": 0.99,
+      "tail": []
+    },
+    {
+      "head": 17,
+      "prob": 0.05,
+      "tail": []
+    },
+    {
+      "head": 14,
+      "prob": 0.3,
+      "tail": [
+        1,
+        9,
+        10
+      ]
+    },
+    {
+      "head": 13,
+      "prob": 0.35,
+      "tail": []
+    },
+    {
+      "head": 6,
+      "prob": 0.9,
+      "tail": [
+        16,
+        18
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.7,
+      "tail": [
+        5,
+        7
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.001,
+      "tail": [
+        0,
+        8,
+        10
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.005,
+      "tail": [
+        0,
+        9,
+        10
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.4,
+      "tail": [
+        3,
+        12
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.5,
+      "tail": [
+        1,
+        8,
+        10
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.95,
+      "tail": [
+        1,
+        9,
+        11
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.5,
+      "tail": [
+        4,
+        7
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.4,
+      "tail": [
+        2,
+        13
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.6,
+      "tail": [
+        3,
+        12
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.9,
+      "tail": [
+        17,
+        19
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.01,
+      "tail": [
+        2,
+        12
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.5,
+      "tail": [
+        17,
+        18
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.5,
+      "tail": [
+        4,
+        7
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.1,
+      "tail": []
+    },
+    {
+      "head": 14,
+      "prob": 0.999,
+      "tail": [
+        0,
+        8,
+        10
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.5,
+      "tail": [
+        1,
+        8,
+        10
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.05,
+      "tail": [
+        0,
+        9,
+        11
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.1,
+      "tail": [
+        16,
+        18
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.995,
+      "tail": [
+        0,
+        8,
+        11
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.99,
+      "tail": [
+        2,
+        12
+      ]
+    },
+    {
+      "head": 9,
+      "prob": 0.7,
+      "tail": []
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "description": null,
+  "inodes": [
+    [
+      "AcidLevel",
+      "High"
+    ],
+    [
+      "AcidLevel",
+      "Low"
+    ],
+    [
+      "OverCrowd",
+      "No"
+    ],
+    [
+      "OverCrowd",
+      "Yes"
+    ],
+    [
+      "ReproduceAbility",
+      "High"
+    ],
+    [
+      "ReproduceAbility",
+      "Low"
+    ],
+    [
+      "pH_Value",
+      "Normal"
+    ],
+    [
+      "pH_Value",
+      "gt7.5"
+    ],
+    [
+      "pH_Value",
+      "lt6.5"
+    ]
+  ],
+  "name": "b4ae0754-8c0c-4a76-8eb4-2aa3e3cd8e7e",
+  "snodes": [
+    {
+      "head": 8,
+      "prob": 0.6,
+      "tail": [
+        1,
+        3
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.25,
+      "tail": []
+    },
+    {
+      "head": 6,
+      "prob": 0.15,
+      "tail": [
+        0
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.5,
+      "tail": [
+        4
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.78,
+      "tail": [
+        8
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.1,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 8,
+      "prob": 0.8,
+      "tail": [
+        0
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.22,
+      "tail": [
+        8
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.9,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.75,
+      "tail": [
+        5
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.05,
+      "tail": [
+        0
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.9,
+      "tail": []
+    },
+    {
+      "head": 0,
+      "prob": 0.1,
+      "tail": []
+    }
+  ]
+}

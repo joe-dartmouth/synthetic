@@ -1,0 +1,2086 @@
+{
+  "description": null,
+  "inodes": [
+    [
+      "(B) Attitude towards piracy",
+      "Negative"
+    ],
+    [
+      "(B) Attitude towards piracy",
+      "Positive"
+    ],
+    [
+      "(B) Boarding skills are obtainable",
+      "No"
+    ],
+    [
+      "(B) Boarding skills are obtainable",
+      "Yes"
+    ],
+    [
+      "(B) Fish supply is sufficient",
+      "No"
+    ],
+    [
+      "(B) Fish supply is sufficient",
+      "Yes"
+    ],
+    [
+      "(B) Fishing benefit is ok",
+      "No"
+    ],
+    [
+      "(B) Fishing benefit is ok",
+      "Yes"
+    ],
+    [
+      "(B) Fishing cost is ok",
+      "No"
+    ],
+    [
+      "(B) Fishing cost is ok",
+      "Yes"
+    ],
+    [
+      "(B) Fishing livelihood is threatened",
+      "No"
+    ],
+    [
+      "(B) Fishing livelihood is threatened",
+      "Yes"
+    ],
+    [
+      "(B) Has (access to) a (fishing) boat",
+      "No"
+    ],
+    [
+      "(B) Has (access to) a (fishing) boat",
+      "Yes"
+    ],
+    [
+      "(B) Has a skiff",
+      "No"
+    ],
+    [
+      "(B) Has a skiff",
+      "Yes"
+    ],
+    [
+      "(B) Has fishing equipment",
+      "No"
+    ],
+    [
+      "(B) Has fishing equipment",
+      "Yes"
+    ],
+    [
+      "(B) Has fishing net",
+      "No"
+    ],
+    [
+      "(B) Has fishing net",
+      "Yes"
+    ],
+    [
+      "(B) Has fishing skills",
+      "No"
+    ],
+    [
+      "(B) Has fishing skills",
+      "Yes"
+    ],
+    [
+      "(B) Has piracy equipment",
+      "No"
+    ],
+    [
+      "(B) Has piracy equipment",
+      "Yes"
+    ],
+    [
+      "(B) Has piracy skills",
+      "No"
+    ],
+    [
+      "(B) Has piracy skills",
+      "Yes"
+    ],
+    [
+      "(B) Illegal fishing has occurred",
+      "No"
+    ],
+    [
+      "(B) Illegal fishing has occurred",
+      "Yes"
+    ],
+    [
+      "(B) Piracy benefit is ok",
+      "No"
+    ],
+    [
+      "(B) Piracy benefit is ok",
+      "Yes"
+    ],
+    [
+      "(B) Piracy cost is ok",
+      "No"
+    ],
+    [
+      "(B) Piracy cost is ok",
+      "Yes"
+    ],
+    [
+      "(B) Revenge is moral",
+      "No"
+    ],
+    [
+      "(B) Revenge is moral",
+      "Yes"
+    ],
+    [
+      "(B) Survival is moral",
+      "No"
+    ],
+    [
+      "(B) Survival is moral",
+      "Yes"
+    ],
+    [
+      "(B) Tsunami is destructive",
+      "No"
+    ],
+    [
+      "(B) Tsunami is destructive",
+      "Yes"
+    ],
+    [
+      "(B) Tsunami just occurred",
+      "No"
+    ],
+    [
+      "(B) Tsunami just occurred",
+      "Yes"
+    ],
+    [
+      "(B) Weapons are obtainable",
+      "No"
+    ],
+    [
+      "(B) Weapons are obtainable",
+      "Yes"
+    ],
+    [
+      "(G) Livelihood is fishing",
+      "No"
+    ],
+    [
+      "(G) Livelihood is fishing",
+      "Yes"
+    ],
+    [
+      "(G) Livelihood is piracy",
+      "No"
+    ],
+    [
+      "(G) Livelihood is piracy",
+      "Yes"
+    ],
+    [
+      "(X) Boarding skills",
+      "No"
+    ],
+    [
+      "(X) Boarding skills",
+      "Yes"
+    ],
+    [
+      "(X) Seafaring skills",
+      "No"
+    ],
+    [
+      "(X) Seafaring skills",
+      "Yes"
+    ],
+    [
+      "__Source__[(B) Attitude towards piracy]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Attitude towards piracy]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Attitude towards piracy]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Boarding skills are obtainable]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Boarding skills are obtainable]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Fish supply is sufficient]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Fish supply is sufficient]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Fish supply is sufficient]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Fishing benefit is ok]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Fishing cost is ok]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Fishing livelihood is threatened]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Fishing livelihood is threatened]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Fishing livelihood is threatened]",
+      "Tsunami Evidence"
+    ],
+    [
+      "__Source__[(B) Has (access to) a (fishing) boat]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Has (access to) a (fishing) boat]",
+      "Tsunami Evidence"
+    ],
+    [
+      "__Source__[(B) Has a skiff]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Has fishing equipment]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Has fishing equipment]",
+      "Tsunami Evidence"
+    ],
+    [
+      "__Source__[(B) Has fishing net]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Has fishing skills]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(B) Has piracy equipment]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Has piracy skills]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Illegal fishing has occurred]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Illegal fishing has occurred]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Piracy benefit is ok]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Piracy cost is ok]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(B) Revenge is moral]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Revenge is moral]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Survival is moral]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(B) Survival is moral]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(B) Tsunami is destructive]",
+      "Tsunami Evidence"
+    ],
+    [
+      "__Source__[(B) Tsunami just occurred]",
+      "Tsunami Evidence"
+    ],
+    [
+      "__Source__[(B) Weapons are obtainable]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(G) Livelihood is fishing]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(G) Livelihood is piracy]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(X) Boarding skills]",
+      "Illegal Dumping Evidence"
+    ],
+    [
+      "__Source__[(X) Boarding skills]",
+      "Illegal Fishing Evidence"
+    ],
+    [
+      "__Source__[(X) Boarding skills]",
+      "Pirate"
+    ],
+    [
+      "__Source__[(X) Seafaring skills]",
+      "Fisherman"
+    ],
+    [
+      "__Source__[(X) Seafaring skills]",
+      "Pirate"
+    ]
+  ],
+  "name": "fused",
+  "snodes": [
+    {
+      "head": 19,
+      "prob": 0.99,
+      "tail": [
+        68
+      ]
+    },
+    {
+      "head": 68,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 16,
+      "prob": 0.001,
+      "tail": [
+        13,
+        19,
+        66
+      ]
+    },
+    {
+      "head": 66,
+      "prob": 0.35714285714285715,
+      "tail": []
+    },
+    {
+      "head": 17,
+      "prob": 0.25,
+      "tail": [
+        12,
+        19,
+        66
+      ]
+    },
+    {
+      "head": 9,
+      "prob": 0.7,
+      "tail": [
+        17,
+        20,
+        59
+      ]
+    },
+    {
+      "head": 59,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 42,
+      "prob": 0.2,
+      "tail": [
+        6,
+        9,
+        83
+      ]
+    },
+    {
+      "head": 83,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 43,
+      "prob": 0.8,
+      "tail": [
+        6,
+        9,
+        83
+      ]
+    },
+    {
+      "head": 8,
+      "prob": 0.999,
+      "tail": [
+        16,
+        20,
+        59
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.25,
+      "tail": [
+        13,
+        18,
+        66
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.0,
+      "tail": [
+        4,
+        58
+      ]
+    },
+    {
+      "head": 58,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 17,
+      "prob": 0.999,
+      "tail": [
+        13,
+        19,
+        66
+      ]
+    },
+    {
+      "head": 43,
+      "prob": 0.4,
+      "tail": [
+        7,
+        8,
+        83
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 1.0,
+      "tail": [
+        5,
+        58
+      ]
+    },
+    {
+      "head": 18,
+      "prob": 0.01,
+      "tail": [
+        68
+      ]
+    },
+    {
+      "head": 48,
+      "prob": 0.001,
+      "tail": [
+        88
+      ]
+    },
+    {
+      "head": 88,
+      "prob": 0.625,
+      "tail": []
+    },
+    {
+      "head": 42,
+      "prob": 0.001,
+      "tail": [
+        7,
+        9,
+        83
+      ]
+    },
+    {
+      "head": 13,
+      "prob": 0.99,
+      "tail": [
+        63
+      ]
+    },
+    {
+      "head": 63,
+      "prob": 0.35714285714285715,
+      "tail": []
+    },
+    {
+      "head": 9,
+      "prob": 0.001,
+      "tail": [
+        16,
+        20,
+        59
+      ]
+    },
+    {
+      "head": 8,
+      "prob": 0.001,
+      "tail": [
+        17,
+        21,
+        59
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.97,
+      "tail": [
+        55
+      ]
+    },
+    {
+      "head": 55,
+      "prob": 0.3333333333333333,
+      "tail": []
+    },
+    {
+      "head": 8,
+      "prob": 0.3,
+      "tail": [
+        17,
+        20,
+        59
+      ]
+    },
+    {
+      "head": 42,
+      "prob": 0.9,
+      "tail": [
+        6,
+        8,
+        83
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.03,
+      "tail": [
+        55
+      ]
+    },
+    {
+      "head": 43,
+      "prob": 0.999,
+      "tail": [
+        7,
+        9,
+        83
+      ]
+    },
+    {
+      "head": 49,
+      "prob": 0.999,
+      "tail": [
+        88
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.999,
+      "tail": [
+        12,
+        18,
+        66
+      ]
+    },
+    {
+      "head": 9,
+      "prob": 0.999,
+      "tail": [
+        17,
+        21,
+        59
+      ]
+    },
+    {
+      "head": 8,
+      "prob": 0.6,
+      "tail": [
+        16,
+        21,
+        59
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.75,
+      "tail": [
+        12,
+        19,
+        66
+      ]
+    },
+    {
+      "head": 6,
+      "prob": 1.0,
+      "tail": [
+        4,
+        58
+      ]
+    },
+    {
+      "head": 17,
+      "prob": 0.001,
+      "tail": [
+        12,
+        18,
+        66
+      ]
+    },
+    {
+      "head": 6,
+      "prob": 0.0,
+      "tail": [
+        5,
+        58
+      ]
+    },
+    {
+      "head": 21,
+      "prob": 1.0,
+      "tail": [
+        49,
+        69
+      ]
+    },
+    {
+      "head": 69,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 12,
+      "prob": 0.01,
+      "tail": [
+        63
+      ]
+    },
+    {
+      "head": 42,
+      "prob": 0.6,
+      "tail": [
+        7,
+        8,
+        83
+      ]
+    },
+    {
+      "head": 9,
+      "prob": 0.4,
+      "tail": [
+        16,
+        21,
+        59
+      ]
+    },
+    {
+      "head": 17,
+      "prob": 0.75,
+      "tail": [
+        13,
+        18,
+        66
+      ]
+    },
+    {
+      "head": 20,
+      "prob": 1.0,
+      "tail": [
+        48,
+        69
+      ]
+    },
+    {
+      "head": 43,
+      "prob": 0.1,
+      "tail": [
+        6,
+        8,
+        83
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.35,
+      "tail": [
+        27,
+        53
+      ]
+    },
+    {
+      "head": 53,
+      "prob": 0.8,
+      "tail": []
+    },
+    {
+      "head": 2,
+      "prob": 0.35,
+      "tail": [
+        27,
+        54
+      ]
+    },
+    {
+      "head": 54,
+      "prob": 0.2,
+      "tail": []
+    },
+    {
+      "head": 11,
+      "prob": 0.4,
+      "tail": [
+        5,
+        60
+      ]
+    },
+    {
+      "head": 60,
+      "prob": 0.4210526315789474,
+      "tail": []
+    },
+    {
+      "head": 11,
+      "prob": 0.4,
+      "tail": [
+        5,
+        61
+      ]
+    },
+    {
+      "head": 61,
+      "prob": 0.10526315789473685,
+      "tail": []
+    },
+    {
+      "head": 35,
+      "prob": 0.3,
+      "tail": [
+        10,
+        78
+      ]
+    },
+    {
+      "head": 78,
+      "prob": 0.8,
+      "tail": []
+    },
+    {
+      "head": 35,
+      "prob": 0.3,
+      "tail": [
+        10,
+        79
+      ]
+    },
+    {
+      "head": 79,
+      "prob": 0.2,
+      "tail": []
+    },
+    {
+      "head": 33,
+      "prob": 0.3,
+      "tail": [
+        10,
+        76
+      ]
+    },
+    {
+      "head": 76,
+      "prob": 0.8,
+      "tail": []
+    },
+    {
+      "head": 33,
+      "prob": 0.3,
+      "tail": [
+        10,
+        77
+      ]
+    },
+    {
+      "head": 77,
+      "prob": 0.2,
+      "tail": []
+    },
+    {
+      "head": 35,
+      "prob": 0.75,
+      "tail": [
+        11,
+        78
+      ]
+    },
+    {
+      "head": 35,
+      "prob": 0.75,
+      "tail": [
+        11,
+        79
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.7,
+      "tail": [
+        26,
+        53
+      ]
+    },
+    {
+      "head": 33,
+      "prob": 0.75,
+      "tail": [
+        11,
+        76
+      ]
+    },
+    {
+      "head": 33,
+      "prob": 0.75,
+      "tail": [
+        11,
+        77
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.25,
+      "tail": [
+        32,
+        34,
+        50
+      ]
+    },
+    {
+      "head": 50,
+      "prob": 0.6153846153846154,
+      "tail": []
+    },
+    {
+      "head": 1,
+      "prob": 0.25,
+      "tail": [
+        32,
+        34,
+        51
+      ]
+    },
+    {
+      "head": 51,
+      "prob": 0.15384615384615385,
+      "tail": []
+    },
+    {
+      "head": 46,
+      "prob": 0.25,
+      "tail": [
+        3,
+        85
+      ]
+    },
+    {
+      "head": 85,
+      "prob": 0.6153846153846154,
+      "tail": []
+    },
+    {
+      "head": 46,
+      "prob": 0.25,
+      "tail": [
+        3,
+        86
+      ]
+    },
+    {
+      "head": 86,
+      "prob": 0.15384615384615385,
+      "tail": []
+    },
+    {
+      "head": 47,
+      "prob": 0.75,
+      "tail": [
+        3,
+        85
+      ]
+    },
+    {
+      "head": 47,
+      "prob": 0.75,
+      "tail": [
+        3,
+        86
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.8,
+      "tail": [
+        33,
+        35,
+        50
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.8,
+      "tail": [
+        33,
+        35,
+        51
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.6,
+      "tail": [
+        33,
+        34,
+        50
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.6,
+      "tail": [
+        33,
+        34,
+        51
+      ]
+    },
+    {
+      "head": 47,
+      "prob": 0.05,
+      "tail": [
+        2,
+        85
+      ]
+    },
+    {
+      "head": 47,
+      "prob": 0.05,
+      "tail": [
+        2,
+        86
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.3,
+      "tail": [
+        32,
+        35,
+        50
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.3,
+      "tail": [
+        32,
+        35,
+        51
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.2,
+      "tail": [
+        33,
+        35,
+        50
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.2,
+      "tail": [
+        33,
+        35,
+        51
+      ]
+    },
+    {
+      "head": 27,
+      "prob": 0.75,
+      "tail": [
+        72
+      ]
+    },
+    {
+      "head": 72,
+      "prob": 0.8,
+      "tail": []
+    },
+    {
+      "head": 4,
+      "prob": 0.65,
+      "tail": [
+        27,
+        56
+      ]
+    },
+    {
+      "head": 56,
+      "prob": 0.5333333333333333,
+      "tail": []
+    },
+    {
+      "head": 5,
+      "prob": 0.75,
+      "tail": [
+        26,
+        56
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.75,
+      "tail": [
+        26,
+        57
+      ]
+    },
+    {
+      "head": 57,
+      "prob": 0.13333333333333333,
+      "tail": []
+    },
+    {
+      "head": 0,
+      "prob": 0.4,
+      "tail": [
+        33,
+        34,
+        50
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.4,
+      "tail": [
+        33,
+        34,
+        51
+      ]
+    },
+    {
+      "head": 26,
+      "prob": 0.25,
+      "tail": [
+        72
+      ]
+    },
+    {
+      "head": 46,
+      "prob": 0.95,
+      "tail": [
+        2,
+        85
+      ]
+    },
+    {
+      "head": 46,
+      "prob": 0.95,
+      "tail": [
+        2,
+        86
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.25,
+      "tail": [
+        26,
+        56
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.25,
+      "tail": [
+        26,
+        57
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.8,
+      "tail": [
+        4,
+        60
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.8,
+      "tail": [
+        4,
+        61
+      ]
+    },
+    {
+      "head": 34,
+      "prob": 0.25,
+      "tail": [
+        11,
+        78
+      ]
+    },
+    {
+      "head": 34,
+      "prob": 0.25,
+      "tail": [
+        11,
+        79
+      ]
+    },
+    {
+      "head": 32,
+      "prob": 0.7,
+      "tail": [
+        10,
+        76
+      ]
+    },
+    {
+      "head": 32,
+      "prob": 0.7,
+      "tail": [
+        10,
+        77
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.3,
+      "tail": [
+        26,
+        53
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.7,
+      "tail": [
+        32,
+        35,
+        50
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.7,
+      "tail": [
+        32,
+        35,
+        51
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.2,
+      "tail": [
+        4,
+        60
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.2,
+      "tail": [
+        4,
+        61
+      ]
+    },
+    {
+      "head": 32,
+      "prob": 0.25,
+      "tail": [
+        11,
+        76
+      ]
+    },
+    {
+      "head": 32,
+      "prob": 0.25,
+      "tail": [
+        11,
+        77
+      ]
+    },
+    {
+      "head": 34,
+      "prob": 0.7,
+      "tail": [
+        10,
+        78
+      ]
+    },
+    {
+      "head": 34,
+      "prob": 0.7,
+      "tail": [
+        10,
+        79
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.35,
+      "tail": [
+        27,
+        56
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.65,
+      "tail": [
+        27,
+        53
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.65,
+      "tail": [
+        27,
+        54
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.6,
+      "tail": [
+        5,
+        60
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.6,
+      "tail": [
+        5,
+        61
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.75,
+      "tail": [
+        32,
+        34,
+        50
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.75,
+      "tail": [
+        32,
+        34,
+        51
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.1,
+      "tail": [
+        26,
+        54
+      ]
+    },
+    {
+      "head": 26,
+      "prob": 0.0,
+      "tail": [
+        73
+      ]
+    },
+    {
+      "head": 73,
+      "prob": 0.2,
+      "tail": []
+    },
+    {
+      "head": 5,
+      "prob": 0.25,
+      "tail": [
+        27,
+        57
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.9,
+      "tail": [
+        26,
+        54
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.75,
+      "tail": [
+        27,
+        57
+      ]
+    },
+    {
+      "head": 27,
+      "prob": 1.0,
+      "tail": [
+        73
+      ]
+    },
+    {
+      "head": 24,
+      "prob": 0.5,
+      "tail": [
+        47,
+        48,
+        71
+      ]
+    },
+    {
+      "head": 71,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 45,
+      "prob": 0.7,
+      "tail": [
+        1,
+        29,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 84,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 25,
+      "prob": 0.5,
+      "tail": [
+        46,
+        49,
+        71
+      ]
+    },
+    {
+      "head": 30,
+      "prob": 0.3,
+      "tail": [
+        23,
+        25,
+        75
+      ]
+    },
+    {
+      "head": 75,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 46,
+      "prob": 0.95,
+      "tail": [
+        87
+      ]
+    },
+    {
+      "head": 87,
+      "prob": 0.23076923076923075,
+      "tail": []
+    },
+    {
+      "head": 31,
+      "prob": 0.1,
+      "tail": [
+        22,
+        24,
+        75
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.01,
+      "tail": [
+        52
+      ]
+    },
+    {
+      "head": 52,
+      "prob": 0.23076923076923075,
+      "tail": []
+    },
+    {
+      "head": 24,
+      "prob": 0.5,
+      "tail": [
+        46,
+        49,
+        71
+      ]
+    },
+    {
+      "head": 31,
+      "prob": 0.3,
+      "tail": [
+        23,
+        24,
+        75
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.6,
+      "tail": [
+        1,
+        28,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.005,
+      "tail": [
+        0,
+        28,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 23,
+      "prob": 0.6,
+      "tail": [
+        14,
+        41,
+        70
+      ]
+    },
+    {
+      "head": 70,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 49,
+      "prob": 0.9,
+      "tail": [
+        89
+      ]
+    },
+    {
+      "head": 89,
+      "prob": 0.37499999999999994,
+      "tail": []
+    },
+    {
+      "head": 24,
+      "prob": 0.1,
+      "tail": [
+        47,
+        49,
+        71
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.4,
+      "tail": [
+        1,
+        28,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.05,
+      "tail": [
+        1,
+        29,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 22,
+      "prob": 0.05,
+      "tail": [
+        15,
+        41,
+        70
+      ]
+    },
+    {
+      "head": 48,
+      "prob": 0.1,
+      "tail": [
+        89
+      ]
+    },
+    {
+      "head": 28,
+      "prob": 0.3,
+      "tail": [
+        74
+      ]
+    },
+    {
+      "head": 74,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 30,
+      "prob": 0.7,
+      "tail": [
+        23,
+        24,
+        75
+      ]
+    },
+    {
+      "head": 40,
+      "prob": 0.65,
+      "tail": [
+        82
+      ]
+    },
+    {
+      "head": 82,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 44,
+      "prob": 0.95,
+      "tail": [
+        0,
+        29,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.995,
+      "tail": [
+        0,
+        29,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 23,
+      "prob": 0.95,
+      "tail": [
+        15,
+        41,
+        70
+      ]
+    },
+    {
+      "head": 30,
+      "prob": 0.9,
+      "tail": [
+        22,
+        24,
+        75
+      ]
+    },
+    {
+      "head": 15,
+      "prob": 0.9,
+      "tail": [
+        65
+      ]
+    },
+    {
+      "head": 65,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 0,
+      "prob": 0.99,
+      "tail": [
+        52
+      ]
+    },
+    {
+      "head": 47,
+      "prob": 0.05,
+      "tail": [
+        87
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.3,
+      "tail": [
+        1,
+        29,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 41,
+      "prob": 0.35,
+      "tail": [
+        82
+      ]
+    },
+    {
+      "head": 24,
+      "prob": 0.9,
+      "tail": [
+        46,
+        48,
+        71
+      ]
+    },
+    {
+      "head": 31,
+      "prob": 0.7,
+      "tail": [
+        23,
+        25,
+        75
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.001,
+      "tail": [
+        0,
+        28,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.005,
+      "tail": [
+        0,
+        29,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 23,
+      "prob": 0.4,
+      "tail": [
+        15,
+        40,
+        70
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.5,
+      "tail": [
+        1,
+        28,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.95,
+      "tail": [
+        1,
+        29,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 30,
+      "prob": 0.5,
+      "tail": [
+        22,
+        25,
+        75
+      ]
+    },
+    {
+      "head": 22,
+      "prob": 0.4,
+      "tail": [
+        14,
+        41,
+        70
+      ]
+    },
+    {
+      "head": 22,
+      "prob": 0.6,
+      "tail": [
+        15,
+        40,
+        70
+      ]
+    },
+    {
+      "head": 25,
+      "prob": 0.9,
+      "tail": [
+        47,
+        49,
+        71
+      ]
+    },
+    {
+      "head": 23,
+      "prob": 0.01,
+      "tail": [
+        14,
+        40,
+        70
+      ]
+    },
+    {
+      "head": 25,
+      "prob": 0.5,
+      "tail": [
+        47,
+        48,
+        71
+      ]
+    },
+    {
+      "head": 31,
+      "prob": 0.5,
+      "tail": [
+        22,
+        25,
+        75
+      ]
+    },
+    {
+      "head": 14,
+      "prob": 0.1,
+      "tail": [
+        65
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.999,
+      "tail": [
+        0,
+        28,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.5,
+      "tail": [
+        1,
+        28,
+        30,
+        84
+      ]
+    },
+    {
+      "head": 45,
+      "prob": 0.05,
+      "tail": [
+        0,
+        29,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 25,
+      "prob": 0.1,
+      "tail": [
+        46,
+        48,
+        71
+      ]
+    },
+    {
+      "head": 44,
+      "prob": 0.995,
+      "tail": [
+        0,
+        28,
+        31,
+        84
+      ]
+    },
+    {
+      "head": 22,
+      "prob": 0.99,
+      "tail": [
+        14,
+        40,
+        70
+      ]
+    },
+    {
+      "head": 29,
+      "prob": 0.7,
+      "tail": [
+        74
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.15,
+      "tail": [
+        12,
+        17,
+        62
+      ]
+    },
+    {
+      "head": 62,
+      "prob": 0.4736842105263158,
+      "tail": []
+    },
+    {
+      "head": 36,
+      "prob": 0.99,
+      "tail": [
+        38,
+        80
+      ]
+    },
+    {
+      "head": 80,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 10,
+      "prob": 0.01,
+      "tail": [
+        12,
+        16,
+        62
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.2,
+      "tail": [
+        13,
+        17,
+        62
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.99,
+      "tail": [
+        12,
+        16,
+        62
+      ]
+    },
+    {
+      "head": 36,
+      "prob": 0.2,
+      "tail": [
+        39,
+        80
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.9,
+      "tail": [
+        37,
+        67
+      ]
+    },
+    {
+      "head": 67,
+      "prob": 0.6428571428571429,
+      "tail": []
+    },
+    {
+      "head": 37,
+      "prob": 0.01,
+      "tail": [
+        38,
+        80
+      ]
+    },
+    {
+      "head": 38,
+      "prob": 0.0,
+      "tail": [
+        81
+      ]
+    },
+    {
+      "head": 81,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 12,
+      "prob": 0.1,
+      "tail": [
+        36,
+        64
+      ]
+    },
+    {
+      "head": 64,
+      "prob": 0.6428571428571429,
+      "tail": []
+    },
+    {
+      "head": 11,
+      "prob": 0.85,
+      "tail": [
+        12,
+        17,
+        62
+      ]
+    },
+    {
+      "head": 12,
+      "prob": 0.6,
+      "tail": [
+        37,
+        64
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.8,
+      "tail": [
+        13,
+        17,
+        62
+      ]
+    },
+    {
+      "head": 16,
+      "prob": 0.01,
+      "tail": [
+        36,
+        67
+      ]
+    },
+    {
+      "head": 10,
+      "prob": 0.45,
+      "tail": [
+        13,
+        16,
+        62
+      ]
+    },
+    {
+      "head": 11,
+      "prob": 0.55,
+      "tail": [
+        13,
+        16,
+        62
+      ]
+    },
+    {
+      "head": 17,
+      "prob": 0.99,
+      "tail": [
+        36,
+        67
+      ]
+    },
+    {
+      "head": 39,
+      "prob": 1.0,
+      "tail": [
+        81
+      ]
+    },
+    {
+      "head": 13,
+      "prob": 0.9,
+      "tail": [
+        36,
+        64
+      ]
+    },
+    {
+      "head": 17,
+      "prob": 0.1,
+      "tail": [
+        37,
+        67
+      ]
+    },
+    {
+      "head": 37,
+      "prob": 0.8,
+      "tail": [
+        39,
+        80
+      ]
+    },
+    {
+      "head": 13,
+      "prob": 0.4,
+      "tail": [
+        37,
+        64
+      ]
+    }
+  ]
+}
