@@ -126,7 +126,8 @@ or all 8 cells**; `python -m bko.datasets cells` shows which.
 **The test share changes if E1's configuration fixes another one**; this record is then edited.
 
 **The frame is re-chosen if an open archive in this schema adds as many complete records of women
-with heart disease as Cleveland holds**; the counts in Context are the baseline.
+with heart disease as Cleveland's frame holds**; the counts in Context, taken with three predictors
+dropped, show how far the other sites fall short.
 
 ## Related
 
