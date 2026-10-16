@@ -98,3 +98,16 @@ def simple_build() -> BKB:
     bkb.add_snode("1", "B", 0.56)
     bkb.add_snode("A", "2", 0.97, [("1", "1")])
     return bkb
+
+
+def h2_fragments() -> tuple[BKB, BKB]:
+    """Two fragments that share Y and X given Y=0, and differ on X given Y=1."""
+    shared = [
+        ("Y", "0", 0.5, []),
+        ("Y", "1", 0.5, []),
+        ("X", "0", 0.75, [("Y", "0")]),
+        ("X", "1", 0.25, [("Y", "0")]),
+    ]
+    a = build("a", [*shared, ("X", "0", 0.25, [("Y", "1")]), ("X", "1", 0.75, [("Y", "1")])])
+    b = build("b", [*shared, ("X", "0", 0.75, [("Y", "1")]), ("X", "1", 0.25, [("Y", "1")])])
+    return a, b

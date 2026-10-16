@@ -20,6 +20,8 @@ PORTED = (
     "tests/_bkb_fixtures.py",
     "src/bko/bkb/structure.py",
     "tests/test_bkb_structure.py",
+    "src/bko/bkb/fusion.py",
+    "tests/test_bkb_fusion.py",
 )
 """Every module adapted from pybkb; later phases add theirs."""
 
