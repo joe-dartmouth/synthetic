@@ -151,7 +151,8 @@ component from its head's component, so a caller fuses fragments, never a fused 
 ## Enforcement
 
 - Owner: `src/bko/bkb/`
-- Pinned by: `tests/test_bkb_provenance.py`
+- Pinned by: `tests/test_bkb_provenance.py`, `tests/test_bkb_structure.py`,
+  `tests/test_bkb_serialize.py`
 - `test_bkb_provenance.py` asserts that each module adapted from pybkb carries the notice, that
   `tests/pybkb/manifest.json` names the commit above and every committed fixture with its sha256,
   and that `tests/pybkb/export.py` is the exporter that wrote them.

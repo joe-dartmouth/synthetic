@@ -15,7 +15,12 @@ from tests._corpus import REPO_ROOT
 
 COMMIT = "1e1b62a02faa0abc73db4597076c2d38c1313df6"
 
-PORTED = ("tests/pybkb/export.py",)
+PORTED = (
+    "tests/pybkb/export.py",
+    "tests/_bkb_fixtures.py",
+    "src/bko/bkb/structure.py",
+    "tests/test_bkb_structure.py",
+)
 """Every module adapted from pybkb; later phases add theirs."""
 
 NOTICE = re.compile(
