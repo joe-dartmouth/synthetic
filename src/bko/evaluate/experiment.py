@@ -31,7 +31,8 @@ class Experiment:
         margin: What the candidate must beat each comparator by, in the measure's own units.
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
             reach.
-        confidence: The two-sided level of every interval.
+        confidence: The two-sided level of every interval; not met reads each of a criterion's k
+            intervals at 1 - (1 - confidence)/k.
         attempts: Each arm's tries at one request; a retry follows a refusal and takes a seed
             derived from the request's seed and the attempt.
     """
@@ -42,7 +43,7 @@ class Experiment:
     comparators: tuple[str, ...]
     replica_arms: tuple[str, ...]
     fill_to: int = UNDERREPRESENTED_BELOW
-    margin: float = 0.02
+    margin: float = 0.0
     privacy_margin: float = 0.9
     confidence: float = 0.95
     attempts: int = 5

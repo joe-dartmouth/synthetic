@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -58,10 +58,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
   of any cell.
 - **Criteria.** Primary: in both recall and AUC-PR over the whole test split, the candidate minus
-  each comparator minus the margin has an interval above zero. Secondary: the same over the
+  each comparator has an interval above zero (`E1`'s margin is zero). Secondary: the same over the
   flagged subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy
   share of the test rows' has an interval above zero. A criterion is met when every interval it
-  reads lies above zero, not met when one lies below zero, and inconclusive otherwise.
+  reads lies above zero, not met when one lies below zero at the family-wise level, each of its k
+  intervals read at confidence 1 - (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
 - **Retries, then all or nothing.** An arm that refuses a request tries it again with a seed
   derived from the holdout seed and the attempt, up to `E1`'s attempts, and each retry is logged.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
@@ -78,21 +79,27 @@ about 100 runs ([`bouckaert-2004`](../../literature.md#evaluation-and-failure-mo
 baselines are cheap to rerun.
 
 Requiring the candidate to clear every comparator is an intersection of tests, each at the
-interval's level, so it needs no multiplicity correction and never picks the best comparator after
-seeing results. E1 makes the stricter claim and judges ADASYN and the controls too. An interval
-that straddles its threshold is neither a pass nor evidence of no effect, hence a third verdict. A
-margin in the measure's own units means the same on any dataset and baseline level. Recall is
-read at a fixed threshold, which any arm that adds positive rows can move without ranking records
-better; AUC-PR, which no threshold moves, must clear the same margin, so a shifted threshold alone
-cannot pass.
+interval's level, so met needs no multiplicity correction and never picks the best comparator after
+seeing results. E1 makes the stricter claim and judges ADASYN and the controls too. Not met is the
+union: one interval below zero refutes the claim, so read at each interval's own level it fires
+falsely, at the boundary, up to 30% of the time across 12 intervals under any dependence (26% for
+independent ones). Reading each at 1 - (1 - c)/k holds the family's false not-met rate to one
+interval's one-sided rate under any dependence. Intervals that decide neither way are neither a pass
+nor evidence of no effect, hence a third verdict. The margin is zero: met claims the candidate is
+reliably better than every comparator however small the gain, and each contrast's mean and interval
+keep its size in view. No basis fixes a larger margin in advance, and at zero not met means reliably
+worse than some comparator rather than short of an arbitrary gain. Recall is read at a fixed
+threshold, which any arm that adds positive rows can move without ranking records better; AUC-PR,
+which no threshold moves, must clear zero too, so a shifted threshold alone cannot pass.
 
 Every arm fills the same per-cell request so that equal row counts hold by construction; letting
 the BKO arm fill its own detected gaps would make the baselines' request depend on its output and
 send SMOTE cells it refuses.
 
-The whole split resolves small effects. The flagged subgroups are what the project targets, but
-they hold 5 positive test records per holdout, so their verdict is secondary and likely
-inconclusive until the data grows. AUC-PR inside the underrepresented cells is not a scope: both
+The whole split resolves small effects. The flagged subgroups are what the project targets, but they
+hold 5 positive test records per holdout, so their verdict is secondary and likely inconclusive, and
+no other frame from the archive adds records of women with heart disease (ADR
+`research/uci-evaluation-frame`). AUC-PR inside the underrepresented cells is not a scope: both
 cells hold one label, so every scorer gets 1.0.
 
 The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the same on every
@@ -103,32 +110,46 @@ training split; a replica of the training split's cells is the conventional trai
 a paid generation per holdout, is left to the unit that adds the arm.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
-scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives.
-The test rows are real records no generator saw, the natural real-data baseline for distance to
-closest record, and the 5th percentile is the reading that catches near-copies
-([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). An ideal generator ties the test
-rows in expectation, so a rule at a share of 1 would fail it about half the time; the share of 0.9
-allows for the sampling noise of 59 test records and still fails a generator that copies training
-rows. A refused holdout would leave the comparison unpaired. Default TVAE refuses the gap request
-on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling draws 1,000,000 rows and
-still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is a
-property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
-third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the
-request the same; dropping the holdout would select splits on how one generator behaved. The run
-still stops when every attempt is refused.
+scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
+test rows are real records no generator saw, the natural real-data baseline for distance to closest
+record, and the 5th percentile is the reading that catches near-copies
+([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). The gap cells are cells of women
+with heart disease, and a training row of the other label or sex already sits 1/14 (0.071) away
+through that one column, against the 0.9 x 0.0225 = 0.020 the share asks of the added rows' 5th
+percentile (the test rows' mean, measured 2026-10-16). A gap row falls under the share only by
+nearly copying a training record of a woman with heart disease, so the share fails a generator that
+copies or barely perturbs training rows and passes one that draws new records. Real records of the
+gap cells agree (measured 2026-10-16 over `E1`'s holdouts, each training record of a gap cell
+against the other training rows): their mean 5th percentile is 0.038 to 0.064, and the contrast
+reads met at a share of 0.9 and of 1 whether each cell's records are taken once, cycled to its
+requested rows or weighted to them; `<55 female 1` holds only 2 records, so this check rests mostly
+on them. The share stays below 1 as room for the noise of a 5th percentile over 20 rows, which costs
+nothing against near-copies. Records of the flagged subgroups' two labels, mostly without disease,
+sit nearer the training rows and read inconclusive at 0.9; the gap request asks only for records
+with disease. A refused holdout would leave the comparison unpaired. Default TVAE refuses the gap
+request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling draws 1,000,000 rows
+and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
+a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
+third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
+the same; dropping the holdout would select splits on how one generator behaved. The run still stops
+when every attempt is refused.
 
 ## Consequences
 
 **Gained**: every criterion computed by code from one scores file; verdicts that do not depend on
 which arm looked best; a harness that takes any frame in the evaluation schema.
-**Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9);
-`<55 female 1` holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect
-shows only through other test records; subgroup verdicts are likely inconclusive at this size;
-distance to closest record is weak evidence of privacy, blind to attacks that need no near-copy;
-`calculate_dcr` is not a public SDMetrics export; baseline results on the real test split were in
-view when the readings were fixed, no BKO result was; on a retried holdout, that arm's rows
-come from a derived seed rather than the holdout seed; the BKO pipeline runs once per holdout, so
-its paid generation grows with the holdout count; E1 does not exercise BKO gap detection.
+**Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9); `<55 female 1`
+holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect shows only through
+other test records; subgroup verdicts are likely inconclusive at this size; distance to closest
+record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
+a public SDMetrics export; baseline results on the real test split were in view when the readings
+were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
+than the holdout seed; the BKO pipeline runs once per holdout, so its paid generation grows with the
+holdout count; E1 does not exercise BKO gap detection; a not-met verdict needs an interval below
+zero at the family-wise level, so more criteria read inconclusive; that reading was fixed with
+baseline dry runs in view and no BKO result, and it only ever moves not met to inconclusive, which
+favours the candidate; a met verdict certifies a reliable gain, not a minimum size, and the zero
+margin, also fixed with baseline dry runs in view and no BKO result, makes met easier to reach.
 
 ## Ruled Out
 
@@ -151,6 +172,13 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 | A TOML configuration file | A parser for one reader, and no type checking | 2026-10-15 |
 | The BKO arm filling its own detected gaps | The baselines' request would depend on its output, and SMOTE refuses cells under 2 records | 2026-10-15 |
 | Equal gap rows per underrepresented cell | Not derived from the threshold; chosen only to move rows toward the cell with test records | 2026-10-15 |
+| A privacy share of 1 | Fails no near-copy that 0.9 passes, and leaves no room for the noise of a 5th percentile over 20 rows | 2026-10-16 |
+| Real gap-cell records as the privacy reference | `<55 female 1` holds 2 records, never held out, too few to serve as a reference | 2026-10-16 |
+| A privacy share calibrated on records of the flagged subgroups | Mostly records without disease, nearer the training rows than the gap cells the request fills | 2026-10-16 |
+| Reading not met at each interval's own level | A union of up to 12 tests: up to 30% false not-met at the boundary under any dependence | 2026-10-16 |
+| Holm's step-down for not met | Its first step is Bonferroni's test, and not met needs one refuting interval, so it returns the same verdicts | 2026-10-16 |
+| A not-met family per measure | Leaves the criterion's false not-met rate at up to twice one interval's | 2026-10-16 |
+| An absolute margin of 0.02 | No stated basis, and not met then fires for a candidate better by less than it | 2026-10-16 |
 
 ## Enforcement
 
@@ -165,8 +193,8 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 **A reading changes only while E1's Runs field in `docs/EVIDENCE.md` has no row**; after the first
 run, a changed reading is a new experiment entry.
 
-**The holdout count and the margins are re-chosen if `proposal-evaluation-data` grows the frame
-before E1's first run**; this record and `E1` change together.
+**The holdout count and the margins are re-chosen if the frame changes before E1's first run**; this
+record and `E1` change together.
 
 **`calculate_dcr` is replaced if an SDMetrics release removes
 `sdmetrics.single_table.privacy.dcr_utils.calculate_dcr`.**

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+import io
 import math
 
+import pandas as pd
 import pytest
 
 from bko.evaluate.criteria import (
@@ -13,6 +15,7 @@ from bko.evaluate.criteria import (
     Verdict,
     corrected_interval,
     judge,
+    refuting_confidence,
     table,
     verdict,
 )
@@ -34,21 +37,39 @@ def width(interval: Interval) -> float:
 
 
 def test_the_interval_is_nadeau_and_bengios():
-    interval = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=1 / 3, confidence=0.95)
+    interval = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=1 / 3, confidence=0.95, family=1)
     assert interval.mean == pytest.approx(0.25)
     assert (interval.low, interval.high) == pytest.approx((-0.06379, 0.56379), abs=1e-5)
     assert interval.holdouts == 4
+    assert interval.refuting_high == pytest.approx(interval.high)
+
+
+def test_refuting_confidence_splits_the_miss_rate_among_the_family():
+    assert refuting_confidence(0.95, 1) == pytest.approx(0.95)
+    assert refuting_confidence(0.95, 12) == pytest.approx(1 - 0.05 / 12)
+
+
+def test_the_refuting_bound_is_the_interval_at_the_family_wise_level():
+    contrast = [0.1, 0.2, 0.3, 0.4]
+    family = corrected_interval(contrast, ratio=1 / 3, confidence=0.95, family=12)
+    level = corrected_interval(
+        contrast, ratio=1 / 3, confidence=refuting_confidence(0.95, 12), family=1
+    )
+    assert family.refuting_high == pytest.approx(level.high)
+    assert family.refuting_high == pytest.approx(1.03287, abs=1e-5)
+    assert (family.low, family.high) == pytest.approx((-0.06379, 0.56379), abs=1e-5)
 
 
 def test_the_correction_widens_a_plain_t_interval_by_sqrt_one_plus_j_ratio():
-    plain = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=0.0, confidence=0.95)
-    corrected = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=1 / 3, confidence=0.95)
+    plain = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=0.0, confidence=0.95, family=1)
+    corrected = corrected_interval([0.1, 0.2, 0.3, 0.4], ratio=1 / 3, confidence=0.95, family=1)
     assert width(corrected) / width(plain) == pytest.approx(math.sqrt(1 + 4 / 3))
 
 
 def test_a_constant_contrast_has_a_point_interval():
-    interval = corrected_interval([0.25] * 4, ratio=0.25, confidence=0.95)
-    assert (interval.low, interval.high) == pytest.approx((0.25, 0.25))
+    interval = corrected_interval([0.25] * 4, ratio=0.25, confidence=0.95, family=12)
+    bounds = (interval.low, interval.high, interval.refuting_high)
+    assert bounds == pytest.approx((0.25, 0.25, 0.25))
 
 
 def test_a_criterion_without_intervals_is_refused():
@@ -59,7 +80,13 @@ def test_a_criterion_without_intervals_is_refused():
 @pytest.mark.parametrize("contrast", [[0.1], [0.1, math.nan, 0.2]], ids=["one holdout", "nan"])
 def test_an_interval_needs_two_finite_contrasts(contrast):
     with pytest.raises(EvaluationError):
-        corrected_interval(contrast, ratio=0.25, confidence=0.95)
+        corrected_interval(contrast, ratio=0.25, confidence=0.95, family=1)
+
+
+@pytest.mark.parametrize("family", [0, -1])
+def test_an_interval_needs_a_family_of_one_or_more(family):
+    with pytest.raises(EvaluationError, match="family"):
+        corrected_interval([0.1, 0.2], ratio=0.25, confidence=0.95, family=family)
 
 
 @pytest.mark.parametrize(
@@ -74,7 +101,17 @@ def test_an_interval_needs_two_finite_contrasts(contrast):
     ids=["all above", "one below", "one straddles", "touches zero", "tops out at zero"],
 )
 def test_the_verdict_reads_every_interval(bounds, expected):
-    assert verdict([Interval(0.0, low, high, 4) for low, high in bounds]) is expected
+    assert verdict([Interval(0.0, low, high, high, 4) for low, high in bounds]) is expected
+
+
+def test_not_met_reads_the_refuting_bound():
+    above = Interval(0.2, 0.1, 0.3, 0.35, 4)
+    below = Interval(-0.15, -0.3, -0.01, 0.02, 4)
+    assert verdict([above, below]) is Verdict.INCONCLUSIVE
+    refuted = dataclasses.replace(below, refuting_high=-0.001)
+    assert verdict([above, refuted]) is Verdict.NOT_MET
+    touching = dataclasses.replace(below, refuting_high=0.0)
+    assert verdict([above, touching]) is Verdict.INCONCLUSIVE
 
 
 def series(arm, source, measure, scope, values):
@@ -106,7 +143,7 @@ def verdicts(contrasts):
         ([-0.1] * 4, Verdict.NOT_MET),
         ([0.0, 0.05, 0.0, 0.05], Verdict.INCONCLUSIVE),
     ],
-    ids=["separated", "worse", "straddles the margin"],
+    ids=["separated", "worse", "straddles zero"],
 )
 def test_separation_needs_every_interval_above_the_margin(gain, expected):
     contrasts = judge(scored(gain), EXPERIMENT)
@@ -116,6 +153,19 @@ def test_separation_needs_every_interval_above_the_margin(gain, expected):
         "privacy": Verdict.MET,
     }
     assert len(contrasts) == 5
+
+
+def test_a_loss_inside_the_family_wise_bound_is_inconclusive():
+    contrast = [-0.04, -0.02, -0.04, -0.02]
+    gain = [value + EXPERIMENT.margin for value in contrast]
+    contrasts = judge(scored(gain), EXPERIMENT)
+    separation = [c for c in contrasts if c.criterion != "privacy"]
+    assert all(c.interval.high < 0 < c.interval.refuting_high for c in separation)
+    assert verdicts(contrasts) == {
+        "primary": Verdict.INCONCLUSIVE,
+        "secondary": Verdict.INCONCLUSIVE,
+        "privacy": Verdict.MET,
+    }
 
 
 @pytest.mark.parametrize(("privacy", "expected"), [(0.1, Verdict.MET), (0.05, Verdict.NOT_MET)])
@@ -174,11 +224,37 @@ def test_the_table_has_one_row_per_contrast():
     assert lines[1].startswith("primary,all,met,bko,none,recall,")
 
 
+def test_the_table_writes_each_contrasts_refuting_bound():
+    contrasts = judge(scored([0.05, 0.06, 0.05, 0.06]), EXPERIMENT)
+    written = pd.read_csv(io.StringIO(table(contrasts)))
+    assert list(written.refuting_high) == pytest.approx(
+        [c.interval.refuting_high for c in contrasts]
+    )
+    assert list(written.holdouts) == [c.interval.holdouts for c in contrasts]
+    assert (written.refuting_high[:4] > written.high[:4]).all()
+
+
+def test_the_family_is_every_interval_the_criterion_reads():
+    rows = scored([0.05, 0.06, 0.05, 0.06])
+    rows += [dataclasses.replace(s, arm="smote") for s in rows if s.arm == "none"]
+    two = dataclasses.replace(
+        EXPERIMENT, arms=("none", "smote", "bko"), comparators=("none", "smote")
+    )
+    ratio = 0.25
+    for contrast in judge(rows, two):
+        family = 1 if contrast.criterion == "privacy" else 4
+        values = (
+            [0.1 - 0.9 * 0.1] * 4 if contrast.criterion == "privacy" else [0.05, 0.06, 0.05, 0.06]
+        )
+        expected = corrected_interval(values, ratio=ratio, confidence=two.confidence, family=family)
+        assert contrast.interval.refuting_high == pytest.approx(expected.refuting_high)
+
+
 def test_a_gain_inside_the_margin_is_not_separation():
     gain = [0.01] * 4
-    assert verdicts(judge(scored(gain), EXPERIMENT))["primary"] is Verdict.NOT_MET
-    unmargined = dataclasses.replace(EXPERIMENT, margin=0.0)
-    assert verdicts(judge(scored(gain), unmargined))["primary"] is Verdict.MET
+    margined = dataclasses.replace(EXPERIMENT, margin=0.02)
+    assert verdicts(judge(scored(gain), margined))["primary"] is Verdict.NOT_MET
+    assert verdicts(judge(scored(gain), EXPERIMENT))["primary"] is Verdict.MET
 
 
 def test_the_largest_held_out_ratio_widens_every_interval():
@@ -191,8 +267,9 @@ def test_the_largest_held_out_ratio_widens_every_interval():
     ]
     first = judge(rows, EXPERIMENT)[0]
     contrast = [0.5 + g - 0.5 - EXPERIMENT.margin for g in gain]
-    expected = corrected_interval(contrast, ratio=0.5, confidence=EXPERIMENT.confidence)
+    expected = corrected_interval(contrast, ratio=0.5, confidence=EXPERIMENT.confidence, family=2)
     assert (first.interval.low, first.interval.high) == pytest.approx((expected.low, expected.high))
+    assert first.interval.refuting_high == pytest.approx(expected.refuting_high)
 
 
 def test_a_series_missing_a_holdout_on_both_sides_is_refused():

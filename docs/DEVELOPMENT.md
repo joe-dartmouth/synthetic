@@ -114,9 +114,10 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
   source, measure and scope to stdout as CSV; a measure a scope cannot define is empty.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
-  arm it is set against, the measure, and the contrast's mean, interval and holdout counts. It
-  refuses a scores file whose holdouts are not `E1`'s, and one where a series it judges misses a
-  holdout or holds an empty value. E1's candidate is `bko`, which `score` does not run until
+  arm it is set against, the measure, and the contrast's mean, interval, the upper bound at the
+  family-wise level that `not met` reads (`refuting_high`), and holdout counts. It refuses a scores
+  file whose holdouts are not `E1`'s, and one where a series it judges misses a holdout or holds an
+  empty value. E1's candidate is `bko`, which `score` does not run until
   [`proposal-final-evaluation`](../tasks/proposal-final-evaluation.md) registers the BKO arm, so
   until then `compare` needs `--candidate`. `--candidate` judges another row-adding arm, a dry run
   whose verdict is not E1's.

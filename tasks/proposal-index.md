@@ -18,7 +18,6 @@ the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none)
 | [`proposal-fusion-repair`](proposal-fusion-repair.md) | blocked | proposal-llm-generation, proposal-record-validation | Shirley | status-update-2 |
 | [`proposal-streamlit-app`](proposal-streamlit-app.md) | blocked | proposal-fusion-repair | Krish | working-prototype |
 | [`proposal-final-evaluation`](proposal-final-evaluation.md) | blocked | proposal-fusion-repair | Joe | final-report |
-| [`proposal-evaluation-data`](proposal-evaluation-data.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
