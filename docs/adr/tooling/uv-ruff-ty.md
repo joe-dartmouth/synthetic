@@ -87,8 +87,8 @@ lock adds the NVIDIA CUDA packages and `triton`.
 - Pinned by: `tests/test_repo_gate.py`
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
   distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
-  `make setup` installs at least the `dev`, `data`, `synth` and `eval` extras, and that every `uv run`
-  recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
+  `make setup` installs at least the `dev`, `data`, `synth` and `eval` extras, and that every
+  `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
 
 ## Reversal Conditions
 

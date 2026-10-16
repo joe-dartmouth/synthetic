@@ -17,9 +17,9 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 ## Why this unit exists
 
-E1's holdouts test 59 records with 27 positives, and its underrepresented cells hold 5 positive
-test records, so most criteria resolve only large effects (ADR `research/e1-evaluation-protocol`).
-More records tighten every interval.
+Measured 2026-10-15, E1's holdouts test 59 records with 27 positives, and its underrepresented
+cells hold 5 positive test records, so most criteria resolve only large effects (ADR
+`research/e1-evaluation-protocol`). More records tighten every interval.
 
 ## Scope
 
@@ -36,6 +36,9 @@ More records tighten every interval.
 - Re-check the underrepresented cells on the new training split: if no cell falls under the
   threshold, the age bands are re-chosen as ADR `research/uci-evaluation-frame`'s reversal
   conditions say, since E1's gap request needs a cell to fill.
+- Decide how a criterion reads a holdout where a scope cannot define a measure: `compare` refuses
+  such scores today, and a new frame whose flagged subgroups lack positive or negative test
+  records on some holdout would hit it.
 - Re-fix `E1`'s holdout count and margins and ADR `research/e1-evaluation-protocol` together,
   before E1's first run.
 

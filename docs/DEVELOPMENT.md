@@ -13,9 +13,9 @@ lock, and `source .venv/bin/activate` enters the environment.
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas),
   `synth` (sdv, imbalanced-learn, torch) and `eval` (scikit-learn, sdmetrics, scipy) are installed
   by `make setup`; `ontology` (owlready2, pronto), `llm` (anthropic) and `app` (streamlit) are
-  installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA
-  packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra
-  joins `make setup`. `make sync` installs every extra.
+  installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
+  NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
+  when an extra joins `make setup`. `make sync` installs every extra.
 - **Install an extra the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
   append `--extra <name>`. `uv sync` is exact, so a bare `uv sync --extra <name>` removes the
   others. Never `uv pip install -e ".[...]"`: it resolves fresh rather than from the lock, and
@@ -99,8 +99,9 @@ command per method, inside `.venv`:
 `bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every comparison method on E1's
 repeated holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). Two commands, inside
-`.venv`, writing to the gitignored `scratchpad/`:
+`.venv`, writing to the gitignored `scratchpad/`, which a fresh clone lacks:
 
+    mkdir -p scratchpad
     uv run --no-sync python -m bko.evaluate score [--data-dir <dir>] > scratchpad/scores.csv
     uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv [--candidate <arm>]
 
@@ -114,14 +115,20 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
   arm it is set against, the measure, and the contrast's mean, interval and holdout counts. It
-  refuses a scores file whose holdouts are not `E1`'s. E1's candidate is `bko`; `--candidate`
-  judges another row-adding arm, a dry run whose verdict is not E1's.
-- **What it logs**: `score` logs an `experiment` line and the installed versions of the evaluation
-  stack, then per holdout the split line `cells` prints, one `quota` line per stratum, one `arm`
-  line per fill (a replica fill is named `<arm>-replica`) with its added rows' sha256, a `retry`
-  warning for each refused attempt before the last, and the holdout's seconds, then the CSV's row count and sha256. `compare` logs one `criterion` line per
-  criterion with its verdict. An experiment copies them into its Runs row in
-  [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
+  refuses a scores file whose holdouts are not `E1`'s, and one where a series it judges misses a
+  holdout or holds an empty value. E1's candidate is `bko`, which `score` does not run until
+  [`proposal-final-evaluation`](../tasks/proposal-final-evaluation.md) registers the BKO arm, so
+  until then `compare` needs `--candidate`. `--candidate` judges another row-adding arm, a dry run
+  whose verdict is not E1's.
+- **What it logs**: `score` logs an `experiment` line and a `versions` line (Python, the platform
+  and the evaluation stack), then per holdout the split line `cells` prints, one `quota` line per
+  stratum, one `arm` line per fill (a replica fill is named `<arm>-replica`) with the attempt, the
+  seed, the added rows' sha256 and the method's parameters, a `retry` warning for each refused
+  attempt before the last, and a `holdout` line with the progress and seconds, then the CSV's row
+  count and sha256. A fill that stops the run logs a `refused` or `contract` error naming the
+  holdout and arm. `compare` logs a `compare` line with the candidate, whether it is a dry run and
+  the scores file's sha256, then one `criterion` line per criterion with its verdict. An experiment
+  copies them into its Runs row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be

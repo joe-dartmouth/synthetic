@@ -152,7 +152,8 @@ SynthEval, TableEvaluator and Anonymeter. The repository uses:
 
 - scikit-learn for utility;
 - SDMetrics for fidelity;
-- SDMetrics' `calculate_dcr` for distance to closest record, read against the test rows (ADR [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)).
+- SDMetrics' `calculate_dcr` for distance to closest record, read against the test rows (ADR
+  [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)).
 
 synthcity is not a dependency; it does not resolve on this repository's interpreter (ADR
 [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). SynthEval,

@@ -28,9 +28,10 @@ import it (ADR `tooling/agent-config-single-home`).
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
 - `uv run --no-sync python -m bko.evaluate score > scratchpad/scores.csv`, then
-  `uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv`: score every comparison
-  method on E1's holdouts, then judge a candidate arm against E1's criteria
-  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
+  `uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv --candidate <arm>`: score
+  every comparison method on E1's holdouts, then judge an arm against E1's criteria
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) says when `--candidate` may be
+  omitted).
 - A targeted run while working:
 
   ```

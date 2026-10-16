@@ -30,8 +30,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
   candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
-  confidence and the attempts per fill. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a value;
-  `compare --candidate` judges another arm as a dry run, never as E1's verdict.
+  confidence and the attempts per fill. `docs/EVIDENCE.md` (E1) states how each criterion is
+  read. No flag changes a value; `compare --candidate` judges another arm as a dry run, never as
+  E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
@@ -48,9 +49,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the run.
 - **Measures.** Recall, precision and AUC-PR over the whole test split and over the flagged
   subgroups, the age-sex subgroups that hold an underrepresented cell; a measure a scope cannot
-  define is empty. Fidelity is SDMetrics' quality report with every column pair counted. Distance
-  to closest record is SDMetrics' `calculate_dcr`, read as a 5th percentile and a median, for the
-  added rows and for the test rows, both against the training rows.
+  define is empty, and a criterion that reads an empty value refuses to judge. Fidelity is
+  SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
+  `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
+  both against the training rows.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
