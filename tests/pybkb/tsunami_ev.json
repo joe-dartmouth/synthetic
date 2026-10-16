@@ -1,0 +1,206 @@
+{
+  "description": null,
+  "inodes": [
+    [
+      "(B) Fishing livelihood is threatened",
+      "No"
+    ],
+    [
+      "(B) Fishing livelihood is threatened",
+      "Yes"
+    ],
+    [
+      "(B) Has (access to) a (fishing) boat",
+      "No"
+    ],
+    [
+      "(B) Has (access to) a (fishing) boat",
+      "Yes"
+    ],
+    [
+      "(B) Has fishing equipment",
+      "No"
+    ],
+    [
+      "(B) Has fishing equipment",
+      "Yes"
+    ],
+    [
+      "(B) Tsunami is destructive",
+      "No"
+    ],
+    [
+      "(B) Tsunami is destructive",
+      "Yes"
+    ],
+    [
+      "(B) Tsunami just occurred",
+      "No"
+    ],
+    [
+      "(B) Tsunami just occurred",
+      "Yes"
+    ]
+  ],
+  "name": "Tsunami Evidence",
+  "snodes": [
+    {
+      "head": 0,
+      "prob": 0.15,
+      "tail": [
+        2,
+        5
+      ]
+    },
+    {
+      "head": 6,
+      "prob": 0.99,
+      "tail": [
+        8
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.01,
+      "tail": [
+        2,
+        4
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.2,
+      "tail": [
+        3,
+        5
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.99,
+      "tail": [
+        2,
+        4
+      ]
+    },
+    {
+      "head": 6,
+      "prob": 0.2,
+      "tail": [
+        9
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.9,
+      "tail": [
+        7
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.01,
+      "tail": [
+        8
+      ]
+    },
+    {
+      "head": 8,
+      "prob": 0.0,
+      "tail": []
+    },
+    {
+      "head": 2,
+      "prob": 0.1,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.85,
+      "tail": [
+        2,
+        5
+      ]
+    },
+    {
+      "head": 2,
+      "prob": 0.6,
+      "tail": [
+        7
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.8,
+      "tail": [
+        3,
+        5
+      ]
+    },
+    {
+      "head": 4,
+      "prob": 0.01,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 0,
+      "prob": 0.45,
+      "tail": [
+        3,
+        4
+      ]
+    },
+    {
+      "head": 1,
+      "prob": 0.55,
+      "tail": [
+        3,
+        4
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.99,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 9,
+      "prob": 1.0,
+      "tail": []
+    },
+    {
+      "head": 3,
+      "prob": 0.9,
+      "tail": [
+        6
+      ]
+    },
+    {
+      "head": 5,
+      "prob": 0.1,
+      "tail": [
+        7
+      ]
+    },
+    {
+      "head": 7,
+      "prob": 0.8,
+      "tail": [
+        9
+      ]
+    },
+    {
+      "head": 3,
+      "prob": 0.4,
+      "tail": [
+        7
+      ]
+    }
+  ]
+}

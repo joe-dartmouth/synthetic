@@ -238,7 +238,7 @@ Where the brief and the 2-pager disagree:
 | Topic | Brief | 2-pager / repository | Governs |
 |---|---|---|---|
 | Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition | 2-pager (paper metadata verified 2026-10-13); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
-| BKB library | Not discussed | "no public BKB library exists" | A public library, [pybkb](ARCHITECTURE.md#pybkb), exists; port planned in [tasks/proposal-bkb-port.md](../tasks/proposal-bkb-port.md) |
+| BKB library | Not discussed | "no public BKB library exists" | A public library, [pybkb](ARCHITECTURE.md#pybkb), exists; `bko.bkb` ports its core, ADR [research/bkb-layer-source](adr/research/bkb-layer-source.md) |
 | Team and time | Three students, 10 weeks | Four members, the [ROADMAP](ROADMAP.md) schedule | 2-pager |
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |
 | Evaluation stack | SDMetrics + synthcity | scikit-learn, SDMetrics, synthcity | Repository drops synthcity (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)) |

@@ -33,6 +33,8 @@ line-length = 100
 indent-width = 4
 
 target-version = "py314"
+# `tests/pybkb/export.py` runs under Python 3.11, outside the lock (`docs/DEVELOPMENT.md`).
+per-file-target-version = { "tests/pybkb/export.py" = "py311" }
 
 [lint]
 # Required: rules are selected and suppressed by name, which ruff accepts only in preview mode, and

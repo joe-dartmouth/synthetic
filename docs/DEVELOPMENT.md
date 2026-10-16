@@ -137,6 +137,38 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
 - **Reproducibility**: a holdout seed gives the same split and requests; the scores keep the
   promise of [Baselines](#baselines).
 
+## BKB fixtures
+
+`bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
+example files (ADR [`research/bkb-layer-source`](adr/research/bkb-layer-source.md)). pybkb does not
+resolve here, so its results are committed as JSON under `tests/pybkb/` rather than recomputed,
+and the gate never runs pybkb.
+
+- **What is committed**: `tests/pybkb/export.py`, which writes the fixtures; the requirements it
+  runs under, with hashes (`tests/pybkb/oracle-requirements.txt`); one document per pybkb example
+  and per fused BKB, in the format `bko.bkb.serialize` reads; `queries.json`, pybkb's update
+  results; `manifest.json`, with the pybkb commit, the sha256 of every input, every output and the
+  exporter, the versions it ran under and pybkb's own test checks; and `run.json`, the hash seed.
+- **Regenerating**: make a private scratch directory with `O=$(mktemp -d)`, fetch every path
+  `FILES` in `export.py` names, at the commit it names, into `$O/src` and nothing else (the
+  exporter refuses any other file there), then from the repository root build a throwaway Python
+  3.11 environment outside the repository and run the exporter in it. That environment is not the
+  project's, so `uv pip install` there leaves `uv.lock` and `.venv` untouched:
+
+      UV_PYTHON_PREFERENCE=only-managed UV_PYTHON_INSTALL_DIR=$O/python UV_CACHE_DIR=$O/cache \
+        uv venv --no-config --python 3.11 $O/venv
+      UV_CACHE_DIR=$O/cache uv pip install --no-config --python $O/venv/bin/python \
+        --require-hashes --only-binary :all: -r tests/pybkb/oracle-requirements.txt
+      env -u PYTHONPATH -u PYTHONHOME -u VIRTUAL_ENV PYTHONHASHSEED=0 \
+        $O/venv/bin/python -P -s -B tests/pybkb/export.py $O/src $O/out/seed-0
+
+  Hash seeds 0, 1 and 2, each into its own `out/seed-N`, must give the same files, `run.json`
+  aside. Copy the seed-0 output's `*.json` into `tests/pybkb/`, stage it, and delete
+  `$O`. `-P` keeps the script's directory off `sys.path`; `-I` would ignore
+  `PYTHONHASHSEED`.
+- **What holds the fixtures to the run**: the tests ADR
+  [`research/bkb-layer-source`](adr/research/bkb-layer-source.md) lists under Enforcement.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes

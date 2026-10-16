@@ -1,0 +1,3302 @@
+[
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "High",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -4.9982127740976985,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "High",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "High",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -4.733003557497976,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "Low",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -6.789972243325753,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "Low",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "No",
+      "ReproduceAbility": "Low",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -3.0618720760585356,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "High",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -5.691359954657644,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "High",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "High",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -5.426150738057921,
+      "Low": -3.5166082331734834
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "Low",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -7.888584531993862,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "Low",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "Low",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -4.160484364726646,
+      "Low": -2.2509418598422073
+    },
+    "target": "AcidLevel"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "High",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "No": -4.9982127740976985,
+      "Yes": -5.691359954657644
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "High",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "High",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "No": -4.733003557497976,
+      "Yes": -5.426150738057921
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "Low",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "No": -6.789972243325753,
+      "Yes": -7.888584531993863
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "Low",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "ReproduceAbility": "Low",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "No": -3.0618720760585356,
+      "Yes": -4.160484364726646
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "High",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "High",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "High",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": -3.516608233173483
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "Low",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "Low",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "ReproduceAbility": "Low",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "No": null,
+      "Yes": -2.2509418598422073
+    },
+    "target": "OverCrowd"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "No",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -4.998212774097698,
+      "Low": -6.789972243325753
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "No",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "No",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -4.733003557497976,
+      "Low": -3.0618720760585356
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "Yes",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": -5.691359954657643,
+      "Low": -7.888584531993862
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "Yes",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "Yes",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -5.426150738057921,
+      "Low": -4.160484364726645
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "No",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "No",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "No",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "Yes",
+      "pH_Value": "Normal"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "Yes",
+      "pH_Value": "gt7.5"
+    },
+    "result": {
+      "High": null,
+      "Low": null
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "Yes",
+      "pH_Value": "lt6.5"
+    },
+    "result": {
+      "High": -3.516608233173483,
+      "Low": -2.2509418598422073
+    },
+    "target": "ReproduceAbility"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "No",
+      "ReproduceAbility": "High"
+    },
+    "result": {
+      "Normal": -4.9982127740976985,
+      "gt7.5": null,
+      "lt6.5": -4.733003557497976
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "No",
+      "ReproduceAbility": "Low"
+    },
+    "result": {
+      "Normal": -6.789972243325753,
+      "gt7.5": null,
+      "lt6.5": -3.0618720760585356
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "High"
+    },
+    "result": {
+      "Normal": -5.691359954657644,
+      "gt7.5": null,
+      "lt6.5": -5.426150738057921
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "High",
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "Low"
+    },
+    "result": {
+      "Normal": -7.888584531993862,
+      "gt7.5": null,
+      "lt6.5": -4.160484364726646
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "No",
+      "ReproduceAbility": "High"
+    },
+    "result": {
+      "Normal": null,
+      "gt7.5": null,
+      "lt6.5": null
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "No",
+      "ReproduceAbility": "Low"
+    },
+    "result": {
+      "Normal": null,
+      "gt7.5": null,
+      "lt6.5": null
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "High"
+    },
+    "result": {
+      "Normal": null,
+      "gt7.5": null,
+      "lt6.5": -3.516608233173483
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "aquatic_eco",
+    "evidence": {
+      "AcidLevel": "Low",
+      "OverCrowd": "Yes",
+      "ReproduceAbility": "Low"
+    },
+    "result": {
+      "Normal": null,
+      "gt7.5": null,
+      "lt6.5": -2.2509418598422073
+    },
+    "target": "pH_Value"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "Negative": -19.29709259059029,
+      "Positive": -20.109383582658683
+    },
+    "target": "(B) Attitude towards piracy"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Boarding skills are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fish supply is sufficient"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Fishing benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -35.12229375786768,
+      "Yes": -26.136097437539544
+    },
+    "target": "(B) Fishing cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fishing livelihood is threatened"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has (access to) a (fishing) boat"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has a skiff"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has fishing equipment"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has fishing net"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": null
+    },
+    "target": "(B) Has fishing skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": -21.88882268375604,
+      "Yes": -25.385330245222406
+    },
+    "target": "(B) Has piracy equipment"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has piracy skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Illegal fishing has occurred"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Revenge is moral"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Survival is moral"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Tsunami is destructive"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Tsunami just occurred"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Weapons are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(G) Livelihood is fishing"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -29.824208424041046,
+      "Yes": -29.824208424041046
+    },
+    "target": "(G) Livelihood is piracy"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(X) Boarding skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": null
+    },
+    "target": "(X) Seafaring skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "Negative": "-inf",
+      "Positive": "-inf"
+    },
+    "target": "(B) Attitude towards piracy"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -24.070939874397556,
+      "Yes": -26.13298967336555
+    },
+    "target": "(B) Boarding skills are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fish supply is sufficient"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": -24.28493680964945
+    },
+    "target": "(B) Fishing benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Fishing cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": -35.96069622568746,
+      "Yes": -32.284858766943906
+    },
+    "target": "(B) Fishing livelihood is threatened"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has (access to) a (fishing) boat"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has a skiff"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -26.498010414622968,
+      "Yes": -23.33692093559756
+    },
+    "target": "(B) Has fishing equipment"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has fishing net"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": null
+    },
+    "target": "(B) Has fishing skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has piracy equipment"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has piracy skills"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Illegal fishing has occurred"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Piracy benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": -26.122067888988152,
+      "Yes": -26.78704419258141
+    },
+    "target": "(B) Piracy cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Revenge is moral"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Survival is moral"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -22.124585715972003,
+      "Yes": -21.308906780965994
+    },
+    "target": "(B) Tsunami is destructive"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Tsunami just occurred"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Weapons are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(G) Livelihood is fishing"
+  },
+  {
+    "bkb": "pirate_fused_r1",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(G) Livelihood is piracy"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "Negative": -19.69667589363035,
+      "Positive": -20.22538279543874
+    },
+    "target": "(B) Attitude towards piracy"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Boarding skills are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fish supply is sufficient"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Fishing benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -34.47245515502865,
+      "Yes": -25.48625883470015
+    },
+    "target": "(B) Fishing cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fishing livelihood is threatened"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has (access to) a (fishing) boat"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has a skiff"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has fishing equipment"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has fishing net"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": null
+    },
+    "target": "(B) Has fishing skills"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": -22.176851761711678,
+      "Yes": -25.673359323178204
+    },
+    "target": "(B) Has piracy equipment"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has piracy skills"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Illegal fishing has occurred"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "Negative": -20.900648697956363,
+      "Positive": -21.42935559976465
+    },
+    "target": "(B) Attitude towards piracy"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Boarding skills are obtainable"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fish supply is sufficient"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Fishing benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": -35.67642795935458,
+      "Yes": -26.690231639026152
+    },
+    "target": "(B) Fishing cost is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Fishing livelihood is threatened"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has (access to) a (fishing) boat"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "No",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has a skiff"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Has fishing equipment"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "Yes",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has fishing net"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": null
+    },
+    "target": "(B) Has fishing skills"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy skills": "No",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "No",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": -23.38082456603768,
+      "Yes": -26.877332127504143
+    },
+    "target": "(B) Has piracy equipment"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "Yes",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Illegal fishing has occurred": "No",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Has piracy skills"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Negative",
+      "(B) Boarding skills are obtainable": "Yes",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "Yes",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Piracy cost is ok": "No",
+      "(B) Revenge is moral": "Yes",
+      "(B) Survival is moral": "Yes",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "Yes",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": "-inf",
+      "Yes": "-inf"
+    },
+    "target": "(B) Illegal fishing has occurred"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "No",
+      "(B) Fishing livelihood is threatened": "Yes",
+      "(B) Has (access to) a (fishing) boat": "No",
+      "(B) Has a skiff": "Yes",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "Yes",
+      "(B) Has fishing skills": "Yes",
+      "(B) Has piracy equipment": "No",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy cost is ok": "Yes",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "Yes",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "Yes",
+      "(G) Livelihood is piracy": "Yes",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "No"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy benefit is ok"
+  },
+  {
+    "bkb": "pirate_fused_mixed_collapsed",
+    "evidence": {
+      "(B) Attitude towards piracy": "Positive",
+      "(B) Boarding skills are obtainable": "No",
+      "(B) Fish supply is sufficient": "No",
+      "(B) Fishing benefit is ok": "Yes",
+      "(B) Fishing cost is ok": "Yes",
+      "(B) Fishing livelihood is threatened": "No",
+      "(B) Has (access to) a (fishing) boat": "Yes",
+      "(B) Has a skiff": "No",
+      "(B) Has fishing equipment": "No",
+      "(B) Has fishing net": "No",
+      "(B) Has fishing skills": "No",
+      "(B) Has piracy equipment": "Yes",
+      "(B) Has piracy skills": "Yes",
+      "(B) Illegal fishing has occurred": "Yes",
+      "(B) Piracy benefit is ok": "No",
+      "(B) Revenge is moral": "No",
+      "(B) Survival is moral": "No",
+      "(B) Tsunami is destructive": "No",
+      "(B) Tsunami just occurred": "No",
+      "(B) Weapons are obtainable": "No",
+      "(G) Livelihood is fishing": "No",
+      "(G) Livelihood is piracy": "No",
+      "(X) Boarding skills": "Yes",
+      "(X) Seafaring skills": "Yes"
+    },
+    "result": {
+      "No": null,
+      "Yes": null
+    },
+    "target": "(B) Piracy cost is ok"
+  }
+]

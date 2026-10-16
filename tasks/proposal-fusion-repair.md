@@ -19,7 +19,8 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 The completeness criterion asks that at least half the detected gaps close after fusion
 ([RESEARCH section 4](../docs/RESEARCH.md#4-success-criteria)). Fusion is in Shirley's workstream while `fuse`
-lives in `bko.bkb`; this unit settles the interface between the two.
+lives in `bko.bkb`; this unit settles the interface between the two. `fuse` takes fragments and one
+reliability each, and refuses a fused BKB as a fragment (ADR `research/bkb-layer-source`).
 
 ## Scope
 

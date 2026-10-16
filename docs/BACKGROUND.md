@@ -34,13 +34,17 @@ A Bayesian Knowledge Base (BKB) is the probabilistic half of a BKO. The sources 
   is `fuse(bkfs, reliabilities, ...)`: it takes a set of fragments and a reliability for each.
 - **The plan builds three fragments.** MONDO and HPO each become a fragment, and the dataset becomes
   a second kind of fragment, weighted by observed frequency (2-pager section 3).
-- **Reasoning runs over the fused result.** In pybkb that is `BKBReasoner.update` in
-  `pybkb/reason/bkb.py`.
+- **Reasoning runs over the fused result.** pybkb's one working inference
+  ([ARCHITECTURE](ARCHITECTURE.md#pybkb)) gives each state of one target component its log joint
+  mass with complete evidence, and `bko.bkb` ports it.
 
-The sources do not describe a BKB's internal structure: what its nodes are and how probabilities
-attach to them. Santos et al. is the reference. Reading pybkb's source is part of the port path
-only; [`proposal-bkb-port`](../tasks/proposal-bkb-port.md) decides between a port and a clean-room
-build first, and a clean-room build must not start from pybkb's code.
+The two sources do not describe a BKB's internal structure; Santos et al. is the reference. Read
+from pybkb's code, which `bko.bkb` ports (ADR
+[`research/bkb-layer-source`](adr/research/bkb-layer-source.md)): an **I-node** is a pair of a
+component and one of its states; an **S-node** gives a probability to one I-node, its head, given a
+set of I-nodes, its tail. Fusion adds to each S-node's tail a source I-node naming the fragment that
+holds it and gives each source a prior S-node weighted by its reliability; `bko.bkb.fusion` states
+how the priors are normalized.
 
 ### Incompleteness as a property of the representation
 

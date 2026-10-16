@@ -2,6 +2,8 @@
 
 Represent, fuse and reason over Bayesian Knowledge Bases: the inference layer a Bayesian Knowledge-driven Ontology instantiates. The ontologies and the dataset each become a fragment, the dataset weighted by observed frequency.
 
-- **Dependencies:** The `data` extra (`pyproject.toml`).
+The layer is adapted from pybkb, by Chase Yakaboski (GPL-3.0): the BKB structure (`bko.bkb.structure`), source-weighted fusion (`bko.bkb.fusion`), the log joint mass of a target's states under complete evidence (`bko.bkb.reason`) and a JSON document for BKBs (`bko.bkb.serialize`). ADR [`research/bkb-layer-source`](../../../docs/adr/research/bkb-layer-source.md) names the pybkb commit, what was taken and how the port differs; [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#bkb-fixtures) says how its fixtures were exported from pybkb.
+
+- **Dependencies:** No optional extra.
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring. Planned in [`proposal-bkb-port`](../../../tasks/proposal-bkb-port.md) and [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md).
+- **Status:** built. The ontology fragments join in [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md) and the dataset fragment in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).
