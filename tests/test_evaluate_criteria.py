@@ -132,7 +132,7 @@ def verdicts(contrasts):
         ([-0.1] * 4, Verdict.NOT_MET),
         ([0.0, 0.05, 0.0, 0.05], Verdict.INCONCLUSIVE),
     ],
-    ids=["separated", "worse", "straddles the margin"],
+    ids=["separated", "worse", "straddles zero"],
 )
 def test_separation_needs_every_interval_above_the_margin(gain, expected):
     contrasts = judge(scored(gain), EXPERIMENT)
@@ -215,9 +215,9 @@ def test_the_table_has_one_row_per_contrast():
 
 def test_a_gain_inside_the_margin_is_not_separation():
     gain = [0.01] * 4
-    assert verdicts(judge(scored(gain), EXPERIMENT))["primary"] is Verdict.NOT_MET
-    unmargined = dataclasses.replace(EXPERIMENT, margin=0.0)
-    assert verdicts(judge(scored(gain), unmargined))["primary"] is Verdict.MET
+    margined = dataclasses.replace(EXPERIMENT, margin=0.02)
+    assert verdicts(judge(scored(gain), margined))["primary"] is Verdict.NOT_MET
+    assert verdicts(judge(scored(gain), EXPERIMENT))["primary"] is Verdict.MET
 
 
 def test_the_largest_held_out_ratio_widens_every_interval():

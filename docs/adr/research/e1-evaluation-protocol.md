@@ -58,11 +58,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
   of any cell.
 - **Criteria.** Primary: in both recall and AUC-PR over the whole test split, the candidate minus
-  each comparator minus the margin has an interval above zero. Secondary: the same over the flagged
-  subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy share of
-  the test rows' has an interval above zero. A criterion is met when every interval it reads lies
-  above zero, not met when one lies below zero at the family-wise level, each of its k intervals
-  read at confidence 1 - (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
+  each comparator has an interval above zero (`E1`'s margin is zero). Secondary: the same over the
+  flagged subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy
+  share of the test rows' has an interval above zero. A criterion is met when every interval it
+  reads lies above zero, not met when one lies below zero at the family-wise level, each of its k
+  intervals read at confidence 1 - (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
 - **Retries, then all or nothing.** An arm that refuses a request tries it again with a seed
   derived from the holdout seed and the attempt, up to `E1`'s attempts, and each retry is logged.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
@@ -85,10 +85,12 @@ union: one interval below zero refutes the claim, so read at each interval's own
 falsely, at the boundary, up to 30% of the time across 12 intervals under any dependence (26% for
 independent ones). Reading each at 1 - (1 - c)/k holds the family's false not-met rate to one
 interval's one-sided rate under any dependence. Intervals that decide neither way are neither a pass
-nor evidence of no effect, hence a third verdict. A margin in the measure's own units means the same
-on any dataset and baseline level. Recall is read at a fixed threshold, which any arm that adds
-positive rows can move without ranking records better; AUC-PR, which no threshold moves, must clear
-the same margin, so a shifted threshold alone cannot pass.
+nor evidence of no effect, hence a third verdict. The margin is zero: met claims the candidate is
+reliably better than every comparator however small the gain, and each contrast's mean and interval
+keep its size in view. No basis fixes a larger margin in advance, and at zero not met means reliably
+worse than some comparator rather than short of an arbitrary gain. Recall is read at a fixed
+threshold, which any arm that adds positive rows can move without ranking records better; AUC-PR,
+which no threshold moves, must clear zero too, so a shifted threshold alone cannot pass.
 
 Every arm fills the same per-cell request so that equal row counts hold by construction; letting
 the BKO arm fill its own detected gaps would make the baselines' request depend on its output and
@@ -146,7 +148,8 @@ than the holdout seed; the BKO pipeline runs once per holdout, so its paid gener
 holdout count; E1 does not exercise BKO gap detection; a not-met verdict needs an interval below
 zero at the family-wise level, so more criteria read inconclusive; that reading was fixed with
 baseline dry runs in view and no BKO result, and it only ever moves not met to inconclusive, which
-favours the candidate.
+favours the candidate; a met verdict certifies a reliable gain, not a minimum size, and the zero
+margin, also fixed with baseline dry runs in view and no BKO result, makes met easier to reach.
 
 ## Ruled Out
 
@@ -175,6 +178,7 @@ favours the candidate.
 | Reading not met at each interval's own level | A union of up to 12 tests: up to 30% false not-met at the boundary under any dependence | 2026-10-16 |
 | Holm's step-down for not met | Its first step is Bonferroni's test, and not met needs one refuting interval, so it returns the same verdicts | 2026-10-16 |
 | A not-met family per measure | Leaves the criterion's false not-met rate at up to twice one interval's | 2026-10-16 |
+| An absolute margin of 0.02 | No stated basis, and not met then fires for a candidate better by less than it | 2026-10-16 |
 
 ## Enforcement
 

@@ -43,7 +43,7 @@ class Experiment:
     comparators: tuple[str, ...]
     replica_arms: tuple[str, ...]
     fill_to: int = UNDERREPRESENTED_BELOW
-    margin: float = 0.02
+    margin: float = 0.0
     privacy_margin: float = 0.9
     confidence: float = 0.95
     attempts: int = 5
