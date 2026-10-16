@@ -1,0 +1,121 @@
+"""Scores, one per row: what `python -m bko.evaluate score` writes and `compare` reads.
+
+A row names the holdout seed, the arm, the rows the score describes (`Source`), the measure and the
+test records it covers (`Scope`). A measure a scope cannot define is NaN, written as an empty
+field.
+"""
+
+from __future__ import annotations
+
+import enum
+import io
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Final
+
+import pandas as pd
+
+from bko.evaluate.errors import ScoresFormatError
+
+
+class Source(enum.StrEnum):
+    """The rows a score describes."""
+
+    AUGMENTED = "augmented"
+    """A classifier fit on the real training rows and the arm's added rows."""
+    REPLICA = "replica"
+    """The arm's replica of the training split: a classifier fit on it alone, and its fidelity."""
+    ADDED = "added"
+    """The arm's added rows: how many, and how near they sit to the training rows."""
+    HELD_OUT = "held-out"
+    """The test rows: how near they sit to the training rows, and the split's held-out ratio."""
+
+
+class Measure(enum.StrEnum):
+    """What a score measures."""
+
+    RECALL = "recall"
+    PRECISION = "precision"
+    AUC_PR = "auc-pr"
+    QUALITY = "quality"
+    COLUMN_SHAPES = "column-shapes"
+    COLUMN_PAIR_TRENDS = "column-pair-trends"
+    ROWS = "rows"
+    DCR_P5 = "dcr-p5"
+    DCR_MEDIAN = "dcr-median"
+    HELD_OUT_RATIO = "held-out-ratio"
+
+
+class Scope(enum.StrEnum):
+    """The test records a classifier's score covers."""
+
+    ALL = "all"
+    FLAGGED = "flagged-subgroups"
+    """The test records of every age-sex subgroup that holds an underrepresented cell."""
+
+
+@dataclass(frozen=True, slots=True)
+class Score:
+    """One measured value.
+
+    Attributes:
+        holdout: The split seed.
+        arm: The arm's name; the held-out rows' scores sit under `HELD_OUT_ARM`.
+        source: The rows the value describes.
+        measure: What it measures.
+        scope: The test records it covers; `Scope.ALL` for a score of rows rather than records.
+        value: The value; NaN where the scope cannot define the measure.
+    """
+
+    holdout: int
+    arm: str
+    source: Source
+    measure: Measure
+    scope: Scope
+    value: float
+
+
+SCORE_COLUMNS: Final = ("holdout", "arm", "source", "measure", "scope", "value")
+"""The scores CSV's columns, in order."""
+
+HELD_OUT_ARM: Final = "none"
+"""The arm the held-out rows' scores sit under: no augmentation, whose rows are the real ones."""
+
+
+def render(scores: Iterable[Score]) -> str:
+    """Write `scores` as the scores CSV, in the order given."""
+    rows = [
+        (s.holdout, s.arm, s.source.value, s.measure.value, s.scope.value, s.value) for s in scores
+    ]
+    return pd.DataFrame(rows, columns=list(SCORE_COLUMNS)).to_csv(index=False, lineterminator="\n")
+
+
+def parse(text: str) -> list[Score]:
+    """Read a scores CSV back.
+
+    Raises:
+        ScoresFormatError: If the text is not CSV, its columns differ, a row is malformed or names
+            an unknown source, measure or scope, or two rows share a holdout, arm, source, measure
+            and scope.
+    """
+    try:
+        frame = pd.read_csv(io.StringIO(text), dtype={"arm": str}, float_precision="round_trip")
+    except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
+        msg = f"the scores are not CSV: {exc}"
+        raise ScoresFormatError(msg) from exc
+    if tuple(frame.columns) != SCORE_COLUMNS:
+        msg = f"the scores' columns are {list(frame.columns)}, not {list(SCORE_COLUMNS)}"
+        raise ScoresFormatError(msg)
+    try:
+        scores = [
+            Score(int(holdout), arm, Source(source), Measure(measure), Scope(scope), float(value))
+            for holdout, arm, source, measure, scope, value in frame.itertuples(index=False)
+        ]
+    except (TypeError, ValueError) as exc:
+        msg = f"a score row is malformed: {exc}"
+        raise ScoresFormatError(msg) from exc
+    keys = [(s.holdout, s.arm, s.source, s.measure, s.scope) for s in scores]
+    if len(set(keys)) != len(keys):
+        msg = "two score rows share a holdout, arm, source, measure and scope"
+        raise ScoresFormatError(msg)
+    return scores
