@@ -58,10 +58,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
   of any cell.
 - **Criteria.** Primary: in both recall and AUC-PR over the whole test split, the candidate minus
-  each comparator minus the margin has an interval above zero. Secondary: the same over the
-  flagged subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy
-  share of the test rows' has an interval above zero. A criterion is met when every interval it
-  reads lies above zero, not met when one lies below zero, and inconclusive otherwise.
+  each comparator minus the margin has an interval above zero. Secondary: the same over the flagged
+  subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy share of
+  the test rows' has an interval above zero. A criterion is met when every interval it reads lies
+  above zero, not met when one lies below zero at the family-wise level, each of its k intervals
+  read at confidence 1 - (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
 - **Retries, then all or nothing.** An arm that refuses a request tries it again with a seed
   derived from the holdout seed and the attempt, up to `E1`'s attempts, and each retry is logged.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
@@ -78,13 +79,16 @@ about 100 runs ([`bouckaert-2004`](../../literature.md#evaluation-and-failure-mo
 baselines are cheap to rerun.
 
 Requiring the candidate to clear every comparator is an intersection of tests, each at the
-interval's level, so it needs no multiplicity correction and never picks the best comparator after
-seeing results. E1 makes the stricter claim and judges ADASYN and the controls too. An interval
-that straddles its threshold is neither a pass nor evidence of no effect, hence a third verdict. A
-margin in the measure's own units means the same on any dataset and baseline level. Recall is
-read at a fixed threshold, which any arm that adds positive rows can move without ranking records
-better; AUC-PR, which no threshold moves, must clear the same margin, so a shifted threshold alone
-cannot pass.
+interval's level, so met needs no multiplicity correction and never picks the best comparator after
+seeing results. E1 makes the stricter claim and judges ADASYN and the controls too. Not met is the
+union: one interval below zero refutes the claim, so read at each interval's own level it fires
+falsely, at the boundary, up to 30% of the time across 12 intervals under any dependence (26% for
+independent ones). Reading each at 1 - (1 - c)/k holds the family's false not-met rate to one
+interval's one-sided rate under any dependence. Intervals that decide neither way are neither a pass
+nor evidence of no effect, hence a third verdict. A margin in the measure's own units means the same
+on any dataset and baseline level. Recall is read at a fixed threshold, which any arm that adds
+positive rows can move without ranking records better; AUC-PR, which no threshold moves, must clear
+the same margin, so a shifted threshold alone cannot pass.
 
 Every arm fills the same per-cell request so that equal row counts hold by construction; letting
 the BKO arm fill its own detected gaps would make the baselines' request depend on its output and
@@ -132,14 +136,17 @@ when every attempt is refused.
 
 **Gained**: every criterion computed by code from one scores file; verdicts that do not depend on
 which arm looked best; a harness that takes any frame in the evaluation schema.
-**Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9);
-`<55 female 1` holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect
-shows only through other test records; subgroup verdicts are likely inconclusive at this size;
-distance to closest record is weak evidence of privacy, blind to attacks that need no near-copy;
-`calculate_dcr` is not a public SDMetrics export; baseline results on the real test split were in
-view when the readings were fixed, no BKO result was; on a retried holdout, that arm's rows
-come from a derived seed rather than the holdout seed; the BKO pipeline runs once per holdout, so
-its paid generation grows with the holdout count; E1 does not exercise BKO gap detection.
+**Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9); `<55 female 1`
+holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect shows only through
+other test records; subgroup verdicts are likely inconclusive at this size; distance to closest
+record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
+a public SDMetrics export; baseline results on the real test split were in view when the readings
+were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
+than the holdout seed; the BKO pipeline runs once per holdout, so its paid generation grows with the
+holdout count; E1 does not exercise BKO gap detection; a not-met verdict needs an interval below
+zero at the family-wise level, so more criteria read inconclusive; that reading was fixed with
+baseline dry runs in view and no BKO result, and it only ever moves not met to inconclusive, which
+favours the candidate.
 
 ## Ruled Out
 
@@ -165,6 +172,9 @@ its paid generation grows with the holdout count; E1 does not exercise BKO gap d
 | A privacy share of 1 | Fails no near-copy that 0.9 passes, and leaves no room for the noise of a 5th percentile over 20 rows | 2026-10-16 |
 | Real gap-cell records as the privacy reference | `<55 female 1` holds 2 records, never held out, too few to serve as a reference | 2026-10-16 |
 | A privacy share calibrated on records of the flagged subgroups | Mostly records without disease, nearer the training rows than the gap cells the request fills | 2026-10-16 |
+| Reading not met at each interval's own level | A union of up to 12 tests: up to 30% false not-met at the boundary under any dependence | 2026-10-16 |
+| Holm's step-down for not met | Its first step is Bonferroni's test, and not met needs one refuting interval, so it returns the same verdicts | 2026-10-16 |
+| A not-met family per measure | Leaves the criterion's false not-met rate at up to twice one interval's | 2026-10-16 |
 
 ## Enforcement
 

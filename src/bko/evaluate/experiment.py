@@ -31,7 +31,8 @@ class Experiment:
         margin: What the candidate must beat each comparator by, in the measure's own units.
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
             reach.
-        confidence: The two-sided level of every interval.
+        confidence: The two-sided level of every interval; not met reads each of a criterion's k
+            intervals at 1 - (1 - confidence)/k.
         attempts: Each arm's tries at one request; a retry follows a refusal and takes a seed
             derived from the request's seed and the attempt.
     """

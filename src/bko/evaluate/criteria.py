@@ -3,7 +3,8 @@
 Every contrast pairs the candidate's score with a reference score of the same holdout. Its interval
 is Nadeau and Bengio's corrected resampled t: the variance of the mean is (1/J + n2/n1) S^2, since
 the J holdouts overlap. A criterion is met when every interval it reads lies above zero, not met
-when one lies below zero, and inconclusive otherwise (ADR `research/e1-evaluation-protocol`).
+when one lies below zero at the family-wise level (each of its k intervals read at confidence
+1 - (1 - c)/k), and inconclusive otherwise (ADR `research/e1-evaluation-protocol`).
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ CONTRAST_COLUMNS: Final = (
     "mean",
     "low",
     "high",
+    "refuting_high",
     "holdouts",
     "differing",
 )
@@ -68,14 +70,16 @@ class Interval:
 
     Attributes:
         mean: The mean contrast.
-        low: The interval's lower bound.
+        low: The interval's lower bound, which the met reading checks.
         high: The interval's upper bound.
+        refuting_high: The upper bound at the family-wise level, which the not-met reading checks.
         holdouts: The holdouts the contrast pairs.
     """
 
     mean: float
     low: float
     high: float
+    refuting_high: float
     holdouts: int
 
 
@@ -105,13 +109,22 @@ class Contrast:
     differing: int
 
 
-def corrected_interval(contrast: Sequence[float], *, ratio: float, confidence: float) -> Interval:
+def refuting_confidence(confidence: float, family: int) -> float:
+    """Bonferroni's level for each of `family` intervals read together: 1 - (1 - c)/k."""
+    return 1 - (1 - confidence) / family
+
+
+def corrected_interval(
+    contrast: Sequence[float], *, ratio: float, confidence: float, family: int
+) -> Interval:
     """Nadeau and Bengio's corrected resampled t interval for the mean of `contrast`.
 
     Args:
         contrast: One paired contrast per holdout.
         ratio: n2/n1, held-out over training records.
-        confidence: The two-sided level.
+        confidence: The two-sided level of `low` and `high`.
+        family: The intervals the criterion reads; `refuting_high` is read at
+            `refuting_confidence(confidence, family)`.
 
     Raises:
         EvaluationError: If fewer than 2 contrasts are given or one is not finite.
@@ -123,13 +136,18 @@ def corrected_interval(contrast: Sequence[float], *, ratio: float, confidence: f
         raise EvaluationError(msg)
     holdouts = len(values)
     mean = float(values.mean())
-    quantile = float(student.ppf((1 + confidence) / 2, holdouts - 1))
-    half = quantile * math.sqrt((1 / holdouts + ratio) * float(values.var(ddof=1)))
-    return Interval(mean, mean - half, mean + half, holdouts)
+    scale = math.sqrt((1 / holdouts + ratio) * float(values.var(ddof=1)))
+    half = _quantile(confidence, holdouts) * scale
+    refuting = _quantile(refuting_confidence(confidence, family), holdouts) * scale
+    return Interval(mean, mean - half, mean + half, mean + refuting, holdouts)
+
+
+def _quantile(confidence: float, holdouts: int) -> float:
+    return float(student.ppf((1 + confidence) / 2, holdouts - 1))
 
 
 def verdict(intervals: Sequence[Interval]) -> Verdict:
-    """Met if every interval lies above zero, not met if one lies below, else inconclusive.
+    """Met if every interval lies above zero, not met if one's refuting bound lies below zero.
 
     Raises:
         EvaluationError: If there is no interval to read.
@@ -139,7 +157,7 @@ def verdict(intervals: Sequence[Interval]) -> Verdict:
         raise EvaluationError(msg)
     if all(interval.low > 0 for interval in intervals):
         return Verdict.MET
-    if any(interval.high < 0 for interval in intervals):
+    if any(interval.refuting_high < 0 for interval in intervals):
         return Verdict.NOT_MET
     return Verdict.INCONCLUSIVE
 
@@ -222,6 +240,7 @@ def table(contrasts: Sequence[Contrast]) -> str:
             c.interval.mean,
             c.interval.low,
             c.interval.high,
+            c.interval.refuting_high,
             c.interval.holdouts,
             c.differing,
         )
@@ -250,6 +269,7 @@ def _criterion(
             [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)],
             ratio=ratio,
             confidence=confidence,
+            family=len(pairs),
         )
         for ours, theirs in paired
     ]
