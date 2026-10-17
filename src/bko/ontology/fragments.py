@@ -16,7 +16,7 @@ from typing import Final
 
 from bko.bkb.structure import BKB
 from bko.ontology.errors import ScopeError
-from bko.ontology.terms import Ontology
+from bko.ontology.terms import Ontology, ancestors
 
 
 INDIVIDUAL: Final = "a"
@@ -96,6 +96,19 @@ def exact_match_fragment(
                 fragment.add_snode(match, INDIVIDUAL, 1.0, [(curie, INDIVIDUAL)])
                 fragment.add_snode(curie, INDIVIDUAL, 1.0, [(match, INDIVIDUAL)])
     return fragment
+
+
+def scope(ontology: Ontology, concepts: Collection[str], *, prefix: str) -> frozenset[str]:
+    """The classes a fragment of `ontology` holds for `concepts`, by the rule of the mapping table.
+
+    Only the release's own classes are kept, and only through them: an ancestor outside the prefix,
+    such as MONDO's BFO roots, ends its branch, so no class above it is cut off from the rest.
+
+    Returns:
+        The concepts with `prefix` and their ancestors with it; empty when no concept has it.
+    """
+    own = [curie for curie in concepts if curie.startswith(f"{prefix}:")]
+    return frozenset(own).union(*(ancestors(ontology, curie, prefix=prefix) for curie in own))
 
 
 def _scoped(ontology: Ontology, scope: Collection[str], prefix: str) -> list[str]:

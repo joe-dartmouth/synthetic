@@ -69,8 +69,8 @@ so the frequency the fragment carries is read by no current stage.
 
 ## Enforcement
 
-- Owner: `src/bko/gaps/`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/gaps/observe.py`
+- Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`
 
 ## Reversal Conditions
 

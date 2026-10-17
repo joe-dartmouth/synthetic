@@ -59,3 +59,26 @@ class Ontology:
     name: str
     version: str
     terms: Mapping[str, Term]
+
+
+def ancestors(ontology: Ontology, curie: str, *, prefix: str | None = None) -> frozenset[str]:
+    """The classes `curie` reaches by following `is_a` upward in `ontology`.
+
+    Args:
+        ontology: The release.
+        curie: The class to start from.
+        prefix: When given, only parents with this id prefix are followed, so a branch that leaves
+            the release's own classes ends there.
+
+    Returns:
+        Every class reached; a parent the release lacks is included and ends its branch.
+    """
+    seen: set[str] = set()
+    pending = [curie]
+    while pending:
+        term = ontology.terms.get(pending.pop())
+        for parent in term.parents if term is not None else ():
+            if parent not in seen and (prefix is None or parent.startswith(f"{prefix}:")):
+                seen.add(parent)
+                pending.append(parent)
+    return frozenset(seen)

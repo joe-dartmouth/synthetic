@@ -74,7 +74,7 @@ grounding is judged against the dataset fragment, not the fused BKB.
 ## Enforcement
 
 - Owner: `src/bko/gaps/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_gaps_detect.py`, `tests/test_gaps_cli.py`
 
 ## Reversal Conditions
 
