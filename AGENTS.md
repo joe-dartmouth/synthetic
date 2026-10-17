@@ -38,8 +38,9 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
-- `uv run --no-sync python -m bko.gaps uci`: list the BKO-detected and count-based gaps of the
-  UCI training split ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
+- `uv run --no-sync python -m bko.gaps uci` or `... synthea`: list the BKO-detected and
+  count-based gaps of the UCI training split, or of the Synthea population before and after each
+  of E2's ablations ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - A targeted run while working:
 
   ```

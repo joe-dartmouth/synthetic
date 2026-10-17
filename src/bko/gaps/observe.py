@@ -15,9 +15,11 @@ from types import MappingProxyType
 import pandas as pd
 
 from bko.bkb.structure import BKB
+from bko.datasets.cells import LABEL
+from bko.datasets.synthea import Population, subjects
 from bko.gaps.errors import GapError
 from bko.ontology.fragments import INDIVIDUAL
-from bko.ontology.schema import FieldMapping
+from bko.ontology.schema import CodeMapping, FieldMapping
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +75,27 @@ def observe_records(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: 
         for concept, mapped in sorted(by_concept.items())
     }
     return _observed(name, len(records), holders)
+
+
+def observe_population(
+    population: Population, rows: Iterable[CodeMapping], *, name: str
+) -> Observed:
+    """Count the patients of `population` who show each concept `rows` map.
+
+    A patient shows a concept when they had one of its codes by the snapshot date: the case rule of
+    `bko.datasets.synthea.subjects`, so both detectors read the same cases.
+
+    Raises:
+        GapError: If `population` holds no patient.
+    """
+    by_concept: dict[str, set[str]] = {}
+    for row in rows:
+        by_concept.setdefault(row.concept, set()).add(row.snomed)
+    holders = {
+        concept: int(subjects(population, codes=frozenset(codes))[LABEL].sum())
+        for concept, codes in sorted(by_concept.items())
+    }
+    return _observed(name, len(population.patients), holders)
 
 
 def dataset_fragment(observed: Observed) -> BKB:

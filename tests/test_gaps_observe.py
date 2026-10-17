@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+from datetime import date
 from types import MappingProxyType
 
 import pandas as pd
 import pytest
 
 from bko.bkb.structure import SNode
+from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
 from bko.gaps.errors import GapError
-from bko.gaps.observe import Observed, dataset_fragment, observe_records
+from bko.gaps.observe import Observed, dataset_fragment, observe_population, observe_records
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.schema import AtLeast, FieldMapping
-from tests._gaps_fixtures import ANGINA, STENOSIS
+from tests._datasets_fixtures import SMALL_POPULATION, condition, patient, synthea_tables
+from tests._gaps_fixtures import ANGINA, ISCHEMIA, STENOSIS
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -72,3 +75,20 @@ def test_a_row_on_a_field_the_records_lack_is_refused():
     )
     with pytest.raises(GapError, match="the rows read fields uci lacks: thal"):
         observe_records(frame((1, 0, 100)), [thal], name="uci")
+
+
+def test_a_patient_shows_a_concept_by_the_snapshot_date_while_alive(tmp_path):
+    synthea_tables(tmp_path, *SMALL_POPULATION)
+    people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
+    observed = observe_population(people, [ISCHEMIA], name="synthea")
+    assert (observed.records, observed.holders) == (4, {"MONDO:9000003": 3})
+
+
+def test_a_condition_after_the_snapshot_does_not_count(tmp_path):
+    synthea_tables(
+        tmp_path,
+        [patient("p1", "1960-03-01", "M")],
+        [condition("p1", ISCHEMIC_HEART_DISEASE, "2027-01-01")],
+    )
+    people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
+    assert observe_population(people, [ISCHEMIA], name="synthea").holders == {"MONDO:9000003": 0}

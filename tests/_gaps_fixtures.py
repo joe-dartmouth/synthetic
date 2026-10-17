@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from typing import Final
 
+from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import LABEL
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.ontology.schema import CodeMapping, Codes, FieldMapping
+from tests._datasets_fixtures import condition, patient
 
 
 LADDER_MONDO: Final = """\
@@ -91,3 +93,28 @@ ISCHEMIA: Final = CodeMapping(
     label="myocardial ischemia",
     source="mondo",
 )
+
+CELL: Final = AblationSpec(
+    codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band=">=60", sex=1, edges=(60,)
+)
+CONDITION: Final = AblationSpec(
+    codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band=None, sex=None, edges=(60,)
+)
+"""E2's two ablations over one age edge, so the grid has eight cells."""
+
+E2_POPULATION: Final = (
+    [
+        *(patient(f"m{index:02d}", "1961-07-15", "M") for index in range(20)),
+        patient("w01", "1962-01-01", "F"),
+        patient("y01", "1990-05-05", "M"),
+        *(patient(f"f{index:02d}", "1990-05-05", "F") for index in range(20)),
+    ],
+    [
+        *(condition(f"m{index:02d}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(20)),
+        condition("w01", ISCHEMIC_HEART_DISEASE, "2020-01-01"),
+        condition("y01", "22298006", "2021-01-01"),
+    ],
+)
+"""Snapshot 2026-01-01: twenty men aged 64 and a woman aged 64 with ischemic heart disease, a man
+aged 35 with a myocardial infarction only, and twenty women aged 35 with no condition, whose cell
+holds the threshold throughout, so it is never a gap."""

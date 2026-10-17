@@ -234,24 +234,34 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
 
 `bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps two ways: the ontology
 statements its records leave ungrounded (ADR `research/bko-formal-gap-definition`), and the
-age-sex subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW`. Inside `.venv`:
+age-sex subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW`. Two commands,
+inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
 
 - **What `uci` does**: it fetches UCI Heart Disease and the releases the field mappings name into
   the data root if absent, splits the records as [Data](#data) says, and lists both kinds of gap
   in the training split. stdout gets a CSV with the column `detector` (`bko` or `count`); a `bko`
   row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent` and
   `consequent_label`, and a `count` row the cell's `age_band`, `sex`, `target` and `count`.
-- **What it logs**: stderr gets each input's identity (the split, the parser and each release),
-  each ontology fragment's size, how many records show each mapped concept, the fused BKB's size,
-  each list's length, and last the row count and sha256 of stdout.
+- **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if
+  absent ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
+  `E2_ABLATIONS` lists both kinds of gap before and after the removal. stdout gets a CSV with the
+  column `ablation`, then `uci`'s columns without `count`, then `before`, `after` and `truth`:
+  whether the row is a gap before the removal, after it, and among the gaps the removed patients
+  account for. [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the
+  reading.
+- **What it logs**: stderr gets each input's identity (the split or the population, the parser and
+  each release), each ontology fragment's size, how many records show each mapped concept, the
+  fused BKB's size, each list's length, for `synthea` each ablation and each detector's recovery,
+  and last the row count and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
   contradicts its pin or schema.
-- **Reproducibility**: the same bytes on every run over the same archive and releases.
-- **The gate does not run it.** `make check` runs it over an archive and releases built in
-  `tmp_path` (`tests/test_gaps_cli.py`).
+- **Reproducibility**: the same bytes on every run over the same archive, population and releases.
+- **The gate does not run it.** `make check` runs it over an archive, a population and releases
+  built in `tmp_path` (`tests/test_gaps_cli.py`).
 
 ## Platforms
 

@@ -10,16 +10,27 @@ import os
 import subprocess
 import sys
 import urllib.error
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from bko.datasets.sources import Source
+from bko.datasets.synthea_run import SyntheaRun
 from bko.gaps.__main__ import Context, configure_logging, main
 from bko.ontology.schema import FieldMapping
 from tests._corpus import REPO_ROOT
-from tests._datasets_fixtures import archive, cleveland_line, pin
-from tests._gaps_fixtures import ANGINA, ISCHEMIA, LADDER_HPO, LADDER_MONDO, STENOSIS
+from tests._datasets_fixtures import FakeSynthea, archive, cleveland_line, pin
+from tests._gaps_fixtures import (
+    ANGINA,
+    CELL,
+    CONDITION,
+    E2_POPULATION,
+    ISCHEMIA,
+    LADDER_HPO,
+    LADDER_MONDO,
+    STENOSIS,
+)
 from tests._ontology_fixtures import RoutingOpener
 
 
@@ -52,6 +63,8 @@ UCI_EXPECTED = (
     "count,,,,,,>=55,male,1,4\n"
 )
 
+JAR = b"jar" * 100
+
 
 def releases() -> tuple[dict[str, Source], dict[str, bytes]]:
     bodies = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
@@ -62,12 +75,18 @@ def releases() -> tuple[dict[str, Source], dict[str, bytes]]:
 def make_context(**change) -> Context:
     pins, served = releases()
     uci = pin(UCI)
+    jar = pin(JAR, "synthea-jar")
     context = Context(
-        open_url=RoutingOpener({**served, uci.url: UCI}),
+        open_url=RoutingOpener({**served, uci.url: UCI, jar.url: JAR}),
         uci=uci,
         releases=pins,
         field_rows=(ANGINA, STENOSIS),
         code_rows=(ISCHEMIA,),
+        synthea_jar=jar,
+        resolve_java=lambda: (Path("/opt/jdk/bin/java"), 'openjdk version "21.0.4"'),
+        runner=FakeSynthea(tables=E2_POPULATION),
+        run=SyntheaRun(seed=1, clinician_seed=1, population=42, snapshot_date=date(2026, 1, 1)),
+        ablations={"cell": CELL, "condition": CONDITION},
     )
     return dataclasses.replace(context, **change)
 
@@ -172,4 +191,60 @@ def test_the_module_runs_as_a_program():
         timeout=60,
     )
     assert result.returncode == 0, result.stderr
-    assert "{uci}" in result.stdout
+    assert "{uci,synthea}" in result.stdout
+
+
+ISCHEMIA_ROWS = (
+    "mondo,MONDO:9000002,heart disorder,MONDO:9000001,disease,,,",
+    "mondo,MONDO:9000003,myocardial ischemia,MONDO:9000002,heart disorder,,,",
+)
+GRID = (
+    ("<60", "female", 1),
+    ("<60", "male", 0),
+    ("<60", "male", 1),
+    (">=60", "female", 0),
+    (">=60", "female", 1),
+    (">=60", "male", 0),
+    (">=60", "male", 1),
+)
+"""The cells a row lists, in grid order: `<60,female,0` holds twenty records before and after both
+ablations and is in no truth, so it is never listed."""
+FLAGGED_THROUGHOUT = "True,True,False"
+
+
+def count_rows(name: str, flags: dict[tuple[str, str, int], str]) -> str:
+    lines = []
+    for band, sex, target in GRID:
+        flag = flags.get((band, sex, target), FLAGGED_THROUGHOUT)
+        lines.append(f"{name},count,,,,,,{band},{sex},{target},{flag}\n")
+    return "".join(lines)
+
+
+SYNTHEA_EXPECTED = (
+    "ablation,detector,source,antecedent,antecedent_label,consequent,consequent_label,"
+    "age_band,sex,target,before,after,truth\n"
+    + "".join(f"cell,bko,{row},False,False,True\n" for row in ISCHEMIA_ROWS)
+    + count_rows("cell", {(">=60", "male", 1): "False,True,True"})
+    + "".join(f"condition,bko,{row},False,True,True\n" for row in ISCHEMIA_ROWS)
+    + count_rows(
+        "condition",
+        {(">=60", "female", 1): "True,True,True", (">=60", "male", 1): "False,True,True"},
+    )
+)
+
+
+def test_synthea_reads_each_ablation_with_both_detectors(tmp_path, caplog):
+    context = make_context()
+    with caplog.at_level(logging.INFO, logger="bko"):
+        assert run("synthea", tmp_path, context) == (0, SYNTHEA_EXPECTED)
+    assert fetched(context) == {context.synthea_jar.url, context.releases["MONDO"].url}
+    for line in (
+        "observed dataset=synthea records=42 held=1 of=1 MONDO:9000003=21",
+        "ablation name=cell codes=414545008 age_band=>=60 sex=1 edges=60 removed=20",
+        "recovery ablation=cell detector=bko truth=2 eligible=2 recovered=0 spurious=0",
+        "recovery ablation=cell detector=count truth=1 eligible=1 recovered=1 spurious=0",
+        "ablation name=condition codes=414545008 age_band=None sex=None edges=60 removed=21",
+        "recovery ablation=condition detector=bko truth=2 eligible=2 recovered=2 spurious=0",
+        "recovery ablation=condition detector=count truth=2 eligible=1 recovered=1 spurious=0",
+    ):
+        assert line in caplog.text
