@@ -79,3 +79,19 @@ Size and sha256 are GitHub's release asset metadata. The attribution the license
 service/product uses the Human Phenotype Ontology (version 2026-09-01). Find out more at
 http://www.human-phenotype-ontology.org
 """
+
+DO: Final = Source(
+    name="do",
+    url=(
+        "https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/"
+        "v2026-09-30/src/ontology/doid.obo"
+    ),
+    filename="doid.obo",
+    size=7_264_205,
+    sha256="51e717b6b9f5d391f2793f9e16faf9c8629a661ab8f21c3a024458129f182ad2",
+)
+"""Human Disease Ontology release 2026-09-30 (CC0 1.0); `bko.ontology.santos` reads it.
+
+The file is the release tag's `src/ontology/doid.obo`: DO's GitHub releases carry no assets, so
+size and sha256 were measured from the bytes at the tag.
+"""
