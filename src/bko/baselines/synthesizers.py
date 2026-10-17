@@ -25,9 +25,9 @@ from sdv.metadata import Metadata
 from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 
 from bko.baselines.errors import BaselineError
-from bko.baselines.records import FRAME_COLUMNS, Baseline, number, unit_weights, whole
+from bko.baselines.records import Baseline, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
-from bko.datasets.uci import FRACTIONAL, NUMERIC
+from bko.datasets.uci import FRACTIONAL, FRAME_COLUMNS, NUMERIC
 
 
 logger = logging.getLogger(__name__)

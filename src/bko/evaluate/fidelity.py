@@ -13,8 +13,8 @@ from typing import Final
 import pandas as pd
 from sdmetrics.reports import QualityReport
 
-from bko.baselines.records import FRAME_COLUMNS
 from bko.baselines.synthesizers import METADATA
+from bko.datasets.uci import FRAME_COLUMNS
 from bko.evaluate.scores import Measure
 
 

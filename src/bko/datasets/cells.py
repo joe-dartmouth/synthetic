@@ -23,6 +23,9 @@ from bko.datasets.errors import ContractError
 LABEL: Final = "target"
 """The binary label column: 1 where the condition is present."""
 
+LABEL_CODES: Final = frozenset({0, 1})
+"""The `LABEL` codes: 0 where the condition is absent, 1 where it is present."""
+
 SEXES: Final[Mapping[int, str]] = {0: "female", 1: "male"}
 """The `sex` codes and their labels."""
 
@@ -74,7 +77,7 @@ def cell_keys(frame: pd.DataFrame, *, edges: Sequence[int] = AGE_BAND_EDGES) -> 
     """
     ages = frame["age"].to_numpy(dtype="float64")
     _refuse_first(frame, "age", ~np.isfinite(ages), "a finite number")
-    for column, codes in (("sex", list(SEXES)), (LABEL, [0, 1])):
+    for column, codes in (("sex", list(SEXES)), (LABEL, sorted(LABEL_CODES))):
         _refuse_first(frame, column, ~frame[column].isin(codes).to_numpy(), f"in {codes}")
     labels = np.asarray(age_band_labels(edges))
     return pd.DataFrame(
@@ -114,7 +117,7 @@ def cell_counts(
         the `COUNT_COLUMNS`.
     """
     grid = pd.MultiIndex.from_product(
-        [list(age_band_labels(edges)), list(SEXES.values()), [0, 1]],
+        [list(age_band_labels(edges)), list(SEXES.values()), sorted(LABEL_CODES)],
         names=list(CELL_COLUMNS),
     )
     sizes = cell_keys(frame, edges=edges).groupby(list(CELL_COLUMNS)).size()

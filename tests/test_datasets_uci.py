@@ -12,6 +12,8 @@ from bko.datasets.uci import (
     CODEBOOK,
     COLUMNS,
     FEATURES,
+    FRAME_COLUMNS,
+    FRAME_DTYPES,
     LABEL,
     NUMERIC,
     complete_records,
@@ -180,3 +182,9 @@ def test_load_uci_refuses_a_snapshot_that_fails_its_pin(tmp_path):
 def test_load_uci_never_fetches(tmp_path):
     with pytest.raises(UnavailableError, match="no snapshot"):
         load_uci(tmp_path, source=pin(archive(cleveland_line())))
+
+
+def test_the_frame_constants_describe_the_evaluation_frame():
+    frame = complete_records(parse_cleveland(cleveland_line() + "\n"))
+    assert list(frame.columns) == list(FRAME_COLUMNS)
+    assert frame.dtypes.astype(str).to_dict() == dict(FRAME_DTYPES)
