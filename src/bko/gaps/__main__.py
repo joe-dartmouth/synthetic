@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import importlib.metadata
 import io
 import logging
 import sys
@@ -121,7 +122,8 @@ def main(
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         command = {"uci": _uci, "synthea": _synthea}[args.command]
-        rows = command(data_dir, context or Context())
+        logger.info("data_dir=%s pandas=%s", data_dir, importlib.metadata.version("pandas"))
+        rows = command(data_dir, Context() if context is None else context)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -132,17 +134,18 @@ def main(
     buffer = io.StringIO()
     csv.writer(buffer, lineterminator="\n").writerows(rows)
     text = buffer.getvalue()
-    (out or sys.stdout).write(text)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("gaps rows=%d sha256=%s", len(rows) - 1, digest)
+    (out or sys.stdout).write(text)
     return 0
 
 
 def configure_logging() -> None:
-    """Send INFO and higher log records to stderr, keeping stdout for the report."""
+    """Send INFO and higher, and every warning, to stderr, keeping stdout for the report."""
     logging.basicConfig(
         stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
+    logging.captureWarnings(True)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -188,7 +191,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
     )
     label = _labeller(ontologies)
     rows: list[Row] = [UCI_COLUMNS]
-    rows.extend(("bko", *_statement(gap, label), "", "", "", "") for gap in gaps)
+    rows.extend(("bko", *_statement_cells(gap, label), "", "", "", "") for gap in gaps)
     rows.extend(
         ("count", "", "", "", "", "", cell.age_band, cell.sex, str(cell.target), str(cell.count))
         for cell in cells
@@ -208,11 +211,13 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     population = load_population(directory, snapshot_date=context.run.snapshot_date)
     concepts = {row.concept for row in context.code_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
-    _log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
+    observed = observe_population(population, context.code_rows, name=SYNTHEA)
+    _log_observed(observed)
+    before = detect(fragments, dataset_fragment(observed))
     label = _labeller(ontologies)
     rows: list[Row] = [SYNTHEA_COLUMNS]
     for name, spec in context.ablations.items():
-        run = run_ablation(name, population, spec, fragments, context.code_rows)
+        run = run_ablation(name, population, spec, fragments, context.code_rows, bko_before=before)
         logger.info(
             "ablation name=%s codes=%s age_band=%s sex=%s edges=%s removed=%d",
             name,
@@ -232,6 +237,13 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
                 reading.recovered,
                 reading.spurious,
             )
+            if reading.spurious:
+                logger.warning(
+                    "spurious ablation=%s detector=%s: a gap the removal cannot account for, "
+                    "which is a defect",
+                    name,
+                    detector,
+                )
         rows.extend(_ablation_rows(run, label))
     return rows
 
@@ -240,14 +252,15 @@ def _ablation_rows(run: AblationRun, label: Label) -> Iterator[Row]:
     before, after, truth = set(run.bko_before), set(run.bko_after), set(run.bko_truth)
     for statement in sorted(before | after | truth):
         flags = _flags(statement, before, after, truth)
-        yield (run.name, "bko", *_statement(statement, label), "", "", "", *flags)
+        yield (run.name, "bko", *_statement_cells(statement, label), "", "", "", *flags)
     flagged_before = {gap.cell for gap in run.count_before}
     flagged_after = {gap.cell for gap in run.count_after}
     fell = set(run.count_truth)
+    listed = flagged_before | flagged_after | fell
     grid = run.ablation.before[list(CELL_COLUMNS)].itertuples(index=False, name=None)
     for band, sex, target in grid:
         cell = (str(band), str(sex), int(target))
-        if cell in flagged_before | flagged_after | fell:
+        if cell in listed:
             flags = _flags(cell, flagged_before, flagged_after, fell)
             yield (run.name, "count", "", "", "", "", "", cell[0], cell[1], str(cell[2]), *flags)
 
@@ -264,7 +277,7 @@ def _ontology(
     prefixes = sorted({concept.partition(":")[0] for concept in concepts})
     unpinned = [prefix for prefix in prefixes if prefix not in context.releases]
     if unpinned:
-        msg = f"no pinned release for the prefix {unpinned[0]}"
+        msg = f"no pinned release for the prefix {', '.join(unpinned)}"
         raise GapError(msg)
     sources = {prefix: context.releases[prefix] for prefix in prefixes}
     ontologies = load_releases(sources, data_dir, open_url=context.open_url)
@@ -297,7 +310,7 @@ def _labeller(ontologies: Mapping[str, Ontology]) -> Label:
     return label
 
 
-def _statement(statement: Statement, label: Label) -> Row:
+def _statement_cells(statement: Statement, label: Label) -> Row:
     return (
         statement.source,
         statement.antecedent,

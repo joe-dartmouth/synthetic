@@ -245,20 +245,22 @@ inside `.venv`:
   in the training split. stdout gets a CSV with the column `detector` (`bko` or `count`); a `bko`
   row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent` and
   `consequent_label`, and a `count` row the cell's `age_band`, `sex`, `target` and `count`.
-- **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if
-  absent ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
+- **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
+  ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
   `E2_ABLATIONS` lists both kinds of gap before and after the removal. stdout gets a CSV with the
   column `ablation`, then `uci`'s columns without `count`, then `before`, `after` and `truth`:
   whether the row is a gap before the removal, after it, and among the gaps the removed patients
-  account for. [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the
-  reading.
-- **What it logs**: stderr gets each input's identity (the split or the population, the parser and
-  each release), each ontology fragment's size, how many records show each mapped concept, the
-  fused BKB's size, each list's length, for `synthea` each ablation and each detector's recovery,
-  and last the row count and sha256 of stdout.
+  account for. A `count` row's cell uses the ablation's age bands (`AblationSpec.edges`), and a cell
+  is listed only when it is a gap before or after the removal or its count fell.
+  [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the reading.
+- **What it logs**: stderr gets the data root and the pandas version, each input's identity (the
+  split or the population, the parser and each release), each ontology fragment's size, how many
+  records show each mapped concept, the fused BKB's size, each list's length, for `synthea` each
+  ablation and each detector's recovery, with a warning for a spurious gap, and last the row count
+  and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
-  contradicts its pin or schema.
+  contradicts its pin or schema, including a release naming an `is_a` parent it lacks.
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).

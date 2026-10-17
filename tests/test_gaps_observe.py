@@ -13,7 +13,7 @@ from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
 from bko.gaps.errors import GapError
 from bko.gaps.observe import Observed, dataset_fragment, observe_population, observe_records
 from bko.ontology.fragments import INDIVIDUAL
-from bko.ontology.schema import AtLeast, FieldMapping
+from bko.ontology.schema import AtLeast, CodeMapping, FieldMapping
 from tests._datasets_fixtures import SMALL_POPULATION, condition, patient, synthea_tables
 from tests._gaps_fixtures import ANGINA, ISCHEMIA, STENOSIS
 
@@ -92,3 +92,36 @@ def test_a_condition_after_the_snapshot_does_not_count(tmp_path):
     )
     people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
     assert observe_population(people, [ISCHEMIA], name="synthea").holders == {"MONDO:9000003": 0}
+
+
+def test_a_concept_two_codes_map_counts_a_patient_with_either(tmp_path):
+    synthea_tables(tmp_path, *SMALL_POPULATION)
+    people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
+    infarction = CodeMapping(
+        snomed="22298006", concept=ISCHEMIA.concept, label=ISCHEMIA.label, source="mondo"
+    )
+    observed = observe_population(people, [ISCHEMIA, infarction], name="synthea")
+    assert observed.holders == {"MONDO:9000003": 4}
+
+
+def test_a_population_with_no_living_patient_is_refused(tmp_path):
+    synthea_tables(tmp_path, [patient("p1", "1960-03-01", "M", death="2010-01-01")], [])
+    people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
+    with pytest.raises(GapError, match="synthea holds no record"):
+        observe_population(people, [ISCHEMIA], name="synthea")
+
+
+def test_a_missing_value_shows_no_concept():
+    frame = pd.DataFrame({"cp": [1.0, float("nan")], "target": [0, 0], "chol": [250.0, None]})
+    observed = observe_records(frame, [ANGINA, CHOL], name="uci")
+    assert observed.holders == {"HP:9000003": 1}
+
+
+def test_holders_are_a_read_only_copy_and_observed_hashes():
+    holders = {"A:1": 1}
+    observed = Observed(name="uci", records=1, holders=holders)
+    holders["A:1"] = 5
+    assert observed.holders == {"A:1": 1}
+    with pytest.raises(TypeError):
+        observed.holders["A:1"] = 2  # ty: ignore[invalid-assignment]
+    assert hash(observed) == hash(observed)

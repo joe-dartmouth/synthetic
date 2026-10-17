@@ -94,6 +94,12 @@ ISCHEMIA: Final = CodeMapping(
     source="mondo",
 )
 
+UNSEEN: Final = CodeMapping(
+    snomed="999999999", concept="MONDO:9000004", label="coronary stenosis", source="mondo"
+)
+"""A code row no patient has, so its concept's statement is a gap before and after a removal."""
+
+
 CELL: Final = AblationSpec(
     codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band=">=60", sex=1, edges=(60,)
 )

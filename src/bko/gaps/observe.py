@@ -22,19 +22,23 @@ from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.schema import CodeMapping, FieldMapping
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Observed:
     """How many of a dataset's records show each concept its rows map.
 
     Attributes:
         name: The dataset's source name, which its fragment and fusion source take.
         records: How many records were read.
-        holders: Each mapped concept, in sorted order, with how many records show it.
+        holders: Each mapped concept, in sorted order, with how many records show it; a read-only
+            copy of the mapping given.
     """
 
     name: str
     records: int
     holders: Mapping[str, int]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "holders", MappingProxyType(dict(self.holders)))
 
     @property
     def held(self) -> tuple[str, ...]:

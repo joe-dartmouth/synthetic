@@ -30,6 +30,7 @@ from tests._gaps_fixtures import (
     LADDER_HPO,
     LADDER_MONDO,
     STENOSIS,
+    UNSEEN,
 )
 from tests._ontology_fixtures import RoutingOpener
 
@@ -248,3 +249,27 @@ def test_synthea_reads_each_ablation_with_both_detectors(tmp_path, caplog):
         "recovery ablation=condition detector=count truth=2 eligible=1 recovered=1 spurious=0",
     ):
         assert line in caplog.text
+
+
+def test_a_second_synthea_run_writes_the_same_bytes_and_fetches_nothing(tmp_path):
+    assert run("synthea", tmp_path, make_context()) == (0, SYNTHEA_EXPECTED)
+    again = make_context()
+    assert run("synthea", tmp_path, again) == (0, SYNTHEA_EXPECTED)
+    assert fetched(again) == set()
+    assert isinstance(again.runner, FakeSynthea)
+    assert again.runner.calls == []
+
+
+def test_a_statement_ungrounded_throughout_is_listed_before_and_after(tmp_path):
+    code, out = run("synthea", tmp_path, make_context(code_rows=(ISCHEMIA, UNSEEN)))
+    assert code == 0
+    unseen = "mondo,MONDO:9000004,coronary stenosis,MONDO:9000002,heart disorder,,,"
+    assert f"cell,bko,{unseen},True,True,False\n" in out
+    assert f"condition,bko,{unseen},True,True,False\n" in out
+
+
+def test_synthea_with_a_concept_its_release_lacks_exits_two(tmp_path, caplog):
+    absent = dataclasses.replace(ISCHEMIA, concept="MONDO:9999999")
+    with caplog.at_level(logging.ERROR, logger="bko.gaps"):
+        assert run("synthea", tmp_path, make_context(code_rows=(absent,))) == (2, "")
+    assert "MONDO:9999999 is absent" in caplog.text

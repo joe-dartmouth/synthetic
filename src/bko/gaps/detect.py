@@ -85,20 +85,20 @@ def ontology_fragments(
     )
 
 
-def represent(ontology: Sequence[BKB], data: BKB) -> BKB:
+def represent(fragments: Sequence[BKB], data: BKB) -> BKB:
     """Fuse the ontology fragments with the dataset fragment, each at weight 1, `data` last."""
-    fragments = [*ontology, data]
-    return fuse(fragments, [1.0] * len(fragments))
+    every = [*fragments, data]
+    return fuse(every, [1.0] * len(every))
 
 
-def detect(ontology: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
-    """The statements of `ontology` the dataset fragment `data` leaves ungrounded, sorted."""
-    return ungrounded(represent(ontology, data), _held(data))
+def detect(fragments: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
+    """The statements of the ontology `fragments` the dataset fragment `data` leaves ungrounded."""
+    return ungrounded(represent(fragments, data), _held(data))
 
 
-def grounded(ontology: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
-    """The statements of `ontology` that `data` grounds, sorted."""
-    fused = represent(ontology, data)
+def grounded(fragments: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
+    """The statements of the ontology `fragments` that `data` grounds, sorted."""
+    fused = represent(fragments, data)
     missing = set(ungrounded(fused, _held(data)))
     return tuple(statement for statement in statements(fused) if statement not in missing)
 

@@ -27,6 +27,7 @@ from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population
 from bko.datasets.synthea_run import DEFAULT_RUN
 from bko.gaps.detect import CellGap, Statement, count_gaps, detect, grounded
+from bko.gaps.errors import GapError
 from bko.gaps.observe import dataset_fragment, observe_population
 from bko.ontology.schema import CodeMapping
 
@@ -123,8 +124,10 @@ def run_ablation(
     name: str,
     population: Population,
     spec: AblationSpec,
-    ontology: Sequence[BKB],
+    fragments: Sequence[BKB],
     rows: Sequence[CodeMapping],
+    *,
+    bko_before: Sequence[Statement],
 ) -> AblationRun:
     """Remove `spec`'s cases from `population` and read both detectors before and after.
 
@@ -132,21 +135,26 @@ def run_ablation(
         name: The ablation's name.
         population: The population before the removal.
         spec: What to remove.
-        ontology: The ontology fragments over the concepts `rows` map.
+        fragments: The ontology fragments over the concepts `rows` map.
         rows: The code mappings.
+        bko_before: The statements `population` leaves ungrounded, which every ablation of it
+            shares, so the caller reads them once.
 
     Raises:
         DatasetError: As `ablate`.
-        GapError: If the population, or what is left of it, holds no patient.
+        GapError: If the removal leaves no patient.
     """
     ablation = ablate(population, spec)
+    if ablation.kept.patients.empty:
+        msg = f"the {name} ablation removes every patient, so no concept has a share after it"
+        raise GapError(msg)
     removed = _removed(population, ablation.removed)
     return AblationRun(
         name=name,
         ablation=ablation,
-        bko_before=detect(ontology, _fragment(population, rows)),
-        bko_after=detect(ontology, _fragment(ablation.kept, rows)),
-        bko_truth=grounded(ontology, _fragment(removed, rows)),
+        bko_before=tuple(bko_before),
+        bko_after=detect(fragments, _fragment(ablation.kept, rows)),
+        bko_truth=grounded(fragments, _fragment(removed, rows)),
         count_before=count_gaps(ablation.before),
         count_after=count_gaps(ablation.after),
         count_truth=_fallen(ablation.before, ablation.after),
@@ -167,6 +175,7 @@ def _removed(population: Population, removed: pd.Index) -> Population:
 
 
 def _fallen(before: pd.DataFrame, after: pd.DataFrame) -> tuple[tuple[str, str, int], ...]:
-    fell = after["count"].to_numpy() < before["count"].to_numpy()
-    cells = before.loc[fell, list(CELL_COLUMNS)].itertuples(index=False, name=None)
-    return tuple((str(band), str(sex), int(target)) for band, sex, target in cells)
+    was = before.set_index(list(CELL_COLUMNS))["count"]
+    now = after.set_index(list(CELL_COLUMNS))["count"].loc[was.index]
+    fell = was.index[(now < was).to_numpy()]
+    return tuple((str(band), str(sex), int(target)) for band, sex, target in fell)
