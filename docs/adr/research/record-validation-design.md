@@ -145,7 +145,7 @@ copy of the criterion in the stage.
 ## Enforcement
 
 - Owner: `src/bko/validate/`
-- Pinned by: `tests/test_validate_checks.py`, `tests/test_package_layout.py`
+- Pinned by: `tests/test_validate_checks.py`, `tests/test_validate_batch.py`, `tests/test_package_layout.py`
 
 ## Reversal Conditions
 

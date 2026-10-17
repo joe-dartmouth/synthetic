@@ -6,4 +6,4 @@ Each field must hold a number inside its codebook or the mapping table's range c
 
 - **Dependencies:** The `data` extra (`pyproject.toml`), and `bko.ontology.mapping`, which reads no release.
 - **Owner:** Shirley Asangi
-- **Status:** not built; the package holds only its docstring. Planned in [`proposal-record-validation`](../../../tasks/proposal-record-validation.md).
+- **Status:** built; a library with no command line.
