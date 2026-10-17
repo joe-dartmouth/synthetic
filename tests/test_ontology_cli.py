@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import subprocess
 import sys
 import urllib.error
 from pathlib import Path
+
+import pytest
 
 from bko.datasets.sources import Source
 from bko.ontology.__main__ import Context, configure_logging, main
@@ -67,6 +70,9 @@ def test_agreeing_rows_exit_zero(tmp_path, caplog):
     assert out == EXPECTED
     assert "data_version=releases/2026-10-06" in caplog.text
     assert "data_version=hp/releases/2026-09-01" in caplog.text
+    assert "release mondo data_version=releases/2026-10-06" in caplog.text
+    assert "terms=9 obsolete=2" in caplog.text
+    assert "checked 3 rows: 0 disagree" in caplog.text
 
 
 def test_a_second_run_is_identical_and_offline(tmp_path):
@@ -114,6 +120,9 @@ def test_an_unwritable_data_root_exits_two(tmp_path):
     locked = tmp_path / "locked"
     locked.mkdir()
     locked.chmod(0o500)
+    if os.access(locked, os.W_OK):
+        locked.chmod(0o700)
+        pytest.skip("this user can write to a read-only directory, as root can")
     try:
         code, out, _ = _run(locked / "data")
     finally:

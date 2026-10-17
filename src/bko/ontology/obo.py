@@ -3,7 +3,8 @@
 pronto is given a verified path, never a handle: it honours `encoding` only for a path and
 otherwise guesses from the first buffer. `import_depth=0` keeps it off the network. Warnings it
 raises while parsing are recorded: one saying a construct was skipped refuses the release; any
-other concerns a value no term field keeps, such as a date, and is logged.
+other pronto warning concerns a value no term field keeps, such as a date, and is logged with its
+distinct messages; a warning from elsewhere is logged as it is.
 """
 
 from __future__ import annotations
@@ -23,6 +24,9 @@ from bko.ontology.terms import MATCH_PREDICATES, Ontology, Term
 
 
 logger = logging.getLogger(__name__)
+
+_SHOWN = 5
+"""How many distinct unread-value messages the log line quotes."""
 
 
 def load_ontology(source: Source, data_dir: Path) -> Ontology:
@@ -51,6 +55,8 @@ def parse_obo(path: Path, *, name: str) -> Ontology:
         warnings.simplefilter("always")
         try:
             parsed = pronto.Ontology(path, import_depth=0, encoding="utf-8")
+            # pronto resolves some values lazily, so the conversion is guarded too.
+            terms = {term.id: _term(term) for term in parsed.terms()}
         except (SyntaxError, ValueError, KeyError) as exc:
             msg = f"{path}: pronto cannot read it: {type(exc).__name__}: {exc}"
             raise ReleaseFormatError(msg) from exc
@@ -62,7 +68,6 @@ def parse_obo(path: Path, *, name: str) -> Ontology:
     if not metadata.data_version:
         msg = f"{path} has no data-version header"
         raise ReleaseFormatError(msg)
-    terms = {term.id: _term(term) for term in parsed.terms()}
     if not terms:
         msg = f"{path} holds no term"
         raise ReleaseFormatError(msg)
@@ -74,15 +79,25 @@ def parse_obo(path: Path, *, name: str) -> Ontology:
 
 
 def _refuse_skipped(caught: list[warnings.WarningMessage], path: Path) -> None:
-    # pronto's NotImplementedWarning subclasses NotImplementedError (pronto/utils/warnings.py).
-    skipped = [str(w.message) for w in caught if issubclass(w.category, NotImplementedError)]
+    skipped = _distinct(caught, pronto.warnings.NotImplementedWarning)
     if skipped:
         msg = f"{path}: pronto skipped constructs: {'; '.join(skipped)}"
         raise ReleaseFormatError(msg)
-    if caught:
+    unread = _distinct(caught, pronto.warnings.ProntoWarning)
+    if unread:
         logger.warning(
-            "%s: pronto reported %d unread values; no term field keeps them", path, len(caught)
+            "%s: pronto reported %d distinct unread values, which no term field keeps: %s",
+            path,
+            len(unread),
+            "; ".join(unread[:_SHOWN]),
         )
+    other = [w for w in caught if not issubclass(w.category, pronto.warnings.ProntoWarning)]
+    for w in other:
+        logger.warning("%s: warning while parsing: %s: %s", path, w.category.__name__, w.message)
+
+
+def _distinct(caught: list[warnings.WarningMessage], category: type[Warning]) -> list[str]:
+    return sorted({str(w.message) for w in caught if issubclass(w.category, category)})
 
 
 def _term(term: pronto.Term) -> Term:

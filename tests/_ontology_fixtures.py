@@ -45,6 +45,14 @@ id: MONDO:0006715
 name: coronary stenosis
 
 [Term]
+id: MONDO:0005015
+name: diabetes mellitus
+
+[Term]
+id: MONDO:0021661
+name: coronary atherosclerosis
+
+[Term]
 id: MONDO:9999998
 name: obsolete test term
 is_obsolete: true
@@ -59,7 +67,8 @@ replaced_by: ENVO:03000144
 id: MONDO:9999997
 name: Sjögren-like test term
 """
-"""A MONDO-shaped release: one real stanza, its stub parents, and invented edge cases."""
+"""A MONDO-shaped release: one real stanza, its stub parents, a stanza per other MONDO id the
+mapping table names, and invented edge cases."""
 
 HPO_LABELS: Mapping[str, str] = {
     "HP:0000822": "Hypertension",

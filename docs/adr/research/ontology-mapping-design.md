@@ -56,7 +56,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   resting blood pressure cutoff is 130 mm Hg.
 - **Scope**: a concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped
   concept in its release. Every other concept is out of scope; `OUT_OF_SCOPE` records the near
-  misses considered and why each was rejected.
+  misses considered and why each was rejected, and the check refuses one that is an `is_a`
+  ancestor of a mapped concept.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record

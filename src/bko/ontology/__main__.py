@@ -68,7 +68,8 @@ def main(
     args = _parser().parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        return _check(data_dir, context or Context(), out or sys.stdout)
+        context = Context() if context is None else context
+        return _check(data_dir, context, sys.stdout if out is None else out)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]

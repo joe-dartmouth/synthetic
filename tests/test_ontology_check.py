@@ -1,14 +1,19 @@
-"""`bko.ontology.check` against hand-built releases; no pronto."""
+"""`bko.ontology.check` against hand-built releases, and the table against the fixture releases."""
 
 from __future__ import annotations
 
+from dataclasses import replace
+from pathlib import Path
 from types import MappingProxyType
 
 import pytest
 
 from bko.ontology.check import Verdict, check
+from bko.ontology.mapping import CONCEPT_ROWS
+from bko.ontology.obo import parse_obo
 from bko.ontology.schema import AtLeast, CodeMapping, Codes, FieldMapping, OutOfScope
 from bko.ontology.terms import Ontology, Term
+from tests._ontology_fixtures import HPO_LABELS, HPO_TEXT, MONDO_TEXT, write_obo
 
 
 MATCH = ("skos:exactMatch", "SCTID:414545008")
@@ -175,3 +180,41 @@ def test_near_miss_matches_back_nothing(match: tuple[str, str]) -> None:
 def test_hp_row_is_looked_up_only_in_hp() -> None:
     mondo_with_hp_id = _mondo(_term("HP:0012250", "ST segment depression"))
     assert _problem(ST_ROW, {"MONDO": mondo_with_hp_id}) == "no release for prefix HP"
+
+
+def test_a_nameless_concept_is_reported() -> None:
+    nameless = replace(_term("MONDO:0006715", "x"), name=None)
+    assert _problem(LABEL_ROW, {"MONDO": _mondo(nameless)}) == (
+        "has no name in mondo releases/2026-10-06"
+    )
+
+
+def _child_of(curie: str, name: str, parent: str) -> Term:
+    return replace(_term(curie, name), parents=(parent,))
+
+
+def test_an_ancestor_of_a_mapped_concept_is_in_scope() -> None:
+    stenosis = _child_of("MONDO:0006715", "coronary stenosis", "MONDO:0000001")
+    middle = _child_of("MONDO:0000001", "middle", "MONDO:0005015")
+    ontologies = {"MONDO": _mondo(stenosis, middle, DIABETES)}
+    verdicts = check((LABEL_ROW, SCOPE_ROW), ontologies)
+    assert verdicts[0].problem is None
+    assert verdicts[1].problem == (
+        "is_a ancestor of mapped MONDO:0006715 in mondo releases/2026-10-06, so it is in scope"
+    )
+
+
+def test_an_unrelated_out_of_scope_concept_passes_without_mapped_rows() -> None:
+    stenosis = _child_of("MONDO:0006715", "coronary stenosis", "MONDO:0005015")
+    [verdict] = check((SCOPE_ROW,), {"MONDO": _mondo(stenosis, DIABETES)})
+    assert verdict.problem is None
+
+
+def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
+    ontologies = {
+        "MONDO": parse_obo(write_obo(tmp_path, MONDO_TEXT, "mondo.obo"), name="mondo"),
+        "HP": parse_obo(write_obo(tmp_path, HPO_TEXT, "hp.obo"), name="hpo"),
+    }
+    assert [v.problem for v in check(CONCEPT_ROWS, ontologies)] == [None] * len(CONCEPT_ROWS)
+    table_hp = {row.concept: row.label for row in CONCEPT_ROWS if row.concept.startswith("HP:")}
+    assert table_hp == dict(HPO_LABELS)

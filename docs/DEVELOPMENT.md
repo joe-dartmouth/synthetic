@@ -180,13 +180,17 @@ Synthea condition the ablation removes (ADR
 
 - **What it does**: it fetches the two releases into the data root if absent, verifies each against
   its pin, parses them with pronto, and checks every concept row: the concept exists and is not
-  obsolete, its label is the release's name, and a Synthea row's SNOMED-CT code is a
-  `skos:exactMatch` of its concept and of no other live concept. stdout gets one CSV row per
-  concept row, the same bytes on every run over the same releases.
+  obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
+  `skos:exactMatch` of its concept and of no other live concept, and an out-of-scope concept is
+  not an `is_a` ancestor of a mapped one. stdout gets a CSV with the columns `table` (`field`,
+  `code` or `out-of-scope`), `subject` (the dataset side, such as `cp in 1|2|3`), `concept`,
+  `label` and `status` (`ok`, or how the release disagrees), one row per concept row, the same
+  bytes on every run over the same releases.
 - **What it logs**: stderr gets each release's snapshot identity (as in [Data](#data)), the
   `data-version` its header names, and its term counts.
-- **Exit codes**: 0 every row agrees; 2 the command could not run; 3 a release contradicts its pin
-  or is not OBO the loader reads, or a row disagrees with its release (the report is written first).
+- **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
+  could not run; 3 a release contradicts its pin or is not OBO the loader reads, or a row disagrees
+  with its release (the report is written first).
 - **Re-pinning**: edit the release's `Source` (URL, size, sha256), run this command, and review
   each row it reports.
 - **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and

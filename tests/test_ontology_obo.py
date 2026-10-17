@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import pathlib
 import urllib.request
+import warnings
 from typing import Any
 
 import pytest
@@ -141,11 +142,12 @@ def test_header_only_is_refused(tmp_path):
 
 
 def test_not_obo_is_refused(tmp_path):
-    _refused(tmp_path, "hello\n")
+    assert "could not find a parser" in _refused(tmp_path, "hello\n")
 
 
 def test_dangling_is_a_is_refused(tmp_path):
-    _refused(tmp_path, HEADER + "\n[Term]\nid: X:1\nname: one\nis_a: MONDO:0000000\n")
+    text = HEADER + "\n[Term]\nid: X:1\nname: one\nis_a: MONDO:0000000\n"
+    assert "KeyError: 'MONDO:0000000'" in _refused(tmp_path, text)
 
 
 def test_single_intersection_of_is_refused(tmp_path):
@@ -154,7 +156,7 @@ def test_single_intersection_of_is_refused(tmp_path):
         + "\n[Term]\nid: X:2\nname: two\n"
         + "\n[Term]\nid: X:1\nname: one\nintersection_of: X:2\n"
     )
-    _refused(tmp_path, text)
+    assert "intersection_of" in _refused(tmp_path, text)
 
 
 def test_load_ontology_verifies_first(tmp_path):
@@ -162,8 +164,46 @@ def test_load_ontology_verifies_first(tmp_path):
     source = pin(data, name="mondo")
     plant(tmp_path / "good", source, data)
     assert load_ontology(source, tmp_path / "good").version == "releases/2026-10-06"
-    changed = bytearray(data)
-    changed[0] ^= 1
-    plant(tmp_path / "bad", source, bytes(changed))
-    with pytest.raises(ContractError):
+    # Still valid OBO, so only the pin can refuse it.
+    changed = data.replace(b"name: coronary stenosis", b"name: coronary stenosiz")
+    plant(tmp_path / "bad", source, changed)
+    with pytest.raises(ContractError, match="pinned") as caught:
         load_ontology(source, tmp_path / "bad")
+    assert not isinstance(caught.value, ReleaseFormatError)
+
+
+def test_multi_valued_clauses_are_sorted_and_parents_are_direct(tmp_path):
+    text = (
+        HEADER
+        + "idspace: skos http://www.w3.org/2004/02/skos/core#\n"
+        + "\n[Term]\nid: X:9\nname: grandparent\n"
+        + "\n[Term]\nid: X:8\nname: parent b\nis_a: X:9\n"
+        + "\n[Term]\nid: X:7\nname: parent a\nis_a: X:9\n"
+        + "\n[Term]\nid: X:1\nname: child\nis_a: X:8\nis_a: X:7\n"
+        + "xref: Z:2\nxref: A:1\n"
+        + "property_value: skos:narrowMatch Z:9\n"
+        + "property_value: skos:exactMatch A:9\n"
+        + "property_value: seeAlso Q:1\n"
+        + 'property_value: skos:note "literal" xsd:string\n'
+        + "\n[Term]\nid: X:2\nname: old\nis_obsolete: true\n"
+        + "replaced_by: X:8\nreplaced_by: X:7\n"
+    )
+    terms = parse_obo(write_obo(tmp_path, text), name="test").terms
+    assert terms["X:1"].parents == ("X:7", "X:8")
+    assert terms["X:1"].xrefs == ("A:1", "Z:2")
+    assert terms["X:1"].matches == (("skos:exactMatch", "A:9"), ("skos:narrowMatch", "Z:9"))
+    assert terms["X:2"].replaced_by == ("X:7", "X:8")
+
+
+def test_a_warning_from_elsewhere_is_logged(tmp_path, monkeypatch, caplog):
+    real = obo.pronto.Ontology
+
+    def warning(*args: Any, **kwargs: Any) -> object:
+        warnings.warn("old API", DeprecationWarning, stacklevel=2)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(obo.pronto, "Ontology", warning)
+    with caplog.at_level(logging.WARNING, logger="bko.ontology.obo"):
+        parse_obo(write_obo(tmp_path, MONDO_TEXT), name="mondo")
+    assert "DeprecationWarning: old API" in caplog.text
+    assert "unread values" not in caplog.text
