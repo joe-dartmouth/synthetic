@@ -98,7 +98,9 @@ Generation is guided by the ontology relationships relevant to each gap, and rec
 through the Anthropic Messages API (2-pager section 4). Each candidate record is validated before
 augmentation. The validity criterion counts the records that pass the model's consistency checks,
 and the completeness criterion counts the detected gaps that close after fusion
-([section 4](#4-success-criteria)).
+([section 4](#4-success-criteria)). ADR
+[research/record-validation-design](adr/research/record-validation-design.md) sets what the
+consistency checks are and how a candidate is counted.
 
 ### Two kinds of gap, evaluated separately
 
@@ -258,6 +260,7 @@ Where the brief and the 2-pager disagree:
 | SLM distillation | Stretch goal or Track B | Absent | [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) |
 | Primary criterion | Not discussed | 2-pager: at least 10% over no augmentation, and matching CTGAN, TVAE and SMOTE; repository: separation from every comparison method, however small, judged on paired intervals ([section 4](#4-success-criteria)) | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
 | Privacy criterion | Not discussed | 2-pager: distance to closest record remains above the real-data baseline; repository: the added rows' 5th-percentile distance reaches a share `E1` fixes of the test rows', judged on paired intervals | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
+| Validity checks | Ontology or SHACL validation rejects implausible rows | 2-pager: at least 95% of generated records pass the model's consistency checks, which it does not list; repository: each field's number, codebook or range, and decimals, with no check from an ontology relationship | Repository; ADR [research/record-validation-design](adr/research/record-validation-design.md) |
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/

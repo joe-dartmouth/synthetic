@@ -149,3 +149,38 @@ links to where its blocker is tracked.
 
   **Trigger:** the first change to `tasks/proposal-llm-generation.md` or
   `tasks/proposal-final-evaluation.md` after the team answers.
+
+- **`cleanup:tasks/bko-arm-split-range-unhandled`: a validated candidate can break the added-row
+  contract.** `bko.validate` accepts a value inside the mapping table's range, and `check` in
+  `src/bko/baselines/records.py` refuses an added row outside the training split's minimum and
+  maximum. Cleveland's `trestbps` runs 94 to 200 against a range of 10 to 250, so a candidate with
+  `trestbps` 210 passes validation and stops an E1 run with `OutputContractError`, which `_fill` in
+  `src/bko/evaluate/run.py` re-raises without a retry. `tasks/proposal-final-evaluation.md` does
+  not say how the BKO arm treats such a row. *Filed 2026-10-17 by the plan of
+  proposal-record-validation.*
+
+  **Why deferred.** The rule belongs to the unit that builds the BKO arm, and ADR
+  `research/ontology-mapping-design` rules out data-derived bounds for the table.
+
+  **What discharges it:** `tasks/proposal-final-evaluation.md` says how the BKO arm treats an
+  accepted row outside the training split's range, and whether such a row counts against validity.
+
+  **Trigger:** the first change to `tasks/proposal-final-evaluation.md`.
+
+- **`cleanup:tasks/validity-denominator-unstated`: no unit says what reaches the validity
+  denominator.** `bko.validate` counts every candidate it is given (ADR
+  `research/record-validation-design`). `tasks/proposal-llm-generation.md` does not say that
+  generation hands validation every decoded item, nor what it does with a response that does not
+  decode. `tasks/proposal-final-evaluation.md` reads validity from `bko.validate`'s counts without
+  saying they are summed over every call, including attempts `_fill` in `src/bko/evaluate/run.py`
+  refuses and retries. Either gap removes failed records from the denominator and raises validity.
+  *Filed 2026-10-17 by the plan of proposal-record-validation.*
+
+  **Why deferred.** Both rules belong to the units that produce and consume the counts.
+
+  **What discharges it:** `tasks/proposal-llm-generation.md` says every decoded item, and every
+  response that does not decode, reaches `bko.validate`; `tasks/proposal-final-evaluation.md` says
+  validity sums `passed` and `generated` over every call, refused attempts included.
+
+  **Trigger:** the first change to `tasks/proposal-llm-generation.md` or
+  `tasks/proposal-final-evaluation.md`.

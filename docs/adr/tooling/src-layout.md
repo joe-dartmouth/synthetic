@@ -32,7 +32,7 @@ pipeline stage:
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
 | `gaps` | Ungrounded-statement and count-based gap detection | `data` |
 | `generate` | Candidate-record generation through the Messages API | `llm` |
-| `validate` | Record consistency checks | `ontology` |
+| `validate` | Record consistency checks | `data` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
 | `evaluate` | Utility, fidelity and privacy metrics | `eval` |
 | `app` | The Streamlit interface | `app` |

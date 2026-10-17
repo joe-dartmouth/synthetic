@@ -13,7 +13,7 @@ from typing import Final
 import pandas as pd
 from sdmetrics.single_table.privacy.dcr_utils import calculate_dcr
 
-from bko.baselines.records import FRAME_COLUMNS
+from bko.datasets.uci import FRAME_COLUMNS
 from bko.evaluate.fidelity import metadata
 from bko.evaluate.scores import Measure
 

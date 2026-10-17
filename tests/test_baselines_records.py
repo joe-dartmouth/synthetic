@@ -8,8 +8,6 @@ import pytest
 
 from bko.baselines.errors import OutputContractError
 from bko.baselines.records import (
-    FRAME_COLUMNS,
-    FRAME_DTYPES,
     Baseline,
     check,
     derived_seed,
@@ -21,6 +19,7 @@ from bko.baselines.records import (
 )
 from bko.baselines.request import Request
 from bko.datasets.cells import LABEL
+from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES
 from tests._baselines_fixtures import EDGE, QUOTA, cell_list, full_records
 
 

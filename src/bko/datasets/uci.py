@@ -79,6 +79,17 @@ NUM_CODES: Final = frozenset(range(5))
 REQUIRED: Final = ("age", "sex", "num")
 """The fields a record's cell needs; a record missing one is refused, not dropped."""
 
+FRAME_COLUMNS: Final = (*FEATURES, LABEL)
+"""The columns of the training split and of every added frame."""
+
+FRAME_DTYPES: Final[Mapping[str, str]] = {
+    name: "float64" if name in FRACTIONAL else "int64" for name in FRAME_COLUMNS
+}
+"""The evaluation frame's dtypes: whole numbers as int64, `oldpeak` as float64."""
+
+FRACTION_DIGITS: Final = 1
+"""The decimal places `oldpeak` has in the archive, which added values keep."""
+
 
 def parse_cleveland(text: str) -> pd.DataFrame:
     """Parse `processed.cleveland.data` into one row per line, reading `?` as missing.
@@ -135,8 +146,7 @@ def complete_records(raw: pd.DataFrame) -> pd.DataFrame:
     if kept.empty:
         msg = f"{MEMBER} holds no complete records"
         raise ContractError(msg)
-    integers = {name: "int64" for name in FEATURES if name not in FRACTIONAL}
-    frame = kept.drop(columns="num").astype(integers)
+    frame = kept.drop(columns="num").astype({name: FRAME_DTYPES[name] for name in FEATURES})
     frame[LABEL] = (kept["num"] > 0).astype("int64")
     return frame
 

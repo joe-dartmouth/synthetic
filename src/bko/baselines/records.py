@@ -18,20 +18,17 @@ import pandas as pd
 
 from bko.baselines.errors import OutputContractError
 from bko.baselines.request import Request, stratum_keys
-from bko.datasets.cells import LABEL
-from bko.datasets.uci import CATEGORICAL, CODEBOOK, FEATURES, FRACTIONAL, NUMERIC
+from bko.datasets.cells import LABEL, LABEL_CODES
+from bko.datasets.uci import (
+    CATEGORICAL,
+    CODEBOOK,
+    FRACTION_DIGITS,
+    FRACTIONAL,
+    FRAME_COLUMNS,
+    FRAME_DTYPES,
+    NUMERIC,
+)
 
-
-FRAME_COLUMNS: Final = (*FEATURES, LABEL)
-"""The columns of the training split and of every added frame."""
-
-FRAME_DTYPES: Final[Mapping[str, str]] = {
-    name: "float64" if name in FRACTIONAL else "int64" for name in FRAME_COLUMNS
-}
-"""The evaluation frame's dtypes: whole numbers as int64, `oldpeak` as float64."""
-
-FRACTION_DIGITS: Final = 1
-"""The decimal places `oldpeak` has in the archive, which added values keep."""
 
 INDEX_NAME: Final = "record_id"
 """The index name of the evaluation frame and of every added frame."""
@@ -135,7 +132,7 @@ def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:
         outside = sorted(set(added[name]) - set(CODEBOOK[name]))
         _require(not outside, f"{name} holds {outside}, outside its codebook")
     labels = sorted(set(added[LABEL]))
-    _require(set(labels) <= {0, 1}, f"{LABEL} holds {labels}")
+    _require(set(labels) <= LABEL_CODES, f"{LABEL} holds {labels}")
     for name in NUMERIC:
         low, high = train[name].min(), train[name].max()
         _require(bool(added[name].between(low, high).all()), f"{name} leaves [{low}, {high}]")
