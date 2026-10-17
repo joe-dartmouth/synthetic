@@ -43,9 +43,10 @@ HOSTILE = {
     "false": False,
     "numpy-bool": np.True_,
     "numpy-nan": np.float64("nan"),
+    "numpy-float32": np.float32(2.3),
 }
-"""What JSON can decode to that is not a finite number, plus numpy's bool and NaN, since numpy
-numbers are accepted."""
+"""What JSON can decode to that is not a finite number, plus numpy's bool, NaN and a float narrower
+than float64, since numpy integers and float64 are accepted."""
 
 
 def test_base_is_the_first_real_record():

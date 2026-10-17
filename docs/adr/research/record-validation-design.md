@@ -9,7 +9,7 @@ updated: 2026-10-17
 ## Context
 
 RESEARCH, Generate and validate, validates each candidate record before augmentation. The validity
-criterion asks that at least 95% of generated records pass the model's consistency checks
+criterion sets a share of generated records that must pass the model's consistency checks
 ([`docs/RESEARCH.md`](../../RESEARCH.md#4-success-criteria)). The 2-pager names no check, and it
 ties the ontology relationships to generation, not to validation. Candidates will come from the
 Messages API as decoded JSON. A candidate can therefore hold any JSON value: a string, `true`,
@@ -56,12 +56,13 @@ the archive's precision. A candidate is refused, never repaired, and counted und
 fails.**
 
 - **Input:** the decoded candidates, one item per record generation produced, unfiltered. A batch
-  that is one record, a string, bytes or a frame raises `TypeError`.
+  that is one record, a string, a bytes-like object or a frame raises `TypeError`.
 - **`fields`:** a candidate that is not a mapping fails it, and nothing else is read. A mapping fails
   it when it names a key outside the evaluation frame's columns; its fields are still checked.
 - **One chain per field**, stopped by its first failure:
-  - `number:<field>`: an `int`, a `float`, or a numpy integer or floating value; finite; never a
-    `bool`. A missing key fails it.
+  - `number:<field>`: an `int`, a `float` (numpy's float64 is one), or a numpy integer; finite;
+    never a `bool`. A missing key fails it, and so does a narrower numpy float, whose widened value
+    is not the decimal it printed.
   - Then the bound: `code:<field>` for a coded field and the label, or `range:<field>` (both ends
     inclusive) for a numeric field.
   - Then `precision:<field>` for a numeric field: whole, or `oldpeak` at one decimal, tested as
@@ -79,7 +80,7 @@ fails.**
   - Each rejected candidate's position and failed checks.
   - The per-check counts, derived from those.
   - One INFO summary per batch, with counts only, and a WARNING for an empty batch.
-- **No threshold:** the stage reports counts, and the final evaluation judges 95%.
+- **No threshold:** the stage reports counts, and the final evaluation judges the criterion.
 - **No ontology check**, for the reasons in Context.
 - **Library only**, with the `data` extra. The evaluation frame's columns and dtypes live in
   `bko.datasets.uci`, so this stage imports only upstream stages.
@@ -97,7 +98,7 @@ The bounds come from their existing homes. A codes constraint in the mapping tab
 second home for the codebook. The frame's columns and dtypes live in `bko.datasets.uci` with the
 frame they describe, rather than in `bko.baselines.records`, a downstream stage.
 
-Repairing a near miss would count a broken record as valid. Judging 95% here would put a second
+Repairing a near miss would count a broken record as valid. Judging the criterion here would put a second
 copy of the criterion in the stage.
 
 ## Consequences
@@ -134,7 +135,7 @@ copy of the criterion in the stage.
 | Rounding or clipping a near miss | Counts a broken record as valid (Rationale) | 2026-10-17 |
 | A whole-number check on coded fields | Could never fail alone (Rationale) | 2026-10-17 |
 | One count per rejected candidate | Hides which promises a candidate breaks | 2026-10-17 |
-| Judging 95% in the stage | The final evaluation owns the criterion | 2026-10-17 |
+| Judging the criterion in the stage | The final evaluation owns the criterion | 2026-10-17 |
 | A frame as input | Malformed values would never reach the counts (Rationale) | 2026-10-17 |
 | Keeping each rejected candidate in the result | The caller holds the input, and the position joins the two | 2026-10-17 |
 | Importing the frame's columns from `bko.baselines.records` | A downstream stage (Rationale) | 2026-10-17 |

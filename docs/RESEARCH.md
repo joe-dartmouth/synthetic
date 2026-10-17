@@ -98,8 +98,9 @@ Generation is guided by the ontology relationships relevant to each gap, and rec
 through the Anthropic Messages API (2-pager section 4). Each candidate record is validated before
 augmentation. The validity criterion counts the records that pass the model's consistency checks,
 and the completeness criterion counts the detected gaps that close after fusion
-([section 4](#4-success-criteria)). ADR [research/record-validation-design](adr/research/record-validation-design.md)
-sets what the consistency checks are and how a candidate is counted.
+([section 4](#4-success-criteria)). ADR
+[research/record-validation-design](adr/research/record-validation-design.md) sets what the
+consistency checks are and how a candidate is counted.
 
 ### Two kinds of gap, evaluated separately
 

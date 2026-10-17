@@ -1,7 +1,7 @@
 """The consistency checks a candidate record must pass before it joins the augmented dataset.
 
 Each field of a candidate runs one chain, and the first check it fails stops the chain:
-`number:<field>`, a finite `int` or `float` (or numpy number), never a `bool`; then its bound,
+`number:<field>`, a finite `int`, `float` or numpy integer, never a `bool`; then its bound,
 `code:<field>` from the codebook or `range:<field>` from the mapping table's range constraint; then,
 for a numeric field, `precision:<field>`, the archive's decimals. A field fails at most one check,
 and no check reads a value an earlier one refused. `fields` refuses a candidate that is not a
@@ -116,9 +116,8 @@ def _number(value: object) -> int | float | None:
         return None
     if isinstance(value, int | np.integer):
         return int(value)
-    if isinstance(value, float | np.floating):
-        number = float(value)
-        return number if math.isfinite(number) else None
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
     return None
 
 
@@ -181,9 +180,10 @@ def validate(candidates: Iterable[object]) -> Validated:
         The accepted frame and the rejections; logs one summary line of counts.
 
     Raises:
-        TypeError: If `candidates` is one record, a string, bytes or a frame, not a batch.
+        TypeError: If `candidates` is one record, a string, a bytes-like object or a frame, not a
+            batch.
     """
-    if isinstance(candidates, str | bytes | Mapping | pd.DataFrame):
+    if isinstance(candidates, str | bytes | bytearray | memoryview | Mapping | pd.DataFrame):
         msg = f"validate takes a batch of candidates, not a {type(candidates).__name__}"
         raise TypeError(msg)
     rows: dict[int, dict[str, int | float]] = {}
