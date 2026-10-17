@@ -57,6 +57,9 @@ ROADMAP = REPO_ROOT / "docs" / "ROADMAP.md"
 ADR_ROOT = REPO_ROOT / "docs" / "adr"
 """The directory whose topic subdirectories a unit's `adrs` ids name."""
 
+BACKLOG = "CLEANUP.md"
+"""The cleanup backlog in `tasks/`: not a unit; `tests/test_cleanup_backlog.py` holds it."""
+
 WORKLOAD = "## Workload"
 """The ROADMAP heading that ends the milestones and holds the member table."""
 
@@ -159,7 +162,7 @@ def unit_problems(
     problems: list[str] = []
     units: Units = {}
     for path in sorted(tasks.glob("*.md")):
-        if path.name.endswith("-index.md"):
+        if path.name.endswith("-index.md") or path.name == BACKLOG:
             continue
         fields = _file_problems(path, problems, owners=owners, adr_root=adr_root)
         if fields is not None:

@@ -112,6 +112,10 @@ synthetic/
 - **Task sets:** `tasks/<set>-index.md` is a set's graph and status board, and each unit is one PR.
   A landed unit's file is deleted after rehoming what it deferred; a set gets no companion page
   under `docs/`. `tests/test_task_units.py` enforces the unit schema.
+- **Deferred work goes to [`tasks/CLEANUP.md`](tasks/CLEANUP.md).** A review finding left outside
+  its change's boundary, or a small owed fix, is filed there under a `cleanup:<topic>/<slug>` key
+  with its blocker, not left in a plan or a chat. Read it before scoping a change and pay what sits
+  in the surface you touch. `tests/test_cleanup_backlog.py` enforces its contract.
 
 **Document index:**
 
@@ -122,6 +126,7 @@ synthetic/
 - Milestones and workload: [`docs/ROADMAP.md`](docs/ROADMAP.md); work units:
   [`tasks/proposal-index.md`](tasks/proposal-index.md)
 - Results register: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
+- Deferred cleanup and its blockers: [`tasks/CLEANUP.md`](tasks/CLEANUP.md)
 - Unscheduled ideas: [`docs/IDEAS.md`](docs/IDEAS.md); market and regulation:
   [`docs/MARKET.md`](docs/MARKET.md)
 - Citation registry: [`docs/literature.md`](docs/literature.md); source PDFs: `papers/`
