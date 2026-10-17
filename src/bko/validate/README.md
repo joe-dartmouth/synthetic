@@ -2,6 +2,8 @@
 
 Check each candidate record against the model's consistency checks before it joins the augmented dataset.
 
-- **Dependencies:** The `ontology` extra (`pyproject.toml`).
+Each field must hold a number inside its codebook or the mapping table's range constraint, with the archive's decimals, and a candidate names no key outside the evaluation frame. No check reads an ontology relationship. A candidate is refused, never repaired, and counted under every check it fails. ADR [`research/record-validation-design`](../../../docs/adr/research/record-validation-design.md) records the checks and the counting rule.
+
+- **Dependencies:** The `data` extra (`pyproject.toml`), and `bko.ontology.mapping`, which reads no release.
 - **Owner:** Shirley Asangi
 - **Status:** not built; the package holds only its docstring. Planned in [`proposal-record-validation`](../../../tasks/proposal-record-validation.md).
