@@ -6,4 +6,4 @@ The layer is adapted from pybkb, by Chase Yakaboski (GPL-3.0): the BKB structure
 
 - **Dependencies:** No optional extra.
 - **Owner:** Partiban Anathurai
-- **Status:** built. The ontology fragments join in [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md) and the dataset fragment in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).
+- **Status:** built. The dataset fragment joins in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).

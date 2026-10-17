@@ -1,8 +1,8 @@
 ---
-status: proposed
+status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 # A dataset gap is an ungrounded BKO statement
 
@@ -39,9 +39,6 @@ A dataset gap is **a statement implied by the fused ontology fragments but ungro
 dataset fragment** under BKO instantiation. Count-based gaps (fewer than 20 training records per
 age-sex subgroup-label combination on UCI Heart Disease) are detected and evaluated separately, as
 the comparison the formal definition is measured against.
-
-The record stays `proposed` until the MONDO/DO fusion from Santos et al. is reproduced with
-`bko.bkb`, which is the first milestone in `docs/ROADMAP.md`.
 
 ## Rationale
 
@@ -84,9 +81,8 @@ grounding is judged against the dataset fragment, not the fused BKB.
 fused MONDO, HPO and dataset fragments by Status Update 1** (an acceptance item of
 [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md)). The count-based definition then becomes primary and this record is rewritten.
 
-**The record becomes `accepted` when the MONDO/DO fusion from Santos et al. is reproduced** with the
-BKB layer.
-
 ## Related
 
 - [src layout](../tooling/src-layout.md)
+- [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
+- [The BKB layer is pybkb's core, ported under GPL-3.0 and checked against pybkb's own results](bkb-layer-source.md)

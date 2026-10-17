@@ -6,4 +6,4 @@ The loader returns standard-library values, so no other stage imports pronto. Th
 
 - **Dependencies:** The `ontology` extra (`pyproject.toml`), `bko.datasets` with its `data` extra, and `bko.bkb`.
 - **Owner:** Partiban Anathurai
-- **Status:** built. The ontology fragments join in [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md), and the HPO fragment is fused in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).
+- **Status:** built. The HPO fragment is fused in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).

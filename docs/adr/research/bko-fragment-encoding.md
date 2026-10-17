@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 topic: research
 created: 2026-10-17
 updated: 2026-10-17
