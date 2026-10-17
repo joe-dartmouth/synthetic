@@ -15,7 +15,7 @@ The tools the 2-pager names (section 4):
 | Concern | Tool | Notes |
 |---|---|---|
 | Front end | Streamlit over a Python backend | |
-| Ontology access | owlready2, pronto, OLS4 | |
+| Ontology access | owlready2, pronto, OLS4 | The repository reads pinned OBO releases with pronto; owlready2 and OLS4 are not dependencies (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)) |
 | Record generation | Anthropic Messages API | |
 | Baselines | CTGAN (Conditional Tabular GAN), TVAE (Tabular Variational AutoEncoder), SMOTE (Synthetic Minority Over-sampling Technique), ADASYN (Adaptive Synthetic Sampling) | CTGAN and TVAE come from SDV, SMOTE and ADASYN from imbalanced-learn |
 | Evaluation | scikit-learn, SDMetrics, synthcity | synthcity is not a dependency: it does not resolve on Python 3.14 (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). Evaluation uses scikit-learn and SDMetrics ([RESEARCH.md](RESEARCH.md#5-evaluation-contract)) |
@@ -107,7 +107,7 @@ The 2-pager's method choices govern where they differ from the flow:
 | Point | Brief F16 | Plan |
 |---|---|---|
 | Front end | Streamlit or Gradio | Streamlit |
-| Step 2 | HPO, MONDO or SNOMED through OLS/BioPortal; a Bayesian coverage score | MONDO and HPO through owlready2, pronto and OLS4; gaps are ungrounded BKO statements, with count-based gaps alongside |
+| Step 2 | HPO, MONDO or SNOMED through OLS/BioPortal; a Bayesian coverage score | MONDO and HPO through pronto, from pinned OBO releases; gaps are ungrounded BKO statements, with count-based gaps alongside |
 | Step 3 | A dropdown of CLLM, GReaT, CTGAN, TVAE and SMOTE; SHACL validation | Generation through the Anthropic Messages API, compared against CTGAN, TVAE, SMOTE and ADASYN; validation against the consistency checks and range constraints |
 | Step 4 | Optional human-in-the-loop tab | Not planned ([IDEAS.md](IDEAS.md#human-in-the-loop-expert-questions)) |
 | Step 5 | Improvement over no augmentation | The success criteria, which add the class-weighting control and the baselines ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |

@@ -16,7 +16,7 @@ import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-- `make setup`: install the `dev`, `data`, `synth` and `eval` extras from `uv.lock`.
+- `make setup`: install the `dev`, `data`, `synth`, `eval` and `ontology` extras from `uv.lock`.
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
@@ -32,6 +32,9 @@ import it (ADR `tooling/agent-config-single-home`).
   every comparison method on E1's holdouts, then judge an arm against E1's criteria
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) says when `--candidate` may be
   omitted).
+- `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
+  MONDO and HPO releases, fetching them into `data/` if absent
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - A targeted run while working:
 
   ```
@@ -65,10 +68,10 @@ synthetic/
   here. `bko.bkb` holds the part of it this project ports (ADR `research/bkb-layer-source`), and
   its test fixtures are exported from pybkb outside the lock
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#bkb-fixtures)).
-- **`make setup` installs `dev`, `data`, `synth` and `eval`.** The other runtime dependencies are
-  locked extras installed on demand; ADR `tooling/uv-ruff-ty` says when one joins `make setup`, and
-  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install one. Never
-  `uv pip install`: it resolves past the lock and `make synced` refuses the result.
+- **`make setup` installs `dev`, `data`, `synth`, `eval` and `ontology`.** The other runtime
+  dependencies are locked extras installed on demand; ADR `tooling/uv-ruff-ty` says when one joins
+  `make setup`, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to install
+  one. Never `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install
   targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
   `uv lock`, then `make setup`.
