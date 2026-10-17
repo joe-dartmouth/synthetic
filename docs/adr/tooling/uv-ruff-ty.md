@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 # uv, ruff and ty, wrapped by a Makefile
 
@@ -66,8 +66,9 @@ verdicts that move only when a pin moves.
 **Accepted**: a new lint rule never arrives on its own; a ruff or ty bump needs a commit and
 `make setup`. A developer working on a stage installs its extra by hand until the stage's first
 import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
-it and `eval` because `bko.evaluate` imports it, so every clone downloads `torch`, and on Linux the
-lock adds the NVIDIA CUDA packages and `triton`.
+it, `eval` because `bko.evaluate` imports it, and `ontology` because `bko.ontology` imports pronto.
+`synth` brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packages and
+`triton`.
 
 ## Ruled Out
 
@@ -87,8 +88,8 @@ lock adds the NVIDIA CUDA packages and `triton`.
 - Pinned by: `tests/test_repo_gate.py`
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
   distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
-  `make setup` installs at least the `dev`, `data`, `synth` and `eval` extras, and that every
-  `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
+  `make setup` installs at least the `dev`, `data`, `synth`, `eval` and `ontology` extras, and
+  that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
 
 ## Reversal Conditions
 

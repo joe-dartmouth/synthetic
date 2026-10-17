@@ -8,12 +8,7 @@ resolution-markers = [
 ]
 
 [manifest]
-build-constraints = [
-    { name = "cython", specifier = "==3.3.0" },
-    { name = "hatchling", specifier = "==1.32.4" },
-    { name = "setuptools", specifier = "==84.0.0" },
-    { name = "wheel", specifier = "==0.48.0" },
-]
+build-constraints = [{ name = "hatchling", specifier = "==1.32.4" }]
 
 [[package]]
 name = "altair"
@@ -111,7 +106,6 @@ llm = [
     { name = "anthropic" },
 ]
 ontology = [
-    { name = "owlready2" },
     { name = "pronto" },
 ]
 synth = [
@@ -126,7 +120,6 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.16" },
     { name = "imbalanced-learn", marker = "extra == 'synth'", specifier = ">=0.14" },
     { name = "numpy", marker = "extra == 'data'", specifier = ">=2.5" },
-    { name = "owlready2", marker = "extra == 'ontology'", specifier = ">=0.51" },
     { name = "pandas", marker = "extra == 'data'", specifier = ">=2.3" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = "==2.3.3.260113" },
     { name = "pronto", marker = "extra == 'ontology'", specifier = ">=2.7" },
@@ -1153,12 +1146,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/f3/d86c845465a2723ad7e1e5c36dcd75ddb82898b3f53be47ebd429fb2fa5d/nvidia_nvtx-13.0.85-py3-none-manylinux1_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:4936d1d6780fbe68db454f5e72a42ff64d1fd6397df9f363ae786930fd5c1cd4", size = 148047, upload-time = "2025-09-04T08:29:01.761Z" },
     { url = "https://files.pythonhosted.org/packages/a8/64/3708a90d1ebe202ffdeb7185f878a3c84d15c2b2c31858da2ce0583e2def/nvidia_nvtx-13.0.85-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cb7780edb6b14107373c835bf8b72e7a178bac7367e23da7acb108f973f157a6", size = 148878, upload-time = "2025-09-04T08:28:53.627Z" },
 ]
-
-[[package]]
-name = "owlready2"
-version = "0.51"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c5/46/27a21b73ab3cf85ed8b09fdfeda1cc6abcee715d3435eca543495ef79539/owlready2-0.51.tar.gz", hash = "sha256:65adebc79ff6abdd2a0bde8d3aac21c6beed8699bf1e7c849d30eba9c513795e", size = 27435504, upload-time = "2026-06-22T10:51:38.882Z" }
 
 [[package]]
 name = "packaging"

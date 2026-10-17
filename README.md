@@ -32,7 +32,7 @@ Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the int
 `.python-version`.
 
 ```bash
-make setup     # dev tools and the data, synth and eval extras from the lock
+make setup     # dev tools and the data, synth, eval and ontology extras from the lock
 make check     # the whole gate
 make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 make synthea   # generate the Synthea population (needs a JDK) and ablate one cell

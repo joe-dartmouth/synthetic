@@ -71,6 +71,10 @@ names the package for each.
 - Govern numeric fields by separately specified range constraints.
 - Exclude from scope any concept without a defensible corresponding field.
 
+ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md) sets how the
+ontologies are loaded and how the mapping table is sourced, scoped and checked;
+`bko.ontology.mapping` holds the rows.
+
 ### Detect
 
 Apply the BKO instantiation algorithm to find statements the ontology implies but the data does not
@@ -242,6 +246,7 @@ Where the brief and the 2-pager disagree:
 | Team and time | Three students, 10 weeks | Four members, the [ROADMAP](ROADMAP.md) schedule | 2-pager |
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |
 | Evaluation stack | SDMetrics + synthcity | scikit-learn, SDMetrics, synthcity | Repository drops synthcity (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)) |
+| Ontology access | OLS/BioPortal APIs (brief A2, F16) | owlready2, pronto, OLS4 | Repository reads pinned OBO releases with pronto and drops owlready2 and OLS4 (ADR [research/ontology-mapping-design](adr/research/ontology-mapping-design.md)) |
 | Datasets | UCI, Pima, Synthea; MIMIC optional | UCI Heart Disease + Synthea | 2-pager |
 | SLM distillation | Stretch goal or Track B | Absent | [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) |
 | Primary criterion | Not discussed | 2-pager: at least 10% over no augmentation, and matching CTGAN, TVAE and SMOTE; repository: separation from every comparison method, however small, judged on paired intervals ([section 4](#4-success-criteria)) | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |

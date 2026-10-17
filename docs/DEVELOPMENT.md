@@ -7,12 +7,12 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth` and `eval` extras from the
-lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval` and `ontology` extras
+from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas),
-  `synth` (sdv, imbalanced-learn, torch) and `eval` (scikit-learn, sdmetrics, scipy) are installed
-  by `make setup`; `ontology` (owlready2, pronto), `llm` (anthropic) and `app` (streamlit) are
+  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy) and `ontology`
+  (pronto) are installed by `make setup`; only `llm` (anthropic) and `app` (streamlit) are
   installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
   NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
   when an extra joins `make setup`. `make sync` installs every extra.
@@ -25,17 +25,16 @@ lock, and `source .venv/bin/activate` enters the environment.
   rewriting it, and every gate step runs `uv run --no-sync`, so nothing but an explicit `uv lock`
   writes `uv.lock`. `tests/test_repo_gate.py` compares the two offline as well.
 - **Build backends are pinned** in `[tool.uv] build-constraint-dependencies`, because uv resolves
-  them outside the lock: hatchling for `bko`, and setuptools, wheel and Cython for owlready2, which
-  ships only an sdist.
+  them outside the lock: hatchling for `bko`.
 
 ## Data
 
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
-[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease and
-the Synthea jar) is pinned by size and sha256 in `bko.datasets.sources`. A download that differs
-from its pin is refused; the commands delete and fetch again a snapshot on disk that fails its pin,
-and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
+[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease, the
+Synthea jar, and the MONDO and HPO releases) is pinned by size and sha256 in
+`bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
+fetch again a snapshot on disk that fails its pin, and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
 commands regenerate one whose CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
@@ -169,6 +168,35 @@ and the gate never runs pybkb.
 - **What holds the fixtures to the run**: the tests ADR
   [`research/bkb-layer-source`](adr/research/bkb-layer-source.md) lists under Enforcement.
 
+## Ontologies
+
+`bko.ontology` ([README](../src/bko/ontology/README.md)) reads the MONDO and HPO releases
+`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields and to the
+Synthea condition the ablation removes (ADR
+[`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). One command, inside
+`.venv`:
+
+    uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
+
+- **What it does**: it fetches the two releases into the data root if absent, verifies each against
+  its pin, parses them with pronto, and checks every concept row: the concept exists and is not
+  obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
+  `skos:exactMatch` of its concept and of no other live concept, and an out-of-scope concept is
+  not an `is_a` ancestor of a mapped one. stdout gets a CSV with the columns `table` (`field`,
+  `code` or `out-of-scope`), `subject` (the dataset side, such as `cp in 1|2|3`), `concept`,
+  `label` and `status` (`ok`, or how the release disagrees), one row per concept row, the same
+  bytes on every run over the same releases.
+- **What it logs**: stderr gets each release's snapshot identity (as in [Data](#data)), the
+  `data-version` its header names, and its term counts.
+- **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
+  could not run; 3 a release contradicts its pin or is not OBO the loader reads, or a row disagrees
+  with its release (the report is written first).
+- **Re-pinning**: edit the release's `Source` (URL, size, sha256), run this command, and review
+  each row it reports.
+- **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and
+  the table's invariants; a row naming a concept the release lacks passes `make check` and fails
+  this command, so run it after editing the table or re-pinning a release.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -182,7 +210,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth` and `eval` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval` and `ontology` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |

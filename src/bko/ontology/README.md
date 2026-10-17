@@ -1,7 +1,9 @@
 # `bko.ontology`: ontology loading and field mapping
 
-Load MONDO and HPO through owlready2, pronto and OLS4, and map ontology concepts to dataset fields, starting with the disease label and chest-pain type. Each mapping records its source, encoding and limits; numeric fields are governed by separately specified range constraints.
+Load MONDO and HPO from pinned OBO releases with pronto, and map their concepts to dataset fields, starting with the disease label and chest-pain type. Each mapping records its source, encoding and limits; numeric fields are governed by separately specified range constraints; concepts with no defensible field are out of scope, and the near misses are listed with their reasons. The same table maps the SNOMED-CT code of the Synthea condition the ablation removes to a MONDO concept.
 
-- **Dependencies:** The `ontology` extra (`pyproject.toml`).
+The loader returns standard-library values, so no other stage imports pronto. The releases are pinned in `bko.datasets.sources`, and the rows are typed constants in `bko.ontology.mapping`. ADR [`research/ontology-mapping-design`](../../../docs/adr/research/ontology-mapping-design.md) records the design, and [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#ontologies) the command that checks the table against the releases. No row has had clinician review, which the plan makes conditional on availability ([RESEARCH, Represent](../../../docs/RESEARCH.md#represent)).
+
+- **Dependencies:** The `ontology` extra (`pyproject.toml`), and `bko.datasets` with its `data` extra.
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring. Planned in [`proposal-ontology-mapping`](../../../tasks/proposal-ontology-mapping.md).
+- **Status:** built. The ontology fragments join in [`proposal-mondo-do-fusion`](../../../tasks/proposal-mondo-do-fusion.md), and the HPO fragment is fused in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).
