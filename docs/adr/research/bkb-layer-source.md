@@ -104,8 +104,8 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
   and minus infinity exact.
 - **Attribution.** Every module and test module adapted from pybkb opens its docstring with a
   notice naming pybkb, its author, GPL version 3 and the date it was modified, and citing this
-  record; `bko.bkb.errors`, `bko.bkb.serialize` and the serialize, reason, determinism and
-  normalization tests are this project's own and carry none. The fixtures' manifest carries a notice naming pybkb,
+  record; `bko.bkb.errors`, `bko.bkb.serialize`, `bko.bkb.inference` and the serialize, reason,
+  determinism, normalization and inference tests are this project's own and carry none. The fixtures' manifest carries a notice naming pybkb,
   its author and GPL version 3; `README.md` names what was adapted.
   pybkb's files carry no copyright line of their own, so none is retained.
 
@@ -175,7 +175,7 @@ default, a component's source priors sum to less than 1 where a fragment holds n
 - Owner: `src/bko/bkb/`
 - Pinned by: `tests/test_bkb_provenance.py`, `tests/test_bkb_structure.py`,
   `tests/test_bkb_serialize.py`, `tests/test_bkb_fusion.py`, `tests/test_bkb_determinism.py`,
-  `tests/test_bkb_reason.py`, `tests/test_bkb_normalization.py`
+  `tests/test_bkb_reason.py`, `tests/test_bkb_normalization.py`, `tests/test_bkb_inference.py`
 - `test_bkb_provenance.py` asserts that each module adapted from pybkb carries the notice, that
   `tests/pybkb/manifest.json` names the commit above and every committed fixture with its sha256,
   and that `tests/pybkb/export.py` is the exporter that wrote them.

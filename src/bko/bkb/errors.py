@@ -24,7 +24,11 @@ class FusionError(BKBError):
 
 
 class QueryError(BKBError):
-    """A query names an unknown or source target or evidence, or its evidence is incomplete."""
+    """A query cannot be answered as asked.
+
+    It names an unknown or source target, evidence or anchor, its evidence is incomplete, or an
+    inference cannot be followed.
+    """
 
 
 class DocumentFormatError(BKBError):

@@ -28,7 +28,7 @@ pipeline stage:
 | Subpackage | Stage | Extra it will import |
 |---|---|---|
 | `datasets` | UCI Heart Disease and Synthea loading | `data` |
-| `ontology` | MONDO and HPO loading; field mapping | `ontology` |
+| `ontology` | MONDO, HPO and DO loading; field mapping; BKO fragments | `ontology` |
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
 | `gaps` | Ungrounded-statement and count-based gap detection | none |
 | `generate` | Candidate-record generation through the Messages API | `llm` |

@@ -1,8 +1,12 @@
 """Offline inputs for the `bko.ontology` tests: OBO release text and a URL-routing opener.
 
-The MONDO:0024644 stanza, with the header lines that declare its prefixes, is from MONDO release
-2026-10-06 (CC BY 4.0); every other MONDO stanza is invented. `HPO_TEXT` is invented: it reuses
-HPO ids and labels only, and no HPO file content.
+The MONDO:0024644 stanza of `MONDO_TEXT`, with the header lines that declare its prefixes, is from
+MONDO release 2026-10-06 (CC BY 4.0); every other `MONDO_TEXT` stanza is invented.
+`SANTOS_MONDO_TEXT` abridges MONDO release 2026-10-06 (CC BY 4.0) to the id, name and is_a lines
+and the skos:exactMatch lines to DO of the six MONDO classes of Santos et al.'s example, with the
+id and name of their parents, qualifiers dropped; `SANTOS_DO_TEXT` abridges Human Disease Ontology
+release 2026-09-30 (CC0 1.0) the same way. `HPO_TEXT` is invented: it reuses HPO ids and labels
+only, and no HPO file content.
 """
 
 from __future__ import annotations
@@ -93,6 +97,110 @@ HPO_TEXT = (
     + "".join(f"\n[Term]\nid: {curie}\nname: {name}\n" for curie, name in HPO_LABELS.items())
 )
 """An HPO-shaped release: one bare stanza per id in `HPO_LABELS`."""
+
+SANTOS_MONDO_TEXT = """\
+format-version: 1.2
+data-version: releases/2026-10-06
+idspace: skos http://www.w3.org/2004/02/skos/core#
+ontology: mondo
+
+[Term]
+id: MONDO:0006960
+name: sciatic neuropathy
+is_a: MONDO:0001397 ! mononeuropathy
+property_value: skos:exactMatch DOID:11446
+
+[Term]
+id: MONDO:0001543
+name: lesion of sciatic nerve
+is_a: MONDO:0001829 ! lumbosacral plexus lesion
+is_a: MONDO:0006960 ! sciatic neuropathy
+is_a: MONDO:0024334 ! peripheral nerve lesion
+property_value: skos:exactMatch DOID:12528
+
+[Term]
+id: MONDO:0001397
+name: mononeuropathy
+is_a: MONDO:0005244 ! peripheral neuropathy
+property_value: skos:exactMatch DOID:1188
+
+[Term]
+id: MONDO:0002121
+name: mononeuritis simplex
+is_a: MONDO:0001397 ! mononeuropathy
+is_a: MONDO:0002122 ! neuritis
+property_value: skos:exactMatch DOID:1802
+
+[Term]
+id: MONDO:0002122
+name: neuritis
+is_a: MONDO:0005244 ! peripheral neuropathy
+is_a: MONDO:0021166 ! inflammatory disease
+property_value: skos:exactMatch DOID:1803
+
+[Term]
+id: MONDO:0021166
+name: inflammatory disease
+is_a: MONDO:7770007 ! disease by developmental or physiological process
+
+[Term]
+id: MONDO:0001829
+name: lumbosacral plexus lesion
+
+[Term]
+id: MONDO:0024334
+name: peripheral nerve lesion
+
+[Term]
+id: MONDO:0005244
+name: peripheral neuropathy
+
+[Term]
+id: MONDO:7770007
+name: disease by developmental or physiological process
+"""
+"""The MONDO side of Santos et al.'s example, abridged from release 2026-10-06."""
+
+DOID_9473_STANZA = (
+    "[Term]\nid: DOID:9473\nname: mononeuritis of lower limb\nis_a: DOID:1802 ! mononeuritis\n\n"
+)
+"""One DO stanza of the example, which a test removes."""
+
+SANTOS_DO_TEXT = f"""\
+format-version: 1.2
+data-version: releases/2026-09-30/doid.obo
+ontology: doid
+
+[Term]
+id: DOID:11446
+name: sciatic neuropathy
+is_a: DOID:12528 ! lesion of sciatic nerve
+
+[Term]
+id: DOID:12528
+name: lesion of sciatic nerve
+is_a: DOID:9473 ! mononeuritis of lower limb
+
+{DOID_9473_STANZA}[Term]
+id: DOID:1802
+name: mononeuritis
+is_a: DOID:1188 ! mononeuropathy
+
+[Term]
+id: DOID:1188
+name: mononeuropathy
+is_a: DOID:870 ! neuropathy
+
+[Term]
+id: DOID:1803
+name: neuritis
+is_a: DOID:870 ! neuropathy
+
+[Term]
+id: DOID:870
+name: neuropathy
+"""
+"""The DO side of Santos et al.'s example, abridged from release 2026-09-30."""
 
 
 def write_obo(directory: Path, text: str, name: str = "release.obo") -> Path:
