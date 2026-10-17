@@ -39,19 +39,21 @@ links to where its blocker is tracked.
 ## ontology
 
 - **`cleanup:ontology/no-real-release-test`: the gate never parses a real release.** Every loader
-  and table test reads OBO text built in `tmp_path` (`tests/_ontology_fixtures.py`); the only check
-  against the pinned MONDO and HPO files is a person running `python -m bko.ontology check`. A
-  pronto upgrade that changes how a real release parses passes `make check`.
+  and table test reads OBO text built in `tmp_path` (`tests/_ontology_fixtures.py`); the only checks
+  against the pinned MONDO, HPO and DO files are a person running `python -m bko.ontology check`
+  and `python -m bko.ontology reproduce`. A pronto upgrade that changes how a real release parses
+  passes `make check`.
   *Filed 2026-10-16 by the review of PR #9.*
 
   **Why deferred.** The gate reads no download by design (AGENTS.md, Gotchas), so the test has to
   run outside `make check`, and `tests/test_skip_policy.py` governs how a conditional test may skip.
   Choosing that mechanism is outside the change that found it.
 
-  **What discharges it:** an opt-in test that loads both pinned releases from `data/` and asserts
-  the table checks clean, with a documented command, inside the skip policy.
+  **What discharges it:** an opt-in test that loads the pinned releases from `data/` and asserts
+  the table checks clean and the reproduction differs nowhere, with a documented command, inside
+  the skip policy.
 
-  **Trigger:** the next re-pin of either release, or the next change to `bko.ontology.obo` or the
+  **Trigger:** the next re-pin of any of them, or the next change to `bko.ontology.obo` or the
   pronto lock.
 
 - **`cleanup:ontology/row-unions-not-exhaustive`: `check` renders an unknown row kind as
@@ -67,17 +69,6 @@ links to where its blocker is tracked.
 
   **Trigger:** the next change to `ConceptRow` or `Clause` in `src/bko/ontology/schema.py`.
 
-- **`cleanup:ontology/disagreements-only-on-stdout`: stderr does not name a disagreeing row.**
-  When a row disagrees, `python -m bko.ontology check` logs only `checked N rows: M disagree`. With
-  stdout redirected to a file, as `docs/DEVELOPMENT.md` shows, the terminal names no row.
-  *Filed 2026-10-16 by the review of PR #9.*
-
-  **Why deferred.** The CSV on stdout names every disagreement, so no information is lost.
-
-  **What discharges it:** one WARNING per disagreeing row, naming its concept and problem.
-
-  **Trigger:** the next change to `src/bko/ontology/__main__.py`.
-
 - **`cleanup:ontology/exit-three-means-two-things`: a caller cannot tell a broken release from a
   disagreeing row by exit code.** Exit 3 covers a release that contradicts its pin or is not
   readable OBO (stdout empty) and a row that disagrees with a sound release (stdout holds the
@@ -90,17 +81,6 @@ links to where its blocker is tracked.
   `docs/DEVELOPMENT.md` (Ontologies), or a recorded decision to keep one code.
 
   **Trigger:** the first script or stage that calls the check and branches on its outcome.
-
-- **`cleanup:ontology/parser-version-not-logged`: a run's stderr does not name the pronto
-  version.** Each release is logged with its name, sha256, `data-version` and term counts, so the
-  input bytes are identified; the parser that read them is not. A pronto upgrade that changes a
-  parse leaves no trace in the log. *Filed 2026-10-16 by the review of PR #9.*
-
-  **Why deferred.** `uv.lock` fixes the version for a reader who has the commit.
-
-  **What discharges it:** one INFO line with `pronto.__version__` beside the release lines.
-
-  **Trigger:** the next change to the release log lines in `src/bko/ontology/__main__.py`.
 
 - **`cleanup:ontology/exact-match-scan-per-row`: each SNOMED-CT row scans the whole release.**
   `_match_problem` in `src/bko/ontology/check.py` walks every MONDO term (63329 at release

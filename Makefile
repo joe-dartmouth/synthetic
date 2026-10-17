@@ -1,5 +1,5 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
@@ -60,6 +60,12 @@ cells:
 # honored), ablate the default cell, and print the cell counts before and after as CSV.
 synthea:
 	@uv run --no-sync python -m bko.datasets synthea
+
+# Rebuild Santos et al.'s MONDO/DO fusion example from the pinned releases (fetched into data/ if
+# absent) and print one CSV row per quantity the paper reports (docs/DEVELOPMENT.md, Fusion
+# reproduction). Not part of the gate.
+reproduce:
+	@uv run --no-sync python -m bko.ontology reproduce
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final

@@ -24,6 +24,9 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
 - `make synthea`: generate the pinned Synthea population and print the default ablation's cell
   counts (needs a JDK).
+- `make reproduce`: rebuild Santos et al.'s MONDO/DO fusion example from the pinned releases and
+  compare each quantity with the paper
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#fusion-reproduction)).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).

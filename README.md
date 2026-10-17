@@ -36,6 +36,7 @@ make setup     # dev tools and the data, synth, eval and ontology extras from th
 make check     # the whole gate
 make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 make synthea   # generate the Synthea population (needs a JDK) and ablate one cell
+make reproduce # rebuild Santos et al.'s MONDO/DO fusion example and compare it with the paper
 ```
 
 ## Repository guide

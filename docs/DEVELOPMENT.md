@@ -186,8 +186,9 @@ Synthea condition the ablation removes (ADR
   `code` or `out-of-scope`), `subject` (the dataset side, such as `cp in 1|2|3`), `concept`,
   `label` and `status` (`ok`, or how the release disagrees), one row per concept row, the same
   bytes on every run over the same releases.
-- **What it logs**: stderr gets each release's snapshot identity (as in [Data](#data)), the
-  `data-version` its header names, and its term counts.
+- **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
+  [Data](#data)), the `data-version` its header names, its term counts, and one warning per
+  disagreeing row.
 - **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
   could not run; 3 a release contradicts its pin or is not OBO the loader reads, or a row disagrees
   with its release (the report is written first).
@@ -204,6 +205,8 @@ Synthea condition the ablation removes (ADR
 the fragment encoding of ADR `research/bko-fragment-encoding`. One command, inside `.venv`:
 
     uv run --no-sync python -m bko.ontology reproduce [--data-dir <dir>]
+
+`make reproduce` runs the same command with the default data root.
 
 - **What it does**: it fetches MONDO and DO into the data root if absent, verifies each against
   its pin and parses it, builds the MONDO, DO and bridge fragments over the paper's terms, fuses
@@ -248,6 +251,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `sizes` | `python -m tools.check_file_size` | ADR [`tooling/file-size-cap`](adr/tooling/file-size-cap.md) |
 | `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
 | `synthea` | `python -m bko.datasets synthea` | Not part of the gate; needs a JDK, and fetches the Synthea jar and generates on its first run ([Data](#data)) |
+| `reproduce` | `python -m bko.ontology reproduce` | Not part of the gate; fetches MONDO and DO on its first run ([Fusion reproduction](#fusion-reproduction)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |

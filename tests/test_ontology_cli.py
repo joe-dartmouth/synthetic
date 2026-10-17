@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import io
 import logging
 import os
@@ -18,7 +19,14 @@ from bko.ontology.mapping import CODE_MAPPINGS
 from bko.ontology.schema import CodeMapping, Codes, ConceptRow, FieldMapping, OutOfScope
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import pin
-from tests._ontology_fixtures import HPO_TEXT, MONDO_TEXT, RoutingOpener
+from tests._ontology_fixtures import (
+    HPO_TEXT,
+    MONDO_TEXT,
+    SANTOS_DO_TEXT,
+    SANTOS_MONDO_TEXT,
+    SANTOS_REPORT,
+    RoutingOpener,
+)
 
 
 FIELD_ROW = FieldMapping(
@@ -73,6 +81,7 @@ def test_agreeing_rows_exit_zero(tmp_path, caplog):
     assert "release mondo data_version=releases/2026-10-06" in caplog.text
     assert "terms=9 obsolete=2" in caplog.text
     assert "checked 3 rows: 0 disagree" in caplog.text
+    assert f"parser pronto {importlib.metadata.version('pronto')}" in caplog.text
 
 
 def test_a_second_run_is_identical_and_offline(tmp_path):
@@ -83,16 +92,19 @@ def test_a_second_run_is_identical_and_offline(tmp_path):
     assert len(opener.calls) == calls
 
 
-def test_a_disagreeing_row_exits_three_after_the_report(tmp_path):
+def test_a_disagreeing_row_exits_three_after_the_report(tmp_path, caplog):
     wrong = CodeMapping(
         snomed="414545008", concept="MONDO:0024644", label="Myocardial Ischemia", source="mondo"
     )
-    code, out, _ = _run(tmp_path / "data", rows=(wrong, FIELD_ROW, SCOPE_ROW))
+    with caplog.at_level(logging.WARNING, logger="bko.ontology"):
+        code, out, _ = _run(tmp_path / "data", rows=(wrong, FIELD_ROW, SCOPE_ROW))
     assert code == 3
     lines = out.splitlines()
     assert len(lines) == 4
     assert lines[1].split(",")[-1].startswith("named 'myocardial ischemia'")
     assert lines[2:] == EXPECTED.splitlines()[2:]
+    [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warning.startswith("row code MONDO:0024644 disagrees: named 'myocardial ischemia'")
 
 
 def test_an_unreachable_release_exits_two(tmp_path):
@@ -150,3 +162,48 @@ def test_the_module_entry_point_runs():
     )
     assert result.returncode == 0, result.stderr
     assert "check" in result.stdout
+    assert "reproduce" in result.stdout
+
+
+def _reproduce(
+    data_dir: Path, *, do: bytes = SANTOS_DO_TEXT.encode(), opener: RoutingOpener | None = None
+) -> tuple[int, str, RoutingOpener]:
+    mondo = SANTOS_MONDO_TEXT.encode()
+    mondo_pin, do_pin = pin(mondo, name="mondo"), pin(do, name="do")
+    opener = opener or RoutingOpener({mondo_pin.url: mondo, do_pin.url: do})
+    out = io.StringIO()
+    context = Context(open_url=opener, paper_releases={"DOID": do_pin, "MONDO": mondo_pin})
+    code = main(["reproduce", "--data-dir", str(data_dir)], context=context, out=out)
+    return code, out.getvalue(), opener
+
+
+def test_reproduce_writes_the_report_and_exits_zero(tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="bko.ontology"):
+        code, out, opener = _reproduce(tmp_path / "data")
+    assert (code, out) == (0, SANTOS_REPORT)
+    assert len(opener.calls) == 2
+    assert "release do data_version=releases/2026-09-30/doid.obo" in caplog.text
+    assert f"parser pronto {importlib.metadata.version('pronto')}" in caplog.text
+    assert "reproduced 40 findings: 0 differ" in caplog.text
+
+
+def test_reproduce_warns_per_differing_finding_and_still_exits_zero(tmp_path, caplog):
+    do = (SANTOS_DO_TEXT + "\n[Term]\nid: DOID:114466\nname: sciatic neuropathy\n").encode()
+    with caplog.at_level(logging.WARNING, logger="bko.ontology"):
+        code, out, _ = _reproduce(tmp_path / "data", do=do)
+    assert code == 0
+    row = "term,DOID:114466,Sciatic Neuropathy,DOID:114466 present; DOID:11446 sciatic neuropathy"
+    assert f"{row},differs" in out.splitlines()
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [
+        (
+            "finding term DOID:114466 differs: paper 'Sciatic Neuropathy', "
+            "measured 'DOID:114466 present; DOID:11446 sciatic neuropathy'"
+        )
+    ]
+
+
+def test_reproduce_with_an_unreachable_release_exits_two(tmp_path):
+    opener = RoutingOpener({}, error=urllib.error.URLError("down"))
+    code, out, _ = _reproduce(tmp_path / "data", opener=opener)
+    assert (code, out) == (2, "")
