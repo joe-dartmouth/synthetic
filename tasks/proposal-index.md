@@ -10,15 +10,13 @@ the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none)
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`proposal-llm-generation`](proposal-llm-generation.md) | ready | -- | Shirley | status-update-2 |
-| [`proposal-record-validation`](proposal-record-validation.md) | ready | -- | Shirley | status-update-2 |
-| [`proposal-fusion-repair`](proposal-fusion-repair.md) | blocked | proposal-llm-generation, proposal-record-validation | Shirley | status-update-2 |
+| [`proposal-fusion-repair`](proposal-fusion-repair.md) | blocked | proposal-llm-generation | Shirley | status-update-2 |
 | [`proposal-streamlit-app`](proposal-streamlit-app.md) | blocked | proposal-fusion-repair | Krish | working-prototype |
 | [`proposal-final-evaluation`](proposal-final-evaluation.md) | blocked | proposal-fusion-repair | Joe | final-report |
 
 ```mermaid
 flowchart LR
     llm_generation[proposal-llm-generation] --> fusion_repair[proposal-fusion-repair]
-    record_validation[proposal-record-validation] --> fusion_repair[proposal-fusion-repair]
     fusion_repair[proposal-fusion-repair] --> streamlit_app[proposal-streamlit-app]
     fusion_repair[proposal-fusion-repair] --> final_evaluation[proposal-final-evaluation]
 ```
