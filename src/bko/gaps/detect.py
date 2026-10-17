@@ -18,7 +18,7 @@ from bko.bkb.fusion import fuse, is_source
 from bko.bkb.inference import instantiate
 from bko.bkb.structure import BKB, SNode
 from bko.datasets.cells import COUNT_COLUMNS
-from bko.ontology.fragments import INDIVIDUAL, is_a_fragment, scope
+from bko.ontology.fragments import INDIVIDUAL, is_a_fragment, scope_of
 from bko.ontology.terms import Ontology
 
 
@@ -75,7 +75,7 @@ def ontology_fragments(
         ScopeError: As `is_a_fragment`, for a concept absent from or obsolete in its release.
     """
     scoped = (
-        (prefix, ontology, scope(ontology, concepts, prefix=prefix))
+        (prefix, ontology, scope_of(ontology, concepts, prefix=prefix))
         for prefix, ontology in sorted(ontologies.items())
     )
     return tuple(

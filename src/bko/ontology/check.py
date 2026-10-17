@@ -101,7 +101,7 @@ def _scope_problem(
         curie
         for curie in mapped
         if curie in ontology.terms
-        and row.concept in ancestors(ontology, curie, prefix=curie.partition(":")[0])
+        and row.concept in ancestors(ontology, curie, prefix=row.concept.partition(":")[0])
     )
     if below:
         return f"is_a ancestor of mapped {', '.join(below)} in {where}, so it is in scope"

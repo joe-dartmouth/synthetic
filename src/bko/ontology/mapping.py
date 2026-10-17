@@ -8,10 +8,11 @@ copying a row. ADR `research/ontology-mapping-design` records how the rows are c
 `docs/literature.md`, or an ADR id under `docs/adr/`.
 
 **Scope.** A concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped concept
-in its release. Every other concept is out of scope; `OUT_OF_SCOPE` records the near misses
-considered and why each was rejected, and `bko.ontology.check` refuses one that is an `is_a`
-ancestor of a mapped concept. Each dataset's BKO holds the part of it the dataset's own rows reach:
-`FIELD_MAPPINGS` for UCI Heart Disease, `CODE_MAPPINGS` for Synthea (`bko.gaps`).
+in its release, reached through classes with the release's prefix. Every other concept is out of
+scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and
+`bko.ontology.check` refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO
+holds the part of it the dataset's own rows reach: `FIELD_MAPPINGS` for UCI Heart Disease,
+`CODE_MAPPINGS` for Synthea (`bko.gaps`).
 
 **Labels** are the releases' `name:` values, copied verbatim from MONDO (CC BY 4.0) and HPO (its
 attribution is in `bko.datasets.sources.HPO`).

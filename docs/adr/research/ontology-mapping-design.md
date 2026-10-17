@@ -57,11 +57,12 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   protocol papers (Detrano 1985) define the field's finding. Every row records its limits. The
   resting blood pressure cutoff is 130 mm Hg.
 - **Scope**: a concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped
-  concept in its release. Every other concept is out of scope; `OUT_OF_SCOPE` records the near
-  misses considered and why each was rejected, and the check refuses one that is an `is_a`
-  ancestor of a mapped concept. Each dataset's BKO holds the part of this scope its own rows
-  reach: the field mappings' concepts for UCI Heart Disease and the code mappings' for Synthea,
-  each with its `is_a` ancestors in its release, following only parents with the release's prefix.
+  concept in its release, reached through classes with the release's prefix. Every other concept is
+  out of scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and the
+  check refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO holds the
+  part of this scope its own rows reach: the field mappings' concepts for UCI Heart Disease and the
+  code mappings' for Synthea, each with its `is_a` ancestors in its release, following only parents
+  with the release's prefix.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
