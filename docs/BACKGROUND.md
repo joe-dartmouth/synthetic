@@ -1,12 +1,13 @@
 # Background
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; facts gathered outside the PDFs on 2026-10-13: Santos et al.'s metadata and a search summary of
-its abstract, and pybkb's repository read through the GitHub API.
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; facts gathered outside the PDFs on 2026-10-13: Santos et al.'s metadata and pybkb's repository read
+through the GitHub API; Santos et al. read from [the stored PDF](../papers/santos-2024.pdf) on 2026-10-17.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.
-Each section names the [literature.md](literature.md) group that holds its works. Every work there
-is registered but not fetched, so each claim below is the citing source's claim. A sentence tagged
+Each section names the [literature.md](literature.md) group that holds its works. A work there is
+`not-fetched` unless its entry says otherwise, and a claim attributed to a `not-fetched` work is the
+citing source's claim. A sentence tagged
 *(general background)* goes beyond the two sources.
 
 ## Bayesian Knowledge-driven Ontologies
@@ -28,9 +29,10 @@ statements are what the plan's gap detector tests against the data.
 A Bayesian Knowledge Base (BKB) is the probabilistic half of a BKO. The sources support this much:
 
 - **BKOs unite the two.** Santos et al. unite description-logic reasoning with BKBs, extending an
-  earlier BKO framework (from a search summary of the paper's abstract; the paper is not fetched).
-- **BKBs are built from fragments and fused.** By the same abstract summary, Santos et al. fuse
-  conflicting ontologies probabilistically instead of deleting knowledge. pybkb's fusion entry point
+  earlier BKO framework.
+- **BKBs are built from fragments and fused.** Santos et al. fuse conflicting ontologies
+  probabilistically instead of deleting knowledge: each fragment gains a source whose prior is its
+  reliability over the sum of every fragment's (their section 6.1). pybkb's fusion entry point
   is `fuse(bkfs, reliabilities, ...)`: it takes a set of fragments and a reliability for each.
 - **The plan builds three fragments.** MONDO and HPO each become a fragment, and the dataset becomes
   a second kind of fragment, weighted by observed frequency (2-pager section 3).

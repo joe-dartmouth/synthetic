@@ -52,7 +52,7 @@ synthetic/
 ├── ruff.toml / ty.toml / pyrightconfig.json
 ├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
-├── papers/      # the source PDFs: the proposal 2-pager and the research brief
+├── papers/      # the source PDFs: the proposal 2-pager, the research brief and Santos et al. 2024
 ├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)

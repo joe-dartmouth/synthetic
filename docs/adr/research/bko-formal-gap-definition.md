@@ -20,8 +20,8 @@ Dirichlet smoothing prior.
 
 The proposal 2-pager (section 3, Detect) adopts Bayesian Knowledge-driven Ontologies from Santos,
 Jurmain and Ragazzi (PLOS ONE 19(3): e0296864, 2024) and applies the BKO instantiation algorithm to
-find statements the ontology implies but the data does not support. Santos et al. show these
-ungrounded statements contribute nothing to the model's distribution, so the proposal uses them as
+find statements the ontology implies but the data does not support. Santos et al. state, as their
+Proposition 5.1.1, that these ungrounded statements contribute nothing to the model's distribution, so the proposal uses them as
 the formal definition of a gap. The paper exists and the term is established, so the brief's
 premise for reframing does not hold.
 
@@ -45,21 +45,26 @@ The record stays `proposed` until the MONDO/DO fusion from Santos et al. is repr
 
 ## Rationale
 
-By the 2-pager's account, Santos et al. prove that such statements contribute nothing to the
-distribution, which would make it a definition rather than a heuristic; the paper is not yet
-fetched, and reproducing its MONDO/DO fusion is what checks the account. The coverage score
-needs a prior and a threshold chosen by the team, and a different choice moves the gap set.
-Evaluating count-based gaps separately keeps the simple definition in the results, so a null result
-for the formal one is still reportable against it.
+Santos et al. state, as their Proposition 5.1.1, that an ungrounded PAA leaves every marginal
+and posterior the BKO induces unchanged, which makes ungrounded statements a definition rather
+than a heuristic. The paper judges grounding against the whole BKO (Definitions 5.1.4 and
+5.1.5); this record judges it against the dataset fragment, the project's adaptation.
+Rebuilding the paper's MONDO/DO fusion example
+([R1](../../EVIDENCE.md#r1-mondo-and-do-fusion-reproduction)) checks that `bko.bkb` runs the
+paper's fusion and instantiation; the example holds no ungrounded PAA, so it does not test the
+proposition. The coverage score needs a prior and a threshold chosen by the team, and a
+different choice moves the gap set. Evaluating count-based gaps separately keeps the simple
+definition in the results, so a null result for the formal one is still reportable against it.
 
 ## Consequences
 
 **Gained**: a gap set that follows from the representation; a citable formal basis.
 **Accepted**: gap detection runs on `bko.bkb`, a port of pybkb's core (ADR
 `research/bkb-layer-source`), whose update needs complete evidence; the schedule depends on it.
-Within a fused BKB every fused S-node carries its source's prior, so an ontology statement is
-supported through its ontology's source whether or not the dataset holds it: grounding is judged
-against the dataset fragment, not the fused BKB.
+In a fused BKB a source prior supports only its source assignment, and an ontology statement's
+class antecedent is supported by any statement with that consequent (Santos et al., Definitions
+5.1.4 and 5.1.5), so ontology statements support each other whether or not the dataset holds them:
+grounding is judged against the dataset fragment, not the fused BKB.
 
 ## Ruled Out
 

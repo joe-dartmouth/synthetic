@@ -1,8 +1,8 @@
 # Evidence register
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 2, 3 and 5.
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 2, 3 and 5; [Santos et al.](../papers/santos-2024.pdf) section 7 for R1.
 
-The results register: one entry per experiment, holding its configuration, its result and what the
+The results register: one entry per experiment or reproduction, holding its configuration, its result and what the
 result was read against. The criteria live in [RESEARCH.md](RESEARCH.md); an entry links the
 section that holds them rather than restating them.
 
@@ -16,6 +16,17 @@ section that holds them rather than restating them.
 | Runs | One dated row per run: run id, date, commit, where its logs and artifacts live, and API spend for runs that call a paid API. A rerun adds a row; a superseded or failed run keeps its row with the reason |
 | Result | What was measured, with units, and the command that produced it. Empty until the status is `complete` |
 | Read against | The RESEARCH.md section whose criteria judge the result, and the verdict: met, not met, inconclusive (its intervals decide neither way), or a null result reported as such |
+
+## R1. MONDO and DO fusion reproduction
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | Does `bko.bkb`, given MONDO and DO fragments built from the pinned releases, rebuild the fusion example of Santos et al. (section 7 of [the paper](../papers/santos-2024.pdf)), and where does it differ? |
+| Configuration | Command: `uv run --no-sync python -m bko.ontology reproduce`. Code: `bko.ontology.santos` holds the paper's terms, PTAs, anchor, passes and misprints; `bko.ontology.fragments` the encoding. Environment: Python 3.14, pronto 2.7.3 (`uv.lock`). Releases: MONDO 2026-10-06 and DO 2026-09-30 as `bko.datasets.sources` pins them, where the paper used MONDO 2023-09-12 and DO 2023-10-21. Bridge: MONDO's `skos:exactMatch` annotations, where the paper queried the EMBL-EBI OxO service. Fusion: weight 1 per fragment, `fuse`'s default (each source prior over every fragment's weight, the paper's section 6.1). Instantiation: from the paper's anchor (MONDO's lesion of sciatic nerve, DO's sciatic neuropathy), each pass adds every rule whose antecedents hold, as the paper's algorithm states. Misprints read as the releases give them: Table 1's DOID:114466 is DOID:11446; the fifth MONDO PTA is printed as a second TM4 with antecedent Mononeuritis, and MONDO gives neuritis (MONDO:0002122) as the subclass of inflammatory disease; section 7.1 narrates two bridge rules in its second pass whose antecedents are the anchor |
+| Runs | None |
+| Result | None |
+| Read against | [RESEARCH.md: Detect](RESEARCH.md#detect), which states when the reproduction holds |
 
 ## E1. UCI Heart Disease augmentation
 
