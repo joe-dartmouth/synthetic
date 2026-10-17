@@ -127,3 +127,25 @@ links to where its blocker is tracked.
   per release.
 
   **Trigger:** a second `CodeMapping` row, which E2's ablation targets may add.
+
+## tasks
+
+- **`cleanup:tasks/gap-request-source-unnamed`: no downstream unit says which gap list sets the
+  generation request.** `tasks/proposal-llm-generation.md` generates candidate records per gap, and
+  `tasks/proposal-final-evaluation.md` has the BKO arm return the rows per cell the gap request
+  asks for. A BKO gap is an ontology statement with no age-sex cell (ADR
+  `research/dataset-fragment-encoding`, Consequences), and on UCI Heart Disease the BKO list is
+  empty (`docs/EVIDENCE.md`, E2, Result), so neither unit's text says what a BKO-driven request is.
+  *Filed 2026-10-17 by the review of PR #12.*
+
+  **Why deferred.** The plan kept every downstream unit's text unchanged beyond its status, and the
+  answer depends on whether BKO grounding becomes per-subgroup, which the team decides.
+
+  **Blocked on:** the team's answer to the per-subgroup grounding question in
+  [PR #12](https://github.com/joe-dartmouth/synthetic/pull/12).
+
+  **What discharges it:** both units name the gap list that sets the request and what the request
+  is when that list is empty.
+
+  **Trigger:** the first change to `tasks/proposal-llm-generation.md` or
+  `tasks/proposal-final-evaluation.md` after the team answers.
