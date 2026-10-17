@@ -9,8 +9,7 @@ the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none)
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`proposal-gap-detection`](proposal-gap-detection.md) | ready | -- | Partiban | status-update-1 |
-| [`proposal-llm-generation`](proposal-llm-generation.md) | blocked | proposal-gap-detection | Shirley | status-update-2 |
+| [`proposal-llm-generation`](proposal-llm-generation.md) | ready | -- | Shirley | status-update-2 |
 | [`proposal-record-validation`](proposal-record-validation.md) | ready | -- | Shirley | status-update-2 |
 | [`proposal-fusion-repair`](proposal-fusion-repair.md) | blocked | proposal-llm-generation, proposal-record-validation | Shirley | status-update-2 |
 | [`proposal-streamlit-app`](proposal-streamlit-app.md) | blocked | proposal-fusion-repair | Krish | working-prototype |
@@ -18,7 +17,6 @@ the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none)
 
 ```mermaid
 flowchart LR
-    gap_detection[proposal-gap-detection] --> llm_generation[proposal-llm-generation]
     llm_generation[proposal-llm-generation] --> fusion_repair[proposal-fusion-repair]
     record_validation[proposal-record-validation] --> fusion_repair[proposal-fusion-repair]
     fusion_repair[proposal-fusion-repair] --> streamlit_app[proposal-streamlit-app]

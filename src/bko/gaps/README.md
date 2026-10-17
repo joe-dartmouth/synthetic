@@ -4,4 +4,4 @@ Find statements the ontology implies but the data does not support. Santos et al
 
 - **Dependencies:** The `data` extra (`pyproject.toml`), and `bko.ontology` with its `ontology` extra, and `bko.bkb`.
 - **Owner:** Partiban Anathurai
-- **Status:** not built; the package holds only its docstring. Planned in [`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md).
+- **Status:** built.

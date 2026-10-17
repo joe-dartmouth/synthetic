@@ -1,8 +1,8 @@
 ---
 id: proposal-llm-generation
 title: Record generation through the Messages API
-status: blocked
-depends_on: proposal-gap-detection
+status: ready
+depends_on: --
 blocks: proposal-fusion-repair
 parallel_safe: true
 owner: Shirley
