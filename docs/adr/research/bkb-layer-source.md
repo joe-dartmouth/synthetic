@@ -46,8 +46,8 @@ We will **port pybkb's core into `src/bko/bkb/` under GPL-3.0, depend on pybkb n
 the port against JSON fixtures that pybkb itself produced in a one-time run outside the lock.**
 
 - **Taken** from pybkb at the commit above: the BKB structure (`bko.bkb.structure`: I-nodes,
-  S-nodes, `find_snodes`, the mutex check), `fuse` with and without `collapse` and its
-  normalization (`bko.bkb.fusion`), and `heuristic_update_complete_fused` (`bko.bkb.reason`).
+  S-nodes, `find_snodes`, the mutex check), `fuse` with pybkb's normalization, with
+  and without its collapse (`bko.bkb.fusion`), and `heuristic_update_complete_fused` (`bko.bkb.reason`).
   `fuse` also offers, as its default, the fusion of Santos et al.
   ([`santos-2024`](../../literature.md#probabilistic-ontologies-and-bkos), section 6.1), which
   divides each source's reliability by every fragment's and never collapses.

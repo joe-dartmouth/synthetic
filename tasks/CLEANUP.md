@@ -36,6 +36,39 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## bkb
+
+- **`cleanup:bkb/huge-int-reliability-overflows`: an integer reliability beyond float range escapes
+  `fuse`'s refusal.** `_check` in `src/bko/bkb/fusion.py` accepts an `int`, then calls
+  `math.isfinite`, which converts it. `fuse(list(h2_fragments()), [10**400, 1])` raises
+  `OverflowError: int too large to convert to float`, not the `FusionError` its docstring promises.
+  *Filed 2026-10-17 by the review of PR #11.*
+
+  **Why deferred.** `_check` predates PR #11, which changed only the normalization; no caller
+  passes such a reliability.
+
+  **What discharges it:** `_check` refuses the value with `FusionError`, with a `REFUSED` case in
+  `tests/test_bkb_fusion.py`.
+
+  **Trigger:** the next change to `_check` in `src/bko/bkb/fusion.py`.
+
+- **`cleanup:bkb/component-total-order-unverified`: pybkb's modes sum a component's total in
+  S-node order, and pybkb's order there is unchecked.** `_add` sums source weights in the order
+  `supports` first meets each source, which is not fragment order when fragments share S-nodes.
+  Fragments A, B, C each holding `X=x` with probabilities 0.5, 0.25, 0.5, at reliabilities 0.1,
+  0.7, 0.3 under `Normalization.COMPONENT`, give B the prior `0.6363636363636362`; fragment order
+  gives `0.6363636363636364`. pybkb's fixtures never share an S-node across interleaved
+  fragments, so they cannot tell which order pybkb uses. *Filed 2026-10-17 by the review of PR
+  #11.*
+
+  **Why deferred.** The order predates PR #11, and settling it means reading or running pybkb
+  outside the lock.
+
+  **What discharges it:** pybkb's summation order read from its source at the pinned commit, `_add`
+  matched to it, and a test on the case above.
+
+  **Trigger:** the next export of pybkb fixtures, or the next change to `_add`.
+
 ## ontology
 
 - **`cleanup:ontology/no-real-release-test`: the gate never parses a real release.** Every loader

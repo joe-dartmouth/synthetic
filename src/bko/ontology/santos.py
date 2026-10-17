@@ -12,6 +12,7 @@ loaded releases and returns one `Finding` per quantity. The bridge comes from MO
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -24,6 +25,8 @@ from bko.datasets.sources import DO, MONDO, Source
 from bko.ontology.fragments import INDIVIDUAL, exact_match_fragment, is_a_fragment
 from bko.ontology.terms import Ontology
 
+
+logger = logging.getLogger(__name__)
 
 type Status = Literal["match", "erratum", "differs", "reported"]
 
@@ -189,7 +192,13 @@ def paper_fragments(mondo: Ontology, do: Ontology) -> tuple[BKB, BKB, BKB]:
         is_a_fragment(mondo, mondo_scope, prefix="MONDO", name="mondo"),
         is_a_fragment(do, do_scope, prefix="DOID", name="do"),
         exact_match_fragment(
-            mondo, mondo_scope, do, do_scope, subject_prefix="MONDO", target_prefix="DOID"
+            mondo,
+            mondo_scope,
+            do,
+            do_scope,
+            subject_prefix="MONDO",
+            target_prefix="DOID",
+            name="bridge",
         ),
     )
 
@@ -208,7 +217,7 @@ def reproduce(mondo: Ontology, do: Ontology) -> tuple[Finding, ...]:
     findings.extend(_instantiation(fused))
     findings.extend(_inference(item, fused, start, goal) for item, start, goal in INFERENCES)
     item, start, goal = INFERENCES[0]
-    pybkb = fuse(fragments, WEIGHTS, normalization=Normalization.COMPONENT)
+    pybkb = fuse(fragments, WEIGHTS, normalization=Normalization.COMPONENT, name="pybkb")
     measured = _measured(pybkb, start, goal)
     findings.append(
         Finding("inference", f"{item} under pybkb normalization", "", measured, "reported")
@@ -314,12 +323,17 @@ def _chains(fused: BKB, fragments: tuple[BKB, BKB, BKB], mondo: Ontology) -> lis
     findings = [Finding("chain", "fused", f"{start} -> {goal}", path, status)]
     live = [c for c, t in mondo.terms.items() if c.startswith("MONDO:") and not t.obsolete]
     release = is_a_fragment(mondo, live, prefix="MONDO", name="mondo release")
+    logger.info("mondo release fragment classes=%d snodes=%d", len(live), len(release.snodes))
     mondo_fragment, do_fragment, _ = fragments
     for item, bkb, origin in (
         ("mondo fragment", mondo_fragment, MONDO_START),
         ("do fragment", do_fragment, start),
         ("mondo release", release, MONDO_START),
     ):
+        if (origin, INDIVIDUAL) not in bkb:
+            # Without its start class the control cannot fail, so it is not evidence.
+            findings.append(Finding("chain", item, "absent", f"{origin} not in it", "differs"))
+            continue
         alone = _derive(bkb, origin, goal)
         measured = "absent" if alone is None else " -> ".join(alone[0])
         findings.append(

@@ -92,3 +92,23 @@ def test_an_unreached_goal_or_a_source_without_its_prior_is_refused():
 def test_probability_refuses_an_unknown_index():
     with pytest.raises(QueryError, match="is not an S-node"):
         probability(chain(), [2])
+    with pytest.raises(QueryError, match="is not an S-node"):
+        probability(chain(), [-1])
+
+
+def test_a_repeated_anchor_counts_once_in_the_order_given():
+    assert list(reach(chain(), [B, A, B])) == [B, A, C]
+
+
+def test_source_priors_never_join_a_pass():
+    fused = fuse([chain()], [1])
+    passes = instantiate(fused, [A])
+    assert all(fused.snodes[index].tail for added in passes for index in added)
+    assert len(passes) == 2
+
+
+def test_a_source_with_two_priors_is_refused():
+    source = ("__Source__[B]", "s")
+    bkb = build("two", [("B", "1", 1.0, [A, source]), (*source, 0.5, []), (*source, 0.25, [])])
+    with pytest.raises(QueryError, match="has 2 prior S-nodes"):
+        derivation(bkb, reach(bkb, [A]), B)

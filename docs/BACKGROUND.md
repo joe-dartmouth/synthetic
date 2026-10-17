@@ -1,7 +1,6 @@
 # Background
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; facts gathered outside the PDFs on 2026-10-13: Santos et al.'s metadata and pybkb's repository read
-through the GitHub API; Santos et al. read from [the stored PDF](../papers/santos-2024.pdf) on 2026-10-17.
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; [Santos et al.](../papers/santos-2024.pdf), read from the stored PDF on 2026-10-17; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.
@@ -16,8 +15,9 @@ citing source's claim. A sentence tagged
 
 An ontology's content is classes and the relations between them (brief A1). The plan uses two
 biomedical ontologies: MONDO, whose entries include disease subtypes, and HPO, whose entries are
-phenotypes (brief A2 speaks of "an HPO phenotype or a MONDO disease subtype"). The first milestone
-reproduces the fusion of MONDO with DO from Santos et al. (2-pager section 6).
+phenotypes (brief A2 speaks of "an HPO phenotype or a MONDO disease subtype"). The first milestone,
+reproducing the fusion of MONDO with DO from Santos et al. (2-pager section 6), is recorded as
+[R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction).
 
 Description logic is the formal logic behind the OWL web ontology language (general background); the
 brief identifies OWL 2 DL with the description logic SROIQ(D). A description-logic reasoner derives
@@ -40,9 +40,9 @@ A Bayesian Knowledge Base (BKB) is the probabilistic half of a BKO. The sources 
   ([ARCHITECTURE](ARCHITECTURE.md#pybkb)) gives each state of one target component its log joint
   mass with complete evidence, and `bko.bkb` ports it.
 
-The two sources do not describe a BKB's internal structure; Santos et al. is the reference. Read
-from pybkb's code, which `bko.bkb` ports (ADR
-[`research/bkb-layer-source`](adr/research/bkb-layer-source.md)): an **I-node** is a pair of a
+The two sources do not describe a BKB's internal structure; Santos et al. define it (their section
+3.4), and pybkb's code, which `bko.bkb` ports (ADR
+[`research/bkb-layer-source`](adr/research/bkb-layer-source.md)), implements it: an **I-node** is a pair of a
 component and one of its states; an **S-node** gives a probability to one I-node, its head, given a
 set of I-nodes, its tail. Fusion adds to each S-node's tail a source I-node naming the fragment that
 holds it and gives each source a prior S-node weighted by its reliability; `bko.bkb.fusion` states
@@ -57,9 +57,10 @@ A Bayesian network gives every variable a conditional probability table over its
 assigns a probability to every combination of values, including combinations the data never shows;
 the model's assumptions fill in what is missing (general background).
 
-In a BKO, by the 2-pager's account (section 3), a statement can be implied by the ontology and still
-have no support in the data. Such an ungrounded statement contributes nothing to the model's
-distribution. The representation therefore keeps a record of where knowledge is missing instead of
+In a BKO a statement can be implied by the ontology and still have no support in the data
+(2-pager section 3). Such an ungrounded statement contributes nothing to the model's distribution:
+Santos et al.'s Proposition 5.1.1 states that removing it leaves every marginal and posterior
+unchanged. The representation therefore keeps a record of where knowledge is missing instead of
 filling it in, and that record is what the gap detector reads: the plan defines a dataset gap as an
 ungrounded statement ([RESEARCH.md](RESEARCH.md#detect)).
 

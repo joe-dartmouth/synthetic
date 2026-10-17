@@ -128,3 +128,9 @@ REFUSED: dict[str, tuple[Callable[[], BKB], str]] = {
 def test_fuse_refuses(make, match):
     with pytest.raises(FusionError, match=match):
         make()
+
+
+def test_a_mode_given_by_its_value_is_that_mode():
+    assert fuse(lone(), [1, 3], normalization=Normalization("component")) == fuse(
+        lone(), [1, 3], normalization=Normalization.COMPONENT
+    )

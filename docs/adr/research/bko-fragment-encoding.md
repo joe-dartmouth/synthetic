@@ -86,8 +86,9 @@ than P(target, evidence).
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/fragments.py`
-- Pinned by: `tests/test_ontology_fragments.py`, `tests/test_bkb_inference.py`
+- Owner: `src/bko/ontology/fragments.py`, `src/bko/bkb/inference.py`
+- Pinned by: `tests/test_ontology_fragments.py`, `tests/test_bkb_inference.py`,
+  `tests/test_ontology_santos.py`
 
 ## Reversal Conditions
 

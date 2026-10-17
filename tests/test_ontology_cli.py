@@ -161,8 +161,7 @@ def test_the_module_entry_point_runs():
         timeout=300,
     )
     assert result.returncode == 0, result.stderr
-    assert "check" in result.stdout
-    assert "reproduce" in result.stdout
+    assert "{check,reproduce}" in result.stdout
 
 
 def _reproduce(
@@ -207,3 +206,11 @@ def test_reproduce_with_an_unreachable_release_exits_two(tmp_path):
     opener = RoutingOpener({}, error=urllib.error.URLError("down"))
     code, out, _ = _reproduce(tmp_path / "data", opener=opener)
     assert (code, out) == (2, "")
+
+
+def test_reproduce_with_a_changed_release_exits_three(tmp_path):
+    mondo_pin = pin(SANTOS_MONDO_TEXT.encode(), name="mondo")
+    do = SANTOS_DO_TEXT.encode()
+    served = {mondo_pin.url: b"not the pinned bytes", pin(do, name="do").url: do}
+    code, out, _ = _reproduce(tmp_path / "data", opener=RoutingOpener(served))
+    assert (code, out) == (3, "")

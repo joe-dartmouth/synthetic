@@ -15,9 +15,10 @@ pybkb's `COMPONENT` and `COMPONENT_COLLAPSED` it is the total over the source I-
 component, which are the sources holding S-nodes on that head component; `COMPONENT_COLLAPSED`
 also makes one fused S-node stand for every fragment holding that exact S-node, with the set of
 their names as its source state and the sum of their reliabilities as its weight. S-nodes merge
-only when head, tail and probability are exactly equal. Totals are summed left to right in
-pybkb's order, so priors match pybkb's to the last bit; `sum` compensates from Python 3.12 and
-would not.
+only when head, tail and probability are exactly equal. Every total is summed left to right:
+under `FRAGMENTS` over the fragments, as Santos et al.'s algorithm sums, and under pybkb's modes
+in pybkb's order, so their priors match pybkb's to the last bit; `sum` compensates from Python
+3.12 and would not.
 """
 
 from __future__ import annotations
@@ -108,11 +109,12 @@ def fuse(
             fused.add_inode(component, state)
     _add(fused, rows, _total(reliabilities) if mode is Normalization.FRAGMENTS else None)
     logger.info(
-        "fused fragments=%d normalization=%s inodes=%d snodes=%d",
+        "fused fragments=%d normalization=%s inodes=%d snodes=%d name=%s",
         len(fragments),
         mode.value,
         len(fused.inodes),
         len(fused.snodes),
+        name,
     )
     return fused
 
@@ -213,7 +215,10 @@ def _add(fused: BKB, rows: list[_Row], total: float | None) -> None:
         weights.setdefault(source, weight)
     totals: dict[str, float] = {}
     for (component, _), weight in weights.items():
-        totals[component] = totals.get(component, 0.0) + weight if total is None else total
+        if total is None:
+            totals[component] = totals.get(component, 0.0) + weight
+        else:
+            totals[component] = total
     for component, value in totals.items():
         if not math.isfinite(value):
             msg = f"the reliabilities of the sources of {component!r} overflow when summed"

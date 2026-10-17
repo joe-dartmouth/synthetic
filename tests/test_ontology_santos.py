@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from bko.bkb.fusion import fuse, is_source
+from bko.ontology import santos
 from bko.ontology.obo import parse_obo
 from bko.ontology.santos import WEIGHTS, Finding, paper_fragments, reproduce
 from bko.ontology.terms import Ontology
@@ -75,7 +76,8 @@ def test_the_fused_example_is_not_mutex_where_mondo_gives_mononeuropathy_two_chi
 def test_fusing_the_example_logs_its_size(tmp_path, caplog):
     with caplog.at_level(logging.INFO, logger="bko.bkb.fusion"):
         reproduce(*releases(tmp_path))
-    assert "fused fragments=3 normalization=fragments inodes=27 snodes=33" in caplog.text
+    assert "fused fragments=3 normalization=fragments inodes=27 snodes=33 name=fused" in caplog.text
+    assert "fused fragments=3 normalization=component inodes=27 snodes=33 name=pybkb" in caplog.text
 
 
 def test_a_term_table_1_printed_rightly_is_no_erratum(tmp_path):
@@ -111,3 +113,35 @@ def test_an_edge_beyond_the_paper_is_extra_and_breaks_the_emergent_claim(tmp_pat
         ("chain", "mondo fragment"),
         ("chain", "mondo release"),
     }
+
+
+def test_unequal_weights_make_both_inferences_differ(tmp_path, monkeypatch):
+    monkeypatch.setattr(santos, "WEIGHTS", (1, 2, 1))
+    findings = {(f.kind, f.item): f for f in reproduce(*releases(tmp_path))}
+    assert (findings["inference", "a"].measured, findings["inference", "a"].status) == (
+        "0.25",
+        "differs",
+    )
+    assert (findings["inference", "b"].measured, findings["inference", "b"].status) == (
+        "0.5",
+        "differs",
+    )
+
+
+def test_a_renamed_term_differs_by_its_label(tmp_path):
+    mondo = SANTOS_MONDO_TEXT.replace("name: neuritis\n", "name: neuritides\n")
+    [term] = [f for f in reproduce(*releases(tmp_path, mondo=mondo)) if f.item == "MONDO:0002122"]
+    assert (term.measured, term.status) == ("MONDO:0002122 neuritides", "differs")
+
+
+def test_an_obsolete_chain_start_fails_the_controls_it_starts(tmp_path, caplog):
+    mondo = SANTOS_MONDO_TEXT.replace(
+        "name: sciatic neuropathy\n", "name: sciatic neuropathy\nis_obsolete: true\n"
+    )
+    with caplog.at_level(logging.INFO, logger="bko.ontology.santos"):
+        findings = {(f.kind, f.item): f for f in reproduce(*releases(tmp_path, mondo=mondo))}
+    assert (findings["term", "MONDO:0006960"].measured) == "obsolete"
+    for item in ("mondo fragment", "mondo release"):
+        found = findings["chain", item]
+        assert (found.measured, found.status) == ("MONDO:0006960 not in it", "differs")
+    assert "mondo release fragment classes=" in caplog.text

@@ -1,6 +1,6 @@
 # Research plan
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 to 6; [research brief](../papers/research-brief.pdf) TL;DR, A1, B5, D10, D11, F15; facts verified outside the PDFs (Santos et al., read from [the stored PDF](../papers/santos-2024.pdf); pybkb; synthcity resolution).
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 to 6; [research brief](../papers/research-brief.pdf) TL;DR, A1, B5, D10, D11, F15; [Santos et al.](../papers/santos-2024.pdf), read from the stored PDF; facts verified outside the PDFs (pybkb, synthcity resolution).
 
 This is the plan of record. The 2-pager governs; the brief is background, explained in
 [BACKGROUND.md](BACKGROUND.md). [Section 9](#9-source-reconciliation) records each point where the
@@ -83,8 +83,8 @@ contribute nothing to the model's distribution, so the plan uses them as the for
 dataset gap rather than a heuristic. The decision and its reversal conditions are in ADR
 [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md).
 
-Before gap detection rests on that formalism, `bko.bkb` rebuilds the paper's MONDO/DO fusion
-example (its section 7), recorded as [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction). The
+Before gap detection rests on that formalism, `bko.ontology.santos` rebuilds, with `bko.bkb`, the
+paper's MONDO/DO fusion example (its section 7), recorded as [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction). The
 reproduction holds when `python -m bko.ontology reproduce` reports no `differs` row over the pinned
 releases: each of the paper's 11 terms and 17 PTAs is found, its misprints aside; instantiation
 from its anchor, as its algorithm states, holds the same 8 PTAs after two passes and all 17 at its

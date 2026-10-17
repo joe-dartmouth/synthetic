@@ -142,3 +142,29 @@ def test_a_bridge_within_one_prefix_is_refused(tmp_path):
         exact_match_fragment(
             mondo, MONDO_SCOPE, mondo, MONDO_SCOPE, subject_prefix="MONDO", target_prefix="MONDO"
         )
+
+
+def test_a_repeated_exact_match_gives_one_pair_of_snodes(tmp_path):
+    line = "property_value: skos:exactMatch DOID:1802"
+    text = SANTOS_MONDO_TEXT.replace(line, f"{line}\n{line}")
+    assert bridge(tmp_path, text).snodes == bridge(tmp_path).snodes
+
+
+def test_the_bridge_ignores_the_targets_matches_and_out_of_scope_classes(tmp_path):
+    mondo, do = load(tmp_path, SANTOS_MONDO_TEXT, "mondo"), load(tmp_path, SANTOS_DO_TEXT, "do")
+    reverse = exact_match_fragment(
+        do, DO_SCOPE, mondo, MONDO_SCOPE, subject_prefix="DOID", target_prefix="MONDO"
+    )
+    assert reverse.snodes == ()
+    narrow = exact_match_fragment(
+        mondo, MONDO_SCOPE, do, ("DOID:1188",), subject_prefix="MONDO", target_prefix="DOID"
+    )
+    assert {snode.head[0] for snode in narrow.snodes} == {"DOID:1188", "MONDO:0001397"}
+
+
+def test_a_bad_target_scope_is_refused(tmp_path):
+    mondo, do = load(tmp_path, SANTOS_MONDO_TEXT, "mondo"), load(tmp_path, SANTOS_DO_TEXT, "do")
+    with pytest.raises(ScopeError, match="DOID:0000000 is absent in do"):
+        exact_match_fragment(
+            mondo, MONDO_SCOPE, do, ("DOID:0000000",), subject_prefix="MONDO", target_prefix="DOID"
+        )

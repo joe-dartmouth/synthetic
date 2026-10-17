@@ -216,8 +216,9 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
   `measured` and `status`: `match`; `erratum`, where the paper misprints or contradicts its own
   algorithm and the releases give what it means; `differs`; or `reported`, a measurement the paper
   gives no value for. The same bytes on every run over the same releases.
-- **What it logs**: stderr gets the parser's version, each release's snapshot identity, the fused
-  BKB's size, one warning per `differs` row, and a summary line.
+- **What it logs**: stderr gets the parser's version, each release's snapshot identity, the size of
+  the whole-MONDO fragment, each fused BKB's size and name (`fused` at the paper's weights, `pybkb`
+  under pybkb's normalization), one warning per `differs` row, and a summary line.
 - **Exit codes**: 0 the report is written, whatever its statuses; 1 an unexpected error, with its
   traceback, including a fusion the converter should never have built; 2 the command could not
   run; 3 a release contradicts its pin or is not OBO the loader reads. The verdict is in the rows;
