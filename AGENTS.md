@@ -24,6 +24,9 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data)).
 - `make synthea`: generate the pinned Synthea population and print the default ablation's cell
   counts (needs a JDK).
+- `make reproduce`: rebuild Santos et al.'s MONDO/DO fusion example from the pinned releases and
+  compare each quantity with the paper
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#fusion-reproduction)).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
@@ -52,7 +55,7 @@ synthetic/
 ├── ruff.toml / ty.toml / pyrightconfig.json
 ├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
-├── papers/      # the source PDFs: the proposal 2-pager and the research brief
+├── papers/      # the source PDFs: the proposal 2-pager, the research brief and Santos et al. 2024
 ├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)

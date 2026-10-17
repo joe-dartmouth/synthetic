@@ -1,6 +1,6 @@
 # Literature registry
 
-Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs; the works ADRs `research/e1-evaluation-protocol` and `research/uci-evaluation-frame` cite, with metadata from each work's landing page (checked 2026-10-15 and 2026-10-16); and the works ADR `research/ontology-mapping-design` and the table in `bko.ontology.mapping` cite, with metadata from Crossref and PubMed (checked 2026-10-16).
+Sources: every work cited in the [2-pager](../papers/proposal-2-pager.pdf) (section 1) and the [research brief](../papers/research-brief.pdf) (A1 to F16, Key Papers, Caveats); Santos et al. metadata verified outside the PDFs; the works ADRs `research/e1-evaluation-protocol` and `research/uci-evaluation-frame` cite, with metadata from each work's landing page (checked 2026-10-15 and 2026-10-16); and the works ADR `research/ontology-mapping-design` and the table in `bko.ontology.mapping` cite, with metadata from Crossref and PubMed (checked 2026-10-16); Santos et al. read from the PLOS PDF stored as `papers/santos-2024.pdf` (2026-10-17).
 
 This file is the citation registry: one entry per work, report, docket or identifier the two sources
 or the repository's ADRs cite. Other documents cite a work by its key and link here for the
@@ -36,13 +36,13 @@ metadata.
 | `read-not-extracted` | Read; claims not yet extracted into the docs |
 | `extracted` | Read, and the claims the docs rely on are checked against it |
 
-Every entry is `not-fetched`: nothing here has been retrieved, so every claim attributed to a work
+An entry is `not-fetched` unless it says otherwise, and a claim attributed to a `not-fetched` work
 is the citing source's claim, not a checked one.
 
 ## Probabilistic ontologies and BKOs
 
 - `costa-2006` · identifier not given in source · `not-fetched` · Costa & Laskey, "PR-OWL: A Framework for Probabilistic Ontologies", FOIS 2006. PR-OWL and Multi-Entity Bayesian Networks (MEBN). Cited in: brief A1, Key Papers 7.
-- `santos-2024` · [doi:10.1371/journal.pone.0296864](https://doi.org/10.1371/journal.pone.0296864) · `not-fetched` · Santos, Jurmain, Ragazzi, "Bayesian-knowledge driven ontologies: A framework for fusion of semantic knowledge under uncertainty and incompleteness", PLOS ONE 19(3): e0296864, published 2024-03-27; also [PMC10971756](https://pmc.ncbi.nlm.nih.gov/articles/PMC10971756/). Dartmouth Thayer School of Engineering. Extends the earlier BKO framework, uniting description-logic reasoning with Bayesian Knowledge Bases, and fuses conflicting ontologies probabilistically instead of deleting knowledge. Metadata verified 2026-10-13. Cited in: 2-pager sections 1 and 3 (as "PLOS ONE, 2024").
+- `santos-2024` · [doi:10.1371/journal.pone.0296864](https://doi.org/10.1371/journal.pone.0296864) · `extracted` · Santos, Jurmain, Ragazzi, "Bayesian-knowledge driven ontologies: A framework for fusion of semantic knowledge under uncertainty and incompleteness", PLOS ONE 19(3): e0296864, published 2024-03-27; also [PMC10971756](https://pmc.ncbi.nlm.nih.gov/articles/PMC10971756/). Dartmouth Thayer School of Engineering. Extends the earlier BKO framework, uniting description-logic reasoning with Bayesian Knowledge Bases, and fuses conflicting ontologies probabilistically instead of deleting knowledge. Metadata verified 2026-10-13. Stored as [papers/santos-2024.pdf](../papers/santos-2024.pdf) (CC BY 4.0); every claim the docs rely on is checked against it. Cited in: 2-pager sections 1 and 3 (as "PLOS ONE, 2024"); docs/EVIDENCE.md (R1); bko.ontology.santos; ADR research/bko-fragment-encoding.
 
 ## Gap detection and data quality
 

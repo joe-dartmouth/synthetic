@@ -32,7 +32,7 @@ from the lock, and `source .venv/bin/activate` enters the environment.
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
 [`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease, the
-Synthea jar, and the MONDO and HPO releases) is pinned by size and sha256 in
+Synthea jar, and the MONDO, HPO and DO releases) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
 fetch again a snapshot on disk that fails its pin, and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
 commands regenerate one whose CSVs or recorded settings differ.
@@ -186,8 +186,9 @@ Synthea condition the ablation removes (ADR
   `code` or `out-of-scope`), `subject` (the dataset side, such as `cp in 1|2|3`), `concept`,
   `label` and `status` (`ok`, or how the release disagrees), one row per concept row, the same
   bytes on every run over the same releases.
-- **What it logs**: stderr gets each release's snapshot identity (as in [Data](#data)), the
-  `data-version` its header names, and its term counts.
+- **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
+  [Data](#data)), the `data-version` its header names, its term counts, and one warning per
+  disagreeing row.
 - **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
   could not run; 3 a release contradicts its pin or is not OBO the loader reads, or a row disagrees
   with its release (the report is written first).
@@ -196,6 +197,38 @@ Synthea condition the ablation removes (ADR
 - **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and
   the table's invariants; a row naming a concept the release lacks passes `make check` and fails
   this command, so run it after editing the table or re-pinning a release.
+
+## Fusion reproduction
+
+`bko.ontology.santos` rebuilds the MONDO/DO fusion example of Santos et al. (section 7 of
+[`papers/santos-2024.pdf`](../papers/santos-2024.pdf)) from the pinned MONDO and DO releases, with
+the fragment encoding of ADR `research/bko-fragment-encoding`. One command, inside `.venv`:
+
+    uv run --no-sync python -m bko.ontology reproduce [--data-dir <dir>]
+
+`make reproduce` runs the same command with the default data root.
+
+- **What it does**: it fetches MONDO and DO into the data root if absent, verifies each against
+  its pin and parses it, builds the MONDO, DO and bridge fragments over the paper's terms, fuses
+  them at weight 1, instantiates the result from the paper's anchor, and checks each quantity the
+  paper reports. stdout gets a CSV with the columns `kind` (`term`, `pta`, `instantiation`,
+  `inference` or `chain`), `item`, `paper` (what the paper prints, empty where it prints nothing),
+  `measured` and `status`: `match`; `erratum`, where the paper misprints or contradicts its own
+  algorithm and the releases give what it means; `differs`; or `reported`, a measurement the paper
+  gives no value for. The same bytes on every run over the same releases.
+- **What it logs**: stderr gets the parser's version, each release's snapshot identity, the size of
+  the whole-MONDO fragment, each fused BKB's size and name (`fused` at the paper's weights, `pybkb`
+  under pybkb's normalization), one warning per `differs` row, and a summary line.
+- **Exit codes**: 0 the report is written, whatever its statuses; 1 an unexpected error, with its
+  traceback, including a fusion the converter should never have built; 2 the command could not
+  run; 3 a release contradicts its pin or is not OBO the loader reads. The verdict is in the rows;
+  [RESEARCH.md](RESEARCH.md#detect) reads it.
+- **Re-pinning**: edit the `MONDO` or `DO` `Source`, run this command and `check`, and review each
+  row that is not `match`; `tests/_ontology_fixtures.py` names the releases its abridged text
+  comes from.
+- **The gate does not run it.** `make check` runs the same reproduction on abridged release text
+  built in `tmp_path` (`tests/test_ontology_santos.py`), so a release that drifts from the paper
+  passes `make check` and shows here.
 
 ## Platforms
 
@@ -219,6 +252,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `sizes` | `python -m tools.check_file_size` | ADR [`tooling/file-size-cap`](adr/tooling/file-size-cap.md) |
 | `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
 | `synthea` | `python -m bko.datasets synthea` | Not part of the gate; needs a JDK, and fetches the Synthea jar and generates on its first run ([Data](#data)) |
+| `reproduce` | `python -m bko.ontology reproduce` | Not part of the gate; fetches MONDO and DO on its first run ([Fusion reproduction](#fusion-reproduction)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |

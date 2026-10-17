@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from bko.bkb.errors import QueryError
-from bko.bkb.fusion import fuse
+from bko.bkb.fusion import Normalization, fuse
 from bko.bkb.reason import log_joint_complete
 from bko.bkb.serialize import render
 from bko.bkb.structure import BKB, State
@@ -86,14 +86,16 @@ def test_agrees_with_the_exact_reference(index):
 
 
 def h1() -> BKB:
-    return fuse(list(h1_fragments()), [3, 1], collapse=False)
+    return fuse(list(h1_fragments()), [3, 1], normalization=Normalization.COMPONENT)
 
 
-@pytest.mark.parametrize("collapse", [False, True])
-def test_h1_matches_its_hand_worked_values(collapse):
+@pytest.mark.parametrize(
+    "normalization", [Normalization.COMPONENT, Normalization.COMPONENT_COLLAPSED]
+)
+def test_h1_matches_its_hand_worked_values(normalization):
     # Y=1: .5 x 3/4 + .75 x 1/4 = 9/16. X=0|Y=1: .25 x 3/4 + .5 x 1/4 = 5/16, so 45/256;
     # X=1|Y=1: .75 x 3/4 + .5 x 1/4 = 11/16, so 99/256.
-    fused = fuse(list(h1_fragments()), [3, 1], collapse=collapse)
+    fused = fuse(list(h1_fragments()), [3, 1], normalization=normalization)
     assert log_joint_complete(fused, "X", {"Y": "1"}) == {
         "0": close(math.log(45 / 256)),
         "1": close(math.log(99 / 256)),
@@ -121,7 +123,7 @@ def test_a_state_no_snode_supports_is_none():
 def test_tiny_probabilities_stay_finite_where_pybkbs_sum_underflows():
     # Each I-node sums two sources of 1e-100 x 1/2; pybkb's log(exp(a) + exp(b)) gives -inf.
     rows = [(name, "1", 1e-100, []) for name in "ABCD"]
-    fused = fuse([build("a", rows), build("b", rows)], [1, 1], collapse=False)
+    fused = fuse([build("a", rows), build("b", rows)], [1, 1])
     got = log_joint_complete(fused, "A", {"B": "1", "C": "1", "D": "1"})
     assert got == {"1": close(4 * math.log(1e-100))}
 

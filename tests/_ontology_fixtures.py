@@ -1,8 +1,12 @@
 """Offline inputs for the `bko.ontology` tests: OBO release text and a URL-routing opener.
 
-The MONDO:0024644 stanza, with the header lines that declare its prefixes, is from MONDO release
-2026-10-06 (CC BY 4.0); every other MONDO stanza is invented. `HPO_TEXT` is invented: it reuses
-HPO ids and labels only, and no HPO file content.
+The MONDO:0024644 stanza of `MONDO_TEXT`, with the header lines that declare its prefixes, is from
+MONDO release 2026-10-06 (CC BY 4.0); every other `MONDO_TEXT` stanza is invented.
+`SANTOS_MONDO_TEXT` abridges MONDO release 2026-10-06 (CC BY 4.0) to the id, name and is_a lines
+and the skos:exactMatch lines to DO of the six MONDO classes of Santos et al.'s example, with the
+id and name of their parents, qualifiers dropped; `SANTOS_DO_TEXT` abridges Human Disease Ontology
+release 2026-09-30 (CC0 1.0) the same way. `HPO_TEXT` is invented: it reuses HPO ids and labels
+only, and no HPO file content.
 """
 
 from __future__ import annotations
@@ -94,6 +98,110 @@ HPO_TEXT = (
 )
 """An HPO-shaped release: one bare stanza per id in `HPO_LABELS`."""
 
+SANTOS_MONDO_TEXT = """\
+format-version: 1.2
+data-version: releases/2026-10-06
+idspace: skos http://www.w3.org/2004/02/skos/core#
+ontology: mondo
+
+[Term]
+id: MONDO:0006960
+name: sciatic neuropathy
+is_a: MONDO:0001397 ! mononeuropathy
+property_value: skos:exactMatch DOID:11446
+
+[Term]
+id: MONDO:0001543
+name: lesion of sciatic nerve
+is_a: MONDO:0001829 ! lumbosacral plexus lesion
+is_a: MONDO:0006960 ! sciatic neuropathy
+is_a: MONDO:0024334 ! peripheral nerve lesion
+property_value: skos:exactMatch DOID:12528
+
+[Term]
+id: MONDO:0001397
+name: mononeuropathy
+is_a: MONDO:0005244 ! peripheral neuropathy
+property_value: skos:exactMatch DOID:1188
+
+[Term]
+id: MONDO:0002121
+name: mononeuritis simplex
+is_a: MONDO:0001397 ! mononeuropathy
+is_a: MONDO:0002122 ! neuritis
+property_value: skos:exactMatch DOID:1802
+
+[Term]
+id: MONDO:0002122
+name: neuritis
+is_a: MONDO:0005244 ! peripheral neuropathy
+is_a: MONDO:0021166 ! inflammatory disease
+property_value: skos:exactMatch DOID:1803
+
+[Term]
+id: MONDO:0021166
+name: inflammatory disease
+is_a: MONDO:7770007 ! disease by developmental or physiological process
+
+[Term]
+id: MONDO:0001829
+name: lumbosacral plexus lesion
+
+[Term]
+id: MONDO:0024334
+name: peripheral nerve lesion
+
+[Term]
+id: MONDO:0005244
+name: peripheral neuropathy
+
+[Term]
+id: MONDO:7770007
+name: disease by developmental or physiological process
+"""
+"""The MONDO side of Santos et al.'s example, abridged from release 2026-10-06."""
+
+DOID_9473_STANZA = (
+    "[Term]\nid: DOID:9473\nname: mononeuritis of lower limb\nis_a: DOID:1802 ! mononeuritis\n\n"
+)
+"""One DO stanza of the example, which a test removes."""
+
+SANTOS_DO_TEXT = f"""\
+format-version: 1.2
+data-version: releases/2026-09-30/doid.obo
+ontology: doid
+
+[Term]
+id: DOID:11446
+name: sciatic neuropathy
+is_a: DOID:12528 ! lesion of sciatic nerve
+
+[Term]
+id: DOID:12528
+name: lesion of sciatic nerve
+is_a: DOID:9473 ! mononeuritis of lower limb
+
+{DOID_9473_STANZA}[Term]
+id: DOID:1802
+name: mononeuritis
+is_a: DOID:1188 ! mononeuropathy
+
+[Term]
+id: DOID:1188
+name: mononeuropathy
+is_a: DOID:870 ! neuropathy
+
+[Term]
+id: DOID:1803
+name: neuritis
+is_a: DOID:870 ! neuropathy
+
+[Term]
+id: DOID:870
+name: neuropathy
+"""
+"""The DO side of Santos et al.'s example, abridged from release 2026-09-30."""
+
 
 def write_obo(directory: Path, text: str, name: str = "release.obo") -> Path:
     """Write `text` as UTF-8 to `directory / name` and return the path."""
@@ -121,3 +229,52 @@ class RoutingOpener:
             msg = f"unexpected URL {url}"
             raise AssertionError(msg)
         return io.BytesIO(self.bodies[url])
+
+
+SANTOS_REPORT = (
+    "kind,item,paper,measured,status\n"
+    "term,MONDO:0006960,Sciatic Neuropathy,MONDO:0006960 sciatic neuropathy,match\n"
+    "term,MONDO:0001543,Lesion of Sciatic Nerve,MONDO:0001543 lesion of sciatic nerve,match\n"
+    "term,MONDO:0001397,Mononeuropathy,MONDO:0001397 mononeuropathy,match\n"
+    "term,MONDO:0002121,Mononeuritis Simplex,MONDO:0002121 mononeuritis simplex,match\n"
+    "term,MONDO:0002122,Neuritis,MONDO:0002122 neuritis,match\n"
+    "term,MONDO:0021166,Inflammatory Disease,MONDO:0021166 inflammatory disease,match\n"
+    "term,DOID:114466,Sciatic Neuropathy,DOID:114466 absent; DOID:11446 sciatic "
+    "neuropathy,erratum\n"
+    "term,DOID:12528,Lesion of Sciatic Nerve,DOID:12528 lesion of sciatic nerve,match\n"
+    "term,DOID:9473,Mononeuritis of Lower Limb,DOID:9473 mononeuritis of lower limb,match\n"
+    "term,DOID:1188,Mononeuropathy,DOID:1188 mononeuropathy,match\n"
+    "term,DOID:1802,Mononeuritis,DOID:1802 mononeuritis,match\n"
+    "pta,TM1,MONDO:0006960 | MONDO:0001543,mondo,match\n"
+    "pta,TM2,MONDO:0001397 | MONDO:0006960,mondo,match\n"
+    "pta,TM3,MONDO:0001397 | MONDO:0002121,mondo,match\n"
+    "pta,TM4,MONDO:0002122 | MONDO:0002121,mondo,match\n"
+    "pta,TM5,TM4: Inflammatory Disease | Mononeuritis,mondo,erratum\n"
+    "pta,TD1,DOID:12528 | DOID:11446,do,match\n"
+    "pta,TD2,DOID:9473 | DOID:12528,do,match\n"
+    "pta,TD3,DOID:1802 | DOID:9473,do,match\n"
+    "pta,TD4,DOID:1188 | DOID:1802,do,match\n"
+    "pta,TB1,MONDO:0001543 | DOID:12528,bridge,match\n"
+    "pta,TB2,DOID:12528 | MONDO:0001543,bridge,match\n"
+    "pta,TB3,MONDO:0006960 | DOID:11446,bridge,match\n"
+    "pta,TB4,DOID:11446 | MONDO:0006960,bridge,match\n"
+    "pta,TB5,MONDO:0001397 | DOID:1188,bridge,match\n"
+    "pta,TB6,DOID:1188 | MONDO:0001397,bridge,match\n"
+    "pta,TB7,MONDO:0002121 | DOID:1802,bridge,match\n"
+    "pta,TB8,DOID:1802 | MONDO:0002121,bridge,match\n"
+    "instantiation,pass 1,TM1 TD1,TM1 TD1 TB2 TB3,erratum\n"
+    "instantiation,pass 2,TM2 TD2 TB1 TB2 TB3 TB4,TM2 TD2 TB1 TB4,erratum\n"
+    "instantiation,after pass 2,TM1 TM2 TD1 TD2 TB1 TB2 TB3 TB4,TM1 TM2 TD1 TD2 TB1 TB2 TB3 "
+    "TB4,match\n"
+    "instantiation,fixpoint,17 PTAs,17 PTAs,match\n"
+    "inference,a,0.33,0.3333333333333333,match\n"
+    "inference,b,0.33,0.3333333333333333,match\n"
+    "inference,a under pybkb normalization,,0.5,reported\n"
+    "chain,fused,DOID:11446 -> MONDO:0021166,DOID:11446 -> DOID:12528 -> DOID:9473 -> DOID:1802 -> "
+    "MONDO:0002121 -> MONDO:0002122 -> MONDO:0021166,match\n"
+    "chain,mondo fragment,absent,absent,match\n"
+    "chain,do fragment,absent,absent,match\n"
+    "chain,mondo release,absent,absent,match\n"
+    "chain,probability,,0.001371742112482853,reported\n"
+)
+"""What `python -m bko.ontology reproduce` writes for the two texts above, byte for byte."""

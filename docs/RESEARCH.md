@@ -1,6 +1,6 @@
 # Research plan
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 to 6; [research brief](../papers/research-brief.pdf) TL;DR, A1, B5, D10, D11, F15; facts verified outside the PDFs (Santos et al. metadata, pybkb, synthcity resolution).
+Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 to 6; [research brief](../papers/research-brief.pdf) TL;DR, A1, B5, D10, D11, F15; [Santos et al.](../papers/santos-2024.pdf), read from the stored PDF; facts verified outside the PDFs (pybkb, synthcity resolution).
 
 This is the plan of record. The 2-pager governs; the brief is background, explained in
 [BACKGROUND.md](BACKGROUND.md). [Section 9](#9-source-reconciliation) records each point where the
@@ -78,12 +78,19 @@ ontologies are loaded and how the mapping table is sourced, scoped and checked;
 ### Detect
 
 Apply the BKO instantiation algorithm to find statements the ontology implies but the data does not
-support. The 2-pager states that Santos et al. prove these ungrounded statements contribute nothing
-to the model's distribution, so the plan uses them as the formal definition of a dataset gap rather
-than a heuristic. The decision and its reversal conditions are in ADR
-[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md). The paper is
-registered but not yet fetched ([literature.md](literature.md#probabilistic-ontologies-and-bkos)),
-so the proof is the 2-pager's account of it.
+support. Santos et al. state, as their Proposition 5.1.1, that such ungrounded statements
+contribute nothing to the model's distribution, so the plan uses them as the formal definition of a
+dataset gap rather than a heuristic. The decision and its reversal conditions are in ADR
+[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md).
+
+Before gap detection rests on that formalism, `bko.ontology.santos` rebuilds, with `bko.bkb`, the
+paper's MONDO/DO fusion example (its section 7), recorded as [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction). The
+reproduction holds when `python -m bko.ontology reproduce` reports no `differs` row over the pinned
+releases: each of the paper's 11 terms and 17 PTAs is found, its misprints aside; instantiation
+from its anchor, as its algorithm states, holds the same 8 PTAs after two passes and all 17 at its
+fixpoint; each of its two contradictory inferences has probability 0.33 to two decimals; and its
+chain from sciatic neuropathy to inflammatory disease exists in the fused BKB and in neither the
+MONDO nor the DO fragment, nor in the whole MONDO release.
 
 ### Generate and validate
 
@@ -241,7 +248,7 @@ Where the brief and the 2-pager disagree:
 
 | Topic | Brief | 2-pager / repository | Governs |
 |---|---|---|---|
-| Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition | 2-pager (paper metadata verified 2026-10-13); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
+| Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition | 2-pager (the paper read; [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction) reproduces its fusion example); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
 | BKB library | Not discussed | "no public BKB library exists" | A public library, [pybkb](ARCHITECTURE.md#pybkb), exists; `bko.bkb` ports its core, ADR [research/bkb-layer-source](adr/research/bkb-layer-source.md) |
 | Team and time | Three students, 10 weeks | Four members, the [ROADMAP](ROADMAP.md) schedule | 2-pager |
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |

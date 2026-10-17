@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -40,8 +40,10 @@ every clone that installs its extra.
 We will **read pinned GitHub release OBO files with pronto, and hold the mapping as typed
 constants in `bko.ontology.mapping`, each row naming its source.**
 
-- **Ontology access**: the MONDO and HPO GitHub release OBO files, parsed by pronto.
-- **Pins and fetch**: the releases are `MONDO` and `HPO` in `bko.datasets.sources`, with the size
+- **Ontology access**: the MONDO and HPO GitHub release OBO files, parsed by pronto; DO, which only
+  `bko.ontology.santos` reads, from its release tag's `src/ontology/doid.obo`, since DO's GitHub
+  releases carry no assets.
+- **Pins and fetch**: the releases are `MONDO`, `HPO` and `DO` in `bko.datasets.sources`, with the size
   and sha256 `bko.datasets.sources` holds; the `bko.ontology` command calls
   `bko.datasets.fetch.ensure` itself.
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto; it returns frozen

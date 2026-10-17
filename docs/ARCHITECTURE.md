@@ -64,8 +64,8 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | Subpackage | Stage |
 |---|---|
 | [`bko.datasets`](../src/bko/datasets/README.md) | Represent (the dataset fragment) and Evaluate (training data) |
-| [`bko.ontology`](../src/bko/ontology/README.md) | Represent (ontology loading, concept-to-field mapping) |
-| [`bko.bkb`](../src/bko/bkb/README.md) | Represent and Detect (BKB fusion and reasoning) |
+| [`bko.ontology`](../src/bko/ontology/README.md) | Represent (ontology loading, concept-to-field mapping, BKO fragments) |
+| [`bko.bkb`](../src/bko/bkb/README.md) | Represent and Detect (BKB fusion, instantiation from an anchor, reasoning) |
 | [`bko.gaps`](../src/bko/gaps/README.md) | Detect |
 | [`bko.generate`](../src/bko/generate/README.md) | Generate |
 | [`bko.validate`](../src/bko/validate/README.md) | Validate |
