@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 # The BKB layer is pybkb's core, ported under GPL-3.0 and checked against pybkb's own results
 
@@ -48,6 +48,11 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
 - **Taken** from pybkb at the commit above: the BKB structure (`bko.bkb.structure`: I-nodes,
   S-nodes, `find_snodes`, the mutex check), `fuse` with and without `collapse` and its
   normalization (`bko.bkb.fusion`), and `heuristic_update_complete_fused` (`bko.bkb.reason`).
+  `fuse` also offers, as its default, the fusion of Santos et al.
+  ([`santos-2024`](../../literature.md#probabilistic-ontologies-and-bkos), section 6.1), which
+  divides each source's reliability by every fragment's and never collapses.
+  `bko.bkb.fusion.Normalization` names the three ways to fuse: `FRAGMENTS`, the default, and
+  pybkb's `COMPONENT` and `COMPONENT_COLLAPSED`; `fuse` takes no separate `collapse` flag.
 - **Not taken**: `learn/`, `BKB.score`, `pybkb/scores.py`, `pybkb/utils/probability.py`, the
   networkx and cytoscape mixin, `BKB.union`, `get_causal_ruleset`, `re_annotate_features`,
   `snodes_by_tail`, `source_features`, `source_inodes`, `non_source_features` and
@@ -66,7 +71,10 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
   from `math`.
 - **Equality is symmetric and structural, and a BKB is unhashable.** Two BKBs are equal when they
   hold the same I-nodes and the same multiset of S-nodes, whatever their names and order.
-- **Deviations from pybkb**, each on a path pybkb's fixtures never take: I-nodes keep first-seen
+- **Deviations from pybkb.** `fuse` defaults to Santos et al.'s fusion and takes one
+  `Normalization` instead of pybkb's `collapse` flag, so every check against pybkb's fixtures
+  passes `Normalization.COMPONENT` or `Normalization.COMPONENT_COLLAPSED`. The rest are each on a
+  path pybkb's fixtures never take: I-nodes keep first-seen
   order; a probability must be a number in [0, 1] (pybkb lets NaN and `True` through); a tail may
   not name its head's component or a component twice; `fuse` refuses an empty fragment list,
   mismatched lengths, a reliability that is not finite and positive, reliabilities that overflow
@@ -90,13 +98,14 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
   No pickle, lz4 or `.bkb` file is committed. `docs/DEVELOPMENT.md` (BKB fixtures) holds the
   procedure.
 - **What "the same result as pybkb" means**: every example file decodes to the BKB pybkb loaded;
-  `fuse` on pybkb's examples gives pybkb's fused BKB S-node for S-node, with exact probabilities;
+  `fuse` with `Normalization.COMPONENT` or `Normalization.COMPONENT_COLLAPSED` on pybkb's examples
+  gives pybkb's fused BKB S-node for S-node, with exact probabilities;
   and the update agrees with pybkb's within a relative and absolute tolerance of 1e-12, with None
   and minus infinity exact.
 - **Attribution.** Every module and test module adapted from pybkb opens its docstring with a
   notice naming pybkb, its author, GPL version 3 and the date it was modified, and citing this
-  record; `bko.bkb.errors`, `bko.bkb.serialize` and the serialize, reason and determinism tests
-  are this project's own and carry none. The fixtures' manifest carries a notice naming pybkb,
+  record; `bko.bkb.errors`, `bko.bkb.serialize` and the serialize, reason, determinism and
+  normalization tests are this project's own and carry none. The fixtures' manifest carries a notice naming pybkb,
   its author and GPL version 3; `README.md` names what was adapted.
   pybkb's files carry no copyright line of their own, so none is retained.
 
@@ -111,6 +120,11 @@ something it does not compute. Summing per I-node is the same sum as pybkb's pro
 because each I-node's chosen S-node brings its own source prior, and it costs one pass instead of
 one term per choice. pybkb also counts choices that form a cycle; refusing them would refuse
 whole queries over fragments that disagree on direction, so the port keeps pybkb's sum.
+
+The default follows Santos et al. because the project's formalism is theirs (ADR
+`research/bko-formal-gap-definition`); pybkb's two modes stay selectable, so the port still
+reproduces pybkb exactly. One enum instead of a mode and a flag leaves out every-fragment weights
+with collapse, which would count a fragment in several priors of one component.
 
 A one-time export keeps pickle, lz4 and an unpickler out of the repository. A restricted unpickler
 could read pybkb's files, but it would be a second parser for a format nothing here writes, behind
@@ -130,7 +144,8 @@ optional extra; every fixture traceable to a pybkb run; no pickle in the reposit
 **Accepted**: regenerating a fixture needs a Python 3.11 environment built by hand; the gate checks
 the exporter's output, not pybkb's files; the update needs complete evidence and counts cyclic
 choices, so no posterior over partial evidence exists (`docs/IDEAS.md`); `fuse` names a source
-component from its head's component, so a caller fuses fragments, never a fused BKB.
+component from its head's component, so a caller fuses fragments, never a fused BKB. Under the
+default, a component's source priors sum to less than 1 where a fragment holds no S-node on it.
 
 ## Ruled Out
 
@@ -149,7 +164,9 @@ component from its head's component, so a caller fuses fragments, never a fused 
 | pybkb's one-sided `==` and the hash of a mutable BKB | A subset test that ignores multiplicity; a hash that changes as the BKB grows | 2026-10-16 |
 | Naming the update `update` or `heuristic_update` | It computes an unnormalized joint mass over complete evidence, which neither name says | 2026-10-16 |
 | Refusing queries whose S-nodes can form a cycle | pybkb sums those choices, and a refusal would block whole queries over fragments that disagree on direction | 2026-10-16 |
-| A normalization in `fuse` other than pybkb's, such as dividing by every fragment's weight | Goes beyond porting pybkb; `proposal-mondo-do-fusion` adds one if reproducing Santos et al. needs it | 2026-10-16 |
+| pybkb's normalization and collapse as `fuse`'s defaults | The project's formalism is Santos et al.'s, whose fusion divides by every fragment's weight and never collapses; pybkb's modes stay selectable for the fixture checks | 2026-10-17 |
+| A `collapse` flag beside the normalization | Leaves every-fragment weights with collapse expressible, whose priors on one component can sum above 1 | 2026-10-17 |
+| A separate function for Santos et al.'s fusion | A second entry point that differs from `fuse` only in its denominator | 2026-10-17 |
 | Exact belief updating over partial evidence in this port | pybkb implements none and stores no result to check one against, and no planned unit reads a posterior; kept in `docs/IDEAS.md` | 2026-10-16 |
 | A NOTICE file for the attribution | A third home for what the per-file notices and this record hold | 2026-10-16 |
 
@@ -158,7 +175,7 @@ component from its head's component, so a caller fuses fragments, never a fused 
 - Owner: `src/bko/bkb/`
 - Pinned by: `tests/test_bkb_provenance.py`, `tests/test_bkb_structure.py`,
   `tests/test_bkb_serialize.py`, `tests/test_bkb_fusion.py`, `tests/test_bkb_determinism.py`,
-  `tests/test_bkb_reason.py`
+  `tests/test_bkb_reason.py`, `tests/test_bkb_normalization.py`
 - `test_bkb_provenance.py` asserts that each module adapted from pybkb carries the notice, that
   `tests/pybkb/manifest.json` names the commit above and every committed fixture with its sha256,
   and that `tests/pybkb/export.py` is the exporter that wrote them.

@@ -1,18 +1,23 @@
 """Source-weighted fusion of BKB fragments.
 
 Adapted from pybkb (https://github.com/di2ag/pybkb), by Chase Yakaboski, which is licensed under
-the GNU General Public License, version 3. Modified for bko on 2026-10-16; ADR
+the GNU General Public License, version 3. Modified for bko on 2026-10-17; ADR
 `research/bkb-layer-source` names the pybkb commit and lists the changes. This file is released
 under the GNU General Public License, version 3 only (`LICENSE`).
 
-`fuse` follows pybkb's `fuse`. Each S-node of each fragment gains a source I-node in its tail,
-whose component is `__Source__[<head component>]` and whose state is the fragment's source name;
-with `collapse`, one fused S-node stands for every fragment holding that exact S-node, and its
-source state is the set of their names. Each source I-node gets one prior S-node: its reliability
-(with `collapse`, the sum over its names) divided by the total over the source I-nodes of its
-component, which are the sources holding S-nodes on that head component. S-nodes merge only when
-head, tail and probability are exactly equal. Totals are summed left to right in pybkb's order, so
-priors match pybkb's to the last bit; `sum` compensates from Python 3.12 and would not.
+`fuse` follows pybkb's `fuse` and, by default, the fusion of Santos et al. (`santos-2024`,
+section 6.1). Each S-node of each fragment gains a source I-node in its tail, whose component is
+`__Source__[<head component>]` and whose state is the fragment's source name. Each source I-node
+gets one prior S-node: its weight divided by a total, which `Normalization` chooses. Under
+`FRAGMENTS`, the default, the total is every fragment's reliability, so the priors on one source
+component sum to less than 1 where a fragment holds no S-node on its head component. Under
+pybkb's `COMPONENT` and `COMPONENT_COLLAPSED` it is the total over the source I-nodes of that
+component, which are the sources holding S-nodes on that head component; `COMPONENT_COLLAPSED`
+also makes one fused S-node stand for every fragment holding that exact S-node, with the set of
+their names as its source state and the sum of their reliabilities as its weight. S-nodes merge
+only when head, tail and probability are exactly equal. Totals are summed left to right in
+pybkb's order, so priors match pybkb's to the last bit; `sum` compensates from Python 3.12 and
+would not.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Final
 
 from bko.bkb.errors import FusionError
@@ -45,12 +51,28 @@ def is_source(component: str) -> bool:
     return component.startswith(f"{SOURCE_PREFIX}[") and component.endswith("]")
 
 
+class Normalization(StrEnum):
+    """How `fuse` weights sources: the total a source's weight is divided by, and collapse."""
+
+    FRAGMENTS = "fragments"
+    """Every fragment's reliability, with no collapse (Santos et al.); the default."""
+    COMPONENT = "component"
+    """The weights of the sources holding S-nodes on the source's component (pybkb)."""
+    COMPONENT_COLLAPSED = "component-collapsed"
+    """`COMPONENT`, with one fused S-node per S-node several fragments hold (pybkb's collapse)."""
+
+    @property
+    def collapse(self) -> bool:
+        """Whether one fused S-node stands for every fragment holding that exact S-node."""
+        return self is Normalization.COMPONENT_COLLAPSED
+
+
 def fuse(
     fragments: Sequence[BKB],
     reliabilities: Sequence[float],
     *,
     sources: Sequence[str] | None = None,
-    collapse: bool = True,
+    normalization: Normalization = Normalization.FRAGMENTS,
     name: str = "fused",
 ) -> BKB:
     """Fuse BKB fragments into one BKB, weighting each fragment's S-nodes by its reliability.
@@ -59,8 +81,7 @@ def fuse(
         fragments: The BKBs to fuse; their order fixes the fused BKB's order.
         reliabilities: One per fragment, each finite and positive.
         sources: One source name per fragment; each fragment's name by default.
-        collapse: Merge the copies of an S-node that several fragments hold, as pybkb does by
-            default.
+        normalization: How each source is weighted; Santos et al.'s by default.
         name: The fused BKB's name.
 
     Returns:
@@ -70,24 +91,26 @@ def fuse(
         FusionError: If there are no fragments, the sequences differ in length, a reliability is
             not a finite positive number or the reliabilities overflow when summed, a source
             name is not a non-empty string or two fragments share one, a fragment holds a source
-            component already, or a fragment holds one S-node twice.
+            component already, a fragment holds one S-node twice, or `normalization` is not a
+            `Normalization`.
     """
     names = _check(fragments, reliabilities, sources)
+    mode = _mode(normalization)
     supports: dict[_Key, list[tuple[float, str]]] = {}
     for fragment, reliability, source in zip(fragments, reliabilities, names, strict=True):
         for snode in fragment.snodes:
             key = (snode.head, snode.tail, snode.prob)
             supports.setdefault(key, []).append((reliability, source))
-    rows = _collapsed(supports) if collapse else _per_source(supports)
+    rows = _collapsed(supports) if mode.collapse else _per_source(supports)
     fused = BKB(name)
     for fragment in fragments:
         for component, state in fragment.inodes:
             fused.add_inode(component, state)
-    _add(fused, rows)
+    _add(fused, rows, _total(reliabilities) if mode is Normalization.FRAGMENTS else None)
     logger.info(
-        "fused fragments=%d collapse=%s inodes=%d snodes=%d",
+        "fused fragments=%d normalization=%s inodes=%d snodes=%d",
         len(fragments),
-        collapse,
+        mode.value,
         len(fused.inodes),
         len(fused.snodes),
     )
@@ -166,7 +189,23 @@ def _collapsed(supports: dict[_Key, list[tuple[float, str]]]) -> list[_Row]:
     return rows
 
 
-def _add(fused: BKB, rows: list[_Row]) -> None:
+def _mode(normalization: str) -> Normalization:
+    try:
+        return Normalization(normalization)
+    except ValueError:
+        known = ", ".join(mode.value for mode in Normalization)
+        msg = f"the normalization {normalization!r} is not one of {known}"
+        raise FusionError(msg) from None
+
+
+def _total(reliabilities: Sequence[float]) -> float:
+    total = 0.0
+    for reliability in reliabilities:
+        total += reliability  # Left to right, as Santos et al.'s algorithm sums.
+    return total
+
+
+def _add(fused: BKB, rows: list[_Row], total: float | None) -> None:
     for _, (component, state), _ in rows:
         fused.add_inode(component, state)
     weights: dict[INode, float] = {}
@@ -174,9 +213,9 @@ def _add(fused: BKB, rows: list[_Row]) -> None:
         weights.setdefault(source, weight)
     totals: dict[str, float] = {}
     for (component, _), weight in weights.items():
-        totals[component] = totals.get(component, 0.0) + weight
-    for component, total in totals.items():
-        if not math.isfinite(total):
+        totals[component] = totals.get(component, 0.0) + weight if total is None else total
+    for component, value in totals.items():
+        if not math.isfinite(value):
             msg = f"the reliabilities of the sources of {component!r} overflow when summed"
             raise FusionError(msg)
     primed: set[INode] = set()
