@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from bko.ontology.schema import Clause, CodeMapping, Codes, ConceptRow, FieldMapping, OutOfScope
-from bko.ontology.terms import Ontology
+from bko.ontology.terms import Ontology, ancestors
 
 
 type Table = Literal["field", "code", "out-of-scope"]
@@ -100,23 +100,12 @@ def _scope_problem(
     below = sorted(
         curie
         for curie in mapped
-        if curie in ontology.terms and row.concept in _ancestors(curie, ontology)
+        if curie in ontology.terms
+        and row.concept in ancestors(ontology, curie, prefix=row.concept.partition(":")[0])
     )
     if below:
         return f"is_a ancestor of mapped {', '.join(below)} in {where}, so it is in scope"
     return None
-
-
-def _ancestors(curie: str, ontology: Ontology) -> set[str]:
-    seen: set[str] = set()
-    pending = [curie]
-    while pending:
-        term = ontology.terms.get(pending.pop())
-        for parent in term.parents if term is not None else ():
-            if parent not in seen:
-                seen.add(parent)
-                pending.append(parent)
-    return seen
 
 
 def _match_problem(row: CodeMapping, ontology: Ontology, where: str) -> str | None:

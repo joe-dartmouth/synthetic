@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import importlib.metadata
 import logging
 import sys
 from collections.abc import Mapping, Sequence
@@ -27,14 +26,13 @@ from pathlib import Path
 from typing import TextIO
 
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import Source
 from bko.ontology.check import check
 from bko.ontology.mapping import CONCEPT_ROWS, RELEASES
-from bko.ontology.obo import load_ontology
+from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
 from bko.ontology.schema import ConceptRow
-from bko.ontology.terms import Ontology
 
 
 logger = logging.getLogger("bko.ontology")
@@ -115,26 +113,10 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load(sources: Mapping[str, Source], data_dir: Path, context: Context) -> dict[str, Ontology]:
-    logger.info("parser pronto %s", importlib.metadata.version("pronto"))
-    ontologies: dict[str, Ontology] = {}
-    for prefix, source in sorted(sources.items()):
-        ensure(source, data_dir, open_url=context.open_url)
-        ontology = load_ontology(source, data_dir)
-        logger.info(
-            "release %s data_version=%s snapshot=%s terms=%d obsolete=%d",
-            source.name,
-            ontology.version,
-            source.sha256[:16],
-            len(ontology.terms),
-            sum(term.obsolete for term in ontology.terms.values()),
-        )
-        ontologies[prefix] = ontology
-    return ontologies
-
-
 def _check(data_dir: Path, context: Context, out: TextIO) -> int:
-    verdicts = check(context.rows, _load(context.releases, data_dir, context))
+    verdicts = check(
+        context.rows, load_releases(context.releases, data_dir, open_url=context.open_url)
+    )
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(("table", "subject", "concept", "label", "status"))
     writer.writerows((v.table, v.subject, v.concept, v.label, v.problem or "ok") for v in verdicts)
@@ -149,7 +131,7 @@ def _check(data_dir: Path, context: Context, out: TextIO) -> int:
 
 
 def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:
-    ontologies = _load(context.paper_releases, data_dir, context)
+    ontologies = load_releases(context.paper_releases, data_dir, open_url=context.open_url)
     findings = reproduce(ontologies["MONDO"], ontologies["DOID"])
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(("kind", "item", "paper", "measured", "status"))

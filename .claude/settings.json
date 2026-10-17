@@ -8,8 +8,7 @@
       "Bash(make sizes)",
       "Bash(make synced)",
       "Bash(make rebased)",
-      "Bash(make check)",
-      "Bash(gh pr merge *)"
+      "Bash(make check)"
     ]
   }
 }

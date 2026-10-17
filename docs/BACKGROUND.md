@@ -64,9 +64,9 @@ unchanged. The representation therefore keeps a record of where knowledge is mis
 filling it in, and that record is what the gap detector reads: the plan defines a dataset gap as an
 ungrounded statement ([RESEARCH.md](RESEARCH.md#detect)).
 
-A hypothetical illustration: if the ontology fragments imply that a disease subtype occurs with a
-given chest-pain type, and the dataset fragment holds no record of that combination, the statement
-is implied but ungrounded, so it is a gap.
+A hypothetical illustration: if the ontology says myocardial ischemia is a kind of ischemic disease,
+and a dataset that can record myocardial ischemia holds no record of it, that statement is implied
+but ungrounded, so it is a gap.
 
 ### Fusion
 

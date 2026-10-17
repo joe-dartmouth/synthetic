@@ -204,6 +204,13 @@ def test_an_ancestor_of_a_mapped_concept_is_in_scope() -> None:
     )
 
 
+def test_an_ancestor_reached_only_through_another_prefix_is_out_of_scope() -> None:
+    stenosis = _child_of("MONDO:0006715", "coronary stenosis", "BFO:0000016")
+    bridge = _child_of("BFO:0000016", "disposition", "MONDO:0005015")
+    verdicts = check((LABEL_ROW, SCOPE_ROW), {"MONDO": _mondo(stenosis, bridge, DIABETES)})
+    assert [v.problem for v in verdicts] == [None, None]
+
+
 def test_an_unrelated_out_of_scope_concept_passes_without_mapped_rows() -> None:
     stenosis = _child_of("MONDO:0006715", "coronary stenosis", "MONDO:0005015")
     [verdict] = check((SCOPE_ROW,), {"MONDO": _mondo(stenosis, DIABETES)})

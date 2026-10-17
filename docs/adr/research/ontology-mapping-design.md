@@ -44,8 +44,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   `bko.ontology.santos` reads, from its release tag's `src/ontology/doid.obo`, since DO's GitHub
   releases carry no assets.
 - **Pins and fetch**: the releases are `MONDO`, `HPO` and `DO` in `bko.datasets.sources`, with the size
-  and sha256 `bko.datasets.sources` holds; the `bko.ontology` command calls
-  `bko.datasets.fetch.ensure` itself.
+  and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
+  `bko.datasets.fetch.ensure` for the commands that read them.
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto; it returns frozen
   standard-library `Ontology` and `Term` values with sorted tuples and a sorted term map.
 - **Table form**: typed `Final` constants in `bko.ontology.mapping`, with the row types in
@@ -57,9 +57,12 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   protocol papers (Detrano 1985) define the field's finding. Every row records its limits. The
   resting blood pressure cutoff is 130 mm Hg.
 - **Scope**: a concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped
-  concept in its release. Every other concept is out of scope; `OUT_OF_SCOPE` records the near
-  misses considered and why each was rejected, and the check refuses one that is an `is_a`
-  ancestor of a mapped concept.
+  concept in its release, reached through classes with the release's prefix. Every other concept is
+  out of scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and the
+  check refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO holds the
+  part of this scope its own rows reach: the field mappings' concepts for UCI Heart Disease and the
+  code mappings' for Synthea, each with its `is_a` ancestors in its release, following only parents
+  with the release's prefix.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
@@ -132,6 +135,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | SNOMED-CT evidence from HPO | HPO carries no SNOMED-CT reference | 2026-10-16 |
 | Committed release slices and a manifest for an offline concept check | HPO's license bars altered extracts, and the table changes only on a re-pin | 2026-10-16 |
 | Keeping owlready2 in the `ontology` extra | A Cython build on every clone for a library nothing imports | 2026-10-16 |
+| One scope for every dataset, the union of the table's concepts | A concept only another dataset's rows map can never be held, so its statements would be gaps of the table, not of the data, against RESEARCH's rule that a concept without a defensible field is out of scope | 2026-10-17 |
 
 ## Enforcement
 

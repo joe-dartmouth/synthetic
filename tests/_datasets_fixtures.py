@@ -196,9 +196,10 @@ aged 64 with it, p4 a man aged 35 with a myocardial infarction only, p5 dead bef
 
 
 class FakeSynthea:
-    """A runner that writes `SMALL_POPULATION`, or nothing, instead of running Java.
+    """A runner that writes `tables`, or nothing, instead of running Java.
 
-    `omit` names a table to leave out; `then` runs after the tables are written.
+    `tables` is `SMALL_POPULATION` unless given. `omit` names a table to leave out; `then` runs
+    after the tables are written.
     """
 
     def __init__(
@@ -208,18 +209,20 @@ class FakeSynthea:
         write: bool = True,
         omit: str | None = None,
         then: Callable[[], object] | None = None,
+        tables: tuple[list[dict[str, str]], list[dict[str, str]]] = SMALL_POPULATION,
     ) -> None:
         self.status = status
         self.write = write
         self.omit = omit
         self.then = then
+        self.tables = tables
         self.calls: list[list[str]] = []
 
     def __call__(self, argv: Sequence[str], cwd: Path) -> int:
         self.calls.append(list(argv))
         (cwd / "synthea.log").write_text("fake synthea\n", encoding="utf-8")
         if self.write:
-            synthea_tables(cwd, *SMALL_POPULATION)
+            synthea_tables(cwd, *self.tables)
         if self.omit is not None:
             (cwd / "csv" / self.omit).unlink()
         if self.then is not None:

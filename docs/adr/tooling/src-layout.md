@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 # src layout, one subpackage per pipeline stage
 
@@ -30,7 +30,7 @@ pipeline stage:
 | `datasets` | UCI Heart Disease and Synthea loading | `data` |
 | `ontology` | MONDO, HPO and DO loading; field mapping; BKO fragments | `ontology` |
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
-| `gaps` | Ungrounded-statement and count-based gap detection | none |
+| `gaps` | Ungrounded-statement and count-based gap detection | `data` |
 | `generate` | Candidate-record generation through the Messages API | `llm` |
 | `validate` | Record consistency checks | `ontology` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
