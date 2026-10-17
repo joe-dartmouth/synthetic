@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 topic: research
 created: 2026-10-16
 updated: 2026-10-16
@@ -133,7 +133,11 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 ## Enforcement
 
 - Owner: `src/bko/ontology/`
-- Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`, `tests/test_datasets_sources.py`
+- Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
+  `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
+  `tests/test_ontology_cli.py`
+- `python -m bko.ontology check` is the check the gate cannot make; a person runs it after editing
+  the table or re-pinning (`docs/DEVELOPMENT.md`, Ontologies).
 
 ## Reversal Conditions
 

@@ -1,8 +1,8 @@
 ---
 id: proposal-record-validation
 title: Record consistency checks
-status: blocked
-depends_on: proposal-ontology-mapping
+status: ready
+depends_on: --
 blocks: proposal-fusion-repair
 parallel_safe: true
 owner: Shirley

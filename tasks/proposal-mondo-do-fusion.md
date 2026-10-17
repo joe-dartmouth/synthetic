@@ -1,8 +1,8 @@
 ---
 id: proposal-mondo-do-fusion
 title: Reproduce the paper's MONDO/DO fusion
-status: blocked
-depends_on: proposal-ontology-mapping
+status: ready
+depends_on: --
 blocks: proposal-gap-detection
 parallel_safe: true
 owner: Partiban
@@ -30,6 +30,8 @@ work together before the dataset joins.
 - `bko.bkb.fusion.fuse` normalizes each source prior over the sources holding S-nodes on that
   head component, as pybkb does; if Santos et al.'s fusion divides by every fragment's weight
   instead, add that normalization to `fuse` here.
+- Convert loaded ontologies (`bko.ontology.obo`) to BKO fragments; the same converter builds the
+  HPO fragment.
 
 **Out.** The dataset fragment, which joins in `proposal-gap-detection`.
 

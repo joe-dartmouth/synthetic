@@ -1,5 +1,7 @@
 """Ontology loading and field mapping: the `bko.ontology` pipeline stage.
 
 The submodules are imported directly, so importing the stage loads nothing heavy: `terms` (the
-parsed release as standard-library values), `obo` (the pronto parser) and `errors`.
+parsed release as standard-library values), `obo` (the pronto parser), `schema` (the table's row
+types), `mapping` (the table), `check` (the table against the releases), `errors`, and `__main__`
+(`python -m bko.ontology check`).
 """

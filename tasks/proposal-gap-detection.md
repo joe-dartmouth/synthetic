@@ -27,6 +27,8 @@ Detect: statements the fused ontology implies but the dataset fragment does not 
   `src/bko/gaps/`.
 - List count-based gaps from the cell counts `bko.datasets.cells` computes.
 - Run both on the Synthea ablation, where the removed cases are the ground truth.
+- Fuse the HPO fragment with the MONDO and dataset fragments, within the scope
+  `bko.ontology.mapping` states.
 
 **Out.** Generating records for the gaps.
 
