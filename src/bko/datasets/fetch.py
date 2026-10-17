@@ -7,7 +7,9 @@ size, sha256 and download time an experiment cites in `docs/EVIDENCE.md`; verifi
 pin in `bko.datasets.sources`, never the record.
 
 Only `ensure` touches the network, and it replaces a snapshot that fails its pin. Loaders call
-`read_verified`, which never fetches and refuses such a snapshot.
+`read_verified`, which never fetches and refuses such a snapshot. A reader that must open the file
+itself, as pronto must to honour an encoding, calls `verified_path`, which verifies the bytes and
+returns the path.
 """
 
 from __future__ import annotations
@@ -163,6 +165,21 @@ def read_verified(source: Source, data_dir: Path) -> bytes:
         raise _no_snapshot(source, path) from exc
     _match(source, len(data), hashlib.sha256(data).hexdigest(), where=str(path))
     return data
+
+
+def verified_path(source: Source, data_dir: Path) -> Path:
+    """Return the path of `source`'s snapshot under `data_dir` once its bytes match the pin.
+
+    For a reader that must open the file itself. The reader reads the file again after this check,
+    so only an out-of-band edit between the two could change what it reads. It never fetches.
+
+    Raises:
+        UnavailableError: If the snapshot is absent.
+        ContractError: If its size or sha256 differs from the pin.
+    """
+    path = snapshot_dir(source, data_dir) / source.filename
+    verify(path, source)
+    return path
 
 
 def ensure(

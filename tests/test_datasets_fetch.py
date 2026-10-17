@@ -23,6 +23,7 @@ from bko.datasets.fetch import (
     open_https,
     read_verified,
     snapshot_dir,
+    verified_path,
     verify,
 )
 from bko.datasets.sources import UCI_HEART_DISEASE
@@ -244,6 +245,26 @@ def test_read_verified_refuses_a_bad_snapshot(tmp_path):
 def test_read_verified_never_fetches_an_absent_snapshot(tmp_path):
     with pytest.raises(UnavailableError, match="no snapshot"):
         read_verified(pin(BODY), tmp_path)
+
+
+def test_verified_path_returns_the_snapshot_file(tmp_path):
+    source = pin(BODY)
+    plant(tmp_path, source, BODY)
+    assert verified_path(source, tmp_path) == snapshot_dir(source, tmp_path) / source.filename
+
+
+def test_verified_path_refuses_an_absent_snapshot(tmp_path):
+    with pytest.raises(UnavailableError, match="no snapshot"):
+        verified_path(pin(BODY), tmp_path)
+
+
+def test_verified_path_refuses_changed_bytes(tmp_path):
+    source = pin(BODY)
+    changed = bytearray(BODY)
+    changed[0] ^= 1
+    plant(tmp_path, source, bytes(changed))
+    with pytest.raises(ContractError, match="pinned"):
+        verified_path(source, tmp_path)
 
 
 def test_verify_refuses_a_missing_file(tmp_path):

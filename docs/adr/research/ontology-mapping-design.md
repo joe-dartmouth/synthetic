@@ -133,7 +133,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 ## Enforcement
 
 - Owner: `src/bko/ontology/`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`, `tests/test_datasets_sources.py`
 
 ## Reversal Conditions
 
