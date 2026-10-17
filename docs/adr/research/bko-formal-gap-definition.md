@@ -36,7 +36,8 @@ premise for reframing does not hold.
 ## Decision
 
 A dataset gap is **a statement implied by the fused ontology fragments but ungrounded by the
-dataset fragment** under BKO instantiation. Count-based gaps (fewer than 20 training records per
+dataset fragment** under BKO instantiation, over the classes the dataset's own mapping rows reach
+(ADR `research/ontology-mapping-design`). Count-based gaps (fewer than 20 training records per
 age-sex subgroup-label combination on UCI Heart Disease) are detected and evaluated separately, as
 the comparison the formal definition is measured against.
 
@@ -78,11 +79,13 @@ grounding is judged against the dataset fragment, not the fused BKB.
 ## Reversal Conditions
 
 **The formal definition is replaced by the count-based one if BKO instantiation cannot run on the
-fused MONDO, HPO and dataset fragments by Status Update 1** (an acceptance item of
-[`proposal-gap-detection`](../../../tasks/proposal-gap-detection.md)). The count-based definition then becomes primary and this record is rewritten.
+fused MONDO, HPO and dataset fragments by [Status Update 1](../../ROADMAP.md#status-update-1)**;
+E2 in [`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) records whether it
+ran. The count-based definition then becomes primary and this record is rewritten.
 
 ## Related
 
 - [src layout](../tooling/src-layout.md)
 - [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
 - [The BKB layer is pybkb's core, ported under GPL-3.0 and checked against pybkb's own results](bkb-layer-source.md)
+- [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)

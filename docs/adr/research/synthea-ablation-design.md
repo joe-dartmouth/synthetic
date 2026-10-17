@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-17
 ---
 # The Synthea ablation: a pinned generated population, with whole patients removed
 
@@ -65,8 +65,9 @@ the sex.
 
 ## Consequences
 
-**Gained**: a population recreated from its parameters; a ground truth at the cell level, where
-both detectors report.
+**Gained**: a population recreated from its parameters; a ground truth both detectors read: the
+count-based one by the cells whose count fell, the BKO one by the statements the removed patients
+ground.
 **Accepted**: a JDK on every machine that generates; a jar download of the size
 `bko.datasets.sources` pins; one thread, so
 generation is slower; cross-platform identity is not promised, so each run records its CSV
