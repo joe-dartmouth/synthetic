@@ -7,12 +7,12 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval` and `ontology` extras
-from the lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology` and
+`llm` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
-  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy) and `ontology`
-  (pronto) are installed by `make setup`; only `llm` (anthropic) and `app` (streamlit) are
+  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
+  (pronto) and `llm` (anthropic) are installed by `make setup`; only `app` (streamlit) is
   installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
   NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
   when an extra joins `make setup`. `make sync` installs every extra.
@@ -66,7 +66,8 @@ root or to see the module's own code, run it directly:
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test it runs reads `data/`, and each builds its input in `tmp_path`;
   the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies)). No
-  test runs Java, and the one test that reaches the network is under [Gate hazards](#gate-hazards).
+  test runs Java, no gate test reaches the Anthropic API, and the one test that reaches the network
+  is under [Gate hazards](#gate-hazards).
 
 ## Baselines
 
@@ -300,7 +301,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval` and `ontology` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology` and `llm` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -351,6 +352,14 @@ A targeted run while working:
   paid API and is skipped unless `--live` is passed; a test marked `releases` reads the pinned
   releases in `data/` and is skipped unless `--releases` is passed. No `-m` expression selects
   either, and one flag does not run the other's tests.
+- **A session guard refuses every other Anthropic request.** `tests/conftest.py` fails any request
+  that reaches the SDK's request sink outside a `live` test's body: at collection, in a fixture, or
+  in an unmarked test (ADR
+  [`tooling/paid-api-request-guard`](adr/tooling/paid-api-request-guard.md)). Without `--live` it
+  also points `ANTHROPIC_BASE_URL` at the loopback discard port, so a subprocess cannot spend.
+  The conftest imports anthropic, so every pytest run needs the `llm` extra.
+- **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
+  subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

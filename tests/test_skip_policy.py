@@ -17,38 +17,16 @@ forward.
 
 from __future__ import annotations
 
-import os
 import re
-import shutil
-import subprocess
-import sys
 from pathlib import Path
 from typing import NamedTuple
 
 import pytest
 
-from tests._corpus import REPO_ROOT
+from tests._scratch_fixtures import scratch_checkout, scratch_pytest
 
 
 pytestmark = pytest.mark.integration
-
-#: The files the root conftest needs to import and run one test, repo-relative. `pyproject.toml`
-#: carries the marker registration and the `addopts` the scratch run reads.
-_COPIED = (
-    "pyproject.toml",
-    "tests/__init__.py",
-    "tests/conftest.py",
-)
-
-#: One scratch pytest run over a handful of one-line tests. Generous because the child pays
-#: interpreter start-up and the conftest's imports, and a timeout would read as a guard failure.
-_SCRATCH_RUN_TIMEOUT_S = 300
-
-#: Environment prefixes the scratch run must not inherit from the run that spawned it.
-#: `PYTEST_ADDOPTS` and `PYTEST_PLUGINS` change what it selects and loads, xdist sets
-#: `PYTEST_XDIST_*` in its workers, and pytest-cov's `COV_CORE_*` or coverage's `COVERAGE_*` would
-#: start measurement in a run passed `--no-cov`.
-_INHERITED_PREFIXES = ("PYTEST_", "COV_CORE_", "COVERAGE_")
 
 _PASSING = "def test_it():\n    assert True\n"
 
@@ -111,39 +89,7 @@ def _checkout_named(tmp_path: Path, name: str) -> Path:
     Returns:
         The checkout's root.
     """
-    root = tmp_path / name
-    for relative in _COPIED:
-        (root / relative).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(REPO_ROOT / relative, root / relative)
-    for relative, planted in _PLANTED.items():
-        (root / relative).write_text(planted.source, encoding="utf-8")
-    return root
-
-
-def _scratch_pytest(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    """Run pytest in the copied checkout over the given options and files.
-
-    Args:
-        root: The checkout.
-        *args: The test files, relative to it or absolute, and any options before them.
-
-    Returns:
-        The finished run, its output captured.
-    """
-    env = {
-        key: value for key, value in os.environ.items() if not key.startswith(_INHERITED_PREFIXES)
-    }
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - a fixed argv
-        [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "--no-cov", "-rs", *args],
-        cwd=root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="surrogateescape",
-        stdin=subprocess.DEVNULL,
-        timeout=_SCRATCH_RUN_TIMEOUT_S,
-        check=False,
-        env=env,
-    )
+    return scratch_checkout(tmp_path, name, {path: p.source for path, p in _PLANTED.items()})
 
 
 def _outcomes(stdout: str) -> dict[str, str]:
@@ -173,9 +119,9 @@ def test_a_live_marked_test_is_skipped_without_live_and_runs_with_it(tmp_path: P
     root = _checkout_named(tmp_path, "live")
     files = tuple(_PLANTED)
 
-    default = _scratch_pytest(root, "-v", *files)
+    default = scratch_pytest(root, "-v", *files)
     assert default.returncode == 0, default.stdout + default.stderr
-    opted_in = _scratch_pytest(root, "-v", "--live", *files)
+    opted_in = scratch_pytest(root, "-v", "--live", *files)
     assert opted_in.returncode == 0, opted_in.stdout + opted_in.stderr
 
     for run, column in ((default, "default"), (opted_in, "opted_in")):
@@ -203,7 +149,7 @@ def test_a_marker_expression_cannot_enable_a_live_test(tmp_path: Path) -> None:
     """
     root = _checkout_named(tmp_path, "marker")
 
-    result = _scratch_pytest(root, "-m", "live", *_PLANTED)
+    result = scratch_pytest(root, "-m", "live", *_PLANTED)
 
     assert result.returncode == pytest.ExitCode.TESTS_FAILED, result.stdout + result.stderr
     assert "every selected test skipped (2 skipped, none ran)" in result.stdout, result.stdout
@@ -221,9 +167,9 @@ def test_a_releases_marked_test_runs_with_releases_and_nothing_else_does(tmp_pat
     root = _checkout_named(tmp_path, "releases")
     files = tuple(_PLANTED)
 
-    default = _scratch_pytest(root, "-v", *files)
+    default = scratch_pytest(root, "-v", *files)
     assert default.returncode == 0, default.stdout + default.stderr
-    released = _scratch_pytest(root, "-v", "--releases", *files)
+    released = scratch_pytest(root, "-v", "--releases", *files)
     assert released.returncode == 0, released.stdout + released.stderr
 
     for run, column in ((default, "default"), (released, "released")):
@@ -248,7 +194,7 @@ def test_a_marker_expression_cannot_enable_a_releases_test(
     """`-m releases` selects the release case, and without `--releases` it is still skipped."""
     root = _checkout_named(tmp_path, "marker")
 
-    result = _scratch_pytest(root, *flags, "-m", "releases", *_PLANTED)
+    result = scratch_pytest(root, *flags, "-m", "releases", *_PLANTED)
 
     assert result.returncode == pytest.ExitCode.TESTS_FAILED, result.stdout + result.stderr
     assert "every selected test skipped (1 skipped, none ran)" in result.stdout, result.stdout
@@ -262,7 +208,7 @@ def test_a_run_in_which_every_selected_test_skipped_fails(tmp_path: Path) -> Non
     This is the regression no other case can see, because a skip matching every case skips them
     too: the paid skip reduced to `if True:` would leave this module `skipped` with exit 0.
     """
-    result = _scratch_pytest(_checkout_named(tmp_path, "floor"), "tests/test_paid.py")
+    result = scratch_pytest(_checkout_named(tmp_path, "floor"), "tests/test_paid.py")
 
     assert result.returncode == pytest.ExitCode.TESTS_FAILED, result.stdout + result.stderr
     assert "every selected test skipped (1 skipped, none ran)" in result.stdout, result.stdout
@@ -277,11 +223,11 @@ def test_the_skip_floor_holds_under_xdist(tmp_path: Path) -> None:
     """
     root = _checkout_named(tmp_path, "floor")
 
-    skipped = _scratch_pytest(root, "-n", "2", "tests/test_paid.py", "tests/test_paid_module.py")
+    skipped = scratch_pytest(root, "-n", "2", "tests/test_paid.py", "tests/test_paid_module.py")
     assert skipped.returncode == pytest.ExitCode.TESTS_FAILED, skipped.stdout + skipped.stderr
     assert "every selected test skipped (2 skipped, none ran)" in skipped.stdout, skipped.stdout
 
-    mixed = _scratch_pytest(root, "-n", "2", "tests/test_outside.py", "tests/test_paid.py")
+    mixed = scratch_pytest(root, "-n", "2", "tests/test_outside.py", "tests/test_paid.py")
     assert mixed.returncode == 0, mixed.stdout + mixed.stderr
     assert "1 passed, 1 skipped" in mixed.stdout, mixed.stdout
     assert "every selected test skipped" not in mixed.stdout, mixed.stdout
@@ -297,10 +243,10 @@ def test_the_skip_floor_has_an_opt_out_and_counts_an_expected_failure_as_run(
     """
     root = _checkout_named(tmp_path, "floor")
 
-    allowed = _scratch_pytest(root, "--allow-all-skipped", "tests/test_paid.py")
+    allowed = scratch_pytest(root, "--allow-all-skipped", "tests/test_paid.py")
     assert allowed.returncode == 0, allowed.stdout + allowed.stderr
     assert "1 skipped" in allowed.stdout, allowed.stdout
 
-    expected = _scratch_pytest(root, "tests/test_paid.py", "tests/test_expected_failure.py")
+    expected = scratch_pytest(root, "tests/test_paid.py", "tests/test_expected_failure.py")
     assert expected.returncode == 0, expected.stdout + expected.stderr
     assert "1 skipped, 1 xfailed" in expected.stdout, expected.stdout
