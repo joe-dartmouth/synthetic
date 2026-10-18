@@ -1,7 +1,4 @@
-"""`fuse`'s normalizations: every fragment's weight by default, pybkb's two modes on request.
-
-And the order pybkb's modes sum a component in.
-"""
+"""`fuse`'s normalizations: the default, pybkb's two modes, and the order those modes sum in."""
 
 from __future__ import annotations
 

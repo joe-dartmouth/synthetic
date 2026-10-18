@@ -233,6 +233,12 @@ def test_a_releases_marked_test_runs_with_releases_and_nothing_else_does(tmp_pat
             assert outcomes.get(relative) == expected, (
                 f"{relative} should be {expected} in the {column} run; it said:\n{run.stdout}"
             )
+            if planted.reason and expected == "SKIPPED":
+                pattern = rf"{re.escape(relative)}(:\d+)?: {re.escape(planted.reason)}"
+                assert re.search(pattern, run.stdout), (
+                    f"{relative} was skipped for the wrong reason in the {column} run; it "
+                    f"said:\n{run.stdout}"
+                )
 
 
 @pytest.mark.parametrize("flags", [(), ("--live",)], ids=["no-flag", "live"])

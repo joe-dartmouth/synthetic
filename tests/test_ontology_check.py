@@ -267,7 +267,7 @@ def test_a_code_row_without_its_release_is_a_verdict() -> None:
     )
 
 
-def test_holders_are_listed_in_curie_order_and_obsolete_ones_are_left_out() -> None:
+def test_holders_are_listed_in_term_order_and_obsolete_ones_are_left_out() -> None:
     late = _term("MONDO:0000003", "late", matches=(MATCH,))
     early = _term("MONDO:0000002", "early", matches=(MATCH,))
     gone = _term("MONDO:0000004", "gone", matches=(MATCH,), obsolete=True)

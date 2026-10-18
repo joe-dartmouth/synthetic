@@ -119,6 +119,7 @@ def _problem(
         return f"named '{term.name}' in {where}"
     match row:
         case CodeMapping():
+            # `check` indexes every prefix a code row names that `ontologies` holds.
             return _match_problem(row, ontology, where, holders[prefix])
         case OutOfScope():
             return _scope_problem(row, ontology, where, mapped)

@@ -71,8 +71,7 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **SNOMED-CT evidence**: MONDO's `skos:exactMatch SCTID:<code>` annotation, which the check
   requires on the mapped concept and on no other live concept.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
-  row against the real releases, and `tests/test_ontology_pinned_releases.py`, run with
-  `--releases`, asserts that every row agrees.
+  row against the real releases.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
 - **Sources vocabulary**: a row's `source` is the `name` of a `Source` in `bko.datasets.sources`
   (`uci-heart-disease` means `heart-disease.names` inside that archive), a key in
@@ -144,7 +143,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 - Owner: `src/bko/ontology/`
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
-  `tests/test_ontology_cli.py`
+  `tests/test_ontology_cli.py`, and `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
   passed; a person runs one of them after editing the table, re-pinning, or changing
@@ -153,8 +152,8 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 ## Reversal Conditions
 
 **`bko.ontology.obo` is replaced if pronto cannot load a pinned release, or `uv lock` stops
-resolving pronto or fastobo on Python 3.14**; the check is `tests/test_ontology_pinned_releases.py` with
-`--releases`, and `uv lock`.
+resolving pronto or fastobo on Python 3.14**; the check is
+`tests/test_ontology_pinned_releases.py` with `--releases`, and `uv lock`.
 
 **owlready2 returns when a unit's acceptance needs OWL reasoning**; the check is a search of
 `tasks/` for one.
