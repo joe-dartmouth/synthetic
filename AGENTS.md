@@ -42,8 +42,8 @@ import it (ADR `tooling/agent-config-single-home`).
   check the table and the fusion reproduction against the pinned releases already in `data/`
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `uv run --no-sync python -m bko.gaps uci` or `uv run --no-sync python -m bko.gaps synthea`:
-  list the BKO-detected and count-based gaps of the UCI training split, or of the Synthea
-  population before and after each of E2's ablations
+  list the gaps under each BKO gap definition and the count-based gaps of the UCI training split,
+  or of the Synthea population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - A targeted run while working:
 
