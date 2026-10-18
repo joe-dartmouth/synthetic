@@ -27,17 +27,21 @@ probabilities.
 
 - **One fragment per set of records, about the ontology fragments' individual `a`**, read as a
   record drawn at random from that set: every record for the population-level definition, a cell's
-  records for the per-subgroup one (ADR `research/bko-formal-gap-definition`).
+  records for the per-subgroup and frequency-aware ones (ADR `research/bko-formal-gap-definition`).
 - **One prior S-node per held concept.** A concept the dataset's own mapping rows name is held when
   at least one record shows it: a UCI training record for which one of its field mappings applies,
   or a Synthea patient alive on the snapshot date who has one of its codes by then. Its prior is the
   share of records that show it. A concept no record shows gets no S-node.
 - **Fusion at weight 1 per fragment** under `fuse`'s default normalization, the dataset fragment
   last.
-- **Grounding is instantiation from the held concepts** over the fused BKB. A set of records that
-  holds no concept, such as an empty cell, leaves every ontology statement ungrounded, and nothing
-  is instantiated.
-- **Home**: `bko.gaps.observe` builds the fragment; `bko.gaps.detect` fuses and grounds.
+- **Grounding is instantiation from the held concepts** over the fused BKB; a concept the caller
+  holds without a record, such as one a cell assumes (ADR `research/bko-formal-gap-definition`),
+  joins the anchor alone. A prior grounds its concept whatever the anchor, so grounding without a
+  concept some record shows leaves its prior out of the fragment. A set of records that holds no
+  concept and assumes none, such as an empty cell that assumes nothing, leaves every ontology
+  statement ungrounded, and nothing is instantiated.
+- **Home**: `bko.gaps.observe` builds the fragments, whole and per cell; `bko.gaps.detect` fuses
+  and grounds.
 
 ## Rationale
 
