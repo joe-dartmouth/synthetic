@@ -1,0 +1,210 @@
+"""Generation calls: `ask` makes one logged call; `generate` fills a quota in a fixed call count.
+
+`ask` renders the prompt at the settings' guidance level, sends it, decodes the reply into
+candidates and placeholders, prices it and logs it. `generate` checks the whole quota, then asks
+each cell's rows in chunks of `Settings.per_call`, cells in quota order, so a run makes
+`sum(ceil(rows / per_call))` calls. Neither retries or tops up; a call with no response raises
+`GenerationError` after its `error` line is written. ADR `research/record-generation-design`
+records the design.
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+from bko.gaps.observe import Cell, cell_key
+from bko.generate.decode import Undecoded, decode
+from bko.generate.guidance import Guidance
+from bko.generate.log import CallLog, undecoded_in
+from bko.generate.messages import Call, Reply, Send, Settings
+from bko.generate.prompt import render
+from bko.generate.spend import cost, price_of
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class Batch:
+    """One call's outcome.
+
+    Attributes:
+        index: The call's index in the run, counted from 1.
+        cell: The cell it asked for.
+        asked: The records it asked for.
+        candidates: The decoded items, then one `Undecoded` per asked record short.
+        reply: The reply.
+        usd: Its spend.
+    """
+
+    index: int
+    cell: Cell
+    asked: int
+    candidates: tuple[object, ...]
+    reply: Reply
+    usd: float
+
+    @property
+    def undecoded(self) -> int:
+        """The placeholders among the candidates."""
+        return undecoded_in(self.candidates)
+
+
+@dataclass(frozen=True, slots=True)
+class Generation:
+    """A run's calls, in the order they were made.
+
+    Attributes:
+        batches: Each call's outcome.
+    """
+
+    batches: tuple[Batch, ...]
+
+    @property
+    def usd(self) -> float:
+        """The run's spend: every call's, summed."""
+        return sum(batch.usd for batch in self.batches)
+
+    def candidates(self, cell: Cell) -> tuple[object, ...]:
+        """Return every candidate of `cell`'s calls, in call order."""
+        return tuple(
+            candidate
+            for batch in self.batches
+            if batch.cell == cell
+            for candidate in batch.candidates
+        )
+
+
+def _settings(log: CallLog, settings: Settings | None) -> Settings:
+    """The log's settings, refusing others: the log priced and recorded its own.
+
+    Raises:
+        ValueError: If `settings` is given and differs from `log.settings`.
+    """
+    if settings is None or settings == log.settings:
+        return log.settings
+    msg = f"settings {settings!r} differ from the settings the call log records, {log.settings!r}"
+    raise ValueError(msg)
+
+
+def ask(
+    guidance: Guidance,
+    rows: int,
+    *,
+    send: Send,
+    log: CallLog,
+    settings: Settings | None = None,
+) -> Batch:
+    """Make one call for `rows` records of `guidance`'s cell, and log it.
+
+    Args:
+        guidance: What the request says about the cell.
+        rows: The records the call asks for.
+        send: Makes the call.
+        log: The run's call log.
+        settings: How the call is made, its guidance level included; the log's when None.
+
+    Returns:
+        The call's outcome.
+
+    Raises:
+        ValueError: Before the `request` line, if `settings` differ from the log's.
+        GenerationError: If no response arrives. Its `error` line is written first, as it is
+            for any other exception `send` raises, which propagates unchanged.
+    """
+    settings = _settings(log, settings)
+    system, user = render(guidance, rows, settings.guidance)
+    call = Call(settings, guidance.sex, guidance.label, system, user)
+    index = log.request(guidance.cell, rows, call)
+    try:
+        reply = send(call)
+    except Exception as exc:
+        log.failure(index, exc)
+        raise
+    candidates = decode(reply, rows)
+    usd = cost(reply.usage, settings.model)
+    log.reply(index, reply, candidates, usd)
+    batch = Batch(index, guidance.cell, rows, candidates, reply, usd)
+    key = cell_key(guidance.cell)
+    if reply.model != settings.model:
+        logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
+    logger.info(
+        "generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s "
+        "input_tokens=%d output_tokens=%d usd=%.4f request_id=%s",
+        index,
+        key,
+        settings.guidance,
+        rows,
+        len(candidates) - batch.undecoded,
+        batch.undecoded,
+        reply.stop_reason,
+        reply.usage.input_tokens,
+        reply.usage.output_tokens,
+        usd,
+        reply.request_id,
+    )
+    if batch.undecoded:
+        reason = next(c.reason for c in candidates if isinstance(c, Undecoded))
+        logger.warning(
+            "short call=%d cell=%s asked=%d undecoded=%d reason=%s",
+            index,
+            key,
+            rows,
+            batch.undecoded,
+            reason,
+        )
+    return batch
+
+
+def generate(
+    quota: Mapping[Cell, int],
+    guidance: Mapping[Cell, Guidance],
+    *,
+    send: Send,
+    log: CallLog,
+    settings: Settings | None = None,
+) -> Generation:
+    """Ask for each cell's quota in chunks of `settings.per_call`, cells in quota order.
+
+    Args:
+        quota: The records to generate per cell.
+        guidance: Each cell's guidance, as `bko.generate.guidance.guide` returns it.
+        send: Makes each call.
+        log: The run's call log.
+        settings: How each call is made; the log's when None.
+
+    Returns:
+        Every call's outcome, in call order.
+
+    Raises:
+        ValueError: Before any call, if `settings` differ from the log's, or a quota entry is
+            not an `int` of at least 1 (a `bool` is refused) or names a cell `guidance` does
+            not hold.
+        GenerationError: As `ask`.
+    """
+    settings = _settings(log, settings)
+    for cell, rows in quota.items():
+        if cell not in guidance:
+            msg = f"quota cell {cell!r} has no guidance"
+            raise ValueError(msg)
+        if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
+            msg = f"quota of cell {cell!r} must be an int of at least 1, not {rows!r}"
+            raise ValueError(msg)
+    calls = sum(math.ceil(rows / settings.per_call) for rows in quota.values())
+    ceiling = calls * settings.max_tokens * price_of(settings.model).output / 1e6
+    logger.info(
+        "plan calls=%d level=%s max_tokens=%d max_output_usd=%.2f",
+        calls,
+        settings.guidance,
+        settings.max_tokens,
+        ceiling,
+    )
+    batches: list[Batch] = []
+    for cell, rows in quota.items():
+        for start in range(0, rows, settings.per_call):
+            chunk = min(settings.per_call, rows - start)
+            batches.append(ask(guidance[cell], chunk, send=send, log=log, settings=settings))
+    return Generation(tuple(batches))

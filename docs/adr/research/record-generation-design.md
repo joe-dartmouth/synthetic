@@ -28,6 +28,11 @@ SDK 1.13.0's `Messages.create` takes `output_config` (`effort`, and `format` wit
 `type: "json_schema"`) and takes no `temperature`, `top_p` or `top_k`. The `live` test
 `tests/test_generate_live.py` checks the request against the API.
 
+The prices `bko.generate.spend.PRICES` holds were read 2026-10-18 from
+`platform.claude.com/docs/en/about-claude/pricing.md`, Model pricing, row Claude Opus 5.5: input
+$4, 5-minute cache writes $5, cache hits $0.20 and output $20, each per million tokens. The API
+reports a call's tokens and no price.
+
 A record's fields, codes and plausible ranges already have homes: `bko.datasets.uci` (`CODEBOOK`,
 `DESCRIPTIONS`, `FRAME_COLUMNS`), `bko.datasets.cells` (`SEXES`, `LABEL_MEANINGS`) and
 `bko.ontology.mapping.RANGES`.
@@ -107,6 +112,22 @@ ladder.**
   frozen and is not a `Mapping`, so validation rejects it under `fields`. Decoding never raises on
   a reply's content. A call that returns no response raises `GenerationError` and owes no
   placeholders.
+- **The request.** `bko.generate.calls.generate` takes the quota as `Mapping[Cell, int]` and each
+  cell's guidance, not `bko.baselines.request.Request`, so generation imports no downstream stage.
+  It refuses a quota entry that is not an `int` of at least 1, or names a cell with no guidance,
+  before any call. It asks each cell's rows in chunks of `per_call`, cells in quota order, so a
+  run makes `sum(ceil(rows / per_call))` calls; it never retries or tops up.
+- **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
+  opened with mode `"x"` after the settings model's price resolves, so an unpriced model or an
+  existing log is refused before any call. Its lines, each flushed as written: one `run` line
+  (schema, settings, price, SDK version), then per call a `request` line before it is sent and a
+  `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
+  for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
+  whole response; an `error` line holds a `GenerationError`'s text, or any other exception's
+  type name only, since its text may hold the credential. `ask` and `generate` take their
+  settings from the log and refuse others before any line, so the `run` line names the settings
+  every call was made and priced under. A call's spend is its usage times `PRICES[settings.model]`, each token kind at
+  its own rate; output tokens already count thinking.
 
 ## Rationale
 
@@ -121,6 +142,11 @@ lean on, and one slip turns a whole call's records into placeholders.
 Effort is set explicitly so a change of the API's default does not move a run. A server-side
 fallback would serve some calls on another model, chosen by refusal, so the model behind a record
 would depend on its content.
+
+One JSONL line per event, flushed as written, keeps every paid call's request and response
+through a failure or a killed process; a single JSON written at the end loses them. Opening with
+mode `"x"` keeps a rerun from overwriting a paid log, and resolving the price first keeps an
+unpriced model from making a call whose spend reads as zero.
 
 Six levels separate what the ontology adds from what any careful prompt adds: `coherent` controls
 for a plain request for clinical sense, and `findings` and `ontology` differ by exactly the `is_a`
@@ -177,6 +203,11 @@ cut mid-value and the stop already says the call failed.
 | Few-shot rows | A copied record fails E1's privacy share | 2026-10-18 |
 | `None` as the placeholder | Collides with a decoded `null` (Rationale) | 2026-10-18 |
 | Salvaging truncated output | Its last records may be cut mid-value (Rationale) | 2026-10-18 |
+| One JSON log written at the end of a run | A failure or a kill loses every paid call's record (Rationale) | 2026-10-18 |
+| The log as a stdout redirect | Mixes with the records, and a rerun can overwrite it | 2026-10-18 |
+| Scrubbing log lines for secrets, as the mht3 research repository does | `bko.generate.api` builds each error without the response body, so no line carries the credential | 2026-10-18 |
+| `bko.baselines.request.Request` as `generate`'s input | Imports a downstream stage | 2026-10-18 |
+| A shared `bko.core` home for the request type | Nothing else needs it yet | 2026-10-18 |
 
 ## Enforcement
 
@@ -184,7 +215,8 @@ cut mid-value and the stop already says the call failed.
 - Pinned by: `tests/test_generate_messages.py`, `tests/test_generate_api.py`,
   `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
-  `tests/test_generate_guidance.py`
+  `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
+  `tests/test_generate_log.py`, `tests/test_generate_calls.py`
 
 ## Reversal Conditions
 
