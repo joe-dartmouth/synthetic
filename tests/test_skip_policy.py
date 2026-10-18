@@ -1,4 +1,4 @@
-"""The root conftest's `live` skip reaches its own cases and nothing else, and its skip floor.
+"""The root conftest's opt-in skips reach their own cases and nothing else, and its skip floor.
 
 Without `--live` the conftest skips a paid case, and that skip is the only gate: `addopts` carries
 no `-m`, so `--live` alone runs paid tests and no marker expression does. It keys on the `live`
@@ -6,7 +6,8 @@ marker and never on `"live" in item.keywords`, and a test's keywords include the
 collection node above it: a checkout whose own directory is named `live` would skip every test in
 the suite, with exit 0 and a reason naming the flag. These cases copy the conftest into such a
 checkout and run a scratch pytest there. A `live` marker applied to a whole module rather than to
-the function is planted too.
+the function is planted too. `--releases` does the same for a case marked `releases`, in a
+checkout named `releases`, and each flag leaves the other's cases skipped.
 
 **And the skip floor.** A skip that matched every case would skip this module too, so its own
 cases could not report it; the conftest's `_SkipFloor` fails such a run instead, and the last
@@ -63,29 +64,40 @@ _EXPECTED_FAILURE = (
 
 _PAID_REASON = "paid-API tests need `--live`"
 
+_RELEASES = (
+    "import pytest\n\npytestmark = pytest.mark.releases\n\n\ndef test_it():\n    assert True\n"
+)
+
+_RELEASES_REASON = "pinned-release tests need `--releases`"
+
 
 class _Planted(NamedTuple):
     """One planted case and what each scratch run must report for it.
 
     Attributes:
         source: The test module's text.
-        default: Its verbose outcome without `--live`.
+        default: Its verbose outcome with no flag.
         opted_in: Its verbose outcome with `--live`.
-        reason: The skip reason it must carry without `--live`, or ``None`` when it runs.
+        released: Its verbose outcome with `--releases`.
+        reason: The skip reason it carries whenever it is skipped, or ``None`` when it never is.
     """
 
     source: str
     default: str
     opted_in: str
+    released: str
     reason: str | None = None
 
 
 #: Every planted case, repo-relative.
 _PLANTED: dict[str, _Planted] = {
-    "tests/test_outside.py": _Planted(_PASSING, "PASSED", "PASSED"),
-    "tests/test_paid.py": _Planted(_PAID, "SKIPPED", "PASSED", _PAID_REASON),
-    "tests/test_paid_module.py": _Planted(_PAID_MODULE, "SKIPPED", "PASSED", _PAID_REASON),
-    "tests/test_expected_failure.py": _Planted(_EXPECTED_FAILURE, "XFAIL", "XFAIL"),
+    "tests/test_outside.py": _Planted(_PASSING, "PASSED", "PASSED", "PASSED"),
+    "tests/test_paid.py": _Planted(_PAID, "SKIPPED", "PASSED", "SKIPPED", _PAID_REASON),
+    "tests/test_paid_module.py": _Planted(
+        _PAID_MODULE, "SKIPPED", "PASSED", "SKIPPED", _PAID_REASON
+    ),
+    "tests/test_releases.py": _Planted(_RELEASES, "SKIPPED", "SKIPPED", "PASSED", _RELEASES_REASON),
+    "tests/test_expected_failure.py": _Planted(_EXPECTED_FAILURE, "XFAIL", "XFAIL", "XFAIL"),
 }
 
 
@@ -173,13 +185,14 @@ def test_a_live_marked_test_is_skipped_without_live_and_runs_with_it(tmp_path: P
             assert outcomes.get(relative) == expected, (
                 f"{relative} should be {expected} in the {column} run; it said:\n{run.stdout}"
             )
-    for relative, planted in _PLANTED.items():
-        if planted.reason:
-            pattern = rf"{re.escape(relative)}(:\d+)?: {re.escape(planted.reason)}"
-            assert re.search(pattern, default.stdout), (
-                f"{relative} was skipped for the wrong reason; the scratch run said:\n"
-                f"{default.stdout}"
-            )
+    for run, column in ((default, "default"), (opted_in, "opted_in")):
+        for relative, planted in _PLANTED.items():
+            if planted.reason and getattr(planted, column) == "SKIPPED":
+                pattern = rf"{re.escape(relative)}(:\d+)?: {re.escape(planted.reason)}"
+                assert re.search(pattern, run.stdout), (
+                    f"{relative} was skipped for the wrong reason in the {column} run; it "
+                    f"said:\n{run.stdout}"
+                )
 
 
 def test_a_marker_expression_cannot_enable_a_live_test(tmp_path: Path) -> None:
@@ -194,8 +207,47 @@ def test_a_marker_expression_cannot_enable_a_live_test(tmp_path: Path) -> None:
 
     assert result.returncode == pytest.ExitCode.TESTS_FAILED, result.stdout + result.stderr
     assert "every selected test skipped (2 skipped, none ran)" in result.stdout, result.stdout
-    assert "2 deselected" in result.stdout, "`-m live` selected the paid cases and no others"
+    assert "3 deselected" in result.stdout, "`-m live` selected the paid cases and no others"
     assert result.stdout.count(_PAID_REASON) == 2, result.stdout
+
+
+def test_a_releases_marked_test_runs_with_releases_and_nothing_else_does(tmp_path: Path) -> None:
+    """`--releases` alone runs a `releases` case, and leaves the paid cases skipped.
+
+    The checkout's directory is `releases`, so a skip keyed on keywords would skip every case.
+    Each case's expected outcome without a flag and with `--releases` is its row in
+    :data:`_PLANTED`; `--live` leaving the `releases` case skipped is the first test's.
+    """
+    root = _checkout_named(tmp_path, "releases")
+    files = tuple(_PLANTED)
+
+    default = _scratch_pytest(root, "-v", *files)
+    assert default.returncode == 0, default.stdout + default.stderr
+    released = _scratch_pytest(root, "-v", "--releases", *files)
+    assert released.returncode == 0, released.stdout + released.stderr
+
+    for run, column in ((default, "default"), (released, "released")):
+        outcomes = _outcomes(run.stdout)
+        for relative, planted in _PLANTED.items():
+            expected = getattr(planted, column)
+            assert outcomes.get(relative) == expected, (
+                f"{relative} should be {expected} in the {column} run; it said:\n{run.stdout}"
+            )
+
+
+@pytest.mark.parametrize("flags", [(), ("--live",)], ids=["no-flag", "live"])
+def test_a_marker_expression_cannot_enable_a_releases_test(
+    tmp_path: Path, flags: tuple[str, ...]
+) -> None:
+    """`-m releases` selects the release case, and without `--releases` it is still skipped."""
+    root = _checkout_named(tmp_path, "marker")
+
+    result = _scratch_pytest(root, *flags, "-m", "releases", *_PLANTED)
+
+    assert result.returncode == pytest.ExitCode.TESTS_FAILED, result.stdout + result.stderr
+    assert "every selected test skipped (1 skipped, none ran)" in result.stdout, result.stdout
+    assert "4 deselected" in result.stdout, "`-m releases` selected the release case alone"
+    assert result.stdout.count(_RELEASES_REASON) == 1, result.stdout
 
 
 def test_a_run_in_which_every_selected_test_skipped_fails(tmp_path: Path) -> None:

@@ -50,8 +50,8 @@ build-constraint-dependencies = ["hatchling==1.32.4"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # `--strict-markers` turns a mistyped marker into an error. `-ra` prints every skip, because a skip
-# nobody reads is indistinguishable from a pass. Paid tests are skipped unless `--live` is passed
-# (`tests/conftest.py`); no `-m` expression selects them.
+# nobody reads is indistinguishable from a pass. Paid tests are skipped unless `--live` is passed,
+# and release tests unless `--releases` is (`tests/conftest.py`); no `-m` expression selects either.
 addopts = "--strict-markers -ra"
 # pytest's own removal warnings fail the suite now rather than at the next major release.
 filterwarnings = ["error::pytest.PytestRemovedIn10Warning"]
@@ -59,6 +59,7 @@ filterwarnings = ["error::pytest.PytestRemovedIn10Warning"]
 empty_parameter_set_mark = "fail_at_collect"
 markers = [
     "live: Calls a paid API; needs `--live`, not just a marker selector",
+    "releases: Reads the pinned ontology releases under data/; needs `--releases`, not just a marker selector",
     "integration: Touches the network or the filesystem beyond tmp_path",
 ]
 

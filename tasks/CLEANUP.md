@@ -71,24 +71,6 @@ links to where its blocker is tracked.
 
 ## ontology
 
-- **`cleanup:ontology/no-real-release-test`: the gate never parses a real release.** Every loader
-  and table test reads OBO text built in `tmp_path` (`tests/_ontology_fixtures.py`); the only checks
-  against the pinned MONDO, HPO and DO files are a person running `python -m bko.ontology check`
-  and `python -m bko.ontology reproduce`. A pronto upgrade that changes how a real release parses
-  passes `make check`.
-  *Filed 2026-10-16 by the review of PR #9.*
-
-  **Why deferred.** The gate reads no download by design (AGENTS.md, Gotchas), so the test has to
-  run outside `make check`, and `tests/test_skip_policy.py` governs how a conditional test may skip.
-  Choosing that mechanism is outside the change that found it.
-
-  **What discharges it:** an opt-in test that loads the pinned releases from `data/` and asserts
-  the table checks clean and the reproduction differs nowhere, with a documented command, inside
-  the skip policy.
-
-  **Trigger:** the next re-pin of any of them, or the next change to `bko.ontology.obo` or the
-  pronto lock.
-
 - **`cleanup:ontology/row-unions-not-exhaustive`: `check` renders an unknown row kind as
   another.** `_describe` in `src/bko/ontology/check.py` treats any row that is neither a
   `FieldMapping` nor a `CodeMapping` as `out-of-scope`, and `_clause` treats any clause that is not

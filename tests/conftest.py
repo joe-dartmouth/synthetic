@@ -1,27 +1,61 @@
-"""Pytest configuration: the `--live` opt-in and the all-skipped floor."""
+"""Pytest configuration: the `--live` and `--releases` opt-ins and the all-skipped floor."""
 
 from __future__ import annotations
+
+from typing import Final, NamedTuple
 
 import pytest
 
 
-def pytest_addoption(parser: pytest.Parser) -> None:
-    """Register `--live` and `--allow-all-skipped`.
+class _OptIn(NamedTuple):
+    """One marker whose tests run only when its flag is passed.
 
-    `--live` is a dedicated flag rather than a reading of `-m`, because no inspection of a marker
+    Attributes:
+        marker: The marker's name.
+        flag: The command-line flag that runs the marked tests.
+        help_text: The flag's `--help` text.
+        reason: The reason a marked test is skipped without the flag.
+    """
+
+    marker: str
+    flag: str
+    help_text: str
+    reason: str
+
+
+_OPT_INS: Final = (
+    _OptIn(
+        marker="live",
+        flag="--live",
+        help_text="run tests marked `live`, which call a paid API; without it they are skipped, "
+        "whatever `-m` selects",
+        reason="paid-API tests need `--live`; no `-m` expression enables them",
+    ),
+    _OptIn(
+        marker="releases",
+        flag="--releases",
+        help_text="run tests marked `releases`, which read the pinned ontology releases under "
+        "`data/`; without it they are skipped, whatever `-m` selects",
+        reason="pinned-release tests need `--releases` (docs/DEVELOPMENT.md, Ontologies); no `-m` "
+        "expression enables them",
+    ),
+)
+"""Every opt-in marker, in the order a test carrying several reports its skip reason."""
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register each opt-in flag and `--allow-all-skipped`.
+
+    An opt-in is a dedicated flag rather than a reading of `-m`, because no inspection of a marker
     expression is sound: an expression such as `not live or e2e` selects a `live` test whenever its
-    other marker matches. A flag has one meaning, and `--live` alone is enough to run paid tests.
+    other marker matches. A flag has one meaning: `--live` alone runs paid tests, `--releases`
+    alone runs the release tests, and neither runs the other's.
 
     Args:
         parser: The pytest argument parser.
     """
-    parser.addoption(
-        "--live",
-        action="store_true",
-        default=False,
-        help="run tests marked `live`, which call a paid API; without it they are skipped, "
-        "whatever `-m` selects",
-    )
+    for opt in _OPT_INS:
+        parser.addoption(opt.flag, action="store_true", default=False, help=opt.help_text)
     # The opt-out from `_SkipFloor`, for a run whose every case skipping is what the operator
     # meant -- `-k` over the paid tests without `--live`, say. A flag rather than a default,
     # because the run it refuses is the one that looks green.
@@ -107,26 +141,28 @@ class _SkipFloor:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip `live` tests unless `--live` was passed, whatever `-m` says.
+    """Skip each opt-in marker's tests unless its flag was passed, whatever `-m` says.
 
-    **This hook is the only gate on paid tests.** `addopts` carries no `-m`, so every `live` test is
-    collected and then skipped here, with a reason naming the flag. `-m` chooses among collected
-    tests and cannot lift the skip: `-m live` without `--live` reports each paid test skipped, and
-    `--live` alone runs them.
+    **This hook is the only gate on opt-in tests.** `addopts` carries no `-m`, so every `live` and
+    `releases` test is collected and then skipped here, with a reason naming its flag. `-m` chooses
+    among collected tests and cannot lift the skip: `-m live` without `--live` reports each paid
+    test skipped, and `--live` alone runs them. Each flag lifts its own marker's skip and no other.
 
-    The skip keys on the `live` marker itself, never on `item.keywords`: a test's keywords hold the
-    name of every collection node above it, so a checkout in a directory named `live` would skip
-    the whole suite.
+    The skip keys on the marker itself, never on `item.keywords`: a test's keywords hold the name
+    of every collection node above it, so a checkout in a directory named `live` would skip the
+    whole suite.
 
     Args:
-        config: The active pytest config, read for `--live`.
+        config: The active pytest config, read for each opt-in flag.
         items: The collected items, marked in place.
     """
-    if config.getoption("--live"):
-        return
-    refuse = pytest.mark.skip(
-        reason="paid-API tests need `--live`; no `-m` expression enables them"
-    )
+    refusals = {
+        opt.marker: pytest.mark.skip(reason=opt.reason)
+        for opt in _OPT_INS
+        if not config.getoption(opt.flag)
+    }
     for item in items:
-        if item.get_closest_marker("live") is not None:
-            item.add_marker(refuse)
+        for marker, refuse in refusals.items():
+            if item.get_closest_marker(marker) is not None:
+                item.add_marker(refuse)
+                break

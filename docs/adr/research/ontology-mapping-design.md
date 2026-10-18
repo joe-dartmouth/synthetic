@@ -71,7 +71,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **SNOMED-CT evidence**: MONDO's `skos:exactMatch SCTID:<code>` annotation, which the check
   requires on the mapped concept and on no other live concept.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
-  row against the real releases.
+  row against the real releases, and `tests/test_ontology_pinned_releases.py`, run with
+  `--releases`, asserts that every row agrees.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
 - **Sources vocabulary**: a row's `source` is the `name` of a `Source` in `bko.datasets.sources`
   (`uci-heart-disease` means `heart-disease.names` inside that archive), a key in
@@ -136,6 +137,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | Committed release slices and a manifest for an offline concept check | HPO's license bars altered extracts, and the table changes only on a re-pin | 2026-10-16 |
 | Keeping owlready2 in the `ontology` extra | A Cython build on every clone for a library nothing imports | 2026-10-16 |
 | One scope for every dataset, the union of the table's concepts | A concept only another dataset's rows map can never be held, so its statements would be gaps of the table, not of the data, against RESEARCH's rule that a concept without a defensible field is out of scope | 2026-10-17 |
+| The release tests inside `make check` | The gate reads no download, and a clone without `data/` would fail them or skip them on a condition that reads as a pass | 2026-10-17 |
 
 ## Enforcement
 
@@ -143,14 +145,16 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
   `tests/test_ontology_cli.py`
-- `python -m bko.ontology check` is the check the gate cannot make; a person runs it after editing
-  the table or re-pinning (`docs/DEVELOPMENT.md`, Ontologies).
+- `python -m bko.ontology check` is the check the gate cannot make, and
+  `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
+  passed; a person runs one of them after editing the table, re-pinning, or changing
+  `bko.ontology.obo` or pronto (`docs/DEVELOPMENT.md`, Ontologies).
 
 ## Reversal Conditions
 
 **`bko.ontology.obo` is replaced if pronto cannot load a pinned release, or `uv lock` stops
-resolving pronto or fastobo on Python 3.14**; the check is `python -m bko.ontology check` and
-`uv lock`.
+resolving pronto or fastobo on Python 3.14**; the check is `tests/test_ontology_pinned_releases.py` with
+`--releases`, and `uv lock`.
 
 **owlready2 returns when a unit's acceptance needs OWL reasoning**; the check is a search of
 `tasks/` for one.
