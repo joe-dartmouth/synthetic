@@ -83,6 +83,15 @@ contribute nothing to the model's distribution, so the plan uses them as the for
 dataset gap rather than a heuristic. The decision and its reversal conditions are in ADR
 [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md).
 
+Gaps are read per cell of the evaluation setting. The primary definition grounds each cell's
+records as a dataset fragment of their own, at the age-sex-label granularity of
+[section 2](#2-intended-users-and-evaluation-setting). Two definitions run beside it as ablations:
+one population-level fragment of every record, and a frequency-aware score that flags a concept a
+cell shows credibly less often than the rest of its label group, the brief's coverage score in
+Bayesian form (ADR [research/frequency-aware-gap-score](adr/research/frequency-aware-gap-score.md)).
+E2 scores all three against its ablation's truth, and E1 runs one BKO arm per definition, judging
+only the primary one.
+
 Before gap detection rests on that formalism, `bko.ontology.santos` rebuilds, with `bko.bkb`, the
 paper's MONDO/DO fusion example (its section 7), recorded as [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction). The
 reproduction holds when `python -m bko.ontology reproduce` reports no `differs` row over the pinned
@@ -107,7 +116,8 @@ consistency checks are and how a candidate is counted.
 Count-based gaps and BKO-detected gaps are evaluated separately. The ADR fixes count-based gaps as
 the age–sex subgroup-label combinations under the
 [section 2](#2-intended-users-and-evaluation-setting) threshold, kept as the comparison the formal definition
-is measured against.
+is measured against. BKO-detected gaps are read three ways ([Detect](#detect)), each evaluated
+separately from the count-based ones.
 
 ## 4. Success criteria
 
@@ -250,7 +260,7 @@ Where the brief and the 2-pager disagree:
 
 | Topic | Brief | 2-pager / repository | Governs |
 |---|---|---|---|
-| Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition | 2-pager (the paper read; [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction) reproduces its fusion example); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
+| Formalism | BKO "not a standard term"; reframe as a coverage score; do not implement MEBN | Santos et al. BKOs; ungrounded statements are the formal gap definition, and a coverage-style score runs only as an ablation | 2-pager (the paper read; [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction) reproduces its fusion example); ADR [research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) |
 | BKB library | Not discussed | "no public BKB library exists" | A public library, [pybkb](ARCHITECTURE.md#pybkb), exists; `bko.bkb` ports its core, ADR [research/bkb-layer-source](adr/research/bkb-layer-source.md) |
 | Team and time | Three students, 10 weeks | Four members, the [ROADMAP](ROADMAP.md) schedule | 2-pager |
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |

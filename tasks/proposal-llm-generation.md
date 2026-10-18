@@ -25,6 +25,15 @@ Generate: candidate records for each gap through the Anthropic Messages API, gui
 
 - Prompted generation of candidate records per gap in `src/bko/generate/`, with the request and
   response logged per run.
+- Fill each cell of a gap request, which in E1 is count-based and the same for every arm (ADR
+  `research/e1-evaluation-protocol`). Guide each cell's records by the ontology relationships of
+  that cell's BKO gaps under the definition the caller passes (ADR
+  `research/bko-formal-gap-definition`); a cell with no BKO gap, as every UCI cell has under
+  population-level grounding, is guided by the relationships of the concepts its training rows
+  show.
+- Hand validation every candidate a call yields, unfiltered and unrepaired, with one placeholder for
+  each record the call asked for and did not decode, as ADR `research/record-validation-design`
+  (Decision, Input) states.
 
 **Out.** Validation and fusion.
 

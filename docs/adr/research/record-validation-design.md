@@ -55,7 +55,8 @@ We will **check each candidate field by field against the codebook, the mapping 
 the archive's precision. A candidate is refused, never repaired, and counted under every check it
 fails.**
 
-- **Input:** the decoded candidates, one item per record generation produced, unfiltered. A batch
+- **Input:** the decoded candidates, one item per record generation produced, unfiltered, plus one
+  placeholder that is not a mapping for each record a call asked for and did not decode. A batch
   that is one record, a string, a bytes-like object or a frame raises `TypeError`.
 - **`fields`:** a candidate that is not a mapping fails it, and nothing else is read. A mapping fails
   it when it names a key outside the evaluation frame's columns; its fields are still checked.
@@ -113,12 +114,13 @@ copy of the criterion in the stage.
   100% is expected, and it says nothing about clinical plausibility: an in-range, in-codebook
   combination always passes.
 - A candidate inside the ranges but outside a training split's range passes here and is refused by
-  `bko.baselines.records.check` (`cleanup:tasks/bko-arm-split-range-unhandled`).
+  `bko.baselines.records.check`, and the BKO arms drop it (ADR `research/e1-evaluation-protocol`);
+  the split's range is not a check of this stage.
 - The ranges await clinician review (ADR
   [`research/ontology-mapping-design`](ontology-mapping-design.md)).
-- Validation counts only the candidates it is given, so a response generation fails to decode, or
-  an attempt the evaluation discards, is outside these counts
-  (`cleanup:tasks/validity-denominator-unstated`).
+- Validation counts only the candidates it is given, so a response withheld from it, or an attempt
+  discarded before it, leaves its failures out of the denominator and raises validity; ADR
+  `research/e1-evaluation-protocol` sums over every call for that reason.
 - Accepted candidates are not deduplicated.
 
 ## Ruled Out
@@ -138,6 +140,7 @@ copy of the criterion in the stage.
 | Judging the criterion in the stage | The final evaluation owns the criterion | 2026-10-17 |
 | A frame as input | Malformed values would never reach the counts (Rationale) | 2026-10-17 |
 | Keeping each rejected candidate in the result | The caller holds the input, and the position joins the two | 2026-10-17 |
+| Counting a response that does not decode as one candidate | A call asked for several records would count one failure, raising validity | 2026-10-17 |
 | Importing the frame's columns from `bko.baselines.records` | A downstream stage (Rationale) | 2026-10-17 |
 | A codes constraint in the mapping table | A second home for the codebook | 2026-10-17 |
 | A command line | No generator feeds it | 2026-10-17 |
@@ -172,3 +175,4 @@ search of `tasks/` and `src/bko/generate/`.
 - [The baselines: each method fills a given quota of added rows, stratum by stratum](baseline-augmentation-design.md)
 - [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)
 - [src layout, one subpackage per pipeline stage](../tooling/src-layout.md)
+- [E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals](e1-evaluation-protocol.md)

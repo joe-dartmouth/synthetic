@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -30,15 +30,31 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
   candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
-  confidence and the attempts per fill. `docs/EVIDENCE.md` (E1) states how each criterion is
-  read. No flag changes a value; `compare --candidate` judges another arm as a dry run, never as
-  E1's verdict.
+  confidence, the attempts per fill and the BKO arms' budget per attempt. `docs/EVIDENCE.md` (E1)
+  states how each criterion is read. No flag changes a value; `compare --candidate` judges another
+  arm as a dry run, never as E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
-  quota on every holdout; a control adds no rows. The BKO arm fills the same request: its pipeline
-  runs on each holdout's training rows and returns exactly the requested rows per cell, guided by
-  the ontology. BKO-detected gaps are judged by the completeness criterion and E2, not here.
+  quota on every holdout; a control adds no rows. Three BKO arms fill the same request, one per gap
+  definition of ADR `research/bko-formal-gap-definition`: each runs its pipeline on each holdout's
+  training rows and returns exactly the requested rows per cell, guided by its definition's gaps.
+  `bko`, guided by per-subgroup gaps, is the candidate. `bko-population` and `bko-frequency` are
+  arms but not comparators: no criterion compares the candidate with them or judges them, and their
+  measures are reported beside it. BKO-detected gaps themselves are judged by the completeness
+  criterion and E2, not here.
+- **The BKO arms' added rows.** Each BKO arm's runner calls `bko.baselines.records.check` before it
+  returns. It drops each candidate `bko.validate` accepts that `check` would refuse (a numeric value
+  outside the training split's minimum and maximum, a cell the request does not ask for, a row past
+  its cell's quota), returns the rest cell by cell in the quota's order and in generation order
+  within a cell, and never clips, rounds or repairs one. It generates at most `E1`'s budget per
+  attempt, three times the request's rows, then raises a plain `BaselineError`, which the retries
+  below repeat.
+- **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
+  `bko.validate` call it makes in the run: every holdout, every refused and retried attempt, and
+  every replica fill. A refused attempt returns no `Baseline`, so the arm keeps its counts itself.
+  The validity criterion reads `bko`'s rate, and a dropped candidate stays in it, having passed
+  every check.
 - **The replica request.** The row-adding baselines also fill the training split's own cell
   counts. Those rows alone train a classifier (train on synthetic, read against the
   no-augmentation arm, which trains on real) and are compared with the training split for
@@ -96,6 +112,17 @@ Every arm fills the same per-cell request so that equal row counts hold by const
 the BKO arm fill its own detected gaps would make the baselines' request depend on its output and
 send SMOTE cells it refuses.
 
+Three BKO arms ask whether the gap definition changes what generation adds; judging only `bko`,
+fixed before the run, keeps one look at each criterion, and comparing it with its own ablations
+would test the definitions against each other under criteria written for the baselines. Dropping
+and generating again keeps equal row counts, as rejection sampling keeps CTGAN's and TVAE's
+strata; clipping, which SDV applies to those two, would repair a record (ADR
+`research/record-validation-design`) and pile rows on the split's bounds. The budget bounds a paid
+loop: validity near 100% is expected, and three times the request leaves room for two candidates
+in three to fall outside the split's range or the request before a refusal. A plain refusal lets
+the retries apply, where a contract break would stop the run on one candidate. Summing over refused
+attempts keeps validity from selecting on success.
+
 The whole split resolves small effects. The flagged subgroups are what the project targets, but they
 hold 5 positive test records per holdout, so their verdict is secondary and likely inconclusive, and
 no other frame from the archive adds records of women with heart disease (ADR
@@ -106,8 +133,8 @@ The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the
 holdout; on holdout 0 it equals `python -m bko.baselines <method> --rows 20`. The gap rows hold
 one label in two cells, so they can neither train a classifier alone nor be compared with the
 training split; a replica of the training split's cells is the conventional train-on-synthetic set
-([`xu-2019`](../../literature.md#tabular-generators)). The BKO arm's replica,
-a paid generation per holdout, is left to the unit that adds the arm.
+([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms' replicas,
+a paid generation per holdout each, are left to the unit that adds the arms.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
 scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
@@ -144,8 +171,9 @@ other test records; subgroup verdicts are likely inconclusive at this size; dist
 record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
 a public SDMetrics export; baseline results on the real test split were in view when the readings
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
-than the holdout seed; the BKO pipeline runs once per holdout, so its paid generation grows with the
-holdout count; E1 does not exercise BKO gap detection; a not-met verdict needs an interval below
+than the holdout seed; each BKO pipeline runs once per holdout, so the three arms' paid generation
+grows with the holdout count; E1 judges no gap definition directly, only what its guidance adds; the
+ablation arms' measures are reported, never judged; a not-met verdict needs an interval below
 zero at the family-wise level, so more criteria read inconclusive; that reading was fixed with
 baseline dry runs in view and no BKO result, and it only ever moves not met to inconclusive, which
 favours the candidate; a met verdict certifies a reliable gain, not a minimum size, and the zero
@@ -179,6 +207,9 @@ margin, also fixed with baseline dry runs in view and no BKO result, makes met e
 | Holm's step-down for not met | Its first step is Bonferroni's test, and not met needs one refuting interval, so it returns the same verdicts | 2026-10-16 |
 | A not-met family per measure | Leaves the criterion's false not-met rate at up to twice one interval's | 2026-10-16 |
 | An absolute margin of 0.02 | No stated basis, and not met then fires for a candidate better by less than it | 2026-10-16 |
+| Judging every BKO arm against the criteria | Three looks at each criterion, the best picked after the fact | 2026-10-17 |
+| Clipping a BKO candidate into the split's range | Repairs a record and piles rows on the split's bounds | 2026-10-17 |
+| Loosening the added-row contract for the BKO arms | Compares arms that extend the split's support with baselines bound to it | 2026-10-17 |
 
 ## Enforcement
 
@@ -201,14 +232,17 @@ record and `E1` change together.
 
 **The classifier changes if any holdout logs a fit that did not converge within `MAX_ITER`.**
 
-**The BKO arm joins `E1.replica_arms` only if `proposal-final-evaluation` records its replica
-spend in E1's Configuration before the run.**
+**The BKO arms join `E1.replica_arms`, all three or none, only if `proposal-final-evaluation`
+records their replica spend in E1's Configuration before the run.**
 
-**The gap request stops binding the BKO arm if its generation cannot target a cell**; the request
-then becomes the BKO arm's realised rows per cell, and this record changes before E1's first run.
+**The gap request stops binding the BKO arms if their generation cannot target a cell**; the
+request then becomes each BKO arm's realised rows per cell, and this record changes before E1's
+first run.
 
 ## Related
 
 - [The UCI evaluation frame](uci-evaluation-frame.md)
 - [The baselines](baseline-augmentation-design.md)
 - [Python 3.14, without synthcity](../tooling/python-314-without-synthcity.md)
+- [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
+- [Record validation: each field's number, bound and decimals, counted per check](record-validation-design.md)

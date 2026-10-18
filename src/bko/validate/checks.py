@@ -173,8 +173,10 @@ def validate(candidates: Iterable[object]) -> Validated:
     """Check every candidate and keep the ones that pass, never repairing a value.
 
     Args:
-        candidates: One item per record generation produced, decoded and unfiltered. An item that
-            is not a mapping is rejected under `FIELDS`, not dropped, so it counts as generated.
+        candidates: One item per record generation produced, decoded and unfiltered, plus one
+            placeholder that is not a mapping per record a call asked for and did not decode.
+            An item that is not a mapping is rejected under `FIELDS`, not dropped, so it counts
+            as generated.
 
     Returns:
         The accepted frame and the rejections; logs one summary line of counts.

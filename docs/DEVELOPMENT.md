@@ -117,7 +117,7 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
   family-wise level that `not met` reads (`refuting_high`), and holdout counts. It refuses a scores
   file whose holdouts are not `E1`'s, and one where a series it judges misses a holdout or holds an
   empty value. E1's candidate is `bko`, which `score` does not run until
-  [`proposal-final-evaluation`](../tasks/proposal-final-evaluation.md) registers the BKO arm, so
+  [`proposal-final-evaluation`](../tasks/proposal-final-evaluation.md) registers the BKO arms, so
   until then `compare` needs `--candidate`. `--candidate` judges another row-adding arm, a dry run
   whose verdict is not E1's.
 - **What it logs**: `score` logs an `experiment` line and a `versions` line (Python, the platform
