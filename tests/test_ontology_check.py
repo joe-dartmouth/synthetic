@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
@@ -225,3 +226,64 @@ def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
     assert [v.problem for v in check(CONCEPT_ROWS, ontologies)] == [None] * len(CONCEPT_ROWS)
     table_hp = {row.concept: row.label for row in CONCEPT_ROWS if row.concept.startswith("HP:")}
     assert table_hp == dict(HPO_LABELS)
+
+
+class _CountingTerms(Mapping[str, Term]):
+    """A term table that counts its scans: each iteration, which `items()` also makes."""
+
+    def __init__(self, terms: Mapping[str, Term]) -> None:
+        self._terms = terms
+        self.scans = 0
+
+    def __getitem__(self, curie: str) -> Term:
+        return self._terms[curie]
+
+    def __iter__(self) -> Iterator[str]:
+        self.scans += 1
+        return iter(self._terms)
+
+    def __len__(self) -> int:
+        return len(self._terms)
+
+
+SECOND = _term("MONDO:0000002", "second", matches=(("skos:exactMatch", "SCTID:2"),))
+SECOND_ROW = CodeMapping(snomed="2", concept="MONDO:0000002", label="second", source="mondo")
+
+
+def _scans(*rows: CodeMapping) -> int:
+    terms = _CountingTerms(_mondo(ISCHEMIA, SECOND).terms)
+    check(rows, {"MONDO": replace(_mondo(), terms=terms)})
+    return terms.scans
+
+
+def test_a_second_code_row_does_not_scan_the_release_again() -> None:
+    assert _scans(CODE_ROW) > 0, "the control: checking a code row reads the release"
+    assert _scans(CODE_ROW, SECOND_ROW) == _scans(CODE_ROW)
+
+
+def test_a_code_row_without_its_release_is_a_verdict() -> None:
+    assert _problem(replace(CODE_ROW, concept="DOID:0000001"), _agreeing()) == (
+        "no release for prefix DOID"
+    )
+
+
+def test_holders_are_listed_in_term_order_and_obsolete_ones_are_left_out() -> None:
+    late = _term("MONDO:0000003", "late", matches=(MATCH,))
+    early = _term("MONDO:0000002", "early", matches=(MATCH,))
+    gone = _term("MONDO:0000004", "gone", matches=(MATCH,), obsolete=True)
+    assert _problem(CODE_ROW, {"MONDO": _mondo(ISCHEMIA, late, early, gone)}) == (
+        "skos:exactMatch SCTID:414545008 is also on MONDO:0000002, MONDO:0000003"
+    )
+
+
+def test_a_holder_naming_the_match_twice_is_listed_once() -> None:
+    twice = _term("MONDO:0000002", "other", matches=(MATCH, MATCH))
+    assert _problem(CODE_ROW, {"MONDO": _mondo(ISCHEMIA, twice)}) == (
+        "skos:exactMatch SCTID:414545008 is also on MONDO:0000002"
+    )
+
+
+def test_a_close_match_on_another_term_is_not_a_holder() -> None:
+    close = _term("MONDO:0000002", "other", matches=(("skos:closeMatch", "SCTID:414545008"),))
+    [verdict] = check((CODE_ROW,), {"MONDO": _mondo(ISCHEMIA, close)})
+    assert verdict.problem is None

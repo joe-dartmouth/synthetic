@@ -162,6 +162,11 @@ REFUSED: dict[str, Callable[[], BKB]] = {
     "a NaN reliability": lambda: fuse(list(h2_fragments()), [1, math.nan]),
     "an infinite reliability": lambda: fuse(list(h2_fragments()), [1, math.inf]),
     "a boolean reliability": lambda: fuse(list(h2_fragments()), [1, True]),
+    "an integer reliability beyond float range": lambda: fuse(list(h2_fragments()), [10**400, 1]),
+    "a negative integer reliability beyond float range": lambda: fuse(
+        list(h2_fragments()), [-(10**400), 1]
+    ),
+    "an integer reliability too long to print": lambda: fuse(list(h2_fragments()), [10**5000, 1]),
     "a repeated source name": lambda: fuse(list(h2_fragments()), [1, 1], sources=["a", "a"]),
     "a source name that is not a string": lambda: fuse(
         list(h2_fragments()), [1, 1], sources=["a", NOT_A_NAME]
@@ -189,3 +194,8 @@ def test_fuse_refuses(make):
 def test_a_repeated_source_name_is_named():
     with pytest.raises(FusionError, match="the source name 'a'"):
         fuse(list(h2_fragments()), [1, 1], sources=["a", "a"])
+
+
+def test_an_overflowing_reliability_is_named():
+    with pytest.raises(FusionError, match="a reliability is an integer that overflows a float"):
+        fuse(list(h2_fragments()), [1, 10**5000])

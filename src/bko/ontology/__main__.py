@@ -11,7 +11,7 @@ reproduction) is the usage home.
 Exit codes: 0 every `check` row agrees, or `reproduce` wrote its report, whatever its statuses; 1
 an unexpected error, with its traceback, including a fusion the converter should never have
 built; 2 the command could not run; 3 a release contradicts its pin or is not OBO the loader
-reads, or a `check` row disagrees with its release (the report is written first).
+reads (stdout is empty); 4 a `check` row disagrees with its release (the report is written first).
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def main(
         out: Where the report goes; stdout when omitted.
 
     Returns:
-        0 done (see the module docstring), 2 the command could not run, 3 a contract failure or a
+        0 done (see the module docstring), 2 the command could not run, 3 a contract failure, 4 a
         disagreeing check row.
     """
     args = _parser().parse_args(argv)
@@ -127,7 +127,7 @@ def _check(data_dir: Path, context: Context, out: TextIO) -> int:
             )
     disagree = sum(v.problem is not None for v in verdicts)
     logger.info("checked %d rows: %d disagree", len(verdicts), disagree)
-    return 3 if disagree else 0
+    return 4 if disagree else 0
 
 
 def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:

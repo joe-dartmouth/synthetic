@@ -64,8 +64,9 @@ root or to see the module's own code, run it directly:
   `jar_sha256`, `java_version`, `started_at`, `finished_at` and, per CSV, `rows` and `sha256`. An
   experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **The gate is offline.** No test reads `data/` or the network; each builds its input in
-  `tmp_path`, and no test runs Java.
+- **The gate is offline.** No test it runs reads `data/`, and each builds its input in `tmp_path`;
+  the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies)). No
+  test runs Java, and the one test that reaches the network is under [Gate hazards](#gate-hazards).
 
 ## Baselines
 
@@ -190,13 +191,24 @@ Synthea condition the ablation removes (ADR
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.
 - **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
-  could not run; 3 a release contradicts its pin or is not OBO the loader reads, or a row disagrees
-  with its release (the report is written first).
-- **Re-pinning**: edit the release's `Source` (URL, size, sha256), run this command, and review
-  each row it reports.
+  could not run; 3 a release contradicts its pin or is not OBO the loader reads (stdout is
+  empty); 4 a row disagrees with its release (the report is written first).
+- **Re-pinning**: edit the release's `Source` (URL, size, sha256), run this command, review each
+  row it reports, then run the release tests below.
 - **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and
   the table's invariants; a row naming a concept the release lacks passes `make check` and fails
   this command, so run it after editing the table or re-pinning a release.
+- **The release tests**: `tests/test_ontology_pinned_releases.py` loads MONDO, HPO and DO from the
+  data root and asserts that every row agrees and that the
+  [fusion reproduction](#fusion-reproduction) differs nowhere. The gate skips them, and no `-m`
+  expression runs them; `--releases` does:
+
+      uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  They read and never fetch, so run `check` and `reproduce` first: `check` fetches MONDO and HPO,
+  `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
+  `bko.ontology.obo`, or a change to pronto in `uv.lock`, from the checkout whose `data/` holds
+  the releases.
 
 ## Fusion reproduction
 
@@ -228,7 +240,8 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
   comes from.
 - **The gate does not run it.** `make check` runs the same reproduction on abridged release text
   built in `tmp_path` (`tests/test_ontology_santos.py`), so a release that drifts from the paper
-  passes `make check` and shows here.
+  passes `make check` and shows here. The release tests ([Ontologies](#ontologies)) assert it
+  differs nowhere.
 
 ## Gap detection
 
@@ -325,8 +338,10 @@ A targeted run while working:
   edit fakes a coverage miss below the edit point.
 - **Do not run two covered gates at once.** They consume each other's `.coverage.*` fragments.
   Check `pgrep -f "pytest -n auto"` first and delete leftover `.coverage.*` files.
-- **Paid tests are opt-in.** A test marked `live` calls a paid API and is skipped unless `--live`
-  is passed; no `-m` expression selects it.
+- **Paid and release tests are opt-in, each behind its own flag.** A test marked `live` calls a
+  paid API and is skipped unless `--live` is passed; a test marked `releases` reads the pinned
+  releases in `data/` and is skipped unless `--releases` is passed. No `-m` expression selects
+  either, and one flag does not run the other's tests.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

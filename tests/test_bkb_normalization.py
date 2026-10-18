@@ -1,4 +1,4 @@
-"""`fuse`'s normalizations: every fragment's weight by default, pybkb's two modes on request."""
+"""`fuse`'s normalizations: the default, pybkb's two modes, and the order those modes sum in."""
 
 from __future__ import annotations
 
@@ -110,6 +110,40 @@ def test_fuse_logs_its_normalization(caplog):
 
 def test_pybkbs_totals_never_sum_fragments_apart():
     assert len(fuse(disjoint(), [1e308, 1e308], normalization=Normalization.COMPONENT).snodes) == 4
+
+
+def interleaved() -> list[BKB]:
+    """`a` and `c` share the S-node `X=x` at 0.5; `b`, between them, holds it at 0.25."""
+    return [
+        build("a", [("X", "x", 0.5, [])]),
+        build("b", [("X", "x", 0.25, [])]),
+        build("c", [("X", "x", 0.5, [])]),
+    ]
+
+
+def test_pybkbs_component_total_sums_sources_in_the_order_their_s_nodes_are_met():
+    """pybkb sums a component's source priors in the order its S-node loop first meets them.
+
+    pybkb's `build_fused_bkb` (lines 71-81 of `pybkb/fusion/__init__.py` at the commit ADR
+    `research/bkb-layer-source` names) walks S-nodes by first appearance and appends each source's
+    prior the first time it meets it; `normalize` (lines 122-132) sums them in that order. Here
+    that is `a`, `c`, `b`; fragment order is `a`, `b`, `c`, one bit away. No pybkb fixture shares
+    an S-node across interleaved fragments, so the expected order comes from reading that source.
+    """
+    weights = [0.1, 0.7, 0.3]
+    in_s_node_order = (0.1 + 0.3) + 0.7
+    in_fragment_order = (0.1 + 0.7) + 0.3
+    assert in_s_node_order != in_fragment_order, "the control: this case tells the orders apart"
+    assert priors(fuse(interleaved(), weights, normalization=Normalization.COMPONENT)) == {
+        ("__Source__[X]", "a"): 0.1 / in_s_node_order,
+        ("__Source__[X]", "c"): 0.3 / in_s_node_order,
+        ("__Source__[X]", "b"): 0.7 / in_s_node_order,
+    }
+    assert priors(fuse(interleaved(), weights)) == {
+        ("__Source__[X]", "a"): 0.1 / in_fragment_order,
+        ("__Source__[X]", "b"): 0.7 / in_fragment_order,
+        ("__Source__[X]", "c"): 0.3 / in_fragment_order,
+    }
 
 
 REFUSED: dict[str, tuple[Callable[[], BKB], str]] = {
