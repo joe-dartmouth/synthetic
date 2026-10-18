@@ -4,4 +4,4 @@ Find statements the ontology implies but the data does not support. Santos et al
 
 - **Dependencies:** The `data` extra (`pyproject.toml`), and `bko.ontology` with its `ontology` extra, and `bko.bkb`.
 - **Owner:** Partiban Anathurai
-- **Status:** built.
+- **Status:** built for the population-level definition and count-based gaps. The per-subgroup (primary) and frequency-aware definitions of ADR [`research/bko-formal-gap-definition`](../../../docs/adr/research/bko-formal-gap-definition.md) join in [`proposal-gap-definitions`](../../../tasks/proposal-gap-definitions.md).

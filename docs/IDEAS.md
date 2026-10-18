@@ -134,13 +134,12 @@ modes of in-context generation, which the Messages API approach is.
 - **SHACL validation** under the closed-world assumption [`shacl-2025`][shacl-2025], which finds
   missing or invalid fields but not subtle distributional gaps.
 - **Knowledge-graph completion** (link prediction) to infer missing edges.
-- **A probabilistic coverage score**: expected against observed instance counts per ontology
-  concept, with a Bayesian/Dirichlet smoothing prior.
 
-**Why it is not in the plan.** The plan's formal gap is an ungrounded BKO statement, and the ADR
-[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md) rules out the
-coverage score as the gap definition, keeping count-based gaps as the comparison instead. SHACL
-could still serve the Validate stage, as the brief suggests for post-generation checks (B6, F16).
+**Why it is not in the plan.** The plan's formal gap is an ungrounded BKO statement (ADR
+[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md)); a coverage-style
+score, in place of the brief's Dirichlet one, runs only as an ablation beside it
+([RESEARCH.md](RESEARCH.md#detect)). SHACL could
+still serve the Validate stage, as the brief suggests for post-generation checks (B6, F16).
 
 **Sources.** Brief A1, A2, B6, F16. Details:
 [BACKGROUND.md](BACKGROUND.md#gap-detection).

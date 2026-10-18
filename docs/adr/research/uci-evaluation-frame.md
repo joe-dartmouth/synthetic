@@ -44,7 +44,7 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
 - **The split**: one record in five of every cell is held out, rounded half up, the lowest-ranked
   by the sha256 of `<seed>:<record_id>`; the seed is 0, and an experiment's configuration may fix
   others (`bko.evaluate.experiment.E1` does).
-- **Training records only before Evaluate**: the cell counts, the BKO dataset fragment, count-based
+- **Training records only before Evaluate**: the cell counts, the BKO dataset fragments, count-based
   gaps, baselines and generators read the training split; only `bko.evaluate` reads the test split.
 
 `bko.datasets.uci`, `bko.datasets.cells` and `bko.datasets.split` hold the values.

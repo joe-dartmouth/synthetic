@@ -88,7 +88,7 @@ tests hold it to the codebook and the registry. The releases sit with the other 
 
 Guideline cutoffs join the text-named rows because the research tests whether medical knowledge
 guides generation, and a cited guideline is that knowledge. Text-named rows alone ground four of
-the thirteen predictors, which would reduce the BKO arm to label-by-cell counts. The resting blood
+the thirteen predictors, which would reduce the BKO arms to label-by-cell counts. The resting blood
 pressure cutoff is the 2017 ACC/AHA guideline's stage 1, 130 mm Hg
 ([`whelton-2018`](../../literature.md#clinical-definitions)), because it is the current US
 guideline; JNC 7's 140 mm Hg ([`chobanian-2003`](../../literature.md#clinical-definitions)) is
@@ -128,7 +128,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | A committed TSV or full SSSOM table | No package data exists anywhere, and field states are not CURIEs | 2026-10-16 |
 | A markdown table of the rows | A second home, unchecked | 2026-10-16 |
 | Absence rows | An asymptomatic history alongside exercise angina is clinically consistent; absence claims need review | 2026-10-16 |
-| Text-named rows only | Grounds four of thirteen predictors; the BKO arm would reduce to label-by-cell counts, which `research/bko-formal-gap-definition` evaluates separately | 2026-10-16 |
+| Text-named rows only | Grounds four of thirteen predictors; the BKO arms would reduce to label-by-cell counts, which `research/bko-formal-gap-definition` evaluates separately | 2026-10-16 |
 | Listing all of MONDO and HPO as scope | An unbounded default turns every unmapped concept into a gap | 2026-10-16 |
 | Data-derived range bounds | `bko.baselines.records` already refuses added rows outside the split's range, and RESEARCH asks for separately specified constraints | 2026-10-16 |
 | SNOMED-CT evidence from xref ids | pronto drops xref qualifiers, so equivalent and related cannot be told apart | 2026-10-16 |

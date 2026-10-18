@@ -39,8 +39,8 @@ flowchart LR
 
 | Stage | Takes | Produces |
 |---|---|---|
-| Represent | MONDO, HPO and the dataset | A BKO: the ontology fragments fused with the dataset fragment, weighted by observed frequency |
-| Detect | The BKO | BKO-detected gaps (ungrounded statements), with count-based gaps alongside for comparison |
+| Represent | MONDO, HPO and the dataset | A BKO per cell and one for every record: the ontology fragments fused with a dataset fragment, weighted by observed frequency |
+| Detect | The BKO | BKO-detected (cell, statement) gaps under three definitions, with count-based gaps alongside for comparison |
 | Generate | Each gap and its relevant ontology relationships | Candidate records, through the Anthropic Messages API |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
 | Evaluate | Augmented training data, the baselines and the controls | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
@@ -66,7 +66,7 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | [`bko.datasets`](../src/bko/datasets/README.md) | Represent (loading the records) and Evaluate (training data) |
 | [`bko.ontology`](../src/bko/ontology/README.md) | Represent (ontology loading, concept-to-field mapping, BKO fragments) |
 | [`bko.bkb`](../src/bko/bkb/README.md) | Represent and Detect (BKB fusion, instantiation from an anchor, reasoning) |
-| [`bko.gaps`](../src/bko/gaps/README.md) | Represent (the dataset fragment) and Detect |
+| [`bko.gaps`](../src/bko/gaps/README.md) | Represent (the dataset fragments) and Detect |
 | [`bko.generate`](../src/bko/generate/README.md) | Generate |
 | [`bko.validate`](../src/bko/validate/README.md) | Validate |
 | [`bko.baselines`](../src/bko/baselines/README.md) | Evaluate (baseline augmentation) |

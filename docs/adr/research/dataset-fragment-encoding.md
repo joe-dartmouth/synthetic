@@ -25,16 +25,18 @@ probabilities.
 
 ## Decision
 
-- **One fragment per dataset, about the ontology fragments' individual `a`**, read as a record drawn
-  at random from the dataset.
+- **One fragment per set of records, about the ontology fragments' individual `a`**, read as a
+  record drawn at random from that set: every record for the population-level definition, a cell's
+  records for the per-subgroup one (ADR `research/bko-formal-gap-definition`).
 - **One prior S-node per held concept.** A concept the dataset's own mapping rows name is held when
   at least one record shows it: a UCI training record for which one of its field mappings applies,
   or a Synthea patient alive on the snapshot date who has one of its codes by then. Its prior is the
   share of records that show it. A concept no record shows gets no S-node.
 - **Fusion at weight 1 per fragment** under `fuse`'s default normalization, the dataset fragment
   last.
-- **Grounding is instantiation from the held concepts** over the fused BKB. A dataset that holds no
-  concept leaves every ontology statement ungrounded, and nothing is instantiated.
+- **Grounding is instantiation from the held concepts** over the fused BKB. A set of records that
+  holds no concept, such as an empty cell, leaves every ontology statement ungrounded, and nothing
+  is instantiated.
 - **Home**: `bko.gaps.observe` builds the fragment; `bko.gaps.detect` fuses and grounds.
 
 ## Rationale
@@ -46,22 +48,22 @@ probability that a record drawn at random shows the concept, which is the observ
 RESEARCH asks for. Instantiation reads structure only, so a prior of 0 would still ground its
 concept, which is why an unheld concept gets no S-node. The weights move only the source priors,
 and no planned unit reads a posterior (`docs/IDEAS.md`, Exact belief updating), so weight 1, as the
-fusion reproduction used, adds no free parameter.
+fusion reproduction used, adds no free parameter. A cell's fragment is the same encoding over the
+cell's records, so per-subgroup grounding needs no second individual.
 
 ## Consequences
 
 **Gained**: a gap list that changes only with which concepts the records show; one encoding for
 UCI records and Synthea patients.
-**Accepted**: no co-occurrence and no subgroup is represented, so no statement about two concepts
-together, or about one age-sex subgroup, can be a gap; the shares and weights change no gap list,
-so the frequency the fragment carries is read by no current stage.
+**Accepted**: no co-occurrence is represented, so no statement about two concepts together can be a
+gap; a subgroup is represented only by its own cell's fragment; the weights change no gap list, and
+the shares are read only by the frequency-aware score (ADR `research/frequency-aware-gap-score`).
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
 | One fragment per record | Needs a second individual, which ADR `research/bko-fragment-encoding` defers, and grounds the same statements | 2026-10-17 |
-| One fragment per age-sex subgroup-label cell, detected separately | Changes what ADR `research/bko-formal-gap-definition` defines as a gap, which its owner decides; `docs/EVIDENCE.md` (E2) records what it would find on UCI | 2026-10-17 |
 | Conditional S-nodes between concepts that occur together | Rows record presence only (ADR `research/ontology-mapping-design`), and every head already has a prior, so no grounding changes | 2026-10-17 |
 | A prior of 0 for a concept no record shows | Instantiation ignores probabilities, so it would ground the concept | 2026-10-17 |
 | A dataset weight from its record count | Changes no gap list and adds a parameter no stage reads | 2026-10-17 |
@@ -71,15 +73,17 @@ so the frequency the fragment carries is read by no current stage.
 
 - Owner: `src/bko/gaps/observe.py`
 - Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`
+- `tasks/proposal-gap-definitions.md` builds the per-cell fragments; the tests it adds then join the
+  list above.
 
 ## Reversal Conditions
 
-**One fragment per age-sex subgroup-label cell, each detected separately, replaces the single
-dataset fragment when a task unit's acceptance names a gap per subgroup**, which a search of
-`tasks/` for such an acceptance item shows.
+**One fragment per record replaces the per-set fragment if ADR `research/bko-fragment-encoding`
+admits a second individual**; the check is that record's Decision.
 
 ## Related
 
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
+- [A frequency-aware gap: a concept credibly under four-fifths of its share in the rest of its label group](frequency-aware-gap-score.md)
