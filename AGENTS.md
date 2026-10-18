@@ -38,6 +38,9 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
+- `uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null`:
+  check the table and the fusion reproduction against the pinned releases already in `data/`
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `uv run --no-sync python -m bko.gaps uci` or `uv run --no-sync python -m bko.gaps synthea`:
   list the BKO-detected and count-based gaps of the UCI training split, or of the Synthea
   population before and after each of E2's ablations
@@ -83,7 +86,9 @@ synthetic/
   targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
   `uv lock`, then `make setup`.
 - **Downloaded data lives under the gitignored `data/`, and the gate never reads it.** Tests build
-  their input in `tmp_path`; [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data) has the commands.
+  their input in `tmp_path`, except the release tests, which run only with `--releases`
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies));
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#data) has the commands.
 - **Stage new files before running the gate.** `make sizes` and several repository tests read
   `git ls-files`, so an untracked file is invisible to them.
 - **`ruff format` formats Python inside markdown fences**, so an unformatted ```` ```python ````
