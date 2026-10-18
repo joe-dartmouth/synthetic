@@ -12,8 +12,10 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
+import pandas as pd
+
 from bko.bkb.structure import BKB
-from bko.datasets.cells import AGE_BAND_EDGES, LABEL, SEXES, age_band_labels
+from bko.datasets.cells import AGE_BAND_EDGES, LABEL, SEXES, age_band_labels, cell_keys
 from bko.datasets.uci import NUMERIC
 from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, grounded
@@ -164,6 +166,7 @@ def intervals(cell: Cell, edges: Sequence[int] = AGE_BAND_EDGES) -> dict[str, tu
 
 
 def guide(
+    train: pd.DataFrame,
     cells: Cells,
     found: Iterable[StatementGap],
     *,
@@ -181,7 +184,12 @@ def guide(
     statement a row reading only the label reaches is skipped, since the schema pins the label and
     every record meets that row.
 
+    The profile and summary read the cell's reference group: the training records outside the
+    cell that share its label (ADR `research/frequency-aware-gap-score`). A cell with none gets
+    neither, with a WARNING.
+
     Args:
+        train: The training split `cells` was observed from.
         cells: The training split, observed whole and per cell.
         found: The dataset's gaps under `definition`, in any order.
         definition: The definition `found` was read under; frequency-aware gaps are rare, the
@@ -195,8 +203,10 @@ def guide(
         One guidance per cell, in grid order.
 
     Raises:
-        ValueError: If a gap's cell is not in `cells`, a cell carries no label, or a row's prefix
-            has no release.
+        ValueError: If a gap's cell is not in `cells`, a cell carries no label, a row's prefix
+            has no release, or `train` holds a cell's reference group with another record count
+            than `cells` does, so it is not the frame `cells` was observed from.
+        ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes.
     """
     by_cell: dict[Cell, list[Statement]] = {}
     for gap in found:
@@ -207,6 +217,7 @@ def guide(
     reach = [_reach(row, ontologies) for row in rows]
     sexes = {meaning: code for code, meaning in SEXES.items()}
     basis = Basis.RARE if definition is Definition.FREQUENCY else Basis.ABSENT
+    keys = cell_keys(train, edges=edges)
     guided: dict[Cell, Guidance] = {}
     for cell, records in cells.each.items():
         if records.label is None:
@@ -218,6 +229,7 @@ def guide(
             why, chosen = Basis.SHOWN, grounded(fragments, dataset_fragment(records.observed))
         else:
             why, chosen = Basis.NONE, ()
+        profile, summary = _reference(train, keys, cells, cell, records.label, rows)
         guided[cell] = Guidance(
             cell=cell,
             sex=sexes[str(cell[1])],
@@ -226,8 +238,55 @@ def guide(
             interval=intervals(cell, edges),
             basis=why,
             findings=_findings(cell, records.label, chosen, rows, reach, ontologies),
+            profile=profile,
+            summary=summary,
         )
     return guided
+
+
+def _reference(
+    train: pd.DataFrame,
+    keys: pd.DataFrame,
+    cells: Cells,
+    cell: Cell,
+    label: int,
+    rows: Sequence[FieldMapping],
+) -> tuple[Profile | None, dict[str, Spread] | None]:
+    """The profile and summary of the records outside `cell` that share its label."""
+    others = [
+        other.observed for key, other in cells.each.items() if key != cell and other.label == label
+    ]
+    total = sum(observed.records for observed in others)
+    if total == 0:
+        logger.warning("noreference cell=%s", cell_key(cell))
+        return None, None
+    by_concept: dict[str, list[FieldMapping]] = {}
+    for row in rows:
+        if _admits(row, label):
+            by_concept.setdefault(row.concept, []).append(row)
+    shares = tuple(
+        Share(
+            concept=concept,
+            label=mapped[0].label,
+            states=tuple(mapped),
+            share=sum(observed.holders[concept] for observed in others) / total,
+        )
+        for concept, mapped in by_concept.items()
+        if concept in cells.whole.holders and not any(_label_only(row) for row in mapped)
+    )
+    inside = keys[LABEL].eq(label) & ~(keys["age_band"].eq(cell[0]) & keys["sex"].eq(cell[1]))
+    reference = train.loc[inside.to_numpy(dtype=bool)]
+    if len(reference) != total:
+        msg = (
+            f"cell {cell_key(cell)}: train holds {len(reference)} reference rows but cells hold "
+            f"{total} reference records"
+        )
+        raise ValueError(msg)
+    summary: dict[str, Spread] = {}
+    for name in NUMERIC:
+        low, median, high = (float(q) for q in reference[name].quantile([0.25, 0.5, 0.75]))
+        summary[name] = Spread(low, median, high)
+    return Profile(records=total, shares=shares), summary
 
 
 def _reach(row: FieldMapping, ontologies: Mapping[str, Ontology]) -> frozenset[str]:

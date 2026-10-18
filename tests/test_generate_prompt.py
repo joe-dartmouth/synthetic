@@ -9,8 +9,17 @@ import pytest
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS
 from bko.gaps.detect import Statement
-from bko.generate.guidance import Basis, Finding, Guidance, Relationship, intervals
-from bko.generate.messages import Level
+from bko.generate.guidance import (
+    Basis,
+    Finding,
+    Guidance,
+    Profile,
+    Relationship,
+    Share,
+    Spread,
+    intervals,
+)
+from bko.generate.messages import LEVELS, Level
 from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render
 from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
 from bko.ontology.schema import FieldMapping
@@ -134,6 +143,16 @@ FINDING_LINES = (
     ),
 )
 
+CHAINED_LINES = (
+    (
+        f"{FINDING_LINES[0]}: Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind "
+        "of Heart disease"
+    ),
+    f"{FINDING_LINES[1]}: Arrhythmia is a kind of Heart disease",
+    f"{FINDING_LINES[2]}: Angina pectoris is a kind of Arrhythmia",
+)
+"""`FINDING_LINES` with their `is_a` chains, as the ontology level renders them."""
+
 SENTENCES = {
     Basis.ABSENT: (
         "No record of this group in the training data shows the findings below. At least one "
@@ -174,16 +193,8 @@ def test_each_basis_has_its_own_wording(basis):
 def test_the_ontology_level_adds_each_findings_is_a_chain():
     _, findings = render(_found(Basis.SHOWN), 2, Level.FINDINGS)
     _, ontology = render(_found(Basis.SHOWN), 2, Level.ONTOLOGY)
-    chained = (
-        (
-            f"{FINDING_LINES[0]}: Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind "
-            "of Heart disease"
-        ),
-        f"{FINDING_LINES[1]}: Arrhythmia is a kind of Heart disease",
-        f"{FINDING_LINES[2]}: Angina pectoris is a kind of Arrhythmia",
-    )
     assert findings.splitlines()[-3:] == list(FINDING_LINES)
-    assert ontology.splitlines() == [*findings.splitlines()[:-3], *chained]
+    assert ontology.splitlines() == [*findings.splitlines()[:-3], *CHAINED_LINES]
 
 
 def test_basis_none_omits_the_findings_block():
@@ -216,3 +227,72 @@ def test_a_cyclic_chain_is_rendered_whole_in_stored_order():
     assert user.splitlines()[-1].endswith(
         ": Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind of Angina pectoris"
     )
+
+
+PROFILE = Profile(
+    40,
+    (
+        Share("HP:0001681", "Angina pectoris", (ANGINA_HISTORY, ANGINA_EXERTION), 1 / 3),
+        Share("HP:0003124", "Hypercholesterolemia", (CHOLESTEROL,), 0.5),
+        Share("HP:0012250", "ST segment depression", (ST_DEPRESSION,), 0.0),
+    ),
+)
+
+PROFILE_BLOCK = (
+    (
+        "Among comparable patients (the same target, other age and sex groups; 40 records), these "
+        "findings occur at these rates:"
+    ),
+    "- Angina pectoris (cp is 1 (typical angina) or exang is 1 (exercise induced angina)): 33%",
+    "- Hypercholesterolemia (chol is at least 240 mg/dL): 50%",
+    (
+        "- ST segment depression (oldpeak is at least 1.0 mm and slope is 2 or 3 (flat, "
+        "downsloping)): 0%"
+    ),
+)
+
+SUMMARY = {
+    "age": Spread(47.4, 55.0, 62.6),
+    "trestbps": Spread(120.0, 130.2, 140.0),
+    "chol": Spread(211.25, 241.0, 275.75),
+    "thalach": Spread(130.0, 145.6, 160.0),
+    "oldpeak": Spread(0.26, 1.04, 1.96),
+}
+
+SUMMARY_BLOCK = (
+    "Among the same patients, numeric fields run as follows (median; middle half):",
+    "- age: 55; 47 to 63 years",
+    "- trestbps: 130; 120 to 140 mm Hg",
+    "- chol: 241; 211 to 276 mg/dL",
+    "- thalach: 146; 130 to 160 beats per minute",
+    "- oldpeak: 1.0; 0.3 to 2.0 mm",
+)
+
+FULL = dataclasses.replace(
+    GUIDANCE, basis=Basis.ABSENT, findings=FINDINGS, profile=PROFILE, summary=SUMMARY
+)
+
+
+def test_the_profile_level_adds_shares_as_whole_percents_with_their_field_states():
+    _, ontology = render(FULL, 2, Level.ONTOLOGY)
+    _, profile = render(FULL, 2, Level.PROFILE)
+    assert profile == "\n\n".join([ontology, "\n".join(PROFILE_BLOCK)])
+
+
+def test_the_summary_level_adds_median_and_middle_half_with_units():
+    _, profile = render(FULL, 2, Level.PROFILE)
+    _, summary = render(FULL, 2, Level.SUMMARY)
+    assert summary == "\n\n".join([profile, "\n".join(SUMMARY_BLOCK)])
+
+
+def test_each_level_adds_exactly_its_own_block():
+    texts = [render(FULL, 2, level)[1].split("\n\n") for level in LEVELS]
+    for before, after, level in zip(texts, texts[1:], LEVELS[1:], strict=False):
+        if level is Level.ONTOLOGY:
+            assert after[:-1] == before[:-1], level
+            assert " is a kind of " not in before[-1], level
+            assert after[-1].splitlines() == [SENTENCES[Basis.ABSENT], *CHAINED_LINES], level
+        else:
+            assert after[:-1] == before, level
+    bare = dataclasses.replace(GUIDANCE, profile=None, summary=None)
+    assert render(bare, 2, Level.SUMMARY) == render(bare, 2, Level.COHERENT)

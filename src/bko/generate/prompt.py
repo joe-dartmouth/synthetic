@@ -8,11 +8,12 @@ records what each level sends.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Final
 
 from bko.datasets.cells import LABEL, LABEL_MEANINGS, SEXES
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRACTIONAL, FRAME_COLUMNS, NUMERIC
-from bko.generate.guidance import Basis, Finding, Guidance, Relationship
+from bko.generate.guidance import Basis, Finding, Guidance, Profile, Relationship, Spread
 from bko.generate.messages import Level, reaches
 from bko.ontology.mapping import RANGES
 from bko.ontology.schema import Clause, Codes, FieldMapping
@@ -120,6 +121,37 @@ def _finding(finding: Finding, *, chains: bool) -> str:
     return line
 
 
+def _number(name: str, value: float) -> str:
+    return f"{value:.1f}" if name in FRACTIONAL else f"{value:.0f}"
+
+
+def _profile(profile: Profile) -> str:
+    lines = [
+        (
+            "Among comparable patients (the same target, other age and sex groups; "
+            f"{profile.records} records), these findings occur at these rates:"
+        ),
+        *(
+            f"- {share.label} ({' or '.join(_state(row) for row in share.states)}): "
+            f"{round(100 * share.share)}%"
+            for share in profile.shares
+        ),
+    ]
+    return "\n".join(lines)
+
+
+def _summary(summary: Mapping[str, Spread]) -> str:
+    lines = [
+        "Among the same patients, numeric fields run as follows (median; middle half):",
+        *(
+            f"- {name}: {_number(name, spread.median)}; {_number(name, spread.low)} to "
+            f"{_number(name, spread.high)} {_FIELD_UNITS[name]}"
+            for name, spread in summary.items()
+        ),
+    ]
+    return "\n".join(lines)
+
+
 def _system() -> str:
     lines = [
         (
@@ -175,4 +207,8 @@ def render(guidance: Guidance, rows: int, level: Level) -> tuple[str, str]:
         chains = reaches(level, Level.ONTOLOGY)
         lines = [_finding(finding, chains=chains) for finding in guidance.findings]
         parts.append("\n".join([BASES[guidance.basis], *lines]))
+    if reaches(level, Level.PROFILE) and guidance.profile is not None:
+        parts.append(_profile(guidance.profile))
+    if reaches(level, Level.SUMMARY) and guidance.summary is not None:
+        parts.append(_summary(guidance.summary))
     return SYSTEM, "\n\n".join(parts)

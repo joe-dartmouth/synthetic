@@ -12,7 +12,17 @@ from bko.datasets.cells import LABEL
 from bko.gaps.definitions import Definition, StatementGap, gaps
 from bko.gaps.detect import Statement, grounded, ontology_fragments
 from bko.gaps.observe import Cell, CellRecords, Cells, Observed, dataset_fragment, record_cells
-from bko.generate.guidance import Basis, Finding, Guidance, Relationship, guide, intervals
+from bko.generate.guidance import (
+    Basis,
+    Finding,
+    Guidance,
+    Profile,
+    Relationship,
+    Share,
+    Spread,
+    guide,
+    intervals,
+)
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology
@@ -87,11 +97,14 @@ OLD_WELL_ANGINA = [record()]
 
 def observed(
     records: Sequence[Mapping[str, int | float]], rows: Sequence[FieldMapping] = ROWS
-) -> Cells:
-    return record_cells(frame(records), rows, name="uci")
+) -> tuple[pd.DataFrame, Cells]:
+    """The training frame of `records` and its cells."""
+    train = frame(records)
+    return train, record_cells(train, rows, name="uci")
 
 
 def guided(
+    train: pd.DataFrame,
     cells: Cells,
     found: Iterable[StatementGap],
     ontologies: Mapping[str, Ontology],
@@ -101,7 +114,13 @@ def guided(
 ) -> dict[Cell, Guidance]:
     fragments = ontology_fragments(ontologies, {row.concept for row in rows})
     return guide(
-        cells, found, definition=definition, fragments=fragments, ontologies=ontologies, rows=rows
+        train,
+        cells,
+        found,
+        definition=definition,
+        fragments=fragments,
+        ontologies=ontologies,
+        rows=rows,
     )
 
 
@@ -114,8 +133,8 @@ def statements(guidance: Guidance) -> list[Statement]:
 
 
 def test_subgroup_gaps_become_absent_findings_named_by_release_label_and_field_state(ladders):
-    cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA])
-    guidance = guided(cells, subgroup(cells, ladders), ladders)[YOUNG_SICK]
+    train, cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA])
+    guidance = guided(train, cells, subgroup(cells, ladders), ladders)[YOUNG_SICK]
     assert guidance.cell == YOUNG_SICK
     assert (guidance.sex, guidance.label, guidance.records) == (0, 1, 2)
     assert guidance.interval == intervals(YOUNG_SICK)
@@ -137,15 +156,17 @@ def meeting(row: FieldMapping) -> dict[str, int | float]:
 
 def test_a_record_meeting_a_finding_grounds_every_statement_rendered_for_it(ladders):
     rows = (ANGINA, EXERTION, CHEST, STENOSIS)
-    cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA], rows=rows)
-    findings = guided(cells, subgroup(cells, ladders), ladders, rows=rows)[YOUNG_SICK].findings
+    train, cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA], rows=rows)
+    findings = guided(train, cells, subgroup(cells, ladders), ladders, rows=rows)[
+        YOUNG_SICK
+    ].findings
     assert [len(finding.states) for finding in findings] == [2, 3]
     for finding in findings:
         rendered = {relationship.statement for relationship in finding.relationships}
         for row in finding.states:
             met = meeting(row)
             assert row.applies(met)
-            after = subgroup(observed([*TWO_YOUNG_SICK, met, *OLD_WELL_ANGINA], rows), ladders)
+            after = subgroup(observed([*TWO_YOUNG_SICK, met, *OLD_WELL_ANGINA], rows)[1], ladders)
             left = [gap for gap in after if gap.cell == YOUNG_SICK and gap.statement in rendered]
             assert not left, row
 
@@ -172,10 +193,10 @@ NO_ANGINA = [record(cp=4), record(age=50, sex=0, target=1, cp=4)]
     ],
 )
 def test_each_definition_gets_its_basis(ladders, definition, records, basis):
-    cells = observed(records)
+    train, cells = observed(records)
     found = gaps(definition, ontology_fragments(ladders, {A, B}), cells)
     assert found
-    guidance = guided(cells, found, ladders, definition=definition)
+    guidance = guided(train, cells, found, ladders, definition=definition)
     with_gaps = {gap.cell for gap in found}
     for cell in with_gaps:
         assert guidance[cell].basis is basis, cell
@@ -187,14 +208,14 @@ def test_each_definition_gets_its_basis(ladders, definition, records, basis):
 
 
 def test_statements_reached_by_the_same_rows_group_into_one_finding(ladders):
-    cells = observed(TWO_YOUNG_SICK, rows=(ANGINA, EXERTION, STENOSIS))
+    train, cells = observed(TWO_YOUNG_SICK, rows=(ANGINA, EXERTION, STENOSIS))
     found = [StatementGap(YOUNG_SICK, H21), StatementGap(YOUNG_SICK, H32)]
     rows = (ANGINA, EXERTION, STENOSIS)
-    assert guided(cells, found, ladders, rows=rows)[YOUNG_SICK].findings == (
+    assert guided(train, cells, found, ladders, rows=rows)[YOUNG_SICK].findings == (
         Finding((ANGINA, EXERTION), (H21_LABELLED, H32_LABELLED)),
     )
     split = (ANGINA, EXERTION, CHEST)
-    assert guided(cells, found, ladders, rows=split)[YOUNG_SICK].findings == (
+    assert guided(train, cells, found, ladders, rows=split)[YOUNG_SICK].findings == (
         Finding((ANGINA, EXERTION), (H32_LABELLED,)),
         Finding((ANGINA, EXERTION, CHEST), (H21_LABELLED,)),
     )
@@ -202,10 +223,10 @@ def test_statements_reached_by_the_same_rows_group_into_one_finding(ladders):
 
 def test_a_row_needing_another_label_is_not_offered_in_this_cell(ladders, caplog):
     rows = (ANGINA, SICK_ANGINA)
-    cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA], rows=rows)
+    train, cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA], rows=rows)
     found = [StatementGap(YOUNG_SICK, M42), StatementGap(OLD_WELL, M42)]
     with caplog.at_level(logging.WARNING, logger="bko"):
-        guidance = guided(cells, found, ladders, definition=Definition.POPULATION, rows=rows)
+        guidance = guided(train, cells, found, ladders, definition=Definition.POPULATION, rows=rows)
     assert guidance[YOUNG_SICK].findings == (
         Finding((SICK_ANGINA,), (Relationship(M42, "coronary stenosis", "heart disorder"),)),
     )
@@ -214,22 +235,24 @@ def test_a_row_needing_another_label_is_not_offered_in_this_cell(ladders, caplog
 
 
 def test_a_statement_no_compatible_row_reaches_is_dropped_with_a_warning(ladders, caplog):
-    cells = observed(TWO_YOUNG_SICK)
+    train, cells = observed(TWO_YOUNG_SICK)
     found = [StatementGap(YOUNG_SICK, M32), StatementGap(YOUNG_SICK, H32)]
     with caplog.at_level(logging.WARNING, logger="bko"):
-        guidance = guided(cells, found, ladders)[YOUNG_SICK]
+        guidance = guided(train, cells, found, ladders)[YOUNG_SICK]
     assert guidance.basis is Basis.ABSENT
     assert statements(guidance) == [H32]
-    assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
-        ("WARNING", f"unreached cell=<55/female/1 statement={M32}")
-    ]
+    assert [
+        (r.levelname, r.getMessage())
+        for r in caplog.records
+        if r.getMessage().startswith("unreached")
+    ] == [("WARNING", f"unreached cell=<55/female/1 statement={M32}")]
 
 
 def test_a_cell_with_no_gap_is_guided_by_what_its_records_ground(ladders):
-    cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA])
+    train, cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA])
     found = subgroup(cells, ladders)
     assert OLD_WELL not in {gap.cell for gap in found}
-    guidance = guided(cells, found, ladders)[OLD_WELL]
+    guidance = guided(train, cells, found, ladders)[OLD_WELL]
     fragments = ontology_fragments(ladders, {A, B})
     expected = grounded(fragments, dataset_fragment(cells.each[OLD_WELL].observed))
     assert expected
@@ -239,19 +262,19 @@ def test_a_cell_with_no_gap_is_guided_by_what_its_records_ground(ladders):
 
 
 def test_a_statement_a_label_only_row_reaches_is_met_by_every_record_and_skipped(ladders, caplog):
-    cells = observed([record(age=50, sex=0, target=1, cp=1)] * 2)
+    train, cells = observed([record(age=50, sex=0, target=1, cp=1)] * 2)
     assert YOUNG_SICK not in {gap.cell for gap in subgroup(cells, ladders)}
     with caplog.at_level(logging.DEBUG, logger="bko"):
-        guidance = guided(cells, subgroup(cells, ladders), ladders)[YOUNG_SICK]
+        guidance = guided(train, cells, subgroup(cells, ladders), ladders)[YOUNG_SICK]
     assert guidance.basis is Basis.SHOWN
     assert guidance.findings == (Finding((ANGINA,), (H21_LABELLED, H32_LABELLED)),)
-    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert not [r for r in caplog.records if r.getMessage().startswith("unreached")]
     assert f"pinned cell=<55/female/1 statement={M42}" in caplog.messages
 
 
 def test_a_cell_with_no_gap_and_no_shown_concept_gets_basis_none(ladders):
-    cells = observed([record(age=50, cp=4), *OLD_WELL_ANGINA])
-    guidance = guided(cells, (), ladders)
+    train, cells = observed([record(age=50, cp=4), *OLD_WELL_ANGINA])
+    guidance = guided(train, cells, (), ladders)
     for cell in (YOUNG_WELL, ("<55", "female", 0)):
         assert guidance[cell].basis is Basis.NONE
         assert guidance[cell].findings == ()
@@ -259,19 +282,19 @@ def test_a_cell_with_no_gap_and_no_shown_concept_gets_basis_none(ladders):
 
 
 def test_a_gap_cell_outside_the_grid_or_a_cell_without_a_label_is_refused(ladders):
-    cells = observed(TWO_YOUNG_SICK)
+    train, cells = observed(TWO_YOUNG_SICK)
     with pytest.raises(ValueError, match=r"\('x',\) is not in the grid"):
-        guided(cells, [StatementGap(("x",), H21)], ladders)
+        guided(train, cells, [StatementGap(("x",), H21)], ladders)
     unlabelled = Cells(
         whole=Observed(name="s", records=1, holders={A: 1}),
         each={("60-69", "male"): CellRecords(Observed("s", 1, {A: 1}), None, frozenset())},
     )
     with pytest.raises(ValueError, match="60-69"):
-        guided(unlabelled, (), ladders)
+        guided(frame(TWO_YOUNG_SICK), unlabelled, (), ladders)
 
 
 def test_a_row_whose_prefix_has_no_release_is_refused(ladders):
-    cells = observed(TWO_YOUNG_SICK)
+    train, cells = observed(TWO_YOUNG_SICK)
     stray = FieldMapping(
         when=(Codes(LABEL, frozenset({1})),),
         concept="DOID:1",
@@ -281,6 +304,7 @@ def test_a_row_whose_prefix_has_no_release_is_refused(ladders):
     )
     with pytest.raises(ValueError, match="DOID"):
         guide(
+            train,
             cells,
             (),
             definition=Definition.SUBGROUP,
@@ -293,9 +317,9 @@ def test_a_row_whose_prefix_has_no_release_is_refused(ladders):
 def test_a_curie_with_no_name_is_labelled_by_its_curie(tmp_path, ladders):
     nameless = LADDER_HPO.replace("name: Chest pain\n", "")
     ontologies = {**ladders, "HP": parse_obo(write_obo(tmp_path, nameless, "bare.obo"), name="hpo")}
-    cells = observed(TWO_YOUNG_SICK)
+    train, cells = observed(TWO_YOUNG_SICK)
     found = [StatementGap(YOUNG_SICK, H21), StatementGap(YOUNG_SICK, H32)]
-    assert guided(cells, found, ontologies)[YOUNG_SICK].findings == (
+    assert guided(train, cells, found, ontologies)[YOUNG_SICK].findings == (
         Finding(
             (ANGINA,),
             (
@@ -305,17 +329,97 @@ def test_a_curie_with_no_name_is_labelled_by_its_curie(tmp_path, ladders):
         ),
     )
     unreleased = Statement("hpo", A, "XO:1")
-    (finding,) = guided(cells, [StatementGap(YOUNG_SICK, unreleased)], ladders)[YOUNG_SICK].findings
+    (finding,) = guided(train, cells, [StatementGap(YOUNG_SICK, unreleased)], ladders)[
+        YOUNG_SICK
+    ].findings
     assert finding.relationships == (Relationship(unreleased, "Angina pectoris", "XO:1"),)
 
 
 def test_gap_order_does_not_change_the_guidance(ladders):
-    cells = observed(FREQUENCY_RECORDS)
+    train, cells = observed(FREQUENCY_RECORDS)
     found = subgroup(cells, ladders)
     assert len(found) > 1
 
     def read(guidance: Mapping[Cell, Guidance]) -> list[tuple[Cell, Basis, tuple[Finding, ...]]]:
         return [(cell, one.basis, one.findings) for cell, one in guidance.items()]
 
-    assert read(guided(cells, reversed(found), ladders)) == read(guided(cells, found, ladders))
-    assert list(guided(cells, reversed(found), ladders)) == list(cells.each)
+    assert read(guided(train, cells, reversed(found), ladders)) == read(
+        guided(train, cells, found, ladders)
+    )
+    assert list(guided(train, cells, reversed(found), ladders)) == list(cells.each)
+
+
+WELL_ISCHEMIA = FieldMapping(
+    when=(Codes(LABEL, frozenset({0})), Codes("fbs", frozenset({1}))),
+    concept="MONDO:9000003",
+    label="myocardial ischemia",
+    source="uci-heart-disease",
+    limits="test",
+)
+"""A row only records without the condition meet, so no label-1 cell is offered it."""
+
+PROFILE_ROWS = (ANGINA, EXERTION, CHEST, STENOSIS, WELL_ISCHEMIA)
+
+REFERENCE = [
+    record(age=60, target=1, cp=1, fbs=0, chol=200),
+    record(age=70, target=1, cp=4, exang=1, fbs=0, chol=240),
+    record(age=80, target=1, cp=4, fbs=1, chol=280),
+    record(age=40, target=1, cp=4, fbs=0, chol=300),
+]
+"""The men with the condition: `YOUNG_SICK`'s reference group, three older and one younger.
+
+Angina (cp 1 or exang 1) is shown by 2 of 4, chest pain (cp 1 to 3) by 1 of 4."""
+
+OUTSIDE_THE_REFERENCE = [
+    *[record(age=50, sex=0, target=1, cp=1, fbs=0, chol=100)] * 2,
+    record(),
+    record(age=40, cp=4, fbs=1, chol=500),
+]
+"""`YOUNG_SICK`'s own records, and two men without the condition: none is a reference record."""
+
+
+def test_profile_is_each_compatible_concepts_share_among_records_outside_the_cell_with_its_label(
+    ladders,
+):
+    train, cells = observed([*REFERENCE, *OUTSIDE_THE_REFERENCE], rows=PROFILE_ROWS)
+    guidance = guided(train, cells, (), ladders, rows=PROFILE_ROWS)[YOUNG_SICK]
+    assert guidance.profile == Profile(
+        4,
+        (
+            Share(A, "Angina pectoris", (ANGINA, EXERTION), 0.5),
+            Share("HP:9000002", "Chest pain", (CHEST,), 0.25),
+        ),
+    )
+
+
+def test_the_summary_is_each_numeric_fields_quartiles_over_the_same_records(ladders):
+    train, cells = observed([*REFERENCE, *OUTSIDE_THE_REFERENCE], rows=PROFILE_ROWS)
+    guidance = guided(train, cells, (), ladders, rows=PROFILE_ROWS)[YOUNG_SICK]
+    assert guidance.summary == {
+        "age": Spread(55.0, 65.0, 72.5),
+        "trestbps": Spread(145.0, 145.0, 145.0),
+        "chol": Spread(230.0, 260.0, 285.0),
+        "thalach": Spread(150.0, 150.0, 150.0),
+        "oldpeak": Spread(2.3, 2.3, 2.3),
+    }
+
+
+def test_a_cell_with_no_reference_record_gets_no_profile_or_summary_and_a_warning(ladders, caplog):
+    train, cells = observed([*TWO_YOUNG_SICK, *OLD_WELL_ANGINA])
+    with caplog.at_level(logging.WARNING, logger="bko"):
+        guidance = guided(train, cells, (), ladders)
+    assert (guidance[YOUNG_SICK].profile, guidance[YOUNG_SICK].summary) == (None, None)
+    assert "noreference cell=<55/female/1" in caplog.messages
+    assert "noreference cell=>=55/male/0" in caplog.messages
+    young_well = guidance[YOUNG_WELL]
+    assert young_well.profile == Profile(1, (Share(A, "Angina pectoris", (ANGINA,), 1.0),))
+    assert young_well.summary is not None
+    assert young_well.summary["age"] == Spread(63.0, 63.0, 63.0)
+
+
+def test_a_training_frame_other_than_the_one_observed_is_refused(ladders):
+    train, cells = observed([*REFERENCE, *OUTSIDE_THE_REFERENCE], rows=PROFILE_ROWS)
+    other = frame([*REFERENCE, REFERENCE[0], *OUTSIDE_THE_REFERENCE])
+    with pytest.raises(ValueError, match=r"5 reference rows .* 4 reference records"):
+        guided(other, cells, (), ladders, rows=PROFILE_ROWS)
+    assert guided(train, cells, (), ladders, rows=PROFILE_ROWS)[YOUNG_SICK].profile is not None

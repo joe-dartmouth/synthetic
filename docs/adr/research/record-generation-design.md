@@ -85,6 +85,13 @@ ladder.**
     finding;
   - rare, for frequency-aware gaps: the finding is rarer than among comparable patients;
   - shown, for a cell with no gap: the group's records show the finding.
+- **The profile and summary.** Both read the reference group of ADR
+  [`research/frequency-aware-gap-score`](frequency-aware-gap-score.md): the training records
+  outside the cell that share its label. The profile gives each concept a label-compatible row
+  maps its share of those records, which is the dataset fragment's prior over them. A concept
+  that a row reading only the label maps is left out, since every reference record shows it. The
+  summary gives each numeric field's quartiles over the same records. A cell with no reference
+  record gets neither, with a WARNING.
 - **What every level sends:**
   - each field's meaning, codes and unit;
   - each numeric field's plausible range from `RANGES`, with age clipped to the cell's band;
@@ -143,6 +150,10 @@ cut mid-value and the stop already says the call failed.
 - E1's driver "Must reproduce from seeds on one machine" cannot hold for generated rows, because
   the Messages API takes no seed. `cleanup:evaluate/bko-arms-reproduce-from-log` holds the owed
   protocol change.
+- The `summary` level's medians pull values toward real records, which presses on E1's privacy
+  distance. The spreads are per-field marginals, never a joint row. No floor applies to the
+  reference group's size, so a reference group of one record makes them equal that record's
+  values; on the UCI split the reference group is the rest of the cell's label group.
 - A model may reproduce a public Cleveland record; `cleanup:evaluate/generated-copies-of-test-records`
   holds the owed check.
 
@@ -161,6 +172,8 @@ cut mid-value and the stop already says the call failed.
 | The training split's minimum and maximum as the ranges | The prompt states what is possible, not what the data holds | 2026-10-18 |
 | Findings from the `is_a` edges of a cell's shown concepts only | A gap's statement names what the records lack, which the shown concepts' edges never reach | 2026-10-18 |
 | Findings from the whole dataset's concepts | They describe other groups, not the cell asked for | 2026-10-18 |
+| The reference group of the same label and sex | Too few records in the smallest cells, such as older women with the condition | 2026-10-18 |
+| The whole split as the reference group | It mixes the label the cell is pinned to with the other | 2026-10-18 |
 | Few-shot rows | A copied record fails E1's privacy share | 2026-10-18 |
 | `None` as the placeholder | Collides with a decoded `null` (Rationale) | 2026-10-18 |
 | Salvaging truncated output | Its last records may be cut mid-value (Rationale) | 2026-10-18 |
