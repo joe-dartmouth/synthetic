@@ -71,19 +71,6 @@ links to where its blocker is tracked.
 
 ## ontology
 
-- **`cleanup:ontology/row-unions-not-exhaustive`: `check` renders an unknown row kind as
-  another.** `_describe` in `src/bko/ontology/check.py` treats any row that is neither a
-  `FieldMapping` nor a `CodeMapping` as `out-of-scope`, and `_clause` treats any clause that is not
-  `Codes` as `AtLeast`. A new member of `ConceptRow` or `Clause` type-checks and prints the wrong
-  subject. *Filed 2026-10-16 by the review of PR #9.*
-
-  **Why deferred.** Both unions have exactly the members the code handles today.
-
-  **What discharges it:** both functions dispatch with `match` and end in `assert_never`, so `ty`
-  refuses a new member until it is handled.
-
-  **Trigger:** the next change to `ConceptRow` or `Clause` in `src/bko/ontology/schema.py`.
-
 - **`cleanup:ontology/exit-three-means-two-things`: a caller cannot tell a broken release from a
   disagreeing row by exit code.** Exit 3 covers a release that contradicts its pin or is not
   readable OBO (stdout empty) and a row that disagrees with a sound release (stdout holds the

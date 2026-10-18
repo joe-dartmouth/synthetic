@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, assert_never
 
-from bko.ontology.schema import Clause, CodeMapping, Codes, ConceptRow, FieldMapping, OutOfScope
+from bko.ontology.schema import (
+    AtLeast,
+    Clause,
+    CodeMapping,
+    Codes,
+    ConceptRow,
+    FieldMapping,
+    OutOfScope,
+)
 from bko.ontology.terms import Ontology, ancestors
 
 
@@ -57,17 +65,25 @@ def _verdict(
 
 
 def _describe(row: ConceptRow) -> tuple[Table, str]:
-    if isinstance(row, FieldMapping):
-        return "field", " and ".join(_clause(clause) for clause in row.when)
-    if isinstance(row, CodeMapping):
-        return "code", f"SCTID:{row.snomed}"
-    return "out-of-scope", ""
+    match row:
+        case FieldMapping(when=when):
+            return "field", " and ".join(_clause(clause) for clause in when)
+        case CodeMapping():
+            return "code", f"SCTID:{row.snomed}"
+        case OutOfScope():
+            return "out-of-scope", ""
+        case _:
+            assert_never(row)
 
 
 def _clause(clause: Clause) -> str:
-    if isinstance(clause, Codes):
-        return f"{clause.field} in {'|'.join(str(code) for code in sorted(clause.codes))}"
-    return f"{clause.field} >= {clause.value:g}"
+    match clause:
+        case Codes(field=field, codes=codes):
+            return f"{field} in {'|'.join(str(code) for code in sorted(codes))}"
+        case AtLeast(field=field, value=value):
+            return f"{field} >= {value:g}"
+        case _:
+            assert_never(clause)
 
 
 def _problem(
@@ -87,11 +103,15 @@ def _problem(
         return f"has no name in {where}"
     if term.name != row.label:
         return f"named '{term.name}' in {where}"
-    if isinstance(row, CodeMapping):
-        return _match_problem(row, ontology, where)
-    if isinstance(row, OutOfScope):
-        return _scope_problem(row, ontology, where, mapped)
-    return None
+    match row:
+        case CodeMapping():
+            return _match_problem(row, ontology, where)
+        case OutOfScope():
+            return _scope_problem(row, ontology, where, mapped)
+        case FieldMapping():
+            return None
+        case _:
+            assert_never(row)
 
 
 def _scope_problem(
