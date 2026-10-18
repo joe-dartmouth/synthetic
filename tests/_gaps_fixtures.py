@@ -137,3 +137,18 @@ E2_POPULATION: Final = (
 """Snapshot 2026-01-01: twenty men aged 64 and a woman aged 64 with ischemic heart disease, a man
 aged 35 with a myocardial infarction only, and twenty women aged 35 with no condition, whose cell
 holds the threshold throughout, so it is never a gap."""
+
+E2_FREQUENCY_POPULATION: Final = (
+    [
+        *(patient(f"w{index:02d}", "1961-07-15", "F") for index in range(20)),
+        *(patient(f"m{index:02d}", "1961-07-15", "M") for index in range(20)),
+        *(patient(f"n{index:02d}", "1961-07-15", "M") for index in range(4)),
+    ],
+    [
+        *(condition(f"w{index:02d}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(20)),
+        *(condition(f"m{index:02d}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(20)),
+    ],
+)
+"""Snapshot 2026-01-01: twenty women and twenty men aged 64 with ischemic heart disease and four men
+aged 64 with no condition, so removing the men's cases leaves their cell four patients showing
+none, which the frequency-aware score flags."""

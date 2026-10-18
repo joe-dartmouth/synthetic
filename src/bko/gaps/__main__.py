@@ -1,15 +1,15 @@
 """Command line for gap detection: `python -m bko.gaps uci` and `synthea`.
 
 `uci` fetches UCI Heart Disease and the releases its field mappings name into the data root if
-they are absent, splits the records, and lists both kinds of gap in the training split: the
-ontology statements its records leave ungrounded, then the cells holding fewer training records
+they are absent, splits the records, and lists the training split's gaps under each definition of
+`bko.gaps.definitions`, as (cell, statement) pairs, then the cells holding fewer training records
 than the threshold. `synthea` generates the population E2 reads if it is absent, fetches the
-releases its code mappings name, and for each of E2's ablations lists both kinds of gap before and
-after the removal, marking the gaps the removed patients account for. Each writes one CSV to
-stdout, the same bytes on every run over the same inputs, and nothing unless the whole report is
-built; each input's identity, the BKO's size, each list's length, each detector's recovery and the
-report's digest go to stderr through logging. `docs/DEVELOPMENT.md` (Gap
-detection) is the usage home.
+releases its code mappings name, and for each of E2's ablations lists every definition's gaps and
+the count-based ones before and after the removal, marking the gaps the removed patients account
+for. Each writes one CSV to stdout, the same bytes on every run over the same inputs, and nothing
+unless the whole report is built; each input's identity, each cell's records, each flagged concept,
+each list's length, each detector's recovery and the report's digest go to stderr through logging.
+`docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
 Exit codes: 0 the report is written; 1 an unexpected error, with its traceback; 2 the command could
 not run; 3 the data or a release contradicts its pin or schema.
@@ -39,10 +39,11 @@ from bko.datasets.split import split
 from bko.datasets.synthea import load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import load_uci
-from bko.gaps.detect import Statement, count_gaps, detect, ontology_fragments
+from bko.gaps.definitions import Definition, gaps, under_represented
+from bko.gaps.detect import Statement, count_gaps, ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation
-from bko.gaps.observe import Observed, dataset_fragment, observe_population, observe_records
+from bko.gaps.observe import Cell, Cells, Observed, cell_key, observe_population, record_cells
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.releases import load_releases
 from bko.ontology.schema import CodeMapping, FieldMapping
@@ -122,7 +123,12 @@ def main(
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         command = {"uci": _uci, "synthea": _synthea}[args.command]
-        logger.info("data_dir=%s pandas=%s", data_dir, importlib.metadata.version("pandas"))
+        logger.info(
+            "data_dir=%s pandas=%s scipy=%s",
+            data_dir,
+            importlib.metadata.version("pandas"),
+            importlib.metadata.version("scipy"),
+        )
         rows = command(data_dir, Context() if context is None else context)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
@@ -159,12 +165,17 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m bko.gaps", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser(
-        "uci", parents=[common], help="list both kinds of gap in the UCI training split"
+        "uci",
+        parents=[common],
+        help="list each definition's gaps and the count-based ones in the UCI training split",
     )
     commands.add_parser(
         "synthea",
         parents=[common],
-        help="list both kinds of gap before and after each of E2's ablations",
+        help=(
+            "list each definition's gaps and the count-based ones before and after "
+            "each of E2's ablations"
+        ),
     )
     return parser
 
@@ -181,20 +192,34 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
     )
     concepts = {row.concept for row in context.field_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
-    observed = observe_records(parts.train, context.field_rows, name=context.uci.name)
-    _log_observed(observed)
-    gaps = detect(fragments, dataset_fragment(observed))
-    logger.info("bko dataset=%s ungrounded=%d", observed.name, len(gaps))
-    cells = count_gaps(cell_counts(parts.train))
-    logger.info(
-        "count dataset=%s flagged=%d below=%d", observed.name, len(cells), UNDERREPRESENTED_BELOW
-    )
+    cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    _log_observed(cells.whole)
+    _log_cells(cells, f"dataset={cells.whole.name}")
     label = _labeller(ontologies)
     rows: list[Row] = [UCI_COLUMNS]
-    rows.extend(("bko", *_statement_cells(gap, label), "", "", "", "") for gap in gaps)
+    for definition in Definition:
+        found = gaps(definition, fragments, cells)
+        logger.info(
+            "bko definition=%s dataset=%s gaps=%d cells=%d",
+            definition,
+            cells.whole.name,
+            len(found),
+            len({gap.cell for gap in found}),
+        )
+        rows.extend(
+            (definition.value, *_statement_cells(gap.statement, label), *_cell_cells(gap.cell), "")
+            for gap in found
+        )
+    counted = count_gaps(cell_counts(parts.train))
+    logger.info(
+        "count dataset=%s flagged=%d below=%d",
+        cells.whole.name,
+        len(counted),
+        UNDERREPRESENTED_BELOW,
+    )
     rows.extend(
         ("count", "", "", "", "", "", cell.age_band, cell.sex, str(cell.target), str(cell.count))
-        for cell in cells
+        for cell in counted
     )
     return rows
 
@@ -211,13 +236,11 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     population = load_population(directory, snapshot_date=context.run.snapshot_date)
     concepts = {row.concept for row in context.code_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
-    observed = observe_population(population, context.code_rows, name=SYNTHEA)
-    _log_observed(observed)
-    before = detect(fragments, dataset_fragment(observed))
+    _log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
     label = _labeller(ontologies)
     rows: list[Row] = [SYNTHEA_COLUMNS]
     for name, spec in context.ablations.items():
-        run = run_ablation(name, population, spec, fragments, context.code_rows, bko_before=before)
+        run = run_ablation(name, population, spec, fragments, context.code_rows)
         logger.info(
             "ablation name=%s codes=%s age_band=%s sex=%s edges=%s removed=%d",
             name,
@@ -227,32 +250,39 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
             ",".join(str(edge) for edge in spec.edges),
             len(run.ablation.removed),
         )
-        for detector, reading in (("bko", run.bko), ("count", run.count)):
+        _log_cells(run.before_cells, f"ablation={name} when=before")
+        _log_cells(run.after_cells, f"ablation={name} when=after")
+        readings = [(definition.value, run.reading(definition)) for definition in Definition]
+        for detector, reading in [*readings, ("count", run.count)]:
             logger.info(
-                "recovery ablation=%s detector=%s truth=%d eligible=%d recovered=%d spurious=%d",
+                "recovery ablation=%s detector=%s truth=%d eligible=%d recovered=%d outside=%d "
+                "new_outside=%d vanished=%d",
                 name,
                 detector,
                 reading.truth,
                 reading.eligible,
                 reading.recovered,
-                reading.spurious,
+                reading.outside,
+                reading.new_outside,
+                reading.vanished,
             )
-            if reading.spurious:
-                logger.warning(
-                    "spurious ablation=%s detector=%s: a gap the removal cannot account for, "
-                    "which is a defect",
-                    name,
-                    detector,
-                )
         rows.extend(_ablation_rows(run, label))
     return rows
 
 
 def _ablation_rows(run: AblationRun, label: Label) -> Iterator[Row]:
-    before, after, truth = set(run.bko_before), set(run.bko_after), set(run.bko_truth)
-    for statement in sorted(before | after | truth):
-        flags = _flags(statement, before, after, truth)
-        yield (run.name, "bko", *_statement_cells(statement, label), "", "", "", *flags)
+    truth = set(run.truth)
+    for definition in Definition:
+        before, after = set(run.before[definition]), set(run.after[definition])
+        for gap in run.listed(definition):
+            flags = _flags(gap, before, after, truth)
+            yield (
+                run.name,
+                definition.value,
+                *_statement_cells(gap.statement, label),
+                *_cell_cells(gap.cell),
+                *flags,
+            )
     flagged_before = {gap.cell for gap in run.count_before}
     flagged_after = {gap.cell for gap in run.count_after}
     fell = set(run.count_truth)
@@ -301,6 +331,37 @@ def _log_observed(observed: Observed) -> None:
         len(observed.holders),
         " ".join(f"{concept}={count}" for concept, count in observed.holders.items()),
     )
+
+
+def _log_cells(cells: Cells, where: str) -> None:
+    for cell, records in cells.each.items():
+        logger.info(
+            "cell %s key=%s records=%d held=%d of=%d assumed=%s",
+            where,
+            cell_key(cell),
+            records.observed.records,
+            len(records.observed.held),
+            len(records.observed.holders),
+            ",".join(sorted(records.assumed)),
+        )
+    for flag in under_represented(cells):
+        logger.info(
+            "flagged %s key=%s concept=%s shown=%d records=%d reference_shown=%d "
+            "reference_records=%d mass=%.4f",
+            where,
+            cell_key(flag.cell),
+            flag.concept,
+            flag.shown,
+            flag.records,
+            flag.reference_shown,
+            flag.reference_records,
+            flag.mass,
+        )
+
+
+def _cell_cells(cell: Cell) -> Row:
+    """A cell's `CELL_COLUMNS` values, `target` blank where cells carry no label."""
+    return tuple(str(part) for part in cell) + ("",) * (len(CELL_COLUMNS) - len(cell))
 
 
 def _labeller(ontologies: Mapping[str, Ontology]) -> Label:

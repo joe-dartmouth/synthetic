@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import importlib.metadata
 import io
 import logging
 import os
 import subprocess
 import sys
 import urllib.error
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -49,12 +51,37 @@ UCI = archive(
 """Twenty records aged 63, five per sex and label, none with typical angina (cp 1); one in five of
 each cell is held out, so the training split holds four per cell."""
 
+H21 = "hpo,HP:9000002,Chest pain,HP:9000001,Phenotypic abnormality"
+H32 = "hpo,HP:9000003,Angina pectoris,HP:9000002,Chest pain"
+M21 = "mondo,MONDO:9000002,heart disorder,MONDO:9000001,disease"
+M42 = "mondo,MONDO:9000004,coronary stenosis,MONDO:9000002,heart disorder"
+UCI_CELLS = tuple(
+    f"{band},{sex},{target}"
+    for band in ("<55", ">=55")
+    for sex in ("female", "male")
+    for target in (0, 1)
+)
+"""The eight cells in grid order; the four `<55` cells hold no training record."""
+EMPTY_WITH_DISEASE = frozenset({"<55,female,1", "<55,male,1"})
+"""Empty cells with disease assume nothing, so every statement is their per-subgroup gap; an empty
+cell without disease assumes the stenosis only disease rows name, which grounds MONDO's chain."""
+
+
+def uci_rows(detector: str, statements: Callable[[str], tuple[str, ...]]) -> str:
+    return "".join(
+        f"{detector},{statement},{cell},\n" for cell in UCI_CELLS for statement in statements(cell)
+    )
+
+
 UCI_EXPECTED = (
     "detector,source,antecedent,antecedent_label,consequent,consequent_label,"
     "age_band,sex,target,count\n"
-    "bko,hpo,HP:9000002,Chest pain,HP:9000001,Phenotypic abnormality,,,,\n"
-    "bko,hpo,HP:9000003,Angina pectoris,HP:9000002,Chest pain,,,,\n"
-    "count,,,,,,<55,female,0,0\n"
+    + uci_rows(
+        "per-subgroup",
+        lambda cell: (H21, H32, M21, M42) if cell in EMPTY_WITH_DISEASE else (H21, H32),
+    )
+    + uci_rows("population-level", lambda _: (H21, H32))
+    + "count,,,,,,<55,female,0,0\n"
     "count,,,,,,<55,female,1,0\n"
     "count,,,,,,<55,male,0,0\n"
     "count,,,,,,<55,male,1,0\n"
@@ -104,7 +131,7 @@ def fetched(context: Context) -> set[str]:
     return {url for url, _ in opener.calls}
 
 
-def test_uci_lists_both_kinds_of_gap_in_the_training_split(tmp_path, caplog):
+def test_uci_lists_each_definitions_gaps_and_the_count_in_the_training_split(tmp_path, caplog):
     context = make_context()
     with caplog.at_level(logging.INFO, logger="bko"):
         assert run("uci", tmp_path, context) == (0, UCI_EXPECTED)
@@ -115,14 +142,23 @@ def test_uci_lists_both_kinds_of_gap_in_the_training_split(tmp_path, caplog):
     }
     digest = hashlib.sha256(UCI_EXPECTED.encode()).hexdigest()
     for line in (
+        f"scipy={importlib.metadata.version('scipy')}",
         "split seed=0 train=16 test=4",
         "scope release=hpo classes=3 statements=2",
         "scope release=mondo classes=3 statements=2",
         "observed dataset=uci-heart-disease records=16 held=1 of=2",
+        (
+            "cell dataset=uci-heart-disease key=<55/female/0 records=0 held=0 of=2 "
+            "assumed=MONDO:9000004\n"
+        ),
+        "cell dataset=uci-heart-disease key=>=55/male/1 records=4 held=1 of=2 assumed=\n",
         "fused fragments=3 normalization=fragments",
-        "bko dataset=uci-heart-disease ungrounded=2",
+        "name=uci-heart-disease\n",
+        "bko definition=per-subgroup dataset=uci-heart-disease gaps=20 cells=8",
+        "bko definition=population-level dataset=uci-heart-disease gaps=16 cells=8",
+        "bko definition=frequency-aware dataset=uci-heart-disease gaps=0 cells=0",
         "count dataset=uci-heart-disease flagged=8 below=20",
-        f"gaps rows=10 sha256={digest}",
+        f"gaps rows=44 sha256={digest}",
     ):
         assert line in caplog.text
 
@@ -199,10 +235,24 @@ def test_the_module_runs_as_a_program():
     assert "{uci,synthea}" in result.stdout
 
 
-ISCHEMIA_ROWS = (
-    "mondo,MONDO:9000002,heart disorder,MONDO:9000001,disease,,,",
-    "mondo,MONDO:9000003,myocardial ischemia,MONDO:9000002,heart disorder,,,",
+ISCHEMIA_STATEMENTS = (
+    "mondo,MONDO:9000002,heart disorder,MONDO:9000001,disease",
+    "mondo,MONDO:9000003,myocardial ischemia,MONDO:9000002,heart disorder",
 )
+BKO_GRID = (("<60", "female"), ("<60", "male"), (">=60", "female"), (">=60", "male"))
+"""The definitions' age-sex cells in grid order; they carry no label."""
+
+
+def bko_rows(name: str, detector: str, marks: dict[tuple[str, str], str]) -> str:
+    """The ischemia statements of each cell `marks` lists, in grid order, with its flags."""
+    return "".join(
+        f"{name},{detector},{statement},{band},{sex},,{marks[band, sex]}\n"
+        for band, sex in BKO_GRID
+        if (band, sex) in marks
+        for statement in ISCHEMIA_STATEMENTS
+    )
+
+
 GRID = (
     ("<60", "female", 1),
     ("<60", "male", 0),
@@ -228,9 +278,51 @@ def count_rows(name: str, flags: dict[tuple[str, str, int], str]) -> str:
 SYNTHEA_EXPECTED = (
     "ablation,detector,source,antecedent,antecedent_label,consequent,consequent_label,"
     "age_band,sex,target,before,after,truth\n"
-    + "".join(f"cell,bko,{row},False,False,True\n" for row in ISCHEMIA_ROWS)
+    + bko_rows(
+        "cell",
+        "per-subgroup",
+        {
+            ("<60", "female"): "True,True,False",
+            ("<60", "male"): "True,True,False",
+            (">=60", "male"): "False,True,True",
+        },
+    )
+    + bko_rows("cell", "population-level", {(">=60", "male"): "False,False,True"})
+    + bko_rows(
+        "cell",
+        "frequency-aware",
+        {("<60", "female"): "True,True,False", (">=60", "male"): "False,False,True"},
+    )
     + count_rows("cell", {(">=60", "male", 1): "False,True,True"})
-    + "".join(f"condition,bko,{row},False,True,True\n" for row in ISCHEMIA_ROWS)
+    + bko_rows(
+        "condition",
+        "per-subgroup",
+        {
+            ("<60", "female"): "True,True,False",
+            ("<60", "male"): "True,True,False",
+            (">=60", "female"): "False,True,True",
+            (">=60", "male"): "False,True,True",
+        },
+    )
+    + bko_rows(
+        "condition",
+        "population-level",
+        {
+            ("<60", "female"): "False,True,False",
+            ("<60", "male"): "False,True,False",
+            (">=60", "female"): "False,True,True",
+            (">=60", "male"): "False,True,True",
+        },
+    )
+    + bko_rows(
+        "condition",
+        "frequency-aware",
+        {
+            ("<60", "female"): "True,False,False",
+            (">=60", "female"): "False,False,True",
+            (">=60", "male"): "False,False,True",
+        },
+    )
     + count_rows(
         "condition",
         {(">=60", "female", 1): "True,True,True", (">=60", "male", 1): "False,True,True"},
@@ -238,7 +330,7 @@ SYNTHEA_EXPECTED = (
 )
 
 
-def test_synthea_reads_each_ablation_with_both_detectors(tmp_path, caplog):
+def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
     context = make_context()
     with caplog.at_level(logging.INFO, logger="bko"):
         assert run("synthea", tmp_path, context) == (0, SYNTHEA_EXPECTED)
@@ -246,11 +338,48 @@ def test_synthea_reads_each_ablation_with_both_detectors(tmp_path, caplog):
     for line in (
         "observed dataset=synthea records=42 held=1 of=1 MONDO:9000003=21",
         "ablation name=cell codes=414545008 age_band=>=60 sex=1 edges=60 removed=20",
-        "recovery ablation=cell detector=bko truth=2 eligible=2 recovered=0 spurious=0",
-        "recovery ablation=cell detector=count truth=1 eligible=1 recovered=1 spurious=0",
+        "cell ablation=cell when=after key=>=60/male records=0 held=0 of=1 assumed=\n",
+        (
+            "flagged ablation=cell when=before key=<60/female concept=MONDO:9000003 shown=0 "
+            "records=20 reference_shown=21 reference_records=22 mass=1.0000"
+        ),
+        (
+            "flagged ablation=cell when=after key=<60/female concept=MONDO:9000003 shown=0 "
+            "records=20 reference_shown=1 reference_records=2 mass=1.0000"
+        ),
+        (
+            "recovery ablation=cell detector=per-subgroup truth=2 eligible=2 recovered=2 "
+            "outside=4 new_outside=0 vanished=0"
+        ),
+        (
+            "recovery ablation=cell detector=population-level truth=2 eligible=2 recovered=0 "
+            "outside=0 new_outside=0 vanished=0"
+        ),
+        (
+            "recovery ablation=cell detector=frequency-aware truth=2 eligible=2 recovered=0 "
+            "outside=2 new_outside=0 vanished=0"
+        ),
+        (
+            "recovery ablation=cell detector=count truth=1 eligible=1 recovered=1 "
+            "outside=6 new_outside=0 vanished=0"
+        ),
         "ablation name=condition codes=414545008 age_band=None sex=None edges=60 removed=21",
-        "recovery ablation=condition detector=bko truth=2 eligible=2 recovered=2 spurious=0",
-        "recovery ablation=condition detector=count truth=2 eligible=1 recovered=1 spurious=0",
+        (
+            "recovery ablation=condition detector=per-subgroup truth=4 eligible=4 recovered=4 "
+            "outside=4 new_outside=0 vanished=0"
+        ),
+        (
+            "recovery ablation=condition detector=population-level truth=4 eligible=4 "
+            "recovered=4 outside=4 new_outside=4 vanished=0"
+        ),
+        (
+            "recovery ablation=condition detector=frequency-aware truth=4 eligible=4 "
+            "recovered=0 outside=0 new_outside=0 vanished=2"
+        ),
+        (
+            "recovery ablation=condition detector=count truth=2 eligible=1 recovered=1 "
+            "outside=5 new_outside=0 vanished=0"
+        ),
     ):
         assert line in caplog.text
 
@@ -267,9 +396,12 @@ def test_a_second_synthea_run_writes_the_same_bytes_and_fetches_nothing(tmp_path
 def test_a_statement_ungrounded_throughout_is_listed_before_and_after(tmp_path):
     code, out = run("synthea", tmp_path, make_context(code_rows=(ISCHEMIA, UNSEEN)))
     assert code == 0
-    unseen = "mondo,MONDO:9000004,coronary stenosis,MONDO:9000002,heart disorder,,,"
-    assert f"cell,bko,{unseen},True,True,False\n" in out
-    assert f"condition,bko,{unseen},True,True,False\n" in out
+    unseen = "mondo,MONDO:9000004,coronary stenosis,MONDO:9000002,heart disorder"
+    for ablation in ("cell", "condition"):
+        for detector in ("per-subgroup", "population-level"):
+            for band, sex in BKO_GRID:
+                assert f"{ablation},{detector},{unseen},{band},{sex},,True,True,False\n" in out
+        assert f"{ablation},frequency-aware,{unseen}," not in out
 
 
 def test_synthea_with_a_concept_its_release_lacks_exits_two(tmp_path, caplog):

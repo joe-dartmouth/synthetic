@@ -3,13 +3,18 @@
 `docs/EVIDENCE.md` (E2) names these values and ADR `research/synthea-ablation-design` the ablation.
 No command-line flag changes a value here.
 
-A removal can only add gaps, and some cells hold fewer records than the threshold before any
-removal, so recovery is read from what the removal changed. For each detector the truth is the gaps
-the removed patients account for: the cells whose count fell, and the statements the removed
-patients' records ground by themselves, whether or not other patients ground them too. A truth gap
+Every detector reads the ablation's age bands: each gap definition of `bko.gaps.definitions` over
+(cell, statement) pairs on the age-sex cells, and the count-based detector over the age-sex-label
+cells. For each, the truth is the gaps the removed patients account for: for a definition, the
+pairs whose statement the removed patients of the cell ground, whether or not the cell's other
+patients ground it too; for the count-based detector, the cells whose count fell. A truth gap
 present before the removal is not eligible; an eligible gap present after it is recovered; a gap
-new after it and outside the truth is spurious, which neither detector can produce, so a spurious
-gap is a defect.
+after it that lies outside the truth is outside, and new outside when it was absent before; a gap
+present before it and absent after it vanished. Every ontology statement reads from one class, so
+under a removal of whole patients the per-subgroup definition and the count-based detector put no
+gap new outside the truth and lose none; population-level gaps hold in every cell, so they fall new
+outside the truth in the cells the removal never touched; the frequency-aware reference share moves
+with the removal, so its gaps can vanish.
 """
 
 from __future__ import annotations
@@ -26,9 +31,10 @@ from bko.datasets.ablation import DEFAULT_ABLATION, Ablation, AblationSpec, abla
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population
 from bko.datasets.synthea_run import DEFAULT_RUN
-from bko.gaps.detect import CellGap, Statement, count_gaps, detect, grounded
+from bko.gaps.definitions import Definition, StatementGap, gaps
+from bko.gaps.detect import CellGap, count_gaps, grounded
 from bko.gaps.errors import GapError
-from bko.gaps.observe import dataset_fragment, observe_population
+from bko.gaps.observe import Cells, dataset_fragment, population_cells
 from bko.ontology.schema import CodeMapping
 
 
@@ -46,8 +52,8 @@ E2_ABLATIONS: Final[Mapping[str, AblationSpec]] = MappingProxyType(
         ),
     }
 )
-"""E2's ablations, in report order: one cell, which other patients' records still ground for the
-BKO detector, and the whole condition, which they do not."""
+"""E2's ablations, in report order: one cell, whose statements other patients' records still ground
+for population-level grounding, and the whole condition, whose statements they do not."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,13 +64,17 @@ class Recovery:
         truth: The gaps the removed patients account for.
         eligible: The truth gaps absent before the removal.
         recovered: The eligible gaps present after it.
-        spurious: The gaps new after it and outside the truth.
+        outside: The gaps after it that lie outside the truth.
+        new_outside: Those of them absent before it.
+        vanished: The gaps present before it and absent after it.
     """
 
     truth: int
     eligible: int
     recovered: int
-    spurious: int
+    outside: int
+    new_outside: int
+    vanished: int
 
 
 def recovery(
@@ -77,20 +87,25 @@ def recovery(
         truth=len(true),
         eligible=len(eligible),
         recovered=len(eligible & now),
-        spurious=len(now - was - true),
+        outside=len(now - true),
+        new_outside=len(now - was - true),
+        vanished=len(was - now),
     )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class AblationRun:
-    """One ablation, read by both detectors.
+    """One ablation, read by every gap definition and the count-based detector.
 
     Attributes:
         name: The ablation's name in `E2_ABLATIONS`.
         ablation: The removal and its ground truth.
-        bko_before: The ungrounded statements before the removal.
-        bko_after: Those after it.
-        bko_truth: The statements the removed patients' records ground by themselves.
+        before_cells: The population before the removal, observed per age-sex cell.
+        after_cells: The population after it.
+        truth: The (cell, statement) pairs whose statement the removed patients of the cell ground,
+            in grid order.
+        before: Each definition's gaps before the removal; a read-only copy.
+        after: Each definition's gaps after it; a read-only copy.
         count_before: The underrepresented cells before the removal.
         count_after: Those after it.
         count_truth: The cells whose count fell, in grid order.
@@ -98,17 +113,35 @@ class AblationRun:
 
     name: str
     ablation: Ablation
-    bko_before: tuple[Statement, ...]
-    bko_after: tuple[Statement, ...]
-    bko_truth: tuple[Statement, ...]
+    before_cells: Cells
+    after_cells: Cells
+    truth: tuple[StatementGap, ...]
+    before: Mapping[Definition, tuple[StatementGap, ...]]
+    after: Mapping[Definition, tuple[StatementGap, ...]]
     count_before: tuple[CellGap, ...]
     count_after: tuple[CellGap, ...]
     count_truth: tuple[tuple[str, str, int], ...]
 
-    @property
-    def bko(self) -> Recovery:
-        """The BKO detector's reading."""
-        return recovery(self.bko_before, self.bko_after, self.bko_truth)
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "before", MappingProxyType(dict(self.before)))
+        object.__setattr__(self, "after", MappingProxyType(dict(self.after)))
+
+    def reading(self, definition: Definition) -> Recovery:
+        """`definition`'s reading of the removal."""
+        return recovery(self.before[definition], self.after[definition], self.truth)
+
+    def listed(self, definition: Definition) -> tuple[StatementGap, ...]:
+        """`definition`'s gaps before or after the removal and the truth, in grid order.
+
+        Each cell's statements are sorted; the grid is walked, never sorted, since band labels
+        sort out of order (`40-49` before `<40`).
+        """
+        union = {*self.before[definition], *self.after[definition], *self.truth}
+        return tuple(
+            StatementGap(cell, statement)
+            for cell in self.before_cells.each
+            for statement in sorted(gap.statement for gap in union if gap.cell == cell)
+        )
 
     @property
     def count(self) -> Recovery:
@@ -126,10 +159,11 @@ def run_ablation(
     spec: AblationSpec,
     fragments: Sequence[BKB],
     rows: Sequence[CodeMapping],
-    *,
-    bko_before: Sequence[Statement],
 ) -> AblationRun:
-    """Remove `spec`'s cases from `population` and read both detectors before and after.
+    """Remove `spec`'s cases from `population` and read every detector before and after.
+
+    Every reading uses `spec`'s age bands, so the definitions' cells and the count-based
+    detector's share a grid.
 
     Args:
         name: The ablation's name.
@@ -137,8 +171,6 @@ def run_ablation(
         spec: What to remove.
         fragments: The ontology fragments over the concepts `rows` map.
         rows: The code mappings.
-        bko_before: The statements `population` leaves ungrounded, which every ablation of it
-            shares, so the caller reads them once.
 
     Raises:
         DatasetError: As `ablate`.
@@ -148,21 +180,31 @@ def run_ablation(
     if ablation.kept.patients.empty:
         msg = f"the {name} ablation removes every patient, so no concept has a share after it"
         raise GapError(msg)
-    removed = _removed(population, ablation.removed)
+    before = population_cells(population, rows, name=SYNTHEA, edges=spec.edges)
+    after = population_cells(ablation.kept, rows, name=SYNTHEA, edges=spec.edges)
+    removed = population_cells(
+        _removed(population, ablation.removed), rows, name=SYNTHEA, edges=spec.edges
+    )
     return AblationRun(
         name=name,
         ablation=ablation,
-        bko_before=tuple(bko_before),
-        bko_after=detect(fragments, _fragment(ablation.kept, rows)),
-        bko_truth=grounded(fragments, _fragment(removed, rows)),
+        before_cells=before,
+        after_cells=after,
+        truth=_truth(fragments, removed),
+        before={definition: gaps(definition, fragments, before) for definition in Definition},
+        after={definition: gaps(definition, fragments, after) for definition in Definition},
         count_before=count_gaps(ablation.before),
         count_after=count_gaps(ablation.after),
         count_truth=_fallen(ablation.before, ablation.after),
     )
 
 
-def _fragment(population: Population, rows: Sequence[CodeMapping]) -> BKB:
-    return dataset_fragment(observe_population(population, rows, name=SYNTHEA))
+def _truth(fragments: Sequence[BKB], removed: Cells) -> tuple[StatementGap, ...]:
+    return tuple(
+        StatementGap(cell, statement)
+        for cell, records in removed.each.items()
+        for statement in grounded(fragments, dataset_fragment(records.observed))
+    )
 
 
 def _removed(population: Population, removed: pd.Index) -> Population:
