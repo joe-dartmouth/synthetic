@@ -83,16 +83,3 @@ links to where its blocker is tracked.
   `docs/DEVELOPMENT.md` (Ontologies), or a recorded decision to keep one code.
 
   **Trigger:** the first script or stage that calls the check and branches on its outcome.
-
-- **`cleanup:ontology/exact-match-scan-per-row`: each SNOMED-CT row scans the whole release.**
-  `_match_problem` in `src/bko/ontology/check.py` walks every MONDO term (63329 at release
-  2026-10-06) once per `CodeMapping` row to find other holders of the same `skos:exactMatch`. At
-  one row the whole check runs in seconds, most of it parsing. *Filed 2026-10-16 by the review of
-  PR #9.*
-
-  **Why deferred.** It costs nothing measurable at one row.
-
-  **What discharges it:** an index from each exact-match object to its live holders, built once
-  per release.
-
-  **Trigger:** a second `CodeMapping` row, which E2's ablation targets may add.

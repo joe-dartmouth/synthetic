@@ -20,6 +20,9 @@ from bko.ontology.terms import Ontology, ancestors
 
 type Table = Literal["field", "code", "out-of-scope"]
 
+type _Holders = Mapping[str, Mapping[str, tuple[str, ...]]]
+"""Per release prefix, each wanted `SCTID:` object to the live terms that carry it."""
+
 
 @dataclass(frozen=True, slots=True)
 class Verdict:
@@ -44,15 +47,26 @@ def check(rows: Iterable[ConceptRow], ontologies: Mapping[str, Ontology]) -> tup
     """Check each row, in order, against the ontology its concept's prefix names.
 
     An out-of-scope row also disagrees when its concept is an `is_a` ancestor of a concept another
-    of `rows` maps, since the scope rule puts every such ancestor in scope.
+    of `rows` maps, since the scope rule puts every such ancestor in scope. Each release's
+    `skos:exactMatch` holders are collected in one pass per call, however many `CodeMapping` rows
+    name its prefix.
     """
     rows = tuple(rows)
     mapped = frozenset(row.concept for row in rows if not isinstance(row, OutOfScope))
-    return tuple(_verdict(row, ontologies, mapped) for row in rows)
+    wanted: dict[str, set[str]] = {}
+    for row in rows:
+        if isinstance(row, CodeMapping):
+            wanted.setdefault(row.concept.partition(":")[0], set()).add(_target(row))
+    holders = {
+        prefix: _exact_holders(ontologies[prefix], frozenset(targets))
+        for prefix, targets in wanted.items()
+        if prefix in ontologies
+    }
+    return tuple(_verdict(row, ontologies, mapped, holders) for row in rows)
 
 
 def _verdict(
-    row: ConceptRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str]
+    row: ConceptRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str], holders: _Holders
 ) -> Verdict:
     table, subject = _describe(row)
     return Verdict(
@@ -60,7 +74,7 @@ def _verdict(
         subject=subject,
         concept=row.concept,
         label=row.label,
-        problem=_problem(row, ontologies, mapped),
+        problem=_problem(row, ontologies, mapped, holders),
     )
 
 
@@ -69,7 +83,7 @@ def _describe(row: ConceptRow) -> tuple[Table, str]:
         case FieldMapping(when=when):
             return "field", " and ".join(_clause(clause) for clause in when)
         case CodeMapping():
-            return "code", f"SCTID:{row.snomed}"
+            return "code", _target(row)
         case OutOfScope():
             return "out-of-scope", ""
         case _:
@@ -87,7 +101,7 @@ def _clause(clause: Clause) -> str:
 
 
 def _problem(
-    row: ConceptRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str]
+    row: ConceptRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str], holders: _Holders
 ) -> str | None:
     prefix = row.concept.partition(":")[0]
     ontology = ontologies.get(prefix)
@@ -105,7 +119,7 @@ def _problem(
         return f"named '{term.name}' in {where}"
     match row:
         case CodeMapping():
-            return _match_problem(row, ontology, where)
+            return _match_problem(row, ontology, where, holders[prefix])
         case OutOfScope():
             return _scope_problem(row, ontology, where, mapped)
         case FieldMapping():
@@ -128,15 +142,31 @@ def _scope_problem(
     return None
 
 
-def _match_problem(row: CodeMapping, ontology: Ontology, where: str) -> str | None:
-    exact = ("skos:exactMatch", f"SCTID:{row.snomed}")
-    if exact not in ontology.terms[row.concept].matches:
-        return f"{where} has no skos:exactMatch SCTID:{row.snomed} on {row.concept}"
-    others = [
-        curie
-        for curie, term in ontology.terms.items()
-        if curie != row.concept and not term.obsolete and exact in term.matches
-    ]
+def _target(row: CodeMapping) -> str:
+    return f"SCTID:{row.snomed}"
+
+
+def _exact_holders(ontology: Ontology, targets: frozenset[str]) -> Mapping[str, tuple[str, ...]]:
+    """For each of `targets`, the live terms with a `skos:exactMatch` to it, in term order."""
+    holders: dict[str, list[str]] = {}
+    for curie, term in ontology.terms.items():
+        if term.obsolete:
+            continue
+        for predicate, target in term.matches:
+            if predicate == "skos:exactMatch" and target in targets:
+                curies = holders.setdefault(target, [])
+                if not curies or curies[-1] != curie:
+                    curies.append(curie)
+    return {target: tuple(curies) for target, curies in holders.items()}
+
+
+def _match_problem(
+    row: CodeMapping, ontology: Ontology, where: str, holders: Mapping[str, tuple[str, ...]]
+) -> str | None:
+    target = _target(row)
+    if ("skos:exactMatch", target) not in ontology.terms[row.concept].matches:
+        return f"{where} has no skos:exactMatch {target} on {row.concept}"
+    others = [curie for curie in holders.get(target, ()) if curie != row.concept]
     if others:
-        return f"skos:exactMatch SCTID:{row.snomed} is also on {', '.join(others)}"
+        return f"skos:exactMatch {target} is also on {', '.join(others)}"
     return None
