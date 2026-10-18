@@ -1,9 +1,10 @@
 # Proposal: work-unit index
 
 **What this set is.** The work the 2-pager proposes, from the BKB layer to the final evaluation,
-split into units of one pull request each. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md),
-the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none), and owners follow
-2-pager section 6. Each unit's `milestone` names the ROADMAP heading it serves.
+and a guidance-level ablation of generation, split into units of one pull request each. The plan
+is [`docs/RESEARCH.md`](../docs/RESEARCH.md), the dates are in
+[`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none), and owners follow 2-pager
+section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 
 ## Graph and status
 
@@ -13,12 +14,14 @@ the dates are in [`docs/ROADMAP.md`](../docs/ROADMAP.md) (this file copies none)
 | [`proposal-fusion-repair`](proposal-fusion-repair.md) | blocked | proposal-llm-generation | Shirley | status-update-2 |
 | [`proposal-streamlit-app`](proposal-streamlit-app.md) | blocked | proposal-fusion-repair | Krish | working-prototype |
 | [`proposal-final-evaluation`](proposal-final-evaluation.md) | blocked | proposal-fusion-repair | Joe | final-report |
+| [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | blocked | proposal-final-evaluation | Shirley | final-report |
 
 ```mermaid
 flowchart LR
     llm_generation[proposal-llm-generation] --> fusion_repair[proposal-fusion-repair]
     fusion_repair[proposal-fusion-repair] --> streamlit_app[proposal-streamlit-app]
     fusion_repair[proposal-fusion-repair] --> final_evaluation[proposal-final-evaluation]
+    final_evaluation[proposal-final-evaluation] --> guidance_ablation[proposal-guidance-ablation]
 ```
 
 ## Where results go

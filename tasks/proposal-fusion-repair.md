@@ -7,7 +7,7 @@ blocks: proposal-streamlit-app, proposal-final-evaluation
 parallel_safe: true
 owner: Shirley
 milestone: status-update-2
-paid: false
+paid: true
 adrs: --
 ---
 
