@@ -6,13 +6,17 @@ names, and no stanza copies release content.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Final
 
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import LABEL
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
+from bko.ontology.obo import parse_obo
 from bko.ontology.schema import CodeMapping, Codes, FieldMapping
+from bko.ontology.terms import Ontology
 from tests._datasets_fixtures import condition, patient
+from tests._ontology_fixtures import write_obo
 
 
 LADDER_MONDO: Final = """\
@@ -72,6 +76,15 @@ name: Angina pectoris
 is_a: HP:9000002
 """
 """A three-step HPO-shaped chain."""
+
+
+def parse_ladders(directory: Path) -> dict[str, Ontology]:
+    """Both ladders, written to and parsed from `directory`, by concept prefix."""
+    return {
+        "HP": parse_obo(write_obo(directory, LADDER_HPO, "hp.obo"), name="hpo"),
+        "MONDO": parse_obo(write_obo(directory, LADDER_MONDO, "mondo.obo"), name="mondo"),
+    }
+
 
 ANGINA: Final = FieldMapping(
     when=(Codes("cp", frozenset({1})),),

@@ -76,9 +76,8 @@ the shares are read only by the frequency-aware score (ADR `research/frequency-a
 ## Enforcement
 
 - Owner: `src/bko/gaps/observe.py`
-- Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`
-- `tasks/proposal-gap-definitions.md` builds the per-cell fragments; the tests it adds then join the
-  list above.
+- Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`,
+  `tests/test_gaps_definitions.py`
 
 ## Reversal Conditions
 

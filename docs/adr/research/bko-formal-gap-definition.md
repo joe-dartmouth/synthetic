@@ -119,10 +119,8 @@ cell of n records, the chance the frequency-aware score weighs.
 ## Enforcement
 
 - Owner: `src/bko/gaps/`
-- Pinned by: `tests/test_gaps_detect.py`, `tests/test_gaps_cli.py`,
-  `tests/test_gaps_experiment.py`
-- `tasks/proposal-gap-definitions.md` builds the per-subgroup and frequency-aware definitions; the
-  tests it adds then join the list above.
+- Pinned by: `tests/test_gaps_detect.py`, `tests/test_gaps_definitions.py`,
+  `tests/test_gaps_cli.py`, `tests/test_gaps_experiment.py`
 
 ## Reversal Conditions
 

@@ -96,9 +96,7 @@ group, which per-subgroup grounding and the count-based detector catch.
 ## Enforcement
 
 - Owner: `src/bko/gaps/`
-- Pinned by: nothing -- convention only
-- `tasks/proposal-gap-definitions.md` builds the score; the tests it adds then replace the line
-  above.
+- Pinned by: `tests/test_gaps_definitions.py`, `tests/test_gaps_experiment.py`
 
 ## Reversal Conditions
 

@@ -87,6 +87,7 @@ app = [
 data = [
     { name = "numpy" },
     { name = "pandas" },
+    { name = "scipy" },
 ]
 dev = [
     { name = "coverage" },
@@ -128,6 +129,7 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.8" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.17.0" },
     { name = "scikit-learn", marker = "extra == 'eval'", specifier = ">=1.9" },
+    { name = "scipy", marker = "extra == 'data'", specifier = ">=1.18" },
     { name = "scipy", marker = "extra == 'eval'", specifier = ">=1.18" },
     { name = "sdmetrics", marker = "extra == 'eval'", specifier = ">=0.32" },
     { name = "sdv", marker = "extra == 'synth'", specifier = ">=1.38" },
