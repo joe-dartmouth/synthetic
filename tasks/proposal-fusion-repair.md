@@ -29,6 +29,9 @@ reliability each, and refuses a fused BKB as a fragment (ADR `research/bkb-layer
 - Fuse validated records back into the BKO and re-run gap detection under each definition of ADR
   `research/bko-formal-gap-definition`, counting each one's closed (cell, statement) pairs; the
   completeness criterion reads the per-subgroup count.
+- Run completeness on its own request, as ADR `research/bko-formal-gap-definition` (Decision,
+  Completeness) states: 20 rows for each cell holding a per-subgroup gap in the default training
+  split, the validated records joining their cell's records before detection runs again.
 
 **Out.** The downstream prediction comparison.
 

@@ -40,8 +40,9 @@ Disease has no BKO gap for generation to target or for the completeness criterio
 
 ## Acceptance
 
-- `docs/EVIDENCE.md` (E2) states its reading over (cell, statement) pairs and records each
-  definition's recovery under both ablations, from one committed command.
+- `docs/EVIDENCE.md` (E2) states its reading over (cell, statement) pairs and records, for each
+  definition under both ablations, its recovered gaps and its gaps outside the truth, from one
+  committed command.
 - `bko.gaps` returns a dataset's (cell, statement) gaps under a named definition, the input
   `proposal-llm-generation` takes.
 - `make check`.

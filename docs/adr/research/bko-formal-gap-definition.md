@@ -59,6 +59,10 @@ All three read the same cells and are compared in the same places:
 - **Where they are compared**: E2 scores each definition against the (cell, statement) pairs the
   removed patients ground by themselves within their cell; E1 runs one BKO arm per definition
   (ADR `research/e1-evaluation-protocol`).
+- **Completeness**: its own request, not E1's. Each UCI cell holding a per-subgroup gap in the
+  default training split is asked for 20 rows, the threshold of `docs/RESEARCH.md` section 2. The
+  generated records that pass validation join their cell's records, and a gap closes when that
+  cell's fragment then grounds it.
 
 ## Rationale
 
@@ -82,7 +86,9 @@ in E2's `cell` ablation the remaining patients still ground every statement the 
 definition: population-level grounding sees only absence everywhere, and the frequency-aware score
 sees rare support but never an empty cell. A cell of one label lacks the other label's
 concepts by construction, so counting their statements would fill every UCI cell without disease
-with gaps no generation should close. Synthea's E2 cells carry no label because the label there is
+with gaps no generation should close. Completeness asks for every cell that holds a gap because E1's
+count-based request fills only cells with disease under the threshold, so a gap elsewhere could
+never close and the criterion would measure the request rather than the generation. Synthea's E2 cells carry no label because the label there is
 the removed condition, whose statements are the truth E2 asks a detector to find.
 
 ## Consequences
@@ -103,6 +109,7 @@ size, which the count-based detector already flags; E1's paid generation runs on
 |------|---------------|------|
 | Coverage score with a Dirichlet prior as the gap definition | Rests on the premise that BKOs are not an established formalism, which Santos et al. contradicts; its threshold and prior are free choices. Kept as the count-based comparison; a coverage-style score with a Beta posterior runs as an ablation (ADR `research/frequency-aware-gap-score`) | 2026-10-13 |
 | PR-OWL / MEBN implementation | Heavyweight, with no maintained tooling; BKOs are the formalism the proposal builds on | 2026-10-13 |
+| Counting completeness over E1's count-based request | Holds gaps in cells it never fills, which cannot close | 2026-10-17 |
 | Population-level grounding as the primary definition | Grounds a statement once any record anywhere shows its concept: no gap on UCI Heart Disease, and none of E2's `cell` ablation | 2026-10-17 |
 
 ## Enforcement
@@ -120,9 +127,10 @@ fused MONDO, HPO and dataset fragments by [Status Update 1](../../ROADMAP.md#sta
 E2 in [`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) records whether it
 ran. The count-based definition then becomes primary and this record is rewritten.
 
-**Population-level grounding becomes the primary definition if E2 records per-subgroup grounding
-recovering fewer eligible gaps than it under either ablation**;
-[`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) records both.
+**Population-level grounding becomes the primary definition if E2 records more per-subgroup gaps
+outside the truth than recovered ones under the `cell` ablation**;
+[`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) records both
+counts.
 
 ## Related
 
