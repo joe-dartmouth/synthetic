@@ -11,10 +11,11 @@ from __future__ import annotations
 from typing import Final
 
 from bko.datasets.cells import LABEL, LABEL_MEANINGS, SEXES
-from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS, NUMERIC
-from bko.generate.guidance import Guidance
+from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRACTIONAL, FRAME_COLUMNS, NUMERIC
+from bko.generate.guidance import Basis, Finding, Guidance, Relationship
 from bko.generate.messages import Level, reaches
 from bko.ontology.mapping import RANGES
+from bko.ontology.schema import Clause, Codes, FieldMapping
 
 
 UNITS: Final = {
@@ -31,6 +32,24 @@ COHERENCE: Final = (
     "age and sex together."
 )
 """The sentence the `coherent` level adds."""
+
+BASES: Final = {
+    Basis.ABSENT: (
+        "No record of this group in the training data shows the findings below. At least one "
+        "record should show each; otherwise keep each as frequent as is clinically plausible for "
+        "this group."
+    ),
+    Basis.RARE: (
+        "The findings below are rarer in this group than among comparable patients. Show each "
+        "about as often as among comparable patients, as far as is clinically plausible for this "
+        "group."
+    ),
+    Basis.SHOWN: (
+        "Records of this group show the findings below; not every record shows each. Keep each "
+        "as frequent as is clinically plausible for this group."
+    ),
+}
+"""The sentence opening the `findings` block, by why the findings were chosen."""
 
 _FIELD_UNITS: Final = {bound.field: UNITS[bound.unit] for bound in RANGES}
 
@@ -53,6 +72,52 @@ def _column(name: str) -> str:
         shown = "" if DESCRIPTIONS[name].endswith(unit) else f"{unit}, "
         details = f"; {shown}plausible from {bound.low:g} to {bound.high:g}"
     return f"- {name}: {DESCRIPTIONS[name]}{details}"
+
+
+def _alternatives(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
+
+
+def _clause(clause: Clause) -> str:
+    if isinstance(clause, Codes):
+        codes = sorted(clause.codes)
+        meanings = _codes(clause.field)
+        shown = ", ".join(meanings[code] for code in codes)
+        return f"{clause.field} is {_alternatives([str(code) for code in codes])} ({shown})"
+    value = f"{clause.value:.1f}" if clause.field in FRACTIONAL else f"{clause.value:g}"
+    return f"{clause.field} is at least {value} {_FIELD_UNITS[clause.field]}"
+
+
+def _state(row: FieldMapping) -> str:
+    return " and ".join(_clause(clause) for clause in row.when)
+
+
+def _bottom_up(relationships: tuple[Relationship, ...]) -> list[Relationship]:
+    """Order `relationships` lowest class first, each level in its stored order.
+
+    A relationship is placed once no remaining one concludes its antecedent. `is_a` is acyclic,
+    but if what remains forms a cycle it is placed whole, in stored order, so the loop ends.
+    """
+    pending = list(relationships)
+    ordered: list[Relationship] = []
+    while pending:
+        above = {one.statement.consequent for one in pending}
+        lowest = [one for one in pending if one.statement.antecedent not in above] or pending
+        ordered += lowest
+        pending = [one for one in pending if one not in lowest]
+    return ordered
+
+
+def _finding(finding: Finding, *, chains: bool) -> str:
+    states = " or ".join(_state(row) for row in finding.states)
+    labels = ", ".join(dict.fromkeys(row.label for row in finding.states))
+    line = f"- {states} ({labels})"
+    if chains:
+        line += ": " + "; ".join(
+            f"{one.antecedent} is a kind of {one.consequent}"
+            for one in _bottom_up(finding.relationships)
+        )
+    return line
 
 
 def _system() -> str:
@@ -106,4 +171,8 @@ def render(guidance: Guidance, rows: int, level: Level) -> tuple[str, str]:
     ]
     if reaches(level, Level.COHERENT):
         parts.append(COHERENCE)
+    if reaches(level, Level.FINDINGS) and guidance.basis is not Basis.NONE and guidance.findings:
+        chains = reaches(level, Level.ONTOLOGY)
+        lines = [_finding(finding, chains=chains) for finding in guidance.findings]
+        parts.append("\n".join([BASES[guidance.basis], *lines]))
     return SYSTEM, "\n\n".join(parts)

@@ -71,6 +71,20 @@ ladder.**
   - `ontology`: their `is_a` chains, the default;
   - `profile`: the reference group's concept shares;
   - `summary`: the reference group's numeric spreads.
+- **The findings.** `bko.generate.guidance.guide` reads a cell's findings from its gaps under the
+  run's definition (ADR [`research/bko-formal-gap-definition`](bko-formal-gap-definition.md)).
+  A cell with no gap is guided by the statements its own records ground, and a cell with neither
+  gets no findings. Each statement maps to the mapping rows that can ground it: those whose
+  concept is its antecedent or descends from it, and that admit the cell's label. Statements
+  reached by the same rows form one finding, named by those rows' field states, so a record that
+  meets one of a finding's states grounds every statement listed under it. A statement no
+  compatible row reaches is dropped with a WARNING. A statement reached by a compatible row that
+  reads only the label is skipped without a warning: the schema pins the cell's label, so every record
+  already meets that row and grounds the statement. The wording follows the basis:
+  - absent, for per-subgroup and population-level gaps: no training record of the group shows the
+    finding;
+  - rare, for frequency-aware gaps: the finding is rarer than among comparable patients;
+  - shown, for a cell with no gap: the group's records show the finding.
 - **What every level sends:**
   - each field's meaning, codes and unit;
   - each numeric field's plausible range from `RANGES`, with age clipped to the cell's band;
@@ -145,6 +159,8 @@ cut mid-value and the stop already says the call failed.
 | One fixed prompt | No ablation axis | 2026-10-18 |
 | Four guidance levels | Cannot separate the `is_a` chains from the findings, or coherence from the cell | 2026-10-18 |
 | The training split's minimum and maximum as the ranges | The prompt states what is possible, not what the data holds | 2026-10-18 |
+| Findings from the `is_a` edges of a cell's shown concepts only | A gap's statement names what the records lack, which the shown concepts' edges never reach | 2026-10-18 |
+| Findings from the whole dataset's concepts | They describe other groups, not the cell asked for | 2026-10-18 |
 | Few-shot rows | A copied record fails E1's privacy share | 2026-10-18 |
 | `None` as the placeholder | Collides with a decoded `null` (Rationale) | 2026-10-18 |
 | Salvaging truncated output | Its last records may be cut mid-value (Rationale) | 2026-10-18 |
@@ -154,7 +170,8 @@ cut mid-value and the stop already says the call failed.
 - Owner: `src/bko/generate/`
 - Pinned by: `tests/test_generate_messages.py`, `tests/test_generate_api.py`,
   `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
-  `tests/test_generate_decode.py`, `tests/test_generate_contract.py`
+  `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
+  `tests/test_generate_guidance.py`
 
 ## Reversal Conditions
 

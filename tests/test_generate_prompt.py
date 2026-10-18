@@ -1,15 +1,19 @@
-"""The prompt: the system text every level shares, and the user text of the first two levels."""
+"""The prompt: the system text every level shares, and the user text of each level built so far."""
 
 from __future__ import annotations
+
+import dataclasses
 
 import pytest
 
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS
-from bko.generate.guidance import Guidance, intervals
+from bko.gaps.detect import Statement
+from bko.generate.guidance import Basis, Finding, Guidance, Relationship, intervals
 from bko.generate.messages import Level
 from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render
-from bko.ontology.mapping import RANGES
+from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
+from bko.ontology.schema import FieldMapping
 from tests._generate_fixtures import GUIDANCE
 
 
@@ -90,3 +94,125 @@ def test_intervals_clip_age_to_the_band_within_the_plausible_range():
 
 def test_rendering_is_deterministic():
     assert render(GUIDANCE, 2, Level.SUMMARY) == render(GUIDANCE, 2, Level.SUMMARY)
+
+
+def _row(concept: str, field: str) -> FieldMapping:
+    """The mapping table's row of `concept` that reads `field`."""
+    (row,) = (
+        row
+        for row in FIELD_MAPPINGS
+        if row.concept == concept and any(clause.field == field for clause in row.when)
+    )
+    return row
+
+
+ANGINA_HISTORY = _row("HP:0001681", "cp")
+ANGINA_EXERTION = _row("HP:0001681", "exang")
+CHOLESTEROL = _row("HP:0003124", "chol")
+ST_DEPRESSION = _row("HP:0012250", "oldpeak")
+CALCIFICATION = _row("HP:0001717", "ca")
+
+CHAIN = (
+    Relationship(Statement("hpo", "HP:0001681", "HP:0011675"), "Angina pectoris", "Arrhythmia"),
+    Relationship(Statement("hpo", "HP:0011675", "HP:0001626"), "Arrhythmia", "Heart disease"),
+)
+"""Two statements with invented parents: the renderer takes labels as given."""
+
+FINDINGS = (
+    Finding((ANGINA_HISTORY, ANGINA_EXERTION), CHAIN),
+    Finding((CHOLESTEROL,), (CHAIN[1],)),
+    Finding((ST_DEPRESSION, CALCIFICATION), (CHAIN[0],)),
+)
+
+FINDING_LINES = (
+    "- cp is 1 (typical angina) or exang is 1 (exercise induced angina) (Angina pectoris)",
+    "- chol is at least 240 mg/dL (Hypercholesterolemia)",
+    (
+        "- oldpeak is at least 1.0 mm and slope is 2 or 3 (flat, downsloping) or ca is 1, 2 or 3 "
+        "(1 major vessel, 2 major vessels, 3 major vessels) (ST segment depression, Coronary "
+        "artery calcification)"
+    ),
+)
+
+SENTENCES = {
+    Basis.ABSENT: (
+        "No record of this group in the training data shows the findings below. At least one "
+        "record should show each; otherwise keep each as frequent as is clinically plausible for "
+        "this group."
+    ),
+    Basis.RARE: (
+        "The findings below are rarer in this group than among comparable patients. Show each "
+        "about as often as among comparable patients, as far as is clinically plausible for this "
+        "group."
+    ),
+    Basis.SHOWN: (
+        "Records of this group show the findings below; not every record shows each. Keep each "
+        "as frequent as is clinically plausible for this group."
+    ),
+}
+
+
+def _found(basis: Basis) -> Guidance:
+    return dataclasses.replace(GUIDANCE, basis=basis, findings=FINDINGS)
+
+
+def test_the_findings_level_renders_field_states_with_code_meanings_units_and_concept_labels():
+    _, coherent = render(_found(Basis.ABSENT), 2, Level.COHERENT)
+    _, findings = render(_found(Basis.ABSENT), 2, Level.FINDINGS)
+    assert findings.startswith(coherent)
+    added = findings.removeprefix(coherent).strip()
+    assert added.splitlines() == [SENTENCES[Basis.ABSENT], *FINDING_LINES]
+
+
+@pytest.mark.parametrize("basis", list(SENTENCES))
+def test_each_basis_has_its_own_wording(basis):
+    _, user = render(_found(basis), 2, Level.FINDINGS)
+    assert SENTENCES[basis] in user
+    assert [other for other in SENTENCES.values() if other in user] == [SENTENCES[basis]]
+
+
+def test_the_ontology_level_adds_each_findings_is_a_chain():
+    _, findings = render(_found(Basis.SHOWN), 2, Level.FINDINGS)
+    _, ontology = render(_found(Basis.SHOWN), 2, Level.ONTOLOGY)
+    chained = (
+        (
+            f"{FINDING_LINES[0]}: Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind "
+            "of Heart disease"
+        ),
+        f"{FINDING_LINES[1]}: Arrhythmia is a kind of Heart disease",
+        f"{FINDING_LINES[2]}: Angina pectoris is a kind of Arrhythmia",
+    )
+    assert findings.splitlines()[-3:] == list(FINDING_LINES)
+    assert ontology.splitlines() == [*findings.splitlines()[:-3], *chained]
+
+
+def test_basis_none_omits_the_findings_block():
+    _, coherent = render(_found(Basis.NONE), 2, Level.COHERENT)
+    for level in (Level.FINDINGS, Level.ONTOLOGY):
+        assert render(_found(Basis.NONE), 2, level)[1] == coherent
+    shown_without = dataclasses.replace(GUIDANCE, basis=Basis.SHOWN)
+    assert render(shown_without, 2, Level.ONTOLOGY)[1] == coherent
+
+
+def test_the_is_a_chain_reads_from_the_lowest_class_up_whatever_the_stored_order():
+    top_down = dataclasses.replace(
+        GUIDANCE, basis=Basis.SHOWN, findings=(Finding((ANGINA_HISTORY,), CHAIN[::-1]),)
+    )
+    _, user = render(top_down, 2, Level.ONTOLOGY)
+    assert user.splitlines()[-1] == (
+        "- cp is 1 (typical angina) (Angina pectoris): Angina pectoris is a kind of Arrhythmia; "
+        "Arrhythmia is a kind of Heart disease"
+    )
+
+
+def test_a_cyclic_chain_is_rendered_whole_in_stored_order():
+    back = Relationship(
+        Statement("hpo", "HP:0011675", "HP:0001681"), "Arrhythmia", "Angina pectoris"
+    )
+    cyclic = dataclasses.replace(
+        GUIDANCE, basis=Basis.SHOWN, findings=(Finding((ANGINA_HISTORY,), (CHAIN[0], back)),)
+    )
+    _, user = render(cyclic, 2, Level.ONTOLOGY)
+    assert user.splitlines()[-1].endswith(
+        ": Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind of Angina pectoris"
+    )

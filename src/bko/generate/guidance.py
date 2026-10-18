@@ -7,16 +7,23 @@ concept shares and numeric spreads. ADR `research/record-generation-design` reco
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import logging
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
-from bko.datasets.cells import AGE_BAND_EDGES, age_band_labels
+from bko.bkb.structure import BKB
+from bko.datasets.cells import AGE_BAND_EDGES, LABEL, SEXES, age_band_labels
 from bko.datasets.uci import NUMERIC
-from bko.gaps.detect import Statement
-from bko.gaps.observe import Cell
-from bko.ontology.mapping import RANGES
-from bko.ontology.schema import FieldMapping
+from bko.gaps.definitions import Definition, StatementGap
+from bko.gaps.detect import Statement, grounded
+from bko.gaps.observe import Cell, Cells, cell_key, dataset_fragment
+from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
+from bko.ontology.schema import Codes, FieldMapping
+from bko.ontology.terms import Ontology, ancestors
+
+
+logger = logging.getLogger(__name__)
 
 
 class Basis(StrEnum):
@@ -154,3 +161,138 @@ def intervals(cell: Cell, edges: Sequence[int] = AGE_BAND_EDGES) -> dict[str, tu
         high = min(high, edges[band] - 1)
     bounds["age"] = (low, high)
     return {name: bounds[name] for name in NUMERIC}
+
+
+def guide(
+    cells: Cells,
+    found: Iterable[StatementGap],
+    *,
+    definition: Definition,
+    fragments: Sequence[BKB],
+    ontologies: Mapping[str, Ontology],
+    rows: Sequence[FieldMapping] = FIELD_MAPPINGS,
+    edges: Sequence[int] = AGE_BAND_EDGES,
+) -> dict[Cell, Guidance]:
+    """Each cell's guidance: its gaps under `definition`, else what its records ground, else none.
+
+    A statement maps to the rows of `rows` that can ground it: those whose concept is its
+    antecedent or descends from it, and that admit the cell's label. Statements reached by the
+    same rows form one finding; a statement no such row reaches is dropped with a WARNING. A
+    statement a row reading only the label reaches is skipped, since the schema pins the label and
+    every record meets that row.
+
+    Args:
+        cells: The training split, observed whole and per cell.
+        found: The dataset's gaps under `definition`, in any order.
+        definition: The definition `found` was read under; frequency-aware gaps are rare, the
+            others absent.
+        fragments: The ontology fragments the gaps were read against.
+        ontologies: The loaded release for each concept prefix.
+        rows: The field mappings.
+        edges: Age band starts.
+
+    Returns:
+        One guidance per cell, in grid order.
+
+    Raises:
+        ValueError: If a gap's cell is not in `cells`, a cell carries no label, or a row's prefix
+            has no release.
+    """
+    by_cell: dict[Cell, list[Statement]] = {}
+    for gap in found:
+        if gap.cell not in cells.each:
+            msg = f"gap cell {gap.cell!r} is not in the grid"
+            raise ValueError(msg)
+        by_cell.setdefault(gap.cell, []).append(gap.statement)
+    reach = [_reach(row, ontologies) for row in rows]
+    sexes = {meaning: code for code, meaning in SEXES.items()}
+    basis = Basis.RARE if definition is Definition.FREQUENCY else Basis.ABSENT
+    guided: dict[Cell, Guidance] = {}
+    for cell, records in cells.each.items():
+        if records.label is None:
+            msg = f"cell {cell!r} carries no label"
+            raise ValueError(msg)
+        if cell in by_cell:
+            why, chosen = basis, set(by_cell[cell])
+        elif records.observed.held:
+            why, chosen = Basis.SHOWN, grounded(fragments, dataset_fragment(records.observed))
+        else:
+            why, chosen = Basis.NONE, ()
+        guided[cell] = Guidance(
+            cell=cell,
+            sex=sexes[str(cell[1])],
+            label=records.label,
+            records=records.observed.records,
+            interval=intervals(cell, edges),
+            basis=why,
+            findings=_findings(cell, records.label, chosen, rows, reach, ontologies),
+        )
+    return guided
+
+
+def _reach(row: FieldMapping, ontologies: Mapping[str, Ontology]) -> frozenset[str]:
+    """The classes a record meeting `row` shows: its concept and the concept's ancestors."""
+    prefix = row.concept.partition(":")[0]
+    if prefix not in ontologies:
+        msg = f"row {row.concept} has no release for prefix {prefix}"
+        raise ValueError(msg)
+    return frozenset({row.concept}) | ancestors(ontologies[prefix], row.concept, prefix=prefix)
+
+
+def _admits(row: FieldMapping, label: int) -> bool:
+    return all(
+        clause.holds(label)
+        for clause in row.when
+        if isinstance(clause, Codes) and clause.field == LABEL
+    )
+
+
+def _label_only(row: FieldMapping) -> bool:
+    """Whether `row` reads only the label, which the schema pins, so every record meets it."""
+    return all(isinstance(clause, Codes) and clause.field == LABEL for clause in row.when)
+
+
+def _findings(
+    cell: Cell,
+    label: int,
+    chosen: Collection[Statement],
+    rows: Sequence[FieldMapping],
+    reach: Sequence[frozenset[str]],
+    ontologies: Mapping[str, Ontology],
+) -> tuple[Finding, ...]:
+    """Group `chosen` by the rows admitting `label` that reach each, in `rows` order."""
+    grouped: dict[tuple[int, ...], list[Statement]] = {}
+    for statement in sorted(chosen):
+        reached = tuple(
+            index
+            for index, row in enumerate(rows)
+            if statement.antecedent in reach[index] and _admits(row, label)
+        )
+        if not reached:
+            logger.warning("unreached cell=%s statement=%s", cell_key(cell), statement)
+            continue
+        if any(_label_only(rows[index]) for index in reached):
+            logger.debug("pinned cell=%s statement=%s", cell_key(cell), statement)
+            continue
+        grouped.setdefault(reached, []).append(statement)
+    return tuple(
+        Finding(
+            states=tuple(rows[index] for index in reached),
+            relationships=tuple(
+                Relationship(
+                    statement,
+                    _label(statement.antecedent, ontologies),
+                    _label(statement.consequent, ontologies),
+                )
+                for statement in statements
+            ),
+        )
+        for reached, statements in sorted(grouped.items())
+    )
+
+
+def _label(curie: str, ontologies: Mapping[str, Ontology]) -> str:
+    """The class's name in its release, or its curie when the release has none."""
+    ontology = ontologies.get(curie.partition(":")[0])
+    term = ontology.terms.get(curie) if ontology is not None else None
+    return term.name if term is not None and term.name else curie
