@@ -11,6 +11,7 @@ from bko.datasets.uci import (
     CATEGORICAL,
     CODEBOOK,
     COLUMNS,
+    DESCRIPTIONS,
     FEATURES,
     FRAME_COLUMNS,
     FRAME_DTYPES,
@@ -188,3 +189,10 @@ def test_the_frame_constants_describe_the_evaluation_frame():
     frame = complete_records(parse_cleveland(cleveland_line() + "\n"))
     assert list(frame.columns) == list(FRAME_COLUMNS)
     assert frame.dtypes.astype(str).to_dict() == dict(FRAME_DTYPES)
+
+
+def test_every_frame_column_has_a_description():
+    assert set(DESCRIPTIONS) == set(FRAME_COLUMNS)
+    for name, text in DESCRIPTIONS.items():
+        assert text.strip(), name
+        assert " = " not in text, name

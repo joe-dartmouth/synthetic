@@ -73,6 +73,29 @@ CODEBOOK: Final[Mapping[str, Mapping[int, str]]] = {
 }
 """Each coded predictor's codes and meanings, from the archive's `heart-disease.names`."""
 
+DESCRIPTIONS: Final[Mapping[str, str]] = {
+    "age": "age in years",
+    "sex": "sex",
+    "cp": "chest pain type",
+    "trestbps": "resting blood pressure (in mm Hg on admission to the hospital)",
+    "chol": "serum cholestoral in mg/dl",
+    "fbs": "fasting blood sugar > 120 mg/dl",
+    "restecg": "resting electrocardiographic results",
+    "thalach": "maximum heart rate achieved",
+    "exang": "exercise induced angina",
+    "oldpeak": "ST depression induced by exercise relative to rest",
+    "slope": "the slope of the peak exercise ST segment",
+    "ca": "number of major vessels (0-3) colored by flourosopy",
+    "thal": "thallium scintigraphy result",
+    "target": "diagnosis of heart disease (angiographic disease status)",
+}
+"""What each frame column records: the archive's `heart-disease.names` text before its code list.
+
+`thal` has only codes there, so its text reads it as Detrano's Cleveland Clinic protocol does
+(`detrano-1985b`), as its row in `bko.ontology.mapping` does. `target` takes the text of `num`,
+which it collapses.
+"""
+
 NUM_CODES: Final = frozenset(range(5))
 """`num` runs from 0 (no disease) to 4."""
 

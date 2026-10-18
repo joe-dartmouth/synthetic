@@ -13,6 +13,8 @@ import pytest
 from bko.datasets.cells import (
     AGE_BAND_EDGES,
     COUNT_COLUMNS,
+    LABEL_CODES,
+    LABEL_MEANINGS,
     UNDERREPRESENTED_BELOW,
     age_band_labels,
     cell_counts,
@@ -231,3 +233,8 @@ def test_a_duplicate_record_id_is_refused():
     frame.index = pd.Index([1, 1, 2], name="record_id")
     with pytest.raises(ValueError, match="unique record index"):
         split(frame)
+
+
+def test_the_label_codes_have_meanings():
+    assert set(LABEL_MEANINGS) == set(LABEL_CODES)
+    assert all(meaning.strip() for meaning in LABEL_MEANINGS.values())

@@ -1,0 +1,109 @@
+"""The prompt: one system text every call shares, and a user turn built up the guidance ladder.
+
+The system text names every column with its meaning, its codes or its unit and plausible range,
+and asks for new patients. The user turn states the cell and the record count, then adds one
+component per level reached. No prompt holds a record. ADR `research/record-generation-design`
+records what each level sends.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+from bko.datasets.cells import LABEL, LABEL_MEANINGS, SEXES
+from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS, NUMERIC
+from bko.generate.guidance import Guidance
+from bko.generate.messages import Level, reaches
+from bko.ontology.mapping import RANGES
+
+
+UNITS: Final = {
+    "a": "years",
+    "mm[Hg]": "mm Hg",
+    "mg/dL": "mg/dL",
+    "/min": "beats per minute",
+    "mm": "mm",
+}
+"""Each `RANGES` UCUM unit as the prompt writes it."""
+
+COHERENCE: Final = (
+    "Keep each record clinically coherent: its values should fit the patient's disease status, "
+    "age and sex together."
+)
+"""The sentence the `coherent` level adds."""
+
+_FIELD_UNITS: Final = {bound.field: UNITS[bound.unit] for bound in RANGES}
+
+
+def _codes(name: str) -> dict[int, str]:
+    if name == "sex":
+        return dict(SEXES)
+    if name == LABEL:
+        return dict(LABEL_MEANINGS)
+    return dict(CODEBOOK.get(name, {}))
+
+
+def _column(name: str) -> str:
+    codes = _codes(name)
+    if codes:
+        details = "".join(f"; {code} = {meaning}" for code, meaning in codes.items())
+    else:
+        bound = next(bound for bound in RANGES if bound.field == name)
+        unit = UNITS[bound.unit]
+        shown = "" if DESCRIPTIONS[name].endswith(unit) else f"{unit}, "
+        details = f"; {shown}plausible from {bound.low:g} to {bound.high:g}"
+    return f"- {name}: {DESCRIPTIONS[name]}{details}"
+
+
+def _system() -> str:
+    lines = [
+        (
+            "You write synthetic patient records for a study of heart-disease prediction. Each "
+            "record is one adult patient referred for coronary angiography. Invent new patients; "
+            "do not reproduce records from any published dataset."
+        ),
+        "",
+        "Each record has these fields:",
+        *(_column(name) for name in FRAME_COLUMNS),
+        "",
+        (
+            "Whole numbers except oldpeak, which has one decimal place. Every value must be "
+            "plausible for a real patient."
+        ),
+    ]
+    return "\n".join(lines)
+
+
+SYSTEM: Final = _system()
+"""The system prompt of every call."""
+
+
+def render(guidance: Guidance, rows: int, level: Level) -> tuple[str, str]:
+    """Render one call's prompt.
+
+    Args:
+        guidance: What the request says about the cell.
+        rows: The records the call asks for.
+        level: The guidance level; each component up to it is rendered, in ladder order.
+
+    Returns:
+        The system prompt and the user turn.
+    """
+    low, high = guidance.interval["age"]
+    within = "; ".join(
+        f"{name} {guidance.interval[name][0]:g} to {guidance.interval[name][1]:g} "
+        f"{_FIELD_UNITS[name]}"
+        for name in NUMERIC
+    )
+    parts = [
+        (
+            f"Write exactly {rows} records of patients in this group: sex {guidance.sex} "
+            f"({SEXES[guidance.sex]}), target {guidance.label} "
+            f"({LABEL_MEANINGS[guidance.label]}), age {low:g} to {high:g} years. The training "
+            f"data holds {guidance.records} records of this group."
+        ),
+        f"Keep each numeric field within: {within}.",
+    ]
+    if reaches(level, Level.COHERENT):
+        parts.append(COHERENCE)
+    return SYSTEM, "\n\n".join(parts)

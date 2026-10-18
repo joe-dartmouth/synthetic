@@ -35,3 +35,22 @@ passes close enough to pay it.
 `tests/test_cleanup_backlog.py` enforces the key form, the topic set, unique keys, that every cited
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
+
+## evaluate
+
+- **`cleanup:evaluate/bko-arms-reproduce-from-log`: a BKO arm's rows cannot be redrawn from a
+  seed.** `docs/adr/research/e1-evaluation-protocol.md:26` says "Must reproduce from seeds on one
+  machine", but the Messages API takes no seed parameter (ADR `research/record-generation-design`,
+  Consequences). *Filed 2026-10-18 by `proposal-llm-generation`.*
+  **Why deferred.** E1's protocol belongs to `proposal-final-evaluation`.
+  **What discharges it:** E1's protocol states how a BKO arm's judged statistics reproduce.
+  **Trigger:** `proposal-final-evaluation`.
+- **`cleanup:evaluate/generated-copies-of-test-records`: a generated copy of a holdout's test
+  record joins training unseen.** A model may reproduce a public Cleveland record. If it
+  reproduces a holdout's test record, that record joins training, and utility is then read on a
+  record the classifier trained on. E1's privacy measure reads distance to the training rows only
+  (`docs/adr/research/e1-evaluation-protocol.md:72-74`). *Filed 2026-10-18 by
+  `proposal-llm-generation`.*
+  **Why deferred.** E1's measures belong to `proposal-final-evaluation`.
+  **What discharges it:** `bko.evaluate` counts added rows equal to a test record.
+  **Trigger:** `proposal-final-evaluation`.
