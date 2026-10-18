@@ -274,9 +274,12 @@ inside `.venv`:
   identity (the split or the population, the parser and each release), each ontology fragment's
   size, how many records show each mapped concept, each cell's record count, held-concept count
   and assumed concepts, each concept the frequency-aware definition flags with its counts and
-  posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts,
-  for `synthea` each ablation and each detector's recovery (truth, eligible, recovered, outside the
-  truth, new outside the truth, and vanished), and last the row count and sha256 of stdout.
+  posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts
+  and the count-based cells with the threshold, for `synthea` each ablation, each definition's gap
+  counts before and after the removal and its listed rows, and each detector's recovery (truth,
+  eligible, recovered, outside the truth, new outside the truth, and vanished), with a warning when
+  per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
+  removing whole patients cannot cause, and last the row count and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
   contradicts its pin or schema, including a release naming an `is_a` parent it lacks.

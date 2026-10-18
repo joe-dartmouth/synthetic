@@ -11,6 +11,7 @@ from types import MappingProxyType
 
 import pytest
 
+from bko.bkb.errors import QueryError
 from bko.bkb.fusion import Normalization, fuse
 from bko.bkb.structure import BKB
 from bko.datasets.cells import cell_counts
@@ -82,6 +83,12 @@ def test_ungrounded_from_the_shown_concepts_is_detect(ladders):
         data_set = observed(*held)
         expected = detect(fragments, dataset_fragment(data_set))
         assert ungrounded_from(fragments, data_set, data_set.held) == expected
+
+
+def test_ungrounded_from_refuses_a_held_concept_no_fragment_holds(ladders):
+    fragments = ontology_fragments(ladders, {"HP:9000003"})
+    with pytest.raises(QueryError, match="MONDO:9000004"):
+        ungrounded_from(fragments, observed(), {"MONDO:9000004"})
 
 
 def test_each_fusion_takes_its_dataset_fragments_name(ladders):

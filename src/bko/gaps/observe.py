@@ -142,13 +142,13 @@ def record_cells(
         GapError: As `observe_records`, or if `frame` lacks a cell column.
         ContractError: As `bko.datasets.cells.cell_keys`, for a value outside its codes.
     """
-    mappings = tuple(rows)
-    shows = _record_shows(frame, mappings, name=name)
-    whole = _whole(name, shows)
     missing = sorted({"age", "sex", LABEL} - {str(column) for column in frame.columns})
     if missing:
         msg = f"the cells read fields {name} lacks: {', '.join(missing)}"
         raise GapError(msg)
+    mappings = tuple(rows)
+    shows = _record_shows(frame, mappings, name=name)
+    whole = _whole(name, shows)
     keys = cell_keys(frame, edges=edges)
     assumed = {label: _only_other_labels(mappings, label) for label in sorted(LABEL_CODES)}
     each: dict[Cell, CellRecords] = {

@@ -17,9 +17,11 @@ from pathlib import Path
 
 import pytest
 
+import bko.gaps.experiment
 from bko.datasets.sources import Source
 from bko.datasets.synthea_run import SyntheaRun
 from bko.gaps.__main__ import Context, configure_logging, main
+from bko.gaps.experiment import Recovery
 from bko.ontology.schema import FieldMapping
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeSynthea, archive, cleveland_line, pin
@@ -339,6 +341,9 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
         "observed dataset=synthea records=42 held=1 of=1 MONDO:9000003=21",
         "ablation name=cell codes=414545008 age_band=>=60 sex=1 edges=60 removed=20",
         "cell ablation=cell when=after key=>=60/male records=0 held=0 of=1 assumed=\n",
+        "bko ablation=cell definition=per-subgroup before=4 after=6 listed=6",
+        "bko ablation=cell definition=population-level before=0 after=0 listed=2",
+        "bko ablation=cell definition=frequency-aware before=2 after=2 listed=4",
         (
             "flagged ablation=cell when=before key=<60/female concept=MONDO:9000003 shown=0 "
             "records=20 reference_shown=21 reference_records=22 mass=1.0000"
@@ -382,6 +387,22 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
         ),
     ):
         assert line in caplog.text
+    assert "invariant" not in caplog.text
+
+
+def test_a_closed_detector_reading_new_gaps_outside_the_truth_is_warned(
+    tmp_path, caplog, monkeypatch
+):
+    broken = Recovery(truth=1, eligible=1, recovered=1, outside=1, new_outside=1, vanished=0)
+    monkeypatch.setattr(bko.gaps.experiment, "recovery", lambda *_: broken)
+    with caplog.at_level(logging.WARNING, logger="bko.gaps"):
+        assert run("synthea", tmp_path, make_context())[0] == 0
+    warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert [message.split(":")[0] for message in warned] == [
+        f"invariant ablation={name} detector={detector}"
+        for name in ("cell", "condition")
+        for detector in ("per-subgroup", "count")
+    ]
 
 
 def test_a_second_synthea_run_writes_the_same_bytes_and_fetches_nothing(tmp_path):

@@ -8,6 +8,8 @@ from collections.abc import Iterable, Mapping, Sequence
 import pandas as pd
 import pytest
 
+import bko.gaps.definitions
+from bko.bkb.errors import QueryError
 from bko.bkb.structure import BKB
 from bko.gaps.definitions import (
     CREDIBILITY,
@@ -247,3 +249,22 @@ def test_a_training_frame_gives_each_definitions_gaps(ladders):
         *(((">=55", "female", 0), s) for s in (H21, H32)),
         *(((">=55", "male", 1), s) for s in (H21, H32)),
     ]
+
+
+def test_an_empty_cell_is_not_flagged_against_a_reference_that_shows_the_concept():
+    each: dict[Cell, CellRecords] = {("e",): cell(0, {A: 0}), ("r",): cell(30, {A: 30})}
+    assert under_represented(dataset(each)) == ()
+
+
+def test_a_mass_exactly_at_the_credibility_level_is_flagged(monkeypatch):
+    each: dict[Cell, CellRecords] = {("p",): cell(30, {A: 0}), ("q",): cell(30, {A: 30})}
+    mass = posterior_below(0, 30, SHARE_RATIO)
+    monkeypatch.setattr(bko.gaps.definitions, "CREDIBILITY", mass)
+    assert [f.cell for f in under_represented(dataset(each))] == [("p",)]
+
+
+def test_a_cell_assuming_a_concept_no_fragment_holds_is_refused(ladders):
+    fragments = ontology_fragments(ladders, {A})
+    each: dict[Cell, CellRecords] = {("x",): cell(2, {A: 1}, assumed={B})}
+    with pytest.raises(QueryError, match="MONDO:9000004"):
+        gaps(Definition.SUBGROUP, fragments, dataset(each))

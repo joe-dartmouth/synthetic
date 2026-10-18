@@ -63,6 +63,9 @@ STATEMENT_COLUMNS: Final[Row] = (
     "consequent_label",
 )
 UCI_COLUMNS: Final[Row] = ("detector", *STATEMENT_COLUMNS, *CELL_COLUMNS, "count")
+CLOSED_DETECTORS: Final = frozenset({Definition.SUBGROUP.value, "count"})
+"""The detectors that, under a removal of whole patients, put no gap new outside the truth and
+lose none (`bko.gaps.experiment`); a reading of either that does is a defect."""
 SYNTHEA_COLUMNS: Final[Row] = (
     "ablation",
     "detector",
@@ -252,6 +255,15 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
         )
         _log_cells(run.before_cells, f"ablation={name} when=before")
         _log_cells(run.after_cells, f"ablation={name} when=after")
+        for definition in Definition:
+            logger.info(
+                "bko ablation=%s definition=%s before=%d after=%d listed=%d",
+                name,
+                definition,
+                len(run.before[definition]),
+                len(run.after[definition]),
+                len(run.listed(definition)),
+            )
         readings = [(definition.value, run.reading(definition)) for definition in Definition]
         for detector, reading in [*readings, ("count", run.count)]:
             logger.info(
@@ -266,6 +278,13 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
                 reading.new_outside,
                 reading.vanished,
             )
+            if detector in CLOSED_DETECTORS and (reading.new_outside or reading.vanished):
+                logger.warning(
+                    "invariant ablation=%s detector=%s: a removal of whole patients puts no gap "
+                    "new outside the truth and loses none, so this reading is a defect",
+                    name,
+                    detector,
+                )
         rows.extend(_ablation_rows(run, label))
     return rows
 

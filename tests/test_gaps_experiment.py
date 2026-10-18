@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import date
 from pathlib import Path
 
@@ -184,3 +185,13 @@ def test_a_removal_that_leaves_no_patient_is_refused(tmp_path, mondo):
     fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
     with pytest.raises(GapError, match="the condition ablation removes every patient"):
         run_ablation("condition", people, CONDITION, fragments, [ISCHEMIA])
+
+
+def test_a_gap_off_the_ablations_grid_is_refused(tmp_path, mondo):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", E2_POPULATION)
+    run = run_ablation("cell", people, CELL, fragments, [ISCHEMIA])
+    stray = StatementGap(("<40", "male"), ISCHEMIA_CHAIN[0])
+    broken = dataclasses.replace(run, after={**run.after, Definition.SUBGROUP: (stray,)})
+    with pytest.raises(GapError, match="the cell ablation lists gaps off its grid: <40/male"):
+        broken.listed(Definition.SUBGROUP)

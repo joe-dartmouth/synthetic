@@ -32,9 +32,9 @@ from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population
 from bko.datasets.synthea_run import DEFAULT_RUN
 from bko.gaps.definitions import Definition, StatementGap, gaps
-from bko.gaps.detect import CellGap, count_gaps, grounded
+from bko.gaps.detect import CellGap, Statement, count_gaps, grounded
 from bko.gaps.errors import GapError
-from bko.gaps.observe import Cells, dataset_fragment, population_cells
+from bko.gaps.observe import Cell, Cells, cell_key, dataset_fragment, population_cells
 from bko.ontology.schema import CodeMapping
 
 
@@ -136,11 +136,17 @@ class AblationRun:
         Each cell's statements are sorted; the grid is walked, never sorted, since band labels
         sort out of order (`40-49` before `<40`).
         """
-        union = {*self.before[definition], *self.after[definition], *self.truth}
+        by_cell: dict[Cell, list[Statement]] = {}
+        for gap in {*self.before[definition], *self.after[definition], *self.truth}:
+            by_cell.setdefault(gap.cell, []).append(gap.statement)
+        off_grid = sorted(cell_key(cell) for cell in by_cell.keys() - self.before_cells.each.keys())
+        if off_grid:
+            msg = f"the {self.name} ablation lists gaps off its grid: {', '.join(off_grid)}"
+            raise GapError(msg)
         return tuple(
             StatementGap(cell, statement)
             for cell in self.before_cells.each
-            for statement in sorted(gap.statement for gap in union if gap.cell == cell)
+            for statement in sorted(by_cell.get(cell, ()))
         )
 
     @property
