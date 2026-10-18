@@ -65,7 +65,8 @@ names the package for each.
 ### Represent
 
 - Load MONDO and HPO as BKO fragments.
-- Add the user's dataset as a second fragment, weighted by observed frequency.
+- Add the user's dataset as a second kind of fragment, weighted by observed frequency: one per cell
+  and one of every record ([Detect](#detect)).
 - Map ontology concepts to dataset fields, starting with the disease label and chest-pain type.
   Document each mapping's source, encoding and limits, with clinician review where available.
 - Govern numeric fields by separately specified range constraints.
@@ -85,10 +86,10 @@ dataset gap rather than a heuristic. The decision and its reversal conditions ar
 
 Gaps are read per cell of the evaluation setting. The primary definition grounds each cell's
 records as a dataset fragment of their own, at the age-sex-label granularity of
-[section 2](#2-intended-users-and-evaluation-setting). Two definitions run beside it as ablations:
-one population-level fragment of every record, and a frequency-aware score that flags a concept a
-cell shows credibly less often than the rest of its label group, the brief's coverage score in
-Bayesian form (ADR [research/frequency-aware-gap-score](adr/research/frequency-aware-gap-score.md)).
+[section 2](#2-intended-users-and-evaluation-setting) (age and sex on Synthea, whose label is the
+ablated condition). Two definitions run beside it as ablations: one population-level fragment of
+every record, and a frequency-aware score that flags a concept a cell shows credibly less often
+than the rest of its label group, a coverage-style score in place of the brief's Dirichlet one (ADR [research/frequency-aware-gap-score](adr/research/frequency-aware-gap-score.md)).
 E2 scores all three against its ablation's truth, and E1 runs one BKO arm per definition, judging
 only the primary one.
 

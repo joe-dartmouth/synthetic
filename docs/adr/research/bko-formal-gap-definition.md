@@ -37,8 +37,8 @@ premise for reframing does not hold.
 
 A dataset gap is **a statement implied by the fused ontology fragments but ungrounded by a dataset
 fragment** under BKO instantiation, over the classes the dataset's own mapping rows reach (ADR
-`research/ontology-mapping-design`). Gaps are read per cell, as (cell, statement) pairs, three
-ways:
+`research/ontology-mapping-design`). Gaps are read per cell, as (cell, statement) pairs, by three
+definitions:
 
 - **Per-subgroup, the primary definition**: each cell's records form their own dataset fragment,
   and its gaps are the statements that fragment leaves ungrounded. A cell treats the concepts only
@@ -47,6 +47,9 @@ ways:
 - **Population-level, an ablation**: one fragment of every record, its gaps holding in every cell.
 - **Frequency-aware, an ablation**: the statements a cell's under-represented concepts ground by
   themselves (ADR `research/frequency-aware-gap-score`).
+
+All three read the same cells and are compared in the same places:
+
 - **Cells**: on UCI Heart Disease, the age band, sex and label cells of ADR
   `research/uci-evaluation-frame`; on Synthea, age band and sex, since E2's label is the ablated
   condition itself.
@@ -74,10 +77,10 @@ Grounding per cell keeps Proposition 5.1.1's reading, since each cell's fused BK
 ungrounded statements contribute nothing to it, and measures at the project's unit of
 underrepresentation (`docs/RESEARCH.md` section 2). A single population fragment grounds a
 statement once any record anywhere shows its concept: on UCI Heart Disease it leaves no gap, and
-in E2's `cell` ablation 210 remaining patients still ground the 9 statements the removed ones held
+in E2's `cell` ablation the remaining patients still ground every statement the removed ones held
 ([E2](../../EVIDENCE.md#e2-synthea-gap-detection-ablation)). The two ablations bracket the primary
 definition: population-level grounding sees only absence everywhere, and the frequency-aware score
-sees rare support but never an empty or tiny cell. A cell of one label lacks the other label's
+sees rare support but never an empty cell. A cell of one label lacks the other label's
 concepts by construction, so counting their statements would fill every UCI cell without disease
 with gaps no generation should close. Synthea's E2 cells carry no label because the label there is
 the removed condition, whose statements are the truth E2 asks a detector to find.
@@ -98,7 +101,7 @@ size, which the count-based detector already flags; E1's paid generation runs on
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Coverage score with a Dirichlet prior as the gap definition | Rests on the premise that BKOs are not an established formalism, which Santos et al. contradicts; its threshold and prior are free choices. Kept as the count-based comparison, and run as an ablation (ADR `research/frequency-aware-gap-score`) | 2026-10-13 |
+| Coverage score with a Dirichlet prior as the gap definition | Rests on the premise that BKOs are not an established formalism, which Santos et al. contradicts; its threshold and prior are free choices. Kept as the count-based comparison; a coverage-style score with a Beta posterior runs as an ablation (ADR `research/frequency-aware-gap-score`) | 2026-10-13 |
 | PR-OWL / MEBN implementation | Heavyweight, with no maintained tooling; BKOs are the formalism the proposal builds on | 2026-10-13 |
 | Population-level grounding as the primary definition | Grounds a statement once any record anywhere shows its concept: no gap on UCI Heart Disease, and none of E2's `cell` ablation | 2026-10-17 |
 

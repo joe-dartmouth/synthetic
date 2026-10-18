@@ -28,7 +28,8 @@ The Final Report milestone reads every criterion against the baselines and contr
   `bko-population` and `bko-frequency`, each running gap detection under its definition (ADR
   `research/bko-formal-gap-definition`), generation, validation and fusion on a holdout's training
   rows only, and holding to that record's rule for added rows. Add all three to `E1.arms` and none
-  to `E1.comparators`, and give `E1` the record's budget per attempt. With the BKO arms in
+  to `E1.comparators`, and give `E1` the record's budget per attempt. Expose the per-row rules of
+  `bko.baselines.records.check` so the runners drop rows by them rather than by a copy. With the BKO arms in
   `E1.arms`, make `Experiment` refuse a candidate that is not an arm, so `score` cannot run a
   configuration `compare` will refuse.
 - Decide whether the BKO arms join `E1.replica_arms`, all three or none; `docs/RESEARCH.md`
@@ -44,6 +45,5 @@ The Final Report milestone reads every criterion against the baselines and contr
 
 - Every number in the report is regenerable from a committed command and recorded in
   `docs/EVIDENCE.md`, with each run's spend in its Runs field.
-- Before the judged run, E1's Configuration in `docs/EVIDENCE.md` names the budget per attempt and
-  the validity sums, and no longer says validity comes from outside the harness.
+- Before the judged run, E1's Configuration in `docs/EVIDENCE.md` names the budget per attempt.
 - `make check`.

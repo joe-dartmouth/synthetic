@@ -136,8 +136,9 @@ modes of in-context generation, which the Messages API approach is.
 - **Knowledge-graph completion** (link prediction) to infer missing edges.
 
 **Why it is not in the plan.** The plan's formal gap is an ungrounded BKO statement (ADR
-[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md)); the brief's
-coverage score runs only as an ablation beside it ([RESEARCH.md](RESEARCH.md#detect)). SHACL could
+[research/bko-formal-gap-definition](adr/research/bko-formal-gap-definition.md)); a coverage-style
+score, in place of the brief's Dirichlet one, runs only as an ablation beside it
+([RESEARCH.md](RESEARCH.md#detect)). SHACL could
 still serve the Validate stage, as the brief suggests for post-generation checks (B6, F16).
 
 **Sources.** Brief A1, A2, B6, F16. Details:

@@ -30,8 +30,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
   candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
-  confidence, the attempts per fill and the BKO arms' budget per attempt. `docs/EVIDENCE.md` (E1)
-  states how each criterion is read. No flag changes a value; `compare --candidate` judges another
+  confidence and the attempts per fill; `proposal-final-evaluation` adds the BKO arms' budget per
+  attempt. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a value; `compare --candidate` judges another
   arm as a dry run, never as E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
@@ -46,15 +46,18 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **The BKO arms' added rows.** Each BKO arm's runner calls `bko.baselines.records.check` before it
   returns. It drops each candidate `bko.validate` accepts that `check` would refuse (a numeric value
   outside the training split's minimum and maximum, a cell the request does not ask for, a row past
-  its cell's quota), returns the rest cell by cell in the quota's order and in generation order
-  within a cell, and never clips, rounds or repairs one. It generates at most `E1`'s budget per
-  attempt, three times the request's rows, then raises a plain `BaselineError`, which the retries
-  below repeat.
+  its cell's quota), testing each with the per-row rules `bko.baselines.records` holds rather than
+  a copy, returns the rest cell by cell in the quota's order and in generation order within a cell,
+  and never clips, rounds or repairs one. It generates at most `E1`'s budget per attempt, three
+  times the request's rows, then raises a plain `BaselineError`, which the retries below repeat. It
+  logs one line per attempt with the candidates generated, accepted, dropped for each reason and
+  returned, and its refusal's message carries the same counts.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, every refused and retried attempt, and
   every replica fill. A refused attempt returns no `Baseline`, so the arm keeps its counts itself.
   The validity criterion reads `bko`'s rate, and a dropped candidate stays in it, having passed
-  every check.
+  every check. Each arm logs its sums at the end of the run, and E1 reports its dropped candidates
+  beside the rate.
 - **The replica request.** The row-adding baselines also fill the training split's own cell
   counts. Those rows alone train a classifier (train on synthetic, read against the
   no-augmentation arm, which trains on real) and are compared with the training split for

@@ -179,7 +179,8 @@ def validate(candidates: Iterable[object]) -> Validated:
             as generated.
 
     Returns:
-        The accepted frame and the rejections; logs one summary line of counts.
+        The accepted frame and the rejections; logs one summary line of counts, or a warning when
+        there are no candidates.
 
     Raises:
         TypeError: If `candidates` is one record, a string, a bytes-like object or a frame, not a

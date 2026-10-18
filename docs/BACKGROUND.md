@@ -34,8 +34,9 @@ A Bayesian Knowledge Base (BKB) is the probabilistic half of a BKO. The sources 
   probabilistically instead of deleting knowledge: each fragment gains a source whose prior is its
   reliability over the sum of every fragment's (their section 6.1). pybkb's fusion entry point
   is `fuse(bkfs, reliabilities, ...)`: it takes a set of fragments and a reliability for each.
-- **The plan builds three fragments.** MONDO and HPO each become a fragment, and the dataset becomes
-  a second kind of fragment, weighted by observed frequency (2-pager section 3).
+- **The plan builds ontology and dataset fragments.** MONDO and HPO each become a fragment, and the
+  dataset becomes a second kind of fragment, weighted by observed frequency (2-pager section 3): one
+  per cell and one of every record ([RESEARCH.md](RESEARCH.md#detect)).
 - **Reasoning runs over the fused result.** pybkb's one working inference
   ([ARCHITECTURE](ARCHITECTURE.md#pybkb)) gives each state of one target component its log joint
   mass with complete evidence, and `bko.bkb` ports it.
@@ -114,7 +115,7 @@ Works: [Probabilistic ontologies and BKOs](literature.md#probabilistic-ontologie
 
 The brief (A2) lists four ways to find where a dataset is incomplete relative to an ontology. The
 plan's formal detector is the BKO one above; these are the alternatives and the vocabulary around
-them. [IDEAS.md](IDEAS.md#alternative-gap-detectors) records them as unscheduled options.
+them. [IDEAS.md](IDEAS.md#alternative-gap-detectors) records the ones the plan leaves out.
 
 ### Open-world and closed-world assumptions
 
@@ -151,8 +152,10 @@ or statistically under-represented support in the dataset relative to an ontolog
 suggests computing this with OLS/BioPortal APIs, pandas and a simple SHACL or count check, and (A1)
 a Bayesian/Dirichlet smoothing prior over expected and observed counts.
 
-The plan's count-based gaps are of this kind, and serve as the comparison the formal definition is
-measured against ([RESEARCH.md](RESEARCH.md#two-kinds-of-gap-evaluated-separately)).
+The plan's count-based gaps are of this kind, and serve as the comparison the formal definitions are
+measured against ([RESEARCH.md](RESEARCH.md#two-kinds-of-gap-evaluated-separately)). So is its
+frequency-aware score, an ablation with a Beta posterior in place of the Dirichlet prior
+([RESEARCH.md](RESEARCH.md#detect)).
 
 Works: [Gap detection and data quality](literature.md#gap-detection-and-data-quality).
 

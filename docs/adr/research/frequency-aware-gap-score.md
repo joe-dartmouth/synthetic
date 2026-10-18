@@ -36,11 +36,13 @@ label: chest pain shows in 0.218 of the records with disease.
   the cell when P(θ < 0.8 p) ≥ 0.95 for θ ~ Beta(k + 1/2, n − k + 1/2), the posterior under
   Jeffreys' prior. A reference share of 0, or no record outside the cell, flags nothing.
 - **No minimum cell size.** The posterior is the size guard: an empty cell's posterior is the prior,
-  which puts at most 0.705 of its mass below 0.8 p, so no cell is flagged on too few records to show
-  a shortfall.
+  which puts at most 0.705 of its mass below 0.8 p, so an empty cell is never flagged. A cell none
+  of whose n records shows a concept is flagged for it only when p is at least 0.965 at n = 1, 0.712
+  at n = 2 and 0.556 at n = 3 (computed 2026-10-17).
 - **Gaps.** A cell's frequency-aware gaps are the statements its under-represented concepts ground
-  by themselves under BKO instantiation over the cell's fragment: those that become ungrounded when
-  the under-represented concepts leave the cell's held concepts.
+  by themselves under BKO instantiation over the cell's fragment: those that instantiation from the
+  cell's held concepts together with the under-represented ones grounds, and from the held concepts
+  without them does not. An under-represented concept no record of the cell shows counts too.
 - **Home.** `bko.gaps`, beside the two grounding definitions.
 
 ## Rationale
@@ -54,7 +56,7 @@ and Jeffreys' prior is the standard uninformative prior for a binomial share, so
 parameter. Leaving the cell out of its own reference keeps a large cell from diluting the contrast
 it is measured against.
 
-Measured 2026-10-17 over UCI training splits only, the default split and E1's 100 holdout seeds,
+Measured 2026-10-17 over UCI training splits only, the default split and E1's holdout seeds,
 never a test row: the rule flags 5 (cell, concept) pairs on the default split and 2 to 8 per
 holdout (median 4). With the cell kept in its reference it flags 1 to 5. A ratio of 1 flags 5 to 12
 per holdout, most within sampling noise, and a ratio of 0.5 flags 0 to 3. Against the population
@@ -72,14 +74,15 @@ definitions' form.
 **Accepted**: the ratio and the level are conventions; a label group's age and sex mix still moves
 the reference, so a clinically expected difference (abnormal exercise stress tests in younger women
 without disease) reads as a gap; a concept absent from every cell has no reference and is never
-flagged, as in E2's `condition` ablation, which population-level grounding catches; an empty or tiny
-cell is never flagged, which per-subgroup grounding and the count-based detector catch.
+flagged, as in E2's `condition` ablation, which population-level grounding catches; an empty cell
+is never flagged, and a cell of a few records only for a concept common in the rest of its label
+group, which per-subgroup grounding and the count-based detector catch.
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| The population share as the reference | Flags disease markers absent from cells without disease: 9 to 15 pairs per UCI holdout, nearly all label effects | 2026-10-17 |
+| The population share as the reference | Flags disease markers absent from cells without disease: a one-sided binomial test against it flags 9 to 15 pairs per UCI holdout, nearly all label effects | 2026-10-17 |
 | The label group's share with the cell kept in | A large cell dilutes the reference it is compared with | 2026-10-17 |
 | A one-sided binomial test with false-discovery control | Flags any shortfall, with no effect size, outside the Bayesian reading the BKO and the brief share | 2026-10-17 |
 | A ratio of 1 | Flags any credible shortfall: 5 to 12 pairs per UCI holdout, most within sampling noise | 2026-10-17 |
