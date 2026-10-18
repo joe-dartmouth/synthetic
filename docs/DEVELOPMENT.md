@@ -10,7 +10,7 @@ Requires `uv`. The interpreter version is the one in `.python-version`, and `uv`
 the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval` and `ontology` extras
 from the lock, and `source .venv/bin/activate` enters the environment.
 
-- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas),
+- **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
   `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy) and `ontology`
   (pronto) are installed by `make setup`; only `llm` (anthropic) and `app` (streamlit) are
   installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
@@ -245,32 +245,41 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
 
 ## Gap detection
 
-`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps two ways: the ontology
-statements its records leave ungrounded (ADR `research/bko-formal-gap-definition`), and the
-age-sex subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW`. Two commands,
+`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
+statement) pairs under each definition of ADR `research/bko-formal-gap-definition`
+(`per-subgroup`, `population-level` and `frequency-aware`, in that order), and as the age-sex
+subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). Two commands,
 inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
 
 - **What `uci` does**: it fetches UCI Heart Disease and the releases the field mappings name into
-  the data root if absent, splits the records as [Data](#data) says, and lists both kinds of gap
-  in the training split. stdout gets a CSV with the column `detector` (`bko` or `count`); a `bko`
-  row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent` and
-  `consequent_label`, and a `count` row the cell's `age_band`, `sex`, `target` and `count`.
+  the data root if absent, splits the records as [Data](#data) says, and lists the training
+  split's gaps. stdout gets a CSV whose column `detector` names a definition or `count`. A
+  definition's row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent`
+  and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
+  holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
   ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
-  `E2_ABLATIONS` lists both kinds of gap before and after the removal. stdout gets a CSV with the
-  column `ablation`, then `uci`'s columns without `count`, then `before`, `after` and `truth`:
-  whether the row is a gap before the removal, after it, and among the gaps the removed patients
-  account for. A `count` row's cell uses the ablation's age bands (`AblationSpec.edges`), and a cell
-  is listed only when it is a gap before or after the removal or its count fell.
-  [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the reading.
-- **What it logs**: stderr gets the data root and the pandas version, each input's identity (the
-  split or the population, the parser and each release), each ontology fragment's size, how many
-  records show each mapped concept, the fused BKB's size, each list's length, for `synthea` each
-  ablation and each detector's recovery, with a warning for a spurious gap, and last the row count
-  and sha256 of stdout.
+  `E2_ABLATIONS` lists every definition's gaps and the count-based ones before and after the
+  removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without `count`,
+  then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
+  among the gaps the removed patients account for. Every cell uses the ablation's age bands
+  (`AblationSpec.edges`). A definition's cells carry no label, so its rows leave `target` blank,
+  and a (cell, statement) pair is listed when it is a gap before or after the removal or in the
+  truth; a `count` row's cell is listed when it is a gap before or after the removal or its count
+  fell. [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the reading.
+- **What it logs**: stderr gets the data root and the pandas and scipy versions, each input's
+  identity (the split or the population, the parser and each release), each ontology fragment's
+  size, how many records show each mapped concept, each cell's record count, held-concept count
+  and assumed concepts, each concept the frequency-aware definition flags with its counts and
+  posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts
+  and the count-based cells with the threshold, for `synthea` each ablation, each definition's gap
+  counts before and after the removal and its listed rows, and each detector's recovery (truth,
+  eligible, recovered, outside the truth, new outside the truth, and vanished), with a warning when
+  per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
+  removing whole patients cannot cause, and last the row count and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
   contradicts its pin or schema, including a release naming an `is_a` parent it lacks.

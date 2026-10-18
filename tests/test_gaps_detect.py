@@ -11,6 +11,7 @@ from types import MappingProxyType
 
 import pytest
 
+from bko.bkb.errors import QueryError
 from bko.bkb.fusion import Normalization, fuse
 from bko.bkb.structure import BKB
 from bko.datasets.cells import cell_counts
@@ -24,14 +25,14 @@ from bko.gaps.detect import (
     represent,
     statements,
     ungrounded,
+    ungrounded_from,
 )
 from bko.gaps.observe import Observed, dataset_fragment
 from bko.ontology.fragments import is_a_fragment
-from bko.ontology.obo import parse_obo
 from bko.ontology.terms import Ontology, Term
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import records
-from tests._gaps_fixtures import LADDER_HPO, LADDER_MONDO
+from tests._gaps_fixtures import LADDER_HPO, LADDER_MONDO, parse_ladders
 from tests._ontology_fixtures import write_obo
 
 
@@ -50,15 +51,48 @@ MONDO_CHAIN = (
 
 @pytest.fixture
 def ladders(tmp_path) -> dict[str, Ontology]:
-    return {
-        "HP": parse_obo(write_obo(tmp_path, LADDER_HPO, "hp.obo"), name="hpo"),
-        "MONDO": parse_obo(write_obo(tmp_path, LADDER_MONDO, "mondo.obo"), name="mondo"),
-    }
+    return parse_ladders(tmp_path)
 
 
 def data(*held: str) -> BKB:
     holders = MappingProxyType(dict.fromkeys(sorted(held), 1))
     return dataset_fragment(Observed(name="uci", records=2, holders=holders))
+
+
+def observed(*held: str) -> Observed:
+    holders = dict.fromkeys(sorted(CONCEPTS), 0) | dict.fromkeys(held, 1)
+    return Observed(name="uci", records=2, holders=holders)
+
+
+def test_ungrounded_from_holds_a_concept_no_record_shows(ladders):
+    fragments = ontology_fragments(ladders, CONCEPTS)
+    assert ungrounded_from(fragments, observed(), {"MONDO:9000004"}) == HPO_CHAIN
+    assert ungrounded_from(fragments, observed(), set()) == (*HPO_CHAIN, *MONDO_CHAIN)
+
+
+def test_ungrounded_from_leaves_out_the_prior_of_a_shown_concept_it_does_not_hold(ladders):
+    fragments = ontology_fragments(ladders, CONCEPTS)
+    shown = observed(*CONCEPTS)
+    assert ungrounded_from(fragments, shown, CONCEPTS) == ()
+    assert ungrounded_from(fragments, shown, {"MONDO:9000004"}) == HPO_CHAIN
+
+
+def test_ungrounded_from_the_shown_concepts_is_detect(ladders):
+    fragments = ontology_fragments(ladders, CONCEPTS)
+    for held in ((), ("MONDO:9000004",), tuple(sorted(CONCEPTS))):
+        data_set = observed(*held)
+        expected = detect(fragments, dataset_fragment(data_set))
+        assert ungrounded_from(fragments, data_set, data_set.held) == expected
+
+
+def test_ungrounded_from_refuses_a_held_concept_no_fragment_holds(ladders):
+    fragments = ontology_fragments(ladders, {"HP:9000003"})
+    with pytest.raises(QueryError, match="MONDO:9000004"):
+        ungrounded_from(fragments, observed(), {"MONDO:9000004"})
+
+
+def test_each_fusion_takes_its_dataset_fragments_name(ladders):
+    assert represent(ontology_fragments(ladders, CONCEPTS), data()).name == "uci"
 
 
 def test_each_release_holds_the_concepts_it_owns_and_their_ancestors(ladders):
@@ -166,9 +200,13 @@ import sys
 from pathlib import Path
 from types import MappingProxyType
 
+import pandas as pd
+
+from bko.gaps.definitions import Definition, gaps
 from bko.gaps.detect import detect, ontology_fragments
-from bko.gaps.observe import Observed, dataset_fragment
+from bko.gaps.observe import Observed, dataset_fragment, record_cells
 from bko.ontology.obo import parse_obo
+from tests._gaps_fixtures import ANGINA, STENOSIS
 
 directory = Path(sys.argv[1])
 ladders = {
@@ -179,8 +217,16 @@ concepts = {"HP:9000003", "MONDO:9000003", "MONDO:9000004"}
 for held in ((), ("MONDO:9000004",), ("HP:9000003", "MONDO:9000003")):
     holders = MappingProxyType(dict.fromkeys(held, 1))
     observed = Observed(name="uci", records=2, holders=holders)
-    gaps = detect(ontology_fragments(ladders, concepts), dataset_fragment(observed))
-    sys.stdout.write(repr(gaps) + "\\n")
+    gaps_found = detect(ontology_fragments(ladders, concepts), dataset_fragment(observed))
+    sys.stdout.write(repr(gaps_found) + "\\n")
+frame = pd.DataFrame(
+    {"age": [40, 40, 60, 60, 60], "sex": [0, 0, 1, 1, 1], "target": [0, 1, 1, 1, 0],
+     "cp": [1, 4, 1, 1, 4]}
+)
+cells = record_cells(frame, (ANGINA, STENOSIS), name="uci")
+fragments = ontology_fragments(ladders, {"HP:9000003", "MONDO:9000004"})
+for definition in Definition:
+    sys.stdout.write(repr(gaps(definition, fragments, cells)) + "\\n")
 """
 
 

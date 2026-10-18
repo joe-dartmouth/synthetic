@@ -22,7 +22,7 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
 
 ## Decision Drivers
 
-* **Must give a known set of removed cases** for both the BKO detector and the count-based one.
+* **Must give a known set of removed cases** for every gap definition and the count-based detector.
 * **Must record an identity that recreates the population** (`docs/EVIDENCE.md`).
 * **Must leave no trace of a removed case** in the loaded tables.
 
@@ -58,16 +58,18 @@ thousand: 2000. That cell is the default spec.
 Generating lets the population size put a target cell above 20 before ablation, so the count-based
 detector's finding is the ablation and not natural sparsity, and the pinned parameters are the
 identity. Removing condition rows alone would keep the patient as a non-case, which inflates the
-cell of patients without the condition. A BKO statement is grounded by one remaining record, so
-partial removal is invisible to the BKO detector. An ontology that holds no age- or sex-specific
-statement may see only a whole condition's absence, which is why the spec can drop the band and
-the sex.
+cell of patients without the condition. Both grounding definitions of ADR
+`research/bko-formal-gap-definition` ground a statement from one remaining record, of the cell or
+of the population, so partial removal is invisible to them; the frequency-aware score reads shares
+and could see it, which E2 does not test. Population-level grounding, over an ontology with no age-
+or sex-specific statement, sees only a whole condition's absence, and per-subgroup grounding a
+whole cell's, which is why the spec can narrow to a cell or drop the band and the sex.
 
 ## Consequences
 
-**Gained**: a population recreated from its parameters; a ground truth both detectors read: the
-count-based one by the cells whose count fell, the BKO one by the statements the removed patients
-ground.
+**Gained**: a population recreated from its parameters; a ground truth every detector reads: the
+count-based one by the cells whose count fell, each gap definition by the (cell, statement) pairs
+whose statement the removed patients of the cell ground.
 **Accepted**: a JDK on every machine that generates; a jar download of the size
 `bko.datasets.sources` pins; one thread, so
 generation is slower; cross-platform identity is not promised, so each run records its CSV
@@ -80,7 +82,7 @@ checksums.
 | The apr2020 pre-generated sample | No seed, and no cell can hold 20 cases | 2026-10-14 |
 | The `latest` pre-generated sample | Its contents change under one name, and it has no seed | 2026-10-14 |
 | Removing condition rows only | Turns a case into a non-case; see Rationale | 2026-10-14 |
-| Partial removal | Invisible to the BKO detector; E2 can add it for the count-based arm | 2026-10-14 |
+| Partial removal | Invisible to both grounding definitions; E2 can add it for the count-based arm | 2026-10-14 |
 | Synthea's `-a` age range | Samples ages uniformly instead of from the census, distorting frequencies | 2026-10-14 |
 
 ## Enforcement

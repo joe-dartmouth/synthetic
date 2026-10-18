@@ -37,13 +37,17 @@ label: chest pain shows in 0.218 of the records with disease.
   Jeffreys' prior. A reference share of 0, or no record outside the cell, flags nothing.
 - **No minimum cell size.** The posterior is the size guard: an empty cell's posterior is the prior,
   which puts at most 0.705 of its mass below 0.8 p, so an empty cell is never flagged. A cell none
-  of whose n records shows a concept is flagged for it only when p is at least 0.965 at n = 1, 0.712
-  at n = 2 and 0.556 at n = 3 (computed 2026-10-17).
-- **Gaps.** A cell's frequency-aware gaps are the statements its under-represented concepts ground
-  by themselves under BKO instantiation over the cell's fragment: those that instantiation from the
-  cell's held concepts together with the under-represented ones grounds, and from the held concepts
-  without them does not. An under-represented concept no record of the cell shows counts too.
-- **Home.** `bko.gaps`, beside the two grounding definitions.
+  of whose n records shows a concept is flagged for it only when p exceeds 0.964 at n = 1, 0.711
+  at n = 2 and 0.555 at n = 3 (computed 2026-10-17).
+- **Gaps.** A cell's frequency-aware gaps are the statements its under-represented concepts, taken
+  together, ground by themselves under BKO instantiation over the cell's fragment: those that
+  instantiation from the cell's held concepts together with the under-represented ones grounds,
+  and from the held concepts without them does not. The held concepts include those the cell
+  assumes (ADR `research/bko-formal-gap-definition`), and grounding without the under-represented
+  concepts leaves their priors out of the fragment, since a prior grounds its concept whatever the
+  anchor. An under-represented concept no record of the cell shows counts too.
+- **Home.** `bko.gaps.definitions`, beside the two grounding definitions; its `SHARE_RATIO` and
+  `CREDIBILITY` hold the ratio and the level.
 
 ## Rationale
 
@@ -72,8 +76,8 @@ form the grounding definitions give, so E2's reading and the completeness criter
 **Gained**: a gap reading that sees rare support, not only none; output in the grounding
 definitions' form.
 **Accepted**: the ratio and the level are conventions; a label group's age and sex mix still moves
-the reference, so a clinically expected difference (abnormal exercise stress tests in younger women
-without disease) reads as a gap; a concept absent from every cell has no reference and is never
+the reference, so a clinically expected difference (abnormal exercise stress tests in women without
+disease) reads as a gap; a concept absent from every cell has no reference and is never
 flagged, as in E2's `condition` ablation, which population-level grounding catches; an empty cell
 is never flagged, and a cell of a few records only for a concept common in the rest of its label
 group, which per-subgroup grounding and the count-based detector catch.
@@ -87,13 +91,12 @@ group, which per-subgroup grounding and the count-based detector catch.
 | A one-sided binomial test with false-discovery control | Flags any shortfall, with no effect size, outside the Bayesian reading the BKO and the brief share | 2026-10-17 |
 | A ratio of 1 | Flags any credible shortfall: 5 to 12 pairs per UCI holdout, most within sampling noise | 2026-10-17 |
 | A minimum cell size | The posterior already refuses a cell too small to show a shortfall | 2026-10-17 |
+| Leaving the under-represented concepts out of the anchor only | A fragment's prior grounds its concept whatever the anchor, so a concept some record of the cell shows would yield no gap | 2026-10-17 |
 
 ## Enforcement
 
 - Owner: `src/bko/gaps/`
-- Pinned by: nothing -- convention only
-- `tasks/proposal-gap-definitions.md` builds the score; the tests it adds then replace the line
-  above.
+- Pinned by: `tests/test_gaps_definitions.py`, `tests/test_gaps_experiment.py`
 
 ## Reversal Conditions
 

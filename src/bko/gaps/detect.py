@@ -1,10 +1,13 @@
-"""The two gap lists: ontology statements a dataset does not ground, and underrepresented cells.
+"""The gap lists: ontology statements a dataset's held concepts do not ground, and sparse cells.
 
 A BKO gap is an ontology statement that instantiation from the concepts a dataset holds never adds
 (ADR `research/bko-formal-gap-definition`): Santos et al.'s algorithm (`santos-2024`, section 5.3)
-run from the dataset fragment's priors, the only priors off the source components. Each dataset's
-BKO holds the classes its own rows map and their ancestors (ADR `research/ontology-mapping-design`).
-A count-based gap is a cell `bko.datasets.cells.cell_counts` flags.
+run from the dataset fragment's priors, the only priors off the source components, and from any
+concept the caller holds with no record showing it, such as one a cell assumes. A prior grounds its
+concept whatever the anchor, so `ungrounded_from` leaves a concept it does not hold out of the
+fragment. Each dataset's BKO holds the classes its own rows map and their ancestors (ADR
+`research/ontology-mapping-design`). A count-based gap is a cell `bko.datasets.cells.cell_counts`
+flags. `bko.gaps.definitions` reads the BKO gaps per cell.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from bko.bkb.fusion import fuse, is_source
 from bko.bkb.inference import instantiate
 from bko.bkb.structure import BKB, SNode
 from bko.datasets.cells import COUNT_COLUMNS
+from bko.gaps.observe import Observed, dataset_fragment
 from bko.ontology.fragments import INDIVIDUAL, is_a_fragment, scope_of
 from bko.ontology.terms import Ontology
 
@@ -86,9 +90,12 @@ def ontology_fragments(
 
 
 def represent(fragments: Sequence[BKB], data: BKB) -> BKB:
-    """Fuse the ontology fragments with the dataset fragment, each at weight 1, `data` last."""
+    """Fuse the ontology fragments with the dataset fragment, each at weight 1, `data` last.
+
+    The fused BKB takes `data`'s name, so each fusion's log line names the records it grounds.
+    """
     every = [*fragments, data]
-    return fuse(every, [1.0] * len(every))
+    return fuse(every, [1.0] * len(every), name=data.name)
 
 
 def detect(fragments: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
@@ -101,6 +108,22 @@ def grounded(fragments: Sequence[BKB], data: BKB) -> tuple[Statement, ...]:
     fused = represent(fragments, data)
     missing = set(ungrounded(fused, _held(data)))
     return tuple(statement for statement in statements(fused) if statement not in missing)
+
+
+def ungrounded_from(
+    fragments: Sequence[BKB], observed: Observed, held: Collection[str]
+) -> tuple[Statement, ...]:
+    """The statements of the ontology `fragments` that instantiation from `held` never adds, sorted.
+
+    The dataset fragment of `observed` gives each concept of `held` a record shows its prior; a
+    concept of `held` no record shows, such as one a cell assumes, joins only the anchor. A concept
+    a record shows that `held` leaves out gets no prior, since a prior grounds its concept whatever
+    the anchor (`bko.bkb.inference.instantiate`).
+
+    Raises:
+        QueryError: If `held` names a class no fragment holds.
+    """
+    return ungrounded(represent(fragments, dataset_fragment(observed, held=held)), held)
 
 
 def statements(fused: BKB) -> tuple[Statement, ...]:

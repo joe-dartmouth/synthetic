@@ -56,9 +56,9 @@ All three read the same cells and are compared in the same places:
 - **Count-based gaps** (fewer than 20 training records per age-sex subgroup-label combination on
   UCI Heart Disease) are detected and evaluated separately, as the comparison the formal
   definitions are measured against.
-- **Where they are compared**: E2 scores each definition against the (cell, statement) pairs the
-  removed patients ground by themselves within their cell; E1 runs one BKO arm per definition
-  (ADR `research/e1-evaluation-protocol`).
+- **Where they are compared**: E2 scores each definition against the (cell, statement) pairs whose
+  statement the removed patients of the cell ground, whether or not the cell's other records
+  ground it; E1 runs one BKO arm per definition (ADR `research/e1-evaluation-protocol`).
 - **Completeness**: its own request, not E1's. Each UCI cell holding a per-subgroup gap in the
   default training split is asked for 20 rows, the threshold of `docs/RESEARCH.md` section 2. The
   generated records that pass validation join their cell's records, and a gap closes when that
@@ -101,7 +101,10 @@ class antecedent is supported by any statement with that consequent (Santos et a
 5.1.4 and 5.1.5), so ontology statements support each other whether or not the dataset holds them:
 grounding is judged against a dataset fragment, not the fused BKB; grounding runs once per cell; a
 cell of a few records leaves most concepts unshown, so its per-subgroup gaps partly restate its
-size, which the count-based detector already flags; E1's paid generation runs once per definition.
+size, which the count-based detector already flags; E1's paid generation runs once per definition;
+E2's complete removal cannot measure how often per-subgroup grounding lists a statement a cell's
+population shows, which for records drawn independently is (1 - p)^n for a concept of share p in a
+cell of n records, the chance the frequency-aware score weighs.
 
 ## Ruled Out
 
@@ -111,14 +114,13 @@ size, which the count-based detector already flags; E1's paid generation runs on
 | PR-OWL / MEBN implementation | Heavyweight, with no maintained tooling; BKOs are the formalism the proposal builds on | 2026-10-13 |
 | Counting completeness over E1's count-based request | Holds gaps in cells it never fills, which cannot close | 2026-10-17 |
 | Population-level grounding as the primary definition | Grounds a statement once any record anywhere shows its concept: no gap on UCI Heart Disease, and none of E2's `cell` ablation | 2026-10-17 |
+| Reversing to population-level grounding on E2's count of per-subgroup gaps outside the truth | E2 removes whole patients completely, so a per-subgroup gap new after a removal lies in the truth by construction, and counting every gap after it outside the truth scores absences the removal did not cause, such as a cell with no case, as errors; neither reading tests the definition | 2026-10-17 |
 
 ## Enforcement
 
 - Owner: `src/bko/gaps/`
-- Pinned by: `tests/test_gaps_detect.py`, `tests/test_gaps_cli.py`,
-  `tests/test_gaps_experiment.py`
-- `tasks/proposal-gap-definitions.md` builds the per-subgroup and frequency-aware definitions; the
-  tests it adds then join the list above.
+- Pinned by: `tests/test_gaps_detect.py`, `tests/test_gaps_definitions.py`,
+  `tests/test_gaps_cli.py`, `tests/test_gaps_experiment.py`
 
 ## Reversal Conditions
 
@@ -126,11 +128,6 @@ size, which the count-based detector already flags; E1's paid generation runs on
 fused MONDO, HPO and dataset fragments by [Status Update 1](../../ROADMAP.md#status-update-1)**;
 E2 in [`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) records whether it
 ran. The count-based definition then becomes primary and this record is rewritten.
-
-**Population-level grounding becomes the primary definition if E2 records more per-subgroup gaps
-outside the truth than recovered ones under the `cell` ablation**;
-[`docs/EVIDENCE.md`](../../EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) records both
-counts.
 
 ## Related
 
