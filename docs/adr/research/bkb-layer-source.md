@@ -86,8 +86,9 @@ the port against JSON fixtures that pybkb itself produced in a one-time run outs
   order, makes a state None when an S-node contradicts the
   evidence before it notices a missing component (pybkb's `KeyError` depends on tail order), and
   its log-sum stays finite where pybkb's `log(exp(a) + exp(b))` underflows. Everything else,
-  including merging S-nodes only on exactly equal probabilities and summing source totals left to
-  right, is pybkb's.
+  including merging S-nodes only on exactly equal probabilities and summing a component's source
+  priors left to right in the order pybkb's `build_fused_bkb` adds them (S-node by first
+  appearance over the fragments, then fragment), is pybkb's.
 - **Fixtures are JSON, exported once by pybkb.** A committed exporter runs pybkb at the commit
   above under Python 3.11 with pybkb's declared versions, except scipy 1.10.1, the last release
   that reads pybkb's own pickles. It checks every input against its sha256 at that commit, which

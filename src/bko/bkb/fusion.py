@@ -90,10 +90,10 @@ def fuse(
 
     Raises:
         FusionError: If there are no fragments, the sequences differ in length, a reliability is
-            not a finite positive number or the reliabilities overflow when summed, a source
-            name is not a non-empty string or two fragments share one, a fragment holds a source
-            component already, a fragment holds one S-node twice, or `normalization` is not a
-            `Normalization`.
+            not a finite positive number or is an integer that overflows a float, or the
+            reliabilities overflow when summed, a source name is not a non-empty string or two
+            fragments share one, a fragment holds a source component already, a fragment holds
+            one S-node twice, or `normalization` is not a `Normalization`.
     """
     names = _check(fragments, reliabilities, sources)
     mode = _mode(normalization)
@@ -136,14 +136,7 @@ def _check(
         )
         raise FusionError(msg)
     for reliability in reliabilities:
-        if (
-            isinstance(reliability, bool)
-            or not isinstance(reliability, int | float)
-            or not math.isfinite(reliability)
-            or reliability <= 0
-        ):
-            msg = f"the reliability {reliability!r} is not a finite positive number"
-            raise FusionError(msg)
+        _check_reliability(reliability)
     for source in names:
         if not isinstance(source, str) or not source:
             msg = f"the source name {source!r} is not a non-empty string"
@@ -155,6 +148,23 @@ def _check(
     for fragment in fragments:
         _check_fragment(fragment)
     return names
+
+
+def _check_reliability(reliability: object) -> None:
+    try:
+        valid = (
+            isinstance(reliability, int | float)
+            and not isinstance(reliability, bool)
+            and math.isfinite(reliability)
+            and reliability > 0
+        )
+    except OverflowError:
+        # No repr: an int past 4300 digits cannot be printed.
+        msg = "a reliability is an integer that overflows a float"
+        raise FusionError(msg) from None
+    if not valid:
+        msg = f"the reliability {reliability!r} is not a finite positive number"
+        raise FusionError(msg)
 
 
 def _check_fragment(fragment: BKB) -> None:
