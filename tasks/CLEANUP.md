@@ -68,18 +68,3 @@ links to where its blocker is tracked.
   matched to it, and a test on the case above.
 
   **Trigger:** the next export of pybkb fixtures, or the next change to `_add`.
-
-## ontology
-
-- **`cleanup:ontology/exit-three-means-two-things`: a caller cannot tell a broken release from a
-  disagreeing row by exit code.** Exit 3 covers a release that contradicts its pin or is not
-  readable OBO (stdout empty) and a row that disagrees with a sound release (stdout holds the
-  report). *Filed 2026-10-16 by the review of PR #9.*
-
-  **Why deferred.** One code for both is what the plan chose, and `docs/DEVELOPMENT.md` documents
-  it. Changing it is a decision, not a fix.
-
-  **What discharges it:** a distinct code for a disagreeing row, documented in
-  `docs/DEVELOPMENT.md` (Ontologies), or a recorded decision to keep one code.
-
-  **Trigger:** the first script or stage that calls the check and branches on its outcome.

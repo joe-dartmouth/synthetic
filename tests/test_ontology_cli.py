@@ -92,13 +92,13 @@ def test_a_second_run_is_identical_and_offline(tmp_path):
     assert len(opener.calls) == calls
 
 
-def test_a_disagreeing_row_exits_three_after_the_report(tmp_path, caplog):
+def test_a_disagreeing_row_exits_four_after_the_report(tmp_path, caplog):
     wrong = CodeMapping(
         snomed="414545008", concept="MONDO:0024644", label="Myocardial Ischemia", source="mondo"
     )
     with caplog.at_level(logging.WARNING, logger="bko.ontology"):
         code, out, _ = _run(tmp_path / "data", rows=(wrong, FIELD_ROW, SCOPE_ROW))
-    assert code == 3
+    assert code == 4
     lines = out.splitlines()
     assert len(lines) == 4
     assert lines[1].split(",")[-1].startswith("named 'myocardial ischemia'")
