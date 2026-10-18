@@ -78,6 +78,14 @@ ladder.**
   - an instruction to invent new patients.
 
   No level sends a record.
+- **The decode.** `bko.generate.decode` reads a reply only when the model stopped on `end_turn`.
+  Its items pass as decoded, in order, unfiltered and unrepaired, followed by one `Undecoded`
+  placeholder per asked record short: `max(0, asked - decoded)` of them. A refusal, a truncation,
+  any other stop, missing text, text that is not JSON, or a root without a `records` list decodes
+  to no items, so every asked record becomes a placeholder carrying that reason. `Undecoded` is
+  frozen and is not a `Mapping`, so validation rejects it under `fields`. Decoding never raises on
+  a reply's content. A call that returns no response raises `GenerationError` and owes no
+  placeholders.
 
 ## Rationale
 
@@ -99,6 +107,11 @@ chains. A single fixed prompt gives no ablation axis.
 
 The ranges come from `RANGES` rather than a training split's minimum and maximum, because the
 prompt states what is possible for a patient, not what one split happens to hold.
+
+A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
+or a short array lowers validity rather than vanishing. `None` cannot be the placeholder, since a
+reply can decode to `null`. A truncated output is not salvaged, because its last records may be
+cut mid-value and the stop already says the call failed.
 
 ## Consequences
 
@@ -133,12 +146,15 @@ prompt states what is possible for a patient, not what one split happens to hold
 | Four guidance levels | Cannot separate the `is_a` chains from the findings, or coherence from the cell | 2026-10-18 |
 | The training split's minimum and maximum as the ranges | The prompt states what is possible, not what the data holds | 2026-10-18 |
 | Few-shot rows | A copied record fails E1's privacy share | 2026-10-18 |
+| `None` as the placeholder | Collides with a decoded `null` (Rationale) | 2026-10-18 |
+| Salvaging truncated output | Its last records may be cut mid-value (Rationale) | 2026-10-18 |
 
 ## Enforcement
 
 - Owner: `src/bko/generate/`
 - Pinned by: `tests/test_generate_messages.py`, `tests/test_generate_api.py`,
-  `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`
+  `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
+  `tests/test_generate_decode.py`, `tests/test_generate_contract.py`
 
 ## Reversal Conditions
 
