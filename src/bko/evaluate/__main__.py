@@ -7,12 +7,13 @@ judges another arm, a dry run whose verdict is not E1's. Logs go to stderr. `doc
 (Evaluation) is the usage home.
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
-call log at PATH, which must not exist.
+call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
+log at LOG instead.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log, BKO arms with no `--log`, a call with no response, a failed gap
-query and a run whose spend reached the ceiling; 3 the data, a method's output or a scores file
-contradicts its contract.
+query and a run whose spend reached the ceiling; 3 the data, a method's output, a scores file or a
+replay contradicts its contract.
 """
 
 from __future__ import annotations
@@ -51,9 +52,10 @@ from bko.evaluate.scores import Source as ScoreSource
 from bko.evaluate.validity import reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.errors import GenerationError
+from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Send
+from bko.generate.replay import Replay
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -149,6 +151,9 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     if guided and args.log is None:
         msg = f"--log is required: the arms {guided} call the Messages API"
         raise EvaluationError(msg)
+    if args.replay is not None and not guided:
+        msg = "--replay needs a BKO arm"
+        raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
@@ -200,8 +205,9 @@ def _guided(
     )
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
-    with CallLog(args.log, SETTINGS) as log:
-        send = context.send()
+    replay = Replay(args.replay) if args.replay is not None else None
+    with CallLog(args.log, SETTINGS, replay=replay.digest if replay is not None else None) as log:
+        send = replay if replay is not None else context.send()
         arms = {
             name: GuidedArm(
                 name,
@@ -215,13 +221,17 @@ def _guided(
             for name in names
         }
         try:
-            return run(
+            scores = run(
                 frame,
                 experiment,
                 {**context.arms, **arms},
                 factory=context.factory,
                 drains={name: arm.drain for name, arm in arms.items()},
             )
+            if replay is not None and replay.remaining:
+                msg = f"{replay.remaining} logged calls were not replayed"
+                raise ReplayError(msg)
+            return scores
         finally:
             for arm in arms.values():
                 arm.summary()
@@ -322,6 +332,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="the call log to create for the BKO arms' calls; it must not exist",
+    )
+    scoring.add_argument(
+        "--replay",
+        type=Path,
+        default=None,
+        help="answer every BKO call from this call log instead of the API",
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")

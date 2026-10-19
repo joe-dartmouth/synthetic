@@ -106,6 +106,7 @@ nothing. Inside `.venv`, writing to the gitignored `scratchpad/`, which a fresh 
 
     mkdir -p scratchpad
     test ! -e scratchpad/<run-id>.jsonl && test ! -e scratchpad/<run-id>.csv && test ! -e scratchpad/<run-id>.err && uv run --no-sync python -m bko.evaluate score --log scratchpad/<run-id>.jsonl [--data-dir <dir>] > scratchpad/<run-id>.csv 2> scratchpad/<run-id>.err
+    uv run --no-sync python -m bko.evaluate score --replay scratchpad/<run-id>.jsonl --log scratchpad/<run-id>.replay.jsonl [--data-dir <dir>] > scratchpad/<run-id>.replay.csv
     uv run --no-sync python -m bko.evaluate compare scratchpad/<run-id>.csv [--candidate <arm>]
 
 The `test ! -e` guards matter: the shell empties `.csv` and `.err` before `score` can refuse an
@@ -123,7 +124,9 @@ existing log, and the CSV is the only copy `compare` reads.
   `bko.baselines.records.check` would refuse, and keeps the rest. An attempt that cannot fill the
   request inside `E1`'s budget is refused and retried like a baseline's. Every arm fills before
   any is scored. A test record that some arm's rows copy in every column leaves the test split
-  each arm's utility is scored on.
+  each arm's utility is scored on. With `--replay`, every BKO call is answered from that call log
+  instead of the API. A call that differs from the log's, or a logged call left unplayed, stops
+  the run.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
   arm it is set against, the measure, and the contrast's mean, interval, the upper bound at the
@@ -149,16 +152,18 @@ existing log, and the CSV is the only copy `compare` reads.
   line per other BKO arm, a `copies` line per arm and a `mean` line per arm, measure and scope. An
   experiment copies them into its Runs row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value;
-  `--log` chooses where calls are recorded, never a value.
+  `--log` and `--replay` choose where calls are recorded and answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log, BKO arms with no `--log`, a call that gets no response, a failed gap query
-  and a run whose spend reached `E1.spend_ceiling`.
+  and a run whose spend reached `E1.spend_ceiling`; 3 also for a replay that does not match its
+  log.
 - **Reproducibility**: a holdout seed gives the same split and requests, and the baselines keep
   the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
   seed; the paid run's call log is their record (ADR
-  [`research/call-log-replay`](adr/research/call-log-replay.md)).
+  [`research/call-log-replay`](adr/research/call-log-replay.md)), and `--replay` rewrites the
+  scores byte for byte from it.
 
 ## BKB fixtures
 

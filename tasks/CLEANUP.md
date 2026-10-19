@@ -36,16 +36,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## evaluate
-
-- **`cleanup:evaluate/bko-arms-reproduce-from-log`: a BKO arm's rows cannot be redrawn from a
-  seed.** `docs/adr/research/e1-evaluation-protocol.md:26` says "Must reproduce from seeds on one
-  machine", but the Messages API takes no seed parameter (ADR `research/record-generation-design`,
-  Consequences). *Filed 2026-10-18 by `proposal-llm-generation`.*
-  **Why deferred.** E1's protocol belongs to `proposal-final-evaluation`.
-  **What discharges it:** E1's protocol states how a BKO arm's judged statistics reproduce.
-  **Trigger:** `proposal-final-evaluation`.
-
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's

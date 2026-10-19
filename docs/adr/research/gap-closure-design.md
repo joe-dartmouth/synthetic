@@ -88,7 +88,7 @@ stages share (ADR `tooling/src-layout`, Reversal Conditions).
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| One paid command that generates, validates and reads closure | A fix to the reading would spend again and draw different records, since nothing replays a call log | 2026-10-18 |
+| One paid command that generates, validates and reads closure | A fix to the reading would spend again unless every call replays unchanged (ADR `research/call-log-replay`), while reading a candidates file never calls the API | 2026-10-18 |
 | A fragment of generated records fused at its own reliability | The weights change no gap list (ADR `research/dataset-fragment-encoding`), grounding reads one set of records per cell, and the frequency-aware score reads counts, not fragments | 2026-10-18 |
 | Fusing the records into the fused BKB | `fuse` refuses a fused BKB as a fragment | 2026-10-18 |
 | The command in `bko.evaluate` | Its command line loads the synthesizers for a free reading, and E1 reads no completeness | 2026-10-18 |

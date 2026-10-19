@@ -192,9 +192,9 @@ cut mid-value and the stop already says the call failed.
   value the API should not emit. Validity then measures range adherence.
 - A plausible value outside a training split's range passes validation, and E1's runner drops it
   (ADR [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
-- E1's driver "Must reproduce from seeds on one machine" cannot hold for generated rows, because
-  the Messages API takes no seed. `cleanup:evaluate/bko-arms-reproduce-from-log` holds the owed
-  protocol change.
+- The Messages API takes no seed, so generated rows cannot be drawn again. A paid run's call log is
+  their record, and replay answers a rerun's calls from it (ADR
+  [`research/call-log-replay`](call-log-replay.md)).
 - The `summary` level's medians pull values toward real records, which presses on E1's privacy
   distance. The spreads are per-field marginals, never a joint row. No floor applies to the
   reference group's size, so a reference group of one record makes them equal that record's

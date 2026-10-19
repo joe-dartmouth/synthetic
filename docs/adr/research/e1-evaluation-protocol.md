@@ -23,7 +23,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 * **Must give intervals that hold for overlapping holdouts**, with about 5 positive test records
   in the underrepresented cells.
 * **Must fix every reading before the first run that includes the candidate.**
-* **Must reproduce from seeds on one machine**, with no unseeded randomness in a judged statistic.
+* **Must reproduce every judged statistic on one machine**: from seeds where an arm takes one, and
+  from the run's call log where it cannot (ADR `research/call-log-replay`).
 * **Should run unchanged on a larger frame in the same schema.**
 
 ## Decision

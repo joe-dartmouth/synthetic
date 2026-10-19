@@ -36,7 +36,7 @@ import it (ADR `tooling/agent-config-single-home`).
   on E1's holdouts, then judge `bko` against E1's criteria. `score` spends money through the three
   BKO arms and needs an Anthropic credential
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command and says what
-  `--candidate` judges).
+  `--candidate` judges); `score --replay` rereads a paid run's call log for free.
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).

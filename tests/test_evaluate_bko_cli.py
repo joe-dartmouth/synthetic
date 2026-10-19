@@ -6,9 +6,11 @@ Every call goes to a `ScriptedSend`; no test reaches the API.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import io
 import json
 import logging
+from pathlib import Path
 from typing import Final
 
 import pandas as pd
@@ -123,3 +125,84 @@ def test_a_stand_in_under_a_bko_name_builds_no_arm(tmp_path):
     assert main(["score", "--data-dir", str(tmp_path / "data")], context=ctx, out=out) == 0
     assert out.getvalue() != ""
     assert send.calls == []
+
+
+def paid_run(tmp_path, caplog) -> tuple[Context, Path, str]:
+    """Run `score` over `scripted()` replies; return its context, call log and CSV."""
+    ctx, _ = context(scripted())
+    out = io.StringIO()
+    log = tmp_path / "calls.jsonl"
+    caplog.set_level(logging.INFO)
+    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    return ctx, log, out.getvalue()
+
+
+def _score(log: Path, tmp_path: Path, *flag: str) -> list[str]:
+    return ["score", *flag, "--log", str(log), "--data-dir", str(tmp_path / "data")]
+
+
+def _validity(caplog) -> list[str]:
+    return [m for m in caplog.messages if m.startswith("validity ")]
+
+
+def _edited(log: Path, target: Path, edit) -> Path:
+    """Write `log`'s JSON lines to `target` after `edit` rewrote the list."""
+    lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    edit(lines)
+    target.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    return target
+
+
+def test_a_replayed_run_writes_the_live_runs_bytes(tmp_path, caplog):
+    ctx, log, text = paid_run(tmp_path, caplog)
+    live = _validity(caplog)
+    caplog.clear()
+    again = io.StringIO()
+    replaying = dataclasses.replace(ctx, send=ScriptedSend)
+    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
+    assert main(argv, context=replaying, out=again) == 0
+    assert again.getvalue() == text
+    first = json.loads((tmp_path / "replay.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert first["replay"] == hashlib.sha256(log.read_bytes()).hexdigest()
+    assert _validity(caplog) == live
+
+
+def test_a_replay_with_calls_left_is_refused(tmp_path, caplog):
+    ctx, log, _ = paid_run(tmp_path, caplog)
+
+    def extend(lines: list[dict]) -> None:
+        for kind in ("request", "reply"):
+            last = next(line for line in reversed(lines) if line["kind"] == kind)
+            lines.append({**last, "call": 5})
+
+    moved = _edited(log, tmp_path / "more.jsonl", extend)
+    out = io.StringIO()
+    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
+    assert main(argv, context=ctx, out=out) == 3
+    assert "1 logged calls were not replayed" in caplog.text
+    assert out.getvalue() == ""
+
+
+def test_a_replay_whose_request_moved_is_refused(tmp_path, caplog):
+    ctx, log, _ = paid_run(tmp_path, caplog)
+
+    def move(lines: list[dict]) -> None:
+        first = next(line for line in lines if line["kind"] == "request")
+        first["params"]["max_tokens"] = 1
+
+    moved = _edited(log, tmp_path / "moved.jsonl", move)
+    out = io.StringIO()
+    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
+    assert main(argv, context=ctx, out=out) == 3
+    assert "differs from logged call 1" in caplog.text
+
+
+def test_replay_needs_bko_arms(tmp_path, caplog):
+    ctx, log, _ = paid_run(tmp_path, caplog)
+    stand_ins = dataclasses.replace(
+        ctx, arms={"none": FAST_ARMS["none"], "bko": FAST_ARMS["bko"]}, send=ScriptedSend
+    )
+    out = io.StringIO()
+    argv = ["score", "--replay", str(log), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=stand_ins, out=out) == 2
+    assert out.getvalue() == ""
