@@ -54,8 +54,6 @@ from bko.validate.checks import validate
 logger = logging.getLogger("bko.fusion")
 
 CLOSURE_COLUMNS: Final[Row] = ("definition", *STATEMENT_COLUMNS, *CELL_COLUMNS, "before", "after")
-JOINED: Final = "joined"
-"""The suffix of the joined records' dataset name, so their fused BKBs' log lines differ."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,17 +88,14 @@ def main(
 
     Returns:
         0 done, 2 the command could not run, 3 an input contradicts its contract, pin or schema.
+        Any other exception propagates, so the process exits 1.
     """
     args = _parser().parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        logger.info(
-            "data_dir=%s pandas=%s scipy=%s",
-            data_dir,
-            importlib.metadata.version("pandas"),
-            importlib.metadata.version("scipy"),
-        )
         rows = _run(args.candidates, data_dir, Context() if context is None else context)
+        text = _csv(rows)
+        (out or sys.stdout).write(text)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -108,13 +103,15 @@ def main(
     except OSError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    buffer = io.StringIO()
-    csv.writer(buffer, lineterminator="\n").writerows(rows)
-    text = buffer.getvalue()
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("report rows=%d sha256=%s", len(rows) - 1, digest)
-    (out or sys.stdout).write(text)
     return 0
+
+
+def _csv(rows: Sequence[Row]) -> str:
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\n").writerows(rows)
+    return buffer.getvalue()
 
 
 def configure_logging() -> None:
@@ -142,6 +139,12 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
+    logger.info(
+        "data_dir=%s pandas=%s scipy=%s",
+        data_dir,
+        importlib.metadata.version("pandas"),
+        importlib.metadata.version("scipy"),
+    )
     data = path.read_bytes()
     lines = read(data)
     digest = hashlib.sha256(data).hexdigest()
@@ -164,10 +167,12 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
     before = record_cells(parts.train, context.field_rows, name=context.uci.name)
     request = completeness_request(fragments, before)
     candidates = _answer(lines, request, before)
-    accepted = {cell: validate(items).accepted for cell, items in candidates.items()}
+    accepted: dict[Cell, pd.DataFrame] = {}
+    for cell, items in candidates.items():
+        logger.info("validate key=%s lines=%d", cell_key(cell), len(items))
+        accepted[cell] = validate(items).accepted
     joined = join(parts.train, accepted, request)
-    name = f"{context.uci.name}-{JOINED}"
-    after = record_cells(joined.frame, context.field_rows, name=name)
+    after = record_cells(joined.frame, context.field_rows, name=f"{context.uci.name}-joined")
     _log_join(candidates, accepted, joined, before, after)
     readings = closure(fragments, before, after)
     _log_closure(readings)
@@ -184,7 +189,7 @@ def _answer(
         cell = keys.get(line.cell)
         if cell is None or cell not in found:
             msg = (
-                f"call {line.call} answers {line.cell}, "
+                f"call {line.call} answers {line.cell!r}, "
                 "a cell the completeness request does not ask for"
             )
             raise ClosureError(msg)
@@ -227,6 +232,12 @@ def _log_join(
                 "off_cell key=%s dropped=%d: accepted records whose own values name another cell",
                 cell_key(cell),
                 joined.off_cell[cell],
+            )
+        if joined.past_quota[cell]:
+            logger.warning(
+                "past_quota key=%s dropped=%d: accepted on-cell records past the cell's rows",
+                cell_key(cell),
+                joined.past_quota[cell],
             )
         if not joined.joined[cell]:
             logger.warning(

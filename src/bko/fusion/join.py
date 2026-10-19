@@ -65,15 +65,16 @@ def join(
     for cell, rows in request.items():
         frame = accepted.get(cell, train.iloc[:0])
         if list(frame.columns) != list(train.columns) or not frame.dtypes.equals(train.dtypes):
-            msg = f"{cell_key(cell)}'s accepted records lack the training split's columns"
-            raise ValueError(msg)
-        own = [
-            (str(band), str(sex), int(target))
-            for band, sex, target in cell_keys(frame, edges=edges).itertuples(
-                index=False, name=None
+            msg = (
+                f"{cell_key(cell)}'s accepted records differ from the training split's "
+                "columns or dtypes"
             )
-        ]
-        on_cell = frame[[key == cell for key in own]]
+            raise ValueError(msg)
+        keys = cell_keys(frame, edges=edges)
+        mask = pd.Series(True, index=frame.index)
+        for column, part in zip(keys.columns, cell, strict=True):
+            mask &= keys[column] == part
+        on_cell = frame.loc[mask]
         kept.append(on_cell.iloc[:rows])
         joined[cell] = min(len(on_cell), rows)
         off_cell[cell] = len(frame) - len(on_cell)

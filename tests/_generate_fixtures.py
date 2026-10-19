@@ -176,7 +176,11 @@ class ScriptedSend:
         assert not self._script, f"ScriptedSend has {len(self._script)} unplayed steps"
 
 
-def uci(cp_for: Mapping[tuple[int, int], str], default: str, sizes: Mapping = SIZES) -> bytes:
+def uci(
+    cp_for: Mapping[tuple[int, int], str],
+    default: str,
+    sizes: Mapping[tuple[int, int, int], int] = SIZES,
+) -> bytes:
     """An archive of `sizes` records, chest pain `cp_for[(age, sex)]` or `default`."""
     return archive(
         "\n".join(

@@ -129,7 +129,7 @@ def test_a_file_answering_e1s_request_exits_three_and_writes_nothing(tmp_path, c
     assert (code, out) == (3, "")
     assert any(
         record.levelno == logging.ERROR
-        and "call 2 answers >=55/female/1, a cell the completeness request does not ask for"
+        and "call 2 answers '>=55/female/1', a cell the completeness request does not ask for"
         in record.getMessage()
         for record in caplog.records
     )
@@ -166,7 +166,7 @@ def test_a_key_outside_the_grid_exits_three(tmp_path, caplog):
     )
     code, out, _ = run(tmp_path, stray)
     assert (code, out) == (3, "")
-    assert any("call 3 answers <55/female/9" in message for message in errors(caplog))
+    assert any("call 3 answers '<55/female/9'" in message for message in errors(caplog))
 
 
 def test_a_malformed_file_exits_three(tmp_path, caplog):
@@ -304,3 +304,51 @@ def test_the_module_runs_as_a_program():
     )
     assert result.returncode == 0, result.stderr
     assert "candidates" in result.stdout
+
+
+def test_extra_lines_for_a_cell_are_validated_then_dropped_past_its_rows(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="bko")
+    data = candidate_lines(
+        [("<55/female/0", [young(0, cp=4)] * 20), ("<55/female/1", [young(1, cp=1)] * 22)]
+    )
+    code, _, _ = run(tmp_path, data)
+    assert code == 0
+    assert "validate key=<55/female/1 lines=22" in messages(caplog)
+    assert any(
+        message.startswith(
+            "join key=<55/female/1 lines=22 passed=22 off_cell=0 past_quota=2 joined=20 "
+        )
+        for message in messages(caplog)
+    )
+    assert any(
+        message.startswith("past_quota key=<55/female/1 dropped=2")
+        for message in warnings_of(caplog)
+    )
+
+
+def test_a_cell_answered_over_several_calls_reads_its_lines_in_file_order(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="bko")
+    data = candidate_lines(
+        [
+            ("<55/female/1", [young(1, cp=4)] * 10),
+            ("<55/female/0", [young(0, cp=4)] * 20),
+            ("<55/female/1", [young(1, cp=1)] * 10),
+        ]
+    )
+    code, _, _ = run(tmp_path, data)
+    assert code == 0
+    assert "request key=<55/female/1 rows=20 lines=20" in messages(caplog)
+    assert any(
+        message.startswith("join key=<55/female/1 lines=20 passed=20 off_cell=0 past_quota=0 ")
+        and message.endswith("newly_held=HP:9000003,MONDO:9000004")
+        for message in messages(caplog)
+    )
+
+
+def test_an_archive_that_contradicts_its_pin_exits_three(tmp_path):
+    tampered = bytes([UCI_X[0] ^ 1]) + UCI_X[1:]
+    _, served = ladder_releases()
+    uci = pin(UCI_X)
+    context = make_context(open_url=RoutingOpener({**served, uci.url: tampered}), uci=uci)
+    code, out, _ = run(tmp_path, scenario_a(), context)
+    assert (code, out) == (3, "")

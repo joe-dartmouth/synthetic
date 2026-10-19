@@ -126,7 +126,7 @@ def test_the_completeness_request_asks_twenty_of_each_per_subgroup_gap_cell(tmp_
     send.assert_consumed()
 
 
-def test_the_completeness_request_is_not_e1s(tmp_path):
+def test_the_default_request_is_e1s_not_completeness(tmp_path):
     send = two_replies()
     code, _, log = run(tmp_path, completeness_context(send))
     assert code == 0

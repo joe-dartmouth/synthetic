@@ -77,7 +77,7 @@ def read(data: bytes) -> tuple[CandidateLine, ...]:
             msg = f"line {number} repeats call {line.call} position {line.position}"
             raise CandidatesFormatError(msg)
         if cells.setdefault(line.call, line.cell) != line.cell:
-            msg = f"line {number} puts call {line.call} in {line.cell}, not {cells[line.call]}"
+            msg = f"line {number} puts call {line.call} in {line.cell!r}, not {cells[line.call]!r}"
             raise CandidatesFormatError(msg)
         seen.add((line.call, line.position))
         lines.append(line)

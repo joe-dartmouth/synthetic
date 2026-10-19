@@ -14,7 +14,8 @@ each call, the run's totals and the output's digest go to stderr through logging
 money and a rerun's candidates differ. `docs/DEVELOPMENT.md` (Generation) is the usage home.
 
 Exit codes: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the command
-could not run, no credential, an API failure, or an existing log; 3 the data or a release
+could not run, no credential, an API failure, an existing log, a completeness request no cell holds
+a gap for, or `--request completeness` with another definition; 3 the data or a release
 contradicts its pin or schema.
 """
 
