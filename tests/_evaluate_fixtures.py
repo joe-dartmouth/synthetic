@@ -19,7 +19,8 @@ from bko.baselines.methods import METHODS
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
 from bko.evaluate.classifier import build
-from bko.evaluate.experiment import E1
+from bko.evaluate.experiment import BKO_ARMS, E1
+from bko.evaluate.run import method_arms
 from tests._baselines_fixtures import EDGE, TINY_CTGAN, TINY_TVAE, cell_list, full_records
 
 
@@ -49,6 +50,11 @@ def graded() -> pd.DataFrame:
     keep = [rank < sizes.get(cell, 26) for rank, cell in zip(position, cells, strict=True)]
     return base.loc[keep]
 
+
+FAST_ARMS = MappingProxyType(
+    {**method_arms(FAST_METHODS), **{name: method_arms(FAST_METHODS)["smote"] for name in BKO_ARMS}}
+)
+"""Every E1 arm, fast: each BKO name runs SMOTE, so no test reaches the API."""
 
 GRADED = graded()
 

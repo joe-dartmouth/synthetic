@@ -10,26 +10,25 @@ import subprocess
 import sys
 import urllib.error
 import warnings
-from types import MappingProxyType
 
 import pandas as pd
 import pytest
 
 from bko.evaluate.__main__ import Context, configure_logging, main
 from bko.evaluate.criteria import CONTRAST_COLUMNS
-from bko.evaluate.run import method_arms
 from bko.evaluate.scores import SCORE_COLUMNS
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, archive, pin
-from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-FAST_ARMS = MappingProxyType(method_arms(FAST_METHODS))
 TEXT = cleveland_text(GRADED)
-LIGHT = dataclasses.replace(SMALL, arms=("none", "smote"), comparators=(), replica_arms=())
+LIGHT = dataclasses.replace(
+    SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=()
+)
 SCORED = dataclasses.replace(SMALL, replica_arms=("smote", "adasyn", "ctgan"))
 """`SMALL` without TVAE's replica: the archive renumbers `GRADED`'s records, and on the splits that
 gives, the tiny TVAE never draws some cells. `tests/test_evaluate_run.py` covers TVAE's replica."""
@@ -72,9 +71,12 @@ def test_compare_judges_a_candidate_from_the_scores_file(scores_file):
     assert len(frame) == 2 * 2 * (len(SMALL.comparators) - 1) + 1
 
 
-def test_compare_without_the_candidates_scores_exits_two(scores_file):
+def test_compare_without_the_candidates_augmented_rows_exits_two(scores_file, tmp_path):
+    frame = pd.read_csv(scores_file)
+    path = tmp_path / "s.csv"
+    frame[frame["arm"] != "bko"].to_csv(path, index=False)
     out = io.StringIO()
-    assert main(["compare", str(scores_file)], context=Context(experiment=SMALL), out=out) == 2
+    assert main(["compare", str(path)], context=Context(experiment=SMALL), out=out) == 2
     assert out.getvalue() == ""
 
 
@@ -181,7 +183,7 @@ from tests._datasets_fixtures import FakeOpener, archive, pin
 from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
 data = archive(cleveland_text(GRADED))
 experiment = dataclasses.replace(
-    SMALL, arms=("none", "smote"), comparators=(), replica_arms=("smote",)
+    SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=("smote",)
 )
 configure_logging()
 arms = method_arms(FAST_METHODS)

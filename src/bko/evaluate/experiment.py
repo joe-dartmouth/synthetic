@@ -6,7 +6,10 @@ each criterion is read. No command-line flag changes a value here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from fractions import Fraction
+from types import MappingProxyType
 from typing import Final
 
 import pandas as pd
@@ -14,6 +17,7 @@ import pandas as pd
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.evaluate.errors import EvaluationError
+from bko.gaps.definitions import Definition
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +39,9 @@ class Experiment:
             intervals at 1 - (1 - confidence)/k.
         attempts: Each arm's tries at one request; a retry follows a refusal and takes a seed
             derived from the request's seed and the attempt.
+        budget: The records a BKO arm's attempt may ask for, as a multiple of the request's rows.
+        validity: The share of generated candidates that must pass every check, read as a point.
+        spend_ceiling: The call log's spend in USD at which a run stops.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -47,6 +54,9 @@ class Experiment:
     privacy_margin: float = 0.9
     confidence: float = 0.95
     attempts: int = 5
+    budget: int = 3
+    validity: Fraction = Fraction(19, 20)
+    spend_ceiling: float = 50.0
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -54,8 +64,9 @@ class Experiment:
         Raises:
             ValueError: If there are fewer than 2 holdout seeds, a seed repeats or leaves
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
-                arm, the candidate is among its comparators, the confidence is not in (0, 1), or
-                there is no attempt.
+                arm, the candidate is not an arm or is among its comparators, the confidence is
+                not in (0, 1), there is no attempt, the budget is below 1, the validity is not in
+                (0, 1], or the spend ceiling is not above 0 USD.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -71,6 +82,9 @@ class Experiment:
         if stray:
             msg = f"{stray} are not arms of this experiment"
             raise ValueError(msg)
+        if self.candidate not in self.arms:
+            msg = f"the candidate {self.candidate} is not an arm of this experiment"
+            raise ValueError(msg)
         if self.candidate in self.comparators:
             msg = f"the candidate {self.candidate} cannot be one of its comparators"
             raise ValueError(msg)
@@ -80,6 +94,15 @@ class Experiment:
         if self.attempts < 1:
             msg = f"attempts {self.attempts}: an arm needs at least one attempt"
             raise ValueError(msg)
+        if self.budget < 1:
+            msg = f"budget {self.budget}: an attempt must be able to ask for its request's rows"
+            raise ValueError(msg)
+        if not 0 < self.validity <= 1:
+            msg = f"validity {self.validity} must lie in (0, 1]"
+            raise ValueError(msg)
+        if not self.spend_ceiling > 0:
+            msg = f"spend ceiling {self.spend_ceiling} must be above 0 USD"
+            raise ValueError(msg)
 
 
 HOLDOUTS: Final = 100
@@ -88,9 +111,18 @@ HOLDOUTS: Final = 100
 METHOD_ARMS: Final = tuple(method.value for method in Method)
 """Every comparison method of `bko.baselines`, by name."""
 
+BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
+    {
+        "bko": Definition.SUBGROUP,
+        "bko-population": Definition.POPULATION,
+        "bko-frequency": Definition.FREQUENCY,
+    }
+)
+"""The BKO arms, each with the gap definition that guides it; `bko` is E1's candidate."""
+
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),
-    arms=METHOD_ARMS,
+    arms=(*METHOD_ARMS, *BKO_ARMS),
     candidate="bko",
     comparators=METHOD_ARMS,
     replica_arms=tuple(method.value for method in Method if method.adds_rows),

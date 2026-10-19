@@ -5,7 +5,6 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections import Counter
-from types import MappingProxyType
 
 import numpy as np
 import pytest
@@ -14,16 +13,13 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.records import derived_seed
 from bko.datasets.split import split
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, METHOD_ARMS, gap_request
-from bko.evaluate.run import held_out_ratio, method_arms, run
+from bko.evaluate.experiment import E1, gap_request
+from bko.evaluate.run import held_out_ratio, run
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Source, render
-from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL, Spy
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Spy
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
-FAST_ARMS = MappingProxyType(method_arms(FAST_METHODS))
-"""Every method as an arm, with small SDV models."""
 
 
 def test_a_control_arm_ignores_the_request():
@@ -41,7 +37,7 @@ def test_every_arm_is_scored_on_every_holdout(scores):
     counts = Counter((score.holdout, score.arm, score.source) for score in scores)
     for seed in SMALL.holdout_seeds:
         assert counts[seed, HELD_OUT_ARM, Source.HELD_OUT] == 3
-        for arm in METHOD_ARMS:
+        for arm in SMALL.arms:
             assert counts[seed, arm, Source.AUGMENTED] == 6
         for arm in SMALL.replica_arms:
             assert counts[seed, arm, Source.REPLICA] == 9
@@ -62,7 +58,13 @@ def test_the_held_out_ratio_is_the_largest_cells():
 
 def test_class_weights_reach_the_fit_through_the_harness():
     spy = Spy()
-    experiment = dataclasses.replace(SMALL, arms=("class-weight",), comparators=(), replica_arms=())
+    experiment = dataclasses.replace(
+        SMALL,
+        arms=("class-weight",),
+        candidate="class-weight",
+        comparators=(),
+        replica_arms=(),
+    )
     run(GRADED, experiment, FAST_ARMS, factory=spy)
     labels, weights = spy.models[0].seen
     total, positives = len(labels), int(labels.sum())
@@ -78,7 +80,7 @@ def test_no_arm_sees_a_test_record():
         return FAST_ARMS["smote"](train, request)
 
     experiment = dataclasses.replace(
-        SMALL, arms=("smote",), comparators=(), replica_arms=("smote",)
+        SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=("smote",)
     )
     run(GRADED, experiment, {"smote": spying})
     assert len(seen) == 2 * len(SMALL.holdout_seeds)
@@ -116,7 +118,9 @@ def test_a_refusal_is_retried_with_a_derived_seed():
             raise BaselineError(msg)
         return FAST_ARMS["smote"](train, request)
 
-    experiment = dataclasses.replace(SMALL, arms=("smote",), comparators=(), replica_arms=())
+    experiment = dataclasses.replace(
+        SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=()
+    )
     scores = run(GRADED, experiment, {"smote": flaky})
     expected = [s for seed in SMALL.holdout_seeds for s in (seed, derived_seed(seed, "attempt", 1))]
     assert seeds == expected
@@ -140,6 +144,7 @@ def test_a_rerun_writes_the_same_bytes():
     experiment = dataclasses.replace(
         SMALL,
         arms=("none", "smote", "adasyn", "ctgan", "tvae"),
+        candidate="smote",
         comparators=(),
         replica_arms=("smote",),
     )
@@ -156,7 +161,7 @@ def test_a_runner_that_changes_its_input_changes_nothing_else():
         return baseline
 
     experiment = dataclasses.replace(
-        SMALL, arms=("smote", "none"), comparators=(), replica_arms=("smote",)
+        SMALL, arms=("smote", "none"), candidate="smote", comparators=(), replica_arms=("smote",)
     )
     honest = render(run(GRADED, experiment, FAST_ARMS))
     assert render(run(GRADED, experiment, {**FAST_ARMS, "smote": vandal})) == honest
@@ -174,7 +179,7 @@ def test_every_retry_is_logged_with_its_own_derived_seed(caplog):
         return FAST_ARMS["smote"](train, request)
 
     experiment = dataclasses.replace(
-        SMALL, arms=("smote",), comparators=(), replica_arms=("smote",)
+        SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=("smote",)
     )
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
         run(GRADED, experiment, {"smote": twice_refused_replica})
