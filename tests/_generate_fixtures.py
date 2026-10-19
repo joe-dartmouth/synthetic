@@ -40,6 +40,8 @@ def message(
     model: str = SETTINGS.model,
     input_tokens: int = 1000,
     output_tokens: int = 500,
+    cache_creation_input_tokens: int | None = None,
+    cache_read_input_tokens: int | None = None,
     request_id: str = "req_test",
 ) -> anthropic.types.Message:
     """Build an SDK message: a thinking block, then a text block when `text` is not None.
@@ -50,10 +52,12 @@ def message(
         model: The served model.
         input_tokens: The usage's input tokens.
         output_tokens: The usage's output tokens.
+        cache_creation_input_tokens: The usage's cache-write tokens; None reports none.
+        cache_read_input_tokens: The usage's cache-read tokens; None reports none.
         request_id: The request id the SDK sets on a top-level response.
 
     Returns:
-        The message, with no cache usage reported.
+        The message.
     """
     content: list[dict[str, object]] = [
         {"type": "thinking", "thinking": "considering the cell", "signature": "sig"}
@@ -72,8 +76,8 @@ def message(
             "usage": {
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
-                "cache_creation_input_tokens": None,
-                "cache_read_input_tokens": None,
+                "cache_creation_input_tokens": cache_creation_input_tokens,
+                "cache_read_input_tokens": cache_read_input_tokens,
             },
         }
     )

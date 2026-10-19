@@ -18,10 +18,13 @@ import pytest
 
 from bko.datasets.split import split
 from bko.datasets.uci import load_uci
+from bko.gaps.definitions import Definition
 from bko.gaps.observe import cell_key
 from bko.generate.__main__ import Context, configure_logging, main
 from bko.generate.errors import GenerationError
+from bko.generate.guidance import Basis
 from bko.generate.messages import Call, Level, Reply, Send
+from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
 from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS
@@ -141,6 +144,42 @@ def test_the_guidance_flag_sets_the_level_and_defaults_to_ontology(tmp_path, ext
     assert code == 0
     assert {call.settings.guidance for call in send.calls} == {level}
     assert log_lines(log)[0]["settings"]["guidance"] == level.value
+
+
+OLDER_MEN_ANGINA = archive(
+    "\n".join(
+        cleveland_line(age=age, sex=sex, num=num, cp="1.0" if (age, sex) == (63, 1) else "4.0")
+        for (age, sex, num), size in SIZES.items()
+        for _ in range(size)
+    )
+    + "\n"
+)
+"""`UCI` with typical angina in every older man, so the training split shows it but no young
+woman does: a per-subgroup gap of each young-women cell, no population-level gap, and a
+frequency-aware gap of the young women without the condition."""
+
+
+@pytest.mark.parametrize(
+    ("definition", "basis"),
+    [
+        (Definition.SUBGROUP, [Basis.ABSENT]),
+        (Definition.POPULATION, []),
+        (Definition.FREQUENCY, [Basis.RARE]),
+    ],
+)
+def test_the_definition_chooses_the_gaps_the_prompt_states(tmp_path, definition, basis):
+    _, served = releases()
+    uci = pin(OLDER_MEN_ANGINA)
+    send = two_replies()
+    context = make_context(
+        send, open_url=RoutingOpener({**served, uci.url: OLDER_MEN_ANGINA}), uci=uci
+    )
+    argv = [definition.value, "--log", str(tmp_path / "run.jsonl")]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    first = send.calls[0]
+    assert (first.sex, first.label) == (0, 0)
+    assert [key for key, sentence in BASES.items() if sentence in first.user] == basis
 
 
 def test_an_existing_log_path_exits_2_before_any_call(tmp_path, caplog):

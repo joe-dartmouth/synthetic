@@ -58,6 +58,11 @@ def test_reply_of_reads_request_id_model_stop_reason_text_usage_and_raw():
     assert reply.raw == two.to_dict(mode="json")
 
 
+def test_reply_of_reads_cache_writes_and_reads_each_into_its_own_field():
+    built = message(records_text([]), cache_creation_input_tokens=3, cache_read_input_tokens=5)
+    assert reply_of(built).usage == Usage(1000, 500, 3, 5)
+
+
 def test_reply_of_gives_no_text_without_a_text_block():
     assert reply_of(message(None, stop_reason="refusal")).text is None
 

@@ -328,6 +328,13 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
   releases built in `tmp_path` (`tests/test_generate_cli.py`); no gate test reaches the API.
+- **The release test**: `tests/test_generate_pinned_releases.py` builds every cell's guidance under
+  each definition over the real mapping table, UCI snapshot and pinned releases in the data root,
+  and renders it at every level. It never fetches and never calls the API; run it with
+  `--releases` after changing guidance or the prompt, once the command or `make cells` and
+  `python -m bko.ontology check` have fetched the data:
+
+      uv run --no-sync pytest tests/test_generate_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
 ## Platforms
 
