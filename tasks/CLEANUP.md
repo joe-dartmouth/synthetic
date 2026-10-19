@@ -64,7 +64,7 @@ links to where its blocker is tracked.
   the candidates sha256 that both commands log (ADR `research/gap-closure-design`, Consequences).
   Raised in PR #18's review. *Filed 2026-10-19 by `proposal-fusion-repair`.*
   **Why deferred.** It changes the candidates format, which `bko.generate.candidates` writes and
-  reads, and the one judged run so far was checked by digest.
+  reads, and the one completeness run so far was checked by digest.
   **What discharges it:** generate writes the split fingerprint, release versions and guidance
   level where the closure command reads them, and the closure command refuses a mismatch.
   **Trigger:** `proposal-guidance-ablation`, which reads several completeness runs.

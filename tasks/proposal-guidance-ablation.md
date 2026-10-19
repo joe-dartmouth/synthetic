@@ -1,8 +1,8 @@
 ---
 id: proposal-guidance-ablation
 title: Guidance-level ablation of record generation
-status: blocked
-depends_on: proposal-e1-judged-run
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley
