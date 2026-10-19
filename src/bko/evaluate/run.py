@@ -3,6 +3,9 @@
 Each holdout splits the frame with its seed. An arm gets a copy of the split's training rows and
 the request, never the test rows, so no generator sees a test record. A runner returns a checked
 `Baseline`; `augment` checks every method's.
+
+Each holdout fills every arm, then scores each on the test split without the records any arm's
+rows copy.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ import hashlib
 import json
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import partial
 from types import MappingProxyType
 from typing import Final
@@ -26,6 +29,7 @@ from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.cells import cell_counts
 from bko.datasets.split import Split, split
 from bko.evaluate.classifier import Factory, build, probabilities
+from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
@@ -51,6 +55,10 @@ def _method_arm(
 ARMS: Final[Mapping[str, Runner]] = MappingProxyType(method_arms())
 """Every comparison method of `bko.baselines`, by name."""
 
+type Drain = Callable[[], Mapping[Measure, float]]
+"""A BKO arm's counts since the last call. The harness writes them per holdout as
+`Source.CANDIDATES` scores."""
+
 
 def held_out_ratio(parts: Split) -> float:
     """Nadeau and Bengio's n2/n1: the largest ratio of held-out to training records in a cell.
@@ -68,6 +76,7 @@ def run(
     arms: Mapping[str, Runner] = ARMS,
     *,
     factory: Factory = build,
+    drains: Mapping[str, Drain] = MappingProxyType({}),
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `frame`.
 
@@ -84,14 +93,20 @@ def run(
     total = len(experiment.holdout_seeds)
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
-        scores += score_holdout(split(frame, seed=seed), experiment, arms, factory=factory)
+        parts = split(frame, seed=seed)
+        scores += score_holdout(parts, experiment, arms, factory=factory, drains=drains)
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
     return scores
 
 
 def score_holdout(
-    parts: Split, experiment: Experiment, arms: Mapping[str, Runner], *, factory: Factory = build
+    parts: Split,
+    experiment: Experiment,
+    arms: Mapping[str, Runner],
+    *,
+    factory: Factory = build,
+    drains: Mapping[str, Drain] = MappingProxyType({}),
 ) -> list[Score]:
     """Every score of one holdout: the held-out rows' own, then each arm's."""
     train, test, seed = parts.train, parts.test, parts.seed
@@ -106,21 +121,32 @@ def score_holdout(
     for stratum, rows in gap.quota.items():
         logger.info("quota holdout=%d stratum=%s rows=%d", seed, "/".join(map(str, stratum)), rows)
     cells = flagged(train, experiment)
+    fills = {
+        name: _fill(arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name)
+        for name in experiment.arms
+    }
+    replicas = {
+        name: _fill(
+            arms[name],
+            train,
+            replica_request(train, seed=seed),
+            holdout=seed,
+            attempts=experiment.attempts,
+            name=f"{name}-replica",
+        ).added
+        for name in experiment.replica_arms
+    }
+    clean = decontaminated(test, [*(fill.added for fill in fills.values()), *replicas.values()])
+    logger.info("test holdout=%d records=%d copied=%d", seed, len(test), len(test) - len(clean))
     held_out = {Measure.HELD_OUT_RATIO: held_out_ratio(parts), **distances(test, train)}
     scores = _rows(seed, HELD_OUT_ARM, Source.HELD_OUT, held_out)
     for name in experiment.arms:
-        baseline = _fill(
-            arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name
-        )
-        scores += _rows(seed, name, Source.ADDED, {Measure.ROWS: float(len(baseline.added))})
-        if len(baseline.added):
-            scores += _rows(seed, name, Source.ADDED, distances(baseline.added, train))
-        fitted = probabilities(training_set(train, baseline), test, factory=factory)
-        scores += _scoped(seed, name, Source.AUGMENTED, utility(test, fitted, cells))
-        if name in experiment.replica_arms:
-            scores += _replica(
-                arms[name], parts, cells, attempts=experiment.attempts, name=name, factory=factory
-            )
+        scores += _arm_scores(seed, name, fills[name], parts, clean, cells, factory=factory)
+        if name in replicas:
+            replica = replicas[name]
+            scores += _replica_scores(seed, name, replica, parts, clean, cells, factory=factory)
+        if name in drains:
+            scores += _rows(seed, name, Source.CANDIDATES, drains[name]())
     return scores
 
 
@@ -179,28 +205,46 @@ def _fill(
     raise EvaluationError(msg)
 
 
-def _replica(
-    runner: Runner,
+def _arm_scores(
+    seed: int,
+    name: str,
+    baseline: Baseline,
     parts: Split,
+    clean: pd.DataFrame,
     cells: tuple[Stratum, ...],
     *,
-    attempts: int,
-    name: str,
     factory: Factory,
 ) -> list[Score]:
-    request = replica_request(parts.train, seed=parts.seed)
-    replica = _fill(
-        runner,
-        parts.train,
-        request,
-        holdout=parts.seed,
-        attempts=attempts,
-        name=f"{name}-replica",
-    ).added
-    fitted = probabilities(replica.assign(weight=1.0), parts.test, factory=factory)
+    """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility."""
+    train, added = parts.train, baseline.added
+    counts = {
+        Measure.ROWS: float(len(added)),
+        Measure.TEST_COPIES: float(copies(added, parts.test)),
+    }
+    scores = _rows(seed, name, Source.ADDED, counts)
+    if len(added):
+        scores += _rows(seed, name, Source.ADDED, distances(added, train))
+    fitted = probabilities(training_set(train, baseline), clean, factory=factory)
+    return scores + _scoped(seed, name, Source.AUGMENTED, utility(clean, fitted, cells))
+
+
+def _replica_scores(
+    seed: int,
+    name: str,
+    replica: pd.DataFrame,
+    parts: Split,
+    clean: pd.DataFrame,
+    cells: tuple[Stratum, ...],
+    *,
+    factory: Factory,
+) -> list[Score]:
+    """REPLICA utility of a fit on the replica alone, then fidelity, then copies."""
+    fitted = probabilities(replica.assign(weight=1.0), clean, factory=factory)
+    copied = {Measure.TEST_COPIES: float(copies(replica, parts.test))}
     return [
-        *_scoped(parts.seed, name, Source.REPLICA, utility(parts.test, fitted, cells)),
-        *_rows(parts.seed, name, Source.REPLICA, fidelity(parts.train, replica)),
+        *_scoped(seed, name, Source.REPLICA, utility(clean, fitted, cells)),
+        *_rows(seed, name, Source.REPLICA, fidelity(parts.train, replica)),
+        *_rows(seed, name, Source.REPLICA, copied),
     ]
 
 

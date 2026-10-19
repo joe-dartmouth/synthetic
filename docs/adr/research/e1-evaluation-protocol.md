@@ -271,7 +271,8 @@ easier to reach.
   `tests/test_evaluate_run.py`, `tests/test_evaluate_classifier.py`,
   `tests/test_evaluate_utility.py`, `tests/test_evaluate_fidelity.py`,
   `tests/test_evaluate_privacy.py`, `tests/test_evaluate_scores.py`, `tests/test_evaluate_cli.py`,
-  `tests/test_evaluate_guided.py`, `tests/test_baselines_records.py`
+  `tests/test_evaluate_guided.py`, `tests/test_baselines_records.py`,
+  `tests/test_evaluate_copies.py`
 
 ## Reversal Conditions
 

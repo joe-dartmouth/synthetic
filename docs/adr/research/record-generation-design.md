@@ -199,8 +199,9 @@ cut mid-value and the stop already says the call failed.
   distance. The spreads are per-field marginals, never a joint row. No floor applies to the
   reference group's size, so a reference group of one record makes them equal that record's
   values; on the UCI split the reference group is the rest of the cell's label group.
-- A model may reproduce a public Cleveland record; `cleanup:evaluate/generated-copies-of-test-records`
-  holds the owed check.
+- A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
+  record and scores every arm on the test split without them (ADR
+  [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
 
 ## Ruled Out
 
