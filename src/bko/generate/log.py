@@ -46,6 +46,7 @@ class CallLog:
 
     Attributes:
         path: The log file.
+        replay: The sha256 of the call log a replay answers from, or None for a live run.
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
@@ -76,10 +77,15 @@ class CallLog:
 
         Raises:
             GenerationError: As `bko.generate.spend.price_of`, before the file is created.
+            importlib.metadata.PackageNotFoundError: If `anthropic` is not installed, before the
+                file is created.
             FileExistsError: If `path` exists.
         """
         price = price_of(settings.model)
+        # Read before the file exists, so a failure here leaves no log to block a rerun.
+        anthropic = importlib.metadata.version("anthropic")
         self.path = path
+        self.replay = replay
         self.settings = settings
         self._now = now
         self.calls = 0
@@ -102,13 +108,24 @@ class CallLog:
                     "started": self._at(),
                     "settings": dataclasses.asdict(settings),
                     "price": dataclasses.asdict(price),
-                    "anthropic": importlib.metadata.version("anthropic"),
+                    "anthropic": anthropic,
                     "replay": replay,
                 }
             )
         except BaseException:
             self._file.close()
             raise
+        logger.info(
+            "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d replay=%s",
+            path,
+            SCHEMA,
+            settings.model,
+            settings.effort,
+            settings.guidance,
+            settings.per_call,
+            settings.max_tokens,
+            replay or "none",
+        )
 
     def __enter__(self) -> Self:
         """Return the log."""
@@ -122,6 +139,9 @@ class CallLog:
     ) -> None:
         """Write the `end` line, log the run's totals and close the file; never suppress.
 
+        The totals line names the replayed log's sha256 under `replay`, or `none` for a live
+        run, so a replay's spend never reads as paid.
+
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other.
         """
@@ -132,10 +152,18 @@ class CallLog:
         else:
             status = "failed"
         try:
-            self._write({"kind": "end", "status": status, "ended": self._at(), **self._totals()})
+            self._write(
+                {
+                    "kind": "end",
+                    "status": status,
+                    "ended": self._at(),
+                    "replay": self.replay,
+                    **self._totals(),
+                }
+            )
             logger.info(
                 "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
-                "input_tokens=%d output_tokens=%d usd=%.4f log=%s",
+                "input_tokens=%d output_tokens=%d usd=%.4f replay=%s log=%s",
                 status,
                 self.calls,
                 self.failed,
@@ -146,6 +174,7 @@ class CallLog:
                 self.input_tokens,
                 self.output_tokens,
                 self.usd,
+                self.replay or "none",
                 self.path,
             )
         finally:

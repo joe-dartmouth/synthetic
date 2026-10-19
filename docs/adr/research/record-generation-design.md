@@ -121,11 +121,13 @@ ladder.**
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
-  its prompts and responses. Its lines, each flushed as written: one `run` line
+  its prompts and responses; the SDK version it records is read before the file is created too.
+  Its lines, each flushed as written: one `run` line
   (schema 2, settings, price, SDK version, and `replay`: the sha256 of the call log a replay
   answers from, or null), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
-  for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
+  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay` again, and the run's
+  totals. A `reply` line holds the
   whole response and `attempts`, the HTTP requests the SDK made for the call
   (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
   nothing counted them. The `end` line's totals add `retried`, the calls that took more than one

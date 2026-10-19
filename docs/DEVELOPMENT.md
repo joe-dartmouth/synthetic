@@ -340,12 +340,13 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
   `summary`, each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call
-  and a `reply` or `error` line after it, and an `end` line with the run's status and totals, each
+  and a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's sha256 (or null) and totals, each
   call's whole request and response and its USD spend included. An interrupt or any other failure
   between a `request` line and its `reply` line writes the `error` line. stderr gets the split
   line, each ontology fragment's size, the request's name, cells and rows, a `quota` line per
-  asked cell, the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
-  naming the call and cell), the run's totals and spend with the log's path, and last the line
+  asked cell, a `log` line (path, schema, model, effort, level, records per call, token limit, and
+  the replayed log's sha256 or `none`), the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
+  naming the call and cell), the run's totals and spend with the replayed log's sha256 or `none` and the log's path, and last the line
   count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
   settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
   statement no label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell

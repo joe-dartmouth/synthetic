@@ -194,6 +194,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
     assert end == {
         "kind": "end",
         "status": "failed",
+        "replay": None,
         "calls": 2,
         "failed": 1,
         "retried": 0,
@@ -235,7 +236,7 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
         "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
-        f"input_tokens=1000 output_tokens=500 usd=0.0140 log={path}"
+        f"input_tokens=1000 output_tokens=500 usd=0.0140 replay=none log={path}"
     ) in caplog.text
 
 
@@ -274,3 +275,33 @@ def test_the_log_is_readable_by_its_owner_only(tmp_path):
     finally:
         os.umask(previous)
     assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_a_missing_sdk_version_leaves_no_file(tmp_path, monkeypatch):
+    def absent(name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(importlib.metadata, "version", absent)
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(importlib.metadata.PackageNotFoundError):
+        CallLog(path, SETTINGS, now=_now)
+    assert not path.exists()
+
+
+def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, replay="ab12", now=_now):
+        pass
+    assert (
+        f"log path={path} schema=2 model={SETTINGS.model} effort={SETTINGS.effort} "
+        f"level={SETTINGS.guidance} per_call={SETTINGS.per_call} "
+        f"max_tokens={SETTINGS.max_tokens} replay=ab12"
+    ) in caplog.messages
+
+
+def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, replay="ab12", now=_now):
+        pass
+    assert _lines(path)[-1]["replay"] == "ab12"
+    assert any(m.startswith("run status=complete") and "replay=ab12" in m for m in caplog.messages)
