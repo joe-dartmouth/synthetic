@@ -295,11 +295,12 @@ candidate records that fill E1's count-based gap request (ADR
 [`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
 inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
-    uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log scratchpad/<run-id>.jsonl
+    uv run --no-sync python -m bko.generate <definition> [--guidance <level>] --log scratchpad/<run-id>.jsonl [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease and the releases the field mappings name into the
-  data root if absent, splits the records as [Data](#data) says, and reads the training split's
-  gaps under the named definition (`per-subgroup`, `population-level` or `frequency-aware`). It
+  data root (`--data-dir`, default `data/`) if absent, splits the records as [Data](#data) says,
+  and reads the training split's gaps under `<definition>`: `per-subgroup`, `population-level` or
+  `frequency-aware`. It
   asks each cell holding fewer training records than `UNDERREPRESENTED_BELOW` for its shortfall,
   in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
   stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
@@ -317,13 +318,17 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   line, each ontology fragment's size, the plan (calls, level, and the most the output tokens can
   cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
   naming the call and cell), the run's totals and spend with the log's path, and last the line
-  count and sha256 of stdout. The SDK retries a failed attempt up to twice and logs each retry at
+  count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
+  settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
+  statement no label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell
+  with no reference record, so no profile or summary; and the UCI loader's line naming the records
+  it dropped for a missing value. The SDK retries a failed attempt up to twice and logs each retry at
   INFO between the call's `send` line and its result; the call log does not count attempts
   (`cleanup:generate/retries-in-call-log`).
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, and a
-  `--log` path that exists (checked before any download or call); 3 the data or a release contradicts its pin
-  or schema.
+  `--log` path that exists (checked before any download or call); 3 the data or a release
+  contradicts its pin or schema.
 - **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
@@ -335,6 +340,12 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   `python -m bko.ontology check` have fetched the data:
 
       uv run --no-sync pytest tests/test_generate_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+- **The live test**: `tests/test_generate_live.py` makes one paid call for 2 records and checks the
+  reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
+  the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
+
+      test ! -e scratchpad/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=scratchpad/<run-id> -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
 
 ## Platforms
 

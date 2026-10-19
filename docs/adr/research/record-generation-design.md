@@ -92,9 +92,10 @@ ladder.**
   - shown, for a cell with no gap: the group's records show the finding.
 - **The profile and summary.** Both read the reference group of ADR
   [`research/frequency-aware-gap-score`](frequency-aware-gap-score.md): the training records
-  outside the cell that share its label. The profile gives each concept a label-compatible row
-  maps its share of those records, which is the dataset fragment's prior over them. A concept
-  that a row reading only the label maps is left out, since every reference record shows it. The
+  outside the cell that share its label. The profile gives each concept that a label-compatible
+  row maps, and that the observed cells count, its share of those records, which is the dataset
+  fragment's prior over them. A concept that a row reading only the label maps is left out, since
+  every reference record shows it. The
   summary gives each numeric field's quartiles over the same records. A cell with no reference
   record gets neither, with a WARNING.
 - **What every level sends:**

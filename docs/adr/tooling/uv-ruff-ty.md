@@ -67,7 +67,8 @@ verdicts that move only when a pin moves.
 `make setup`. A developer working on a stage installs its extra by hand until the stage's first
 import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
 it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto,
-and `llm` because `tests/conftest.py` imports anthropic for the paid-request guard. `synth`
+and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
+paid-request guard. `synth`
 brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packages and `triton`.
 
 ## Ruled Out

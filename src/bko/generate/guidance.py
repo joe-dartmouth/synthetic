@@ -252,7 +252,11 @@ def _reference(
     label: int,
     rows: Sequence[FieldMapping],
 ) -> tuple[Profile | None, dict[str, Spread] | None]:
-    """The profile and summary of the records outside `cell` that share its label."""
+    """The profile and summary of the records outside `cell` that share its label.
+
+    The profile leaves out a concept `cells` does not count (one only a row outside the rows
+    `cells` was observed with maps), and a concept a row reading only the label maps.
+    """
     others = [
         other.observed for key, other in cells.each.items() if key != cell and other.label == label
     ]

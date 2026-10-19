@@ -195,7 +195,8 @@ def test_setup_installs_the_extras_something_imports():
     """`synth`, `eval`, `ontology` and `llm` are installed because something imports each.
 
     `bko.baselines` imports `synth`, `bko.evaluate` imports `eval`, `bko.ontology` imports
-    `ontology`, and `tests/conftest.py` imports `llm` for the paid-request guard.
+    `ontology`, and `bko.generate.api` imports `llm`, as does `tests/conftest.py` for the
+    paid-request guard.
 
     ADR `tooling/uv-ruff-ty`. A subset, not equality: a stage that imports another extra adds it
     to the same line.
