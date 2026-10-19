@@ -11,9 +11,10 @@ call log at PATH, which must not exist. `score --replay LOG` answers every BKO c
 log at LOG instead.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log, BKO arms with no `--log`, a call with no response, a failed gap
-query and a run whose spend reached the ceiling; 3 the data, a method's output, a scores file or a
-replay contradicts its contract.
+including an existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to
+build, a call with no response, a failed gap query, a run whose spend reached the ceiling and
+scores whose validity cannot be read; 3 the data, a method's output, a scores file or a replay
+contradicts its contract.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ import importlib.metadata
 import json
 import logging
 import platform
+import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -114,7 +116,9 @@ def main(
     Args:
         argv: The arguments after the program name; `sys.argv[1:]` when omitted.
         context: The outside world; the real one when omitted.
-        out: Where the CSV goes; stdout when omitted. Nothing is written unless the run succeeds.
+        out: Where the CSV goes; stdout when omitted. `score` writes nothing unless the run
+            succeeds; `compare` writes its table before it reads validity, so a validity it
+            cannot read still leaves the interval criteria's table.
 
     Returns:
         0 done, 2 the command could not run, 3 an input contradicts its contract. Any other
@@ -122,8 +126,12 @@ def main(
     """
     context = context or Context()
     args = _parser().parse_args(argv)
+    sink = out or sys.stdout
     try:
-        text = _score(args, context) if args.command == "score" else _compare(args, context)
+        if args.command == "compare":
+            _compare(args, context, sink)
+            return 0
+        text = _score(args, context)
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -131,14 +139,16 @@ def main(
     except OSError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    (out or sys.stdout).write(text)
+    sink.write(text)
     return 0
 
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
@@ -153,6 +163,9 @@ def _score(args: argparse.Namespace, context: Context) -> str:
         raise EvaluationError(msg)
     if args.replay is not None and not guided:
         msg = "--replay needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.log is not None and not guided:
+        msg = "--log needs a BKO arm"
         raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
@@ -182,7 +195,10 @@ def _log_experiment(experiment: Experiment) -> None:
         experiment.validity,
         experiment.spend_ceiling,
     )
-    logger.info("versions %s", json.dumps(_versions(), sort_keys=True))
+    commit, dirty = _commit()
+    logger.info(
+        "versions commit=%s dirty=%s %s", commit, dirty, json.dumps(_versions(), sort_keys=True)
+    )
 
 
 def _guided(
@@ -237,7 +253,11 @@ def _guided(
                 arm.summary()
 
 
-def _compare(args: argparse.Namespace, context: Context) -> str:
+def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
+    """Write the criteria's table to `out`, then log validity, copies and means.
+
+    The table goes out first, so scores whose validity cannot be read keep it.
+    """
     data = args.scores.read_bytes()
     try:
         text = data.decode("utf-8")
@@ -256,10 +276,10 @@ def _compare(args: argparse.Namespace, context: Context) -> str:
     for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
         outcome = next(c.verdict for c in contrasts if c.criterion == criterion)
         logger.info("criterion=%s verdict=%s", criterion, outcome)
+    out.write(table(contrasts))
     _log_validity(scores, context.experiment, candidate)
     _log_copies(scores)
     _log_means(scores)
-    return table(contrasts)
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
@@ -282,11 +302,14 @@ def _log_copies(scores: Sequence[Score]) -> None:
             found[s.source] = found.get(s.source, 0.0) + s.value
     for arm, found in totals.items():
         added, replica = found.get(ScoreSource.ADDED, 0.0), found.get(ScoreSource.REPLICA, 0.0)
-        logger.info("copies arm=%s added=%d replica=%d", arm, added, replica)
+        logger.info("copies arm=%s added=%.0f replica=%.0f", arm, added, replica)
 
 
 def _log_means(scores: Sequence[Score]) -> None:
-    """Log each arm's mean of every judged measure in every scope over the holdouts; no verdict."""
+    """Log each arm's mean of every judged measure in every scope over the holdouts; no verdict.
+
+    A measure and scope with no value for an arm gets no line.
+    """
     for arm in dict.fromkeys(s.arm for s in scores if s.source is ScoreSource.AUGMENTED):
         for measure in JUDGED:
             for scope in Scope:
@@ -296,6 +319,8 @@ def _log_means(scores: Sequence[Score]) -> None:
                     if (s.arm, s.source, s.measure, s.scope)
                     == (arm, ScoreSource.AUGMENTED, measure, scope)
                 ]
+                if not values:
+                    continue
                 mean = sum(values) / len(values)
                 logger.info(
                     "mean arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
@@ -305,6 +330,30 @@ def _log_means(scores: Sequence[Score]) -> None:
                     mean,
                     len(values),
                 )
+
+
+def _commit() -> tuple[str, str]:
+    """The checkout's HEAD and whether its tree differs from it, or `unknown` for each."""
+    here = Path(__file__).parent
+    found: list[str] = []
+    for command in (["git", "rev-parse", "HEAD"], ["git", "status", "--porcelain"]):
+        try:
+            result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+                command,
+                cwd=here,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                timeout=30,
+                check=False,
+            )
+        except OSError, subprocess.TimeoutExpired:
+            return "unknown", "unknown"
+        if result.returncode != 0:
+            return "unknown", "unknown"
+        found.append(result.stdout.strip())
+    head, status = found
+    return head, "true" if status else "false"
 
 
 def _versions() -> dict[str, str]:

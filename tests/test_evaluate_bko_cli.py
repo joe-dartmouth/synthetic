@@ -206,3 +206,32 @@ def test_replay_needs_bko_arms(tmp_path, caplog):
     argv = ["score", "--replay", str(log), "--data-dir", str(tmp_path / "data")]
     assert main(argv, context=stand_ins, out=out) == 2
     assert out.getvalue() == ""
+
+
+def test_log_needs_a_bko_arm_to_build(tmp_path, caplog):
+    send = scripted()
+    ctx, opener = context(send, arms={"none": FAST_ARMS["none"], "bko": FAST_ARMS["bko"]})
+    log = tmp_path / "calls.jsonl"
+    out = io.StringIO()
+    caplog.set_level(logging.INFO)
+    assert main(_score(log, tmp_path), context=ctx, out=out) == 2
+    assert "--log needs a BKO arm" in caplog.text
+    assert out.getvalue() == ""
+    assert not log.exists()
+    assert opener.calls == []
+
+
+def test_an_unreadable_validity_keeps_the_criteria_table(tmp_path, caplog):
+    _, _, text = paid_run(tmp_path, caplog)
+    frame = pd.read_csv(io.StringIO(text))
+    holdout = NARROW.holdout_seeds[0]
+    gone = (frame["arm"] == "bko") & (frame["source"] == "candidates")
+    scores = tmp_path / "scores.csv"
+    frame[~(gone & (frame["holdout"] == holdout))].to_csv(scores, index=False)
+    caplog.clear()
+    out = io.StringIO()
+    assert main(["compare", str(scores)], context=Context(experiment=NARROW), out=out) == 2
+    assert "criterion=primary verdict=" in caplog.text
+    assert "the generated counts of 'bko' cover 1 holdouts" in caplog.text
+    table = pd.read_csv(io.StringIO(out.getvalue()))
+    assert list(dict.fromkeys(table["criterion"])) == ["primary", "secondary", "privacy"]

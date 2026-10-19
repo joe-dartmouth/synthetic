@@ -137,8 +137,9 @@ existing log, and the CSV is the only copy `compare` reads.
   `generated` summed, met at `E1.validity` or above. It logs each arm's mean recall and AUC-PR
   over the holdouts, with no verdict.
 - **What it logs**: `score` logs an `experiment` line with the budget, the validity threshold and
-  the spend ceiling, and a `versions` line (Python, the platform, the evaluation stack, the SDK and
-  the ontology parser), then per holdout the split line `cells` prints, one `quota` line per
+  the spend ceiling, and a `versions` line (the checkout's commit and whether its tree is dirty,
+  `unknown` without git, then Python, the platform, the evaluation stack, the SDK and the ontology
+  parser), then per holdout the split line `cells` prints, one `quota` line per
   stratum, one `arm` line per fill (a replica fill is named `<arm>-replica`) with the attempt, the
   seed, the added rows' sha256 and the method's parameters, a `retry` warning for each refused
   attempt before the last, and a `holdout` line with the progress and seconds, then the CSV's row
@@ -156,9 +157,11 @@ existing log, and the CSV is the only copy `compare` reads.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log, BKO arms with no `--log`, a call that gets no response, a failed gap query
-  and a run whose spend reached `E1.spend_ceiling`; 3 also for a replay that does not match its
-  log.
+  existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to build, a
+  call that gets no response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and
+  `candidates` rows whose validity cannot be read; 3 also for a replay that does not match its
+  log. `compare` writes its table before it reads validity, so it keeps the table when it exits 2
+  on validity.
 - **Reproducibility**: a holdout seed gives the same split and requests, and the baselines keep
   the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
   seed; the paid run's call log is their record (ADR
