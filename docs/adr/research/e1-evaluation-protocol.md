@@ -113,9 +113,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   gap query and a spend at the ceiling.
 - **The latest configuration is judged.** E1 judges its latest configuration: after a change to
   the system, the design or any configuration, E1 runs again, and only runs of the new
-  configuration count. Its complete paid runs (exit 0, call log ending `complete`) are combined
-  into one result; `proposal-bko-replicas` decides how, and until it lands the configuration's
-  one complete run is judged. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
+  configuration count. A configuration with one complete paid run (exit 0, call log ending
+  `complete`) is judged on it; runs of one configuration are combined into one result, and the
+  unit that adds a second run of a configuration decides how. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
   with its reason; reporting earlier configurations elsewhere is optional.
 
 ## Rationale
