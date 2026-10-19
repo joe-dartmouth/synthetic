@@ -136,7 +136,7 @@ existing log, and the CSV is the only copy `compare` reads.
   It also judges validity from the `candidates` rows: the candidate's `passed` summed over
   `generated` summed, met at `E1.validity` or above. It logs each arm's mean recall and AUC-PR
   over the holdouts, with no verdict.
-- **What it logs**: `score` logs an `experiment` line with the budget, the validity threshold and
+- **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with the budget, the validity threshold and
   the spend ceiling, and a `versions` line (the checkout's commit and whether its tree is dirty,
   `unknown` without git, then Python, the platform, the evaluation stack, the SDK and the ontology
   parser), then per holdout the split line `cells` prints, one `quota` line per
@@ -145,7 +145,8 @@ existing log, and the CSV is the only copy `compare` reads.
   attempt before the last, and a `holdout` line with the progress and seconds, then the CSV's row
   count and sha256. It also logs per BKO attempt a `guided` line (outcome, seed, call range,
   records asked, candidates generated and passed, dropped for each reason, kept, the run's spend),
-  `bko.generate`'s per-call lines, a `test` line per holdout with the test records any arm copied,
+  a `spend` line before each BKO call with the run's spend so far and the ceiling,
+  `bko.generate`'s `log` line and per-call lines and the call log's totals line, a `test` line per holdout with the test records any arm copied,
   and at the end of the run, a stopped run included, one `validity` line per BKO arm. A fill that
   stops the run logs a `refused` or `contract` error naming the holdout and arm. `compare` logs a
   `compare` line with the candidate, whether it is a dry run and the scores file's sha256, then

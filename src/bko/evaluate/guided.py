@@ -266,10 +266,12 @@ class GuidedArm:
                 raise BaselineError(msg)
             for cell in short:
                 rows = attempt.short().get(cell, 0)
-                if rows:
+                per_call = self._log.settings.per_call
+                # `generate`'s own chunks, one call each, so the ceiling is read before every call.
+                for start in range(0, rows, per_call):
                     self._spendable()
                     generate(
-                        {cell: rows},
+                        {cell: min(per_call, rows - start)},
                         guidance,
                         send=self._send,
                         log=self._log,
@@ -277,7 +279,9 @@ class GuidedArm:
                     )
 
     def _spendable(self) -> None:
+        """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
         spent = self._log.usd
+        logger.info("spend usd=%.4f ceiling=%.2f", spent, self._ceiling)
         if spent >= self._ceiling:
             msg = f"the run's spend {spent:.4f} USD reached its ceiling of {self._ceiling} USD"
             raise EvaluationError(msg)

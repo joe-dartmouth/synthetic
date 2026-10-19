@@ -16,6 +16,8 @@ from bko.evaluate.guided import GuidedArm
 from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
+from bko.generate.messages import SETTINGS
+from bko.generate.spend import cost
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import ScriptedSend, reply
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
@@ -103,6 +105,22 @@ def test_the_run_stops_at_its_spend_ceiling(tmp_path):
     with pytest.raises(EvaluationError, match="ceiling"), log:
         arm(train(tmp_path / "train"), REQUEST)
     assert asked(log.path) == [3]
+
+
+def test_the_ceiling_is_read_before_every_call_of_a_cell(tmp_path, caplog):
+    first = reply([young(1)] * SETTINGS.per_call)
+    spent = cost(first.usage, SETTINGS.model)
+    arm, log = guided(tmp_path, ScriptedSend(first), ceiling=spent)
+    request = Request(quota={YOUNG_SICK: SETTINGS.per_call + 1}, strata=Strata.CELL, seed=0)
+    caplog.set_level(logging.INFO, logger="bko.evaluate.guided")
+    with pytest.raises(EvaluationError, match="ceiling"), log:
+        arm(train(tmp_path / "train"), request)
+    assert asked(log.path) == [SETTINGS.per_call]
+    spends = [m for m in caplog.messages if m.startswith("spend ")]
+    assert spends == [
+        f"spend usd=0.0000 ceiling={spent:.2f}",
+        f"spend usd={spent:.4f} ceiling={spent:.2f}",
+    ]
 
 
 def test_rows_come_out_cell_by_cell_in_the_quotas_order(tmp_path):

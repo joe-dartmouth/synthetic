@@ -64,7 +64,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   that budget cannot cover the rows still short; the retries below repeat it. It logs one `guided`
   line per attempt with its outcome, its call range, the records asked, the candidates generated and
   passed, those dropped for each reason and those kept. Its refusal's message carries the same
-  counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling.
+  counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
+  reads the spend before every call.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. A
   refused attempt returns no `Baseline`, so the arm keeps its counts itself and writes them per
