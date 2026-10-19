@@ -13,7 +13,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.guided import GuidedArm
-from bko.evaluate.scores import Measure
+from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
 from tests._fusion_fixtures import young
@@ -21,15 +21,6 @@ from tests._generate_fixtures import ScriptedSend, reply
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
 from tests._validate_fixtures import planted
 
-
-COUNTS: Final = (
-    Measure.GENERATED,
-    Measure.PASSED,
-    Measure.DROPPED_RANGE,
-    Measure.DROPPED_CELL,
-    Measure.DROPPED_QUOTA,
-)
-"""The validity counts in the order `counted` reads them."""
 
 OLD: Final = planted(age=63, sex=0, target=1)
 """A valid candidate of `(">=55", "female", 1)`, a cell `REQUEST` does not ask for."""

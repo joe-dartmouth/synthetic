@@ -272,7 +272,8 @@ easier to reach.
   `tests/test_evaluate_utility.py`, `tests/test_evaluate_fidelity.py`,
   `tests/test_evaluate_privacy.py`, `tests/test_evaluate_scores.py`, `tests/test_evaluate_cli.py`,
   `tests/test_evaluate_guided.py`, `tests/test_baselines_records.py`,
-  `tests/test_evaluate_copies.py`
+  `tests/test_evaluate_copies.py`, `tests/test_evaluate_validity.py`,
+  `tests/test_evaluate_bko_cli.py`
 
 ## Reversal Conditions
 
