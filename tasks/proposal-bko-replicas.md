@@ -44,10 +44,17 @@ ready for it, with no spend.
   replica spend estimate from `e1-1`'s cost per record asked, and a spend ceiling that covers it.
 - Update RESEARCH section 5, the e1 ADR's Rationale, Ruled Out and Reversal, and
   `docs/DEVELOPMENT.md` to the new configuration; tests with fake sends only.
-- Decide how the new run is recorded so `e1-1` stays E1's judged run: a later paid run is a new
-  entry, never a replacement (ADR `research/e1-evaluation-protocol`, One judged run).
+- Combine the runs of one configuration into one judged result (ADR
+  `research/e1-evaluation-protocol`, The latest configuration is judged): `compare` reads every
+  complete run of the configuration. The team plans five runs per configuration with different
+  seeds. Planning this unit decides the method, for example pooling each run's distinct holdout
+  seeds into one larger set, or keeping E1's seeds and averaging the BKO arms' scores per
+  holdout. Its input: the corrected interval's variance factor is 1/J + n2/n1 with n2/n1 about
+  0.248, so five runs of fresh seeds (J from 100 to 500) narrow each interval by about 1.6%.
+- The replica configuration's runs become E1's judged result once they land; `e1-1` keeps its Runs
+  row.
 
-**Out.** Any paid call; changing `e1-1`'s record or verdicts.
+**Out.** Any paid call; changing `e1-1`'s Runs row.
 
 ## Acceptance
 

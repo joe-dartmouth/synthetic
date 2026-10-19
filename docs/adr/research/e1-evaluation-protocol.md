@@ -22,7 +22,7 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 * **Must read the test split only in `bko.evaluate`** (ADR `research/uci-evaluation-frame`).
 * **Must give intervals that hold for overlapping holdouts**, with about 5 positive test records
   in the underrepresented cells.
-* **Must fix every reading before the first run that includes the candidate.**
+* **Must fix every reading before the run it judges.**
 * **Must reproduce every judged statistic on one machine**: from seeds where an arm takes one, and
   from the run's call log where it cannot (ADR `research/call-log-replay`).
 * **Should run unchanged on a larger frame in the same schema.**
@@ -111,9 +111,12 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
   contract stops it at once. A call that gets no response stops the run at once, as do a failed
   gap query and a spend at the ceiling.
-- **One judged run.** The first paid run that exits 0 with its call log ending `complete` is judged
-  as it stands. A run that fails keeps its Runs row with the reason. Any later paid run of E1 is a
-  new experiment entry, never a replacement.
+- **The latest configuration is judged.** E1 judges its latest configuration: after a change to
+  the system, the design or any configuration, E1 runs again, and only runs of the new
+  configuration count. Its complete paid runs (exit 0, call log ending `complete`) are combined
+  into one result; `proposal-bko-replicas` decides how, and until it lands the configuration's
+  one complete run is judged. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
+  with its reason; reporting earlier configurations elsewhere is optional.
 
 ## Rationale
 
@@ -202,9 +205,12 @@ pairing and changes nothing on a holdout no arm copies. Counting alone would rep
 still judge on it. A call that gets no response is not a refusal of the request: retries come with
 no delay, so they add no patience against an outage, and they would read an infrastructure failure
 as the method's. Budget and attempts bound the records asked, not the calls, since each short cell's
-top-up is one call however few rows it asks, so a spend ceiling bounds the run. Judging the first
-paid run as it stands, and making any later one a new entry, keeps one look at each criterion, as
-the drivers require.
+top-up is one call however few rows it asks, so a spend ceiling bounds the run. Judging the latest
+configuration lets a change to the method or the design be judged on runs made in it, combining
+its runs uses every paid draw of its generated rows, and every earlier run stays in the register,
+so what was run and found stays traceable. The corrected interval's variance factor is
+1/J + n2/n1, so more holdouts narrow it little once J is large; combining mainly averages out
+the generated rows' draw-to-draw noise.
 
 ## Consequences
 
@@ -264,7 +270,7 @@ easier to reach.
 | Retrying a call with no response as a refused attempt | Retries come with no delay, and an outage would read as the method's refusal | 2026-10-19 |
 | An interval on the validity rate | The run's candidates are a census of what the arm generated, not a sample | 2026-10-19 |
 | One call log per BKO arm | Three exclusive files and three spend totals for one run, and a ceiling split three ways | 2026-10-19 |
-| A later paid run superseding the judged one | A second look at every criterion after results are in view | 2026-10-19 |
+| Judging only the first paid run | Freezes the method at its first configuration, so a design change such as BKO replicas could never be judged | 2026-10-19 |
 
 ## Enforcement
 
