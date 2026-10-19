@@ -48,7 +48,8 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
     header = _lines(path)[0]
     assert header == {
         "kind": "run",
-        "schema": 1,
+        "schema": 2,
+        "replay": None,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-opus-5-5",
@@ -60,6 +61,13 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "price": {"input": 4.0, "output": 20.0, "cache_write": 5.0, "cache_read": 0.2},
         "anthropic": importlib.metadata.version("anthropic"),
     }
+
+
+def test_a_replay_log_names_its_source(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, SETTINGS, replay="ab" * 32, now=_now):
+        pass
+    assert _lines(path)[0]["replay"] == "ab" * 32
 
 
 def test_a_request_line_is_flushed_before_the_call(tmp_path):
@@ -88,7 +96,9 @@ def test_a_reply_line_holds_request_id_model_stop_reason_counts_usage_usd_and_th
     path = tmp_path / "calls.jsonl"
     with CallLog(path, SETTINGS, now=_now) as log:
         index = log.request(CELL, 3, _call())
-        answer = reply([{}, {}], usage=Usage(1000, 500, 100, 2000), request_id="req_abc")
+        answer = dataclasses.replace(
+            reply([{}, {}], usage=Usage(1000, 500, 100, 2000), request_id="req_abc"), attempts=3
+        )
         log.reply(index, answer, ({}, {}, Undecoded(Reason.SHORT)), 0.0149)
     line = _lines(path)[2]
     assert line == {
@@ -96,6 +106,7 @@ def test_a_reply_line_holds_request_id_model_stop_reason_counts_usage_usd_and_th
         "call": 1,
         "at": FIXED_NOW.isoformat(),
         "request_id": "req_abc",
+        "attempts": 3,
         "model": SETTINGS.model,
         "stop_reason": "end_turn",
         "decoded": 2,
@@ -107,13 +118,19 @@ def test_a_reply_line_holds_request_id_model_stop_reason_counts_usage_usd_and_th
             "cache_read_input_tokens": 2000,
         },
         "usd": 0.0149,
-        "response": {"id": "msg_test", "model": SETTINGS.model},
+        "response": {
+            "id": "msg_test",
+            "model": SETTINGS.model,
+            "content": [{"type": "text", "text": '{"records": [{}, {}]}'}],
+        },
     }
 
 
 def test_a_failed_call_writes_an_error_line_and_a_failed_footer(tmp_path):
     path = tmp_path / "calls.jsonl"
-    send = ScriptedSend(GenerationError("the API could not be reached: APIConnectionError"))
+    send = ScriptedSend(
+        GenerationError("the API could not be reached: APIConnectionError", attempts=2)
+    )
     with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now) as log:
         ask(GUIDANCE, 2, send=send, log=log)
     lines = _lines(path)
@@ -123,9 +140,20 @@ def test_a_failed_call_writes_an_error_line_and_a_failed_footer(tmp_path):
         "call": 1,
         "at": FIXED_NOW.isoformat(),
         "error": "the API could not be reached: APIConnectionError",
+        "attempts": 2,
     }
     assert lines[3]["status"] == "failed"
     assert lines[3]["failed"] == 1
+
+
+def test_an_interrupt_writes_an_error_line_with_no_attempts(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, SETTINGS, now=_now) as log:
+        index = log.request(CELL, 2, _call())
+        log.failure(index, KeyboardInterrupt())
+    line = _lines(path)[2]
+    assert line["kind"] == "error"
+    assert line["attempts"] is None
 
 
 @pytest.mark.parametrize(
@@ -168,6 +196,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "status": "failed",
         "calls": 2,
         "failed": 1,
+        "retried": 0,
         "asked": 7,
         "decoded": 2,
         "undecoded": 1,
@@ -175,6 +204,18 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "output_tokens": 500,
         "usd": pytest.approx(0.014),
     }
+
+
+def test_the_end_totals_count_the_calls_retried(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    send = ScriptedSend(
+        dataclasses.replace(reply([{}, {}]), attempts=3),
+        dataclasses.replace(reply([{}, {}]), attempts=1),
+    )
+    with CallLog(path, SETTINGS, now=_now) as log:
+        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log)
+    assert _lines(path)[-1]["retried"] == 1
 
 
 def test_a_second_log_on_the_same_path_is_refused_and_leaves_the_first_intact(tmp_path):
@@ -193,8 +234,8 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now) as log:
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
-        "run status=complete calls=1 failed=0 asked=2 decoded=2 undecoded=0 input_tokens=1000 "
-        f"output_tokens=500 usd=0.0140 log={path}"
+        "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
+        f"input_tokens=1000 output_tokens=500 usd=0.0140 log={path}"
     ) in caplog.text
 
 

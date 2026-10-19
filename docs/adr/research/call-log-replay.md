@@ -72,8 +72,8 @@ and releases, as E1's baselines do.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/generate/replay.py`
+- Pinned by: `tests/test_generate_replay.py`
 
 ## Reversal Conditions
 

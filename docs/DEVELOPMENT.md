@@ -324,8 +324,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   statement no label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell
   with no reference record, so no profile or summary; and the UCI loader's line naming the records
   it dropped for a missing value. The SDK retries a failed attempt up to twice and logs each retry at
-  INFO between the call's `send` line and its result; the call log does not count attempts
-  (`cleanup:generate/retries-in-call-log`).
+  INFO between the call's `send` line and its result; each `reply` and `error` line records the
+  call's `attempts`, and the `end` line counts the calls `retried`. A retried attempt can be
+  billed, so logged spend is a lower bound when `retried` is above 0.
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, a
   completeness request no cell holds a gap for, `--request completeness` with another

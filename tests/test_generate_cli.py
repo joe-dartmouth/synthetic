@@ -306,7 +306,7 @@ def test_the_summary_line_names_calls_tokens_usd_log_and_stdout_sha256(tmp_path,
     _, out, log = run(tmp_path, make_context(two_replies()))
     messages = [record.getMessage() for record in caplog.records]
     assert (
-        f"run status=complete calls=2 failed=0 asked=32 decoded=31 undecoded=1 "
+        f"run status=complete calls=2 failed=0 retried=0 asked=32 decoded=31 undecoded=1 "
         f"input_tokens=2000 output_tokens=1000 usd=0.0280 log={log}"
     ) in messages
     digest = hashlib.sha256(out.encode()).hexdigest()

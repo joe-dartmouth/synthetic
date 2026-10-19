@@ -9,11 +9,10 @@ from __future__ import annotations
 import json
 import logging
 
-import anthropic
 import pytest
 
 from bko.datasets.uci import CODEBOOK, FRACTIONAL, FRAME_COLUMNS
-from bko.generate.api import send_with
+from bko.generate.api import default_send
 from bko.generate.messages import SETTINGS, Call, Level
 from bko.generate.prompt import render
 from tests._generate_fixtures import GUIDANCE
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def test_one_real_call_returns_schema_shaped_records(tmp_path):
     call = Call(SETTINGS, 0, 1, *render(GUIDANCE, 2, Level.ONTOLOGY))
-    reply = send_with(anthropic.Anthropic())(call)
+    reply = default_send()(call)
     (tmp_path / "call.json").write_text(
         json.dumps({"params": call.params(), "raw": reply.raw}, indent=2), encoding="utf-8"
     )
@@ -52,6 +51,8 @@ def test_one_real_call_returns_schema_shaped_records(tmp_path):
             assert isinstance(value, (int, float) if name in FRACTIONAL else int), name
         for name, codes in CODEBOOK.items():
             assert record[name] in codes, name
+    assert reply.attempts is not None
+    assert reply.attempts >= 1
     assert reply.request_id is not None
     assert reply.request_id.startswith("req_")
     assert reply.usage.output_tokens <= SETTINGS.max_tokens

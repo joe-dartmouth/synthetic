@@ -30,7 +30,7 @@ from bko.generate.spend import price_of
 
 logger = logging.getLogger(__name__)
 
-SCHEMA: Final = 1
+SCHEMA: Final = 2
 """The log format's version, written in the `run` line."""
 
 
@@ -49,6 +49,7 @@ class CallLog:
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
+        retried: Calls that took more than one HTTP attempt.
         asked: Records requested, those of failed calls included.
         decoded: Candidates decoded from replies.
         undecoded: Placeholders for records a reply did not decode.
@@ -58,13 +59,19 @@ class CallLog:
     """
 
     def __init__(
-        self, path: Path, settings: Settings, *, now: Callable[[], datetime] = _utc_now
+        self,
+        path: Path,
+        settings: Settings,
+        *,
+        replay: str | None = None,
+        now: Callable[[], datetime] = _utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
 
         Args:
             path: The log file; it must not exist. It is created readable by its owner only.
             settings: How each call is made.
+            replay: The sha256 of the call log a replay answers from, or None for a live run.
             now: The clock each line's time is read from.
 
         Raises:
@@ -77,6 +84,7 @@ class CallLog:
         self._now = now
         self.calls = 0
         self.failed = 0
+        self.retried = 0
         self.asked = 0
         self.decoded = 0
         self.undecoded = 0
@@ -95,6 +103,7 @@ class CallLog:
                     "settings": dataclasses.asdict(settings),
                     "price": dataclasses.asdict(price),
                     "anthropic": importlib.metadata.version("anthropic"),
+                    "replay": replay,
                 }
             )
         except BaseException:
@@ -125,11 +134,12 @@ class CallLog:
         try:
             self._write({"kind": "end", "status": status, "ended": self._at(), **self._totals()})
             logger.info(
-                "run status=%s calls=%d failed=%d asked=%d decoded=%d undecoded=%d "
+                "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
                 "input_tokens=%d output_tokens=%d usd=%.4f log=%s",
                 status,
                 self.calls,
                 self.failed,
+                self.retried,
                 self.asked,
                 self.decoded,
                 self.undecoded,
@@ -182,12 +192,14 @@ class CallLog:
         self.input_tokens += reply.usage.input_tokens
         self.output_tokens += reply.usage.output_tokens
         self.usd += usd
+        self.retried += (reply.attempts or 0) > 1
         self._write(
             {
                 "kind": "reply",
                 "call": index,
                 "at": self._at(),
                 "request_id": reply.request_id,
+                "attempts": reply.attempts,
                 "model": reply.model,
                 "stop_reason": reply.stop_reason,
                 "decoded": decoded,
@@ -213,14 +225,19 @@ class CallLog:
             The text the line holds.
         """
         self.failed += 1
+        attempts = error.attempts if isinstance(error, GenerationError) else None
+        self.retried += (attempts or 0) > 1
         text = str(error) if isinstance(error, GenerationError) else type(error).__name__
-        self._write({"kind": "error", "call": index, "at": self._at(), "error": text})
+        self._write(
+            {"kind": "error", "call": index, "at": self._at(), "error": text, "attempts": attempts}
+        )
         return text
 
     def _totals(self) -> dict[str, object]:
         return {
             "calls": self.calls,
             "failed": self.failed,
+            "retried": self.retried,
             "asked": self.asked,
             "decoded": self.decoded,
             "undecoded": self.undecoded,

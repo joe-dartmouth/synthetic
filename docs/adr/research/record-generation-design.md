@@ -122,10 +122,14 @@ ladder.**
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
   its prompts and responses. Its lines, each flushed as written: one `run` line
-  (schema, settings, price, SDK version), then per call a `request` line before it is sent and a
+  (schema 2, settings, price, SDK version, and `replay`: the sha256 of the call log a replay
+  answers from, or null), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
   for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
-  whole response. Anything raised after a `request` line and before its `reply` line (no
+  whole response and `attempts`, the HTTP requests the SDK made for the call
+  (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
+  nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
+  attempt. Anything raised after a `request` line and before its `reply` line (no
   response, a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead,
   so no `request` line is left unpaired; it holds a `GenerationError`'s text, or any other
   exception's type name only, since its text may hold the credential. `ask` and `generate` take their

@@ -37,6 +37,7 @@ from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import parse, render
+from bko.generate.api import HTTP_LOGGERS
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -111,7 +112,7 @@ def configure_logging() -> None:
         stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
     logging.captureWarnings(True)
-    for name in QUIET_LOGGERS:
+    for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
 
 

@@ -140,13 +140,14 @@ def reply(
     Returns:
         The reply, with a small raw message naming its id and model.
     """
+    text = records_text(records)
     return Reply(
         request_id=request_id,
         model=model,
         stop_reason=stop_reason,
-        text=records_text(records),
+        text=text,
         usage=usage or Usage(1000, 500, 0, 0),
-        raw={"id": "msg_test", "model": model},
+        raw={"id": "msg_test", "model": model, "content": [{"type": "text", "text": text}]},
     )
 
 
