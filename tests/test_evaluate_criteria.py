@@ -28,7 +28,11 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 SEEDS = (0, 1, 2, 3)
 EXPERIMENT = dataclasses.replace(
-    E1, holdout_seeds=SEEDS, arms=("none", "smote"), comparators=("none",), replica_arms=()
+    E1,
+    holdout_seeds=SEEDS,
+    arms=("none", "smote", "bko"),
+    comparators=("none",),
+    replica_arms=(),
 )
 
 

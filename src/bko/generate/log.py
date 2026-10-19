@@ -30,7 +30,7 @@ from bko.generate.spend import price_of
 
 logger = logging.getLogger(__name__)
 
-SCHEMA: Final = 1
+SCHEMA: Final = 2
 """The log format's version, written in the `run` line."""
 
 
@@ -46,9 +46,11 @@ class CallLog:
 
     Attributes:
         path: The log file.
+        replay: The sha256 of the call log a replay answers from, or None for a live run.
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
+        retried: Calls that took more than one HTTP attempt.
         asked: Records requested, those of failed calls included.
         decoded: Candidates decoded from replies.
         undecoded: Placeholders for records a reply did not decode.
@@ -58,25 +60,37 @@ class CallLog:
     """
 
     def __init__(
-        self, path: Path, settings: Settings, *, now: Callable[[], datetime] = _utc_now
+        self,
+        path: Path,
+        settings: Settings,
+        *,
+        replay: str | None = None,
+        now: Callable[[], datetime] = _utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
 
         Args:
             path: The log file; it must not exist. It is created readable by its owner only.
             settings: How each call is made.
+            replay: The sha256 of the call log a replay answers from, or None for a live run.
             now: The clock each line's time is read from.
 
         Raises:
             GenerationError: As `bko.generate.spend.price_of`, before the file is created.
+            importlib.metadata.PackageNotFoundError: If `anthropic` is not installed, before the
+                file is created.
             FileExistsError: If `path` exists.
         """
         price = price_of(settings.model)
+        # Read before the file exists, so a failure here leaves no log to block a rerun.
+        anthropic = importlib.metadata.version("anthropic")
         self.path = path
+        self.replay = replay
         self.settings = settings
         self._now = now
         self.calls = 0
         self.failed = 0
+        self.retried = 0
         self.asked = 0
         self.decoded = 0
         self.undecoded = 0
@@ -94,12 +108,24 @@ class CallLog:
                     "started": self._at(),
                     "settings": dataclasses.asdict(settings),
                     "price": dataclasses.asdict(price),
-                    "anthropic": importlib.metadata.version("anthropic"),
+                    "anthropic": anthropic,
+                    "replay": replay,
                 }
             )
         except BaseException:
             self._file.close()
             raise
+        logger.info(
+            "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d replay=%s",
+            path,
+            SCHEMA,
+            settings.model,
+            settings.effort,
+            settings.guidance,
+            settings.per_call,
+            settings.max_tokens,
+            replay or "none",
+        )
 
     def __enter__(self) -> Self:
         """Return the log."""
@@ -113,6 +139,9 @@ class CallLog:
     ) -> None:
         """Write the `end` line, log the run's totals and close the file; never suppress.
 
+        The totals line names the replayed log's sha256 under `replay`, or `none` for a live
+        run, so a replay's spend never reads as paid.
+
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other.
         """
@@ -123,19 +152,29 @@ class CallLog:
         else:
             status = "failed"
         try:
-            self._write({"kind": "end", "status": status, "ended": self._at(), **self._totals()})
+            self._write(
+                {
+                    "kind": "end",
+                    "status": status,
+                    "ended": self._at(),
+                    "replay": self.replay,
+                    **self._totals(),
+                }
+            )
             logger.info(
-                "run status=%s calls=%d failed=%d asked=%d decoded=%d undecoded=%d "
-                "input_tokens=%d output_tokens=%d usd=%.4f log=%s",
+                "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
+                "input_tokens=%d output_tokens=%d usd=%.4f replay=%s log=%s",
                 status,
                 self.calls,
                 self.failed,
+                self.retried,
                 self.asked,
                 self.decoded,
                 self.undecoded,
                 self.input_tokens,
                 self.output_tokens,
                 self.usd,
+                self.replay or "none",
                 self.path,
             )
         finally:
@@ -182,12 +221,14 @@ class CallLog:
         self.input_tokens += reply.usage.input_tokens
         self.output_tokens += reply.usage.output_tokens
         self.usd += usd
+        self.retried += (reply.attempts or 0) > 1
         self._write(
             {
                 "kind": "reply",
                 "call": index,
                 "at": self._at(),
                 "request_id": reply.request_id,
+                "attempts": reply.attempts,
                 "model": reply.model,
                 "stop_reason": reply.stop_reason,
                 "decoded": decoded,
@@ -213,14 +254,19 @@ class CallLog:
             The text the line holds.
         """
         self.failed += 1
+        attempts = error.attempts if isinstance(error, GenerationError) else None
+        self.retried += (attempts or 0) > 1
         text = str(error) if isinstance(error, GenerationError) else type(error).__name__
-        self._write({"kind": "error", "call": index, "at": self._at(), "error": text})
+        self._write(
+            {"kind": "error", "call": index, "at": self._at(), "error": text, "attempts": attempts}
+        )
         return text
 
     def _totals(self) -> dict[str, object]:
         return {
             "calls": self.calls,
             "failed": self.failed,
+            "retried": self.retried,
             "asked": self.asked,
             "decoded": self.decoded,
             "undecoded": self.undecoded,

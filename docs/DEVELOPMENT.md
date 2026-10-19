@@ -97,14 +97,20 @@ command per method, inside `.venv`:
 
 ## Evaluation
 
-`bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every comparison method on E1's
-repeated holdouts and judges a candidate arm against E1's criteria (ADR
-[`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). Two commands, inside
-`.venv`, writing to the gitignored `scratchpad/`, which a fresh clone lacks:
+`bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every arm of E1 on its repeated
+holdouts and judges a candidate arm against E1's criteria (ADR
+[`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
+its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
+credential, and every call goes to the call log at `--log`, which must not exist. `compare` spends
+nothing. Inside `.venv`, writing to the gitignored `scratchpad/`, which a fresh clone lacks:
 
     mkdir -p scratchpad
-    uv run --no-sync python -m bko.evaluate score [--data-dir <dir>] > scratchpad/scores.csv
-    uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv [--candidate <arm>]
+    test ! -e scratchpad/<run-id>.jsonl && test ! -e scratchpad/<run-id>.csv && test ! -e scratchpad/<run-id>.err && uv run --no-sync python -m bko.evaluate score --log scratchpad/<run-id>.jsonl [--data-dir <dir>] > scratchpad/<run-id>.csv 2> scratchpad/<run-id>.err
+    uv run --no-sync python -m bko.evaluate score --replay scratchpad/<run-id>.jsonl --log scratchpad/<run-id>.replay.jsonl [--data-dir <dir>] > scratchpad/<run-id>.replay.csv
+    uv run --no-sync python -m bko.evaluate compare scratchpad/<run-id>.csv [--candidate <arm>]
+
+The `test ! -e` guards matter: the shell empties `.csv` and `.err` before `score` can refuse an
+existing log, and the CSV is the only copy `compare` reads.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -112,31 +118,56 @@ repeated holdouts and judges a candidate arm against E1's criteria (ADR
   the real rows, weighted as the arm says, and the added rows is scored on the test split. The
   replica arms also fill the training split's own cell counts; those rows alone train a classifier
   and are compared with the training split for fidelity. It writes one row per holdout, arm,
-  source, measure and scope to stdout as CSV; a measure a scope cannot define is empty.
+  source, measure and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO
+  arm reads the split's training rows' gaps under its definition, asks the API for each requested
+  cell's shortfall, validates every reply with `bko.validate`, drops what
+  `bko.baselines.records.check` would refuse, and keeps the rest. An attempt that cannot fill the
+  request inside `E1`'s budget is refused and retried like a baseline's. Every arm fills before
+  any is scored. A test record that some arm's rows copy in every column leaves the test split
+  each arm's utility is scored on. With `--replay`, every BKO call is answered from that call log
+  instead of the API. A call that differs from the log's, or a logged call left unplayed, stops
+  the run.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
   arm it is set against, the measure, and the contrast's mean, interval, the upper bound at the
   family-wise level that `not met` reads (`refuting_high`), and holdout counts. It refuses a scores
   file whose holdouts are not `E1`'s, and one where a series it judges misses a holdout or holds an
-  empty value. E1's candidate is `bko`, which `score` does not run until
-  [`proposal-final-evaluation`](../tasks/proposal-final-evaluation.md) registers the BKO arms, so
-  until then `compare` needs `--candidate`. `--candidate` judges another row-adding arm, a dry run
-  whose verdict is not E1's.
-- **What it logs**: `score` logs an `experiment` line and a `versions` line (Python, the platform
-  and the evaluation stack), then per holdout the split line `cells` prints, one `quota` line per
+  empty value. `--candidate` judges another row-adding arm, a dry run whose verdict is not E1's.
+  It also judges validity from the `candidates` rows: the candidate's `passed` summed over
+  `generated` summed, met at `E1.validity` or above. It logs each arm's mean recall and AUC-PR
+  over the holdouts, with no verdict.
+- **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with the budget, the validity threshold and
+  the spend ceiling, and a `versions` line (the checkout's commit and whether its tree is dirty,
+  `unknown` without git, then Python, the platform, the evaluation stack, the SDK and the ontology
+  parser), then per holdout the split line `cells` prints, one `quota` line per
   stratum, one `arm` line per fill (a replica fill is named `<arm>-replica`) with the attempt, the
   seed, the added rows' sha256 and the method's parameters, a `retry` warning for each refused
   attempt before the last, and a `holdout` line with the progress and seconds, then the CSV's row
-  count and sha256. A fill that stops the run logs a `refused` or `contract` error naming the
-  holdout and arm. `compare` logs a `compare` line with the candidate, whether it is a dry run and
-  the scores file's sha256, then one `criterion` line per criterion with its verdict. An experiment
-  copies them into its Runs row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value.
+  count and sha256. It also logs per BKO attempt a `guided` line (outcome, seed, call range,
+  records asked, candidates generated and passed, dropped for each reason, kept, the run's spend),
+  a `spend` line before each BKO call with the run's spend so far and the ceiling,
+  `bko.generate`'s `log` line and per-call lines and the call log's totals line, a `test` line per holdout with the test records any arm copied,
+  and at the end of the run, a stopped run included, one `validity` line per BKO arm. A fill that
+  stops the run logs a `refused` or `contract` error naming the holdout and arm. `compare` logs a
+  `compare` line with the candidate, whether it is a dry run and the scores file's sha256, then
+  one `criterion` line per criterion with its verdict, a `criterion=validity` line, a `validity`
+  line per other BKO arm, a `copies` line per arm and a `mean` line per arm, measure and scope. An
+  experiment copies them into its Runs row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
+- **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value;
+  `--log` and `--replay` choose where calls are recorded and answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
-  judged, and 3 for a method's output or a scores file that breaks its contract.
-- **Reproducibility**: a holdout seed gives the same split and requests; the scores keep the
-  promise of [Baselines](#baselines).
+  judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
+  existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to build, a
+  call that gets no response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and
+  `candidates` rows whose validity cannot be read; 3 also for a replay that does not match its
+  log. `compare` writes its table before it reads validity, so it keeps the table when it exits 2
+  on validity.
+- **Reproducibility**: a holdout seed gives the same split and requests, and the baselines keep
+  the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
+  seed; the paid run's call log is their record (ADR
+  [`research/call-log-replay`](adr/research/call-log-replay.md)), and `--replay` rewrites the
+  scores byte for byte from it.
 
 ## BKB fixtures
 
@@ -313,19 +344,21 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
   `summary`, each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call
-  and a `reply` or `error` line after it, and an `end` line with the run's status and totals, each
+  and a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's sha256 (or null) and totals, each
   call's whole request and response and its USD spend included. An interrupt or any other failure
   between a `request` line and its `reply` line writes the `error` line. stderr gets the split
   line, each ontology fragment's size, the request's name, cells and rows, a `quota` line per
-  asked cell, the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
-  naming the call and cell), the run's totals and spend with the log's path, and last the line
+  asked cell, a `log` line (path, schema, model, effort, level, records per call, token limit, and
+  the replayed log's sha256 or `none`), the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
+  naming the call and cell), the run's totals and spend with the replayed log's sha256 or `none` and the log's path, and last the line
   count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
   settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
   statement no label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell
   with no reference record, so no profile or summary; and the UCI loader's line naming the records
   it dropped for a missing value. The SDK retries a failed attempt up to twice and logs each retry at
-  INFO between the call's `send` line and its result; the call log does not count attempts
-  (`cleanup:generate/retries-in-call-log`).
+  INFO between the call's `send` line and its result; each `reply` and `error` line records the
+  call's `attempts`, and the `end` line counts the calls `retried`. A retried attempt can be
+  billed, so logged spend is a lower bound when `retried` is above 0.
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, a
   completeness request no cell holds a gap for, `--request completeness` with another

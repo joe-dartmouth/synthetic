@@ -121,11 +121,17 @@ ladder.**
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
-  its prompts and responses. Its lines, each flushed as written: one `run` line
-  (schema, settings, price, SDK version), then per call a `request` line before it is sent and a
+  its prompts and responses; the SDK version it records is read before the file is created too.
+  Its lines, each flushed as written: one `run` line
+  (schema 2, settings, price, SDK version, and `replay`: the sha256 of the call log a replay
+  answers from, or null), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
-  for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
-  whole response. Anything raised after a `request` line and before its `reply` line (no
+  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay` again, and the run's
+  totals. A `reply` line holds the
+  whole response and `attempts`, the HTTP requests the SDK made for the call
+  (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
+  nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
+  attempt. Anything raised after a `request` line and before its `reply` line (no
   response, a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead,
   so no `request` line is left unpaired; it holds a `GenerationError`'s text, or any other
   exception's type name only, since its text may hold the credential. `ask` and `generate` take their
@@ -188,15 +194,16 @@ cut mid-value and the stop already says the call failed.
   value the API should not emit. Validity then measures range adherence.
 - A plausible value outside a training split's range passes validation, and E1's runner drops it
   (ADR [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
-- E1's driver "Must reproduce from seeds on one machine" cannot hold for generated rows, because
-  the Messages API takes no seed. `cleanup:evaluate/bko-arms-reproduce-from-log` holds the owed
-  protocol change.
+- The Messages API takes no seed, so generated rows cannot be drawn again. A paid run's call log is
+  their record, and replay answers a rerun's calls from it (ADR
+  [`research/call-log-replay`](call-log-replay.md)).
 - The `summary` level's medians pull values toward real records, which presses on E1's privacy
   distance. The spreads are per-field marginals, never a joint row. No floor applies to the
   reference group's size, so a reference group of one record makes them equal that record's
   values; on the UCI split the reference group is the rest of the cell's label group.
-- A model may reproduce a public Cleveland record; `cleanup:evaluate/generated-copies-of-test-records`
-  holds the owed check.
+- A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
+  record and scores every arm on the test split without them (ADR
+  [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
 
 ## Ruled Out
 

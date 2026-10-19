@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import traceback
 from collections.abc import Callable
+from types import SimpleNamespace
+from typing import cast
 
 import anthropic
 import pytest
 
-from bko.generate.api import default_send, reply_of, send_with
+from bko.generate.api import Attempts, default_send, reply_of, send_with
 from bko.generate.errors import GenerationError
 from bko.generate.messages import SETTINGS, Call, Usage
 from tests._generate_fixtures import message, records_text, request, response
@@ -190,3 +192,58 @@ def test_a_bad_request_redacts_an_auth_token_too(monkeypatch):
         send_with(client)(CALL)
     assert str(caught.value).endswith(": [redacted]")
     assert token not in "".join(traceback.format_exception(caught.value))
+
+
+def test_attempts_counts_each_http_request():
+    probe = Attempts()
+    request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=2))
+
+    def call_next(_: anthropic.APIRequest) -> str:
+        return "sent"
+
+    assert probe.handle(request, call_next) == "sent"  # ty: ignore[invalid-argument-type]
+    assert probe.count == 3
+
+
+def test_a_reply_carries_the_probes_count(monkeypatch):
+    client = _client()
+    probe = Attempts()
+
+    def create(**_: object) -> anthropic.types.Message:
+        probe.count = 3
+        return message(records_text([]))
+
+    monkeypatch.setattr(client.messages, "create", create)
+    assert send_with(client, attempts=probe)(CALL).attempts == 3
+
+
+def test_a_failure_carries_the_probes_count(monkeypatch):
+    client = _client()
+    probe = Attempts()
+
+    def create(**_: object) -> anthropic.types.Message:
+        probe.count = 3
+        raise anthropic.APIConnectionError(request=request())
+
+    monkeypatch.setattr(client.messages, "create", create)
+    with pytest.raises(GenerationError) as caught:
+        send_with(client, attempts=probe)(CALL)
+    assert caught.value.attempts == 3
+
+
+def test_without_a_probe_attempts_is_none(monkeypatch):
+    client = _client()
+
+    def create(**_: object) -> anthropic.types.Message:
+        return message(records_text([]))
+
+    monkeypatch.setattr(client.messages, "create", create)
+    assert send_with(client)(CALL).attempts is None
+    assert _raising_error(monkeypatch).attempts is None
+
+
+def _raising_error(monkeypatch: pytest.MonkeyPatch) -> GenerationError:
+    client = _raising(monkeypatch, anthropic.APIConnectionError(request=request()))
+    with pytest.raises(GenerationError) as caught:
+        send_with(client)(CALL)
+    return caught.value

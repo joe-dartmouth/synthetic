@@ -35,7 +35,7 @@ pipeline stage:
 | `validate` | Record consistency checks | `data` |
 | `fusion` | Validated records joined back into the BKO; gap closure | `data` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
-| `evaluate` | Utility, fidelity and privacy metrics | `eval` |
+| `evaluate` | Utility, fidelity, privacy and validity metrics, and the BKO arms | `eval` |
 | `app` | The Streamlit interface | `app` |
 
 Every subpackage carries a `README.md` giving its role, its extra, its owner and its status; the

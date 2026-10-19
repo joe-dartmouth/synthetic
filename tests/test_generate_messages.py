@@ -10,7 +10,7 @@ import pytest
 
 from bko.datasets.cells import LABEL
 from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS
-from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches, record_schema
+from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches, record_schema, text_of
 
 
 BOUNDS = frozenset(
@@ -112,3 +112,18 @@ def test_the_request_carries_no_parameter_the_model_rejects():
     params: Any = Call(SETTINGS, 0, 1, "s", "u").params()
     assert not (REJECTED | {"fallbacks"}) & params.keys()
     assert params["messages"][-1]["role"] == "user"
+
+
+def test_text_of_joins_text_blocks_and_ignores_thinking():
+    raw = {
+        "content": [
+            {"type": "thinking", "thinking": "x"},
+            {"type": "text", "text": "a"},
+            {"type": "text", "text": "b"},
+        ]
+    }
+    assert text_of(raw) == "ab"
+
+
+def test_text_of_gives_none_without_a_text_block():
+    assert text_of({"content": []}) is None

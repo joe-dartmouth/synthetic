@@ -6,37 +6,60 @@ every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV
 judges another arm, a dry run whose verdict is not E1's. Logs go to stderr. `docs/DEVELOPMENT.md`
 (Evaluation) is the usage home.
 
-Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run; 3 the
-data, a method's output or a scores file contradicts its contract.
+`score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
+call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
+log at LOG instead.
+
+Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
+including an existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to
+build, a call with no response, a failed gap query, a run whose spend reached the ceiling and
+scores whose validity cannot be read; 3 the data, a method's output, a scores file or a replay
+contradicts its contract.
 """
 
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import importlib.metadata
 import json
 import logging
 import platform
+import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TextIO
 
+import pandas as pd
+
 from bko.baselines.errors import BaselineError
 from bko.baselines.methods import Runner
 from bko.baselines.synthesizers import QUIET_LOGGERS
+from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
-from bko.evaluate.criteria import judge, table
+from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
-from bko.evaluate.experiment import E1, Experiment
+from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
+from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.run import ARMS, run
-from bko.evaluate.scores import parse, render
+from bko.evaluate.scores import Measure, Scope, Score, parse, render
+from bko.evaluate.scores import Source as ScoreSource
+from bko.evaluate.validity import reported, validity, verdict
+from bko.gaps.scope import load_scope
+from bko.generate.api import HTTP_LOGGERS, default_send
+from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.log import CallLog
+from bko.generate.messages import SETTINGS, Send
+from bko.generate.replay import Replay
+from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
+from bko.ontology.schema import FieldMapping
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -50,6 +73,8 @@ VERSIONED: Final = (
     "sdv",
     "sdmetrics",
     "torch",
+    "anthropic",
+    "pronto",
 )
 """The distributions whose installed versions a `score` run logs."""
 
@@ -62,8 +87,12 @@ class Context:
         open_url: The HTTPS opener.
         uci: The pinned UCI archive.
         experiment: The configuration `score` runs and `compare` judges by.
-        arms: Each arm's runner.
+        arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
+            the API.
         factory: Builds the unfitted classifier.
+        releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
+        field_rows: The field mappings the BKO arms observe cells by.
+        send: Builds the send every BKO arm's call goes through.
     """
 
     open_url: UrlOpener = open_https
@@ -71,6 +100,9 @@ class Context:
     experiment: Experiment = E1
     arms: Mapping[str, Runner] = ARMS
     factory: Factory = build
+    releases: Mapping[str, Source] = RELEASES
+    field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
+    send: Callable[[], Send] = default_send
 
 
 def main(
@@ -84,7 +116,9 @@ def main(
     Args:
         argv: The arguments after the program name; `sys.argv[1:]` when omitted.
         context: The outside world; the real one when omitted.
-        out: Where the CSV goes; stdout when omitted. Nothing is written unless the run succeeds.
+        out: Where the CSV goes; stdout when omitted. `score` writes nothing unless the run
+            succeeds; `compare` writes its table before it reads validity, so a validity it
+            cannot read still leaves the interval criteria's table.
 
     Returns:
         0 done, 2 the command could not run, 3 an input contradicts its contract. Any other
@@ -92,49 +126,138 @@ def main(
     """
     context = context or Context()
     args = _parser().parse_args(argv)
+    sink = out or sys.stdout
     try:
-        text = _score(args, context) if args.command == "score" else _compare(args, context)
-    except (EvaluationError, BaselineError, DatasetError) as exc:
+        if args.command == "compare":
+            _compare(args, context, sink)
+            return 0
+        text = _score(args, context)
+    except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code
     except OSError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    (out or sys.stdout).write(text)
+    sink.write(text)
     return 0
 
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     logging.captureWarnings(True)
-    for name in QUIET_LOGGERS:
+    for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def _score(args: argparse.Namespace, context: Context) -> str:
+    experiment = context.experiment
+    guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
+    if guided and args.log is None:
+        msg = f"--log is required: the arms {guided} call the Messages API"
+        raise EvaluationError(msg)
+    if args.replay is not None and not guided:
+        msg = "--replay needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.log is not None and not guided:
+        msg = "--log needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.log is not None and args.log.exists():
+        raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
-    experiment = context.experiment
-    logger.info(
-        "experiment holdouts=%d arms=%s replica=%s fill_to=%d",
-        len(experiment.holdout_seeds),
-        ",".join(experiment.arms),
-        ",".join(experiment.replica_arms),
-        experiment.fill_to,
-    )
-    logger.info("versions %s", json.dumps(_versions(), sort_keys=True))
-    text = render(run(frame, experiment, context.arms, factory=context.factory))
+    _log_experiment(experiment)
+    if guided:
+        scores = _guided(args, data_dir, frame, guided, context)
+    else:
+        scores = run(frame, experiment, context.arms, factory=context.factory)
+    text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
     return text
 
 
-def _compare(args: argparse.Namespace, context: Context) -> str:
+def _log_experiment(experiment: Experiment) -> None:
+    logger.info(
+        "experiment holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
+        "spend_ceiling=%.2f",
+        len(experiment.holdout_seeds),
+        ",".join(experiment.arms),
+        ",".join(experiment.replica_arms),
+        experiment.fill_to,
+        experiment.budget,
+        experiment.validity,
+        experiment.spend_ceiling,
+    )
+    commit, dirty = _commit()
+    logger.info(
+        "versions commit=%s dirty=%s %s", commit, dirty, json.dumps(_versions(), sort_keys=True)
+    )
+
+
+def _guided(
+    args: argparse.Namespace,
+    data_dir: Path,
+    frame: pd.DataFrame,
+    names: Sequence[str],
+    context: Context,
+) -> list[Score]:
+    """Run every arm, building a `GuidedArm` for each of `names` over one shared call log.
+
+    Each BKO arm logs its run's validity sums on the way out, a stopped run included.
+    """
+    rows = context.field_rows
+    ontologies, fragments = load_scope(
+        {row.concept for row in rows},
+        data_dir,
+        releases=context.releases,
+        open_url=context.open_url,
+    )
+    knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
+    experiment = context.experiment
+    replay = Replay(args.replay) if args.replay is not None else None
+    with CallLog(args.log, SETTINGS, replay=replay.digest if replay is not None else None) as log:
+        send = replay if replay is not None else context.send()
+        arms = {
+            name: GuidedArm(
+                name,
+                BKO_ARMS[name],
+                knowledge,
+                send=send,
+                log=log,
+                budget=experiment.budget,
+                ceiling=experiment.spend_ceiling,
+            )
+            for name in names
+        }
+        try:
+            scores = run(
+                frame,
+                experiment,
+                {**context.arms, **arms},
+                factory=context.factory,
+                drains={name: arm.drain for name, arm in arms.items()},
+            )
+            if replay is not None and replay.remaining:
+                msg = f"{replay.remaining} logged calls were not replayed"
+                raise ReplayError(msg)
+            return scores
+        finally:
+            for arm in arms.values():
+                arm.summary()
+
+
+def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
+    """Write the criteria's table to `out`, then log validity, copies and means.
+
+    The table goes out first, so scores whose validity cannot be read keep it.
+    """
     data = args.scores.read_bytes()
     try:
         text = data.decode("utf-8")
@@ -148,11 +271,89 @@ def _compare(args: argparse.Namespace, context: Context) -> str:
         candidate != context.experiment.candidate,
         hashlib.sha256(data).hexdigest(),
     )
-    contrasts = judge(parse(text), context.experiment, candidate=candidate)
+    scores = parse(text)
+    contrasts = judge(scores, context.experiment, candidate=candidate)
     for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
         outcome = next(c.verdict for c in contrasts if c.criterion == criterion)
         logger.info("criterion=%s verdict=%s", criterion, outcome)
-    return table(contrasts)
+    out.write(table(contrasts))
+    _log_validity(scores, context.experiment, candidate)
+    _log_copies(scores)
+    _log_means(scores)
+
+
+def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
+    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts."""
+    arms = reported(scores)
+    if candidate in BKO_ARMS or candidate in arms:
+        found = validity(scores, experiment, candidate)
+        logger.info("criterion=validity verdict=%s %s", verdict(found, experiment), found.line())
+    for arm in arms:
+        if arm != candidate:
+            logger.info("validity %s", validity(scores, experiment, arm).line())
+
+
+def _log_copies(scores: Sequence[Score]) -> None:
+    """Log each arm's test records copied, summed over the holdouts, by added and replica rows."""
+    totals: dict[str, dict[ScoreSource, float]] = {}
+    for s in scores:
+        if s.measure is Measure.TEST_COPIES:
+            found = totals.setdefault(s.arm, {})
+            found[s.source] = found.get(s.source, 0.0) + s.value
+    for arm, found in totals.items():
+        added, replica = found.get(ScoreSource.ADDED, 0.0), found.get(ScoreSource.REPLICA, 0.0)
+        logger.info("copies arm=%s added=%.0f replica=%.0f", arm, added, replica)
+
+
+def _log_means(scores: Sequence[Score]) -> None:
+    """Log each arm's mean of every judged measure in every scope over the holdouts; no verdict.
+
+    A measure and scope with no value for an arm gets no line.
+    """
+    for arm in dict.fromkeys(s.arm for s in scores if s.source is ScoreSource.AUGMENTED):
+        for measure in JUDGED:
+            for scope in Scope:
+                values = [
+                    s.value
+                    for s in scores
+                    if (s.arm, s.source, s.measure, s.scope)
+                    == (arm, ScoreSource.AUGMENTED, measure, scope)
+                ]
+                if not values:
+                    continue
+                mean = sum(values) / len(values)
+                logger.info(
+                    "mean arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
+                    arm,
+                    measure,
+                    scope,
+                    mean,
+                    len(values),
+                )
+
+
+def _commit() -> tuple[str, str]:
+    """The checkout's HEAD and whether its tree differs from it, or `unknown` for each."""
+    here = Path(__file__).parent
+    found: list[str] = []
+    for command in (["git", "rev-parse", "HEAD"], ["git", "status", "--porcelain"]):
+        try:
+            result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+                command,
+                cwd=here,
+                capture_output=True,
+                text=True,
+                stdin=subprocess.DEVNULL,
+                timeout=30,
+                check=False,
+            )
+        except OSError, subprocess.TimeoutExpired:
+            return "unknown", "unknown"
+        if result.returncode != 0:
+            return "unknown", "unknown"
+        found.append(result.stdout.strip())
+    head, status = found
+    return head, "true" if status else "false"
 
 
 def _versions() -> dict[str, str]:
@@ -174,6 +375,18 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="the data root; default: data/ at the repository root",
+    )
+    scoring.add_argument(
+        "--log",
+        type=Path,
+        default=None,
+        help="the call log to create for the BKO arms' calls; it must not exist",
+    )
+    scoring.add_argument(
+        "--replay",
+        type=Path,
+        default=None,
+        help="answer every BKO call from this call log instead of the API",
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")

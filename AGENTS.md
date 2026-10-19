@@ -31,11 +31,12 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
-- `uv run --no-sync python -m bko.evaluate score > scratchpad/scores.csv`, then
-  `uv run --no-sync python -m bko.evaluate compare scratchpad/scores.csv --candidate <arm>`: score
-  every comparison method on E1's holdouts, then judge an arm against E1's criteria
-  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) says when `--candidate` may be
-  omitted).
+- `uv run --no-sync python -m bko.evaluate score --log scratchpad/<run-id>.jsonl > scratchpad/<run-id>.csv`,
+  then `uv run --no-sync python -m bko.evaluate compare scratchpad/<run-id>.csv`: score every E1 arm
+  on E1's holdouts, then judge `bko` against E1's criteria. `score` spends money through the three
+  BKO arms and needs an Anthropic credential
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command and says what
+  `--candidate` judges); `score --replay` rereads a paid run's call log for free.
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).

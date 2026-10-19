@@ -6,30 +6,37 @@ import dataclasses
 import hashlib
 import io
 import logging
+import re
 import subprocess
 import sys
 import urllib.error
 import warnings
-from types import MappingProxyType
 
 import pandas as pd
 import pytest
 
-from bko.evaluate.__main__ import Context, configure_logging, main
+from bko.evaluate.__main__ import (
+    Context,
+    _commit,
+    _log_copies,
+    _log_means,
+    configure_logging,
+    main,
+)
 from bko.evaluate.criteria import CONTRAST_COLUMNS
-from bko.evaluate.run import method_arms
-from bko.evaluate.scores import SCORE_COLUMNS
+from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, archive, pin
-from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-FAST_ARMS = MappingProxyType(method_arms(FAST_METHODS))
 TEXT = cleveland_text(GRADED)
-LIGHT = dataclasses.replace(SMALL, arms=("none", "smote"), comparators=(), replica_arms=())
+LIGHT = dataclasses.replace(
+    SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=()
+)
 SCORED = dataclasses.replace(SMALL, replica_arms=("smote", "adasyn", "ctgan"))
 """`SMALL` without TVAE's replica: the archive renumbers `GRADED`'s records, and on the splits that
 gives, the tiny TVAE never draws some cells. `tests/test_evaluate_run.py` covers TVAE's replica."""
@@ -72,9 +79,12 @@ def test_compare_judges_a_candidate_from_the_scores_file(scores_file):
     assert len(frame) == 2 * 2 * (len(SMALL.comparators) - 1) + 1
 
 
-def test_compare_without_the_candidates_scores_exits_two(scores_file):
+def test_compare_without_the_candidates_augmented_rows_exits_two(scores_file, tmp_path):
+    frame = pd.read_csv(scores_file)
+    path = tmp_path / "s.csv"
+    frame[frame["arm"] != "bko"].to_csv(path, index=False)
     out = io.StringIO()
-    assert main(["compare", str(scores_file)], context=Context(experiment=SMALL), out=out) == 2
+    assert main(["compare", str(path)], context=Context(experiment=SMALL), out=out) == 2
     assert out.getvalue() == ""
 
 
@@ -141,7 +151,7 @@ def test_stderr_carries_the_split_quota_versions_and_digest(tmp_path, caplog):
     assert code == 0
     assert "split seed=1 train=146 test=35" in caplog.text
     assert "quota holdout=0 stratum=<55/female/1 rows=18" in caplog.text
-    assert "versions {" in caplog.text
+    assert "versions commit=" in caplog.text
     assert f"sha256={hashlib.sha256(out.encode()).hexdigest()}" in caplog.text
 
 
@@ -181,7 +191,7 @@ from tests._datasets_fixtures import FakeOpener, archive, pin
 from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
 data = archive(cleveland_text(GRADED))
 experiment = dataclasses.replace(
-    SMALL, arms=("none", "smote"), comparators=(), replica_arms=("smote",)
+    SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=("smote",)
 )
 configure_logging()
 arms = method_arms(FAST_METHODS)
@@ -203,3 +213,53 @@ def test_stdout_carries_only_the_csv(tmp_path):
     assert result.returncode == 0, result.stderr
     assert tuple(pd.read_csv(io.StringIO(result.stdout)).columns) == SCORE_COLUMNS
     assert "INFO bko.evaluate: scores rows=" in result.stderr
+
+
+def test_a_mean_with_no_values_is_skipped(caplog):
+    scores = [Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.ALL, 0.5)]
+    with caplog.at_level(logging.INFO):
+        _log_means(scores)
+    means = [m for m in caplog.messages if m.startswith("mean ")]
+    assert means == ["mean arm=smote measure=recall scope=all value=0.500000 holdouts=1"]
+
+
+def test_copies_are_logged_as_whole_counts(caplog):
+    scores = [
+        Score(seed, "smote", source, Measure.TEST_COPIES, Scope.ALL, value)
+        for seed, source, value in ((0, Source.ADDED, 2.0), (1, Source.ADDED, 1.0))
+    ]
+    with caplog.at_level(logging.INFO):
+        _log_copies(scores)
+    assert "copies arm=smote added=3 replica=0" in caplog.messages
+
+
+def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_path, caplog):
+    with caplog.at_level(logging.INFO):
+        code, _ = score(tmp_path, experiment=LIGHT)
+    assert code == 0
+    line = next(m for m in caplog.messages if m.startswith("versions "))
+    assert re.match(r"versions commit=[0-9a-f]{40} dirty=(true|false) \{", line)
+
+
+def test_the_commit_is_unknown_without_git(monkeypatch):
+    def absent(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr(subprocess, "run", absent)
+    assert _commit() == ("unknown", "unknown")
+
+
+def test_stderr_lines_carry_their_time():
+    root = logging.getLogger()
+    handlers = list(root.handlers)
+    root.handlers.clear()
+    try:
+        configure_logging()
+        added = [h for h in root.handlers if h not in handlers]
+        assert added
+        assert added[0].formatter is not None
+        assert added[0].formatter._fmt is not None
+        assert added[0].formatter._fmt.startswith("%(asctime)s ")
+    finally:
+        logging.captureWarnings(False)
+        root.handlers[:] = handlers

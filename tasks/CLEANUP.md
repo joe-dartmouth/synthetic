@@ -36,25 +36,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## evaluate
-
-- **`cleanup:evaluate/bko-arms-reproduce-from-log`: a BKO arm's rows cannot be redrawn from a
-  seed.** `docs/adr/research/e1-evaluation-protocol.md:26` says "Must reproduce from seeds on one
-  machine", but the Messages API takes no seed parameter (ADR `research/record-generation-design`,
-  Consequences). *Filed 2026-10-18 by `proposal-llm-generation`.*
-  **Why deferred.** E1's protocol belongs to `proposal-final-evaluation`.
-  **What discharges it:** E1's protocol states how a BKO arm's judged statistics reproduce.
-  **Trigger:** `proposal-final-evaluation`.
-- **`cleanup:evaluate/generated-copies-of-test-records`: a generated copy of a holdout's test
-  record joins training unseen.** A model may reproduce a public Cleveland record. If it
-  reproduces a holdout's test record, that record joins training, and utility is then read on a
-  record the classifier trained on. E1's privacy measure reads distance to the training rows only
-  (`docs/adr/research/e1-evaluation-protocol.md:72-74`). *Filed 2026-10-18 by
-  `proposal-llm-generation`.*
-  **Why deferred.** E1's measures belong to `proposal-final-evaluation`.
-  **What discharges it:** `bko.evaluate` counts added rows equal to a test record.
-  **Trigger:** `proposal-final-evaluation`.
-
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
@@ -74,20 +55,6 @@ links to where its blocker is tracked.
   **Trigger:** a change that sets `SETTINGS.per_call` below `UNDERREPRESENTED_BELOW`.
 
 ## generate
-
-- **`cleanup:generate/retries-in-call-log`: the call log does not record how many attempts a call
-  took.** `bko.generate.api.send_with` leaves the SDK's default of 2 retries in place
-  (`anthropic/_constants.py:11` on 1.13.0, `DEFAULT_MAX_RETRIES = 2`), and a retried attempt can
-  be billed. Neither the `reply` line nor the `error` line records attempts. stderr shows each
-  retry only as the SDK's own INFO line, `Retrying request to %s in %f seconds`
-  (`anthropic/_base_client.py:1372`), between a call's `send` line and its `generate` or `failed`
-  line. *Filed 2026-10-18 by `proposal-llm-generation`.*
-  **Why deferred.** Counting attempts needs the SDK's raw-response API
-  (`client.messages.with_raw_response`, whose response carries `retries_taken`) and a new log
-  field, which bumps `bko.generate.log.SCHEMA`.
-  **What discharges it:** each `reply` and `error` line records the call's attempt count, under a
-  bumped log schema.
-  **Trigger:** `proposal-final-evaluation`.
 
 - **`cleanup:generate/candidates-carry-no-run-identity`: a candidates file does not name the split,
   releases or guidance level it was generated against.** `python -m bko.fusion` re-derives the

@@ -105,6 +105,8 @@ class Reply:
         text: The text blocks joined, or None when there are none.
         usage: The billed tokens.
         raw: The whole message as JSON values.
+        attempts: The HTTP requests the SDK made for the call, retries included; None when
+            nothing counted them.
     """
 
     request_id: str | None
@@ -113,6 +115,7 @@ class Reply:
     text: str | None
     usage: Usage
     raw: Mapping[str, object]
+    attempts: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +148,20 @@ class Call:
                 "format": {"type": "json_schema", "schema": record_schema(self.sex, self.label)},
             },
         }
+
+
+def text_of(raw: Mapping[str, object]) -> str | None:
+    """A message's text blocks joined, thinking blocks ignored; None when there are none."""
+    content = raw.get("content")
+    blocks = content if isinstance(content, list) else []
+    texts = [
+        block["text"]
+        for block in blocks
+        if isinstance(block, dict)
+        and block.get("type") == "text"
+        and isinstance(block.get("text"), str)
+    ]
+    return "".join(texts) if texts else None
 
 
 type Send = Callable[[Call], Reply]

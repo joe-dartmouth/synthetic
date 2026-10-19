@@ -46,7 +46,7 @@ from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.gaps.scope import load_scope
-from bko.generate.api import default_send
+from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.calls import Batch, generate
 from bko.generate.candidates import render_lines
 from bko.generate.errors import GenerationError
@@ -59,7 +59,7 @@ from bko.ontology.schema import FieldMapping
 
 logger = logging.getLogger("bko.generate")
 
-QUIET_LOGGERS = ("httpx2",)
+QUIET_LOGGERS = HTTP_LOGGERS
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
 
 

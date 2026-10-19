@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -9,8 +11,10 @@ import pytest
 from bko.baselines.errors import OutputContractError
 from bko.baselines.records import (
     Baseline,
+    Drop,
     check,
     derived_seed,
+    drops,
     keep,
     number,
     training_set,
@@ -19,7 +23,8 @@ from bko.baselines.records import (
 )
 from bko.baselines.request import Request
 from bko.datasets.cells import LABEL
-from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES
+from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, NUMERIC
+from bko.validate.checks import validate
 from tests._baselines_fixtures import EDGE, QUOTA, cell_list, full_records
 
 
@@ -172,3 +177,107 @@ def test_training_set_puts_the_real_rows_first_with_their_weights():
     assert list(frame.columns) == [*FRAME_COLUMNS, "weight"]
     assert frame.index.tolist() == [*TRAIN.index, *added.index]
     assert frame["weight"].tolist() == [2.0] * len(TRAIN) + [1.0] * len(added)
+
+
+@pytest.mark.parametrize("plant", ["range", "below range"])
+def test_a_value_outside_the_split_names_its_column(plant):
+    baseline = Baseline(
+        added=BROKEN_ROWS[plant](valid_rows()), weights=unit_weights(TRAIN), params={}
+    )
+    with pytest.raises(OutputContractError, match="chol leaves"):
+        check(baseline, TRAIN, REQUEST)
+
+
+def test_a_row_past_its_quota_is_refused():
+    rows = valid_rows()
+    added = number(pd.concat([rows, rows.iloc[[-1]]]))
+    baseline = Baseline(added=added, weights=unit_weights(TRAIN), params={})
+    with pytest.raises(OutputContractError, match="rows per stratum"):
+        check(baseline, TRAIN, REQUEST)
+
+
+def candidates_of(rows: pd.DataFrame) -> list[dict[str, object]]:
+    """`rows` as decoded candidates: JSON numbers, as the API returns them."""
+    return json.loads(rows.to_json(orient="records"))
+
+
+def test_a_row_out_of_range_is_dropped_for_range():
+    rows = _set_last(valid_rows(), "chol", int(TRAIN["chol"].max()) + 1)
+    assert drops(rows, TRAIN, REQUEST)[-1] is Drop.RANGE
+
+
+def test_a_row_of_an_unrequested_cell_is_dropped_for_its_cell():
+    other = TRAIN[[cell not in REQUEST.quota for cell in cell_list(TRAIN)]].iloc[[0]]
+    rows = number(pd.concat([valid_rows(), other]))
+    assert drops(rows, TRAIN, REQUEST)[-1] is Drop.CELL
+
+
+def test_a_row_past_its_cells_quota_is_dropped_for_quota():
+    rows = valid_rows()
+    rows = number(pd.concat([rows, rows.iloc[[-1]]]))
+    assert drops(rows, TRAIN, REQUEST) == (*(None for _ in range(len(rows) - 1)), Drop.QUOTA)
+
+
+def test_held_rows_use_up_the_quota():
+    first = valid_rows().iloc[[0]]
+    stratum = cell_list(first)[0]
+    assert drops(first, TRAIN, REQUEST, held={stratum: REQUEST.quota[stratum]}) == (Drop.QUOTA,)
+
+
+def test_a_dropped_row_uses_none_of_the_quota():
+    first = valid_rows().iloc[[0]]
+    outside = _set_last(first.copy(), "chol", int(TRAIN["chol"].max()) + 1)
+    assert drops(number(pd.concat([outside, first])), TRAIN, REQUEST) == (Drop.RANGE, None)
+
+
+def test_a_valid_frame_drops_nothing():
+    assert set(drops(valid_rows(), TRAIN, REQUEST)) == {None}
+
+
+def test_check_and_drops_share_the_range_rule(monkeypatch):
+    rows = _set_last(valid_rows(), "chol", int(TRAIN["chol"].max()) + 1)
+
+    def everything(frame: pd.DataFrame, train: pd.DataFrame) -> pd.DataFrame:
+        return pd.DataFrame(True, index=frame.index, columns=list(NUMERIC))
+
+    monkeypatch.setattr("bko.baselines.records.within_split", everything)
+    assert drops(rows, TRAIN, REQUEST)[-1] is None
+    check(Baseline(added=rows, weights=unit_weights(TRAIN), params={}), TRAIN, REQUEST)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("age", 18),
+        ("age", 120),
+        ("chol", 32),
+        ("chol", 600),
+        ("oldpeak", -10.0),
+        ("oldpeak", 10.0),
+        ("sex", None),
+        ("chol", None),
+    ],
+    ids=[
+        "age-18",
+        "age-120",
+        "chol-32",
+        "chol-600",
+        "oldpeak-low",
+        "oldpeak-high",
+        "other-cell",
+        "past-quota",
+    ],
+)
+def test_validated_candidates_leave_check_nothing_to_refuse(name, value):
+    rows = valid_rows()
+    extra = candidates_of(rows.iloc[[-1]])[0]
+    if name == "sex":
+        extra["sex"] = 1 - int(str(extra["sex"]))
+    elif value is not None:
+        extra[name] = value
+    accepted = validate([*candidates_of(rows), extra]).accepted
+    reasons = drops(accepted, TRAIN, REQUEST)
+    assert reasons[-1] is not None
+    assert set(reasons[:-1]) == {None}
+    kept = number(accepted.loc[[reason is None for reason in reasons]])
+    check(Baseline(added=kept, weights=unit_weights(TRAIN), params={}), TRAIN, REQUEST)

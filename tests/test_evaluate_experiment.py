@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import dataclasses
+from fractions import Fraction
 
 import pytest
 
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, METHOD_ARMS, flagged, gap_request, replica_request
+from bko.evaluate.experiment import (
+    BKO_ARMS,
+    E1,
+    METHOD_ARMS,
+    flagged,
+    gap_request,
+    replica_request,
+)
+from bko.gaps.definitions import Definition
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
 
@@ -18,10 +27,23 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 
 def test_e1_judges_bko_against_every_method():
+    assert E1.arms == (*METHOD_ARMS, *BKO_ARMS)
+    assert E1.comparators == METHOD_ARMS
     assert E1.candidate == "bko"
-    assert E1.comparators == E1.arms == METHOD_ARMS
+    assert E1.budget == 3
+    assert E1.validity == Fraction(19, 20)
+    assert E1.spend_ceiling == pytest.approx(50.0)
+    assert dict(BKO_ARMS) == {
+        "bko": Definition.SUBGROUP,
+        "bko-population": Definition.POPULATION,
+        "bko-frequency": Definition.FREQUENCY,
+    }
     assert set(E1.replica_arms) == {method.value for method in Method if method.adds_rows}
     assert len(set(E1.holdout_seeds)) == len(E1.holdout_seeds) >= 2
+
+
+def test_an_ablation_arm_may_be_judged_as_a_dry_run():
+    assert dataclasses.replace(E1, candidate="bko-population")
 
 
 @pytest.mark.parametrize("seed", [0, 1, 7])
@@ -66,10 +88,15 @@ def test_the_replica_asks_for_every_cells_training_count():
         ({"holdout_seeds": (0, 0)}, "2 or more"),
         ({"holdout_seeds": (0, -1)}, "must lie in"),
         ({"arms": ("none", "none")}, "twice"),
-        ({"replica_arms": ("bko",)}, "not arms"),
+        ({"replica_arms": ("absent",)}, "not arms"),
         ({"candidate": "smote"}, "its comparators"),
         ({"attempts": 0}, "at least one attempt"),
         ({"confidence": 1.0}, "strictly between"),
+        ({"candidate": "absent"}, "is not an arm"),
+        ({"budget": 0}, "budget"),
+        ({"validity": Fraction(0)}, "validity"),
+        ({"validity": Fraction(21, 20)}, "validity"),
+        ({"spend_ceiling": 0.0}, "ceiling"),
     ],
     ids=[
         "one seed",
@@ -80,6 +107,11 @@ def test_the_replica_asks_for_every_cells_training_count():
         "self",
         "no attempt",
         "certain",
+        "candidate not an arm",
+        "no budget",
+        "no validity",
+        "validity above one",
+        "no ceiling",
     ],
 )
 def test_a_configuration_that_cannot_run_is_refused(change, message):
