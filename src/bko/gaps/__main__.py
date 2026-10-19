@@ -40,12 +40,11 @@ from bko.datasets.synthea import load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition, gaps, under_represented
-from bko.gaps.detect import Statement, count_gaps, ontology_fragments
-from bko.gaps.errors import GapError
+from bko.gaps.detect import Statement, count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation
 from bko.gaps.observe import Cell, Cells, Observed, cell_key, observe_population, record_cells
+from bko.gaps.scope import load_scope
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
-from bko.ontology.releases import load_releases
 from bko.ontology.schema import CodeMapping, FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -323,22 +322,7 @@ def _flags(
 def _ontology(
     concepts: Collection[str], data_dir: Path, context: Context
 ) -> tuple[dict[str, Ontology], tuple[BKB, ...]]:
-    prefixes = sorted({concept.partition(":")[0] for concept in concepts})
-    unpinned = [prefix for prefix in prefixes if prefix not in context.releases]
-    if unpinned:
-        msg = f"no pinned release for the prefix {', '.join(unpinned)}"
-        raise GapError(msg)
-    sources = {prefix: context.releases[prefix] for prefix in prefixes}
-    ontologies = load_releases(sources, data_dir, open_url=context.open_url)
-    fragments = ontology_fragments(ontologies, concepts)
-    for fragment in fragments:
-        logger.info(
-            "scope release=%s classes=%d statements=%d",
-            fragment.name,
-            len(fragment.inodes),
-            len(fragment.snodes),
-        )
-    return ontologies, fragments
+    return load_scope(concepts, data_dir, releases=context.releases, open_url=context.open_url)
 
 
 def _log_observed(observed: Observed) -> None:

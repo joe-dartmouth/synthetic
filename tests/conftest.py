@@ -1,10 +1,19 @@
-"""Pytest configuration: the `--live` and `--releases` opt-ins and the all-skipped floor."""
+"""Pytest configuration: the `--live` and `--releases` opt-ins, the skip floor, the paid guard."""
 
 from __future__ import annotations
 
-from typing import Final, NamedTuple
+from collections.abc import Iterator
+from typing import Any, Final, NamedTuple, NoReturn
 
 import pytest
+from anthropic._base_client import AsyncAPIClient, SyncAPIClient
+
+
+PAID_REQUEST_REFUSAL: Final = "a request outside a `live` test's body reached the Anthropic API"
+"""The start of the guard's refusal."""
+
+DISCARD_URL: Final = "http://127.0.0.1:9"
+"""Where a request goes in a run without `--live`: the loopback discard port."""
 
 
 class _OptIn(NamedTuple):
@@ -68,7 +77,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Register the skip floor on the controller.
+    """Register the skip floor on the controller, and install the paid-request guard everywhere.
 
     Args:
         config: The active pytest config.
@@ -77,6 +86,109 @@ def pytest_configure(config: pytest.Config) -> None:
     # would count one share of the run and judge it alone.
     if not hasattr(config, "workerinput"):
         config.pluginmanager.register(_SkipFloor(config), "bko-skip-floor")
+    # A nested in-process session (`pytest.main` inside a test) configures again; it keeps the
+    # outer session's patch rather than replacing it, so its unconfigure cannot disarm the outer.
+    _PaidGuard.depth += 1
+    if _PaidGuard.depth == 1:
+        refuse_unmarked_api_requests(config)
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    """Undo the guard's patch when the outermost session ends.
+
+    Args:
+        config: The active pytest config.
+    """
+    _PaidGuard.depth -= 1
+    if _PaidGuard.depth == 0 and _PaidGuard.patch is not None:
+        _PaidGuard.patch.undo()
+        _PaidGuard.patch = None
+
+
+class _PaidGuard:
+    """Whether the request sink may be reached now, and the patch that guards it.
+
+    Attributes:
+        allowed: Whether a request may reach the sink: true only during a `live` test's body.
+        patch: The guard's own patcher, undone at the end of the outermost session.
+        depth: How many sessions in this process are configured and not yet unconfigured.
+    """
+
+    allowed: bool = False
+    patch: pytest.MonkeyPatch | None = None
+    depth: int = 0
+
+
+def refuse_unmarked_api_requests(config: pytest.Config) -> None:
+    """Refuse every Anthropic API request made outside the body of a test marked `live`.
+
+    **The sink rather than the label or the constructor.** The collection hook keys on the `live`
+    marker, which only covers the tests a human remembered to mark. Building a client is free; only
+    a request costs. So the guard patches `SyncAPIClient.request` and `AsyncAPIClient.request`,
+    which every resource method reaches, rather than a list of methods a later caller walks past.
+
+    **Installed at configure time, through a patcher of its own.** Collection, module- and
+    session-scoped fixtures all run after this hook, so none of them can reach the network first,
+    and a test's own `monkeypatch.undo()` cannot restore the real sink. `pytest_runtest_call` opens
+    the sink only while a `live` test's body runs, and a `live` test runs only under `--live`.
+
+    **`pytest.fail` rather than an exception class**, because production code catches broad
+    `Exception` around a call; `pytest.fail` raises a `BaseException`.
+
+    **Subprocesses.** A patch does not cross a process boundary, so without `--live` the guard also
+    points `ANTHROPIC_BASE_URL` at the loopback discard port, which every child inherits and the SDK
+    reads before any profile. Under `--live` a child is unguarded.
+
+    Args:
+        config: The active pytest config, read for `--live`.
+    """
+    # A second install in one process must wrap the real sink, not the first guard, and must not
+    # orphan the first patch.
+    if _PaidGuard.patch is not None:
+        _PaidGuard.patch.undo()
+    real_sync = SyncAPIClient.request
+    real_async = AsyncAPIClient.request
+
+    def refuse() -> NoReturn:
+        pytest.fail(
+            f"{PAID_REQUEST_REFUSAL}: make it in the body of a test marked `live` if it is meant "
+            "to spend money, or give the test a fake client if it is not"
+        )
+
+    # `tests/test_paid_guard.py` reads these two names, so neither takes `functools.wraps`.
+    def guarded(*args: Any, **kwargs: Any) -> Any:
+        if not _PaidGuard.allowed:
+            refuse()
+        return real_sync(*args, **kwargs)
+
+    async def guarded_async(*args: Any, **kwargs: Any) -> Any:
+        if not _PaidGuard.allowed:
+            refuse()
+        return await real_async(*args, **kwargs)
+
+    patch = pytest.MonkeyPatch()
+    patch.setattr(SyncAPIClient, "request", guarded)
+    patch.setattr(AsyncAPIClient, "request", guarded_async)
+    if not config.getoption("--live"):
+        patch.setenv("ANTHROPIC_BASE_URL", DISCARD_URL)
+    _PaidGuard.patch = patch
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item) -> Iterator[None]:
+    """Open the request sink for the body of a `live` test, and for nothing else.
+
+    Args:
+        item: The test about to run.
+
+    Yields:
+        Control to the test body.
+    """
+    _PaidGuard.allowed = item.get_closest_marker("live") is not None
+    try:
+        return (yield)
+    finally:
+        _PaidGuard.allowed = False
 
 
 class _SkipFloor:

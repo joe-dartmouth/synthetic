@@ -1,0 +1,61 @@
+"""`bko.generate`'s import boundaries: one SDK importer, upstream stages only, no other client."""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+from tests._corpus import REPO_ROOT
+
+
+PACKAGE = REPO_ROOT / "src" / "bko" / "generate"
+
+
+def _imported(path: Path) -> set[str]:
+    """Every module `path` names in an import statement."""
+    names: set[str] = set()
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return names
+
+
+def _importers(*modules: str, skip: frozenset[str] = frozenset()) -> set[Path]:
+    """The package files, outside `skip`, that import one of `modules` or a submodule of one."""
+    return {
+        path.relative_to(REPO_ROOT)
+        for path in PACKAGE.rglob("*.py")
+        if path.name not in skip
+        and any(
+            name == module or name.startswith(f"{module}.")
+            for name in _imported(path)
+            for module in modules
+        )
+    }
+
+
+def test_discovery_finds_the_package_imports():
+    """The control: each test below asserts a set empty, which a broken walk would also give."""
+    assert len(list(PACKAGE.rglob("*.py"))) > 1
+    assert Path("src/bko/generate/__main__.py") in _importers("bko.gaps")
+    assert _importers("bko.gaps.scope") == {Path("src/bko/generate/__main__.py")}
+
+
+def test_only_api_imports_anthropic():
+    assert _importers("anthropic") == {Path("src/bko/generate/api.py")}
+
+
+def test_generate_imports_no_downstream_stage():
+    assert _importers("bko.validate", "bko.baselines", "bko.evaluate") == set()
+
+
+def test_generate_imports_no_release_loader():
+    loaders = ("bko.ontology.obo", "bko.ontology.releases", "bko.gaps.scope")
+    assert _importers(*loaders, skip=frozenset({"__main__.py"})) == set()
+
+
+def test_generate_opens_no_other_network_client():
+    assert _importers("urllib", "http.client", "httpx2", "httpx", "requests") == set()

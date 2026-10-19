@@ -26,6 +26,12 @@ LABEL: Final = "target"
 LABEL_CODES: Final = frozenset({0, 1})
 """The `LABEL` codes: 0 where the condition is absent, 1 where it is present."""
 
+LABEL_MEANINGS: Final[Mapping[int, str]] = {
+    0: "< 50% diameter narrowing",
+    1: "> 50% diameter narrowing",
+}
+"""Each `LABEL` code's meaning on UCI Heart Disease, from `num` in `heart-disease.names`."""
+
 SEXES: Final[Mapping[int, str]] = {0: "female", 1: "male"}
 """The `sex` codes and their labels."""
 

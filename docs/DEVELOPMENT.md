@@ -7,12 +7,12 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval` and `ontology` extras
-from the lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology` and
+`llm` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
-  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy) and `ontology`
-  (pronto) are installed by `make setup`; only `llm` (anthropic) and `app` (streamlit) are
+  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
+  (pronto) and `llm` (anthropic) are installed by `make setup`; only `app` (streamlit) is
   installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
   NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
   when an extra joins `make setup`. `make sync` installs every extra.
@@ -66,7 +66,8 @@ root or to see the module's own code, run it directly:
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test it runs reads `data/`, and each builds its input in `tmp_path`;
   the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies)). No
-  test runs Java, and the one test that reaches the network is under [Gate hazards](#gate-hazards).
+  test runs Java, no gate test reaches the Anthropic API, and the one test that reaches the network
+  is under [Gate hazards](#gate-hazards).
 
 ## Baselines
 
@@ -287,6 +288,65 @@ inside `.venv`:
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
 
+## Generation
+
+`bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
+candidate records that fill E1's count-based gap request (ADR
+[`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
+inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
+
+    uv run --no-sync python -m bko.generate <definition> [--guidance <level>] --log scratchpad/<run-id>.jsonl [--data-dir <dir>]
+
+- **What it does**: it fetches UCI Heart Disease and the releases the field mappings name into the
+  data root (`--data-dir`, default `data/`) if absent, splits the records as [Data](#data) says,
+  and reads the training split's gaps under `<definition>`: `per-subgroup`, `population-level` or
+  `frequency-aware`. It
+  asks each cell holding fewer training records than `UNDERREPRESENTED_BELOW` for its shortfall,
+  in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
+  stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
+  Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
+  holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
+  `bko.validate` checks them.
+- **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
+  cell and its training record count, and the guidance of the chosen level. Never a record.
+- **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
+  `summary`, each adding one component to the one before it; the ADR defines each.
+- **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call
+  and a `reply` or `error` line after it, and an `end` line with the run's status and totals, each
+  call's whole request and response and its USD spend included. An interrupt or any other failure
+  between a `request` line and its `reply` line writes the `error` line. stderr gets the split
+  line, each ontology fragment's size, the plan (calls, level, and the most the output tokens can
+  cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
+  naming the call and cell), the run's totals and spend with the log's path, and last the line
+  count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
+  settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
+  statement no label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell
+  with no reference record, so no profile or summary; and the UCI loader's line naming the records
+  it dropped for a missing value. The SDK retries a failed attempt up to twice and logs each retry at
+  INFO between the call's `send` line and its result; the call log does not count attempts
+  (`cleanup:generate/retries-in-call-log`).
+- **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
+  command could not run, including a missing credential, a call that got no response, and a
+  `--log` path that exists (checked before any download or call); 3 the data or a release
+  contradicts its pin or schema.
+- **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
+  is the record, so the command never overwrites one.
+- **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
+  releases built in `tmp_path` (`tests/test_generate_cli.py`); no gate test reaches the API.
+- **The release test**: `tests/test_generate_pinned_releases.py` builds every cell's guidance under
+  each definition over the real mapping table, UCI snapshot and pinned releases in the data root,
+  and renders it at every level. It never fetches and never calls the API; run it with
+  `--releases` after changing guidance or the prompt, once the command or `make cells` and
+  `python -m bko.ontology check` have fetched the data:
+
+      uv run --no-sync pytest tests/test_generate_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+- **The live test**: `tests/test_generate_live.py` makes one paid call for 2 records and checks the
+  reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
+  the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
+
+      test ! -e scratchpad/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=scratchpad/<run-id> -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -300,7 +360,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval` and `ontology` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology` and `llm` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -351,6 +411,14 @@ A targeted run while working:
   paid API and is skipped unless `--live` is passed; a test marked `releases` reads the pinned
   releases in `data/` and is skipped unless `--releases` is passed. No `-m` expression selects
   either, and one flag does not run the other's tests.
+- **A session guard refuses every other Anthropic request.** `tests/conftest.py` fails any request
+  that reaches the SDK's request sink outside a `live` test's body: at collection, in a fixture, or
+  in an unmarked test (ADR
+  [`tooling/paid-api-request-guard`](adr/tooling/paid-api-request-guard.md)). Without `--live` it
+  also points `ANTHROPIC_BASE_URL` at the loopback discard port, so a subprocess cannot spend.
+  The conftest imports anthropic, so every pytest run needs the `llm` extra.
+- **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
+  subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

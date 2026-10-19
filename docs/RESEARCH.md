@@ -110,7 +110,9 @@ augmentation. The validity criterion counts the records that pass the model's co
 and the completeness criterion counts the detected gaps that close after fusion
 ([section 4](#4-success-criteria)). ADR
 [research/record-validation-design](adr/research/record-validation-design.md) sets what the
-consistency checks are and how a candidate is counted.
+consistency checks are and how a candidate is counted, and ADR
+[research/record-generation-design](adr/research/record-generation-design.md) sets what a
+generation request carries and how its replies become candidates.
 
 ### Two kinds of gap, evaluated separately
 
@@ -224,9 +226,10 @@ during high-volume periods. The brief's advice is to build the whole pipeline on
 project never blocks on credentialing, and to start credentialing on day one as a parallel,
 non-blocking track.
 
-**Credentialed data stays local.** The pipeline sends records and their context to the Anthropic
-Messages API. Data held under a DUA must not reach that API or any other third-party service unless
-the DUA permits it; check its current terms before any such run.
+**Credentialed data stays local.** The pipeline sends each cell's description, plausibility ranges
+and ontology guidance to the Anthropic Messages API, never a record. Data held under a DUA must
+not reach that API or any other third-party service unless the DUA permits it; check its current
+terms before any such run.
 
 ## 7. Augmentation versus resampling
 

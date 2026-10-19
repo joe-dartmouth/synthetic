@@ -1,13 +1,13 @@
 ---
 id: proposal-fusion-repair
 title: Fuse validated records and measure gap closure
-status: blocked
-depends_on: proposal-llm-generation
+status: ready
+depends_on: --
 blocks: proposal-streamlit-app, proposal-final-evaluation
 parallel_safe: true
 owner: Shirley
 milestone: status-update-2
-paid: false
+paid: true
 adrs: --
 ---
 

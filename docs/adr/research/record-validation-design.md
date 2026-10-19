@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-18
 ---
 # Record validation: each field's number, bound and decimals, counted per check
 
@@ -11,7 +11,7 @@ updated: 2026-10-17
 RESEARCH, Generate and validate, validates each candidate record before augmentation. The validity
 criterion sets a share of generated records that must pass the model's consistency checks
 ([`docs/RESEARCH.md`](../../RESEARCH.md#4-success-criteria)). The 2-pager names no check, and it
-ties the ontology relationships to generation, not to validation. Candidates will come from the
+ties the ontology relationships to generation, not to validation. Candidates come from the
 Messages API as decoded JSON. A candidate can therefore hold any JSON value: a string, `true`,
 `null`, `NaN`, an integer beyond float range, or something that is not an object at all.
 
@@ -56,8 +56,9 @@ the archive's precision. A candidate is refused, never repaired, and counted und
 fails.**
 
 - **Input:** the decoded candidates, one item per record generation produced, unfiltered, plus one
-  placeholder that is not a mapping for each record a call asked for and did not decode. A batch
-  that is one record, a string, a bytes-like object or a frame raises `TypeError`.
+  placeholder that is not a mapping for each record a call that returned a response asked for and
+  did not decode. A batch that is one record, a string, a bytes-like object or a frame raises
+  `TypeError`.
 - **`fields`:** a candidate that is not a mapping fails it, and nothing else is read. A mapping fails
   it when it names a key outside the evaluation frame's columns; its fields are still checked.
 - **One chain per field**, stopped by its first failure:
@@ -143,13 +144,14 @@ copy of the criterion in the stage.
 | Counting a response that does not decode as one candidate | A call asked for several records would count one failure, raising validity | 2026-10-17 |
 | Importing the frame's columns from `bko.baselines.records` | A downstream stage (Rationale) | 2026-10-17 |
 | A codes constraint in the mapping table | A second home for the codebook | 2026-10-17 |
-| A command line | No generator feeds it | 2026-10-17 |
+| A command line | Callers validate in process; no task unit's acceptance names a command line | 2026-10-17 |
 | The `ontology` extra | No release is read | 2026-10-17 |
 
 ## Enforcement
 
 - Owner: `src/bko/validate/`
-- Pinned by: `tests/test_validate_checks.py`, `tests/test_validate_batch.py`, `tests/test_package_layout.py`
+- Pinned by: `tests/test_validate_checks.py`, `tests/test_validate_batch.py`,
+  `tests/test_package_layout.py`, `tests/test_generate_contract.py`
 
 ## Reversal Conditions
 

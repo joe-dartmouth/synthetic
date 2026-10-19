@@ -192,16 +192,17 @@ def test_every_interpreter_pin_agrees():
 
 
 def test_setup_installs_the_extras_something_imports():
-    """`synth`, `eval` and `ontology` are installed because a stage imports each.
+    """`synth`, `eval`, `ontology` and `llm` are installed because something imports each.
 
-    `bko.baselines` imports `synth`, `bko.evaluate` imports `eval`, and `bko.ontology` imports
-    `ontology`.
+    `bko.baselines` imports `synth`, `bko.evaluate` imports `eval`, `bko.ontology` imports
+    `ontology`, and `bko.generate.api` imports `llm`, as does `tests/conftest.py` for the
+    paid-request guard.
 
     ADR `tooling/uv-ruff-ty`. A subset, not equality: a stage that imports another extra adds it
     to the same line.
     """
     extras = set(re.findall(r"--extra\s+([a-z]+)", "\n".join(_recipe("setup"))))
-    assert {"dev", "data", "synth", "eval", "ontology"} <= extras
+    assert {"dev", "data", "synth", "eval", "ontology", "llm"} <= extras
 
 
 def test_the_running_interpreter_matches_the_declared_pin():
