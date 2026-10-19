@@ -86,16 +86,21 @@ def pytest_configure(config: pytest.Config) -> None:
     # would count one share of the run and judge it alone.
     if not hasattr(config, "workerinput"):
         config.pluginmanager.register(_SkipFloor(config), "bko-skip-floor")
-    refuse_unmarked_api_requests(config)
+    # A nested in-process session (`pytest.main` inside a test) configures again; it keeps the
+    # outer session's patch rather than replacing it, so its unconfigure cannot disarm the outer.
+    _PaidGuard.depth += 1
+    if _PaidGuard.depth == 1:
+        refuse_unmarked_api_requests(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Undo the guard's patch at the end of the session.
+    """Undo the guard's patch when the outermost session ends.
 
     Args:
         config: The active pytest config.
     """
-    if _PaidGuard.patch is not None:
+    _PaidGuard.depth -= 1
+    if _PaidGuard.depth == 0 and _PaidGuard.patch is not None:
         _PaidGuard.patch.undo()
         _PaidGuard.patch = None
 
@@ -105,11 +110,13 @@ class _PaidGuard:
 
     Attributes:
         allowed: Whether a request may reach the sink: true only during a `live` test's body.
-        patch: The guard's own patcher, undone at the end of the session.
+        patch: The guard's own patcher, undone at the end of the outermost session.
+        depth: How many sessions in this process are configured and not yet unconfigured.
     """
 
     allowed: bool = False
     patch: pytest.MonkeyPatch | None = None
+    depth: int = 0
 
 
 def refuse_unmarked_api_requests(config: pytest.Config) -> None:
@@ -135,8 +142,8 @@ def refuse_unmarked_api_requests(config: pytest.Config) -> None:
     Args:
         config: The active pytest config, read for `--live`.
     """
-    # A second configure in one process (a nested `pytest.main`) must wrap the real sink, not the
-    # first guard, and must not orphan the first patch.
+    # A second install in one process must wrap the real sink, not the first guard, and must not
+    # orphan the first patch.
     if _PaidGuard.patch is not None:
         _PaidGuard.patch.undo()
     real_sync = SyncAPIClient.request

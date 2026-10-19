@@ -18,11 +18,14 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import Callable
+from typing import ClassVar
 
 import anthropic
 import pytest
 from anthropic._base_client import AsyncAPIClient, SyncAPIClient
 from anthropic.types import MessageParam
+
+from tests import conftest
 
 
 _REFUSAL = "reached the Anthropic API"
@@ -164,3 +167,28 @@ def test_without_live_the_base_url_is_the_discard_port(request: pytest.FixtureRe
         pytest.skip("under `--live` the base URL is left alone")
     assert os.environ["ANTHROPIC_BASE_URL"] == _NOWHERE
     assert str(anthropic.Anthropic(api_key="x").base_url).startswith(_NOWHERE)
+
+
+class _InnerConfig:
+    """What a nested in-process session's config shows the guard's hooks: a worker, so no skip
+    floor registers, run without `--live`."""
+
+    workerinput: ClassVar[dict[str, object]] = {}
+
+    def getoption(self, name: str) -> object:
+        return False
+
+
+def test_a_nested_session_leaves_the_outer_guard_armed(request: pytest.FixtureRequest) -> None:
+    """A `pytest.main` inside a test configures and unconfigures the root conftest again; its
+    unconfigure must not undo the outer session's patch."""
+    inner = _InnerConfig()
+    try:
+        conftest.pytest_configure(inner)  # ty: ignore[invalid-argument-type]
+        conftest.pytest_unconfigure(inner)  # ty: ignore[invalid-argument-type]
+        assert SyncAPIClient.request.__name__ == "guarded"
+        with pytest.raises(pytest.fail.Exception, match=_REFUSAL):
+            _create(_anthropic())
+    finally:
+        if SyncAPIClient.request.__name__ != "guarded":
+            conftest.refuse_unmarked_api_requests(request.config)

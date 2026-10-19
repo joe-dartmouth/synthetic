@@ -43,6 +43,9 @@ We will patch **`SyncAPIClient.request` and `AsyncAPIClient.request` once per se
 `live`, and a `live` test runs only under `--live`. Anywhere else it refuses with `pytest.fail`,
 whose message starts "a request outside a `live` test's body reached the Anthropic API". Without
 `--live` the same patcher sets `ANTHROPIC_BASE_URL` to `http://127.0.0.1:9`, the loopback discard port.
+A nested in-process session (`pytest.main` inside a test) keeps the outer session's patch: a depth
+count installs the patch on the first `pytest_configure` and undoes it on the last
+`pytest_unconfigure`.
 
 ## Rationale
 
