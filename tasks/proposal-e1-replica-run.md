@@ -25,6 +25,10 @@ beside the baselines' from one run in which every arm is treated the same.
 
 **In.**
 
+- Before the run, the `live` generation test and one paid gap request at the Haiku 5.5 settings
+  (G1's command, recorded as a G1 Runs row with its validity and spend). If its validity is below
+  `E1.validity`, or a call fails, stop and report before the run: a low pass rate means top-ups
+  and refused attempts, which the run's budget and retries may not absorb.
 - A free rehearsal on all holdouts with canned replies, then one paid `score` run of the
   replica configuration under the recorded ceiling, then its replay and `compare`, as for
   `e1-1`. The spend and duration estimate is the one E1's Configuration in `docs/EVIDENCE.md`

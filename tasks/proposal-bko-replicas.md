@@ -42,8 +42,17 @@ readings ready for it, with no spend. `e1-1` keeps its Runs row.
   sees, gap and replica fills alike. With the arms in `replica_arms` that already holds, one
   `Tally` per arm. Reporting the gap and replica counts apart needs the tally and `drain` to split
   per fill and `compare` to log both; there is no separate verdict.
-- Spend: estimate the replica spend from `e1-1`'s cost per record asked (its Runs row) with a
-  stated margin of at least 25%, set `E1.spend_ceiling` in code to cover estimate plus margin, and
+- Generator: `bko.generate.messages.SETTINGS` moves from `claude-opus-5-5` to `claude-haiku-5-5`,
+  keeping effort `medium` (Haiku 5.5's default; it accepts the `effort` parameter), `max_tokens`,
+  `per_call` and level `ontology`. `bko.generate.spend.PRICES` gains Haiku 5.5's rates, read on
+  the day from `platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, the row for
+  prompts up to 100,000 tokens); the Opus 5.5 entry stays so `e1-1`'s log still prices. The
+  generator is a configuration value, so this is part of the replica configuration (ADR
+  `research/e1-evaluation-protocol`, The latest configuration is judged). Update ADR
+  `research/record-generation-design` (The call, the price), E1's and G1's Configuration in
+  `docs/EVIDENCE.md`, and the tests that name the model where they mean the current setting.
+- Spend: estimate the replica spend from `e1-1`'s tokens per record asked (its Runs row) priced at
+  Haiku 5.5's rates, with a stated margin of at least 25%, set `E1.spend_ceiling` in code to cover estimate plus margin, and
   record the estimate, the margin and the ceiling in E1's Configuration in `docs/EVIDENCE.md`.
 - Outage tolerance for a run of many hours: raise the SDK client's `max_retries` and timeout in
   `bko.generate.api.default_send`. This changes no logged request, so replay holds. Update the e1
@@ -55,6 +64,7 @@ readings ready for it, with no spend. `e1-1` keeps its Runs row.
   `docs/DEVELOPMENT.md`, to the new configuration; tests with fake sends only.
 - The replica configuration's run becomes E1's judged result once it lands (ADR
   `research/e1-evaluation-protocol`, The latest configuration is judged).
+- A paid generation check is left to `proposal-e1-replica-run`; this unit spends nothing.
 - A CLI test in `tests/test_evaluate_bko_cli.py` over a fixture experiment with BKO replica arms
   (not the 100-holdout default): its scripted-replies helper is extended for replica calls, and a
   live run then its replay are byte-identical.
@@ -69,5 +79,7 @@ readings ready for it, with no spend. `e1-1` keeps its Runs row.
 - `E1.spend_ceiling` is at least the estimate times 1.25, and the estimate, margin and ceiling are
   in E1's Configuration in `docs/EVIDENCE.md` before any paid run.
 - A test shows `default_send` builds a client with the raised `max_retries` and timeout.
+- `SETTINGS` names `claude-haiku-5-5`, and `PRICES` prices it (a test pins its rates to the
+  pricing page's values recorded in the code).
 - The docs listed above match the new configuration.
 - `make check`.
