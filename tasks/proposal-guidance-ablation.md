@@ -25,11 +25,12 @@ builds six nested guidance levels, and this unit measures what each one adds.
 **In.**
 
 - Run the candidate arm `bko` at every level of `bko.generate.messages.Level` on E1's holdouts.
-- Report each level's validity, dropped candidates, spend, and E1's measures beside E1's judged
-  run.
+- Run the ablation at the gap-fill configuration (the BKO arms fill no replica in its runs), and
+  report each level's validity, dropped candidates, spend, and E1's measures beside E1's run of
+  that configuration, `e1-1`, whichever configuration E1 judges at the time.
 - Record the runs in a new `docs/EVIDENCE.md` entry.
 
-**Out.** Changing E1's judged configuration.
+**Out.** Changing E1's configuration.
 
 ## Acceptance
 
