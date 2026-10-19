@@ -1,8 +1,8 @@
 ---
 id: proposal-final-evaluation
 title: Final evaluation
-status: blocked
-depends_on: proposal-fusion-repair
+status: ready
+depends_on: --
 blocks: proposal-guidance-ablation
 parallel_safe: true
 owner: Joe
