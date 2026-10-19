@@ -46,7 +46,8 @@ readings ready for it, with no spend. `e1-1` keeps its Runs row.
   keeping effort `medium` (Haiku 5.5's default; it accepts the `effort` parameter), `max_tokens`,
   `per_call` and level `ontology`. `bko.generate.spend.PRICES` gains Haiku 5.5's rates, read on
   the day from `platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, the row for
-  prompts up to 100,000 tokens); the Opus 5.5 entry stays so `e1-1`'s log still prices. The
+  prompts up to 100,000 tokens), in place of Opus 5.5's; `e1-1` replays at its own commit, as
+  every replay does (ADR `research/call-log-replay`). The
   generator is a configuration value, so this is part of the replica configuration (ADR
   `research/e1-evaluation-protocol`, The latest configuration is judged). Update ADR
   `research/record-generation-design` (The call, the price), E1's and G1's Configuration in

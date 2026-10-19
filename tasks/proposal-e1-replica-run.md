@@ -3,7 +3,7 @@ id: proposal-e1-replica-run
 title: E1 with BKO replicas
 status: blocked
 depends_on: proposal-bko-replicas
-blocks: --
+blocks: proposal-guidance-ablation
 parallel_safe: true
 owner: Joe
 milestone: final-report
