@@ -52,7 +52,7 @@ holds every request's parameters and every reply's whole response.
 ## Rationale
 
 A BKO arm sends the same request on every holdout and on each retry. At level `ontology`, `bko`'s
-two prompts are identical across E1's 100 holdouts (measured 2026-10-19). One request is therefore
+two prompts are identical across every E1 holdout (measured 2026-10-19). One request is therefore
 logged many times with different replies, and only the call order tells them apart.
 
 Everything after a call is deterministic: decoding, validation, drops, top-ups, numbering and the
@@ -67,7 +67,9 @@ top-up into a refusal, instead of a silently different reading.
 API call, and a fix to a free reading re-records for nothing.
 **Accepted**: a change to a prompt, a quota, a drop rule that moves a top-up, or the settings makes
 a log unreplayable and needs a new paid run; replay holds on one machine at the run's commit, data
-and releases, as E1's baselines do.
+and releases, as E1's baselines do. Decontamination makes every arm's scores depend on every arm's
+rows, so byte-identical replay also needs the seeded baselines to repeat, as they do on one
+machine.
 
 ## Ruled Out
 

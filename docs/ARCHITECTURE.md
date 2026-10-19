@@ -34,6 +34,7 @@ flowchart LR
     D --> G["Generate<br/>bko.generate"]
     G --> V["Validate<br/>bko.validate"]
     V --> E["Evaluate<br/>bko.baselines, bko.evaluate"]
+    E -.->|"BKO arms<br/>bko.gaps, bko.generate, bko.validate"| D
     V -.->|"Fuse<br/>bko.fusion"| R
 ```
 
@@ -44,9 +45,11 @@ flowchart LR
 | Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
 | Fuse | The validated records and the training split | The joined records, and each gap definition's pairs before and after the join |
-| Evaluate | Augmented training data, the baselines and the controls | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
+| Evaluate | Augmented training data, the baselines and the controls; its BKO arms run Detect, Generate and Validate on each holdout's training rows | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
 
-The dotted edge is the fusion of validated records back into the BKO, after which the completeness
+The dotted edge from Evaluate is `bko.evaluate`'s BKO arms, which run gap detection, generation and
+validation (`bko.gaps`, `bko.generate`, `bko.validate`) on each holdout's training rows. The dotted
+edge from Validate is the fusion of validated records back into the BKO, after which the completeness
 criterion counts the gaps that close; [BACKGROUND.md](BACKGROUND.md#fusion) explains that reading
 of "after fusion". The Streamlit front end (`bko.app`) sits over every stage.
 
@@ -72,7 +75,7 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | [`bko.validate`](../src/bko/validate/README.md) | Validate |
 | [`bko.fusion`](../src/bko/fusion/README.md) | Fuse (validated records back into the BKO, and gap closure) |
 | [`bko.baselines`](../src/bko/baselines/README.md) | Evaluate (baseline augmentation) |
-| [`bko.evaluate`](../src/bko/evaluate/README.md) | Evaluate |
+| [`bko.evaluate`](../src/bko/evaluate/README.md) | Evaluate (its BKO arms run Detect, Generate and Validate through `bko.gaps`, `bko.generate` and `bko.validate`) |
 | [`bko.app`](../src/bko/app/README.md) | Front end over every stage |
 
 Fusion appears in two places: `bko.fusion`, which Shirley owns, joins validated records to the
