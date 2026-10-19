@@ -209,8 +209,8 @@ rows, so it cannot see the copy. Removing such records from the test split for e
 pairing and changes nothing on a holdout no arm copies. Counting alone would report the leak and
 still judge on it. A call that gets no response is not a refusal of the request: retries come with
 no delay, so they add no patience against an outage, and they would read an infrastructure failure
-as the method's. Patience against an outage belongs to the SDK client, whose retries and timeout
-`bko.generate.api.default_send` sets and which change no logged request. Budget and attempts bound
+as the method's. Patience against an outage belongs to the SDK client that
+`bko.generate.api.default_send` builds, whose retries back off and change no logged request. Budget and attempts bound
 the records asked, not the calls, since each short cell's top-up is one call however few rows it
 asks, so a spend ceiling bounds the run. Judging the latest
 configuration lets a change to the method or the design be judged on runs made in it. Each run's
