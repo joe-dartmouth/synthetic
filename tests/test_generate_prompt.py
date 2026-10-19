@@ -9,6 +9,7 @@ import pytest
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS
 from bko.gaps.detect import Statement
+from bko.generate import prompt as prompt_module
 from bko.generate.guidance import (
     Basis,
     Finding,
@@ -47,11 +48,21 @@ def test_the_system_prompt_names_every_column_with_its_description_codes_unit_an
         assert f"; {code} = {meaning}" in _line(LABEL)
     for bound in RANGES:
         assert f"plausible from {bound.low:g} to {bound.high:g}" in _line(bound.field)
-        assert UNITS[bound.unit] in _line(bound.field)
+        assert _line(bound.field).lower().count(UNITS[bound.unit].lower()) == 1, bound.field
     assert _line("age").endswith("age in years; plausible from 18 to 120")
     assert "3 = normal; 6 = fixed defect; 7 = reversable defect" in _line("thal")
     assert all(f"; {code} = " in _line("cp") for code in range(1, 5))
-    assert _line("chol").endswith("; mg/dL, plausible from 32 to 600")
+    assert _line("chol").endswith("serum cholestoral in mg/dl; plausible from 32 to 600")
+    assert _line("trestbps").endswith("hospital); plausible from 10 to 250")
+    assert _line("thalach").endswith("; beats per minute, plausible from 10 to 500")
+
+
+def test_the_system_prompt_names_the_fractional_fields_from_the_frame(monkeypatch):
+    assert "Whole numbers except oldpeak, which has one decimal place." in SYSTEM
+    monkeypatch.setattr(prompt_module, "FRACTIONAL", ("oldpeak", "chol"))
+    assert "Whole numbers except oldpeak or chol, which have one decimal place." in (
+        prompt_module._system()
+    )
 
 
 def test_the_system_prompt_asks_for_new_patients():

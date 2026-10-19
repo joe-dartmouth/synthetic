@@ -70,7 +70,8 @@ def _column(name: str) -> str:
     else:
         bound = next(bound for bound in RANGES if bound.field == name)
         unit = UNITS[bound.unit]
-        shown = "" if DESCRIPTIONS[name].endswith(unit) else f"{unit}, "
+        # A description that already names its unit, in any case, does not get it twice.
+        shown = "" if unit.lower() in DESCRIPTIONS[name].lower() else f"{unit}, "
         details = f"; {shown}plausible from {bound.low:g} to {bound.high:g}"
     return f"- {name}: {DESCRIPTIONS[name]}{details}"
 
@@ -164,8 +165,9 @@ def _system() -> str:
         *(_column(name) for name in FRAME_COLUMNS),
         "",
         (
-            "Whole numbers except oldpeak, which has one decimal place. Every value must be "
-            "plausible for a real patient."
+            f"Whole numbers except {_alternatives(list(FRACTIONAL))}, which "
+            f"{'has' if len(FRACTIONAL) == 1 else 'have'} one decimal place. Every value must "
+            "be plausible for a real patient."
         ),
     ]
     return "\n".join(lines)
