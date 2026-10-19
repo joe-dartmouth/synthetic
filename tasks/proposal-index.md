@@ -11,13 +11,13 @@ section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`proposal-streamlit-app`](proposal-streamlit-app.md) | ready | -- | Krish | working-prototype |
-| [`proposal-final-evaluation`](proposal-final-evaluation.md) | ready | -- | Joe | final-report |
-| [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | blocked | proposal-final-evaluation | Shirley | final-report |
+| [`proposal-e1-judged-run`](proposal-e1-judged-run.md) | ready | -- | Joe | final-report |
+| [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | blocked | proposal-e1-judged-run | Shirley | final-report |
 
 ```mermaid
 flowchart LR
     streamlit_app[proposal-streamlit-app]
-    final_evaluation[proposal-final-evaluation] --> guidance_ablation[proposal-guidance-ablation]
+    e1_judged_run[proposal-e1-judged-run] --> guidance_ablation[proposal-guidance-ablation]
 ```
 
 ## Where results go
