@@ -27,7 +27,7 @@ from bko.generate.messages import Call, Level, Reply, Send
 from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
-from tests._fusion_fixtures import UCI_X, young
+from tests._fusion_fixtures import UCI_FULL, UCI_X, young
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
 from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
@@ -142,6 +142,33 @@ def test_the_request_is_logged_with_each_cells_rows(tmp_path, caplog):
     assert "request name=completeness cells=2 rows=40" in messages
     assert "quota key=<55/female/0 rows=20" in messages
     assert "quota key=<55/female/1 rows=20" in messages
+
+
+@pytest.mark.parametrize("definition", ["population-level", "frequency-aware"])
+def test_the_completeness_request_refuses_another_guidance_definition(tmp_path, definition):
+    send = ScriptedSend()
+    log = tmp_path / "run.jsonl"
+    argv = [definition, "--request", "completeness", "--log", str(log)]
+    with pytest.raises(SystemExit) as raised:
+        main(argv, context=completeness_context(send), out=io.StringIO())
+    assert raised.value.code == 2
+    assert not log.exists()
+    assert send.calls == []
+
+
+def test_a_completeness_request_with_nothing_to_ask_exits_two_before_any_call(tmp_path, caplog):
+    _, served = ladder_releases()
+    uci = pin(UCI_FULL)
+    send = ScriptedSend()
+    context = make_context(send, open_url=RoutingOpener({**served, uci.url: UCI_FULL}), uci=uci)
+    code, out, log = run(tmp_path, context, "--request", "completeness")
+    assert (code, out) == (2, "")
+    assert any(
+        record.levelno == logging.ERROR and "holds no per-subgroup gap" in record.getMessage()
+        for record in caplog.records
+    )
+    assert not log.exists()
+    assert send.calls == []
 
 
 @pytest.mark.parametrize(
@@ -319,4 +346,5 @@ def test_the_module_runs_as_a_program():
     )
     assert result.returncode == 0, result.stderr
     assert "--guidance" in result.stdout
+    assert "--request" in result.stdout
     assert "--log" in result.stdout

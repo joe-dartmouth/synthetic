@@ -49,7 +49,7 @@ def test_only_api_imports_anthropic():
 
 
 def test_generate_imports_no_downstream_stage():
-    assert _importers("bko.validate", "bko.baselines", "bko.evaluate") == set()
+    assert _importers("bko.validate", "bko.fusion", "bko.baselines", "bko.evaluate") == set()
 
 
 def test_generate_imports_no_release_loader():

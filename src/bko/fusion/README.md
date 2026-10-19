@@ -6,4 +6,4 @@ Join the generated records that pass validation to the training records of the c
 
 - **Dependencies:** The `data` extra (`pyproject.toml`), `bko.gaps` with `bko.ontology` and its `ontology` extra, `bko.validate`, and `bko.generate.candidates`, which imports no SDK.
 - **Owner:** Shirley Asangi
-- **Status:** not built; planned in [`proposal-fusion-repair`](../../../tasks/proposal-fusion-repair.md).
+- **Status:** built.

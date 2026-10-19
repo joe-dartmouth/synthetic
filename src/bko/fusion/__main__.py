@@ -222,6 +222,16 @@ def _log_join(
             joined.joined[cell],
             ",".join(newly) or "none",
         )
+        if joined.off_cell[cell]:
+            logger.warning(
+                "off_cell key=%s dropped=%d: accepted records whose own values name another cell",
+                cell_key(cell),
+                joined.off_cell[cell],
+            )
+        if not joined.joined[cell]:
+            logger.warning(
+                "unjoined key=%s: no record joined, so none of its gaps can close", cell_key(cell)
+            )
 
 
 def _log_closure(readings: Sequence[Closure]) -> None:

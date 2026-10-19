@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from bko.generate.candidates import CandidateLine, read, render_lines
 from bko.generate.decode import Reason, Undecoded
+from bko.generate.errors import CandidatesFormatError
 from tests._fusion_fixtures import scenario_a, young
 
 
@@ -39,3 +42,42 @@ def test_read_reads_the_tests_oracle():
 
 def test_an_empty_file_reads_as_no_lines():
     assert read(b"") == ()
+
+
+LINE = '{"call": 1, "candidate": {"age": 41}, "cell": "<55/female/1", "position": 0}'
+OTHER_CELL = '{"call": 1, "candidate": {}, "cell": "<55/female/0", "position": 1}'
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (b"\xff\n", "not UTF-8"),
+        (LINE.encode(), "has no newline"),
+        (b"{\n", "line 1 is not JSON"),
+        (b'{"call": 1, "cell": "<55/female/1", "position": 0}\n', "one of candidate or undecoded"),
+        (
+            b'{"call": 1, "candidate": 1, "cell": "a", "position": 0, "undecoded": "short"}\n',
+            "one of candidate or undecoded",
+        ),
+        (b'{"call": true, "candidate": 1, "cell": "a", "position": 0}\n', "positive"),
+        (b'{"call": 1, "candidate": 1, "cell": 7, "position": 0}\n', "cell is not text"),
+        (b'{"call": 1, "cell": "a", "position": 0, "undecoded": "odd"}\n', "not a known reason"),
+        (f"{LINE}\n{LINE}\n".encode(), "line 2 repeats call 1 position 0"),
+        (f"{LINE}\n{OTHER_CELL}\n".encode(), "line 2 puts call 1 in <55/female/0"),
+    ],
+    ids=[
+        "utf8",
+        "newline",
+        "json",
+        "no-outcome",
+        "both-outcomes",
+        "bool-call",
+        "cell-type",
+        "reason",
+        "repeat",
+        "two-cells",
+    ],
+)
+def test_a_malformed_file_is_refused(data, message):
+    with pytest.raises(CandidatesFormatError, match=message):
+        read(data)

@@ -116,7 +116,10 @@ def main(
         its pin or schema. Any other exception propagates, so the process exits 1.
     """
     context = context or Context()
-    args = _parser(context.settings).parse_args(argv)
+    parser = _parser(context.settings)
+    args = parser.parse_args(argv)
+    if args.request == Request.COMPLETENESS and args.definition != Definition.SUBGROUP:
+        parser.error("--request completeness reads the per-subgroup gaps; use per-subgroup")
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         _run(args, data_dir, context, _Writer(out or sys.stdout))
