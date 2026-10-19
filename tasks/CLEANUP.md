@@ -54,3 +54,19 @@ links to where its blocker is tracked.
   **Why deferred.** E1's measures belong to `proposal-final-evaluation`.
   **What discharges it:** `bko.evaluate` counts added rows equal to a test record.
   **Trigger:** `proposal-final-evaluation`.
+
+## generate
+
+- **`cleanup:generate/retries-in-call-log`: the call log does not record how many attempts a call
+  took.** `bko.generate.api.send_with` leaves the SDK's default of 2 retries in place
+  (`anthropic/_constants.py:11` on 1.13.0, `DEFAULT_MAX_RETRIES = 2`), and a retried attempt can
+  be billed. Neither the `reply` line nor the `error` line records attempts. stderr shows each
+  retry only as the SDK's own INFO line, `Retrying request to %s in %f seconds`
+  (`anthropic/_base_client.py:1372`), between a call's `send` line and its `generate` or `failed`
+  line. *Filed 2026-10-18 by `proposal-llm-generation`.*
+  **Why deferred.** Counting attempts needs the SDK's raw-response API
+  (`client.messages.with_raw_response`, whose response carries `retries_taken`) and a new log
+  field, which bumps `bko.generate.log.SCHEMA`.
+  **What discharges it:** each `reply` and `error` line records the call's attempt count, under a
+  bumped log schema.
+  **Trigger:** `proposal-final-evaluation`.

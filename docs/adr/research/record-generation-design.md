@@ -123,8 +123,10 @@ ladder.**
   (schema, settings, price, SDK version), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
   for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
-  whole response; an `error` line holds a `GenerationError`'s text, or any other exception's
-  type name only, since its text may hold the credential. `ask` and `generate` take their
+  whole response. Anything raised after a `request` line and before its `reply` line (no
+  response, a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead,
+  so no `request` line is left unpaired; it holds a `GenerationError`'s text, or any other
+  exception's type name only, since its text may hold the credential. `ask` and `generate` take their
   settings from the log and refuse others before any line, so the `run` line names the settings
   every call was made and priced under. A call's spend is its usage times `PRICES[settings.model]`, each token kind at
   its own rate; output tokens already count thinking.

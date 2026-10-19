@@ -4,8 +4,8 @@
 candidates and placeholders, prices it and logs it. `generate` checks the whole quota, then asks
 each cell's rows in chunks of `Settings.per_call`, cells in quota order, so a run makes
 `sum(ceil(rows / per_call))` calls. Neither retries or tops up; a call with no response raises
-`GenerationError` after its `error` line is written. ADR `research/record-generation-design`
-records the design.
+`GenerationError` after its `error` line is written, and so does anything else raised before its
+`reply` line. ADR `research/record-generation-design` records the design.
 """
 
 from __future__ import annotations
@@ -112,23 +112,28 @@ def ask(
 
     Raises:
         ValueError: Before the `request` line, if `settings` differ from the log's.
-        GenerationError: If no response arrives. Its `error` line is written first, as it is
-            for any other exception `send` raises, which propagates unchanged.
+        GenerationError: If no response arrives. Its `error` line and an ERROR log line are
+            written first, as they are for anything else raised between the `request` line
+            and the `reply` line, a `KeyboardInterrupt` included, which propagates unchanged.
     """
     settings = _settings(log, settings)
     system, user = render(guidance, rows, settings.guidance)
     call = Call(settings, guidance.sex, guidance.label, system, user)
     index = log.request(guidance.cell, rows, call)
+    key = cell_key(guidance.cell)
+    # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
+    logger.info("send call=%d cell=%s asked=%d", index, key, rows)
     try:
         reply = send(call)
-    except Exception as exc:
-        log.failure(index, exc)
+        candidates = decode(reply, rows)
+        usd = cost(reply.usage, settings.model)
+        log.reply(index, reply, candidates, usd)
+    except BaseException as exc:
+        text = log.failure(index, exc)
+        # No traceback: an exception's text may hold the credential, and the caller re-raises.
+        logger.error("failed call=%d cell=%s error=%s", index, key, text)  # ruff: ignore[error-instead-of-exception]
         raise
-    candidates = decode(reply, rows)
-    usd = cost(reply.usage, settings.model)
-    log.reply(index, reply, candidates, usd)
     batch = Batch(index, guidance.cell, rows, candidates, reply, usd)
-    key = cell_key(guidance.cell)
     if reply.model != settings.model:
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(

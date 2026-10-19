@@ -51,7 +51,7 @@ class CallLog:
         path: The log file.
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
-        failed: Calls that got no response.
+        failed: Calls that wrote an `error` line rather than a `reply` line.
         asked: Records requested, those of failed calls included.
         decoded: Candidates decoded from replies.
         undecoded: Placeholders for records a reply did not decode.
@@ -199,8 +199,8 @@ class CallLog:
             }
         )
 
-    def failure(self, index: int, error: Exception) -> None:
-        """Write a call's `error` line, for a call that got no response.
+    def failure(self, index: int, error: BaseException) -> str:
+        """Write a call's `error` line, for a call whose `reply` line was not written.
 
         A `GenerationError` is logged by its text, which `bko.generate.api` builds without the
         response body, so it holds no credential. Any other exception is logged by its type name
@@ -208,11 +208,15 @@ class CallLog:
 
         Args:
             index: The call's index, as `request` returned it.
-            error: The failure.
+            error: The failure: no response, an interrupt, or a failure reading the reply.
+
+        Returns:
+            The text the line holds.
         """
         self.failed += 1
         text = str(error) if isinstance(error, GenerationError) else type(error).__name__
         self._write({"kind": "error", "call": index, "at": self._at(), "error": text})
+        return text
 
     def _totals(self) -> dict[str, object]:
         return {

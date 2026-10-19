@@ -5,10 +5,12 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from typing import NoReturn
 
 import pytest
 
 from bko.gaps.observe import Cell
+from bko.generate import calls as calls_module
 from bko.generate.calls import ask, generate
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
@@ -159,3 +161,43 @@ def test_any_exception_from_send_writes_an_error_line_and_propagates(tmp_path):
     assert lines[2]["error"] == "RuntimeError"
     assert lines[3]["failed"] == 1
     assert secret not in text
+
+
+def test_a_send_line_precedes_each_call_so_sdk_retry_lines_sit_between_it_and_the_result(
+    tmp_path, caplog
+):
+    seen: list[list[str]] = []
+
+    def send(call: Call) -> Reply:
+        seen.append([record.getMessage() for record in caplog.records])
+        return reply([{}, {}])
+
+    with caplog.at_level(logging.INFO), _log(tmp_path) as log:
+        ask(GUIDANCE, 2, send=send, log=log)
+    assert seen[0][-1] == "send call=1 cell=<55/female/1 asked=2"
+
+
+@pytest.mark.parametrize("raised", [KeyboardInterrupt, ValueError])
+def test_anything_raised_after_the_request_line_writes_the_error_line_and_propagates(
+    tmp_path, caplog, monkeypatch, raised
+):
+    """A `KeyboardInterrupt` in `send`, or a failure reading a billed reply, leaves no request
+    line unpaired."""
+
+    def fail(*_: object) -> NoReturn:
+        raise raised("after the reply")
+
+    if raised is ValueError:
+        monkeypatch.setattr(calls_module, "cost", fail)
+        send = ScriptedSend(reply([{}, {}]))
+    else:
+        send = fail
+    with caplog.at_level(logging.INFO), pytest.raises(raised), _log(tmp_path) as log:
+        ask(GUIDANCE, 2, send=send, log=log)
+    lines = [
+        json.loads(line) for line in (tmp_path / "calls.jsonl").read_text("utf-8").splitlines()
+    ]
+    assert [line["kind"] for line in lines] == ["run", "request", "error", "end"]
+    assert lines[2]["error"] == raised.__name__
+    errors = [record.getMessage() for record in caplog.records if record.levelno == logging.ERROR]
+    assert errors == [f"failed call=1 cell=<55/female/1 error={raised.__name__}"]
