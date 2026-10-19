@@ -3,7 +3,8 @@
 A run writes one `run` line, then per call a `request` line before the call and a `reply` or
 `error` line after it, then one `end` line holding the run's status and totals. Each line is
 flushed as it is written, so the lines of every call made survive a failure, an interrupt or a
-killed process. The file is opened exclusively, so a rerun never overwrites a paid log. ADR
+killed process. The file is created exclusively, so a rerun never overwrites a paid log, with mode
+0o600, so only its owner reads it. ADR
 `research/record-generation-design` records the format.
 """
 
@@ -13,6 +14,7 @@ import dataclasses
 import importlib.metadata
 import json
 import logging
+import os
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,7 +68,7 @@ class CallLog:
         """Price the settings model, then create the log and write its `run` line.
 
         Args:
-            path: The log file; it must not exist.
+            path: The log file; it must not exist. It is created readable by its owner only.
             settings: How each call is made.
             now: The clock each line's time is read from.
 
@@ -86,7 +88,9 @@ class CallLog:
         self.input_tokens = 0
         self.output_tokens = 0
         self.usd = 0.0
-        self._file: TextIO = path.open("x", encoding="utf-8")
+        # Exclusive, and owner-only whatever the umask: the log holds every prompt and response.
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8")
         try:
             self._write(
                 {

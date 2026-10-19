@@ -6,6 +6,7 @@ import dataclasses
 import importlib.metadata
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -200,26 +201,36 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
 
 def test_a_failed_header_write_closes_the_file(tmp_path, monkeypatch):
     opened: list[TextIO] = []
-    real_open = Path.open
+    real_fdopen = os.fdopen
 
-    def spy(self: Path, *args: Any, **kwargs: Any) -> Any:
-        handle = real_open(self, *args, **kwargs)
+    def spy(*args: Any, **kwargs: Any) -> Any:
+        handle = real_fdopen(*args, **kwargs)
         opened.append(handle)
         return handle
 
     def refuse(self: CallLog, line: dict[str, object]) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr(Path, "open", spy)
+    monkeypatch.setattr(os, "fdopen", spy)
     monkeypatch.setattr(CallLog, "_write", refuse)
     path = tmp_path / "calls.jsonl"
     with pytest.raises(OSError, match="disk full"):
         CallLog(path, SETTINGS, now=_now)
-    logs = [handle for handle in opened if handle.name == str(path)]
-    assert len(logs) == 1
-    assert logs[0].closed
+    assert len(opened) == 1
+    assert opened[0].closed
 
 
 def test_the_log_exposes_the_settings_it_priced(tmp_path):
     with CallLog(tmp_path / "calls.jsonl", SETTINGS, now=_now) as log:
         assert log.settings is SETTINGS
+
+
+def test_the_log_is_readable_by_its_owner_only(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    previous = os.umask(0o022)
+    try:
+        with CallLog(path, SETTINGS, now=_now):
+            pass
+    finally:
+        os.umask(previous)
+    assert path.stat().st_mode & 0o777 == 0o600

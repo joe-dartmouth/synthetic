@@ -118,8 +118,9 @@ ladder.**
   before any call. It asks each cell's rows in chunks of `per_call`, cells in quota order, so a
   run makes `sum(ceil(rows / per_call))` calls; it never retries or tops up.
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
-  opened with mode `"x"` after the settings model's price resolves, so an unpriced model or an
-  existing log is refused before any call. Its lines, each flushed as written: one `run` line
+  created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
+  unpriced model or an existing log is refused before any call and only the file's owner can read
+  its prompts and responses. Its lines, each flushed as written: one `run` line
   (schema, settings, price, SDK version), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
   for `KeyboardInterrupt`, `failed` otherwise) and the run's totals. A `reply` line holds the
@@ -154,8 +155,8 @@ fallback would serve some calls on another model, chosen by refusal, so the mode
 would depend on its content.
 
 One JSONL line per event, flushed as written, keeps every paid call's request and response
-through a failure or a killed process; a single JSON written at the end loses them. Opening with
-mode `"x"` keeps a rerun from overwriting a paid log, and resolving the price first keeps an
+through a failure or a killed process; a single JSON written at the end loses them. Creating it
+exclusively keeps a rerun from overwriting a paid log, and resolving the price first keeps an
 unpriced model from making a call whose spend reads as zero.
 
 Six levels separate what the ontology adds from what any careful prompt adds: `coherent` controls
