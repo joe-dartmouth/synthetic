@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-17
+updated: 2026-10-19
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -30,9 +30,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
   candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
-  confidence and the attempts per fill; `proposal-final-evaluation` adds the BKO arms' budget per
-  attempt. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a value; `compare --candidate` judges another
-  arm as a dry run, never as E1's verdict.
+  confidence, the attempts per fill, the BKO arms' budget per attempt, the validity threshold and
+  the run's spend ceiling. It refuses a candidate that is not one of its arms. `docs/EVIDENCE.md`
+  (E1) states how each criterion is read. No flag changes a value: `score --log` and `--replay`
+  choose where calls are recorded and answered from, and `compare --candidate` judges another arm as
+  a dry run, never as E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
@@ -43,21 +45,34 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   arms but not comparators: no criterion compares the candidate with them or judges them, and their
   measures are reported beside it. BKO-detected gaps themselves are judged by the completeness
   criterion and E2, not here.
-- **The BKO arms' added rows.** Each BKO arm's runner calls `bko.baselines.records.check` before it
-  returns. It drops each candidate `bko.validate` accepts that `check` would refuse (a numeric value
-  outside the training split's minimum and maximum, a cell the request does not ask for, a row past
-  its cell's quota), testing each with the per-row rules `bko.baselines.records` holds rather than
-  a copy, returns the rest cell by cell in the quota's order and in generation order within a cell,
-  and never clips, rounds or repairs one. It generates at most `E1`'s budget per attempt, three
-  times the request's rows, then raises a plain `BaselineError`, which the retries below repeat. It
-  logs one line per attempt with the candidates generated, accepted, dropped for each reason and
-  returned, and its refusal's message carries the same counts.
+- **The BKO arms' added rows.** Each BKO arm is a `bko.evaluate.guided.GuidedArm`. It reads gaps and
+  guidance from the holdout's training rows only, asks the Messages API for each requested cell's
+  shortfall, cell by cell in the quota's order and round by round, and validates every reply with
+  `bko.validate`. It drops each accepted candidate `bko.baselines.records.check` would refuse, by
+  `bko.baselines.records.drops`, which tests:
+  - a numeric value outside the training split's minimum and maximum, with the rule `check` uses;
+  - then a cell the request does not ask for;
+  - then a row past its cell's quota.
+
+  A candidate counts toward the cell its own values name, as `check` reads it. This differs from
+  fusion's join, which drops a record whose values name another cell (ADR
+  `research/gap-closure-design`), because E1's rows are bound by `check`. The arm returns the kept
+  rows cell by cell in the quota's order and in generation order within a cell. It never clips,
+  rounds or repairs one, and it calls `check` before it returns. An attempt asks for at most `E1`'s
+  budget, three times the request's rows, and raises a plain `BaselineError` as soon as the rest of
+  that budget cannot cover the rows still short; the retries below repeat it. It logs one `guided`
+  line per attempt with its outcome, its call range, the records asked, the candidates generated and
+  passed, those dropped for each reason and those kept. Its refusal's message carries the same
+  counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
-  `bko.validate` call it makes in the run: every holdout, every refused and retried attempt, and
-  every replica fill. A refused attempt returns no `Baseline`, so the arm keeps its counts itself.
-  The validity criterion reads `bko`'s rate, and a dropped candidate stays in it, having passed
-  every check. Each arm logs its sums at the end of the run, and E1 reports its dropped candidates
-  beside the rate.
+  `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. A
+  refused attempt returns no `Baseline`, so the arm keeps its counts itself and writes them per
+  holdout as `candidates` scores (`generated`, `passed`, and one count per drop reason). `compare`
+  sums them over the holdouts. The criterion reads `bko`'s rate: it is met when the rate reaches
+  `E1`'s validity threshold, read as a point with no interval, and not met below it. A candidate
+  dropped after validation stays in the rate, having passed every check. The other BKO arms' rates
+  are reported beside it, with no verdict. Each arm logs its sums at the end of the run, including a
+  run that stops.
 - **The replica request.** The row-adding baselines also fill the training split's own cell
   counts. Those rows alone train a classifier (train on synthetic, read against the
   no-augmentation arm, which trains on real) and are compared with the training split for
@@ -71,21 +86,32 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   define is empty, and a criterion that reads an empty value refuses to judge. Fidelity is
   SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
   `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
-  both against the training rows.
+  both against the training rows. Each arm's added and replica rows that equal a test record in
+  every column are counted (`test-copies`).
+- **A test split without copied records.** On each holdout every arm fills before any is scored. A
+  test record that some arm's added or replica rows copy in every column leaves the test split every
+  arm's utility is then scored on. No classifier is then scored on a record it trained on, and the
+  comparison stays paired. The held-out ratio and the test rows' distance to closest record read the
+  whole split.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
   of any cell.
-- **Criteria.** Primary: in both recall and AUC-PR over the whole test split, the candidate minus
-  each comparator has an interval above zero (`E1`'s margin is zero). Secondary: the same over the
-  flagged subgroups. Privacy: the candidate's added rows' 5th-percentile distance minus the privacy
-  share of the test rows' has an interval above zero. A criterion is met when every interval it
-  reads lies above zero, not met when one lies below zero at the family-wise level, each of its k
-  intervals read at confidence 1 - (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
+- **Criteria.** Validity is read as above; the rest read intervals. Primary: in both recall and
+  AUC-PR over the whole test split, the candidate minus each comparator has an interval above zero
+  (`E1`'s margin is zero). Secondary: the same over the flagged subgroups. Privacy: the candidate's
+  added rows' 5th-percentile distance minus the privacy share of the test rows' has an interval
+  above zero. An interval criterion is met when every interval it reads lies above zero, not met
+  when one lies below zero at the family-wise level, each of its k intervals read at confidence 1 -
+  (1 - c)/k for `E1`'s confidence c, and inconclusive otherwise.
 - **Retries, then all or nothing.** An arm that refuses a request tries it again with a seed
   derived from the holdout seed and the attempt, up to `E1`'s attempts, and each retry is logged.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
-  contract stops it at once.
+  contract stops it at once. A call that gets no response stops the run at once, as do a failed
+  gap query and a spend at the ceiling.
+- **One judged run.** The first paid run that exits 0 with its call log ending `complete` is judged
+  as it stands. A run that fails keeps its Runs row with the reason. Any later paid run of E1 is a
+  new experiment entry, never a replacement.
 
 ## Rationale
 
@@ -136,8 +162,10 @@ The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the
 holdout; on holdout 0 it equals `python -m bko.baselines <method> --rows 20`. The gap rows hold
 one label in two cells, so they can neither train a classifier alone nor be compared with the
 training split; a replica of the training split's cells is the conventional train-on-synthetic set
-([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms' replicas,
-a paid generation per holdout each, are left to the unit that adds the arms.
+([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms fill no replica: a replica asks
+for the whole training split's rows, 238 per holdout against the gap request's 20, so about ten
+times the gap fills' spend. Its candidates would dominate the validity rate, and no criterion reads
+a replica measure.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
 scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
@@ -164,6 +192,18 @@ third attempt and the other on its fourth. A retry keeps every holdout paired an
 the same; dropping the holdout would select splits on how one generator behaved. The run still stops
 when every attempt is refused.
 
+Paid generation has copied archive records in every column: in the completeness run of 2026-10-19, 5
+of 20 records of one cell, 3 of them test records of that run's split. A copied test record would be
+scored by a classifier that trained on it. The privacy reading measures distance to the training
+rows, so it cannot see the copy. Removing such records from the test split for every arm keeps the
+pairing and changes nothing on a holdout no arm copies. Counting alone would report the leak and
+still judge on it. A call that gets no response is not a refusal of the request: retries come with
+no delay, so they add no patience against an outage, and they would read an infrastructure failure
+as the method's. Budget and attempts bound the records asked, not the calls, since each short cell's
+top-up is one call however few rows it asks, so a spend ceiling bounds the run. Judging the first
+paid run as it stands, and making any later one a new entry, keeps one look at each criterion, as
+the drivers require.
+
 ## Consequences
 
 **Gained**: every criterion computed by code from one scores file; verdicts that do not depend on
@@ -174,13 +214,16 @@ other test records; subgroup verdicts are likely inconclusive at this size; dist
 record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
 a public SDMetrics export; baseline results on the real test split were in view when the readings
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
-than the holdout seed; each BKO pipeline runs once per holdout, so the three arms' paid generation
-grows with the holdout count; E1 judges no gap definition directly, only what its guidance adds; the
-ablation arms' measures are reported, never judged; a not-met verdict needs an interval below
-zero at the family-wise level, so more criteria read inconclusive; that reading was fixed with
-baseline dry runs in view and no BKO result, and it only ever moves not met to inconclusive, which
-favours the candidate; a met verdict certifies a reliable gain, not a minimum size, and the zero
-margin, also fixed with baseline dry runs in view and no BKO result, makes met easier to reach.
+than the holdout seed; a BKO arm ignores the seed, and its retry repeats the same request; the test
+split each arm is scored on depends on every arm's rows; a call with no response or a spend at the
+ceiling forfeits the run's spend; each BKO pipeline runs once per holdout, so the three arms' paid
+generation grows with the holdout count; E1 judges no gap definition directly, only what its
+guidance adds; the ablation arms' measures are reported, never judged; a not-met verdict needs an
+interval below zero at the family-wise level, so more criteria read inconclusive; that reading was
+fixed with baseline dry runs in view and no BKO result, and it only ever moves not met to
+inconclusive, which favours the candidate; a met verdict certifies a reliable gain, not a minimum
+size, and the zero margin, also fixed with baseline dry runs in view and no BKO result, makes met
+easier to reach.
 
 ## Ruled Out
 
@@ -213,6 +256,13 @@ margin, also fixed with baseline dry runs in view and no BKO result, makes met e
 | Judging every BKO arm against the criteria | Three looks at each criterion, the best picked after the fact | 2026-10-17 |
 | Clipping a BKO candidate into the split's range | Repairs a record and piles rows on the split's bounds | 2026-10-17 |
 | Loosening the added-row contract for the BKO arms | Compares arms that extend the split's support with baselines bound to it | 2026-10-17 |
+| BKO arms in `E1.replica_arms` | About ten times the gap fills' spend, a validity rate dominated by replica candidates, and no criterion reads a replica | 2026-10-19 |
+| Counting test copies without removing them | Reports the leak and still scores utility on records the classifier trained on | 2026-10-19 |
+| Dropping copied rows from an arm's output | The arm would read the test split, and equal row counts would break | 2026-10-19 |
+| Retrying a call with no response as a refused attempt | Retries come with no delay, and an outage would read as the method's refusal | 2026-10-19 |
+| An interval on the validity rate | The run's candidates are a census of what the arm generated, not a sample | 2026-10-19 |
+| One call log per BKO arm | Three exclusive files and three spend totals for one run, and a ceiling split three ways | 2026-10-19 |
+| A later paid run superseding the judged one | A second look at every criterion after results are in view | 2026-10-19 |
 
 ## Enforcement
 
@@ -235,8 +285,8 @@ record and `E1` change together.
 
 **The classifier changes if any holdout logs a fit that did not converge within `MAX_ITER`.**
 
-**The BKO arms join `E1.replica_arms`, all three or none, only if `proposal-final-evaluation`
-records their replica spend in E1's Configuration before the run.**
+**The BKO arms join `E1.replica_arms`, all three or none, only with their replica spend recorded
+in E1's Configuration before a run.**
 
 **The gap request stops binding the BKO arms if their generation cannot target a cell**; the
 request then becomes each BKO arm's realised rows per cell, and this record changes before E1's

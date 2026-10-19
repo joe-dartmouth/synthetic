@@ -158,6 +158,9 @@ The 2-pager leaves these readings open. Each experiment fixes them in its config
 - What the completeness criterion counts: which gap definition's (cell, statement) pairs are the
   detected gaps, which generated records join before detection runs again, and whether exactly
   half of them closing meets the criterion.
+- What the validity criterion counts: which candidates enter the rate (every one validation sees,
+  those a later rule drops and those of refused attempts included), and whether exactly 95% meets
+  it.
 
 E1 departs from the primary and privacy criteria as worded; [section 9](#9-source-reconciliation)
 records how.
@@ -165,7 +168,10 @@ records how.
 ## 5. Evaluation contract
 
 The brief (B5) sorts synthetic-data metrics into three buckets. The plan's criteria draw on two of
-them; fidelity is reported for every generator with no pass threshold.
+them; fidelity is reported, with no pass threshold, for every generator that fills a replica of
+the training split's cells. The BKO arms fill none in E1
+([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)), so their fidelity is not
+reported.
 
 | Bucket | Metrics the brief lists | Criterion it serves |
 |---|---|---|
