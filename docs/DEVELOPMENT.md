@@ -302,9 +302,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   and reads the training split's gaps under `<definition>`: `per-subgroup`, `population-level` or
   `frequency-aware`. With `--request e1`, the default, it asks each cell holding fewer training
   records than `UNDERREPRESENTED_BELOW` for its shortfall; with `--request completeness` it asks
-  each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows and refuses any
-  `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)), in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
-  stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
+  each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows, and exits 2 for any
+  `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)). It asks in calls of at most
+  `Settings.per_call` records and writes one JSON line per asked record to stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
@@ -317,8 +317,7 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   call's whole request and response and its USD spend included. An interrupt or any other failure
   between a `request` line and its `reply` line writes the `error` line. stderr gets the split
   line, each ontology fragment's size, the request's name, cells and rows, a `quota` line per
-  asked cell, the plan (calls, level, and the most the output tokens can
-  cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
+  asked cell, the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
   naming the call and cell), the run's totals and spend with the log's path, and last the line
   count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
   settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
@@ -329,8 +328,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   (`cleanup:generate/retries-in-call-log`).
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, a
-  completeness request no cell holds a gap for, and a `--log` path that exists (checked before any download or call); 3 the data or a release
-  contradicts its pin or schema.
+  completeness request no cell holds a gap for, `--request completeness` with another
+  `<definition>`, and a `--log` path that exists (checked before any download or call); 3 the data
+  or a release contradicts its pin or schema.
 - **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
@@ -380,12 +380,13 @@ existing log, and `.out` is the only copy of the candidates the second command r
   against [RESEARCH.md](RESEARCH.md#4-success-criteria).
 - **What it logs**: stderr gets the data root and library versions, the candidates file's path,
   line count and sha256 (the `candidates` digest `bko.generate` logged, when the file is its
-  stdout), the split line, each ontology fragment's size, a `request` line per requested cell,
-  `bko.validate`'s counts, a `join` line per requested cell (lines, passed, off-cell, past its
-  rows, joined, and the concepts the cell now holds), a `closure` line per definition (before,
-  after, closed, open, new and the share), and last the row count and sha256 of stdout. Its
-  WARNING lines: `off_cell`, accepted records dropped for naming another cell, and `unjoined`, a
-  requested cell no record joined.
+  stdout), the split line, each ontology fragment's size, a `request` line per requested cell, a
+  `validate` line naming each cell before `bko.validate`'s counts for it, a `join` line per
+  requested cell (lines, passed, off-cell, past its rows, joined, and the concepts the join newly
+  gives the cell), a `closure` line per definition (before, after, closed, open, new and the
+  share), and last the row count and sha256 of stdout, written once the report is. Its WARNING
+  lines: `off_cell`, accepted records dropped for naming another cell; `past_quota`, accepted
+  on-cell records dropped past the cell's rows; and `unjoined`, a requested cell no record joined.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing candidates file and a training split no cell holds
   a per-subgroup gap in; 3 the candidates file is malformed or does not answer the completeness

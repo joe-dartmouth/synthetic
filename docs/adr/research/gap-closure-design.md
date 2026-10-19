@@ -35,7 +35,8 @@ drawn again.
   bko.fusion <candidates>` reads that file, spends nothing, and writes the closure report. The
   file's format has one home, `bko.generate.candidates`, which writes and reads it.
 - **A stage, `bko.fusion`**, downstream of `bko.validate`. It imports `bko.datasets`, `bko.gaps`,
-  `bko.validate` and `bko.generate.candidates`, and no SDK.
+  `bko.ontology`, `bko.validate`, `bko.generate.candidates` and the `BKB` type of
+  `bko.bkb.structure`, and no SDK and no `fuse`.
 - **Which records join.** The command refuses a file that names a cell the request does not ask
   for, or holds fewer lines for a requested cell than its rows. It validates each requested cell's
   lines in file order, a placeholder counting as generated. Of the accepted records, one whose own
