@@ -11,11 +11,12 @@ from typing import Final
 
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import LABEL
+from bko.datasets.sources import Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import CodeMapping, Codes, FieldMapping
 from bko.ontology.terms import Ontology
-from tests._datasets_fixtures import condition, patient
+from tests._datasets_fixtures import condition, patient, pin
 from tests._ontology_fixtures import write_obo
 
 
@@ -84,6 +85,13 @@ def parse_ladders(directory: Path) -> dict[str, Ontology]:
         "HP": parse_obo(write_obo(directory, LADDER_HPO, "hp.obo"), name="hpo"),
         "MONDO": parse_obo(write_obo(directory, LADDER_MONDO, "mondo.obo"), name="mondo"),
     }
+
+
+def ladder_releases() -> tuple[dict[str, Source], dict[str, bytes]]:
+    """The ladder releases' pins by prefix, and their bodies by URL for a routing opener."""
+    bodies = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
+    pins = {"HP": pin(bodies["HP"], name="hpo"), "MONDO": pin(bodies["MONDO"], name="mondo")}
+    return pins, {pins[prefix].url: body for prefix, body in bodies.items()}
 
 
 ANGINA: Final = FieldMapping(

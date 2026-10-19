@@ -27,35 +27,14 @@ from bko.generate.messages import Call, Level, Reply, Send
 from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
-from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS
-from tests._generate_fixtures import ScriptedSend, reply
+from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
+from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-SIZES = {
-    (40, 0, 0): 10,
-    (40, 0, 1): 0,
-    (40, 1, 0): 25,
-    (40, 1, 1): 25,
-    (63, 0, 0): 25,
-    (63, 0, 1): 25,
-    (63, 1, 0): 25,
-    (63, 1, 1): 25,
-}
-"""Records per (age, sex, num). One in five of each cell is held out, so the training split holds
-twenty in every cell but two: eight young women without the condition, and no young woman with
-it."""
-
-UCI = archive(
-    "\n".join(
-        cleveland_line(age=age, sex=sex, num=num, cp="4.0")
-        for (age, sex, num), size in SIZES.items()
-        for _ in range(size)
-    )
-    + "\n"
-)
+UCI = uci({}, "4.0")
 
 REQUEST = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
 """The count-based request: each flagged cell asked for its shortfall below twenty."""
@@ -66,14 +45,8 @@ RECORD = {"age": 41, "sex": 0}
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
-def releases() -> tuple[dict, dict[str, bytes]]:
-    bodies = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
-    pins = {"HP": pin(bodies["HP"], name="hpo"), "MONDO": pin(bodies["MONDO"], name="mondo")}
-    return pins, {pins[prefix].url: body for prefix, body in bodies.items()}
-
-
 def make_context(send: Send, **change) -> Context:
-    pins, served = releases()
+    pins, served = ladder_releases()
     uci = pin(UCI)
     context = Context(
         open_url=RoutingOpener({**served, uci.url: UCI}),
@@ -169,7 +142,7 @@ frequency-aware gap of the young women without the condition."""
     ],
 )
 def test_the_definition_chooses_the_gaps_the_prompt_states(tmp_path, definition, basis):
-    _, served = releases()
+    _, served = ladder_releases()
     uci = pin(OLDER_MEN_ANGINA)
     send = two_replies()
     context = make_context(
@@ -219,7 +192,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
 
 def test_a_dataset_contract_error_exits_3(tmp_path):
     tampered = bytes([UCI[0] ^ 1]) + UCI[1:]
-    _, served = releases()
+    _, served = ladder_releases()
     uci = pin(UCI)
     send = ScriptedSend()
     context = make_context(send, open_url=RoutingOpener({**served, uci.url: tampered}), uci=uci)
