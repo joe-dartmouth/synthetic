@@ -234,7 +234,8 @@ cut mid-value and the stop already says the call failed.
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
   `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
   `tests/test_generate_log.py`, `tests/test_generate_calls.py`, `tests/test_generate_cli.py`,
-  and `tests/test_generate_pinned_releases.py` with `--releases`
+  `tests/test_generate_candidates.py`, and `tests/test_generate_pinned_releases.py` with
+  `--releases`
 
 ## Reversal Conditions
 

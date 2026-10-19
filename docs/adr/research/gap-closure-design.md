@@ -99,7 +99,9 @@ stages share (ADR `tooling/src-layout`, Reversal Conditions).
 ## Enforcement
 
 - Owner: `src/bko/fusion/`
-- Pinned by: `tests/test_package_layout.py`
+- Pinned by: `tests/test_package_layout.py`, `tests/test_fusion_join.py`,
+  `tests/test_fusion_closure.py`, `tests/test_fusion_cli.py`, `tests/test_fusion_pipeline.py`,
+  `tests/test_generate_candidates.py`
 
 ## Reversal Conditions
 

@@ -4,9 +4,11 @@ The command fetches UCI Heart Disease and the releases its field mappings name i
 if they are absent, splits the records, and reads the training split's gaps under the chosen
 definition of `bko.gaps.definitions`. It asks the Anthropic Messages API for each count-flagged
 cell's shortfall below `UNDERREPRESENTED_BELOW` training records (E1's count-based gap request),
-at the chosen guidance level, and writes one JSON line per asked record to stdout: the call, the
-cell, the record's position in the call, and its decoded `candidate` or its `undecoded` reason.
-Each call's lines are written and flushed as it returns, so a failed run keeps the earlier ones.
+or with `--request completeness` each cell holding a per-subgroup gap for
+`UNDERREPRESENTED_BELOW` rows, at the chosen guidance level, and writes one JSON line per asked
+record to stdout: the call, the cell, the record's position in the call, and its decoded
+`candidate` or its `undecoded` reason. Each call's lines are written and flushed as it returns,
+so a failed run keeps the earlier ones.
 Every call's request and response go to the call log at `--log`, which must not exist; the plan,
 each call, the run's totals and the output's digest go to stderr through logging. Calls spend
 money and a rerun's candidates differ. `docs/DEVELOPMENT.md` (Generation) is the usage home.
@@ -22,12 +24,12 @@ import argparse
 import dataclasses
 import errno
 import hashlib
-import json
 import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import TextIO
 
@@ -39,13 +41,13 @@ from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.split import split
 from bko.datasets.uci import load_uci
-from bko.gaps.definitions import Definition, gaps
+from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.gaps.scope import load_scope
 from bko.generate.api import default_send
 from bko.generate.calls import Batch, generate
-from bko.generate.decode import Undecoded
+from bko.generate.candidates import render_lines
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import guide
 from bko.generate.log import CallLog
@@ -58,6 +60,15 @@ logger = logging.getLogger("bko.generate")
 
 QUIET_LOGGERS = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
+
+
+class Request(StrEnum):
+    """The gap request the command fills."""
+
+    E1 = "e1"
+    """E1's count-based request: each count-flagged cell's shortfall below the threshold."""
+    COMPLETENESS = "completeness"
+    """The completeness request: the threshold for each cell holding a per-subgroup gap."""
 
 
 def _utc_now() -> datetime:
@@ -143,6 +154,12 @@ def _parser(settings: Settings) -> argparse.ArgumentParser:
         help="the guidance level; default: %(default)s",
     )
     parser.add_argument(
+        "--request",
+        choices=[request.value for request in Request],
+        default=Request.E1.value,
+        help="the gap request to fill; completeness needs per-subgroup; default: %(default)s",
+    )
+    parser.add_argument(
         "--log", type=Path, required=True, help="the call log to create; it must not exist"
     )
     parser.add_argument(
@@ -163,7 +180,7 @@ class _Writer:
         self._digest = hashlib.sha256()
 
     def write(self, batch: Batch) -> None:
-        text = "".join(_lines(batch))
+        text = render_lines(batch.index, batch.cell, batch.candidates)
         self._out.write(text)
         self._out.flush()
         self._rows += len(batch.candidates)
@@ -196,7 +213,14 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
     definition = Definition(args.definition)
     found = gaps(definition, fragments, cells)
-    quota = _quota(parts.train)
+    request = Request(args.request)
+    if request is Request.COMPLETENESS:
+        quota = completeness_request(fragments, cells)
+    else:
+        quota = _quota(parts.train)
+    logger.info("request name=%s cells=%d rows=%d", request, len(quota), sum(quota.values()))
+    for cell, rows in quota.items():
+        logger.info("quota key=%s rows=%d", cell_key(cell), rows)
     guidance = guide(
         parts.train,
         cells,
@@ -226,22 +250,6 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
 def _quota(train: pd.DataFrame) -> dict[Cell, int]:
     """E1's count-based request: each flagged cell's shortfall below `UNDERREPRESENTED_BELOW`."""
     return {gap.cell: UNDERREPRESENTED_BELOW - gap.count for gap in count_gaps(cell_counts(train))}
-
-
-def _lines(batch: Batch) -> list[str]:
-    lines: list[str] = []
-    for position, candidate in enumerate(batch.candidates):
-        line: dict[str, object] = {
-            "call": batch.index,
-            "cell": cell_key(batch.cell),
-            "position": position,
-        }
-        if isinstance(candidate, Undecoded):
-            line["undecoded"] = candidate.reason.value
-        else:
-            line["candidate"] = candidate
-        lines.append(json.dumps(line, sort_keys=True) + "\n")
-    return lines
 
 
 if __name__ == "__main__":

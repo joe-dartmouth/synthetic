@@ -27,6 +27,7 @@ from bko.generate.messages import Call, Level, Reply, Send
 from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
+from tests._fusion_fixtures import UCI_X, young
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
 from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
@@ -57,6 +58,12 @@ def make_context(send: Send, **change) -> Context:
         now=lambda: NOW,
     )
     return dataclasses.replace(context, **change)
+
+
+def completeness_context(send: Send) -> Context:
+    _, served = ladder_releases()
+    uci = pin(UCI_X)
+    return make_context(send, open_url=RoutingOpener({**served, uci.url: UCI_X}), uci=uci)
 
 
 def two_replies() -> ScriptedSend:
@@ -107,6 +114,34 @@ def test_the_request_equals_e1s_gap_request(tmp_path):
     expected = gap_request(train, E1, seed=0).quota
     assert asked_per_cell(log) == {cell_key(cell): rows for cell, rows in expected.items()}
     assert dict(expected) == REQUEST
+
+
+def test_the_completeness_request_asks_twenty_of_each_per_subgroup_gap_cell(tmp_path):
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    code, out, log = run(tmp_path, completeness_context(send), "--request", "completeness")
+    assert code == 0
+    assert asked_per_cell(log) == {"<55/female/0": 20, "<55/female/1": 20}
+    assert [(call.sex, call.label) for call in send.calls] == [(0, 0), (0, 1)]
+    assert len(out.splitlines()) == 40
+    send.assert_consumed()
+
+
+def test_the_completeness_request_is_not_e1s(tmp_path):
+    send = two_replies()
+    code, _, log = run(tmp_path, completeness_context(send))
+    assert code == 0
+    assert asked_per_cell(log) == {"<55/female/0": 12, "<55/female/1": 20}
+
+
+def test_the_request_is_logged_with_each_cells_rows(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    code, _, _ = run(tmp_path, completeness_context(send), "--request", "completeness")
+    assert code == 0
+    messages = [record.getMessage() for record in caplog.records]
+    assert "request name=completeness cells=2 rows=40" in messages
+    assert "quota key=<55/female/0 rows=20" in messages
+    assert "quota key=<55/female/1 rows=20" in messages
 
 
 @pytest.mark.parametrize(

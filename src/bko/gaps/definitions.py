@@ -20,7 +20,9 @@ from typing import Final, assert_never
 from scipy.stats import beta as beta_distribution
 
 from bko.bkb.structure import BKB
+from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.gaps.detect import Statement, ungrounded_from
+from bko.gaps.errors import GapError
 from bko.gaps.observe import Cell, Cells
 
 
@@ -152,6 +154,35 @@ def gaps(
             return _frequency(fragments, cells)
         case _:
             assert_never(definition)
+
+
+def completeness_request(fragments: Sequence[BKB], cells: Cells) -> dict[Cell, int]:
+    """The completeness request: `UNDERREPRESENTED_BELOW` rows for each cell holding a gap.
+
+    ADR `research/bko-formal-gap-definition` (Decision, Completeness) defines it over the
+    per-subgroup gaps: every cell holding one is asked for the threshold, not its shortfall. It
+    reads the gaps itself, so no caller can pass another definition's.
+
+    Args:
+        fragments: The ontology fragments, as `gaps` takes them.
+        cells: The training split's cells.
+
+    Returns:
+        Rows per cell, in grid order.
+
+    Raises:
+        GapError: If no cell holds a per-subgroup gap, so the request asks nothing.
+        QueryError: As `gaps`.
+    """
+    holding = {gap.cell for gap in gaps(Definition.SUBGROUP, fragments, cells)}
+    request = {cell: UNDERREPRESENTED_BELOW for cell in cells.each if cell in holding}
+    if not request:
+        msg = (
+            f"{cells.whole.name} holds no per-subgroup gap, "
+            "so the completeness request asks nothing"
+        )
+        raise GapError(msg)
+    return request
 
 
 def _frequency(fragments: Sequence[BKB], cells: Cells) -> tuple[StatementGap, ...]:
