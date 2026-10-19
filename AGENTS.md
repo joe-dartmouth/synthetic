@@ -46,6 +46,10 @@ import it (ADR `tooling/agent-config-single-home`).
   list the gaps under each BKO gap definition and the count-based gaps of the UCI training split,
   or of the Synthea population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
+- `uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log scratchpad/<run-id>.jsonl`:
+  generate candidate records for E1's count-based gap request through the Anthropic Messages API.
+  It spends money and needs an Anthropic credential
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).
 - A targeted run while working:
 
   ```

@@ -288,6 +288,41 @@ inside `.venv`:
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
 
+## Generation
+
+`bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
+candidate records that fill E1's count-based gap request (ADR
+[`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
+inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
+
+    uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log scratchpad/<run-id>.jsonl
+
+- **What it does**: it fetches UCI Heart Disease and the releases the field mappings name into the
+  data root if absent, splits the records as [Data](#data) says, and reads the training split's
+  gaps under the named definition (`per-subgroup`, `population-level` or `frequency-aware`). It
+  asks each cell holding fewer training records than `UNDERREPRESENTED_BELOW` for its shortfall,
+  in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
+  stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
+  Candidates are unfiltered and unrepaired; `bko.validate` checks them.
+- **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
+  cell and its training record count, and the guidance of the chosen level. Never a record.
+- **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
+  `summary`, each adding one component to the one before it; the ADR defines each.
+- **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call
+  and a `reply` or `error` line after it, and an `end` line with the run's status and totals, each
+  call's whole request and response and its USD spend included. stderr gets the split line, each
+  ontology fragment's size, the plan (calls, level, and the most the output tokens can cost), one
+  line per call, the run's totals and spend with the log's path, and last the line count and
+  sha256 of stdout.
+- **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
+  command could not run, including a missing credential, a call that got no response, and a
+  `--log` path that exists (checked before any call); 3 the data or a release contradicts its pin
+  or schema.
+- **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
+  is the record, so the command never overwrites one.
+- **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
+  releases built in `tmp_path` (`tests/test_generate_cli.py`); no gate test reaches the API.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes

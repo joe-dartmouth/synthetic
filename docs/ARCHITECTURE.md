@@ -41,7 +41,7 @@ flowchart LR
 |---|---|---|
 | Represent | MONDO, HPO and the dataset | A BKO per cell and one for every record: the ontology fragments fused with a dataset fragment, weighted by observed frequency |
 | Detect | The BKO | BKO-detected (cell, statement) gaps under three definitions, with count-based gaps alongside for comparison |
-| Generate | Each gap and its relevant ontology relationships | Candidate records, through the Anthropic Messages API |
+| Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
 | Evaluate | Augmented training data, the baselines and the controls | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
 
@@ -51,9 +51,9 @@ of "after fusion". The Streamlit front end (`bko.app`) sits over every stage.
 
 ## Run records
 
-Every experiment run is recorded in [EVIDENCE.md](EVIDENCE.md): its configuration, including the
-dataset snapshot and the generator's model and sampling parameters, and one Runs row per run with
-its id, date, commit, log location and API spend.
+Every experiment run, and every paid generation run, is recorded in [EVIDENCE.md](EVIDENCE.md): its
+configuration, including the dataset snapshot and the generator's model and sampling parameters,
+and one Runs row per run with its id, date, commit, log location and API spend.
 
 ## Package map
 

@@ -128,6 +128,12 @@ ladder.**
   settings from the log and refuse others before any line, so the `run` line names the settings
   every call was made and priced under. A call's spend is its usage times `PRICES[settings.model]`, each token kind at
   its own rate; output tokens already count thinking.
+- **The command.** `python -m bko.generate` fills E1's count-based gap request on the default
+  split: each cell holding fewer than `UNDERREPRESENTED_BELOW` training records is asked for its
+  shortfall. It rebuilds that request from `bko.gaps.detect.count_gaps` over
+  `bko.datasets.cells.cell_counts` rather than importing `bko.evaluate`, and a test holds it equal
+  to `bko.evaluate.experiment.gap_request(..., E1, seed=0).quota`. Only the command imports
+  `bko.gaps.scope`, the release loader it shares with `python -m bko.gaps`.
 
 ## Rationale
 
@@ -208,6 +214,8 @@ cut mid-value and the stop already says the call failed.
 | Scrubbing log lines for secrets, as the mht3 research repository does | `bko.generate.api` builds each error without the response body, so no line carries the credential | 2026-10-18 |
 | `bko.baselines.request.Request` as `generate`'s input | Imports a downstream stage | 2026-10-18 |
 | A shared `bko.core` home for the request type | Nothing else needs it yet | 2026-10-18 |
+| The command importing `bko.evaluate` for E1's request | Imports a downstream stage | 2026-10-18 |
+| A `--rows` water-fill as the command's request | Needs `bko.baselines`, a downstream stage | 2026-10-18 |
 
 ## Enforcement
 
@@ -216,7 +224,7 @@ cut mid-value and the stop already says the call failed.
   `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
   `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
-  `tests/test_generate_log.py`, `tests/test_generate_calls.py`
+  `tests/test_generate_log.py`, `tests/test_generate_calls.py`, `tests/test_generate_cli.py`
 
 ## Reversal Conditions
 
