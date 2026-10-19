@@ -201,3 +201,18 @@ def test_anything_raised_after_the_request_line_writes_the_error_line_and_propag
     assert lines[2]["error"] == raised.__name__
     errors = [record.getMessage() for record in caplog.records if record.levelno == logging.ERROR]
     assert errors == [f"failed call=1 cell=<55/female/1 error={raised.__name__}"]
+
+
+def test_generate_hands_each_batch_on_before_the_next_call(tmp_path):
+    handed: list[int] = []
+    send = ScriptedSend(reply([{}] * 20), reply([{}] * 5))
+
+    def counting(call: Call) -> Reply:
+        assert len(handed) == len(send.calls)
+        return send(call)
+
+    with _log(tmp_path) as log:
+        generation = generate(
+            {CELL: 25}, GUIDED, send=counting, log=log, on_batch=lambda b: handed.append(b.index)
+        )
+    assert handed == [batch.index for batch in generation.batches] == [1, 2]

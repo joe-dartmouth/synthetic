@@ -21,7 +21,7 @@ from bko.datasets.uci import load_uci
 from bko.gaps.observe import cell_key
 from bko.generate.__main__ import Context, configure_logging, main
 from bko.generate.errors import GenerationError
-from bko.generate.messages import Level
+from bko.generate.messages import Call, Level, Reply, Send
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
 from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS
@@ -69,7 +69,7 @@ def releases() -> tuple[dict, dict[str, bytes]]:
     return pins, {pins[prefix].url: body for prefix, body in bodies.items()}
 
 
-def make_context(send: ScriptedSend, **change) -> Context:
+def make_context(send: Send, **change) -> Context:
     pins, served = releases()
     uci = pin(UCI)
     context = Context(
@@ -154,11 +154,16 @@ def test_an_existing_log_path_exits_2_before_any_call(tmp_path, caplog):
     assert any(record.levelno == logging.ERROR for record in caplog.records)
 
 
-def test_an_api_failure_exits_2_with_no_stdout_and_the_spend_so_far_on_stderr(tmp_path, caplog):
+def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_on_stderr(
+    tmp_path, caplog
+):
     caplog.set_level(logging.INFO)
     send = ScriptedSend(reply([RECORD] * 12), GenerationError("the API could not be reached"))
     code, out, log = run(tmp_path, make_context(send))
-    assert (code, out) == (2, "")
+    assert code == 2
+    assert [json.loads(line)["call"] for line in out.splitlines()] == [1] * 12
+    digest = hashlib.sha256(out.encode()).hexdigest()
+    assert f"candidates rows=12 sha256={digest}" in [r.getMessage() for r in caplog.records]
     [summary] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("run ")]
     assert "status=failed calls=2 failed=1" in summary
     assert "usd=0.0140" in summary
@@ -179,6 +184,34 @@ def test_a_dataset_contract_error_exits_3(tmp_path):
     assert (code, out) == (3, "")
     assert send.calls == []
     assert not log.exists()
+
+
+class FlushCounter(io.StringIO):
+    """A stdout that counts its flushes."""
+
+    flushes = 0
+
+    def flush(self) -> None:
+        """Count the flush."""
+        self.flushes += 1
+        super().flush()
+
+
+def test_each_batch_is_written_and_flushed_as_its_call_returns(tmp_path):
+    out = FlushCounter()
+    seen: list[tuple[int, int]] = []
+    scripted = two_replies()
+
+    def send(call: Call) -> Reply:
+        seen.append((len(out.getvalue().splitlines()), out.flushes))
+        return scripted(call)
+
+    argv = ["per-subgroup", "--log", str(tmp_path / "run.jsonl")]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=make_context(send), out=out) == 0
+    assert seen[0] == (0, 0)
+    assert seen[1][0] == 12
+    assert seen[1][1] >= 1
 
 
 def test_stdout_is_json_lines_of_call_cell_position_and_candidate_or_undecoded_reason(tmp_path):

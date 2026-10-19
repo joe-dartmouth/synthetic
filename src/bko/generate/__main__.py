@@ -6,6 +6,7 @@ definition of `bko.gaps.definitions`. It asks the Anthropic Messages API for eac
 cell's shortfall below `UNDERREPRESENTED_BELOW` training records (E1's count-based gap request),
 at the chosen guidance level, and writes one JSON line per asked record to stdout: the call, the
 cell, the record's position in the call, and its decoded `candidate` or its `undecoded` reason.
+Each call's lines are written and flushed as it returns, so a failed run keeps the earlier ones.
 Every call's request and response go to the call log at `--log`, which must not exist; the plan,
 each call, the run's totals and the output's digest go to stderr through logging. Calls spend
 money and a rerun's candidates differ. `docs/DEVELOPMENT.md` (Generation) is the usage home.
@@ -42,7 +43,7 @@ from bko.gaps.detect import count_gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.gaps.scope import load_scope
 from bko.generate.api import default_send
-from bko.generate.calls import Generation, generate
+from bko.generate.calls import Batch, generate
 from bko.generate.decode import Undecoded
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import guide
@@ -106,7 +107,7 @@ def main(
     args = _parser(context.settings).parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        generation = _run(args, data_dir, context)
+        _run(args, data_dir, context, _Writer(out or sys.stdout))
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -114,13 +115,6 @@ def main(
     except (GenerationError, OSError) as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    text = "".join(_lines(generation))
-    logger.info(
-        "candidates rows=%d sha256=%s",
-        text.count("\n"),
-        hashlib.sha256(text.encode()).hexdigest(),
-    )
-    (out or sys.stdout).write(text)
     return 0
 
 
@@ -159,7 +153,26 @@ def _parser(settings: Settings) -> argparse.ArgumentParser:
     return parser
 
 
-def _run(args: argparse.Namespace, data_dir: Path, context: Context) -> Generation:
+class _Writer:
+    """Writes each batch's candidate lines to stdout as its call returns, and digests them."""
+
+    def __init__(self, out: TextIO) -> None:
+        self._out = out
+        self._rows = 0
+        self._digest = hashlib.sha256()
+
+    def write(self, batch: Batch) -> None:
+        text = "".join(_lines(batch))
+        self._out.write(text)
+        self._out.flush()
+        self._rows += len(batch.candidates)
+        self._digest.update(text.encode())
+
+    def summary(self) -> None:
+        logger.info("candidates rows=%d sha256=%s", self._rows, self._digest.hexdigest())
+
+
+def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Writer) -> None:
     ensure(context.uci, data_dir, open_url=context.open_url)
     parts = split(load_uci(data_dir, source=context.uci))
     logger.info(
@@ -189,8 +202,20 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context) -> Generati
         rows=context.field_rows,
     )
     settings = dataclasses.replace(context.settings, guidance=Level(args.guidance))
-    with CallLog(args.log, settings, now=context.now) as log:
-        return generate(quota, guidance, send=context.send(), log=log, settings=settings)
+    log = CallLog(args.log, settings, now=context.now)
+    try:
+        with log:
+            generate(
+                quota,
+                guidance,
+                send=context.send(),
+                log=log,
+                settings=settings,
+                on_batch=writer.write,
+            )
+    finally:
+        # After the last write and the run's totals, whether or not every call returned.
+        writer.summary()
 
 
 def _quota(train: pd.DataFrame) -> dict[Cell, int]:
@@ -198,20 +223,19 @@ def _quota(train: pd.DataFrame) -> dict[Cell, int]:
     return {gap.cell: UNDERREPRESENTED_BELOW - gap.count for gap in count_gaps(cell_counts(train))}
 
 
-def _lines(generation: Generation) -> list[str]:
+def _lines(batch: Batch) -> list[str]:
     lines: list[str] = []
-    for batch in generation.batches:
-        for position, candidate in enumerate(batch.candidates):
-            line: dict[str, object] = {
-                "call": batch.index,
-                "cell": cell_key(batch.cell),
-                "position": position,
-            }
-            if isinstance(candidate, Undecoded):
-                line["undecoded"] = candidate.reason.value
-            else:
-                line["candidate"] = candidate
-            lines.append(json.dumps(line, sort_keys=True) + "\n")
+    for position, candidate in enumerate(batch.candidates):
+        line: dict[str, object] = {
+            "call": batch.index,
+            "cell": cell_key(batch.cell),
+            "position": position,
+        }
+        if isinstance(candidate, Undecoded):
+            line["undecoded"] = candidate.reason.value
+        else:
+            line["candidate"] = candidate
+        lines.append(json.dumps(line, sort_keys=True) + "\n")
     return lines
 
 

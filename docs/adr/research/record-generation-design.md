@@ -134,7 +134,9 @@ ladder.**
   split: each cell holding fewer than `UNDERREPRESENTED_BELOW` training records is asked for its
   shortfall. It rebuilds that request from `bko.gaps.detect.count_gaps` over
   `bko.datasets.cells.cell_counts` rather than importing `bko.evaluate`, and a test holds it equal
-  to `bko.evaluate.experiment.gap_request(..., E1, seed=0).quota`. Only the command imports
+  to `bko.evaluate.experiment.gap_request(..., E1, seed=0).quota`. It writes each call's
+  candidates to stdout as the call returns, through `generate`'s `on_batch`, so a failed or
+  interrupted run keeps every paid batch that returned. Only the command imports
   `bko.gaps.scope`, the release loader it shares with `python -m bko.gaps`.
 
 ## Rationale

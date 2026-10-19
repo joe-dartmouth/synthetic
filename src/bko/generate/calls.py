@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from bko.gaps.observe import Cell, cell_key
@@ -171,6 +171,7 @@ def generate(
     send: Send,
     log: CallLog,
     settings: Settings | None = None,
+    on_batch: Callable[[Batch], None] | None = None,
 ) -> Generation:
     """Ask for each cell's quota in chunks of `settings.per_call`, cells in quota order.
 
@@ -180,6 +181,8 @@ def generate(
         send: Makes each call.
         log: The run's call log.
         settings: How each call is made; the log's when None.
+        on_batch: Called with each call's outcome as it returns, before the next call, so a
+            caller can write it out before a later call fails.
 
     Returns:
         Every call's outcome, in call order.
@@ -211,5 +214,8 @@ def generate(
     for cell, rows in quota.items():
         for start in range(0, rows, settings.per_call):
             chunk = min(settings.per_call, rows - start)
-            batches.append(ask(guidance[cell], chunk, send=send, log=log, settings=settings))
+            batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings)
+            batches.append(batch)
+            if on_batch is not None:
+                on_batch(batch)
     return Generation(tuple(batches))

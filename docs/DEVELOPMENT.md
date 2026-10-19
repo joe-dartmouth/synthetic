@@ -303,7 +303,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   asks each cell holding fewer training records than `UNDERREPRESENTED_BELOW` for its shortfall,
   in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
   stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
-  Candidates are unfiltered and unrepaired; `bko.validate` checks them.
+  Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
+  holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
+  `bko.validate` checks them.
 - **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
   cell and its training record count, and the guidance of the chosen level. Never a record.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
