@@ -95,3 +95,125 @@ def test_a_request_with_no_answer_is_refused(tmp_path):
     path.write_text("\n".join(kept) + "\n")
     with pytest.raises(ReplayError, match="no reply or error"):
         Replay(path)
+
+
+def rewritten(path: Path, edit) -> Path:
+    """Rewrite `path`'s JSON lines after `edit` changed the list in place."""
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    edit(lines)
+    path.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+    return path
+
+
+def first(lines: list[dict], kind: str) -> dict:
+    """The first line of `kind`."""
+    return next(line for line in lines if line["kind"] == kind)
+
+
+def test_a_line_that_is_not_an_object_is_refused(tmp_path):
+    path = logged(tmp_path, reply([young(1), young(1)]))
+    path.write_text(path.read_text() + "[1]\n")
+    with pytest.raises(ReplayError, match="not a JSON object"):
+        Replay(path)
+
+
+def test_an_empty_log_is_refused(tmp_path):
+    path = tmp_path / "empty.jsonl"
+    path.write_text("")
+    with pytest.raises(ReplayError, match="not a schema 2 call log"):
+        Replay(path)
+
+
+def test_a_log_whose_first_line_is_not_its_run_line_is_refused(tmp_path):
+    path = rewritten(logged(tmp_path, reply([young(1), young(1)])), lambda lines: lines.reverse())
+    with pytest.raises(ReplayError, match="not a schema 2 call log"):
+        Replay(path)
+
+
+@pytest.mark.parametrize("kind", ["request", "reply"])
+@pytest.mark.parametrize("call", [None, "1", 1.0, True])
+def test_a_line_without_a_whole_number_call_is_refused(tmp_path, kind, call):
+    def edit(lines: list[dict]) -> None:
+        line = first(lines, kind)
+        if call is None:
+            del line["call"]
+        else:
+            line["call"] = call
+
+    path = rewritten(logged(tmp_path, reply([young(1), young(1)])), edit)
+    with pytest.raises(ReplayError, match="no whole-number call"):
+        Replay(path)
+
+
+@pytest.mark.parametrize("kind", ["request", "reply"])
+def test_a_repeated_call_is_refused_not_collapsed(tmp_path, kind):
+    def edit(lines: list[dict]) -> None:
+        lines.insert(-1, dict(first(lines, kind)))
+
+    path = rewritten(logged(tmp_path, reply([young(1), young(1)])), edit)
+    with pytest.raises(ReplayError, match="more than one"):
+        Replay(path)
+
+
+def test_calls_that_skip_an_index_are_refused(tmp_path):
+    def edit(lines: list[dict]) -> None:
+        for line in lines[1:-1]:
+            line["call"] += 1
+
+    path = rewritten(logged(tmp_path, reply([young(1), young(1)])), edit)
+    with pytest.raises(ReplayError, match="not calls 1 to 1"):
+        Replay(path)
+
+
+def test_an_answer_with_no_request_is_refused(tmp_path):
+    def edit(lines: list[dict]) -> None:
+        lines.insert(-1, first(lines, "reply") | {"call": 2})
+
+    path = rewritten(logged(tmp_path, reply([young(1), young(1)])), edit)
+    with pytest.raises(ReplayError, match="no request line"):
+        Replay(path)
+
+
+@pytest.mark.parametrize(
+    ("kind", "key"),
+    [
+        ("request", "params"),
+        ("reply", "usage"),
+        ("reply", "response"),
+        ("reply", "attempts"),
+        ("reply", "request_id"),
+        ("error", "error"),
+        ("error", "attempts"),
+    ],
+)
+def test_a_line_missing_a_field_is_refused(tmp_path, kind, key):
+    outcome = GenerationError("x") if kind == "error" else reply([young(1), young(1)])
+    path = rewritten(logged(tmp_path, outcome), lambda lines: first(lines, kind).pop(key))
+    with pytest.raises(ReplayError, match=f"call 1 of {path}"):
+        Replay(path)
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {"input_tokens": 1, "output_tokens": 1, "cache_creation_input_tokens": 0},
+        {
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "server_tool_use": 0,
+        },
+        {
+            "input_tokens": 1.5,
+            "output_tokens": 1,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+        },
+    ],
+)
+def test_a_reply_whose_usage_is_not_usage_is_refused(tmp_path, usage):
+    path = logged(tmp_path, reply([young(1), young(1)]))
+    path = rewritten(path, lambda lines: first(lines, "reply").update(usage=usage))
+    with pytest.raises(ReplayError, match="usage"):
+        Replay(path)

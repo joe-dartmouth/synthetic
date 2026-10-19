@@ -33,9 +33,17 @@ holds every request's parameters and every reply's whole response.
   `ReplayError` (exit 3) is raised for:
   - a call past the log's end;
   - a call that differs from the logged request;
+  - an empty log, or one whose first line is not a `run` line of this schema;
   - a line that is not a JSON object;
-  - a log of another schema;
-  - a request with no reply or error line.
+  - a request, reply or error line with no whole-number `call`, or whose `call` another line of
+    its kind repeats;
+  - request lines that are not calls 1 to n;
+  - a request with no reply or error line, or a reply or error line with no request;
+  - a request line with no `params`, a reply line missing its request id, model, stop reason,
+    usage, response or attempts, an error line missing its error or attempts, or a usage whose
+    keys are not `Usage`'s or whose counts are not whole numbers.
+
+  Every check but the first two runs when the log is read, before any call.
 - `python -m bko.evaluate score --replay LOG --log NEW` answers every BKO call from `LOG` and
   writes its own log to `NEW`. That log's `run` line names `LOG`'s sha256 under `replay`, so a
   replay's log never reads as paid spend. The run refuses a log with calls left unplayed.

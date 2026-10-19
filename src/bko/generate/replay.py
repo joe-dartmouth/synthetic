@@ -9,11 +9,14 @@ because one request can be logged many times with different replies. ADR
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 from collections import deque
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Final
 
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import SCHEMA
@@ -31,8 +34,11 @@ class Replay:
         """Read the call log at `path`.
 
         Raises:
-            ReplayError: If a line is not a JSON object, the log is not schema `SCHEMA`, or a
-                request has no reply or error line.
+            ReplayError: If a line is not a JSON object; the first line is not a schema
+                `SCHEMA` `run` line; a request, reply or error line has no whole-number `call`,
+                or shares one with another line of its kind; the requests are not calls 1 to n;
+                a request has no reply or error line, or an answer no request; or a line misses
+                a field its kind needs.
             OSError: If the log cannot be read.
         """
         data = path.read_bytes()
@@ -41,12 +47,21 @@ class Replay:
         if not lines or lines[0].get("kind") != "run" or lines[0].get("schema") != SCHEMA:
             msg = f"{path} is not a schema {SCHEMA} call log"
             raise ReplayError(msg)
-        requests = {line["call"]: line for line in lines if line.get("kind") == "request"}
-        outcomes = {line["call"]: line for line in lines if line.get("kind") in {"reply", "error"}}
+        requests = _by_call(lines, {"request"}, path)
+        outcomes = _by_call(lines, {"reply", "error"}, path)
+        if sorted(requests) != list(range(1, len(requests) + 1)):
+            msg = f"the request lines of {path} are not calls 1 to {len(requests)}"
+            raise ReplayError(msg)
         unanswered = sorted(set(requests) - set(outcomes))
         if unanswered:
             msg = f"call {unanswered[0]} of {path} has no reply or error line"
             raise ReplayError(msg)
+        unasked = sorted(set(outcomes) - set(requests))
+        if unasked:
+            msg = f"call {unasked[0]} of {path} has an answer and no request line"
+            raise ReplayError(msg)
+        for index in requests:
+            _check(requests[index], outcomes[index], path)
         self._calls = deque((requests[index], outcomes[index]) for index in sorted(requests))
 
     @property
@@ -91,3 +106,64 @@ def _lines(data: bytes, path: Path) -> list[dict[str, Any]]:
         msg = f"{path} holds a line that is not a JSON object"
         raise ReplayError(msg)
     return lines
+
+
+_OUTCOME: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        "reply": frozenset({"request_id", "model", "stop_reason", "usage", "response", "attempts"}),
+        "error": frozenset({"error", "attempts"}),
+    }
+)
+"""The fields each kind of answer line needs to be raised or rebuilt."""
+
+_USAGE: Final = frozenset(field.name for field in dataclasses.fields(Usage))
+
+
+def _by_call(
+    lines: Sequence[dict[str, Any]], kinds: set[str], path: Path
+) -> dict[int, dict[str, Any]]:
+    """The lines of `kinds` by their `call`, refusing a missing, non-integer or repeated one."""
+    found: dict[int, dict[str, Any]] = {}
+    for line in lines:
+        if line.get("kind") not in kinds:
+            continue
+        index = line.get("call")
+        if isinstance(index, bool) or not isinstance(index, int):
+            msg = f"a {line['kind']} line of {path} has no whole-number call: {index!r}"
+            raise ReplayError(msg)
+        if index in found:
+            msg = f"call {index} of {path} has more than one {'/'.join(sorted(kinds))} line"
+            raise ReplayError(msg)
+        found[index] = line
+    return found
+
+
+def _check(request: dict[str, Any], outcome: dict[str, Any], path: Path) -> None:
+    """Refuse a request or answer line that misses a field `Replay.__call__` reads."""
+    index = request["call"]
+    if not isinstance(request.get("params"), dict):
+        msg = f"call {index} of {path} has a request line with no params"
+        raise ReplayError(msg)
+    missing = sorted(_OUTCOME[outcome["kind"]] - set(outcome))
+    if missing:
+        msg = f"call {index} of {path} has a {outcome['kind']} line missing {missing}"
+        raise ReplayError(msg)
+    attempts = outcome["attempts"]
+    if attempts is not None and (isinstance(attempts, bool) or not isinstance(attempts, int)):
+        msg = f"call {index} of {path} has attempts {attempts!r}, not a whole number"
+        raise ReplayError(msg)
+    if outcome["kind"] == "error":
+        if not isinstance(outcome["error"], str):
+            msg = f"call {index} of {path} has an error line whose error is not text"
+            raise ReplayError(msg)
+        return
+    usage = outcome["usage"]
+    if not isinstance(usage, dict) or set(usage) != _USAGE:
+        msg = f"call {index} of {path} has usage {usage!r}, not the keys {sorted(_USAGE)}"
+        raise ReplayError(msg)
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in usage.values()):
+        msg = f"call {index} of {path} has a usage count that is not a whole number"
+        raise ReplayError(msg)
+    if not isinstance(outcome["response"], dict):
+        msg = f"call {index} of {path} has a reply line whose response is not an object"
+        raise ReplayError(msg)
