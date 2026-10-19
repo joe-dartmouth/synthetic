@@ -182,7 +182,7 @@ def test_the_definition_chooses_the_gaps_the_prompt_states(tmp_path, definition,
     assert [key for key, sentence in BASES.items() if sentence in first.user] == basis
 
 
-def test_an_existing_log_path_exits_2_before_any_call(tmp_path, caplog):
+def test_an_existing_log_path_exits_2_before_any_download_or_call(tmp_path, caplog):
     log = tmp_path / "run.jsonl"
     log.write_text("paid\n", encoding="utf-8")
     send = ScriptedSend()
@@ -191,6 +191,7 @@ def test_an_existing_log_path_exits_2_before_any_call(tmp_path, caplog):
     assert send.calls == []
     assert log.read_text(encoding="utf-8") == "paid\n"
     assert any(record.levelno == logging.ERROR for record in caplog.records)
+    assert not (tmp_path / "data").exists(), "the log was checked only after the downloads"
 
 
 def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_on_stderr(

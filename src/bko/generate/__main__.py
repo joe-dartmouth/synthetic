@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import errno
 import hashlib
 import json
 import logging
@@ -173,6 +174,10 @@ class _Writer:
 
 
 def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Writer) -> None:
+    # Checked before the downloads so a rerun fails fast; `CallLog` still creates the file
+    # exclusively, so a log made in between is never overwritten.
+    if args.log.exists():
+        raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
     ensure(context.uci, data_dir, open_url=context.open_url)
     parts = split(load_uci(data_dir, source=context.uci))
     logger.info(

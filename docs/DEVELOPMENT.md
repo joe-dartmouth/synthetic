@@ -322,7 +322,7 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   (`cleanup:generate/retries-in-call-log`).
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, and a
-  `--log` path that exists (checked before any call); 3 the data or a release contradicts its pin
+  `--log` path that exists (checked before any download or call); 3 the data or a release contradicts its pin
   or schema.
 - **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
