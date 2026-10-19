@@ -56,8 +56,8 @@ ladder.**
   are repo-owned values. `bko.generate.api` is the only module that imports `anthropic`: it reads
   an SDK message into a `Reply`, and turns an SDK failure into `GenerationError`, built from the
   error's type, status and request id only and raised `from None`, because an error body can echo
-  the credential. A 400 also carries the body's `error.message`, with the client's credential
-  replaced by `[redacted]`, so a rejected schema or parameter names its reason.
+  the credential. A 400 also carries the body's `error.message`, with the client's API key and
+  auth token replaced by `[redacted]`, so a rejected schema or parameter names its reason.
 - **The schema.** As much as structured outputs can express:
   - each coded field is `integer` with an `enum` of its codebook;
   - the cell's `sex` and `target` are each an `enum` of one value;

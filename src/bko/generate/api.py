@@ -4,7 +4,8 @@
 message into a `Reply`. A failure with no response becomes `GenerationError`, built from the
 error's type, status and request id only and raised `from None`, because an error body can echo
 the credential. A 400 (`BadRequestError`) also carries the body's `error.message`, with the
-client's credential replaced by `[redacted]`, so a rejected schema or parameter names its reason.
+client's API key and auth token replaced by `[redacted]`, so a rejected schema or parameter names
+its reason.
 """
 
 from __future__ import annotations
@@ -43,15 +44,16 @@ def reply_of(message: anthropic.types.Message) -> Reply:
     )
 
 
-def _reason(exc: anthropic.BadRequestError, api_key: str | None) -> str:
-    """The 400 body's `error.message`, as `: <message>` with `api_key` redacted, or nothing."""
+def _reason(exc: anthropic.BadRequestError, secrets: tuple[str | None, ...]) -> str:
+    """The 400 body's `error.message`, as `: <message>` with each secret redacted, or nothing."""
     body = exc.body
     error = body.get("error") if isinstance(body, dict) else None
     detail = error.get("message") if isinstance(error, dict) else None
     if not isinstance(detail, str) or not detail:
         return ""
-    if api_key:
-        detail = detail.replace(api_key, "[redacted]")
+    for secret in secrets:
+        if secret:
+            detail = detail.replace(secret, "[redacted]")
     return f": {detail}"
 
 
@@ -86,7 +88,7 @@ def send_with(client: anthropic.Anthropic) -> Send:
                 f"request_id={exc.request_id}"
             )
             if isinstance(exc, anthropic.BadRequestError):
-                msg += _reason(exc, client.api_key)
+                msg += _reason(exc, (client.api_key, client.auth_token))
             raise GenerationError(msg) from None
         except anthropic.APIConnectionError as exc:
             msg = f"the API could not be reached: {type(exc).__name__}"

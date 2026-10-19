@@ -166,3 +166,22 @@ def test_a_bad_request_without_a_readable_body_keeps_the_short_text(monkeypatch)
 def test_the_default_send_builds_a_client_without_a_request(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-credential")
     assert callable(default_send())
+
+
+def test_a_bad_request_redacts_an_auth_token_too(monkeypatch):
+    token = "not-a-bearer-token"
+    client = anthropic.Anthropic(auth_token=token, max_retries=0)
+    exc = anthropic.BadRequestError(
+        "Error code: 400",
+        response=response(400),
+        body={"type": "error", "error": {"type": "invalid_request_error", "message": token}},
+    )
+
+    def create(**_: object) -> anthropic.types.Message:
+        raise exc
+
+    monkeypatch.setattr(client.messages, "create", create)
+    with pytest.raises(GenerationError) as caught:
+        send_with(client)(CALL)
+    assert str(caught.value).endswith(": [redacted]")
+    assert token not in "".join(traceback.format_exception(caught.value))
