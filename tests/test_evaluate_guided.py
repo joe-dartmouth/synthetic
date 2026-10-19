@@ -133,6 +133,17 @@ def test_rows_come_out_cell_by_cell_in_the_quotas_order(tmp_path):
     assert baseline.added["target"].tolist() == [0, 1, 1]
 
 
+def test_a_cell_filled_by_another_cells_call_gets_no_call(tmp_path):
+    request = Request(quota={YOUNG_WELL: 1, YOUNG_SICK: 1}, strata=Strata.CELL, seed=0)
+    send = ScriptedSend(reply([young(0), young(1)]))
+    arm, log = guided(tmp_path, send)
+    with log:
+        baseline = arm(train(tmp_path / "train"), request)
+    send.assert_consumed()
+    assert asked(log.path) == [1]
+    assert baseline.added["target"].tolist() == [0, 1]
+
+
 def test_a_label_request_is_refused(tmp_path):
     arm, log = guided(tmp_path, ScriptedSend())
     with pytest.raises(EvaluationError, match="cells only"), log:

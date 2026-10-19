@@ -59,3 +59,8 @@ def test_a_missing_holdout_is_refused():
 def test_reported_lists_every_arm_with_candidates_rows_in_order():
     scores = [*counts("bko-frequency", FULL), *counts("bko", FULL)]
     assert reported(scores) == ("bko-frequency", "bko")
+
+
+def test_a_count_that_is_not_whole_is_refused():
+    with pytest.raises(EvaluationError, match="not a whole number"):
+        validity(counts("bko", {**FULL, Measure.PASSED: 18.5}), SMALL, "bko")
