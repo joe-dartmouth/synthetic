@@ -78,7 +78,7 @@ machine.
 | Replaying from the candidates file | It carries no request to check and loses the top-up rounds | 2026-10-19 |
 | Looking a reply up by its request | The same request is logged with many replies | 2026-10-19 |
 | Recording each fill's rows instead of its calls | Regenerates utility but not validity's counts or the drops | 2026-10-19 |
-| Resuming a failed run by replaying its log, then calling live | Needs a judged-run rule for a run made in two sessions | 2026-10-19 |
+| Resuming a failed run by replaying its log, then calling live | A run made in two sessions, half replayed and half live, has no single call log its scores replay from | 2026-10-19 |
 
 ## Enforcement
 

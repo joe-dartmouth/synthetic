@@ -19,13 +19,12 @@ The set's graph is [`proposal-index.md`](proposal-index.md).
 
 In E1's judged run `e1-1` the four row-adding baselines fill a replica of the training split's
 cells and the three BKO arms fill none, so the BKO arms have no fidelity or replica utility
-reading beside the baselines'. The team chose (2026-10-19) to give every row-adding arm the same
-treatment, accepting the replica spend. `e1-1`'s data cannot be reused for this: its call log
-holds no replica call, replica rows enter the test-split decontamination of every arm, and
-resuming a run by replaying its log and then calling live is ruled out (ADR
-`research/call-log-replay`). So the replica run is a new paid E1 run, in
-[`proposal-e1-replica-run`](proposal-e1-replica-run.md); this unit makes the code and readings
-ready for it, with no spend.
+reading beside the baselines'. Every row-adding arm gets the same treatment, and the replica spend
+is accepted. `e1-1`'s data cannot be reused for this: its call log holds no replica call, replica
+rows enter the test-split decontamination of every arm, and resuming a run by replaying its log and
+then calling live is ruled out (ADR `research/call-log-replay`). So the replica run is a new paid
+E1 run, in [`proposal-e1-replica-run`](proposal-e1-replica-run.md); this unit makes the code and
+readings ready for it, with no spend. `e1-1` keeps its Runs row.
 
 ## Scope
 
@@ -33,26 +32,42 @@ ready for it, with no spend.
 
 - `bko`, `bko-population` and `bko-frequency` join `E1.replica_arms`, all three, as ADR
   `research/e1-evaluation-protocol` (Reversal) allows once their replica spend is recorded in
-  E1's Configuration before a run.
-- Each BKO arm fills `bko.baselines.request.replica_request` the way it fills the gap request:
+  E1's Configuration before a run. `E1.replica_arms` is defined in code from the row-adding arms,
+  so the BKO arms must be row-adding there; `tests/test_evaluate_experiment.py`, which pins
+  `replica_arms` to `Method.adds_rows` and `spend_ceiling` to 50.0, is updated.
+- Each BKO arm fills `bko.evaluate.experiment.replica_request` the way it fills the gap request:
   same guidance, rounds, budget, drops and refusal rule, and the same replica measures as the
   baselines (replica utility, fidelity, `test-copies`).
-- Validity follows one rule for every candidate, as for every other measure: the rate counts
-  every candidate `bko.validate` sees, gap and replica fills alike, as E1's Configuration already
-  states; the gap and replica counts are also reported apart, with no separate verdict.
-- Record in `docs/EVIDENCE.md` (E1's Configuration, or a new entry for the replica run) the
-  replica spend estimate from `e1-1`'s cost per record asked, and a spend ceiling that covers it.
-- Update RESEARCH section 5, the e1 ADR's Rationale, Ruled Out and Reversal, and
-  `docs/DEVELOPMENT.md` to the new configuration; tests with fake sends only.
+- Validity follows one rule for every candidate: the rate counts every candidate `bko.validate`
+  sees, gap and replica fills alike. With the arms in `replica_arms` that already holds, one
+  `Tally` per arm. Reporting the gap and replica counts apart needs the tally and `drain` to split
+  per fill and `compare` to log both; there is no separate verdict.
+- Spend: estimate the replica spend from `e1-1`'s cost per record asked (its Runs row) with a
+  stated margin of at least 25%, set `E1.spend_ceiling` in code to cover estimate plus margin, and
+  record the estimate, the margin and the ceiling in E1's Configuration in `docs/EVIDENCE.md`.
+- Outage tolerance for a run of many hours: raise the SDK client's `max_retries` and timeout in
+  `bko.generate.api.default_send`. This changes no logged request, so replay holds. Update the e1
+  ADR's Rationale sentence on retries and its Ruled Out row on a call with no response as needed.
+- Update RESEARCH section 5 and E1's Configuration in `docs/EVIDENCE.md` (both say the BKO arms
+  fill none), the e1 ADR's Rationale, Ruled Out and Reversal (its Rationale and Ruled Out row on
+  BKO arms in `E1.replica_arms` are rebutted there: every row-adding arm gets the same readings,
+  and validity is deliberately read over every candidate, replica candidates included), and
+  `docs/DEVELOPMENT.md`, to the new configuration; tests with fake sends only.
 - The replica configuration's run becomes E1's judged result once it lands (ADR
-  `research/e1-evaluation-protocol`, The latest configuration is judged); `e1-1` keeps its Runs
-  row.
+  `research/e1-evaluation-protocol`, The latest configuration is judged).
+- A CLI test in `tests/test_evaluate_bko_cli.py` over a fixture experiment with BKO replica arms
+  (not the 100-holdout default): its scripted-replies helper is extended for replica calls, and a
+  live run then its replay are byte-identical.
 
 **Out.** Any paid call; changing `e1-1`'s Runs row.
 
 ## Acceptance
 
-- `score` with the default experiment fills a replica for every row-adding arm, shown by a CLI
-  test over scripted replies whose replay is byte-identical.
-- The replica spend estimate and the ceiling are in `docs/EVIDENCE.md` before any paid run.
+- The CLI test above passes: every row-adding arm fills a replica and the replay is
+  byte-identical.
+- `compare` logs the gap and replica candidate counts apart, shown by a test.
+- `E1.spend_ceiling` is at least the estimate times 1.25, and the estimate, margin and ceiling are
+  in E1's Configuration in `docs/EVIDENCE.md` before any paid run.
+- A test shows `default_send` builds a client with the raised `max_retries` and timeout.
+- The docs listed above match the new configuration.
 - `make check`.

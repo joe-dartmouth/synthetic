@@ -27,14 +27,23 @@ beside the baselines' from one run in which every arm is treated the same.
 
 - A free rehearsal on all holdouts with canned replies, then one paid `score` run of the
   replica configuration under the recorded ceiling, then its replay and `compare`, as for
-  `e1-1`. Each BKO arm fills a 238-row replica per holdout beside its 20-row gap fill; at
-  `e1-1`'s cost per record asked the run is about $245 and 17-20 h of calls.
+  `e1-1`. The spend and duration estimate is the one E1's Configuration in `docs/EVIDENCE.md`
+  records.
+- Run the paid command detached and kept awake (for example `caffeinate -i` with the guarded
+  command in the background, output to `scratchpad/`). Check the process is alive, watch the
+  `holdout` progress and `spend` lines, and stop to report if spend passes 80% of the ceiling
+  before the last holdout.
+- Copy the call log off the runner after the run and before replay; the Runs row names where. The
+  call log, replay log and stderr stay in gitignored `scratchpad/`; only their sha256s and counts
+  are committed.
+- A failed run stops the unit: record its Runs row with the reason and spend, and report to the
+  user before any rerun.
 - Record the run as E1's judged result in its `docs/EVIDENCE.md` entry: a new Runs row with spend
-  and the replay check, and the Result and Read against fields rewritten from its `compare` (each verdict,
-  validity with the gap and replica counts apart, every arm's replica fidelity and replica
-  utility, and the test-copy counts). `e1-1` keeps its Runs row.
+  and the replay check, and the Result and Read against fields rewritten from its `compare` (each
+  verdict, validity with the gap and replica counts apart, every arm's replica fidelity and
+  replica utility, and the test-copy counts). `e1-1` keeps its Runs row.
 
-**Out.** Removing `e1-1`'s Runs row; any code change (a needed one stops the run and
+**Out.** Any code change (a needed one stops the run and
 goes through a new PR).
 
 ## Acceptance

@@ -115,7 +115,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the system, the design or any configuration, E1 runs again, and only runs of the new
   configuration count. A configuration with one complete paid run (exit 0, call log ending
   `complete`) is judged on it; runs of one configuration are combined into one result, and the
-  unit that adds a second run of a configuration decides how. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
+  method is fixed, as a reading, before a configuration's second paid run. Every run's readings
+  are fixed before it starts. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
   with its reason; reporting earlier configurations elsewhere is optional.
 
 ## Rationale
@@ -147,7 +148,8 @@ the BKO arm fill its own detected gaps would make the baselines' request depend 
 send SMOTE cells it refuses.
 
 Three BKO arms ask whether the gap definition changes what generation adds; judging only `bko`,
-fixed before the run, keeps one look at each criterion, and comparing it with its own ablations
+fixed before the run, keeps one look at each criterion in each run, and comparing it with its own
+ablations
 would test the definitions against each other under criteria written for the baselines. Dropping
 and generating again keeps equal row counts, as rejection sampling keeps CTGAN's and TVAE's
 strata; clipping, which SDV applies to those two, would repair a record (ADR
@@ -167,10 +169,13 @@ The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the
 holdout; on holdout 0 it equals `python -m bko.baselines <method> --rows 20`. The gap rows hold
 one label in two cells, so they can neither train a classifier alone nor be compared with the
 training split; a replica of the training split's cells is the conventional train-on-synthetic set
-([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms fill no replica: a replica asks
-for the whole training split's rows, 238 per holdout against the gap request's 20, so about ten
-times the gap fills' spend. Its candidates would dominate the validity rate, and no criterion reads
-a replica measure.
+([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms fill no replica in the
+configuration now in code, because a replica asks for the whole training split's rows, 238 per
+holdout against the gap request's 20, about ten times the gap fills' spend. Joining the BKO arms to
+`E1.replica_arms` gives every row-adding arm the same readings and the BKO arms a fidelity and
+replica utility reading beside the baselines'. Its candidates then enter the validity rate, which
+is read over every candidate `bko.validate` sees, replica candidates included, with the gap and
+replica counts reported apart. The spend is paid once, under a ceiling set above its estimate.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
 scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
@@ -204,13 +209,17 @@ rows, so it cannot see the copy. Removing such records from the test split for e
 pairing and changes nothing on a holdout no arm copies. Counting alone would report the leak and
 still judge on it. A call that gets no response is not a refusal of the request: retries come with
 no delay, so they add no patience against an outage, and they would read an infrastructure failure
-as the method's. Budget and attempts bound the records asked, not the calls, since each short cell's
-top-up is one call however few rows it asks, so a spend ceiling bounds the run. Judging the latest
-configuration lets a change to the method or the design be judged on runs made in it, combining
-its runs uses every paid draw of its generated rows, and every earlier run stays in the register,
-so what was run and found stays traceable. The corrected interval's variance factor is
-1/J + n2/n1, so more holdouts narrow it little once J is large; combining mainly averages out
-the generated rows' draw-to-draw noise.
+as the method's. Patience against an outage belongs to the SDK client, whose retries and timeout
+`bko.generate.api.default_send` sets and which change no logged request. Budget and attempts bound
+the records asked, not the calls, since each short cell's top-up is one call however few rows it
+asks, so a spend ceiling bounds the run. Judging the latest
+configuration lets a change to the method or the design be judged on runs made in it. Each run's
+readings are fixed before it starts, so each verdict is one look at its configuration; a
+configuration may be chosen with an earlier configuration's results in view, and every run stays in
+the register, so how many configurations were tried stays visible. Once a configuration has several
+runs, combining them would use every paid draw of its generated rows. The corrected interval's
+variance factor is 1/J + n2/n1, so more holdouts narrow it little once J is large; combining would
+mainly average out the generated rows' draw-to-draw noise.
 
 ## Consequences
 
@@ -231,7 +240,9 @@ interval below zero at the family-wise level, so more criteria read inconclusive
 fixed with baseline dry runs in view and no BKO result, and it only ever moves not met to
 inconclusive, which favours the candidate; a met verdict certifies a reliable gain, not a minimum
 size, and the zero margin, also fixed with baseline dry runs in view and no BKO result, makes met
-easier to reach.
+easier to reach; a configuration may be chosen with an earlier configuration's results in view, so
+each verdict is one look at its configuration, and every run stays in the register so how many
+configurations were tried is visible.
 
 ## Ruled Out
 
@@ -264,10 +275,9 @@ easier to reach.
 | Judging every BKO arm against the criteria | Three looks at each criterion, the best picked after the fact | 2026-10-17 |
 | Clipping a BKO candidate into the split's range | Repairs a record and piles rows on the split's bounds | 2026-10-17 |
 | Loosening the added-row contract for the BKO arms | Compares arms that extend the split's support with baselines bound to it | 2026-10-17 |
-| BKO arms in `E1.replica_arms` | About ten times the gap fills' spend, a validity rate dominated by replica candidates, and no criterion reads a replica | 2026-10-19 |
 | Counting test copies without removing them | Reports the leak and still scores utility on records the classifier trained on | 2026-10-19 |
 | Dropping copied rows from an arm's output | The arm would read the test split, and equal row counts would break | 2026-10-19 |
-| Retrying a call with no response as a refused attempt | Retries come with no delay, and an outage would read as the method's refusal | 2026-10-19 |
+| Retrying a call with no response as a refused attempt | Retries come with no delay, and an outage would read as the method's refusal; the SDK client's retries and timeout carry the patience | 2026-10-19 |
 | An interval on the validity rate | The run's candidates are a census of what the arm generated, not a sample | 2026-10-19 |
 | One call log per BKO arm | Three exclusive files and three spend totals for one run, and a ceiling split three ways | 2026-10-19 |
 | Judging only the first paid run | Freezes the method at its first configuration, so a design change such as BKO replicas could never be judged | 2026-10-19 |
@@ -285,11 +295,11 @@ easier to reach.
 
 ## Reversal Conditions
 
-**A reading changes only while E1's Runs field in `docs/EVIDENCE.md` has no row**; after the first
-run, a changed reading is a new experiment entry.
+**A reading changes before the run that judges it**; a changed reading makes a new configuration
+that E1 runs again (The latest configuration is judged).
 
-**The holdout count and the margins are re-chosen if the frame changes before E1's first run**; this
-record and `E1` change together.
+**The holdout count and the margins are re-chosen if the frame changes before the run that judges
+it**; this record and `E1` change together.
 
 **`calculate_dcr` is replaced if an SDMetrics release removes
 `sdmetrics.single_table.privacy.dcr_utils.calculate_dcr`.**
@@ -300,8 +310,8 @@ record and `E1` change together.
 in E1's Configuration before a run.**
 
 **The gap request stops binding the BKO arms if their generation cannot target a cell**; the
-request then becomes each BKO arm's realised rows per cell, and this record changes before E1's
-first run.
+request then becomes each BKO arm's realised rows per cell, and this record changes before the
+run that judges it.
 
 ## Related
 
