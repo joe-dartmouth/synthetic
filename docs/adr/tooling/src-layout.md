@@ -2,16 +2,16 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-17
+updated: 2026-10-19
 ---
 # src layout, one subpackage per pipeline stage
 
 ## Context
 
 The project's pipeline ([`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md)) has distinct stages
-(Represent, Detect, Generate, Validate, Evaluate, and a user interface) with different owners and
-different heavy dependencies. Each teammate needs a home for their stage that exists before any code
-does, so work can start in parallel without arguing about where files go.
+(Represent, Detect, Generate, Validate, Fuse, Evaluate, and a user interface) with different owners
+and different heavy dependencies. Each teammate needs a home for their stage that exists before
+any code does, so work can start in parallel without arguing about where files go.
 
 ## Decision Drivers
 
@@ -33,6 +33,7 @@ pipeline stage:
 | `gaps` | Ungrounded-statement and count-based gap detection | `data` |
 | `generate` | Candidate-record generation through the Messages API | `llm` |
 | `validate` | Record consistency checks | `data` |
+| `fusion` | Validated records joined back into the BKO; gap closure | `data` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
 | `evaluate` | Utility, fidelity and privacy metrics | `eval` |
 | `app` | The Streamlit interface | `app` |
@@ -54,7 +55,7 @@ and keeps a stage's heavy imports out of every other stage.
 
 **Gained**: parallel work from day one; packaging errors surface locally; each stage's dependency
 footprint is visible in its README.
-**Accepted**: nine near-empty directories until the stages are built; code shared between stages
+**Accepted**: near-empty directories until the stages are built; code shared between stages
 needs a deliberate home rather than an ad-hoc import across stages.
 
 ## Ruled Out
@@ -62,7 +63,7 @@ needs a deliberate home rather than an ad-hoc import across stages.
 | Idea | Why ruled out | When |
 |------|---------------|------|
 | Flat layout (`bko/` at the root) | The working directory shadows the installed package | 2026-10-13 |
-| One distribution per stage | Nine `pyproject.toml` files and nine locks for one course project | 2026-10-13 |
+| One distribution per stage | A `pyproject.toml` and a lock per stage for one course project | 2026-10-13 |
 | Notebooks as the primary code | Not importable, not linted, not testable by the gate | 2026-10-13 |
 
 ## Enforcement

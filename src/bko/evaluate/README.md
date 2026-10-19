@@ -6,4 +6,4 @@ The harness scores every arm on E1's repeated holdouts and judges a candidate ar
 
 - **Dependencies:** The `eval` extra (`pyproject.toml`), and `bko.baselines` and `bko.datasets` with their `synth` and `data` extras.
 - **Owner:** Joe Laws
-- **Status:** built for utility, fidelity, privacy and the criteria. The BKO arms, the validity rate and gap closure join in [`proposal-final-evaluation`](../../../tasks/proposal-final-evaluation.md).
+- **Status:** built for utility, fidelity, privacy and the criteria. The BKO arms and the validity rate join in [`proposal-final-evaluation`](../../../tasks/proposal-final-evaluation.md).

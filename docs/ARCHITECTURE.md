@@ -69,12 +69,14 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | [`bko.gaps`](../src/bko/gaps/README.md) | Represent (the dataset fragments) and Detect |
 | [`bko.generate`](../src/bko/generate/README.md) | Generate |
 | [`bko.validate`](../src/bko/validate/README.md) | Validate |
+| [`bko.fusion`](../src/bko/fusion/README.md) | Fuse (validated records back into the BKO, and gap closure) |
 | [`bko.baselines`](../src/bko/baselines/README.md) | Evaluate (baseline augmentation) |
 | [`bko.evaluate`](../src/bko/evaluate/README.md) | Evaluate |
 | [`bko.app`](../src/bko/app/README.md) | Front end over every stage |
 
-Fusion appears in two places: Shirley's workstream names it (2-pager section 6), and `bko.bkb`,
-which Partiban owns, holds the fusion operation.
+Fusion appears in two places: `bko.fusion`, which Shirley owns, joins validated records to the
+training records and reads what closes, and `bko.bkb`, which Partiban owns, holds the fusion
+operation that `bko.gaps.detect.represent` calls.
 
 ## Demo-Day flow
 
