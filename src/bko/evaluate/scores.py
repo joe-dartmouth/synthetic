@@ -30,6 +30,9 @@ class Source(enum.StrEnum):
     """The arm's added rows: how many, and how near they sit to the training rows."""
     HELD_OUT = "held-out"
     """The test rows: how near they sit to the training rows, and the split's held-out ratio."""
+    CANDIDATES = "candidates"
+    """A BKO arm's candidates on the holdout: generated, passed and dropped, refused attempts
+    included."""
 
 
 class Measure(enum.StrEnum):
@@ -45,6 +48,12 @@ class Measure(enum.StrEnum):
     DCR_P5 = "dcr-p5"
     DCR_MEDIAN = "dcr-median"
     HELD_OUT_RATIO = "held-out-ratio"
+    GENERATED = "generated"
+    PASSED = "passed"
+    DROPPED_RANGE = "dropped-range"
+    DROPPED_CELL = "dropped-cell"
+    DROPPED_QUOTA = "dropped-quota"
+    TEST_COPIES = "test-copies"
 
 
 class Scope(enum.StrEnum):
