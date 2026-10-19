@@ -16,9 +16,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from bko.gaps.observe import Cell, cell_key
-from bko.generate.decode import Undecoded, decode
+from bko.generate.decode import Undecoded, decode, undecoded_in
 from bko.generate.guidance import Guidance
-from bko.generate.log import CallLog, undecoded_in
+from bko.generate.log import CallLog
 from bko.generate.messages import Call, Reply, Send, Settings
 from bko.generate.prompt import render
 from bko.generate.spend import cost, price_of
@@ -66,7 +66,7 @@ class Generation:
     @property
     def usd(self) -> float:
         """The run's spend: every call's, summed."""
-        return sum(batch.usd for batch in self.batches)
+        return sum((batch.usd for batch in self.batches), 0.0)
 
     def candidates(self, cell: Cell) -> tuple[object, ...]:
         """Return every candidate of `cell`'s calls, in call order."""

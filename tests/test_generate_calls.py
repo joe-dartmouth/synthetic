@@ -11,7 +11,7 @@ import pytest
 
 from bko.gaps.observe import Cell
 from bko.generate import calls as calls_module
-from bko.generate.calls import ask, generate
+from bko.generate.calls import Generation, ask, generate
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
@@ -216,3 +216,9 @@ def test_generate_hands_each_batch_on_before_the_next_call(tmp_path):
             {CELL: 25}, GUIDED, send=counting, log=log, on_batch=lambda b: handed.append(b.index)
         )
     assert handed == [batch.index for batch in generation.batches] == [1, 2]
+
+
+def test_an_empty_generation_spends_a_float_zero():
+    usd = Generation(()).usd
+    assert isinstance(usd, float)
+    assert not usd

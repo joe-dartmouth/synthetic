@@ -9,8 +9,11 @@ why.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
+from typing import Final
 
 from bko.generate.messages import Reply
 
@@ -38,7 +41,14 @@ class Undecoded:
     reason: Reason
 
 
-_STOPS: dict[str, Reason] = {"refusal": Reason.REFUSED, "max_tokens": Reason.TRUNCATED}
+_STOPS: Final[Mapping[str, Reason]] = MappingProxyType(
+    {"refusal": Reason.REFUSED, "max_tokens": Reason.TRUNCATED}
+)
+
+
+def undecoded_in(candidates: Iterable[object]) -> int:
+    """Return how many of `candidates` are `Undecoded` placeholders."""
+    return sum(isinstance(candidate, Undecoded) for candidate in candidates)
 
 
 def decode(reply: Reply, asked: int) -> tuple[object, ...]:

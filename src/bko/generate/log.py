@@ -15,14 +15,14 @@ import importlib.metadata
 import json
 import logging
 import os
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Final, Self, TextIO
 
 from bko.gaps.observe import Cell, cell_key
-from bko.generate.decode import Undecoded
+from bko.generate.decode import undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Settings
 from bko.generate.spend import price_of
@@ -32,11 +32,6 @@ logger = logging.getLogger(__name__)
 
 SCHEMA: Final = 1
 """The log format's version, written in the `run` line."""
-
-
-def undecoded_in(candidates: Iterable[object]) -> int:
-    """Return how many of `candidates` are `Undecoded` placeholders."""
-    return sum(isinstance(candidate, Undecoded) for candidate in candidates)
 
 
 def _utc_now() -> datetime:
