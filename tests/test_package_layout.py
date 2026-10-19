@@ -22,6 +22,7 @@ SUBPACKAGES = (
     "gaps",
     "generate",
     "validate",
+    "fusion",
     "baselines",
     "evaluate",
     "app",

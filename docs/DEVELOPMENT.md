@@ -291,19 +291,20 @@ inside `.venv`:
 ## Generation
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
-candidate records that fill E1's count-based gap request (ADR
+candidate records that fill a gap request, E1's count-based one or the completeness request (ADR
 [`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
 inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
-    uv run --no-sync python -m bko.generate <definition> [--guidance <level>] --log scratchpad/<run-id>.jsonl [--data-dir <dir>]
+    uv run --no-sync python -m bko.generate <definition> [--guidance <level>] [--request <e1|completeness>] --log scratchpad/<run-id>.jsonl [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease and the releases the field mappings name into the
   data root (`--data-dir`, default `data/`) if absent, splits the records as [Data](#data) says,
   and reads the training split's gaps under `<definition>`: `per-subgroup`, `population-level` or
-  `frequency-aware`. It
-  asks each cell holding fewer training records than `UNDERREPRESENTED_BELOW` for its shortfall,
-  in calls of at most `Settings.per_call` records, and writes one JSON line per asked record to
-  stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
+  `frequency-aware`. With `--request e1`, the default, it asks each cell holding fewer training
+  records than `UNDERREPRESENTED_BELOW` for its shortfall; with `--request completeness` it asks
+  each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows, and exits 2 for any
+  `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)). It asks in calls of at most
+  `Settings.per_call` records and writes one JSON line per asked record to stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
@@ -315,8 +316,8 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   and a `reply` or `error` line after it, and an `end` line with the run's status and totals, each
   call's whole request and response and its USD spend included. An interrupt or any other failure
   between a `request` line and its `reply` line writes the `error` line. stderr gets the split
-  line, each ontology fragment's size, the plan (calls, level, and the most the output tokens can
-  cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
+  line, each ontology fragment's size, the request's name, cells and rows, a `quota` line per
+  asked cell, the plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an ERROR `failed` line
   naming the call and cell), the run's totals and spend with the log's path, and last the line
   count and sha256 of stdout. Its WARNING lines: `served`, a call served by a model other than the
   settings name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap
@@ -326,9 +327,10 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   INFO between the call's `send` line and its result; the call log does not count attempts
   (`cleanup:generate/retries-in-call-log`).
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
-  command could not run, including a missing credential, a call that got no response, and a
-  `--log` path that exists (checked before any download or call); 3 the data or a release
-  contradicts its pin or schema.
+  command could not run, including a missing credential, a call that got no response, a
+  completeness request no cell holds a gap for, `--request completeness` with another
+  `<definition>`, and a `--log` path that exists (checked before any download or call); 3 the data
+  or a release contradicts its pin or schema.
 - **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
@@ -346,6 +348,58 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
 
       test ! -e scratchpad/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=scratchpad/<run-id> -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
+
+## Gap closure
+
+`bko.fusion` ([README](../src/bko/fusion/README.md)) joins the generated records that pass
+validation to the training records of the cell each was asked for and lists the gaps again, the
+completeness criterion's reading of "after fusion" (ADR
+[`research/gap-closure-design`](adr/research/gap-closure-design.md) holds which records join).
+Two commands, inside `.venv`; the first spends money and needs an Anthropic credential, the
+second spends nothing:
+
+    test ! -e scratchpad/<run-id>.jsonl && test ! -e scratchpad/<run-id>.out && test ! -e scratchpad/<run-id>.err && uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --request completeness --log scratchpad/<run-id>.jsonl > scratchpad/<run-id>.out 2> scratchpad/<run-id>.err
+    uv run --no-sync python -m bko.fusion scratchpad/<run-id>.out [--data-dir <dir>] > scratchpad/<run-id>.csv 2> scratchpad/<run-id>.closure.err
+
+The `test ! -e` guards matter: the shell empties `.out` before `bko.generate` can refuse an
+existing log, and `.out` is the only copy of the candidates the second command reads.
+
+- **What it does**: it reads the candidates file, fetches UCI Heart Disease and the releases the
+  field mappings name into the data root if absent, splits the records as [Data](#data) says,
+  and lists the training split's gaps under every definition. It refuses a file that is not the
+  completeness request's answer: a cell the request does not ask for, or fewer lines for a
+  requested cell than its rows. It validates each requested cell's lines with `bko.validate`, an
+  `undecoded` line counting as generated and rejected, joins the accepted records as the ADR
+  says, and lists the gaps again over the training and joined records.
+- **What it writes**: one CSV on stdout, the same bytes on every run over the same candidates
+  file, archive and releases, and nothing unless the whole report is built. A row per
+  (definition, cell, statement) pair listed before or after the join: `definition`, the
+  statement columns of [Gap detection](#gap-detection), `age_band`, `sex`, `target`, `before` and
+  `after`. A closed pair reads `True,False`, an open one `True,True` and a new one `False,True`.
+  It prints no verdict; [EVIDENCE.md](EVIDENCE.md#c1-gap-closure-after-fusion) reads the counts
+  against [RESEARCH.md](RESEARCH.md#4-success-criteria).
+- **What it logs**: stderr gets the data root and library versions, the candidates file's path,
+  line count and sha256 (the `candidates` digest `bko.generate` logged, when the file is its
+  stdout), the split line, each ontology fragment's size, a `request` line per requested cell, a
+  `validate` line naming each cell before `bko.validate`'s counts for it, a `join` line per
+  requested cell (lines, passed, off-cell, past its rows, joined, and the concepts the join newly
+  gives the cell), a `closure` line per definition (before, after, closed, open, new and the
+  share), and last the row count and sha256 of stdout, written once the report is. Its WARNING
+  lines: `off_cell`, accepted records dropped for naming another cell; `past_quota`, accepted
+  on-cell records dropped past the cell's rows; and `unjoined`, a requested cell no record joined.
+- **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
+  command could not run, including a missing candidates file and a training split no cell holds
+  a per-subgroup gap in; 3 the candidates file is malformed or does not answer the completeness
+  request, or the data or a release contradicts its pin or schema.
+- **Reproducibility**: the same bytes on every run over the same inputs. The Messages API takes
+  no seed, so the candidates file is the paid run's record, not a rerun.
+- **The gate does not run it.** `make check` drives it over an archive, releases and candidates
+  built in `tmp_path`; no gate test reaches the API.
+- **The release test**: `tests/test_fusion_pinned_releases.py` joins records that show every
+  mapped concept to the real training split, the control that closes every per-subgroup gap. Run
+  it with `--releases` once the data root holds the snapshot and releases:
+
+      uv run --no-sync pytest tests/test_fusion_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
 ## Platforms
 

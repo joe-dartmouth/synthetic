@@ -18,7 +18,6 @@ from pathlib import Path
 import pytest
 
 import bko.gaps.experiment
-from bko.datasets.sources import Source
 from bko.datasets.synthea_run import SyntheaRun
 from bko.gaps.__main__ import Context, configure_logging, main
 from bko.gaps.experiment import Recovery
@@ -31,10 +30,9 @@ from tests._gaps_fixtures import (
     CONDITION,
     E2_POPULATION,
     ISCHEMIA,
-    LADDER_HPO,
-    LADDER_MONDO,
     STENOSIS,
     UNSEEN,
+    ladder_releases,
 )
 from tests._ontology_fixtures import RoutingOpener
 
@@ -96,14 +94,8 @@ UCI_EXPECTED = (
 JAR = b"jar" * 100
 
 
-def releases() -> tuple[dict[str, Source], dict[str, bytes]]:
-    bodies = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
-    pins = {"HP": pin(bodies["HP"], name="hpo"), "MONDO": pin(bodies["MONDO"], name="mondo")}
-    return pins, {pins[prefix].url: body for prefix, body in bodies.items()}
-
-
 def make_context(**change) -> Context:
-    pins, served = releases()
+    pins, served = ladder_releases()
     uci = pin(UCI)
     jar = pin(JAR, "synthea-jar")
     context = Context(
@@ -192,7 +184,7 @@ def test_a_command_that_cannot_run_exits_two_and_writes_nothing(tmp_path, caplog
 
 
 def test_a_release_that_contradicts_its_pin_exits_three(tmp_path):
-    _, served = releases()
+    _, served = ladder_releases()
     uci = pin(UCI)
     tampered = {url: b"x" * len(body) for url, body in served.items()}
     context = make_context(open_url=RoutingOpener({**tampered, uci.url: UCI}), uci=uci)

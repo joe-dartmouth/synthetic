@@ -1,8 +1,8 @@
 ---
 id: proposal-final-evaluation
 title: Final evaluation
-status: blocked
-depends_on: proposal-fusion-repair
+status: ready
+depends_on: --
 blocks: proposal-guidance-ablation
 parallel_safe: true
 owner: Joe
@@ -35,7 +35,7 @@ The Final Report milestone reads every criterion against the baselines and contr
 - Decide whether the BKO arms join `E1.replica_arms`, all three or none; `docs/RESEARCH.md`
   section 5 reports fidelity for every generator, so leaving them out is recorded there.
 - Compute each BKO arm's validity rate as ADR `research/e1-evaluation-protocol` sums it, and record
-  the rates, with gap closure, in `docs/EVIDENCE.md`.
+  the rates in `docs/EVIDENCE.md`; completeness has its own request and its own entry, C1.
 - Run E1 (UCI Heart Disease augmentation) and E2 (Synthea ablation) as configured in
   `docs/EVIDENCE.md`, including the null-result case.
 

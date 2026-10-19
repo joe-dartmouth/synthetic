@@ -7,6 +7,7 @@ The SDK's errors are built from `httpx2.Request` and `httpx2.Response`: `anthrop
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Final
 
 import anthropic
@@ -15,6 +16,7 @@ import httpx2
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import SETTINGS, Call, Reply, Usage
+from tests._datasets_fixtures import archive, cleveland_line
 
 
 CELL: Final = ("<55", "female", 1)
@@ -28,6 +30,20 @@ OTHER: Final = ("<55", "male", 0)
 
 OTHER_GUIDANCE: Final = Guidance(cell=OTHER, sex=1, label=0, records=30, interval=intervals(OTHER))
 """The bare guidance of `OTHER`, with thirty training records."""
+
+SIZES: Final = {
+    (40, 0, 0): 10,
+    (40, 0, 1): 0,
+    (40, 1, 0): 25,
+    (40, 1, 1): 25,
+    (63, 0, 0): 25,
+    (63, 0, 1): 25,
+    (63, 1, 0): 25,
+    (63, 1, 1): 25,
+}
+"""Records per (age, sex, num). One in five of each cell is held out, so the training split holds
+twenty in every cell but two: eight young women without the condition, and no young woman with
+it."""
 
 ENDPOINT: Final = "http://127.0.0.1:9/v1/messages"
 """The URL the built requests name: the discard port, never reached."""
@@ -158,3 +174,19 @@ class ScriptedSend:
     def assert_consumed(self) -> None:
         """Fail unless every scripted step was played."""
         assert not self._script, f"ScriptedSend has {len(self._script)} unplayed steps"
+
+
+def uci(
+    cp_for: Mapping[tuple[int, int], str],
+    default: str,
+    sizes: Mapping[tuple[int, int, int], int] = SIZES,
+) -> bytes:
+    """An archive of `sizes` records, chest pain `cp_for[(age, sex)]` or `default`."""
+    return archive(
+        "\n".join(
+            cleveland_line(age=age, sex=sex, num=num, cp=cp_for.get((age, sex), default))
+            for (age, sex, num), size in sizes.items()
+            for _ in range(size)
+        )
+        + "\n"
+    )

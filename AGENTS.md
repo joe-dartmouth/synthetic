@@ -47,9 +47,13 @@ import it (ADR `tooling/agent-config-single-home`).
   or of the Synthea population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log scratchpad/<run-id>.jsonl`:
-  generate candidate records for E1's count-based gap request through the Anthropic Messages API.
-  It spends money and needs an Anthropic credential
-  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).
+  generate candidate records for E1's count-based gap request through the Anthropic Messages API,
+  or for the completeness request with `--request completeness`. It spends money and needs an
+  Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).
+- `uv run --no-sync python -m bko.fusion scratchpad/<run-id>.out`: read a completeness run's
+  candidates, join the ones that pass validation to the training records of their cell, and list
+  what closed, stayed open and is new under each BKO gap definition. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-closure) holds the guarded pair of commands).
 - A targeted run while working:
 
   ```

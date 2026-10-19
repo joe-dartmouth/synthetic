@@ -34,7 +34,7 @@ flowchart LR
     D --> G["Generate<br/>bko.generate"]
     G --> V["Validate<br/>bko.validate"]
     V --> E["Evaluate<br/>bko.baselines, bko.evaluate"]
-    V -.->|fusion| R
+    V -.->|"Fuse<br/>bko.fusion"| R
 ```
 
 | Stage | Takes | Produces |
@@ -43,6 +43,7 @@ flowchart LR
 | Detect | The BKO | BKO-detected (cell, statement) gaps under three definitions, with count-based gaps alongside for comparison |
 | Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
+| Fuse | The validated records and the training split | The joined records, and each gap definition's pairs before and after the join |
 | Evaluate | Augmented training data, the baselines and the controls | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
 
 The dotted edge is the fusion of validated records back into the BKO, after which the completeness
@@ -69,12 +70,14 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | [`bko.gaps`](../src/bko/gaps/README.md) | Represent (the dataset fragments) and Detect |
 | [`bko.generate`](../src/bko/generate/README.md) | Generate |
 | [`bko.validate`](../src/bko/validate/README.md) | Validate |
+| [`bko.fusion`](../src/bko/fusion/README.md) | Fuse (validated records back into the BKO, and gap closure) |
 | [`bko.baselines`](../src/bko/baselines/README.md) | Evaluate (baseline augmentation) |
 | [`bko.evaluate`](../src/bko/evaluate/README.md) | Evaluate |
 | [`bko.app`](../src/bko/app/README.md) | Front end over every stage |
 
-Fusion appears in two places: Shirley's workstream names it (2-pager section 6), and `bko.bkb`,
-which Partiban owns, holds the fusion operation.
+Fusion appears in two places: `bko.fusion`, which Shirley owns, joins validated records to the
+training records and reads what closes, and `bko.bkb`, which Partiban owns, holds the fusion
+operation that `bko.gaps.detect.represent` calls.
 
 ## Demo-Day flow
 

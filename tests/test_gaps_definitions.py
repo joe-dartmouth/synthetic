@@ -15,11 +15,13 @@ from bko.gaps.definitions import (
     CREDIBILITY,
     SHARE_RATIO,
     Definition,
+    completeness_request,
     gaps,
     posterior_below,
     under_represented,
 )
 from bko.gaps.detect import Statement, ontology_fragments
+from bko.gaps.errors import GapError
 from bko.gaps.observe import Cell, CellRecords, Cells, Observed, record_cells
 from tests._gaps_fixtures import ANGINA, STENOSIS, parse_ladders
 
@@ -268,3 +270,33 @@ def test_a_cell_assuming_a_concept_no_fragment_holds_is_refused(ladders):
     each: dict[Cell, CellRecords] = {("x",): cell(2, {A: 1}, assumed={B})}
     with pytest.raises(QueryError, match="MONDO:9000004"):
         gaps(Definition.SUBGROUP, fragments, dataset(each))
+
+
+def test_the_completeness_request_asks_twenty_of_each_cell_holding_a_per_subgroup_gap_in_grid_order(
+    ladders,
+):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {
+        ("z",): cell(0, {}),
+        ("x",): cell(2, {A: 1, B: 1}),
+        ("y",): cell(2, {B: 2}),
+    }
+    result = completeness_request(fragments, dataset(each))
+    assert result == {("z",): 20, ("y",): 20}
+    assert list(result) == [("z",), ("y",)]
+
+
+def test_a_cell_with_many_records_and_one_gap_is_still_asked_twenty(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {
+        ("x",): cell(2, {A: 1, B: 1}),
+        ("y",): cell(500, {B: 500}),
+    }
+    assert completeness_request(fragments, dataset(each)) == {("y",): 20}
+
+
+def test_no_per_subgroup_gap_refuses_the_request(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {("x",): cell(2, {A: 1, B: 1})}
+    with pytest.raises(GapError, match="holds no per-subgroup gap"):
+        completeness_request(fragments, dataset(each))

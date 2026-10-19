@@ -155,6 +155,9 @@ The 2-pager leaves these readings open. Each experiment fixes them in its config
 - What "matches or outperforms" counts as a match once results carry intervals.
 - Which comparison "real-data baseline" names for distance to closest record
   ([section 5](#5-evaluation-contract)).
+- What the completeness criterion counts: which gap definition's (cell, statement) pairs are the
+  detected gaps, which generated records join before detection runs again, and whether exactly
+  half of them closing meets the criterion.
 
 E1 departs from the primary and privacy criteria as worded; [section 9](#9-source-reconciliation)
 records how.

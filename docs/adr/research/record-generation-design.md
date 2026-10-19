@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-18
+updated: 2026-10-19
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -134,7 +134,10 @@ ladder.**
   its own rate; output tokens already count thinking.
 - **The command.** `python -m bko.generate` fills E1's count-based gap request on the default
   split: each cell holding fewer than `UNDERREPRESENTED_BELOW` training records is asked for its
-  shortfall. It rebuilds that request from `bko.gaps.detect.count_gaps` over
+  shortfall. With `--request completeness` it fills the completeness request of
+  `bko.gaps.definitions.completeness_request` instead, `UNDERREPRESENTED_BELOW` rows for each cell
+  holding a per-subgroup gap, and refuses any guidance definition but `per-subgroup`, the one that
+  request reads (ADR `research/gap-closure-design`). It rebuilds that request from `bko.gaps.detect.count_gaps` over
   `bko.datasets.cells.cell_counts` rather than importing `bko.evaluate`, and a test holds it equal
   to `bko.evaluate.experiment.gap_request(..., E1, seed=0).quota`. It writes each call's
   candidates to stdout as the call returns, through `generate`'s `on_batch`, so a failed or
@@ -231,7 +234,8 @@ cut mid-value and the stop already says the call failed.
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
   `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
   `tests/test_generate_log.py`, `tests/test_generate_calls.py`, `tests/test_generate_cli.py`,
-  and `tests/test_generate_pinned_releases.py` with `--releases`
+  `tests/test_generate_candidates.py`, and `tests/test_generate_pinned_releases.py` with
+  `--releases`
 
 ## Reversal Conditions
 

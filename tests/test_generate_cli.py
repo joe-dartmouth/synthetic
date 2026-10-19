@@ -27,35 +27,15 @@ from bko.generate.messages import Call, Level, Reply, Send
 from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
-from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS
-from tests._generate_fixtures import ScriptedSend, reply
+from tests._fusion_fixtures import UCI_FULL, UCI_X, young
+from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
+from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-SIZES = {
-    (40, 0, 0): 10,
-    (40, 0, 1): 0,
-    (40, 1, 0): 25,
-    (40, 1, 1): 25,
-    (63, 0, 0): 25,
-    (63, 0, 1): 25,
-    (63, 1, 0): 25,
-    (63, 1, 1): 25,
-}
-"""Records per (age, sex, num). One in five of each cell is held out, so the training split holds
-twenty in every cell but two: eight young women without the condition, and no young woman with
-it."""
-
-UCI = archive(
-    "\n".join(
-        cleveland_line(age=age, sex=sex, num=num, cp="4.0")
-        for (age, sex, num), size in SIZES.items()
-        for _ in range(size)
-    )
-    + "\n"
-)
+UCI = uci({}, "4.0")
 
 REQUEST = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
 """The count-based request: each flagged cell asked for its shortfall below twenty."""
@@ -66,14 +46,8 @@ RECORD = {"age": 41, "sex": 0}
 NOW = datetime(2026, 1, 1, tzinfo=UTC)
 
 
-def releases() -> tuple[dict, dict[str, bytes]]:
-    bodies = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
-    pins = {"HP": pin(bodies["HP"], name="hpo"), "MONDO": pin(bodies["MONDO"], name="mondo")}
-    return pins, {pins[prefix].url: body for prefix, body in bodies.items()}
-
-
 def make_context(send: Send, **change) -> Context:
-    pins, served = releases()
+    pins, served = ladder_releases()
     uci = pin(UCI)
     context = Context(
         open_url=RoutingOpener({**served, uci.url: UCI}),
@@ -84,6 +58,12 @@ def make_context(send: Send, **change) -> Context:
         now=lambda: NOW,
     )
     return dataclasses.replace(context, **change)
+
+
+def completeness_context(send: Send) -> Context:
+    _, served = ladder_releases()
+    uci = pin(UCI_X)
+    return make_context(send, open_url=RoutingOpener({**served, uci.url: UCI_X}), uci=uci)
 
 
 def two_replies() -> ScriptedSend:
@@ -136,6 +116,61 @@ def test_the_request_equals_e1s_gap_request(tmp_path):
     assert dict(expected) == REQUEST
 
 
+def test_the_completeness_request_asks_twenty_of_each_per_subgroup_gap_cell(tmp_path):
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    code, out, log = run(tmp_path, completeness_context(send), "--request", "completeness")
+    assert code == 0
+    assert asked_per_cell(log) == {"<55/female/0": 20, "<55/female/1": 20}
+    assert [(call.sex, call.label) for call in send.calls] == [(0, 0), (0, 1)]
+    assert len(out.splitlines()) == 40
+    send.assert_consumed()
+
+
+def test_the_default_request_is_e1s_not_completeness(tmp_path):
+    send = two_replies()
+    code, _, log = run(tmp_path, completeness_context(send))
+    assert code == 0
+    assert asked_per_cell(log) == {"<55/female/0": 12, "<55/female/1": 20}
+
+
+def test_the_request_is_logged_with_each_cells_rows(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    code, _, _ = run(tmp_path, completeness_context(send), "--request", "completeness")
+    assert code == 0
+    messages = [record.getMessage() for record in caplog.records]
+    assert "request name=completeness cells=2 rows=40" in messages
+    assert "quota key=<55/female/0 rows=20" in messages
+    assert "quota key=<55/female/1 rows=20" in messages
+
+
+@pytest.mark.parametrize("definition", ["population-level", "frequency-aware"])
+def test_the_completeness_request_refuses_another_guidance_definition(tmp_path, definition):
+    send = ScriptedSend()
+    log = tmp_path / "run.jsonl"
+    argv = [definition, "--request", "completeness", "--log", str(log)]
+    with pytest.raises(SystemExit) as raised:
+        main(argv, context=completeness_context(send), out=io.StringIO())
+    assert raised.value.code == 2
+    assert not log.exists()
+    assert send.calls == []
+
+
+def test_a_completeness_request_with_nothing_to_ask_exits_two_before_any_call(tmp_path, caplog):
+    _, served = ladder_releases()
+    uci = pin(UCI_FULL)
+    send = ScriptedSend()
+    context = make_context(send, open_url=RoutingOpener({**served, uci.url: UCI_FULL}), uci=uci)
+    code, out, log = run(tmp_path, context, "--request", "completeness")
+    assert (code, out) == (2, "")
+    assert any(
+        record.levelno == logging.ERROR and "holds no per-subgroup gap" in record.getMessage()
+        for record in caplog.records
+    )
+    assert not log.exists()
+    assert send.calls == []
+
+
 @pytest.mark.parametrize(
     ("extra", "level"), [((), Level.ONTOLOGY), (("--guidance", "cell"), Level.CELL)]
 )
@@ -169,7 +204,7 @@ frequency-aware gap of the young women without the condition."""
     ],
 )
 def test_the_definition_chooses_the_gaps_the_prompt_states(tmp_path, definition, basis):
-    _, served = releases()
+    _, served = ladder_releases()
     uci = pin(OLDER_MEN_ANGINA)
     send = two_replies()
     context = make_context(
@@ -219,7 +254,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
 
 def test_a_dataset_contract_error_exits_3(tmp_path):
     tampered = bytes([UCI[0] ^ 1]) + UCI[1:]
-    _, served = releases()
+    _, served = ladder_releases()
     uci = pin(UCI)
     send = ScriptedSend()
     context = make_context(send, open_url=RoutingOpener({**served, uci.url: tampered}), uci=uci)
@@ -311,4 +346,5 @@ def test_the_module_runs_as_a_program():
     )
     assert result.returncode == 0, result.stderr
     assert "--guidance" in result.stdout
+    assert "--request" in result.stdout
     assert "--log" in result.stdout

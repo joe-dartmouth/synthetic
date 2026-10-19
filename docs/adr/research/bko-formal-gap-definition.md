@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-17
+updated: 2026-10-19
 ---
 # A dataset gap is an ungrounded BKO statement
 
@@ -62,7 +62,8 @@ All three read the same cells and are compared in the same places:
 - **Completeness**: its own request, not E1's. Each UCI cell holding a per-subgroup gap in the
   default training split is asked for 20 rows, the threshold of `docs/RESEARCH.md` section 2. The
   generated records that pass validation join their cell's records, and a gap closes when that
-  cell's fragment then grounds it.
+  cell's fragment then grounds it. ADR `research/gap-closure-design` holds which records join and
+  how each definition's closure is read.
 
 ## Rationale
 
@@ -137,3 +138,4 @@ ran. The count-based definition then becomes primary and this record is rewritte
 - [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)
 - [A frequency-aware gap: a concept credibly under four-fifths of its share in the rest of its label group](frequency-aware-gap-score.md)
 - [E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals](e1-evaluation-protocol.md)
+- [Validated records join the training records of their asked cell, and closure is read per gap definition](gap-closure-design.md)

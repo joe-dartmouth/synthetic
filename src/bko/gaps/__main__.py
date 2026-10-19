@@ -40,9 +40,10 @@ from bko.datasets.synthea import load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition, gaps, under_represented
-from bko.gaps.detect import Statement, count_gaps
+from bko.gaps.detect import count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation
-from bko.gaps.observe import Cell, Cells, Observed, cell_key, observe_population, record_cells
+from bko.gaps.observe import Cells, Observed, cell_key, observe_population, record_cells
+from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
 from bko.gaps.scope import load_scope
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
@@ -51,16 +52,6 @@ from bko.ontology.terms import Ontology
 
 logger = logging.getLogger("bko.gaps")
 
-type Row = tuple[str, ...]
-type Label = Callable[[str], str]
-
-STATEMENT_COLUMNS: Final[Row] = (
-    "source",
-    "antecedent",
-    "antecedent_label",
-    "consequent",
-    "consequent_label",
-)
 UCI_COLUMNS: Final[Row] = ("detector", *STATEMENT_COLUMNS, *CELL_COLUMNS, "count")
 CLOSED_DETECTORS: Final = frozenset({Definition.SUBGROUP.value, "count"})
 """The detectors that, under a removal of whole patients, put no gap new outside the truth and
@@ -197,7 +188,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
     cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
     _log_observed(cells.whole)
     _log_cells(cells, f"dataset={cells.whole.name}")
-    label = _labeller(ontologies)
+    label = labeller(ontologies)
     rows: list[Row] = [UCI_COLUMNS]
     for definition in Definition:
         found = gaps(definition, fragments, cells)
@@ -209,7 +200,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
             len({gap.cell for gap in found}),
         )
         rows.extend(
-            (definition.value, *_statement_cells(gap.statement, label), *_cell_cells(gap.cell), "")
+            (definition.value, *statement_cells(gap.statement, label), *cell_cells(gap.cell), "")
             for gap in found
         )
     counted = count_gaps(cell_counts(parts.train))
@@ -239,7 +230,7 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     concepts = {row.concept for row in context.code_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
     _log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
-    label = _labeller(ontologies)
+    label = labeller(ontologies)
     rows: list[Row] = [SYNTHEA_COLUMNS]
     for name, spec in context.ablations.items():
         run = run_ablation(name, population, spec, fragments, context.code_rows)
@@ -297,8 +288,8 @@ def _ablation_rows(run: AblationRun, label: Label) -> Iterator[Row]:
             yield (
                 run.name,
                 definition.value,
-                *_statement_cells(gap.statement, label),
-                *_cell_cells(gap.cell),
+                *statement_cells(gap.statement, label),
+                *cell_cells(gap.cell),
                 *flags,
             )
     flagged_before = {gap.cell for gap in run.count_before}
@@ -360,28 +351,6 @@ def _log_cells(cells: Cells, where: str) -> None:
             flag.reference_records,
             flag.mass,
         )
-
-
-def _cell_cells(cell: Cell) -> Row:
-    """A cell's `CELL_COLUMNS` values, `target` blank where cells carry no label."""
-    return tuple(str(part) for part in cell) + ("",) * (len(CELL_COLUMNS) - len(cell))
-
-
-def _labeller(ontologies: Mapping[str, Ontology]) -> Label:
-    def label(curie: str) -> str:
-        return ontologies[curie.partition(":")[0]].terms[curie].name or ""
-
-    return label
-
-
-def _statement_cells(statement: Statement, label: Label) -> Row:
-    return (
-        statement.source,
-        statement.antecedent,
-        label(statement.antecedent),
-        statement.consequent,
-        label(statement.consequent),
-    )
 
 
 if __name__ == "__main__":
