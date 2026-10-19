@@ -3,10 +3,13 @@
 `Baseline.added` has the evaluation frame's columns and dtypes (`bko.datasets.uci`), so the harness
 treats a method's rows like any generator's. Added rows are numbered -1, -2, ... so no `record_id`
 of the archive can collide with one.
+
+`drops` exposes the per-row rules, so a runner that drops rows uses the rules `check` refuses by.
 """
 
 from __future__ import annotations
 
+import enum
 import hashlib
 from collections import Counter
 from collections.abc import Mapping
@@ -17,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from bko.baselines.errors import OutputContractError
-from bko.baselines.request import Request, stratum_keys
+from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.cells import LABEL, LABEL_CODES
 from bko.datasets.uci import (
     CATEGORICAL,
@@ -32,6 +35,17 @@ from bko.datasets.uci import (
 
 INDEX_NAME: Final = "record_id"
 """The index name of the evaluation frame and of every added frame."""
+
+
+class Drop(enum.StrEnum):
+    """Why `check` would refuse an added row, in the order `drops` tests each reason."""
+
+    RANGE = "range"
+    """A measured value lies outside the training split's minimum and maximum."""
+    CELL = "cell"
+    """The row's own cell is not one the request asks for."""
+    QUOTA = "quota"
+    """Its cell already holds every row the request asks of it."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -112,6 +126,43 @@ def keep(rows: int, of: int, *, seed: int, label: object) -> list[int]:
     return sorted(sorted(range(of), key=rank)[:rows])
 
 
+def within_split(rows: pd.DataFrame, train: pd.DataFrame) -> pd.DataFrame:
+    """Whether each row's value of each `NUMERIC` column lies in the training split's range."""
+    return pd.DataFrame(
+        {name: rows[name].between(train[name].min(), train[name].max()) for name in NUMERIC},
+        index=rows.index,
+    )
+
+
+def drops(
+    rows: pd.DataFrame,
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    held: Mapping[Stratum, int] | None = None,
+) -> tuple[Drop | None, ...]:
+    """The first reason `check` would refuse each row for, or None for a row it would keep.
+
+    Rows are read in order, and a row's cell is the one its own values name. A row past its
+    cell's quota counts the rows kept before it, `held` included. A row dropped for an earlier
+    reason uses none of the quota.
+    """
+    inside = within_split(rows, train).all(axis="columns").tolist()
+    taken = Counter(held or {})
+    reasons: list[Drop | None] = []
+    for fits, key in zip(inside, stratum_keys(rows, request.strata), strict=True):
+        if not fits:
+            reasons.append(Drop.RANGE)
+        elif key not in request.quota:
+            reasons.append(Drop.CELL)
+        elif taken[key] >= request.quota[key]:
+            reasons.append(Drop.QUOTA)
+        else:
+            taken[key] += 1
+            reasons.append(None)
+    return tuple(reasons)
+
+
 def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:
     """Refuse an output that breaks a promise `Baseline` documents.
 
@@ -133,9 +184,10 @@ def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:
         _require(not outside, f"{name} holds {outside}, outside its codebook")
     labels = sorted(set(added[LABEL]))
     _require(set(labels) <= LABEL_CODES, f"{LABEL} holds {labels}")
+    inside = within_split(added, train)
     for name in NUMERIC:
         low, high = train[name].min(), train[name].max()
-        _require(bool(added[name].between(low, high).all()), f"{name} leaves [{low}, {high}]")
+        _require(bool(inside[name].all()), f"{name} leaves [{low}, {high}]")
     for name in FRACTIONAL:
         scaled = added[name].to_numpy() * 10**FRACTION_DIGITS
         _require(bool(np.allclose(scaled, np.rint(scaled))), f"{name} has extra decimals")
