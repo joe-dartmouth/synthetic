@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from collections.abc import Iterator
+
 import pytest
 
 from bko.generate import decode as decode_module
@@ -72,6 +75,18 @@ def test_a_fenced_response_is_not_decoded():
     assert decode(_reply(text), 2) == (Undecoded(Reason.NOT_JSON),) * 2
 
 
+@pytest.fixture
+def default_int_digit_limit() -> Iterator[None]:
+    """Python's default 4300-digit limit, whatever `PYTHONINTMAXSTRDIGITS` or `-X` set."""
+    previous = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    try:
+        yield
+    finally:
+        sys.set_int_max_str_digits(previous)
+
+
+@pytest.mark.usefixtures("default_int_digit_limit")
 def test_a_five_thousand_digit_integer_gives_placeholders():
     text = '{"records": [{"age": ' + "9" * 5000 + "}]}"
     assert decode(_reply(text), 2) == (Undecoded(Reason.NOT_JSON),) * 2

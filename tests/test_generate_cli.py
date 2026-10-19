@@ -122,6 +122,7 @@ def test_the_command_asks_each_flagged_cell_for_its_shortfall_and_prints_one_lin
     assert asked_per_cell(log) == {"<55/female/0": 12, "<55/female/1": 20}
     assert [(call.sex, call.label) for call in send.calls] == [(0, 0), (0, 1)]
     assert len(out.splitlines()) == sum(REQUEST.values())
+    send.assert_consumed()
 
 
 def test_the_request_equals_e1s_gap_request(tmp_path):
@@ -180,6 +181,7 @@ def test_the_definition_chooses_the_gaps_the_prompt_states(tmp_path, definition,
     first = send.calls[0]
     assert (first.sex, first.label) == (0, 0)
     assert [key for key, sentence in BASES.items() if sentence in first.user] == basis
+    send.assert_consumed()
 
 
 def test_an_existing_log_path_exits_2_before_any_download_or_call(tmp_path, caplog):
@@ -202,6 +204,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
     code, out, log = run(tmp_path, make_context(send))
     assert code == 2
     assert [json.loads(line)["call"] for line in out.splitlines()] == [1] * 12
+    send.assert_consumed()
     digest = hashlib.sha256(out.encode()).hexdigest()
     assert f"candidates rows=12 sha256={digest}" in [r.getMessage() for r in caplog.records]
     [summary] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("run ")]

@@ -160,6 +160,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
     lines = _lines(path)
     kinds = [line["kind"] for line in lines]
     assert kinds == ["run", "request", "reply", "request", "error", "end"]
+    send.assert_consumed()
     end = lines[-1]
     del end["ended"]
     assert end == {
@@ -176,15 +177,13 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
     }
 
 
-def test_a_second_log_on_the_same_path_is_refused_before_any_call(tmp_path):
+def test_a_second_log_on_the_same_path_is_refused_and_leaves_the_first_intact(tmp_path):
     path = tmp_path / "calls.jsonl"
     with CallLog(path, SETTINGS, now=_now):
         pass
     before = path.read_bytes()
-    send = ScriptedSend()
-    with pytest.raises(FileExistsError), CallLog(path, SETTINGS, now=_now) as log:
-        ask(GUIDANCE, 2, send=send, log=log)
-    assert send.calls == []
+    with pytest.raises(FileExistsError):
+        CallLog(path, SETTINGS, now=_now)
     assert path.read_bytes() == before
 
 

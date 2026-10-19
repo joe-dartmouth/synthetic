@@ -37,6 +37,13 @@ def _importers(*modules: str, skip: frozenset[str] = frozenset()) -> set[Path]:
     }
 
 
+def test_discovery_finds_the_package_imports():
+    """The control: each test below asserts a set empty, which a broken walk would also give."""
+    assert len(list(PACKAGE.rglob("*.py"))) > 1
+    assert Path("src/bko/generate/__main__.py") in _importers("bko.gaps")
+    assert _importers("bko.gaps.scope") == {Path("src/bko/generate/__main__.py")}
+
+
 def test_only_api_imports_anthropic():
     assert _importers("anthropic") == {Path("src/bko/generate/api.py")}
 

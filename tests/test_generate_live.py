@@ -1,6 +1,7 @@
 """One real call: the API accepts the request and answers in the schema's shape.
 
-Paid, so it runs only under `--live`. It checks structure only, never values.
+Paid, so it runs only under `--live`. It checks structure only (keys, types and codes), never
+plausibility.
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ import logging
 import anthropic
 import pytest
 
-from bko.datasets.uci import FRAME_COLUMNS
+from bko.datasets.uci import CODEBOOK, FRACTIONAL, FRAME_COLUMNS
 from bko.generate.api import send_with
 from bko.generate.messages import SETTINGS, Call, Level
 from bko.generate.prompt import render
@@ -45,6 +46,12 @@ def test_one_real_call_returns_schema_shaped_records(tmp_path):
         assert set(record) == set(FRAME_COLUMNS)
         assert record["sex"] == 0
         assert record["target"] == 1
+        for name in FRAME_COLUMNS:
+            value = record[name]
+            assert not isinstance(value, bool), name
+            assert isinstance(value, (int, float) if name in FRACTIONAL else int), name
+        for name, codes in CODEBOOK.items():
+            assert record[name] in codes, name
     assert reply.request_id is not None
     assert reply.request_id.startswith("req_")
     assert reply.usage.output_tokens <= SETTINGS.max_tokens

@@ -67,6 +67,7 @@ def test_generate_makes_ceil_rows_over_per_call_calls_per_cell_in_quota_order(tm
     assert len(generation.candidates(CELL)) == 45
     assert len(generation.candidates(OTHER)) == 3
     assert generation.usd == pytest.approx(4 * 0.014)
+    send.assert_consumed()
 
 
 @pytest.mark.parametrize(
@@ -98,6 +99,7 @@ def test_a_failure_mid_run_raises_after_logging_and_keeps_earlier_lines(tmp_path
     assert kinds == ["run", "request", "reply", "request", "error", "end"]
     assert lines[2]["decoded"] == 20
     assert lines[-1]["status"] == "failed"
+    send.assert_consumed()
 
 
 def test_a_served_model_other_than_the_settings_model_warns(tmp_path, caplog):
@@ -216,6 +218,7 @@ def test_generate_hands_each_batch_on_before_the_next_call(tmp_path):
             {CELL: 25}, GUIDED, send=counting, log=log, on_batch=lambda b: handed.append(b.index)
         )
     assert handed == [batch.index for batch in generation.batches] == [1, 2]
+    send.assert_consumed()
 
 
 def test_an_empty_generation_spends_a_float_zero():

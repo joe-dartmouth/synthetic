@@ -154,3 +154,7 @@ class ScriptedSend:
         if isinstance(step, GenerationError):
             raise step
         return step
+
+    def assert_consumed(self) -> None:
+        """Fail unless every scripted step was played."""
+        assert not self._script, f"ScriptedSend has {len(self._script)} unplayed steps"
