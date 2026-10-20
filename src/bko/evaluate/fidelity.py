@@ -21,6 +21,9 @@ from bko.evaluate.scores import Measure
 TABLE: Final = "uci"
 """The table `METADATA` describes."""
 
+MEASURES: Final = (Measure.QUALITY, Measure.COLUMN_SHAPES, Measure.COLUMN_PAIR_TRENDS)
+"""The measures `fidelity` returns, in its order."""
+
 
 def metadata() -> dict[str, object]:
     """`METADATA` as the plain, private dict SDMetrics requires."""

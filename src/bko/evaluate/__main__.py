@@ -48,6 +48,7 @@ from bko.evaluate.classifier import Factory, build
 from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
+from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Score, parse, render
@@ -255,7 +256,7 @@ def _guided(
 
 
 def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
-    """Write the criteria's table to `out`, then log validity, copies and means.
+    """Write the criteria's table to `out`, then log validity, copies, means and replica means.
 
     The table goes out first, so scores whose validity cannot be read keep it.
     """
@@ -281,6 +282,7 @@ def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
     _log_validity(scores, context.experiment, candidate)
     _log_copies(scores)
     _log_means(scores)
+    _log_means(scores, source=ScoreSource.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
@@ -317,25 +319,31 @@ def _log_copies(scores: Sequence[Score]) -> None:
         logger.info("copies arm=%s added=%.0f replica=%.0f", arm, added, replica)
 
 
-def _log_means(scores: Sequence[Score]) -> None:
-    """Log each arm's mean of every judged measure in every scope over the holdouts; no verdict.
+def _log_means(
+    scores: Sequence[Score],
+    *,
+    source: ScoreSource = ScoreSource.AUGMENTED,
+    measures: Sequence[Measure] = JUDGED,
+    tag: str = "mean",
+) -> None:
+    """Log each arm's mean of `measures` over the holdouts, from `source`'s rows, in every scope.
 
-    A measure and scope with no value for an arm gets no line.
+    No verdict reads them. A measure and scope with no value for an arm gets no line.
     """
-    for arm in dict.fromkeys(s.arm for s in scores if s.source is ScoreSource.AUGMENTED):
-        for measure in JUDGED:
+    for arm in dict.fromkeys(s.arm for s in scores if s.source is source):
+        for measure in measures:
             for scope in Scope:
                 values = [
                     s.value
                     for s in scores
-                    if (s.arm, s.source, s.measure, s.scope)
-                    == (arm, ScoreSource.AUGMENTED, measure, scope)
+                    if (s.arm, s.source, s.measure, s.scope) == (arm, source, measure, scope)
                 ]
                 if not values:
                     continue
                 mean = sum(values) / len(values)
                 logger.info(
-                    "mean arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
+                    "%s arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
+                    tag,
                     arm,
                     measure,
                     scope,

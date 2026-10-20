@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from bko.evaluate.fidelity import fidelity, quality_report
+from bko.evaluate.fidelity import MEASURES, fidelity, quality_report
 from bko.evaluate.scores import Measure
 from tests._baselines_fixtures import full_records
 
@@ -19,6 +19,7 @@ def test_identical_rows_score_one_and_print_nothing(capsys):
     assert scores == pytest.approx(
         {Measure.QUALITY: 1.0, Measure.COLUMN_SHAPES: 1.0, Measure.COLUMN_PAIR_TRENDS: 1.0}
     )
+    assert tuple(scores) == MEASURES
     assert capsys.readouterr().out == ""
 
 
