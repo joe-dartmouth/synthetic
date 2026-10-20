@@ -29,8 +29,9 @@ HTTP_LOGGERS: Final = ("httpx2",)
 
 MAX_RETRIES: Final = 120
 """HTTP retries per call. Without a server's `retry-after`, the SDK waits 0.5 s, doubling to 8 s,
-each wait 0.75 to 1 times that: about 12 to 16 minutes over all retries. A run cannot resume, so
-one call's patience is the run's."""
+each wait 0.75 to 1 times that: about 12 to 16 minutes of waits over all retries. Each attempt can
+also spend up to `TIMEOUT`, so a call whose attempts all stall holds the run for hours. A run
+cannot resume, so one call's patience is the run's."""
 
 TIMEOUT: Final = anthropic.Timeout(600.0, connect=30.0)
 """Each HTTP attempt's limits: the SDK's 600 s to read, and 30 s rather than its 5 s to connect.

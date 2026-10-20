@@ -1,14 +1,14 @@
 """The BKO arms: each reads a holdout's gaps under its definition and generates the request's rows.
 
-A `GuidedArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and the gap
-request, it observes the rows' cells, finds their gaps under its definition and guides each
-requested cell by them. It then asks the Messages API for each cell's shortfall, round by round in
-quota order. Every reply's candidates are validated (`bko.validate`). Each accepted one that
-`check` would refuse is dropped by `bko.baselines.records.drops`, and the rest count toward the
-cell their own values name. An attempt asks for at most `budget` times the request's rows, and
-refuses with a plain `BaselineError` as soon as the rest of its budget cannot cover the rows still
-short. The arm keeps its validity counts itself, since a refused attempt returns no `Baseline`. ADR
-`research/e1-evaluation-protocol` records the rule.
+A `GuidedArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
+the gap request or the replica request alike, it observes the rows' cells, finds their gaps under
+its definition and guides each requested cell by them. It then asks the Messages API for each cell's
+shortfall, round by round in quota order. Every reply's candidates are validated (`bko.validate`).
+Each accepted one that `check` would refuse is dropped by `bko.baselines.records.drops`, and the
+rest count toward the cell their own values name. An attempt asks for at most `budget` times the
+request's rows, and refuses with a plain `BaselineError` as soon as the rest of its budget cannot
+cover the rows still short. The arm keeps its validity counts itself, since a refused attempt
+returns no `Baseline`. ADR `research/e1-evaluation-protocol` records the rule.
 """
 
 from __future__ import annotations
@@ -89,7 +89,7 @@ class Tally:
         self.dropped.update(other.dropped)
 
     def measures(self) -> dict[Measure, float]:
-        """The counts as `Source.CANDIDATES` measures, every drop reason included."""
+        """The counts as candidate measures, every drop reason included."""
         return {
             Measure.GENERATED: float(self.generated),
             Measure.PASSED: float(self.passed),

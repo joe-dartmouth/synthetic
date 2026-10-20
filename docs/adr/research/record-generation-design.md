@@ -123,7 +123,7 @@ ladder.**
   cell's guidance, not `bko.baselines.request.Request`, so generation imports no downstream stage.
   It refuses a quota entry that is not an `int` of at least 1, or names a cell with no guidance,
   before any call. It asks each cell's rows in chunks of `per_call`, cells in quota order, so a
-  run makes `sum(ceil(rows / per_call))` calls; it never retries or tops up.
+  run makes `sum(ceil(rows / per_call))` calls; it never re-asks a cell or tops up.
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
@@ -187,8 +187,8 @@ or a short array lowers validity rather than vanishing. `None` cannot be the pla
 reply can decode to `null`. A truncated output is not salvaged, because its last records may be
 cut mid-value and the stop already says the call failed.
 
-Haiku 5.5 is the generator because E1's replica configuration asks for many more records a run than
-its first run did, and Opus 5.5's input and output rates are 40 times Haiku 5.5's; E1's
+Haiku 5.5 is the generator because E1's replica configuration asks for 77400 records a run, of which
+the gap request asks 6000, and Opus 5.5's input and output rates are 40 times Haiku 5.5's; E1's
 Configuration in `docs/EVIDENCE.md` records the run's estimate. A run cannot resume, so the client
 retries for minutes, where the SDK's default of 2 retries backs off for about 1.5 s. A client
 timeout other than the SDK's default skips the SDK's refusal of a non-streaming call above 21,333
