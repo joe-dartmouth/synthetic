@@ -51,9 +51,10 @@ holds every request's parameters and every reply's whole response.
 
 ## Rationale
 
-A BKO arm sends the same request on every holdout and on each retry. At level `ontology`, `bko`'s
-two prompts are identical across every E1 holdout (measured 2026-10-19). One request is therefore
-logged many times with different replies, and only the call order tells them apart.
+A BKO arm sends the same gap request on every holdout and on each retry. At level `ontology`,
+`bko`'s two gap-request prompts are identical across every E1 holdout (measured 2026-10-19). One
+request is therefore logged many times with different replies, and only the call order tells them
+apart.
 
 Everything after a call is deterministic: decoding, validation, drops, top-ups, numbering and the
 classifier. Answering the same calls in the same order therefore rewrites the scores byte for byte.

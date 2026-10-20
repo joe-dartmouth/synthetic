@@ -36,6 +36,20 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## evaluate
+
+- **`cleanup:evaluate/replica-arms-accept-controls`: a control named in `replica_arms` crashes
+  `score`.** `Experiment.__post_init__` checks only that a replica arm is an arm
+  (`src/bko/evaluate/experiment.py:81-84`), and `_method_arm` hands a control an empty `Request()`
+  (`src/bko/evaluate/run.py:52`), so a control in `replica_arms` fits a classifier on no rows and
+  `score` exits 1 with a traceback. Fitting on a control's replica rows, as `score` would, prints
+  `ValueError: Found array with 0 sample(s) (shape=(0, 5)) while a minimum of 1 is required by
+  StandardScaler.` *Filed 2026-10-19 by `proposal-bko-replicas`.*
+  **Why deferred.** No configuration names a control there.
+  **What discharges it:** `__post_init__` refuses a replica arm that is a method whose `adds_rows`
+  is false, with a test.
+  **Trigger:** the next change to `Experiment`'s validation.
+
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
