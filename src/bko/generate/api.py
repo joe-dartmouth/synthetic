@@ -1,11 +1,11 @@
 """The Anthropic SDK adapter: the only module that imports `anthropic`.
 
-`send_with` makes one non-streaming Messages call with the SDK's default retries and reads the
-message into a `Reply`. A failure with no response becomes `GenerationError`, built from the
-error's type, status and request id only and raised `from None`, because an error body can echo
-the credential. A 400 (`BadRequestError`) also carries the body's `error.message`, with the
-client's API key and auth token replaced by `[redacted]`, so a rejected schema or parameter names
-its reason.
+`send_with` makes one non-streaming Messages call and reads the message into a `Reply`;
+`default_send` builds its client with `MAX_RETRIES` retries and `TIMEOUT`. A failure with no
+response becomes `GenerationError`, built from the error's type, status and request id only and
+raised `from None`, because an error body can echo the credential. A 400 (`BadRequestError`) also
+carries the body's `error.message`, with the client's API key and auth token replaced by
+`[redacted]`, so a rejected schema or parameter names its reason.
 
 `Attempts` is SDK middleware that counts the HTTP requests behind one call (the first, then each
 retry); `send_with` reads it into `Reply.attempts` and `GenerationError.attempts`, and
@@ -26,6 +26,16 @@ from bko.generate.messages import Call, Reply, Send, Usage, record_schema, text_
 
 HTTP_LOGGERS: Final = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
+
+MAX_RETRIES: Final = 120
+"""HTTP retries per call. Without a server's `retry-after`, the SDK waits 0.5 s, doubling to 8 s,
+each wait 0.75 to 1 times that: about 12 to 16 minutes over all retries. A run cannot resume, so
+one call's patience is the run's."""
+
+TIMEOUT: Final = anthropic.Timeout(600.0, connect=30.0)
+"""Each HTTP attempt's limits: the SDK's 600 s to read, and 30 s rather than its 5 s to connect.
+Any timeout other than the SDK's default skips its refusal of a non-streaming call above 21,333
+`max_tokens`; `SETTINGS.max_tokens` is 16000."""
 
 
 class Attempts(anthropic.Middleware):
@@ -145,7 +155,9 @@ def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) 
 def default_send() -> Send:
     """Return a `Send` through a client built with the SDK's own credential resolution.
 
-    The client counts each call's HTTP attempts through `Attempts`.
+    The client retries `MAX_RETRIES` times within `TIMEOUT` and counts each call's HTTP attempts
+    through `Attempts`.
     """
     probe = Attempts()
-    return send_with(anthropic.Anthropic(middleware=[probe]), attempts=probe)
+    client = anthropic.Anthropic(middleware=[probe], max_retries=MAX_RETRIES, timeout=TIMEOUT)
+    return send_with(client, attempts=probe)
