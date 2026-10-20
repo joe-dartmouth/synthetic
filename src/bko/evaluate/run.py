@@ -5,7 +5,8 @@ the request, never the test rows, so no generator sees a test record. A runner r
 `Baseline`; `augment` checks every method's.
 
 Each holdout fills every arm, then scores each on the test split without the records any arm's
-rows copy.
+rows copy. A BKO arm is drained after the gap fills and again after the replica fills, so each
+fill's candidates enter the scores under their own source.
 """
 
 from __future__ import annotations
@@ -56,8 +57,9 @@ ARMS: Final[Mapping[str, Runner]] = MappingProxyType(method_arms())
 """Every comparison method of `bko.baselines`, by name."""
 
 type Drain = Callable[[], Mapping[Measure, float]]
-"""A BKO arm's counts since the last call. The harness writes them per holdout as
-`Source.CANDIDATES` scores."""
+"""A BKO arm's counts since the last call. The harness drains each arm after the gap fills and,
+for a replica arm, after the replica fills, and writes them per holdout as `Source.CANDIDATES` and
+`Source.REPLICA_CANDIDATES` scores."""
 
 
 def held_out_ratio(parts: Split) -> float:
@@ -125,6 +127,7 @@ def score_holdout(
         name: _fill(arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name)
         for name in experiment.arms
     }
+    gap_counts = {name: drains[name]() for name in experiment.arms if name in drains}
     replicas = {
         name: _fill(
             arms[name],
@@ -136,6 +139,7 @@ def score_holdout(
         ).added
         for name in experiment.replica_arms
     }
+    replica_counts = {name: drains[name]() for name in replicas if name in drains}
     clean = decontaminated(test, [*(fill.added for fill in fills.values()), *replicas.values()])
     logger.info("test holdout=%d records=%d copied=%d", seed, len(test), len(test) - len(clean))
     held_out = {Measure.HELD_OUT_RATIO: held_out_ratio(parts), **distances(test, train)}
@@ -145,8 +149,10 @@ def score_holdout(
         if name in replicas:
             replica = replicas[name]
             scores += _replica_scores(seed, name, replica, parts, clean, cells, factory=factory)
-        if name in drains:
-            scores += _rows(seed, name, Source.CANDIDATES, drains[name]())
+        if name in gap_counts:
+            scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
+        if name in replica_counts:
+            scores += _rows(seed, name, Source.REPLICA_CANDIDATES, replica_counts[name])
     return scores
 
 

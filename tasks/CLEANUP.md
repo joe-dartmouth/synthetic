@@ -36,6 +36,20 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## evaluate
+
+- **`cleanup:evaluate/replica-arms-accept-controls`: a control named in `replica_arms` crashes
+  `score`.** `Experiment.__post_init__` checks only that a replica arm is an arm
+  (`src/bko/evaluate/experiment.py:81-84`), and `_method_arm` hands a control an empty `Request()`
+  (`src/bko/evaluate/run.py:53`), so a control in `replica_arms` fits a classifier on no rows and
+  `score` exits 1 with a traceback. Fitting on a control's replica rows, as `score` would, prints
+  `ValueError: Found array with 0 sample(s) (shape=(0, 5)) while a minimum of 1 is required by
+  StandardScaler.` *Filed 2026-10-19 by `proposal-bko-replicas`.*
+  **Why deferred.** No configuration names a control there.
+  **What discharges it:** `__post_init__` refuses a replica arm that is a method whose `adds_rows`
+  is false, with a test.
+  **Trigger:** the next change to `Experiment`'s validation.
+
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
@@ -55,6 +69,17 @@ links to where its blocker is tracked.
   **Trigger:** a change that sets `SETTINGS.per_call` below `UNDERREPRESENTED_BELOW`.
 
 ## generate
+
+- **`cleanup:generate/usd-log-precision`: stderr rounds a call's spend to four decimals, a seventh
+  of a typical call at Haiku 5.5's prices.** `bko.generate.calls` and `bko.generate.log` write
+  `usd=%.4f` (`src/bko/generate/calls.py:141`, `src/bko/generate/log.py:166`). A call of 1000
+  input and 500 output tokens costs 0.00035 USD and prints `usd=0.0003`. The call log's `usd`
+  fields keep full precision, so no recorded figure is lost. Raised in PR #24's review. *Filed
+  2026-10-19 by `proposal-bko-replicas`.*
+  **Why deferred.** Only the stderr lines round, and every Runs row reads spend from the call log.
+  **What discharges it:** both lines print `usd` with enough decimals to show a single Haiku 5.5
+  call, with their test pins updated.
+  **Trigger:** the next change to either line's format.
 
 - **`cleanup:generate/candidates-carry-no-run-identity`: a candidates file does not name the split,
   releases or guidance level it was generated against.** `python -m bko.fusion` re-derives the

@@ -168,10 +168,9 @@ records how.
 ## 5. Evaluation contract
 
 The brief (B5) sorts synthetic-data metrics into three buckets. The plan's criteria draw on two of
-them; fidelity is reported, with no pass threshold, for every generator that fills a replica of
-the training split's cells. The BKO arms fill none in E1
-([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)), so their fidelity is not
-reported.
+them; fidelity is reported, with no pass threshold, for every generator that fills a replica of the
+training split's cells. In E1 every row-adding arm fills one
+([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)).
 
 | Bucket | Metrics the brief lists | Criterion it serves |
 |---|---|---|

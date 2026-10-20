@@ -67,18 +67,22 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
   reads the spend before every call.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
-  `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. A
-  refused attempt returns no `Baseline`, so the arm keeps its counts itself and writes them per
-  holdout as `candidates` scores (`generated`, `passed`, and one count per drop reason). `compare`
-  sums them over the holdouts. The criterion reads `bko`'s rate: it is met when the rate reaches
-  `E1`'s validity threshold, read as a point with no interval, and not met below it. A candidate
-  dropped after validation stays in the rate, having passed every check. The other BKO arms' rates
-  are reported beside it, with no verdict. Each arm logs its sums at the end of the run, including a
-  run that stops.
-- **The replica request.** The row-adding baselines also fill the training split's own cell
-  counts. Those rows alone train a classifier (train on synthetic, read against the
-  no-augmentation arm, which trains on real) and are compared with the training split for
-  fidelity.
+  `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. It
+  fills two requests on each holdout, the gap request and the replica request, and the rate reads
+  both. A refused attempt returns no `Baseline`, so the arm keeps its counts itself; the harness
+  drains them after the gap fills and again after the replica fills, and writes them per holdout as
+  `candidates` and `replica-candidates` scores (`generated`, `passed`, and one count per drop
+  reason). `compare` sums both over the holdouts for the rate, refuses a replica arm's scores
+  without its replica counts, and logs each fill's counts and rate apart, with no verdict on a fill.
+  The criterion reads `bko`'s rate: it is met when the rate reaches `E1`'s validity threshold, read
+  as a point with no interval, and not met below it. A candidate dropped after validation stays in
+  the rate, having passed every check. The other BKO arms' rates are reported beside it, with no
+  verdict. Each arm logs its sums at the end of the run, including a run that stops.
+- **The replica request.** Every row-adding arm, the four baselines and the three BKO arms, also
+  fills the training split's own cell counts; a BKO arm fills it as it fills the gap request. Those
+  rows alone train a classifier (train on synthetic, read against the no-augmentation arm, which
+  trains on real) and are compared with the training split for fidelity. `compare` logs each
+  replica arm's mean replica utility and fidelity, with no verdict.
 - **One classifier.** Logistic regression (lbfgs, L2, C = 1) on standardised measured predictors
   and coded predictors one-hot encoded over their codebook. The weights reach the regression only.
   A record is called positive at a probability of 0.5 or more. A fit that does not converge stops
@@ -166,16 +170,16 @@ no other frame from the archive adds records of women with heart disease (ADR
 cells hold one label, so every scorer gets 1.0.
 
 The gap request follows the threshold of `docs/RESEARCH.md` section 2 and is the same on every
-holdout; on holdout 0 it equals `python -m bko.baselines <method> --rows 20`. The gap rows hold
-one label in two cells, so they can neither train a classifier alone nor be compared with the
-training split; a replica of the training split's cells is the conventional train-on-synthetic set
-([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms fill no replica in the
-configuration now in code, because a replica asks for the whole training split's rows, 238 per
-holdout against the gap request's 20, about ten times the gap fills' spend. Joining the BKO arms to
-`E1.replica_arms` gives every row-adding arm the same readings and the BKO arms a fidelity and
-replica utility reading beside the baselines'. Its candidates then enter the validity rate, which
-is read over every candidate `bko.validate` sees, replica candidates included, with the gap and
-replica counts reported apart. The spend is paid once, under a ceiling set above its estimate.
+holdout; on holdout 0 it equals `python -m bko.baselines <method> --rows 20`. The gap rows hold one
+label in two cells, so they can neither train a classifier alone nor be compared with the training
+split; a replica of the training split's cells is the conventional train-on-synthetic set
+([`xu-2019`](../../literature.md#tabular-generators)). The BKO arms fill a replica too, so every
+row-adding arm gets the same readings and the BKO arms a fidelity and replica utility reading beside
+the baselines'. Their replica candidates enter the validity rate, which is read over every candidate
+`bko.validate` sees, with the gap and replica counts reported apart. The replica asks for most of a
+run's records, so the rate is mostly the replica fill's, and the gap fill's own rate shows in its
+counts. The replica's spend dominates the run's, so `E1.spend_ceiling` is set above an estimate
+recorded in E1's Configuration before the run.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
 scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
@@ -210,16 +214,17 @@ pairing and changes nothing on a holdout no arm copies. Counting alone would rep
 still judge on it. A call that gets no response is not a refusal of the request: retries come with
 no delay, so they add no patience against an outage, and they would read an infrastructure failure
 as the method's. Patience against an outage belongs to the SDK client that
-`bko.generate.api.default_send` builds, whose retries back off and change no logged request. Budget and attempts bound
-the records asked, not the calls, since each short cell's top-up is one call however few rows it
-asks, so a spend ceiling bounds the run. Judging the latest
-configuration lets a change to the method or the design be judged on runs made in it. Each run's
-readings are fixed before it starts, so each verdict is one look at its configuration; a
-configuration may be chosen with an earlier configuration's results in view, and every run stays in
-the register, so how many configurations were tried stays visible. Once a configuration has several
-runs, combining them would use every paid draw of its generated rows. The corrected interval's
-variance factor is 1/J + n2/n1, so more holdouts narrow it little once J is large; combining would
-mainly average out the generated rows' draw-to-draw noise.
+`bko.generate.api.default_send` builds, whose retries (`MAX_RETRIES`) back off over minutes and
+change no logged request: a run cannot resume (ADR `research/call-log-replay`), so the client
+carries it through a brief outage. Budget and attempts bound the records asked, not the calls, since
+each short cell's top-up is one call however few rows it asks, so a spend ceiling bounds the run.
+Judging the latest configuration lets a change to the method or the design be judged on runs made in
+it. Each run's readings are fixed before it starts, so each verdict is one look at its
+configuration; a configuration may be chosen with an earlier configuration's results in view, and
+every run stays in the register, so how many configurations were tried stays visible. Once a
+configuration has several runs, combining them would use every paid draw of its generated rows. The
+corrected interval's variance factor is 1/J + n2/n1, so more holdouts narrow it little once J is
+large; combining would mainly average out the generated rows' draw-to-draw noise.
 
 ## Consequences
 
@@ -233,16 +238,19 @@ a public SDMetrics export; baseline results on the real test split were in view 
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
 than the holdout seed; a BKO arm ignores the seed, and its retry repeats the same request; the test
 split each arm is scored on depends on every arm's rows; a call with no response or a spend at the
-ceiling forfeits the run's spend; each BKO pipeline runs once per holdout, so the three arms' paid
-generation grows with the holdout count; E1 judges no gap definition directly, only what its
-guidance adds; the ablation arms' measures are reported, never judged; a not-met verdict needs an
-interval below zero at the family-wise level, so more criteria read inconclusive; that reading was
-fixed with baseline dry runs in view and no BKO result, and it only ever moves not met to
-inconclusive, which favours the candidate; a met verdict certifies a reliable gain, not a minimum
-size, and the zero margin, also fixed with baseline dry runs in view and no BKO result, makes met
-easier to reach; a configuration may be chosen with an earlier configuration's results in view, so
-each verdict is one look at its configuration, and every run stays in the register so how many
-configurations were tried is visible.
+ceiling forfeits the run's spend; each BKO pipeline runs twice per holdout, for the gap request and
+the replica request, so the three arms' paid generation grows with the holdout count and the
+training split's size; the replica configuration's readings were fixed with `e1-1`'s BKO results in
+view, and its generator was chosen for cost; a scores file from before the BKO arms filled a replica
+holds no replica counts, so it is compared at the commit that wrote it; E1 judges no gap definition
+directly, only what its guidance adds; the ablation arms' measures are reported, never judged; a
+not-met verdict needs an interval below zero at the family-wise level, so more criteria read
+inconclusive; that reading was fixed with baseline dry runs in view and no BKO result, and it only
+ever moves not met to inconclusive, which favours the candidate; a met verdict certifies a reliable
+gain, not a minimum size, and the zero margin, also fixed with baseline dry runs in view and no BKO
+result, makes met easier to reach; a configuration may be chosen with an earlier configuration's
+results in view, so each verdict is one look at its configuration, and every run stays in the
+register so how many configurations were tried is visible.
 
 ## Ruled Out
 
@@ -281,6 +289,9 @@ configurations were tried is visible.
 | An interval on the validity rate | The run's candidates are a census of what the arm generated, not a sample | 2026-10-19 |
 | One call log per BKO arm | Three exclusive files and three spend totals for one run, and a ceiling split three ways | 2026-10-19 |
 | Judging only the first paid run | Freezes the method at its first configuration, so a design change such as BKO replicas could never be judged | 2026-10-19 |
+| BKO arms filling no replica | Leaves them no fidelity or replica utility reading beside the baselines' | 2026-10-19 |
+| Validity over the gap fill's candidates only | One rule counts every candidate validation sees, replica candidates included | 2026-10-19 |
+| A validity verdict per fill | Two looks at one criterion | 2026-10-19 |
 
 ## Enforcement
 
@@ -306,8 +317,9 @@ it**; this record and `E1` change together.
 
 **The classifier changes if any holdout logs a fit that did not converge within `MAX_ITER`.**
 
-**The BKO arms join `E1.replica_arms`, all three or none, only with their replica spend recorded
-in E1's Configuration before a run.**
+**The BKO arms leave `E1.replica_arms`, all three or none, only with the spend estimate and
+`E1.spend_ceiling` in E1's Configuration recomputed before a run, as they are whenever
+`SETTINGS.model` or its `PRICES` row changes.**
 
 **The gap request stops binding the BKO arms if their generation cannot target a cell**; the
 request then becomes each BKO arm's realised rows per cell, and this record changes before the

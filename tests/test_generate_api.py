@@ -10,9 +10,10 @@ from typing import cast
 import anthropic
 import pytest
 
-from bko.generate.api import Attempts, default_send, reply_of, send_with
+import bko.generate.api as api_module
+from bko.generate.api import Attempts, reply_of, send_with
 from bko.generate.errors import GenerationError
-from bko.generate.messages import SETTINGS, Call, Usage
+from bko.generate.messages import SETTINGS, Call, Send, Usage
 from tests._generate_fixtures import message, records_text, request, response
 
 
@@ -170,9 +171,22 @@ def test_a_bad_request_without_a_readable_body_keeps_the_short_text(monkeypatch)
     assert str(caught.value).endswith("status=400 request_id=req_error")
 
 
-def test_the_default_send_builds_a_client_without_a_request(monkeypatch):
+def test_the_default_send_builds_a_client_that_waits_out_an_outage(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-credential")
-    assert callable(default_send())
+    built: list[tuple[anthropic.Anthropic, Attempts | None]] = []
+    real = api_module.send_with
+
+    def capture(client: anthropic.Anthropic, *, attempts: Attempts | None = None) -> Send:
+        built.append((client, attempts))
+        return real(client, attempts=attempts)
+
+    monkeypatch.setattr(api_module, "send_with", capture)
+    assert callable(api_module.default_send())
+    [(client, probe)] = built
+    assert client.max_retries == 120
+    assert client.max_retries > anthropic.DEFAULT_MAX_RETRIES
+    assert client.timeout == anthropic.Timeout(600.0, connect=30.0)
+    assert isinstance(probe, Attempts)
 
 
 def test_a_bad_request_redacts_an_auth_token_too(monkeypatch):

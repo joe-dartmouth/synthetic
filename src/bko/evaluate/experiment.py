@@ -56,7 +56,7 @@ class Experiment:
     attempts: int = 5
     budget: int = 3
     validity: Fraction = Fraction(19, 20)
-    spend_ceiling: float = 50.0
+    spend_ceiling: float = 25.0
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -125,7 +125,7 @@ E1: Final = Experiment(
     arms=(*METHOD_ARMS, *BKO_ARMS),
     candidate="bko",
     comparators=METHOD_ARMS,
-    replica_arms=tuple(method.value for method in Method if method.adds_rows),
+    replica_arms=(*(method.value for method in Method if method.adds_rows), *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
 

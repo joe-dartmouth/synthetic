@@ -2,9 +2,10 @@
 
 `score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
-every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; `--candidate`
-judges another arm, a dry run whose verdict is not E1's. Logs go to stderr. `docs/DEVELOPMENT.md`
-(Evaluation) is the usage home.
+every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; its logs carry
+each BKO arm's counts per fill and each replica arm's mean replica utility and fidelity.
+`--candidate` judges another arm, a dry run whose verdict is not E1's. Logs go to stderr.
+`docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
 call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
@@ -47,11 +48,12 @@ from bko.evaluate.classifier import Factory, build
 from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
+from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Score, parse, render
 from bko.evaluate.scores import Source as ScoreSource
-from bko.evaluate.validity import reported, validity, verdict
+from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.errors import GenerationError, ReplayError
@@ -254,7 +256,7 @@ def _guided(
 
 
 def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
-    """Write the criteria's table to `out`, then log validity, copies and means.
+    """Write the criteria's table to `out`, then log validity, copies, means and replica means.
 
     The table goes out first, so scores whose validity cannot be read keep it.
     """
@@ -280,17 +282,29 @@ def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
     _log_validity(scores, context.experiment, candidate)
     _log_copies(scores)
     _log_means(scores)
+    _log_means(scores, source=ScoreSource.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
-    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts."""
+    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts.
+
+    Each arm's line is followed by its counts and rate per fill, with no verdict.
+    """
     arms = reported(scores)
     if candidate in BKO_ARMS or candidate in arms:
         found = validity(scores, experiment, candidate)
         logger.info("criterion=validity verdict=%s %s", verdict(found, experiment), found.line())
+        _log_fills(found)
     for arm in arms:
         if arm != candidate:
-            logger.info("validity %s", validity(scores, experiment, arm).line())
+            found = validity(scores, experiment, arm)
+            logger.info("validity %s", found.line())
+            _log_fills(found)
+
+
+def _log_fills(found: Validity) -> None:
+    for line in found.fill_lines():
+        logger.info("candidates %s", line)
 
 
 def _log_copies(scores: Sequence[Score]) -> None:
@@ -305,25 +319,31 @@ def _log_copies(scores: Sequence[Score]) -> None:
         logger.info("copies arm=%s added=%.0f replica=%.0f", arm, added, replica)
 
 
-def _log_means(scores: Sequence[Score]) -> None:
-    """Log each arm's mean of every judged measure in every scope over the holdouts; no verdict.
+def _log_means(
+    scores: Sequence[Score],
+    *,
+    source: ScoreSource = ScoreSource.AUGMENTED,
+    measures: Sequence[Measure] = JUDGED,
+    tag: str = "mean",
+) -> None:
+    """Log each arm's mean of `measures` over the holdouts, from `source`'s rows, in every scope.
 
-    A measure and scope with no value for an arm gets no line.
+    No verdict reads them. A measure and scope with no value for an arm gets no line.
     """
-    for arm in dict.fromkeys(s.arm for s in scores if s.source is ScoreSource.AUGMENTED):
-        for measure in JUDGED:
+    for arm in dict.fromkeys(s.arm for s in scores if s.source is source):
+        for measure in measures:
             for scope in Scope:
                 values = [
                     s.value
                     for s in scores
-                    if (s.arm, s.source, s.measure, s.scope)
-                    == (arm, ScoreSource.AUGMENTED, measure, scope)
+                    if (s.arm, s.source, s.measure, s.scope) == (arm, source, measure, scope)
                 ]
                 if not values:
                     continue
                 mean = sum(values) / len(values)
                 logger.info(
-                    "mean arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
+                    "%s arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
+                    tag,
                     arm,
                     measure,
                     scope,

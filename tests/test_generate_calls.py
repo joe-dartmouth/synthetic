@@ -53,20 +53,20 @@ def test_ask_renders_at_the_log_settings_level_and_returns_candidates_and_spend(
     assert batch.asked == 2
     assert batch.candidates == ({"age": 40}, Undecoded(Reason.SHORT))
     assert batch.undecoded == 1
-    assert batch.usd == pytest.approx(4.00)
+    assert batch.usd == pytest.approx(0.10)
 
 
 def test_generate_makes_ceil_rows_over_per_call_calls_per_cell_in_quota_order(tmp_path, caplog):
     send = ScriptedSend(*(reply([{}] * n) for n in (3, 20, 20, 5)))
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
         generation = generate({OTHER: 3, CELL: 45}, GUIDED, send=send, log=log)
-    # 4 calls x 16000 output tokens x 20 USD per million output tokens.
-    assert "plan calls=4 level=ontology max_tokens=16000 max_output_usd=1.28" in caplog.text
+    # 4 calls x 16000 output tokens x 0.50 USD per million output tokens.
+    assert "plan calls=4 level=ontology max_tokens=16000 max_output_usd=0.03" in caplog.text
     assert [(call.sex, _asked(call)) for call in send.calls] == [(1, 3), (0, 20), (0, 20), (0, 5)]
     assert [batch.index for batch in generation.batches] == [1, 2, 3, 4]
     assert len(generation.candidates(CELL)) == 45
     assert len(generation.candidates(OTHER)) == 3
-    assert generation.usd == pytest.approx(4 * 0.014)
+    assert generation.usd == pytest.approx(4 * 0.00035)
     send.assert_consumed()
 
 
@@ -120,7 +120,7 @@ def test_a_short_call_warns_with_its_reason(tmp_path, caplog):
     assert "short call=1 cell=<55/female/1 asked=2 undecoded=2 reason=refused" in messages
     assert (
         "generate call=1 cell=<55/female/1 level=ontology asked=2 decoded=0 undecoded=2 "
-        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.0140 request_id=req_test"
+        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.0003 request_id=req_test"
     ) in messages
 
 

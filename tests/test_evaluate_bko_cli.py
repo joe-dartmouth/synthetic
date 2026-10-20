@@ -27,6 +27,7 @@ from tests._fusion_fixtures import young
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
 from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
+from tests._validate_fixtures import PLANTED, planted
 
 
 NARROW: Final = dataclasses.replace(
@@ -236,7 +237,7 @@ def test_an_unreadable_validity_keeps_the_criteria_table(tmp_path, caplog):
     out = io.StringIO()
     assert main(["compare", str(scores)], context=Context(experiment=NARROW), out=out) == 2
     assert "criterion=primary verdict=" in caplog.text
-    assert "the generated counts of 'bko' cover 1 holdouts" in caplog.text
+    assert "the generated counts of 'bko' in its gap fill cover 1 holdouts" in caplog.text
     table = pd.read_csv(io.StringIO(out.getvalue()))
     assert list(dict.fromkeys(table["criterion"])) == ["primary", "secondary", "privacy"]
 
@@ -333,6 +334,10 @@ def compare_three(scores: Path, caplog) -> None:
     assert verdicts[0].startswith("criterion=validity verdict=met arm=bko ")
     reports = [m.split()[1] for m in caplog.messages if m.startswith("validity ")]
     assert reports == ["arm=bko-population", "arm=bko-frequency"]
+    fills = [m.split()[1:3] for m in caplog.messages if m.startswith("candidates ")]
+    assert fills == [
+        [f"arm={arm}", "fill=gap"] for arm in ("bko", "bko-population", "bko-frequency")
+    ]
     caplog.clear()
     argv = ["compare", str(scores), "--candidate", "bko-population"]
     assert main(argv, context=judged, out=io.StringIO()) == 0
@@ -341,6 +346,10 @@ def compare_three(scores: Path, caplog) -> None:
     assert verdicts[0].startswith("criterion=validity verdict=met arm=bko-population ")
     reports = [m.split()[1] for m in caplog.messages if m.startswith("validity ")]
     assert reports == ["arm=bko", "arm=bko-frequency"]
+    fills = [m.split()[1:3] for m in caplog.messages if m.startswith("candidates ")]
+    assert fills == [
+        [f"arm={arm}", "fill=gap"] for arm in ("bko-population", "bko", "bko-frequency")
+    ]
 
 
 def test_a_refusal_retry_and_top_up_replay_byte_for_byte(tmp_path, caplog):
@@ -450,3 +459,124 @@ def test_a_replay_whose_second_request_moved_is_refused(tmp_path, caplog):
     assert main(argv, context=ctx, out=out) == 3
     assert "differs from logged call 2" in caplog.text
     assert out.getvalue() == ""
+
+
+REPLICAS: Final = dataclasses.replace(THREE, replica_arms=THREE.arms[1:])
+"""`THREE` with every BKO arm also filling a replica, as E1 asks of every row-adding arm."""
+
+REPLICA_QUOTA: Final = (
+    (40, 0, 0, 8),
+    (40, 0, 1, 4),
+    (40, 1, 0, 20),
+    (40, 1, 1, 20),
+    (63, 0, 0, 20),
+    (63, 0, 1, 20),
+    (63, 1, 0, 20),
+    (63, 1, 1, 20),
+)
+"""`UCI_E1`'s training cells in grid order, as age, sex, target and records: one in five of
+`SIZES` held out. Each is one replica call of that many rows."""
+
+
+def replica_replies(arm: str) -> tuple[Reply, ...]:
+    """One holdout's eight replica calls for `arm`, with cp 2 so no record copies a test record.
+
+    Each arm's replica replies differ from its gap replies, so a count under the wrong source
+    shows: `bko` gets one candidate that fails validation, `bko-population` three dropped for
+    range, and `bko-frequency` one past the quota and one copy of a test record.
+    """
+    calls: list[list[object]] = []
+    for age, sex, target, rows in REPLICA_QUOTA:
+        call: list[object] = [planted(age=age, sex=sex, target=target, cp=2)] * rows
+        calls.append(call)
+    if arm == "bko":
+        calls[0] = [*calls[0], PLANTED["code:cp"]]
+    if arm == "bko-population":
+        calls[0] = [*calls[0], BAD, BAD, BAD]
+    if arm == "bko-frequency":
+        calls[0] = [*calls[0], calls[0][0]]
+        calls[6] = [planted(age=63, sex=1, target=0), *calls[6][1:]]
+    return tuple(reply(call) for call in calls)
+
+
+def replica_script() -> ScriptedSend:
+    """Both holdouts' calls in harness order: each holdout's gap fills, then its replica fills."""
+    arms = REPLICAS.arms[1:]
+    return ScriptedSend(
+        *(
+            r
+            for _ in REPLICAS.holdout_seeds
+            for r in (
+                *(g for arm in arms for g in holdout_replies(arm)),
+                *(p for arm in REPLICAS.replica_arms for p in replica_replies(arm)),
+            )
+        )
+    )
+
+
+def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, caplog):
+    send = replica_script()
+    ctx, _ = context(send)
+    ctx = dataclasses.replace(ctx, experiment=REPLICAS)
+    log = tmp_path / "calls.jsonl"
+    out = io.StringIO()
+    caplog.set_level(logging.INFO)
+    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    send.assert_consumed()
+    lines = map(json.loads, log.read_text(encoding="utf-8").splitlines())
+    asked = [line["asked"] for line in lines if line["kind"] == "request"]
+    assert asked == ([12, 16] * 3 + [rows for *_, rows in REPLICA_QUOTA] * 3) * 2
+    live = _validity(caplog)
+    assert live == [
+        "validity arm=bko generated=322 passed=320 dropped_range=0 dropped_cell=0 dropped_quota=0",
+        (
+            "validity arm=bko-population generated=328 passed=328 dropped_range=8 dropped_cell=0 "
+            "dropped_quota=0"
+        ),
+        (
+            "validity arm=bko-frequency generated=326 passed=326 dropped_range=0 dropped_cell=0 "
+            "dropped_quota=6"
+        ),
+    ]
+    frame = pd.read_csv(io.StringIO(out.getvalue()))
+    assert set(frame[frame["source"] == "replica"]["arm"]) == set(REPLICAS.replica_arms)
+    caplog.clear()
+    again = io.StringIO()
+    replayed = tmp_path / "replay.jsonl"
+    argv = _score(replayed, tmp_path, "--replay", str(log))
+    assert main(argv, context=dataclasses.replace(ctx, send=ScriptedSend), out=again) == 0
+    assert again.getvalue() == out.getvalue()
+    assert _validity(caplog) == live
+    assert _end(replayed)["replay"] == hashlib.sha256(log.read_bytes()).hexdigest()
+    scores = tmp_path / "scores.csv"
+    scores.write_text(out.getvalue(), encoding="utf-8")
+    caplog.clear()
+    judged = Context(experiment=REPLICAS)
+    assert main(["compare", str(scores)], context=judged, out=io.StringIO()) == 0
+    assert [m for m in caplog.messages if m.startswith("candidates ")] == [
+        (
+            "candidates arm=bko fill=gap generated=56 passed=56 dropped_range=0 dropped_cell=0 "
+            "dropped_quota=0 rate=1.0000"
+        ),
+        (
+            "candidates arm=bko fill=replica generated=266 passed=264 dropped_range=0 "
+            "dropped_cell=0 dropped_quota=0 rate=0.9925"
+        ),
+        (
+            "candidates arm=bko-population fill=gap generated=58 passed=58 dropped_range=2 "
+            "dropped_cell=0 dropped_quota=0 rate=1.0000"
+        ),
+        (
+            "candidates arm=bko-population fill=replica generated=270 passed=270 dropped_range=6 "
+            "dropped_cell=0 dropped_quota=0 rate=1.0000"
+        ),
+        (
+            "candidates arm=bko-frequency fill=gap generated=60 passed=60 dropped_range=0 "
+            "dropped_cell=0 dropped_quota=4 rate=1.0000"
+        ),
+        (
+            "candidates arm=bko-frequency fill=replica generated=266 passed=266 dropped_range=0 "
+            "dropped_cell=0 dropped_quota=2 rate=1.0000"
+        ),
+    ]
+    assert "copies arm=bko-frequency added=0 replica=2" in caplog.messages

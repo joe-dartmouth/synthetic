@@ -32,10 +32,11 @@ class Price:
 
 
 PRICES: Final = MappingProxyType(
-    {"claude-opus-5-5": Price(input=4.0, output=20.0, cache_write=5.0, cache_read=0.2)}
+    {"claude-haiku-5-5": Price(input=0.10, output=0.50, cache_write=0.125, cache_read=0.01)}
 )
-"""Each priced model's rates, read 2026-10-18 from
-`platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, Claude Opus 5.5)."""
+"""Each priced model's rates, read 2026-10-19 from
+`platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, Claude Haiku 5.5, prompts up
+to 100,000 tokens; a call's prompt is a few thousand)."""
 
 
 def price_of(model: str) -> Price:

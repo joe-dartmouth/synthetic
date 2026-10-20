@@ -24,14 +24,19 @@ The API facts this record relies on, read 2026-10-18 from
 - `minItems` takes 0 or 1 only.
 - On a `max_tokens` or `refusal` stop the output may not match the schema, and it is billed.
 
+On 2026-10-19 that page lists `claude-haiku-5-5` among its supported models, and
+`platform.claude.com/docs/en/build-with-claude/effort.md` lists it for `effort`, with `medium` its
+default.
+
 SDK 1.13.0's `Messages.create` takes `output_config` (`effort`, and `format` with `schema` and
 `type: "json_schema"`) and takes no `temperature`, `top_p` or `top_k`. The `live` test
 `tests/test_generate_live.py` checks the request against the API.
 
-The prices `bko.generate.spend.PRICES` holds were read 2026-10-18 from
-`platform.claude.com/docs/en/about-claude/pricing.md`, Model pricing, row Claude Opus 5.5: input
-$4, 5-minute cache writes $5, cache hits $0.20 and output $20, each per million tokens. The API
-reports a call's tokens and no price.
+The prices `bko.generate.spend.PRICES` holds were read 2026-10-19 from
+`platform.claude.com/docs/en/about-claude/pricing.md`, Model pricing, row Claude Haiku 5.5 for
+prompts up to 100,000 tokens: input $0.10, 5-minute cache writes $0.125, cache hits $0.01 and output
+$0.50, each per million tokens. A call's prompt runs to a few thousand tokens, so the higher tier
+never applies. The API reports a call's tokens and no price.
 
 A record's fields, codes and plausible ranges already have homes: `bko.datasets.uci` (`CODEBOOK`,
 `DESCRIPTIONS`, `FRAME_COLUMNS`), `bko.datasets.cells` (`SEXES`, `LABEL_MEANINGS`) and
@@ -65,10 +70,11 @@ ladder.**
   - every object is closed and requires all of its properties.
 
   Plausibility ranges and `oldpeak`'s one decimal stay as prompt instructions.
-- **The call.** Model `claude-opus-5-5`; effort `medium`, set explicitly; `max_tokens` 16000;
-  non-streaming; the SDK's default retries. No `temperature`, `top_p` or `top_k` is sent, and no
-  server-side fallback is set. `Settings` holds these values, with the chunk size `per_call` and
-  the guidance level.
+- **The call.** Model `claude-haiku-5-5`; effort `medium`, set explicitly; `max_tokens` 16000;
+  non-streaming; the SDK client's retries and timeout from `bko.generate.api` (`MAX_RETRIES`,
+  `TIMEOUT`), which enter no logged request. No `temperature`, `top_p` or `top_k` is sent, and no
+  server-side fallback is set. `Settings` holds these values, with the chunk size `per_call` and the
+  guidance level.
 - **The ladder.** `Level` holds six levels, each adding one component to the one before it:
   - `cell`: the bare cell description;
   - `coherent`: a sentence asking for clinically coherent records;
@@ -117,7 +123,7 @@ ladder.**
   cell's guidance, not `bko.baselines.request.Request`, so generation imports no downstream stage.
   It refuses a quota entry that is not an `int` of at least 1, or names a cell with no guidance,
   before any call. It asks each cell's rows in chunks of `per_call`, cells in quota order, so a
-  run makes `sum(ceil(rows / per_call))` calls; it never retries or tops up.
+  run makes `sum(ceil(rows / per_call))` calls; it never re-asks a cell or tops up.
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
@@ -181,6 +187,13 @@ or a short array lowers validity rather than vanishing. `None` cannot be the pla
 reply can decode to `null`. A truncated output is not salvaged, because its last records may be
 cut mid-value and the stop already says the call failed.
 
+Haiku 5.5 is the generator because E1's replica configuration asks for 77400 records a run, of which
+the gap request asks 6000, and Opus 5.5's input and output rates are 40 times Haiku 5.5's; E1's
+Configuration in `docs/EVIDENCE.md` records the run's estimate. A run cannot resume, so the client
+retries for minutes, where the SDK's default of 2 retries backs off for about 1.5 s. A client
+timeout other than the SDK's default skips the SDK's refusal of a non-streaming call above 21,333
+`max_tokens`; `max_tokens` is 16000.
+
 ## Consequences
 
 **Gained:**
@@ -232,6 +245,8 @@ cut mid-value and the stop already says the call failed.
 | A shared `bko.core` home for the request type | Nothing else needs it yet | 2026-10-18 |
 | The command importing `bko.evaluate` for E1's request | Imports a downstream stage | 2026-10-18 |
 | A `--rows` water-fill as the command's request | Needs `bko.baselines`, a downstream stage | 2026-10-18 |
+| `claude-opus-5-5` as the generator | Its input and output rates are 40 times Haiku 5.5's, and E1's replica configuration multiplies the records a run asks for | 2026-10-19 |
+| The SDK's default 2 retries | About 1.5 s of backoff, so one brief outage stops a run that cannot resume | 2026-10-19 |
 
 ## Enforcement
 

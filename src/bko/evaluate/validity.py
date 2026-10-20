@@ -1,9 +1,10 @@
 """The validity criterion: a BKO arm's candidates that pass every check, summed over the run.
 
-Each BKO arm writes per holdout the candidates `bko.validate` saw and passed, and those it then
-dropped, as `Source.CANDIDATES` scores. The rate is `passed` summed over `generated` summed. The
-criterion is met when the rate reaches `Experiment.validity`, read as a point with no interval (ADR
-`research/e1-evaluation-protocol`).
+Each BKO arm writes per holdout and fill the candidates `bko.validate` saw and passed, and those
+it then dropped, as `Source.CANDIDATES` (the gap fill) and `Source.REPLICA_CANDIDATES` (the replica
+fill) scores. The rate is `passed` summed over `generated` summed over both fills; each fill is
+reported apart with no verdict. The criterion is met when the rate reaches `Experiment.validity`,
+read as a point with no interval (ADR `research/e1-evaluation-protocol`).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
+from types import MappingProxyType
 from typing import Final
 
 from bko.evaluate.criteria import Verdict
@@ -29,31 +31,56 @@ COUNTS: Final = (
 """The `candidates` measures, each summed over the holdouts."""
 
 
+FILLS: Final = MappingProxyType({Source.CANDIDATES: "gap", Source.REPLICA_CANDIDATES: "replica"})
+"""Each fill's candidates source, by the name a log line gives the fill."""
+
+
 @dataclass(frozen=True, slots=True)
 class Validity:
-    """One arm's candidate counts over the run.
+    """One arm's candidate counts over the run, by fill.
 
     Attributes:
         arm: The arm.
-        counts: Each of `COUNTS`, summed over the holdouts.
+        fills: Each fill's `COUNTS`, summed over the holdouts, by its source in `FILLS`; the
+            replica fill's only for an arm that fills one.
     """
 
     arm: str
-    counts: Mapping[Measure, int]
+    fills: Mapping[Source, Mapping[Measure, int]]
+
+    @property
+    def counts(self) -> dict[Measure, int]:
+        """Each of `COUNTS`, summed over the holdouts and the fills."""
+        return {m: sum(found[m] for found in self.fills.values()) for m in COUNTS}
 
     @property
     def rate(self) -> Fraction:
-        """`passed` over `generated`."""
-        return Fraction(self.counts[Measure.PASSED], self.counts[Measure.GENERATED])
+        """`passed` over `generated` over every fill: the rate the criterion reads."""
+        return _rate(self.counts)
 
     def line(self) -> str:
-        """The counts and the rate as `key=value` pairs for a log line."""
-        pairs = " ".join(f"{m.value.replace('-', '_')}={self.counts[m]}" for m in COUNTS)
-        return f"arm={self.arm} {pairs} rate={float(self.rate):.4f}"
+        """The counts and the rate over every fill as `key=value` pairs for a log line."""
+        return f"arm={self.arm} {_pairs(self.counts)}"
+
+    def fill_lines(self) -> tuple[str, ...]:
+        """Each fill's counts and rate as `key=value` pairs for a log line; no verdict."""
+        return tuple(
+            f"arm={self.arm} fill={FILLS[source]} {_pairs(found)}"
+            for source, found in self.fills.items()
+        )
+
+
+def _rate(counts: Mapping[Measure, int]) -> Fraction:
+    return Fraction(counts[Measure.PASSED], counts[Measure.GENERATED])
+
+
+def _pairs(counts: Mapping[Measure, int]) -> str:
+    pairs = " ".join(f"{m.value.replace('-', '_')}={counts[m]}" for m in COUNTS)
+    return f"{pairs} rate={float(_rate(counts)):.4f}"
 
 
 def reported(scores: Sequence[Score]) -> tuple[str, ...]:
-    """Every arm holding `candidates` scores, in the order they first appear.
+    """Every arm holding candidate scores of either fill, in the order they first appear.
 
     Args:
         scores: A run's scores.
@@ -61,43 +88,62 @@ def reported(scores: Sequence[Score]) -> tuple[str, ...]:
     Returns:
         The arms' names.
     """
-    return tuple(dict.fromkeys(s.arm for s in scores if s.source is Source.CANDIDATES))
+    return tuple(dict.fromkeys(s.arm for s in scores if s.source in FILLS))
 
 
 def validity(scores: Sequence[Score], experiment: Experiment, arm: str) -> Validity:
-    """Sum `arm`'s candidate counts over the experiment's holdouts.
+    """Sum `arm`'s candidate counts over the experiment's holdouts, fill by fill.
+
+    The replica fill's counts are read exactly when `arm` is one of the experiment's replica arms.
 
     Args:
         scores: A run's scores.
-        experiment: The experiment whose holdouts the counts must cover.
+        experiment: The experiment whose holdouts and replica arms the counts must match.
         arm: The arm read.
 
     Returns:
-        The arm's summed counts.
+        The arm's summed counts, by fill.
 
     Raises:
         EvaluationError: If a count misses one of the experiment's holdouts, a count is not a
-            whole number, or nothing was generated.
+            whole number, a fill generated nothing, or an arm that fills no replica holds replica
+            counts.
     """
+    replica = arm in experiment.replica_arms
+    if not replica and any(s.arm == arm and s.source is Source.REPLICA_CANDIDATES for s in scores):
+        msg = f"{arm!r} holds replica fill counts but fills no replica in this experiment"
+        raise EvaluationError(msg)
+    sources = tuple(FILLS) if replica else (Source.CANDIDATES,)
+    return Validity(arm, {source: _summed(scores, experiment, arm, source) for source in sources})
+
+
+def _summed(
+    scores: Sequence[Score], experiment: Experiment, arm: str, source: Source
+) -> dict[Measure, int]:
+    """`arm`'s counts under `source`, each summed over the experiment's holdouts."""
+    fill = FILLS[source]
     holdouts = sorted(experiment.holdout_seeds)
     counts: dict[Measure, int] = {}
     for measure in COUNTS:
         values = {
             s.holdout: s.value
             for s in scores
-            if s.arm == arm and s.source is Source.CANDIDATES and s.measure is measure
+            if s.arm == arm and s.source is source and s.measure is measure
         }
         if sorted(values) != holdouts:
-            msg = f"the {measure} counts of {arm!r} cover {len(values)} holdouts, not E1's"
+            msg = (
+                f"the {measure} counts of {arm!r} in its {fill} fill cover {len(values)} "
+                "holdouts, not E1's"
+            )
             raise EvaluationError(msg)
         if not all(float(value).is_integer() for value in values.values()):
-            msg = f"a {measure} count of {arm!r} is not a whole number"
+            msg = f"a {measure} count of {arm!r} in its {fill} fill is not a whole number"
             raise EvaluationError(msg)
         counts[measure] = int(sum(values.values()))
     if counts[Measure.GENERATED] == 0:
-        msg = f"{arm!r} generated nothing, so its validity is undefined"
+        msg = f"{arm!r} generated nothing in its {fill} fill, so its rate is undefined"
         raise EvaluationError(msg)
-    return Validity(arm, counts)
+    return counts
 
 
 def verdict(found: Validity, experiment: Experiment) -> Verdict:

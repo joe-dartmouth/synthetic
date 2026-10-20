@@ -245,3 +245,46 @@ def test_a_drain_writes_candidates_rows_per_holdout():
         (0, "smote", Measure.GENERATED),
         (1, "smote", Measure.GENERATED),
     ]
+
+
+def test_a_replica_arms_drain_is_read_after_each_fill():
+    counted = iter(range(1, 5))
+    experiment = dataclasses.replace(PAIR, replica_arms=("smote",))
+
+    def drain() -> dict[Measure, float]:
+        return {Measure.GENERATED: float(next(counted))}
+
+    scores = run(GRADED, experiment, FAST_ARMS, drains={"smote": drain})
+    found = {(s.holdout, s.source): s.value for s in scores if s.measure is Measure.GENERATED}
+    assert found == {
+        (0, Source.CANDIDATES): 1.0,
+        (0, Source.REPLICA_CANDIDATES): 2.0,
+        (1, Source.CANDIDATES): 3.0,
+        (1, Source.REPLICA_CANDIDATES): 4.0,
+    }
+
+
+def test_an_arm_filling_no_replica_is_drained_once_per_holdout_beside_one_that_does():
+    calls: Counter[str] = Counter()
+
+    def counter(name: str):
+        def drain() -> dict[Measure, float]:
+            calls[name] += 1
+            return {Measure.GENERATED: float(calls[name])}
+
+        return drain
+
+    experiment = dataclasses.replace(PAIR, arms=("none", "smote", "tvae"), replica_arms=("smote",))
+    drains = {name: counter(name) for name in ("smote", "tvae")}
+    scores = run(GRADED, experiment, FAST_ARMS, drains=drains)
+    found = {
+        (s.holdout, s.arm, s.source): s.value for s in scores if s.measure is Measure.GENERATED
+    }
+    assert found == {
+        (0, "smote", Source.CANDIDATES): 1.0,
+        (0, "smote", Source.REPLICA_CANDIDATES): 2.0,
+        (0, "tvae", Source.CANDIDATES): 1.0,
+        (1, "smote", Source.CANDIDATES): 3.0,
+        (1, "smote", Source.REPLICA_CANDIDATES): 4.0,
+        (1, "tvae", Source.CANDIDATES): 2.0,
+    }

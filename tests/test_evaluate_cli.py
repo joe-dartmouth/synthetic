@@ -263,3 +263,19 @@ def test_stderr_lines_carry_their_time():
     finally:
         logging.captureWarnings(False)
         root.handlers[:] = handlers
+
+
+def test_compare_logs_every_replica_arms_utility_and_fidelity_means(scores_file, caplog):
+    with caplog.at_level(logging.INFO):
+        argv = ["compare", str(scores_file), "--candidate", "tvae"]
+        assert main(argv, context=Context(experiment=SMALL), out=io.StringIO()) == 0
+    frame = pd.read_csv(scores_file)
+    measures = ["recall", "auc-pr", "quality", "column-shapes", "column-pair-trends"]
+    rows = frame[(frame["source"] == "replica") & frame["measure"].isin(measures)]
+    expected = {
+        f"replica arm={arm} measure={measure} scope={scope} "
+        f"value={sum(list(v)) / len(v):.6f} holdouts={len(v)}"
+        for (arm, measure, scope), v in rows.groupby(["arm", "measure", "scope"])["value"]
+    }
+    assert expected
+    assert {m for m in caplog.messages if m.startswith("replica ")} == expected

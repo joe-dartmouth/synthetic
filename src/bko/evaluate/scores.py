@@ -31,8 +31,11 @@ class Source(enum.StrEnum):
     HELD_OUT = "held-out"
     """The test rows: how near they sit to the training rows, and the split's held-out ratio."""
     CANDIDATES = "candidates"
-    """A BKO arm's candidates on the holdout: generated, passed and dropped, refused attempts
-    included."""
+    """A BKO arm's gap fill's candidates on the holdout: generated, passed and dropped, refused
+    attempts included."""
+    REPLICA_CANDIDATES = "replica-candidates"
+    """A BKO arm's replica fill's candidates on the holdout, counted as `CANDIDATES` counts the gap
+    fill's."""
 
 
 class Measure(enum.StrEnum):

@@ -101,7 +101,8 @@ def test_a_call_with_no_response_is_not_a_refusal(tmp_path):
 
 
 def test_the_run_stops_at_its_spend_ceiling(tmp_path):
-    arm, log = guided(tmp_path, ScriptedSend(reply([young(1)])), ceiling=0.001)
+    first = reply([young(1)])
+    arm, log = guided(tmp_path, ScriptedSend(first), ceiling=cost(first.usage, SETTINGS.model))
     with pytest.raises(EvaluationError, match="ceiling"), log:
         arm(train(tmp_path / "train"), REQUEST)
     assert asked(log.path) == [3]

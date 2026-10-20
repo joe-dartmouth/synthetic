@@ -64,3 +64,12 @@ def test_a_malformed_scores_file_is_refused(text):
 def test_an_arm_named_like_a_missing_value_reads_back_as_itself(arm):
     score = Score(0, arm, Source.ADDED, Measure.ROWS, Scope.ALL, 1.0)
     assert parse(render([score])) == [score]
+
+
+def test_a_fills_candidates_and_its_replica_candidates_are_distinct_rows():
+    rows = [
+        Score(0, "bko", Source.CANDIDATES, Measure.GENERATED, Scope.ALL, 20.0),
+        Score(0, "bko", Source.REPLICA_CANDIDATES, Measure.GENERATED, Scope.ALL, 238.0),
+    ]
+    assert render(rows).splitlines()[2] == "0,bko,replica-candidates,generated,all,238.0"
+    assert parse(render(rows)) == rows
