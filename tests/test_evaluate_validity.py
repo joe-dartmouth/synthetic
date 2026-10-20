@@ -137,3 +137,8 @@ def test_a_replica_count_that_is_not_whole_is_refused():
 
 def test_reported_lists_an_arm_with_only_replica_rows():
     assert reported(counts("bko", REPLICA, Source.REPLICA_CANDIDATES)) == ("bko",)
+
+
+def test_a_replica_arm_without_gap_counts_is_refused():
+    with pytest.raises(EvaluationError, match="in its gap fill cover 0 holdouts"):
+        validity(counts("bko", REPLICA, Source.REPLICA_CANDIDATES), WITH_REPLICA, "bko")
