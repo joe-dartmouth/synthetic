@@ -52,13 +52,13 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "replay": None,
         "started": FIXED_NOW.isoformat(),
         "settings": {
-            "model": "claude-opus-5-5",
+            "model": "claude-haiku-5-5",
             "effort": "medium",
             "max_tokens": 16000,
             "per_call": 20,
             "guidance": "ontology",
         },
-        "price": {"input": 4.0, "output": 20.0, "cache_write": 5.0, "cache_read": 0.2},
+        "price": {"input": 0.1, "output": 0.5, "cache_write": 0.125, "cache_read": 0.01},
         "anthropic": importlib.metadata.version("anthropic"),
     }
 
@@ -203,7 +203,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "undecoded": 1,
         "input_tokens": 1000,
         "output_tokens": 500,
-        "usd": pytest.approx(0.014),
+        "usd": pytest.approx(0.00035),
     }
 
 
@@ -236,7 +236,7 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
         "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
-        f"input_tokens=1000 output_tokens=500 usd=0.0140 replay=none log={path}"
+        f"input_tokens=1000 output_tokens=500 usd=0.0003 replay=none log={path}"
     ) in caplog.text
 
 

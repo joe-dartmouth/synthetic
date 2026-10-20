@@ -97,7 +97,7 @@ def test_the_schema_has_no_numeric_bound():
 def test_call_params_carry_model_tokens_system_user_effort_and_the_cells_schema():
     call = Call(SETTINGS, 1, 0, "the system", "the user")
     assert call.params() == {
-        "model": "claude-opus-5-5",
+        "model": "claude-haiku-5-5",
         "max_tokens": 16000,
         "system": "the system",
         "messages": [{"role": "user", "content": "the user"}],
