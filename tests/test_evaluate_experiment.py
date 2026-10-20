@@ -38,7 +38,7 @@ def test_e1_judges_bko_against_every_method():
         "bko-population": Definition.POPULATION,
         "bko-frequency": Definition.FREQUENCY,
     }
-    assert set(E1.replica_arms) == {method.value for method in Method if method.adds_rows}
+    assert E1.replica_arms == (*(m.value for m in Method if m.adds_rows), *BKO_ARMS)
     assert len(set(E1.holdout_seeds)) == len(E1.holdout_seeds) >= 2
 
 

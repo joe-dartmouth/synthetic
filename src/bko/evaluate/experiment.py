@@ -125,7 +125,7 @@ E1: Final = Experiment(
     arms=(*METHOD_ARMS, *BKO_ARMS),
     candidate="bko",
     comparators=METHOD_ARMS,
-    replica_arms=tuple(method.value for method in Method if method.adds_rows),
+    replica_arms=(*(method.value for method in Method if method.adds_rows), *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
 

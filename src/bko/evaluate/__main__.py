@@ -2,9 +2,10 @@
 
 `score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
-every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; `--candidate`
-judges another arm, a dry run whose verdict is not E1's. Logs go to stderr. `docs/DEVELOPMENT.md`
-(Evaluation) is the usage home.
+every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; its logs carry
+each BKO arm's counts per fill and each replica arm's mean replica utility and fidelity.
+`--candidate` judges another arm, a dry run whose verdict is not E1's. Logs go to stderr.
+`docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
 call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
@@ -51,7 +52,7 @@ from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Score, parse, render
 from bko.evaluate.scores import Source as ScoreSource
-from bko.evaluate.validity import reported, validity, verdict
+from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.errors import GenerationError, ReplayError
@@ -283,14 +284,25 @@ def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
-    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts."""
+    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts.
+
+    Each arm's line is followed by its counts and rate per fill, with no verdict.
+    """
     arms = reported(scores)
     if candidate in BKO_ARMS or candidate in arms:
         found = validity(scores, experiment, candidate)
         logger.info("criterion=validity verdict=%s %s", verdict(found, experiment), found.line())
+        _log_fills(found)
     for arm in arms:
         if arm != candidate:
-            logger.info("validity %s", validity(scores, experiment, arm).line())
+            found = validity(scores, experiment, arm)
+            logger.info("validity %s", found.line())
+            _log_fills(found)
+
+
+def _log_fills(found: Validity) -> None:
+    for line in found.fill_lines():
+        logger.info("candidates %s", line)
 
 
 def _log_copies(scores: Sequence[Score]) -> None:

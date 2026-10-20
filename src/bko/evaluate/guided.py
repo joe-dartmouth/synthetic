@@ -233,13 +233,20 @@ class GuidedArm:
         return baseline
 
     def drain(self) -> dict[Measure, float]:
-        """The counts since the last drain, as `Source.CANDIDATES` measures; then start again."""
+        """The counts since the last drain, as candidate measures; then start again.
+
+        The harness drains after each fill, since the arm cannot tell a gap request from a replica
+        request.
+        """
         measures = self._pending.measures()
         self._pending = Tally()
         return measures
 
     def summary(self) -> None:
-        """Log the run's sums: the validity rate's numerator and denominator, and every drop."""
+        """Log the run's sums over every fill.
+
+        They are the validity rate's numerator and denominator, and every drop.
+        """
         logger.info("validity arm=%s %s", self.name, self.totals.line())
 
     def _guidance(self, train: pd.DataFrame) -> dict[Cell, Guidance]:
