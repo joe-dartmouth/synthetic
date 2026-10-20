@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from fractions import Fraction
+from typing import Final
 
 import pytest
 
@@ -19,6 +20,8 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.gaps.definitions import Definition
+from bko.generate.messages import SETTINGS
+from bko.generate.spend import price_of
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
 
@@ -32,7 +35,6 @@ def test_e1_judges_bko_against_every_method():
     assert E1.candidate == "bko"
     assert E1.budget == 3
     assert E1.validity == Fraction(19, 20)
-    assert E1.spend_ceiling == pytest.approx(50.0)
     assert dict(BKO_ARMS) == {
         "bko": Definition.SUBGROUP,
         "bko-population": Definition.POPULATION,
@@ -117,3 +119,24 @@ def test_the_replica_asks_for_every_cells_training_count():
 def test_a_configuration_that_cannot_run_is_refused(change, message):
     with pytest.raises(ValueError, match=message):
         dataclasses.replace(E1, **change)
+
+
+E1_1_TOKENS: Final = (1_925_406, 564_976)
+"""`e1-1`'s input and output tokens over its 6000 records asked (its Runs row in EVIDENCE)."""
+
+GAP_ROWS: Final = 20
+"""Each BKO arm's gap rows per holdout."""
+
+REPLICA_ROWS: Final = 238
+"""E1's replica quota per holdout on the pinned archive (E1's Configuration); the gate reads no
+data."""
+
+
+def test_the_spend_ceiling_covers_the_recorded_estimate_with_its_margin():
+    price = price_of(SETTINGS.model)
+    tokens_in, tokens_out = E1_1_TOKENS
+    per_record = (tokens_in * price.input + tokens_out * price.output) / 6000 / 1_000_000
+    estimate = len(E1.holdout_seeds) * len(BKO_ARMS) * (GAP_ROWS + REPLICA_ROWS) * per_record
+    assert estimate == pytest.approx(6.128, abs=0.001)
+    assert E1.spend_ceiling == pytest.approx(25.0)
+    assert E1.spend_ceiling >= 1.25 * estimate

@@ -56,7 +56,7 @@ class Experiment:
     attempts: int = 5
     budget: int = 3
     validity: Fraction = Fraction(19, 20)
-    spend_ceiling: float = 50.0
+    spend_ceiling: float = 25.0
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
