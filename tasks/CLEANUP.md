@@ -50,6 +50,20 @@ links to where its blocker is tracked.
   is false, with a test.
   **Trigger:** the next change to `Experiment`'s validation.
 
+- **`cleanup:evaluate/score-cannot-resume`: an interrupted `score` run cannot continue, so a stop
+  late in a paid run repays every call before it.** `score` refuses an existing call log and
+  `--replay` refuses a log with calls left over or missing (`src/bko/evaluate/__main__.py:226-250`),
+  so neither picks up where a run stopped. `e1-2` stopped at holdout 83 of 100 when the runner's
+  machine hibernated on battery (E1's Runs row); `e1-3` finished it through
+  `scratchpad/resume-run.py`, a gitignored script that replays the stopped log's answered calls
+  through `Context.send` and then sends live, for $2.15 of new spend against about $12.82 for a
+  fresh run. *Filed 2026-10-21 by `proposal-e1-replica-run`.*
+  **Why deferred.** It is a code change, which `proposal-e1-replica-run` puts Out.
+  **What discharges it:** `score --resume LOG` answers a stopped call log's answered calls from it
+  and sends the rest live, writing one call log that `score --replay` regenerates byte for byte,
+  with a test that resumes a stopped fake run.
+  **Trigger:** `proposal-guidance-ablation`, whose paid runs each take as long as `e1-3`.
+
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
@@ -89,7 +103,60 @@ links to where its blocker is tracked.
   the candidates sha256 that both commands log (ADR `research/gap-closure-design`, Consequences).
   Raised in PR #18's review. *Filed 2026-10-19 by `proposal-fusion-repair`.*
   **Why deferred.** It changes the candidates format, which `bko.generate.candidates` writes and
-  reads, and the one completeness run so far was checked by digest.
+  reads, and each completeness run is checked by digest.
   **What discharges it:** generate writes the split fingerprint, release versions and guidance
   level where the closure command reads them, and the closure command refuses a mismatch.
   **Trigger:** `proposal-guidance-ablation`, which reads several completeness runs.
+
+- **`cleanup:generate/prompt-range-wider-than-training`: the user turn asks for ages the training
+  split never holds, so about a fifth of BKO records are dropped.** `prompt.render` states each
+  numeric field's bounds from `guidance.intervals` (`src/bko/generate/prompt.py:191-204`), which
+  are `RANGES`' plausible bounds with age clipped to the cell's band
+  (`src/bko/generate/guidance.py:140-160`): age 18 to 54 and 55 to 120, trestbps 10 to 250. The
+  drop rule keeps only rows inside the training split's minimum and maximum
+  (`src/bko/baselines/records.py:41-42`, `:150-155`), and UCI's ages run 29 to 77. In `e1-3`,
+  `bko`'s fills dropped 5840 of 31643 generated records as outside the range (its `validity`
+  line in E1's Result), and of the 94753 records its call log decodes, 7.2% are younger than 29
+  and 9.3% older than 77. Each drop costs a top-up call, and the kept records spread wider in age
+  than the training rows (a standard deviation of 9 to 11 years per cell against 3 to 6). *Filed
+  2026-10-21 by `proposal-e1-replica-run`.*
+  **Why deferred.** It changes what every call sends, which `proposal-e1-replica-run` puts Out,
+  and E1's judged run keeps one configuration.
+  **What discharges it:** the user turn bounds each numeric field by the training split's minimum
+  and maximum, the bounds the drop rule enforces, with a test pinning the rendered text.
+  **Trigger:** the next change to `prompt.render`'s numeric bounds, or a new configuration of
+  `E1`.
+
+- **`cleanup:generate/replica-marginals-drift`: at level `ontology`, BKO records match their
+  cell's sex, target and age band but not its field distributions.** Over the 94753 records
+  `e1-3`'s call log decodes, against the real records of each requested cell (pooled, weighted to
+  the synthetic cells): `cp` 4 at 0.28 against 0.50, with `cp` near uniform; `restecg` 1 at 0.26
+  and 2 at 0.13 against 0.01 and 0.49; `thal` 6 at 0.25 against 0.06; `ca` 0 at 0.42 against
+  0.61; `chol`'s standard deviation narrower in every cell (28 to 37 against 35 to 80); `thalach`
+  14 to 24 bpm lower in the 55-and-over cells; and `trestbps` on a multiple of 10 in 14.2% of
+  records against 55.2% of real ones. E1's Result reads the effect: trained on its replica alone,
+  `bko` scores the lowest fidelity of any arm and a flagged-subgroup recall of 0.3260. The prompt
+  at level `ontology` gives no frequencies or spreads; levels `profile` and `summary` add them
+  (`src/bko/generate/prompt.py:129-153`, `src/bko/generate/messages.py:22-30`). *Filed 2026-10-21
+  by `proposal-e1-replica-run`.*
+  **Why deferred.** Which level E1 runs is a result of `proposal-guidance-ablation`, not a fix in
+  this unit.
+  **What discharges it:** E1 runs its BKO arms at the level whose replica column shapes and column
+  pair trends the guidance ablation measures closest to the training rows, or the ablation's
+  record states that no level closes the drift.
+  **Trigger:** `proposal-guidance-ablation`'s result.
+
+- **`cleanup:generate/haiku-thinks-every-call`: at effort `medium`, Haiku 5.5 thinks on every call
+  and writes about twice Opus 5.5's output tokens per record.** `SETTINGS` sends
+  `output_config.effort` `medium` (`src/bko/generate/messages.py:76`). All 9340 replies in
+  `e1-3`'s call log hold a `thinking` block before their text, against 13 of 603 in `e1-1`'s;
+  output tokens per record asked are 197.049 against 94.163, and output is about three quarters
+  of the spend at `bko.generate.spend.PRICES`. Seconds per call are unchanged (8.1 against 8.2
+  over the first 682 calls of `e1-2` and all of `e1-1`), since Haiku streams about twice as fast.
+  *Filed 2026-10-21 by `proposal-e1-replica-run`.*
+  **Why deferred.** Changing effort is a new configuration of `E1`, and whether a lower effort
+  keeps validity and fidelity is unmeasured.
+  **What discharges it:** `SETTINGS` uses the lowest effort whose validity rate meets
+  `E1.validity` and whose replica fidelity does not fall below effort `medium`'s on a measured
+  run, or this entry records that `medium` is that effort.
+  **Trigger:** the next change to `SETTINGS`.
