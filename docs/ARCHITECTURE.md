@@ -119,7 +119,7 @@ The 2-pager's method choices govern where they differ from the flow:
 | Step 2 | HPO, MONDO or SNOMED through OLS/BioPortal; a Bayesian coverage score | MONDO and HPO through pronto, from pinned OBO releases; gaps are ungrounded BKO statements, with count-based gaps alongside |
 | Step 3 | A dropdown of CLLM, GReaT, CTGAN, TVAE and SMOTE; SHACL validation | Generation through the Anthropic Messages API, compared against CTGAN, TVAE, SMOTE and ADASYN; validation against the consistency checks and range constraints; the page's scores table shows a BKO fill's generated, passed and dropped counts once the fill ends, not live |
 | Step 4 | Optional human-in-the-loop tab | Not planned ([IDEAS.md](IDEAS.md#human-in-the-loop-expert-questions)) |
-| Step 5 | Improvement over no augmentation | The success criteria, which add the class-weighting control and the baselines ([RESEARCH.md](RESEARCH.md#4-success-criteria)); the page shows one split's measures, with no replica fidelity or train-on-synthetic reading and no verdict; earlier runs of record show from their run folders |
+| Step 5 | Improvement over no augmentation | The success criteria, which add the class-weighting control and the baselines ([RESEARCH.md](RESEARCH.md#4-success-criteria)); the page shows one split's measures, with no replica fidelity or train-on-synthetic reading and no verdict; earlier runs of record show from their run folders, with E1's stored criteria |
 | Step 6 | Download the augmented dataset and a one-page "synthetic data quality report" | The augmented training set and the scores, as CSV; no report |
 
 ## Prior code

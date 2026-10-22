@@ -158,9 +158,28 @@ def candidates_table(path: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _flags(frame: pd.DataFrame, column: str) -> pd.Series:
+    """`column` as read, refusing anything but True and False.
+
+    Raises:
+        KeyError: If `frame` has no `column`.
+        ValueError: If `column` holds a blank or any value but True and False.
+    """
+    values = frame[column]
+    if not pd.api.types.is_bool_dtype(values):
+        msg = f"the {column!r} column holds values other than True and False"
+        raise ValueError(msg)
+    return values
+
+
 def closure_counts(frame: pd.DataFrame) -> pd.DataFrame:
-    """Each definition's pairs that closed, stayed open or are new, in `Definition` order."""
-    before, after = frame["before"].astype(bool), frame["after"].astype(bool)
+    """Each definition's pairs that closed, stayed open or are new, in `Definition` order.
+
+    Raises:
+        KeyError: If a column is missing.
+        ValueError: If a reading holds anything but True and False.
+    """
+    before, after = _flags(frame, "before"), _flags(frame, "after")
     marks = frame.assign(closed=before & ~after, still_open=before & after, new=~before & after)
     counts = marks.groupby("definition")[["closed", "still_open", "new"]].sum()
     order = [definition.value for definition in Definition]
@@ -168,9 +187,14 @@ def closure_counts(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def gap_counts(frame: pd.DataFrame, keys: Sequence[str]) -> pd.DataFrame:
-    """A gap table's pairs per group of `keys`, and how many are listed under each reading."""
+    """A gap table's pairs per group of `keys`, and how many are listed under each reading.
+
+    Raises:
+        KeyError: If a key column is missing.
+        ValueError: If a reading holds anything but True and False.
+    """
     readings = [column for column in ("before", "after", "truth") if column in frame.columns]
-    marks = frame.assign(pairs=1, **{column: frame[column].astype(bool) for column in readings})
+    marks = frame.assign(pairs=1, **{column: _flags(frame, column) for column in readings})
     return marks.groupby(list(keys), sort=False)[["pairs", *readings]].sum().reset_index()
 
 

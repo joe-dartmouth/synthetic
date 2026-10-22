@@ -67,9 +67,11 @@ def test_an_unreadable_artifact_shows_its_message(tmp_path):
     runs = every_kind(tmp_path / "runs")
     (runs / "e1-3" / "scores.csv").write_text("not,a,scores,file\n", encoding="utf-8")
     at = _opened(tmp_path, runs, "e1-3")
-    assert at.error
-    assert any("scores.csv" in error.value for error in at.error)
-    assert at.code
+    assert [error.value for error in at.error] == [
+        "scores.csv could not be shown.",
+        "scores.csv could not be shown.",
+    ]
+    assert any(block.value.startswith("ScoresFormatError: ") for block in at.code)
     assert {"Call log totals", "E1's criteria"} <= {subheader.value for subheader in at.subheader}
 
 
@@ -102,3 +104,12 @@ def test_a_call_log_with_no_end_line_says_so(tmp_path):
     at = _opened(tmp_path, runs, "c1-2")
     assert any("no end line" in info.value for info in at.info)
     assert not at.error
+
+
+def test_a_fill_survives_a_trip_to_earlier_runs(tmp_path):
+    at = analyzed(app_context(tmp_path, send=never, runs_dir=tmp_path / "runs")[0])
+    at = settled(at.selectbox(key="bko.method").select("smote").run())
+    at = settled(at.button(key="bko.fill").click().run())
+    at = _earlier(at)
+    at = settled(at.radio(key="bko.view").set_value("Demo").run())
+    assert "4. Results" in [header.value for header in at.header]

@@ -18,24 +18,27 @@ from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 
 
 SCORES: Final = [
-    Score(holdout, arm, source, measure, Scope.ALL, value)
+    Score(holdout, arm, source, measure, Scope.ALL, value + (0.1 if holdout % 2 else -0.1))
     for holdout in E1.holdout_seeds
     for arm, value in (("none", 0.5), ("bko", 0.6))
     for source, measure in ((Source.AUGMENTED, Measure.RECALL), (Source.AUGMENTED, Measure.AUC_PR))
 ] + [
-    Score(holdout, "bko", source, measure, Scope.ALL, count)
+    Score(holdout, arm, source, measure, Scope.ALL, count)
     for holdout in E1.holdout_seeds
+    for arm, passed in (("bko", 1.0), ("bko-population", 0.5))
     for source, made in ((Source.CANDIDATES, 20.0), (Source.REPLICA_CANDIDATES, 30.0))
     for measure, count in (
         (Measure.GENERATED, made),
-        (Measure.PASSED, made),
+        (Measure.PASSED, made * passed),
         (Measure.DROPPED_RANGE, 1.0),
         (Measure.DROPPED_CELL, 0.0),
         (Measure.DROPPED_QUOTA, 0.0),
     )
 ]
-"""Every E1 holdout of `none` and `bko`, utility rows first, then `bko`'s gap and replica fill
-counts: `validity` requires every one of E1's holdouts and reads both fills of a replica arm."""
+"""Every E1 holdout of `none` and `bko`, utility rows first, each 0.1 below its mean on even
+holdouts and 0.1 above on odd ones; then the gap and replica fill counts of `bko`, whose every
+candidate passes, and `bko-population`, whose half do. `validity` requires every one of E1's
+holdouts and reads both fills of a replica arm."""
 
 CRITERIA: Final = (
     "criterion,scope,verdict,arm,against,measure,mean,low,high,refuting_high,holdouts,differing\n"

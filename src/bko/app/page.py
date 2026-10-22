@@ -89,9 +89,7 @@ def page() -> None:
     context: Context = st.session_state.setdefault(CONTEXT_KEY, Context())
     context.setup_logging()
     st.title("Fill clinical coverage gaps")
-    view = st.radio(
-        "View", ("Demo", "Earlier runs"), horizontal=True, key="bko.view", on_change=_forget_outcome
-    )
+    view = st.radio("View", ("Demo", "Earlier runs"), horizontal=True, key="bko.view")
     if view == "Earlier runs":
         earlier_runs(context)
         return
@@ -211,7 +209,10 @@ def _fill(context: Context, analysis: Analysis) -> Outcome | None:
         # The finished fill sits in its slot; the rerun draws the next fill's unticked box.
         st.rerun()
     slot: Slot[Outcome] | None = st.session_state.get(OUTCOME_KEY)
-    return None if slot is None else _shown(slot)
+    if slot is None or (slot.value is not None and slot.value.name != name):
+        # A view switch resets the method box but keeps the outcome; its run folder keeps it too.
+        return None
+    return _shown(slot)
 
 
 def _answers(context: Context, name: str) -> tuple[Path | None, bool]:

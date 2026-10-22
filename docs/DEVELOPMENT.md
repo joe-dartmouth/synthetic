@@ -513,15 +513,21 @@ running action. Launch it only through `make app`; a bare `streamlit run` drops 
   train-on-synthetic reading. It lists each definition's gaps before and after the added rows join.
   Download offers the augmented training set, in the format `python -m bko.baselines` prints, and
   the split's scores, in the format `python -m bko.evaluate score` writes.
-- **What it judges**: nothing. The page shows one split's measures; E1's verdict comes only from
-  `python -m bko.evaluate compare` over E1's holdouts ([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)).
+- **What it judges**: a demo fill judges nothing. It shows one split's measures; E1's verdict comes
+  only from `python -m bko.evaluate compare` over E1's holdouts
+  ([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)), whose stored criteria table the
+  Earlier runs view shows.
 - **Earlier runs**: the page's second view lists the run folders under `runs/` ([Runs](#runs)) and
   shows each one's stored artifacts by role: a call log's `end` totals; E1's criteria table, the
-  means over its holdouts and its arms' validity; candidates per call and cell; a closure table's
-  pairs and counts; the gap tables of E2 per ablation and detector; R1's reproduction rows; a demo
-  fill's scores and training set. It recomputes nothing from `data/` and writes nothing; it derives
-  only means, counts and E1's validity from the stored files, and lists logs and a `live` test's
-  `pytest` directory without reading them. A folder or role this machine lacks is not listed.
+  means over its holdouts and each BKO arm's validity counts, with E1's validity verdict on its
+  candidate; candidates per call and cell; a closure table's pairs and counts; the UCI gap listing
+  per detector and E2's gap readings per ablation and detector; R1's reproduction rows; a demo
+  fill's scores (as means over its one holdout) and training set. It recomputes nothing from
+  `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
+  files. It reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files
+  and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
+  a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
+  shows its error in place of its section.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It
   starts only while its confirmation box is ticked, the box clears after each fill, the client is
   built only then, and the fill stops once its call log's spend reaches

@@ -82,16 +82,17 @@ class Run:
 def discover(root: Path) -> tuple[Run, ...]:
     """The run folders under `root`, by name; none when `root` does not exist.
 
-    A directory whose name is not a run id, and a file whose name is not a role, are skipped.
+    A directory whose name is not a run id, a file whose name is not a role, and a symbolic link
+    are skipped. Names sort by their numbers, so `e1-10` follows `e1-9`.
     """
     if not root.is_dir():
         return ()
     found = []
-    for folder in sorted(root.iterdir()):
+    for folder in sorted(root.iterdir(), key=_natural):
         match = RUN_ID.fullmatch(folder.name)
-        if match is None or not folder.is_dir():
+        if match is None or folder.is_symlink() or not folder.is_dir():
             continue
-        roles = {role: folder / role for role in ROLES if (folder / role).exists()}
+        roles = {role: folder / role for role in ROLES if _holds(folder / role, role)}
         found.append(Run(folder.name, match["entry"] or "app", folder, MappingProxyType(roles)))
     return tuple(found)
 
@@ -101,9 +102,22 @@ def call_totals(path: Path) -> Mapping[str, object] | None:
     size = path.stat().st_size
     with path.open("rb") as handle:
         handle.seek(max(0, size - TAIL))
-        lines = handle.read().splitlines()
+        lines = [line for line in handle.read().splitlines() if line.strip()]
     try:
         last = json.loads(lines[-1]) if lines else None
     except ValueError:
         return None
     return last if isinstance(last, dict) and last.get("kind") == "end" else None
+
+
+def _holds(path: Path, role: str) -> bool:
+    """Whether `path` is the role's kind of entry: a directory for `pytest`, else a regular file."""
+    if path.is_symlink():
+        return False
+    return path.is_dir() if role == "pytest" else path.is_file()
+
+
+def _natural(path: Path) -> tuple[tuple[int, int | str], ...]:
+    return tuple(
+        (0, int(part)) if part.isdigit() else (1, part) for part in re.split(r"(\d+)", path.name)
+    )

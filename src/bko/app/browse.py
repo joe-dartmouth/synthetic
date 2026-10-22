@@ -1,11 +1,12 @@
 """The Earlier runs view: the run folders on this machine, each role's stored artifacts.
 
-It recomputes nothing from `data/`; it shows the stored files and derives only means, counts and
-E1's validity from them (ADR `research/streamlit-app-design`).
+`docs/DEVELOPMENT.md` (App) says what it shows and derives; ADR `research/streamlit-app-design`
+records why it reads stored artifacts only.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
@@ -33,10 +34,19 @@ from bko.evaluate.scores import parse
 from bko.generate.errors import CandidatesFormatError
 
 
-UNREADABLE: Final = (EvaluationError, CandidatesFormatError, ValueError, KeyError, OSError)
-"""What an artifact that does not hold its role's shape raises, shown as a message.
+logger = logging.getLogger(__name__)
 
-`EvaluationError` covers `ScoresFormatError` and `validity`'s refusal of a partial E1 run.
+UNREADABLE: Final = (
+    EvaluationError,
+    CandidatesFormatError,
+    ValueError,
+    KeyError,
+    TypeError,
+    OSError,
+)
+"""What reading or showing an artifact raises when the file does not hold what its role names,
+shown as a message. `EvaluationError` covers `ScoresFormatError` and `validity`'s refusal of a
+partial E1 run; `TypeError` covers a column the frame display cannot convert.
 """
 
 
@@ -79,7 +89,8 @@ def _guarded(role: str, show: Callable[[], None]) -> None:
     try:
         show()
     except UNREADABLE as exc:
-        st.error(f"{role} does not hold its role's shape.")
+        logger.warning("unreadable role=%s error=%s: %s", role, type(exc).__name__, exc)
+        st.error(f"{role} could not be shown.")
         st.code(f"{type(exc).__name__}: {exc}", language=None)
 
 

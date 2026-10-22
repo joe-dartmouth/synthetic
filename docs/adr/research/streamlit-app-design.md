@@ -45,13 +45,15 @@ We will build the page as follows.
   click; `SPEND_CEILING` per fill; the send built inside the action; the loopback bind; one action
   per process under a lock.
 * **Config home**: the flags live in the `make app` recipe, and nowhere else.
-* **Verdicts**: the page shows one split's measures and no verdict.
+* **Verdicts**: a demo fill shows one split's measures and no verdict; the Earlier runs view shows
+  E1's stored criteria table and the validity verdict `bko.evaluate.validity.verdict` gives on
+  the stored scores.
 * **`SPEND_CEILING`**: 0.25 USD per fill.
 * **Run folders**: each fill keeps its run folder (ADR `tooling/run-folders`).
-* **Earlier runs**: the page's Earlier runs view reads run folders' stored artifacts, through
-  `bko.evaluate.scores.parse`, `bko.evaluate.validity.validity` and
-  `bko.generate.candidates.read`, and pandas for the CSVs; it recomputes nothing from `data/` and
-  derives only means, counts and E1's validity from the stored files.
+* **Earlier runs**: the page's Earlier runs view reads run folders' stored artifacts through the
+  stages' public readers (`bko.evaluate.scores.parse`, `bko.evaluate.validity` and
+  `bko.generate.candidates.read`) and pandas for the CSVs, and recomputes nothing from `data/`
+  (`docs/DEVELOPMENT.md`, App, lists what it shows).
 
 ## Rationale
 

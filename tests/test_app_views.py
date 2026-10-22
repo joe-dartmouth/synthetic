@@ -153,21 +153,30 @@ def _csv(text: str) -> pd.DataFrame:
 
 def test_arm_means_average_each_measure_over_the_holdouts():
     means = arm_means(SCORES)
-    assert set(means.columns) == {"none", "bko", "holdouts"}
+    assert set(means.columns) == {"none", "bko", "bko-population", "holdouts"}
     assert (means["holdouts"] == len(E1.holdout_seeds)).all()
-    assert list(means.loc[("augmented", "recall", "all"), ["none", "bko"]]) == [0.5, 0.6]
+    recall = list(means.loc[("augmented", "recall", "all"), ["none", "bko"]])
+    assert recall == pytest.approx([0.5, 0.6])
 
 
 def test_e1_validity_sums_the_candidate_counts():
     table = e1_validity(SCORES)
+    holdouts = len(E1.holdout_seeds)
     assert table.to_dict("records") == [
         {
             "arm": "bko",
-            "generated": 50 * len(E1.holdout_seeds),
-            "passed": 50 * len(E1.holdout_seeds),
+            "generated": 50 * holdouts,
+            "passed": 50 * holdouts,
             "rate": 1.0,
             "verdict": "met",
-        }
+        },
+        {
+            "arm": "bko-population",
+            "generated": 50 * holdouts,
+            "passed": 25 * holdouts,
+            "rate": 0.5,
+            "verdict": "reported",
+        },
     ]
     assert e1_validity(SCORES[:8]).empty
 
@@ -238,3 +247,11 @@ def test_totals_table_keeps_the_end_lines_counts(tmp_path):
         )
     )
     assert table.iloc[0]["calls"] == 1
+
+
+def test_a_reading_with_a_blank_is_refused():
+    blank = CLOSURE.replace("True,False\n", "True,\n", 1)
+    with pytest.raises(ValueError, match="'after'"):
+        closure_counts(_csv(blank))
+    with pytest.raises(ValueError, match="'truth'"):
+        gap_counts(_csv(GAPS_SYNTHEA.replace(",False\n", ",\n", 1)), ("ablation", "detector"))
