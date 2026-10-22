@@ -1,11 +1,11 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce app
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
 # the interpreter flag is one of the pin's homes `tests/test_repo_gate.py` checks.
 setup:
-	uv sync --locked --python 3.14 --extra dev --extra data --extra synth --extra eval --extra ontology --extra llm
+	uv sync --locked --python 3.14 --extra dev --extra data --extra synth --extra eval --extra ontology --extra llm --extra app
 
 # Install the exact lock across every extra.
 sync:
@@ -66,6 +66,12 @@ synthea:
 # reproduction). Not part of the gate.
 reproduce:
 	@uv run --no-sync python -m bko.ontology reproduce
+
+# Serve the Streamlit interface on 127.0.0.1:8501 until interrupted (docs/DEVELOPMENT.md, App).
+# Not part of the gate; a live BKO fill spends money. The flags are the app's whole configuration
+# (ADR research/streamlit-app-design).
+app:
+	uv run --no-sync python -m streamlit run src/bko/app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --runner.fastReruns false --server.fileWatcherType none
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final

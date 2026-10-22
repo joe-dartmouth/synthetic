@@ -618,8 +618,8 @@ A targeted run while working:
   also points `ANTHROPIC_BASE_URL` at the loopback discard port, so a subprocess cannot spend.
   The conftest imports anthropic, so every pytest run needs the `llm` extra. The app tests import
   `streamlit.testing`, so every pytest run also needs the `app` extra. A request from an AppTest
-  script thread is refused too; the test then fails on AppTest's timeout rather than the guard's
-  message.
+  script thread is refused too: the refusal kills the script thread, so the test fails on what
+  AppTest's `run` raises, and the guard's message goes to the thread's exception hook.
 - **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
   subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
