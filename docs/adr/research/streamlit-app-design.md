@@ -96,7 +96,8 @@ drive fills, each bounded by the ceiling and a confirmation.
 
 ## Enforcement
 - Owner: `src/bko/app/`
-- Pinned by: `tests/test_repo_gate.py`, `tests/test_app_page.py`, `tests/test_app_imports.py`
+- Pinned by: `tests/test_repo_gate.py`, `tests/test_app_page.py`, `tests/test_app_imports.py`,
+  `tests/test_app_steps.py`, `tests/test_app_views.py`
 
 ## Reversal Conditions
 The app is served beyond loopback (then authentication and a spend ledger); `GuidedArm` gains a

@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Final
 
+import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 from bko.app.context import Context
@@ -86,3 +87,13 @@ def launch(context: Context) -> AppTest:
     at = AppTest.from_file(str(ENTRY), default_timeout=TIMEOUT)
     at.session_state[CONTEXT_KEY] = context
     return settled(at.run())
+
+
+def analyzed(context: Context) -> AppTest:
+    """The page after Analyze gaps."""
+    return settled(launch(context).button(key="bko.analyze").click().run())
+
+
+def frame_with(at: AppTest, columns: set[str]) -> pd.DataFrame:
+    """The first frame on the page holding every column in `columns`."""
+    return next(frame.value for frame in at.dataframe if columns <= set(frame.value.columns))
