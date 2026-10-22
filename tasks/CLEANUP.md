@@ -66,6 +66,16 @@ links to where its blocker is tracked.
   with it.
   **Trigger:** `proposal-guidance-ablation`, whose paid runs each take as long as `e1-3`.
 
+- **`cleanup:evaluate/guided-wiring-copied`: the app repeats `_guided`'s BKO arm wiring.**
+  `bko.app.steps.fill_and_score` builds `CallLog`, `Replay`, `GuidedArm` and the refusal of
+  unreplayed calls as `src/bko/evaluate/__main__.py:206-255` does. *Filed 2026-10-21 by
+  `proposal-streamlit-app`.*
+  **Why deferred.** A public home in `bko.evaluate` changes the command that
+  `proposal-guidance-ablation` edits.
+  **What discharges it:** one public function in `bko.evaluate` that builds a run's BKO arms over
+  one call log, called by the command and by `bko.app`.
+  **Trigger:** `proposal-guidance-ablation` landing, or the next change to either wiring.
+
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
@@ -83,6 +93,18 @@ links to where its blocker is tracked.
   **What discharges it:** the closure command refuses a cell where any call wrote fewer lines than
   it asked for.
   **Trigger:** a change that sets `SETTINGS.per_call` below `UNDERREPRESENTED_BELOW`.
+
+## gaps
+
+- **`cleanup:gaps/uci-load-sequence-copied`: the UCI load sequence is written once per command and
+  once in the app.** `ensure`, `load_uci`, `split`, `load_scope` and `record_cells` run in sequence
+  in `src/bko/gaps/__main__.py:177-188`, `src/bko/fusion/__main__.py:152-167`,
+  `src/bko/generate/__main__.py:202-217`, `src/bko/evaluate/__main__.py:175-176,217-224` and
+  `bko.app.steps.analyze`. *Filed 2026-10-21 by `proposal-streamlit-app`.*
+  **Why deferred.** Extracting it edits four commands owned by others, and
+  `proposal-guidance-ablation` edits `bko.evaluate`'s command.
+  **What discharges it:** one public loader in `bko.gaps` that every command and `bko.app` call.
+  **Trigger:** `proposal-guidance-ablation` landing, or the next change to any copy.
 
 ## generate
 

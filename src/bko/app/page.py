@@ -10,17 +10,36 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final
 
 import streamlit as st
 
 from bko.app.context import Context
-from bko.app.steps import Analysis, analyze
-from bko.app.views import balance, cell_table, gap_table
+from bko.app.steps import (
+    Analysis,
+    Outcome,
+    analyze,
+    call_logs,
+    fill_and_score,
+    fillers,
+    is_paid,
+    scores_csv,
+    training_csv,
+)
+from bko.app.views import (
+    balance,
+    cell_table,
+    closure_pairs,
+    closure_summary,
+    gap_table,
+    score_table,
+)
 from bko.baselines.errors import BaselineError
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.scores import Source
 from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
 
@@ -37,6 +56,9 @@ STOPS: Final = (DatasetError, GenerationError, BaselineError, EvaluationError, B
 ACTION_LOCK: Final = threading.Lock()
 """One action per process: two sessions' fills would share numpy's and torch's global state, and
 a refreshed tab could start a second paid fill beside a running one."""
+
+RUNS_KEY: Final = "bko.runs"
+"""How many fills this session started; each confirmation box is keyed by it, so none carries."""
 
 DATASETS: Final = ("UCI Heart Disease",)
 
@@ -60,7 +82,12 @@ def page() -> None:
     st.title("Fill clinical coverage gaps")
     st.header("1. Dataset")
     st.selectbox("Dataset", DATASETS, key="bko.dataset")
-    _analysis(context)
+    analysis = _analysis(context)
+    if analysis is None:
+        return
+    outcome = _fill(context, analysis)
+    if outcome is not None:
+        _results(analysis, outcome)
 
 
 def _run[T](key: str, label: str, action: Callable[[], T]) -> None:
@@ -120,3 +147,86 @@ def _show_analysis(analysis: Analysis) -> None:
     for tab, definition in zip(tabs[:-1], Definition, strict=True):
         tab.dataframe(gap_table(analysis, definition), hide_index=True)
     tabs[-1].dataframe(cell_table(analysis).query("underrepresented"), hide_index=True)
+
+
+def _forget_outcome() -> None:
+    st.session_state.pop(OUTCOME_KEY, None)
+
+
+def _fill(context: Context, analysis: Analysis) -> Outcome | None:
+    st.header("3. Fill and score")
+    name: str = st.selectbox(
+        "Method",
+        fillers(context.experiment),
+        key="bko.method",
+        on_change=_forget_outcome,
+        format_func=lambda arm: f"{arm} (Anthropic API)" if is_paid(arm) else arm,
+    )
+    replay, ready = _answers(context, name) if is_paid(name) else (None, True)
+    clicked = st.button("Fill and score", type="primary", key="bko.fill", disabled=not ready)
+    if clicked and ready:
+        st.session_state[RUNS_KEY] = st.session_state.get(RUNS_KEY, 0) + 1
+        _run(
+            OUTCOME_KEY,
+            f"Filling with {name}, then scoring every method on the split",
+            lambda: fill_and_score(analysis, name, context, replay=replay),
+        )
+        # The finished fill sits in its slot; the rerun draws the next fill's unticked box.
+        st.rerun()
+    slot: Slot[Outcome] | None = st.session_state.get(OUTCOME_KEY)
+    return None if slot is None else _shown(slot)
+
+
+def _answers(context: Context, name: str) -> tuple[Path | None, bool]:
+    """Where a BKO fill's answers come from, and whether the fill may start."""
+    mode = st.radio(
+        "Answers", ("live", "replay"), horizontal=True, key="bko.answers", on_change=_forget_outcome
+    )
+    if mode == "replay":
+        logs = {path.parent.name: path for path in call_logs(context, name)}
+        if not logs:
+            st.info("No call log to replay yet.")
+            return None, False
+        chosen: str = st.selectbox("Call log of an earlier fill", tuple(logs), key="bko.log")
+        return logs[chosen], True
+    runs = st.session_state.get(RUNS_KEY, 0)
+    confirmed = st.checkbox(
+        f"Spend up to {context.ceiling} USD of Anthropic API calls on this fill",
+        key=f"bko.confirm.{name}.{runs}",
+    )
+    return None, confirmed
+
+
+def _results(analysis: Analysis, outcome: Outcome) -> None:
+    st.header("4. Results")
+    st.caption(
+        "One split, E1's first holdout. These are measures, not E1's verdict, which "
+        "docs/EVIDENCE.md holds."
+    )
+    added, calls, spend = st.columns(3)
+    added.metric("Rows added", len(outcome.baseline.added))
+    if outcome.log is not None:
+        calls.metric("API calls", outcome.calls)
+        spend.metric("Spend (USD)", "0, replayed" if outcome.replayed else f"{outcome.usd:.6f}")
+    st.code(str(outcome.folder), language=None)
+    st.subheader("Gaps before and after the fill")
+    st.dataframe(closure_summary(outcome), hide_index=True)
+    st.dataframe(closure_pairs(analysis, outcome), hide_index=True)
+    st.subheader("Scores")
+    st.dataframe(score_table(outcome.scores, Source.AUGMENTED))
+    st.dataframe(score_table(outcome.scores))
+    st.subheader("Download")
+    st.download_button(
+        "Augmented training set (CSV)",
+        training_csv(analysis, outcome),
+        file_name=f"{outcome.folder.name}-training.csv",
+        mime="text/csv",
+        on_click="ignore",
+    )
+    st.download_button(
+        "Scores (CSV)",
+        scores_csv(outcome),
+        file_name=f"{outcome.folder.name}-scores.csv",
+        mime="text/csv",
+        on_click="ignore",
+    )

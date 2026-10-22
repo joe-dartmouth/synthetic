@@ -20,8 +20,9 @@ from bko.generate.messages import Send
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import pin
 from tests._evaluate_fixtures import FAST_METHODS
+from tests._fusion_fixtures import young
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
-from tests._generate_fixtures import SIZES, uci
+from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
 from tests._ontology_fixtures import RoutingOpener
 
 
@@ -40,6 +41,11 @@ EXPERIMENT: Final = dataclasses.replace(
     E1, arms=("none", "smote", "bko"), comparators=("none", "smote"), replica_arms=()
 )
 """E1 with one control, one baseline and the candidate."""
+
+
+def one_fill() -> ScriptedSend:
+    """The default split's two calls: 12 young women without the condition, then 16 with it."""
+    return ScriptedSend(reply([young(0)] * 12), reply([young(1)] * 16))
 
 
 def never() -> Send:

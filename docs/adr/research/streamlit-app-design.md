@@ -67,12 +67,13 @@ a whole experiment; one fill makes a few calls.
 
 **Gained**: every path that spends nothing runs in the gate; one paid transaction per click; a
 free, repeatable demo from a recorded log.
-**Accepted**: another copy of the UCI load sequence and of `_guided`'s wiring; no live rejected-row
-counter; no cancel of an in-flight call, and a closed tab or Ctrl-C waits for the running action,
-CTGAN and TVAE fits included; the page's numbers never equal E1's mean over its holdouts; clicks
-queue during an action; an AppTest that reaches the SDK fails on what AppTest's `run` raises, with
-the guard's message on the script thread's exception; DNS rebinding to `127.0.0.1:8501` can still
-drive fills, each bounded by the ceiling and a confirmation.
+**Accepted**: another copy of the UCI load sequence (`cleanup:gaps/uci-load-sequence-copied`) and of
+`_guided`'s wiring (`cleanup:evaluate/guided-wiring-copied`); no live rejected-row counter; no
+cancel of an in-flight call, and a closed tab or Ctrl-C waits for the running action, CTGAN and TVAE
+fits included; the page's numbers never equal E1's mean over its holdouts; clicks queue during an
+action; an AppTest that reaches the SDK fails on what AppTest's `run` raises, with the guard's
+message on the script thread's exception; DNS rebinding to `127.0.0.1:8501` can still drive fills,
+each bounded by the ceiling and a confirmation.
 
 ## Ruled Out
 

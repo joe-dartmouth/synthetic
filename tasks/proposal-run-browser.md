@@ -1,8 +1,8 @@
 ---
 id: proposal-run-browser
 title: Earlier runs in the Streamlit interface
-status: blocked
-depends_on: proposal-streamlit-app
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Krish
