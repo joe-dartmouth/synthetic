@@ -333,6 +333,8 @@ def guided_arms(
 
     Raises:
         ReplayError: If the body returns while `answers` holds calls it did not answer.
+        GenerationError: As `CallLog`, if the settings model has no price, before `log` exists.
+        importlib.metadata.PackageNotFoundError: As `CallLog`, before `log` exists.
         FileExistsError: If `log` exists.
     """
     answered = None if answers is None else answers.answered

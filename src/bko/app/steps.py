@@ -261,7 +261,7 @@ def fill_and_score(
             scores = _score(analysis, experiment, context, recorder, drains={name: arm.drain})
     except Exception as exc:
         log = None if paid is None else paid.log
-        spent = "" if log is None else f"; it spent {log.usd:.6f} USD over {log.calls} calls"
+        spent = "" if log is None else f"; it spent {log.live_usd:.6f} USD over {log.calls} calls"
         exc.add_note(f"The fill's run folder is {folder}{spent}.")
         raise
     return _kept(analysis, _outcome(analysis, name, recorder, scores, folder, log=paid.log))

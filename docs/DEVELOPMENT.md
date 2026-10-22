@@ -163,9 +163,10 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
   (outcome, seed, call range, records asked, candidates generated and passed, dropped for each
   reason, kept, the run's spend), a `spend` line before each BKO call with the run's spend so far
   and the ceiling, `bko.generate`'s `log` line and per-call lines and the call log's totals line
-  (with `live_usd=` and `resume=`), a
-  `test` line per holdout with the test records any arm copied, and at the end of the run, a stopped
-  run included, one `validity` line per BKO arm, its counts over both fills. A fill that stops the
+  (with `live_usd=` and `resume=`), a `test` line per holdout with the test records any arm
+  copied, and at the end of the run, a stopped run included, one `validity` line per BKO arm, its
+  counts over both fills. A resume logs a WARNING for a cut final line or an unanswered last call
+  it drops from the stopped log, and a `resume live from call` line before its first live call. A fill that stops the
   run logs a `refused` or `contract` error naming the holdout and arm. `compare` logs a `compare`
   line with the candidate, whether it is a dry run and the scores file's sha256, then one
   `criterion` line per criterion with its verdict, a `criterion=validity` line, a `validity` line
@@ -180,12 +181,11 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with no BKO arm to
-  build, `--resume` with `--replay`, a
-  call that gets no response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and
-  `candidates` or `replica-candidates` rows whose validity cannot be read; 3 also for a replay that
-  does not match its log, and a stopped log that breaks the replay contract: a replay's log, or a
-  resume that stopped while it replayed. `compare` writes its table before it reads validity, so it keeps the table
-  when it exits 2 on validity.
+  build, `--resume` with `--replay`, a call that gets no response, a failed gap query, a run whose
+  spend reached `E1.spend_ceiling` and `candidates` or `replica-candidates` rows whose validity
+  cannot be read; 3 also for a replay that does not match its log, and a stopped log that breaks
+  the replay contract: a replay's log, or a resume that stopped while it replayed. `compare`
+  writes its table before it reads validity, so it keeps the table when it exits 2 on validity.
 - **Reproducibility**: a holdout seed gives the same split and requests, and the baselines keep
   the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
   seed; the paid run's call log is their record (ADR

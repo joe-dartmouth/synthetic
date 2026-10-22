@@ -121,7 +121,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the system, the design or any configuration, E1 runs again, and only runs of the new
   configuration count. A configuration with one complete paid run (exit 0, call log ending
   `complete`) is judged on it. A resumed run whose log ends `complete` is one complete paid run,
-  and its paid spend is the stopped log's `usd` plus its own `live_usd`. Runs of one
+  and its paid spend is the stopped log's paid spend (its `end` line's `usd`, or the sum of its
+  `reply` lines' `usd` when a killed process wrote no `end` line) plus its own `live_usd`. Runs of one
   configuration are combined into one result, and the method is fixed, as a reading, before a
   configuration's second paid run. Every run's readings
   are fixed before it starts. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one

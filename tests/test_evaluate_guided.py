@@ -12,14 +12,18 @@ import pytest
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.guided import GuidedArm
+from bko.evaluate.guided import GuidedArm, Knowledge, guided_arms
 from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
-from bko.generate.errors import GenerationError
+from bko.generate.calls import ask
+from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS
+from bko.generate.replay import Resume
 from bko.generate.spend import cost
+from tests._evaluate_fixtures import SMALL
 from tests._fusion_fixtures import young
-from tests._generate_fixtures import ScriptedSend, reply
+from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
 from tests._validate_fixtures import planted
 
@@ -159,3 +163,20 @@ def test_the_summary_logs_the_runs_sums(tmp_path, caplog):
     arm.summary()
     sums = "validity arm=bko generated=3 passed=3 dropped_range=0 dropped_cell=0 dropped_quota=0"
     assert sums in caplog.text
+
+
+def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_path, caplog):
+    stopped = tmp_path / "stopped.jsonl"
+    with CallLog(stopped, SETTINGS) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+    resume = Resume(stopped, ScriptedSend())
+    knowledge = Knowledge("x", {}, (), ())
+    path = tmp_path / "resumed.jsonl"
+    caplog.set_level(logging.INFO)
+    with (
+        pytest.raises(ReplayError, match="1 logged calls were not replayed"),
+        guided_arms(("bko",), knowledge, SMALL, log=path, send=ScriptedSend, answers=resume),
+    ):
+        pass
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["status"] == "failed"
+    assert "validity arm=bko" in caplog.text

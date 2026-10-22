@@ -100,6 +100,7 @@ def test_the_replica_asks_for_every_cells_training_count():
         ({"validity": Fraction(21, 20)}, "validity"),
         ({"spend_ceiling": 0.0}, "ceiling"),
         ({"replica_arms": ("none",)}, "add no rows"),
+        ({"replica_arms": ("smote", "none", "class-weight")}, r"\['class-weight', 'none'\] add no"),
     ],
     ids=[
         "one seed",
@@ -116,6 +117,7 @@ def test_the_replica_asks_for_every_cells_training_count():
         "validity above one",
         "no ceiling",
         "control replica",
+        "both control replicas",
     ],
 )
 def test_a_configuration_that_cannot_run_is_refused(change, message):

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Final
 
@@ -307,3 +309,59 @@ def test_replay_still_refuses_a_cut_final_line(tmp_path):
         handle.write('{"kind": "rep')
     with pytest.raises(ReplayError, match="not JSON lines"):
         Replay(path)
+
+
+def test_resume_accepts_a_resume_that_holds_every_call_it_replayed(tmp_path):
+    path = tmp_path / "resumed.jsonl"
+    earlier = Answered("resume", "ab" * 32, 1)
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, answered=earlier) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+        raise KeyboardInterrupt
+    assert Resume(path, ScriptedSend()).answered.calls == 1
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        "x",
+        {},
+        {"sha256": "ab", "calls": "3"},
+        {"sha256": 1, "calls": 1},
+        {"sha256": "ab", "calls": True},
+    ],
+    ids=["text", "empty", "text calls", "number sha256", "bool calls"],
+)
+def test_resume_refuses_a_malformed_resume_field(tmp_path, prior):
+    path = stopped(tmp_path, answer())
+    lines = path.read_text(encoding="utf-8").splitlines()
+    run = json.loads(lines[0]) | {"resume": prior}
+    path.write_text("\n".join([json.dumps(run), *lines[1:]]) + "\n", encoding="utf-8")
+    with pytest.raises(ReplayError, match="resume"):
+        Resume(path, ScriptedSend())
+
+
+def test_resuming_a_log_with_no_calls_sends_every_call_live(tmp_path, caplog):
+    live = ScriptedSend(answer())
+    resume = Resume(stopped(tmp_path), live)
+    assert resume.answered.calls == 0
+    caplog.set_level(logging.INFO)
+    resume(call_for(GUIDANCE, 2))
+    live.assert_consumed()
+    assert "resume live from call 1" in caplog.text
+
+
+def test_resume_refuses_a_call_that_differs_while_it_replays(tmp_path):
+    resume = Resume(stopped(tmp_path, answer(), answer()), ScriptedSend())
+    with pytest.raises(ReplayError, match="differs"):
+        resume(call_for(GUIDANCE, 3))
+
+
+def test_resume_warns_of_what_it_drops(tmp_path, caplog):
+    path = stopped(tmp_path, answer(), LOST)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write('{"kind": "rep')
+    with caplog.at_level(logging.WARNING):
+        resume = Resume(path, ScriptedSend())
+    assert resume.digest == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert f"resume dropped a cut final line of 13 bytes from {path}" in caplog.text
+    assert f"resume dropped call 2 of {path}, whose answer lines are ['error']" in caplog.text

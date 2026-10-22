@@ -170,6 +170,9 @@ def test_a_replayed_run_writes_the_live_runs_bytes(tmp_path, caplog):
     assert again.getvalue() == text
     first = json.loads((tmp_path / "replay.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert first["replay"] == hashlib.sha256(log.read_bytes()).hexdigest()
+    end = json.loads((tmp_path / "replay.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert end["usd"] > 0
+    assert end["live_usd"] == 0
     assert _validity(caplog) == live
 
 
@@ -644,3 +647,23 @@ def test_resume_needs_a_bko_arm(tmp_path, caplog):
     argv = _score(tmp_path / "x.jsonl", tmp_path, "--resume", str(tmp_path / "s.jsonl"))
     assert main(argv, context=ctx, out=io.StringIO()) == 2
     assert "--resume needs a BKO arm" in caplog.text
+
+
+def test_an_unresumable_log_exits_three_before_any_download_or_log(tmp_path, caplog):
+    _, log, _ = paid_run(tmp_path, caplog)
+
+    def fail_first(lines: list[dict]) -> None:
+        index = next(i for i, line in enumerate(lines) if line["kind"] == "reply")
+        call = lines[index]["call"]
+        lines[index] = {"kind": "error", "call": call, "error": "lost", "attempts": None}
+
+    broken = _edited(log, tmp_path / "broken.jsonl", fail_first)
+    send = ScriptedSend()
+    ctx, opener = context(send)
+    resumed = tmp_path / "resumed.jsonl"
+    argv = ["score", "--resume", str(broken), "--log", str(resumed)]
+    argv += ["--data-dir", str(tmp_path / "fresh")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 3
+    assert "failed before the run's last call" in caplog.text
+    assert opener.calls == []
+    assert not resumed.exists()
