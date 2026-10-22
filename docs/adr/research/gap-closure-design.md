@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-21
+updated: 2026-10-22
 ---
 # Validated records join the training records of their asked cell, and closure is read per gap definition
 
@@ -34,11 +34,21 @@ drawn again.
   request reads per-subgroup gaps, so another guidance definition is refused. `python -m
   bko.fusion <candidates>` reads that file, spends nothing, and writes the closure report. The
   file's format has one home, `bko.generate.candidates`, which writes and reads it.
+- **The header.** The candidates file opens with a header line: `kind` `header`, `schema` 1,
+  `request`, `definition`, `guidance`, `uci` (the archive's pinned sha256), `fingerprint` (the
+  split's), `releases` (each loaded prefix's pinned sha256) and `calls` (the plan: `[cell_key,
+  asked]` in call order from call 1). Every reader refuses a file whose first line is not a header
+  (`bko.generate.candidates.read`).
 - **A stage, `bko.fusion`**, downstream of `bko.validate`. It imports `bko.datasets`, `bko.gaps`,
   `bko.ontology`, `bko.validate`, `bko.generate.candidates` and the `BKB` type of
-  `bko.bkb.structure`, and no SDK and no `fuse`.
-- **Which records join.** The command refuses a file that names a cell the request does not ask
-  for, or holds fewer lines for a requested cell than its rows. It validates each requested cell's
+  `bko.bkb.structure`, and no SDK and no `fuse`. From `bko.generate` it imports only
+  `bko.generate.candidates`, since the header carries the call plan.
+- **Which records join.** The command refuses, in this order: a file with no header, through
+  `read`; another request; another UCI archive; another split; other releases; a plan whose
+  per-cell sums differ from the re-derived completeness request, naming both; a line of an
+  unplanned call; a call whose lines name another cell than its plan; and a planned call with
+  fewer lines than it asked. It takes no `--guidance`, so it logs the header's guidance and
+  definition rather than comparing them. It validates each requested cell's
   lines in file order, a placeholder counting as generated. Of the accepted records, one whose own
   age band, sex and label name another cell is dropped, and so is one past its cell's rows, each
   drop counted; the rest follow the training split's records in request order, indexed -1, -2,
@@ -68,15 +78,16 @@ updates both, while a fragment's reliability would be a weight no gap list reads
 ## Consequences
 
 **Gained**: closure regenerates from the candidates file at no cost; the paid and free runs are
-tied by the candidates file's sha256, which generate logs over what it writes and the closure
-command logs over what it reads; `fuse`'s refusal of a fused BKB is never reached.
+tied by the candidates file's sha256, which generate logs over what it writes, its header
+included, and the closure command logs over what it reads; `fuse`'s refusal of a fused BKB is never reached.
 **Accepted**: the candidates file lives in its run's folder under the gitignored `runs/`
 ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#runs)), so only the machine that
 holds it regenerates a recorded figure, and the Runs row's digest is the record; per-subgroup and
 population-level grounding only gain held concepts when records join, while frequency-aware
 reference shares move with any same-label cell's records and open or close pairs in cells that
-received none; the candidates file does not record its guidance level or definition, so the
-recorded command names them. The join rule differs from the one E1's BKO arms apply (ADR
+received none; the header records the guidance level and the definition; a headerless file,
+such as `c1-2`'s or `g1-13`'s, closes only at the commit that wrote it, and the run browser shows
+its candidates section as unreadable. The join rule differs from the one E1's BKO arms apply (ADR
 `research/e1-evaluation-protocol`): it keeps a value outside the training split's range, since
 closure reads only which mapped concepts a record shows and validation already bounds each
 value, and it drops a record its own values place in another requested cell, so each closed gap
@@ -97,6 +108,9 @@ stages share (ADR `tooling/src-layout`, Reversal Conditions).
 | The command in `bko.validate` | It reads releases, and ADR `research/record-validation-design` keeps that stage off the `ontology` extra | 2026-10-18 |
 | An off-cell record joining the cell its own values name | Closes gaps the request never asked about and moves frequency-aware reference shares with no request behind them | 2026-10-18 |
 | A verdict printed by the command | A second home for the criterion's threshold, and one run carries no interval | 2026-10-18 |
+| A candidates file with cells and lines only | It cannot tell a file made for another split, release or request from this one's answer | 2026-10-22 |
+| Each call's asked count read from the call log | Fusion would need the paid log; the header carries the plan | 2026-10-22 |
+| A header recording per_call | Fusion would need generate's chunking code; the plan states each call | 2026-10-22 |
 
 ## Enforcement
 
