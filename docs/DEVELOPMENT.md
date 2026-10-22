@@ -481,6 +481,13 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
+- **Earlier runs**: a run made before its entry's commands wrote run folders keeps its artifacts
+  where its Runs row says. The latest run of each entry also has a folder whose files are
+  read-only hard links to those artifacts: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5` and
+  `r1-2`. A hard link is the same file under a second name, so the row's paths, sha256 and commands
+  stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never redirect
+  a command's output into a linked folder: the shell would empty the register's artifact before the
+  command runs.
 - **Another machine**: a run shows there only after its folder is copied into that machine's `runs/`.
 
 ## Platforms
