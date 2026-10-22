@@ -6,8 +6,9 @@ import re
 from pathlib import Path
 from typing import Final
 
-from bko.app.runs import ROLES, RUN_ID
+from bko.app.runs import ROLES, RUN_ID, call_totals, discover
 from tests._corpus import REPO_ROOT
+from tests._runs_fixtures import DEMO, call_log, every_kind
 
 
 DEVELOPMENT: Final = REPO_ROOT / "docs" / "DEVELOPMENT.md"
@@ -60,3 +61,34 @@ def test_run_id_reads_an_app_fill_and_refuses_other_names():
 
 def test_run_folders_are_gitignored():
     assert "/runs/" in (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+
+
+def test_discover_lists_run_folders_with_their_roles(tmp_path):
+    runs = discover(every_kind(tmp_path))
+    assert [run.name for run in runs] == [DEMO, "c1-2", "c1-2-closure", "e1-3", "e2-5", "r1-2"]
+    assert [run.entry for run in runs] == ["app", "c1", "c1", "e1", "e2", "r1"]
+    e1 = next(run for run in runs if run.name == "e1-3")
+    assert list(e1.roles) == ["calls.jsonl", "scores.csv", "criteria.csv"]
+    assert e1.roles["scores.csv"] == tmp_path / "e1-3" / "scores.csv"
+
+
+def test_discover_finds_nothing_without_a_root(tmp_path):
+    assert discover(tmp_path / "absent") == ()
+
+
+def test_call_totals_reads_the_end_line(tmp_path):
+    totals = call_totals(call_log(tmp_path / "x.jsonl"))
+    assert totals is not None
+    assert totals["status"] == "complete"
+    assert totals["calls"] == 1
+
+
+def test_call_totals_is_none_without_an_end_line(tmp_path):
+    lines = call_log(tmp_path / "x.jsonl").read_text(encoding="utf-8").splitlines(keepends=True)
+    stopped = tmp_path / "stopped.jsonl"
+    stopped.write_text("".join(lines[:-1]), encoding="utf-8")
+    cut = tmp_path / "cut.jsonl"
+    cut.write_text("".join(lines)[:-20], encoding="utf-8")
+    empty = tmp_path / "empty.jsonl"
+    empty.write_text("", encoding="utf-8")
+    assert [call_totals(path) for path in (stopped, cut, empty)] == [None, None, None]

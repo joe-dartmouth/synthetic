@@ -3,26 +3,51 @@
 from __future__ import annotations
 
 import dataclasses
+import io
 import math
 
 import pandas as pd
 import pytest
 
+from bko.app.runs import call_totals, discover
 from bko.app.steps import Analysis, Outcome, analyze, fill_and_score, scores_csv, training_csv
 from bko.app.views import (
     GAP_COLUMNS,
+    TOTALS,
+    arm_means,
     balance,
+    candidates_table,
     cell_table,
+    closure_counts,
     closure_pairs,
     closure_summary,
+    e1_validity,
+    gap_counts,
     gap_table,
+    role_table,
     score_table,
+    status_counts,
+    totals_table,
 )
 from bko.baselines.__main__ import render
+from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import E1
 from bko.evaluate.scores import Measure, Scope, Score, Source, parse
 from bko.gaps.definitions import Definition
 from bko.gaps.report import labeller
+from bko.generate.candidates import render_lines
+from bko.generate.decode import Reason, Undecoded
 from tests._app_fixtures import app_context, never, one_fill
+from tests._fusion_fixtures import young
+from tests._runs_fixtures import (
+    CLOSURE,
+    GAPS_SYNTHEA,
+    GAPS_UCI,
+    REPRODUCTION,
+    SCORES,
+    call_log,
+    every_kind,
+)
 
 
 @pytest.fixture
@@ -120,3 +145,96 @@ def test_score_table_keeps_only_the_named_source(filled):
     table = score_table(outcome.scores, Source.AUGMENTED)
     assert set(table.index.get_level_values("source")) == {"augmented"}
     assert len(table) < len(score_table(outcome.scores))
+
+
+def _csv(text: str) -> pd.DataFrame:
+    return pd.read_csv(io.StringIO(text))
+
+
+def test_arm_means_average_each_measure_over_the_holdouts():
+    means = arm_means(SCORES)
+    assert set(means.columns) == {"none", "bko", "holdouts"}
+    assert (means["holdouts"] == len(E1.holdout_seeds)).all()
+    assert list(means.loc[("augmented", "recall", "all"), ["none", "bko"]]) == [0.5, 0.6]
+
+
+def test_e1_validity_sums_the_candidate_counts():
+    table = e1_validity(SCORES)
+    assert table.to_dict("records") == [
+        {
+            "arm": "bko",
+            "generated": 50 * len(E1.holdout_seeds),
+            "passed": 50 * len(E1.holdout_seeds),
+            "rate": 1.0,
+            "verdict": "met",
+        }
+    ]
+    assert e1_validity(SCORES[:8]).empty
+
+
+def test_e1_validity_refuses_a_partial_run():
+    with pytest.raises(EvaluationError):
+        e1_validity([score for score in SCORES if score.holdout != 0])
+
+
+def test_candidates_table_has_one_row_per_line(tmp_path):
+    path = tmp_path / "candidates.jsonl"
+    path.write_text(render_lines(1, ("<55", "female", 1), [young(1), young(1)]), encoding="utf-8")
+    table = candidates_table(path)
+    assert len(table) == 2
+    assert {"call", "cell", "position", "age"} <= set(table.columns)
+    path.write_text(
+        render_lines(1, ("<55", "female", 1), [Undecoded(Reason.TRUNCATED)]), encoding="utf-8"
+    )
+    assert candidates_table(path)["undecoded"].tolist() == ["truncated"]
+
+
+def test_closure_counts_classify_each_pair():
+    counts = closure_counts(_csv(CLOSURE))
+    assert counts["definition"].tolist() == [definition.value for definition in Definition]
+    rows = counts.set_index("definition")
+    assert list(rows.loc["per-subgroup"]) == [1, 1, 0]
+    assert list(rows.loc["population-level"]) == [0, 0, 0]
+    assert list(rows.loc["frequency-aware"]) == [0, 0, 1]
+
+
+def test_role_table_lists_each_role_and_its_size(tmp_path):
+    run = next(run for run in discover(every_kind(tmp_path)) if run.name == "e1-3")
+    table = role_table(run)
+    assert table["role"].tolist() == ["calls.jsonl", "scores.csv", "criteria.csv"]
+    assert table["bytes"].tolist() == [path.stat().st_size for path in run.roles.values()]
+
+
+def test_gap_counts_count_pairs_by_reading():
+    synthea = gap_counts(_csv(GAPS_SYNTHEA), ("ablation", "detector"))
+    first = synthea.iloc[0]
+    assert (first["ablation"], first["detector"]) == ("cell", "per-subgroup")
+    assert [first["pairs"], first["before"], first["after"], first["truth"]] == [1, 1, 1, 0]
+    uci = gap_counts(_csv(GAPS_UCI), ("detector",))
+    assert uci["detector"].tolist() == ["per-subgroup", "count"]
+
+
+def test_status_counts_count_reproduction_rows():
+    counts = status_counts(_csv(REPRODUCTION))
+    assert dict(zip(counts["status"], counts["count"], strict=True)) == {"match": 1, "erratum": 1}
+
+
+def test_totals_table_keeps_the_end_lines_counts(tmp_path):
+    totals = call_totals(call_log(tmp_path / "x.jsonl"))
+    assert totals is not None
+    table = totals_table(totals)
+    assert (
+        tuple(table.columns)
+        == TOTALS
+        == (
+            "status",
+            "calls",
+            "failed",
+            "retried",
+            "input_tokens",
+            "output_tokens",
+            "usd",
+            "replay",
+        )
+    )
+    assert table.iloc[0]["calls"] == 1
