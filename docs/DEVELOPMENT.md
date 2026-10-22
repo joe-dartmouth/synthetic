@@ -12,13 +12,14 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
   `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
-  (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`. `synth` brings `torch` to every machine, and on Linux the lock adds the
-  NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
-  when an extra joins `make setup`. `make sync` installs every extra.
-- **Try a new extra before it joins `make setup`, the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
-  append `--extra <name>`. `uv sync` is exact, so a bare `uv sync --extra <name>` removes the
-  others. Never `uv pip install -e ".[...]"`: it resolves fresh rather than from the lock, and
-  `make synced` refuses the result.
+  (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`. `synth` brings
+  `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
+  [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
+  `make sync` installs every extra.
+- **Try a new extra before it joins `make setup`, the lock-faithful way**: copy the `setup` recipe
+  out of the `Makefile` and append `--extra <name>`. `uv sync` is exact, so a bare
+  `uv sync --extra <name>` removes the others. Never `uv pip install -e ".[...]"`: it resolves
+  fresh rather than from the lock, and `make synced` refuses the result.
 - **Change a dependency with `uv lock`, then `make setup`.** Both install targets run
   `uv sync --locked`, which refuses a lock that disagrees with `pyproject.toml` instead of
   rewriting it, and every gate step runs `uv run --no-sync`, so nothing but an explicit `uv lock`
@@ -528,7 +529,7 @@ running action. Launch it only through `make app`; a bare `streamlit run` drops 
 - **What it writes**: besides the data root, one run folder per fill ([Runs](#runs)),
   `runs/app-<UTC time>-<arm>/`, holding `scores.csv` and `training.csv` and, for a BKO fill, live
   or replayed, `calls.jsonl` in the format [Generation](#generation) describes. A stopped fill
-  keeps what it wrote. A closed tab or Ctrl-C does not interrupt a running action; the process
+  keeps what it wrote, and its message names the folder and the spend its call log recorded. A closed tab or Ctrl-C does not interrupt a running action; the process
   finishes it first.
 - **The gate drives it** through `streamlit.testing.v1.AppTest` over `src/bko/app/streamlit_app.py`
   with fake openers, fast method arms and a `ScriptedSend` or a call log recorded from one in

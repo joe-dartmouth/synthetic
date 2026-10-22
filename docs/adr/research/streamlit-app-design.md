@@ -8,8 +8,8 @@ updated: 2026-10-21
 
 ## Context
 
-The Working Prototype milestone is a Streamlit page over the pipeline, and the unit's scope says the
-app calls the stages and adds no pipeline logic. E1's harness already fills and scores one holdout
+The Working Prototype milestone is a Streamlit page over the pipeline that calls the stages and
+adds no pipeline logic of its own. E1's harness already fills and scores one holdout
 in one call, `bko.evaluate.run.score_holdout`, given each arm's runner. Streamlit reruns the whole
 script on every interaction, stops a running script only at its next streamlit call, binds every
 interface unless `server.address` is set, and sends usage statistics unless
@@ -70,10 +70,11 @@ free, repeatable demo from a recorded log.
 **Accepted**: another copy of the UCI load sequence (`cleanup:gaps/uci-load-sequence-copied`) and of
 `_guided`'s wiring (`cleanup:evaluate/guided-wiring-copied`); no live rejected-row counter; no
 cancel of an in-flight call, and a closed tab or Ctrl-C waits for the running action, CTGAN and TVAE
-fits included; the page's numbers never equal E1's mean over its holdouts; clicks queue during an
-action; an AppTest that reaches the SDK fails on what AppTest's `run` raises, with the guard's
-message on the script thread's exception; DNS rebinding to `127.0.0.1:8501` can still drive fills,
-each bounded by the ceiling and a confirmation.
+fits included; the page's numbers never equal E1's mean over its holdouts; a closed or reloaded tab
+loses the shown result, which the run folder keeps and a replay answers again for free; clicks queue
+during an action; an AppTest that reaches the SDK fails on what AppTest's `run` raises, with the
+guard's message on the script thread's exception; DNS rebinding to `127.0.0.1:8501` can still drive
+fills, each bounded by the ceiling and a confirmation.
 
 ## Ruled Out
 

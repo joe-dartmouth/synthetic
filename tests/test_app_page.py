@@ -9,9 +9,19 @@ from typing import BinaryIO
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from bko.app.page import ACTION_LOCK, ANALYSIS_KEY, BUSY, CONTEXT_KEY, OUTCOME_KEY
+from bko.app.page import (
+    ACTION_LOCK,
+    ANALYSIS_KEY,
+    BUSY,
+    CONTEXT_KEY,
+    OUTCOME_KEY,
+    UNFINISHED,
+)
 from bko.app.steps import analyze, fill_and_score
+from bko.baselines.records import Baseline
+from bko.baselines.request import Request
 from bko.datasets.errors import UnavailableError
+from bko.evaluate.run import method_arms
 from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
 from tests._app_fixtures import (
@@ -23,6 +33,7 @@ from tests._app_fixtures import (
     one_fill,
     settled,
 )
+from tests._evaluate_fixtures import FAST_METHODS
 from tests._generate_fixtures import ScriptedSend
 
 
@@ -135,7 +146,9 @@ def test_a_stopped_fill_shows_its_message_not_a_traceback(tmp_path):
     failure = GenerationError("no Anthropic credential: set ANTHROPIC_API_KEY", attempts=1)
     at = _confirmed_fill(analyzed(app_context(tmp_path, send=lambda: ScriptedSend(failure))[0]))
     assert at.error
-    assert any("no Anthropic credential" in block.value for block in at.code)
+    (message,) = [block.value for block in at.code if "no Anthropic credential" in block.value]
+    assert message.startswith("GenerationError: no Anthropic credential")
+    assert "The fill's run folder is " in message
 
 
 def test_a_replayed_fill_pays_nothing(tmp_path):
@@ -148,6 +161,7 @@ def test_a_replayed_fill_pays_nothing(tmp_path):
     at = settled(at.selectbox(key="bko.log").select(recorded.folder.name).run())
     at = settled(at.button(key="bko.fill").click().run())
     assert at.session_state[OUTCOME_KEY].value.replayed is True
+    assert "0, replayed" in [metric.value for metric in at.metric]
 
 
 def test_replay_needs_a_log_for_the_chosen_arm(tmp_path):
@@ -175,3 +189,35 @@ def test_changing_the_method_forgets_the_outcome(tmp_path):
     assert OUTCOME_KEY in at.session_state
     at = settled(at.selectbox(key="bko.method").select("bko").run())
     assert OUTCOME_KEY not in at.session_state
+
+
+def test_a_busy_app_refuses_a_fill_and_keeps_its_confirmation(tmp_path):
+    send = one_fill()
+    at = analyzed(app_context(tmp_path, send=lambda: send)[0])
+    at = settled(at.selectbox(key="bko.method").select("bko").run())
+    at = settled(at.checkbox(key="bko.confirm.bko.0").check().run())
+    ACTION_LOCK.acquire()
+    try:
+        at = settled(at.button(key="bko.fill").click().run())
+    finally:
+        ACTION_LOCK.release()
+    assert BUSY in [warning.value for warning in at.warning]
+    assert at.checkbox(key="bko.confirm.bko.0").value is True
+    assert send.calls == []
+    assert not (tmp_path / "runs").exists()
+
+
+def _broken(train: object, request: Request) -> Baseline:
+    msg = "a defect, not a stop"
+    raise ValueError(msg)
+
+
+def test_an_unfinished_action_says_where_its_record_is(tmp_path):
+    arms = {**method_arms(FAST_METHODS), "smote": _broken}
+    at = analyzed(app_context(tmp_path, send=never, arms=arms)[0])
+    at = settled(at.selectbox(key="bko.method").select("smote").run())
+    at = at.button(key="bko.fill").click().run()
+    assert "a defect, not a stop" in str(at.exception[0].value)
+    assert not ACTION_LOCK.locked()
+    at = settled(at.run())
+    assert UNFINISHED in [info.value for info in at.info]

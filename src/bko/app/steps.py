@@ -73,7 +73,7 @@ def analyze(context: Context) -> Analysis:
     """
     data_dir = context.data_root()
     ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
+    parts = split(load_uci(data_dir, source=context.uci), seed=context.experiment.holdout_seeds[0])
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
         parts.seed,
@@ -234,7 +234,8 @@ def fill_and_score(
         OSError: If a file cannot be read or created.
     """
     experiment = experiment_for(name, context)
-    missing = sorted(set(experiment.arms) - {*context.arms, name})
+    built = {name} if is_paid(name) else set()
+    missing = sorted(set(experiment.arms) - {*context.arms, *built})
     if missing:
         msg = f"no runner for arms {missing}"
         raise EvaluationError(msg)
@@ -244,32 +245,51 @@ def fill_and_score(
         return _kept(
             analysis, _outcome(analysis, name, recorder, scores, run_folder(context, name))
         )
-    answers = Replay(replay) if replay is not None else None
     folder = run_folder(context, name)
-    with CallLog(
-        folder / "calls.jsonl",
-        SETTINGS,
-        replay=None if answers is None else answers.digest,
-        now=context.now,
-    ) as log:
-        arm = GuidedArm(
-            name,
-            BKO_ARMS[name],
-            analysis.knowledge,
-            send=context.send() if answers is None else answers,
-            log=log,
-            budget=experiment.budget,
-            ceiling=experiment.spend_ceiling,
-        )
-        recorder = Recorder(arm)
-        try:
-            scores = _score(analysis, experiment, context, recorder, drains={name: arm.drain})
-        finally:
-            arm.summary()
-        if answers is not None and answers.remaining:
-            msg = f"{answers.remaining} logged calls were not replayed"
-            raise ReplayError(msg)
+    log: CallLog | None = None
+    try:
+        answers = Replay(replay) if replay is not None else None
+        with CallLog(
+            folder / "calls.jsonl",
+            SETTINGS,
+            replay=None if answers is None else answers.digest,
+            now=context.now,
+        ) as log:
+            recorder, scores = _guided(analysis, name, context, experiment, log, answers)
+    except Exception as exc:
+        spent = "" if log is None else f"; it spent {log.usd:.6f} USD over {log.calls} calls"
+        exc.add_note(f"The fill's run folder is {folder}{spent}.")
+        raise
     return _kept(analysis, _outcome(analysis, name, recorder, scores, folder, log=log))
+
+
+def _guided(
+    analysis: Analysis,
+    name: str,
+    context: Context,
+    experiment: Experiment,
+    log: CallLog,
+    answers: Replay | None,
+) -> tuple[Recorder, list[Score]]:
+    """Score with a `GuidedArm` for `name` over `log`, refusing a replay with calls left over."""
+    arm = GuidedArm(
+        name,
+        BKO_ARMS[name],
+        analysis.knowledge,
+        send=context.send() if answers is None else answers,
+        log=log,
+        budget=experiment.budget,
+        ceiling=experiment.spend_ceiling,
+    )
+    recorder = Recorder(arm)
+    try:
+        scores = _score(analysis, experiment, context, recorder, drains={name: arm.drain})
+    finally:
+        arm.summary()
+    if answers is not None and answers.remaining:
+        msg = f"{answers.remaining} logged calls were not replayed"
+        raise ReplayError(msg)
+    return recorder, scores
 
 
 def _score(

@@ -113,3 +113,10 @@ def test_the_scores_csv_reads_back(filled):
     for read, kept in zip(back, outcome.scores, strict=True):
         assert dataclasses.astuple(read)[:5] == dataclasses.astuple(kept)[:5]
         assert read.value == kept.value or (math.isnan(read.value) and math.isnan(kept.value))
+
+
+def test_score_table_keeps_only_the_named_source(filled):
+    _, outcome = filled
+    table = score_table(outcome.scores, Source.AUGMENTED)
+    assert set(table.index.get_level_values("source")) == {"augmented"}
+    assert len(table) < len(score_table(outcome.scores))

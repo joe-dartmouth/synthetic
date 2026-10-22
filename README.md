@@ -15,7 +15,7 @@ subgroups have too few training records. Commercial synthetic-data platforms opt
 the data they are given, so they reproduce its gaps. This project instead uses Bayesian
 Knowledge-driven Ontologies (BKOs; Santos, Jurmain and Ragazzi, PLOS ONE 2024), which combine
 description logic with Bayesian Knowledge Bases and treat incompleteness as a property of the
-representation. The planned pipeline:
+representation. The pipeline:
 
 1. **Represent.** Load MONDO and HPO as BKO fragments, and the dataset as a second fragment weighted
    by observed frequency.

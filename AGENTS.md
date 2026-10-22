@@ -6,10 +6,11 @@ clinical tabular dataset and guide synthetic-record generation that fills them, 
 heart-disease prediction for underrepresented groups. The Python package is `bko`.
 
 > Status: every pipeline stage is built, and the gate runs; each `src/bko/` subpackage's README
-> says what its stage holds. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md), converted from
-> the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
+> says what its stage holds. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md),
+> converted from the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
 > [research brief](papers/research-brief.pdf) is background, and where the two disagree the
 > 2-pager governs (RESEARCH section 9).
+
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
 import it (ADR `tooling/agent-config-single-home`).
@@ -93,7 +94,8 @@ synthetic/
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#bkb-fixtures)).
 - **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
   and `app`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
-  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never `uv pip install`: it resolves past the lock and `make synced` refuses the result.
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never
+  `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install
   targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
   `uv lock`, then `make setup`.

@@ -154,6 +154,14 @@ def test_a_context_missing_a_method_runner_is_refused_before_any_call(tmp_path):
     assert not (tmp_path / "runs").exists()
 
 
+def test_a_context_missing_the_filling_method_is_refused(tmp_path):
+    context, _ = app_context(tmp_path, send=never, arms={"none": method_arms(FAST_METHODS)["none"]})
+    analysis = analyze(context)
+    with pytest.raises(EvaluationError, match="no runner"):
+        fill_and_score(analysis, "smote", context)
+    assert not (tmp_path / "runs").exists()
+
+
 def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     send = one_fill()
     context, _ = app_context(tmp_path, send=lambda: send)
@@ -188,11 +196,14 @@ def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):
     ceiling = cost(reply([young(0)] * 12).usage, SETTINGS.model)
     context, _ = app_context(tmp_path, send=lambda: send, ceiling=ceiling)
     analysis = analyze(context)
-    with pytest.raises(EvaluationError, match="ceiling"):
+    with pytest.raises(EvaluationError, match="ceiling") as caught:
         fill_and_score(analysis, "bko", context)
     assert len(send.calls) == 1
     (folder,) = (tmp_path / "runs").iterdir()
     assert [path.name for path in folder.iterdir()] == ["calls.jsonl"]
+    assert caught.value.__notes__ == [
+        f"The fill's run folder is {folder}; it spent {ceiling:.6f} USD over 1 calls."
+    ]
 
 
 def test_a_call_with_no_response_stops_the_fill(tmp_path):

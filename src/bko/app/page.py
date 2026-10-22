@@ -7,6 +7,7 @@ meanwhile neither aborts it nor loses its result (ADR `research/streamlit-app-de
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -44,6 +45,8 @@ from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
 
 
+logger = logging.getLogger(__name__)
+
 CONTEXT_KEY: Final = "bko.context"
 """The session key holding the `Context`; tests set it before the first run."""
 
@@ -56,6 +59,11 @@ STOPS: Final = (DatasetError, GenerationError, BaselineError, EvaluationError, B
 ACTION_LOCK: Final = threading.Lock()
 """One action per process: two sessions' fills would share numpy's and torch's global state, and
 a refreshed tab could start a second paid fill beside a running one."""
+
+UNFINISHED: Final = (
+    "The last action did not finish; its traceback is in the terminal running the app. A BKO "
+    "fill's call log stays in its run folder, so a replay answers it again without paying."
+)
 
 RUNS_KEY: Final = "bko.runs"
 """How many fills this session started; each confirmation box is keyed by it, so none carries."""
@@ -90,21 +98,35 @@ def page() -> None:
         _results(analysis, outcome)
 
 
-def _run[T](key: str, label: str, action: Callable[[], T]) -> None:
-    """Run `action` into a new slot under `key`, unless another action holds the process."""
+def _nothing() -> None:
+    return None
+
+
+def _run[T](
+    key: str, label: str, action: Callable[[], T], *, started: Callable[[], None] = _nothing
+) -> bool:
+    """Run `action` into a new slot under `key`; False if another action holds the process.
+
+    `started` runs once the process is held, before `action`, so it runs even if `action` raises.
+    """
     if not ACTION_LOCK.acquire(blocking=False):
         st.warning(BUSY)
-        return
+        return False
     try:
+        started()
         slot: Slot[T] = Slot()
         st.session_state[key] = slot
         with st.spinner(label):
             try:
                 slot.value = action()
             except STOPS as exc:
-                slot.error = str(exc)
+                logger.warning("stopped action=%s error=%s: %s", key, type(exc).__name__, exc)
+                slot.error = "\n".join(
+                    [f"{type(exc).__name__}: {exc}", *getattr(exc, "__notes__", ())]
+                )
     finally:
         ACTION_LOCK.release()
+    return True
 
 
 def _shown[T](slot: Slot[T]) -> T | None:
@@ -114,19 +136,19 @@ def _shown[T](slot: Slot[T]) -> T | None:
         st.code(slot.error, language=None)
         return None
     if slot.value is None:
-        st.info("The last action did not finish; run it again.")
+        st.info(UNFINISHED)
     return slot.value
 
 
 def _analysis(context: Context) -> Analysis | None:
     st.header("2. Gaps")
-    if st.button("Analyze gaps", type="primary", key="bko.analyze"):
+    clicked = st.button("Analyze gaps", type="primary", key="bko.analyze")
+    if clicked and _run(
+        ANALYSIS_KEY,
+        "Loading UCI Heart Disease and the ontology releases; the first run downloads them",
+        lambda: analyze(context),
+    ):
         st.session_state.pop(OUTCOME_KEY, None)
-        _run(
-            ANALYSIS_KEY,
-            "Loading UCI Heart Disease and the ontology releases; the first run downloads them",
-            lambda: analyze(context),
-        )
     slot: Slot[Analysis] | None = st.session_state.get(ANALYSIS_KEY)
     if slot is None:
         st.info("Analyze the gaps to continue.")
@@ -153,6 +175,11 @@ def _forget_outcome() -> None:
     st.session_state.pop(OUTCOME_KEY, None)
 
 
+def _count_fill() -> None:
+    """Move to the next confirmation box, so a ticked one never carries to a second fill."""
+    st.session_state[RUNS_KEY] = st.session_state.get(RUNS_KEY, 0) + 1
+
+
 def _fill(context: Context, analysis: Analysis) -> Outcome | None:
     st.header("3. Fill and score")
     name: str = st.selectbox(
@@ -164,13 +191,16 @@ def _fill(context: Context, analysis: Analysis) -> Outcome | None:
     )
     replay, ready = _answers(context, name) if is_paid(name) else (None, True)
     clicked = st.button("Fill and score", type="primary", key="bko.fill", disabled=not ready)
-    if clicked and ready:
-        st.session_state[RUNS_KEY] = st.session_state.get(RUNS_KEY, 0) + 1
-        _run(
+    if (
+        clicked
+        and ready
+        and _run(
             OUTCOME_KEY,
             f"Filling with {name}, then scoring every method on the split",
             lambda: fill_and_score(analysis, name, context, replay=replay),
+            started=_count_fill,
         )
+    ):
         # The finished fill sits in its slot; the rerun draws the next fill's unticked box.
         st.rerun()
     slot: Slot[Outcome] | None = st.session_state.get(OUTCOME_KEY)
@@ -187,11 +217,14 @@ def _answers(context: Context, name: str) -> tuple[Path | None, bool]:
         if not logs:
             st.info("No call log to replay yet.")
             return None, False
-        chosen: str = st.selectbox("Call log of an earlier fill", tuple(logs), key="bko.log")
+        chosen: str = st.selectbox(
+            "Call log of an earlier fill", tuple(logs), key="bko.log", on_change=_forget_outcome
+        )
         return logs[chosen], True
     runs = st.session_state.get(RUNS_KEY, 0)
     confirmed = st.checkbox(
-        f"Spend up to {context.ceiling} USD of Anthropic API calls on this fill",
+        f"Pay for Anthropic API calls on this fill; it stops calling once its spend reaches "
+        f"{context.ceiling} USD",
         key=f"bko.confirm.{name}.{runs}",
     )
     return None, confirmed
