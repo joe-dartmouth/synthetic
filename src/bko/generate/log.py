@@ -1,7 +1,9 @@
 """The call log: an append-only JSONL record of a run's every request and response, with its spend.
 
 A run writes one `run` line, then per call a `request` line before the call and a `reply` or
-`error` line after it, then one `end` line holding the run's status and totals. Each line is
+`error` line after it, then one `end` line holding the run's status and totals. The `run` and
+`end` lines name the log a replay answers from under `replay`, and the stopped log a resume
+continues under `resume`; the totals split `live_usd`, what the run paid, from `usd`. Each line is
 flushed as it is written, so the lines of every call made survive a failure, an interrupt or a
 killed process. The file is created exclusively, so a rerun never overwrites a paid log, with mode
 0o600, so only its owner reads it. ADR
@@ -19,7 +21,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Final, Self, TextIO
+from typing import Final, Literal, Self, TextIO
 
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import undecoded_in
@@ -39,6 +41,22 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class Answered:
+    """The call log a run's first calls are answered from.
+
+    Attributes:
+        kind: `replay`, which answers every call, or `resume`, which answers the first `calls`
+            and leaves the rest to the API.
+        sha256: That log's sha256.
+        calls: The calls it answers.
+    """
+
+    kind: Literal["replay", "resume"]
+    sha256: str
+    calls: int
+
+
 class CallLog:
     """One run's call log, a context manager that writes the `end` line on exit.
 
@@ -47,7 +65,9 @@ class CallLog:
 
     Attributes:
         path: The log file.
-        replay: The sha256 of the call log a replay answers from, or None for a live run.
+        answered: The call log the first calls are answered from, or None for a live run.
+        replay: The sha256 of the call log a replay answers from, or None.
+        resume: The sha256 and answered calls of the stopped log a resume continues, or None.
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
@@ -57,7 +77,9 @@ class CallLog:
         undecoded: Placeholders for records a reply did not decode.
         input_tokens: Uncached input tokens billed.
         output_tokens: Output tokens billed.
-        usd: Spend, priced at the settings model's rates.
+        usd: Spend, priced at the settings model's rates; a resumed log's counts its replayed
+            calls.
+        live_usd: The spend of calls past the answered ones: what the run paid.
     """
 
     def __init__(
@@ -65,7 +87,7 @@ class CallLog:
         path: Path,
         settings: Settings,
         *,
-        replay: str | None = None,
+        answered: Answered | None = None,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
@@ -73,7 +95,7 @@ class CallLog:
         Args:
             path: The log file; it must not exist. It is created readable by its owner only.
             settings: How each call is made.
-            replay: The sha256 of the call log a replay answers from, or None for a live run.
+            answered: The call log the first calls are answered from, or None for a live run.
             now: The clock each line's time is read from.
 
         Raises:
@@ -86,7 +108,15 @@ class CallLog:
         # Read before the file exists, so a failure here leaves no log to block a rerun.
         anthropic = importlib.metadata.version("anthropic")
         self.path = path
-        self.replay = replay
+        self.answered = answered
+        self.replay = (
+            answered.sha256 if answered is not None and answered.kind == "replay" else None
+        )
+        self.resume = (
+            {"sha256": answered.sha256, "calls": answered.calls}
+            if answered is not None and answered.kind == "resume"
+            else None
+        )
         self.settings = settings
         self._now = now
         self.calls = 0
@@ -98,6 +128,7 @@ class CallLog:
         self.input_tokens = 0
         self.output_tokens = 0
         self.usd = 0.0
+        self.live_usd = 0.0
         # Exclusive, and owner-only whatever the umask: the log holds every prompt and response.
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8")
@@ -110,14 +141,16 @@ class CallLog:
                     "settings": dataclasses.asdict(settings),
                     "price": dataclasses.asdict(price),
                     "anthropic": anthropic,
-                    "replay": replay,
+                    "replay": self.replay,
+                    "resume": self.resume,
                 }
             )
         except BaseException:
             self._file.close()
             raise
         logger.info(
-            "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d replay=%s",
+            "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d "
+            "replay=%s resume=%s",
             path,
             SCHEMA,
             settings.model,
@@ -125,7 +158,8 @@ class CallLog:
             settings.guidance,
             settings.per_call,
             settings.max_tokens,
-            replay or "none",
+            self.replay or "none",
+            "none" if self.resume is None else self.resume["sha256"],
         )
 
     def __enter__(self) -> Self:
@@ -140,8 +174,9 @@ class CallLog:
     ) -> None:
         """Write the `end` line, log the run's totals and close the file; never suppress.
 
-        The totals line names the replayed log's sha256 under `replay`, or `none` for a live
-        run, so a replay's spend never reads as paid.
+        The totals line names the replayed log's sha256 under `replay` and the resumed log's under
+        `resume`, or `none`, and splits `live_usd` from `usd`, so replayed spend never reads as
+        paid.
 
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other.
@@ -159,12 +194,14 @@ class CallLog:
                     "status": status,
                     "ended": self._at(),
                     "replay": self.replay,
+                    "resume": self.resume,
                     **self._totals(),
                 }
             )
             logger.info(
                 "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
-                "input_tokens=%d output_tokens=%d usd=%.4f replay=%s log=%s",
+                "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
+                "log=%s",
                 status,
                 self.calls,
                 self.failed,
@@ -175,7 +212,9 @@ class CallLog:
                 self.input_tokens,
                 self.output_tokens,
                 self.usd,
+                self.live_usd,
                 self.replay or "none",
+                "none" if self.resume is None else self.resume["sha256"],
                 self.path,
             )
         finally:
@@ -222,6 +261,8 @@ class CallLog:
         self.input_tokens += reply.usage.input_tokens
         self.output_tokens += reply.usage.output_tokens
         self.usd += usd
+        if self.answered is None or index > self.answered.calls:
+            self.live_usd += usd
         self.retried += (reply.attempts or 0) > 1
         self._write(
             {
@@ -274,6 +315,7 @@ class CallLog:
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "usd": self.usd,
+            "live_usd": self.live_usd,
         }
 
     def _at(self) -> str:

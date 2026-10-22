@@ -335,8 +335,8 @@ def guided_arms(
         ReplayError: If the body returns while `answers` holds calls it did not answer.
         FileExistsError: If `log` exists.
     """
-    digest = None if answers is None else answers.digest
-    with CallLog(log, SETTINGS, replay=digest, now=now) as call_log:
+    answered = None if answers is None else answers.answered
+    with CallLog(log, SETTINGS, answered=answered, now=now) as call_log:
         sender = answers if answers is not None else send()
         arms = {
             name: GuidedArm(

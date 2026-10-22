@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Final
 
 import pandas as pd
+import pytest
 
 import bko.evaluate.guided as guided_module
 from bko.bkb.errors import QueryError
@@ -580,3 +581,66 @@ def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, capl
         ),
     ]
     assert "copies arm=bko-frequency added=0 replica=2" in caplog.messages
+
+
+def stopped_run(tmp_path, caplog) -> tuple[Path, str]:
+    """An uninterrupted run's CSV, and the log of the same run stopped at its third call."""
+    _, _, text = paid_run(tmp_path, caplog)
+    holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
+    lost = GenerationError("the API could not be reached: APIConnectionError")
+    ctx, _ = context(ScriptedSend(*holdout, lost))
+    stopped = tmp_path / "stopped.jsonl"
+    assert main(_score(stopped, tmp_path), context=ctx, out=io.StringIO()) == 2
+    return stopped, text
+
+
+def resumed_run(tmp_path, caplog) -> tuple[Path, Path, str]:
+    """The stopped run's log, the log of its resumption, and the uninterrupted run's CSV."""
+    stopped, text = stopped_run(tmp_path, caplog)
+    holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
+    send = ScriptedSend(*holdout)
+    ctx, _ = context(send)
+    out = io.StringIO()
+    resumed = tmp_path / "resumed.jsonl"
+    assert main(_score(resumed, tmp_path, "--resume", str(stopped)), context=ctx, out=out) == 0
+    send.assert_consumed()
+    assert out.getvalue() == text
+    return stopped, resumed, text
+
+
+def test_a_resumed_run_writes_the_uninterrupted_runs_bytes_and_pays_only_its_live_calls(
+    tmp_path, caplog
+):
+    stopped, resumed, _ = resumed_run(tmp_path, caplog)
+    lines = [json.loads(line) for line in resumed.read_text(encoding="utf-8").splitlines()]
+    digest = hashlib.sha256(stopped.read_bytes()).hexdigest()
+    assert lines[0]["resume"] == {"sha256": digest, "calls": 2}
+    assert lines[0]["replay"] is None
+    live = sum(line["usd"] for line in lines if line["kind"] == "reply" and line["call"] > 2)
+    assert lines[-1]["live_usd"] == pytest.approx(live)
+    assert lines[-1]["usd"] > lines[-1]["live_usd"] > 0
+    assert f"resume log={stopped} sha256={digest} answered=2" in caplog.text
+
+
+def test_a_resumed_runs_log_replays_to_the_same_bytes(tmp_path, caplog):
+    _, resumed, text = resumed_run(tmp_path, caplog)
+    ctx, _ = context(ScriptedSend())
+    out = io.StringIO()
+    argv = _score(tmp_path / "again.jsonl", tmp_path, "--replay", str(resumed))
+    assert main(argv, context=ctx, out=out) == 0
+    assert out.getvalue() == text
+
+
+def test_resume_and_replay_together_exit_two(tmp_path):
+    ctx, _ = context(ScriptedSend())
+    argv = _score(tmp_path / "x.jsonl", tmp_path, "--resume", "a", "--replay", "b")
+    with pytest.raises(SystemExit) as raised:
+        main(argv, context=ctx, out=io.StringIO())
+    assert raised.value.code == 2
+
+
+def test_resume_needs_a_bko_arm(tmp_path, caplog):
+    ctx, _ = context(ScriptedSend(), arms={"none": FAST_ARMS["none"], "bko": FAST_ARMS["bko"]})
+    argv = _score(tmp_path / "x.jsonl", tmp_path, "--resume", str(tmp_path / "s.jsonl"))
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert "--resume needs a BKO arm" in caplog.text

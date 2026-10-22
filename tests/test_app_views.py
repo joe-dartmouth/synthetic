@@ -243,7 +243,9 @@ def test_totals_table_keeps_the_end_lines_counts(tmp_path):
             "input_tokens",
             "output_tokens",
             "usd",
+            "live_usd",
             "replay",
+            "resume",
         )
     )
     assert table.iloc[0]["calls"] == 1

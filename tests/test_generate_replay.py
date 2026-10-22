@@ -6,16 +6,17 @@ import contextlib
 import dataclasses
 import json
 from pathlib import Path
+from typing import Final
 
 import pytest
 
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.guidance import Guidance
-from bko.generate.log import CallLog
+from bko.generate.log import Answered, CallLog
 from bko.generate.messages import SETTINGS, Call, Reply
 from bko.generate.prompt import render
-from bko.generate.replay import Replay
+from bko.generate.replay import Replay, Resume
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 
@@ -38,7 +39,7 @@ def logged(tmp_path: Path, *script: Reply | GenerationError) -> Path:
 def test_a_replayed_reply_equals_the_logged_reply(tmp_path):
     original = dataclasses.replace(reply([young(1), young(1)]), attempts=2)
     replay = Replay(logged(tmp_path, original))
-    with CallLog(tmp_path / "again.jsonl", SETTINGS, replay=replay.digest) as log:
+    with CallLog(tmp_path / "again.jsonl", SETTINGS, answered=replay.answered) as log:
         batch = ask(GUIDANCE, 2, send=replay, log=log)
     assert batch.reply == original
     assert replay.remaining == 0
@@ -216,4 +217,93 @@ def test_a_reply_whose_usage_is_not_usage_is_refused(tmp_path, usage):
     path = logged(tmp_path, reply([young(1), young(1)]))
     path = rewritten(path, lambda lines: first(lines, "reply").update(usage=usage))
     with pytest.raises(ReplayError, match="usage"):
+        Replay(path)
+
+
+def stopped(tmp_path: Path, *script: Reply | GenerationError) -> Path:
+    """A log of `logged`'s calls whose run was then interrupted, so its end is not complete."""
+    path = tmp_path / "stopped.jsonl"
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS) as log:
+        for outcome in script:
+            with contextlib.suppress(GenerationError):
+                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
+        raise KeyboardInterrupt
+    return path
+
+
+def answer() -> Reply:
+    return reply([young(1), young(1)])
+
+
+LOST: Final = GenerationError("the API could not be reached: X")
+
+
+def test_resume_answers_the_answered_calls_then_sends_live(tmp_path):
+    live = ScriptedSend(answer())
+    resume = Resume(stopped(tmp_path, answer(), LOST), live)
+    assert resume.answered == Answered("resume", resume.digest, 1)
+    call = call_for(GUIDANCE, 2)
+    resume(call)
+    assert live.calls == []
+    resume(call)
+    live.assert_consumed()
+
+
+def test_resume_drops_a_cut_final_line_and_an_unanswered_call(tmp_path):
+    path = stopped(tmp_path, answer())
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"kind": "request", "call": 2, "params": {}}) + "\n")
+        handle.write('{"kind": "rep')
+    assert Resume(path, ScriptedSend()).answered.calls == 1
+
+
+def test_resume_drops_a_last_call_that_has_a_reply_and_an_error(tmp_path):
+    path = stopped(tmp_path, answer(), answer())
+    interrupt = {"kind": "error", "call": 2, "error": "KeyboardInterrupt", "attempts": None}
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({**interrupt, "at": "x"}) + "\n")
+    assert Resume(path, ScriptedSend()).answered.calls == 1
+
+
+def test_resume_refuses_an_error_before_the_last_call(tmp_path):
+    with pytest.raises(ReplayError, match="failed before the run's last call"):
+        Resume(stopped(tmp_path, LOST, answer()), ScriptedSend())
+
+
+def test_resume_refuses_a_replays_log(tmp_path):
+    source = Replay(logged(tmp_path, answer()))
+    path = tmp_path / "replaying.jsonl"
+    with (
+        contextlib.suppress(KeyboardInterrupt),
+        CallLog(path, SETTINGS, answered=source.answered) as log,
+    ):
+        ask(GUIDANCE, 2, send=source, log=log)
+        raise KeyboardInterrupt
+    with pytest.raises(ReplayError, match=f"replays the log with sha256 {source.digest}"):
+        Resume(path, ScriptedSend())
+
+
+def test_resume_refuses_a_resume_that_stopped_while_it_replayed(tmp_path):
+    path = tmp_path / "resumed.jsonl"
+    earlier = Answered("resume", "ab" * 32, 3)
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, answered=earlier) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+        raise KeyboardInterrupt
+    with pytest.raises(ReplayError, match="ab" * 32):
+        Resume(path, ScriptedSend())
+
+
+def test_resuming_a_complete_log_answers_every_call_and_sends_nothing(tmp_path):
+    live = ScriptedSend()
+    resume = Resume(logged(tmp_path, answer()), live)
+    resume(call_for(GUIDANCE, 2))
+    assert resume.remaining == 0
+    assert live.calls == []
+
+
+def test_replay_still_refuses_a_cut_final_line(tmp_path):
+    path = logged(tmp_path, answer())
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write('{"kind": "rep')
+    with pytest.raises(ReplayError, match="not JSON lines"):
         Replay(path)

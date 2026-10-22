@@ -138,7 +138,7 @@ def ask(
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(
         "generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s "
-        "input_tokens=%d output_tokens=%d usd=%.4f request_id=%s",
+        "input_tokens=%d output_tokens=%d usd=%.6f request_id=%s",
         index,
         key,
         settings.guidance,

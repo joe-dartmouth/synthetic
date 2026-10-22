@@ -28,4 +28,7 @@ class CandidatesFormatError(ContractError):
 
 
 class ReplayError(ContractError):
-    """A rerun's calls do not match the call log it replays. Exit 3."""
+    """A rerun's calls do not match the call log it replays, or a call log a resume cannot continue.
+
+    Exit 3.
+    """

@@ -15,9 +15,11 @@ import pytest
 from bko.generate.calls import ask
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
-from bko.generate.log import CallLog
+from bko.generate.log import Answered, CallLog
 from bko.generate.messages import SETTINGS, Call, Reply, Usage
+from bko.generate.spend import cost
 from tests._datasets_fixtures import FIXED_NOW
+from tests._fusion_fixtures import young
 from tests._generate_fixtures import CELL, GUIDANCE, ScriptedSend, reply
 
 
@@ -50,6 +52,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "kind": "run",
         "schema": 2,
         "replay": None,
+        "resume": None,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -65,7 +68,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
 
 def test_a_replay_log_names_its_source(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, replay="ab" * 32, now=_now):
+    with CallLog(path, SETTINGS, answered=Answered("replay", "ab" * 32, 0), now=_now):
         pass
     assert _lines(path)[0]["replay"] == "ab" * 32
 
@@ -195,6 +198,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "kind": "end",
         "status": "failed",
         "replay": None,
+        "resume": None,
         "calls": 2,
         "failed": 1,
         "retried": 0,
@@ -204,6 +208,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "input_tokens": 1000,
         "output_tokens": 500,
         "usd": pytest.approx(0.00035),
+        "live_usd": pytest.approx(0.00035),
     }
 
 
@@ -236,7 +241,8 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
         "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
-        f"input_tokens=1000 output_tokens=500 usd=0.0003 replay=none log={path}"
+        f"input_tokens=1000 output_tokens=500 usd=0.000350 live_usd=0.000350 replay=none "
+        f"resume=none log={path}"
     ) in caplog.text
 
 
@@ -290,18 +296,37 @@ def test_a_missing_sdk_version_leaves_no_file(tmp_path, monkeypatch):
 
 def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, replay="ab12", now=_now):
+    with (
+        caplog.at_level(logging.INFO),
+        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now),
+    ):
         pass
     assert (
         f"log path={path} schema=2 model={SETTINGS.model} effort={SETTINGS.effort} "
         f"level={SETTINGS.guidance} per_call={SETTINGS.per_call} "
-        f"max_tokens={SETTINGS.max_tokens} replay=ab12"
+        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none"
     ) in caplog.messages
 
 
 def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, replay="ab12", now=_now):
+    with (
+        caplog.at_level(logging.INFO),
+        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now),
+    ):
         pass
     assert _lines(path)[-1]["replay"] == "ab12"
     assert any(m.startswith("run status=complete") and "replay=ab12" in m for m in caplog.messages)
+
+
+def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
+    path = tmp_path / "log.jsonl"
+    with CallLog(path, SETTINGS, answered=Answered("resume", "ab" * 32, 1)) as log:
+        for _ in range(2):
+            ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    one = cost(reply([young(1), young(1)]).usage, SETTINGS.model)
+    assert lines[0]["resume"] == {"sha256": "ab" * 32, "calls": 1}
+    assert lines[0]["replay"] is None
+    assert lines[-1]["usd"] == pytest.approx(2 * one)
+    assert lines[-1]["live_usd"] == pytest.approx(one)
