@@ -54,7 +54,7 @@ machine is manual; rows of earlier runs keep their `scratchpad/` paths.
 
 ## Enforcement
 - Owner: `docs/DEVELOPMENT.md` (Runs)
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_run_folders.py`
 
 ## Reversal Conditions
 Earlier runs are needed on several machines (then commit derived results or sync the folders), or
