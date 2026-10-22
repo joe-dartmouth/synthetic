@@ -9,8 +9,8 @@ updated: 2026-10-21
 ## Context
 
 Runs of record keep their artifacts as `scratchpad/<run-id>.<ext>`, with each entry's own
-extensions: E1 writes `.jsonl`, `.csv` and `.err`, C1 writes `.out` and `.closure.err`. R1 and E2
-wrote fixed names that later runs overwrote. The Streamlit app must list the runs on the machine
+extensions: E1's rows name `.jsonl`, `.csv` and `.err`, C1's `.out` and `.closure.err`. R1's and
+E2's fixed names hold only the latest run. The Streamlit app must list the runs on the machine
 and open each one's artifacts without knowing the command that wrote them.
 
 ## Decision Drivers
@@ -26,8 +26,9 @@ We will keep each run of record's artifacts in **`runs/<run-id>/`**, gitignored.
 takes a role name from `bko.app.runs.ROLES`, which `docs/DEVELOPMENT.md` (Runs) mirrors in a
 table. The guarded commands in `docs/DEVELOPMENT.md` write there. A run folder's name is the run's
 EVIDENCE id; a run that checks or extends another takes that run's id and a suffix, such as
-`e1-3-replay` or `c1-2-closure`. The latest run of each entry (`e1-3`, `c1-2`, `c1-2-closure`,
-`g1-13`, `e2-5`, `r1-2`) is hard-linked into its folder; earlier runs stay where their rows say.
+`e1-3-replay` or `c1-2-closure`; an app fill, which is not a run of record, takes
+`app-<UTC time>-<arm>`. The latest run of each entry whose rows name `scratchpad/` is hard-linked
+into its folder (`docs/DEVELOPMENT.md`, Runs, lists them); earlier runs stay where their rows say.
 
 ## Rationale
 

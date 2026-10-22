@@ -36,7 +36,9 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
 """Each artifact's name in a run folder, in reading order, and what writes it."""
 
 RUN_ID: Final = re.compile(
-    r"(?P<entry>[a-z]\d+)-\d+(?:-[a-z]+(?:-\d+)?)?|app-\d{8}T\d{12}Z-[a-z]+(?:-[a-z]+)*"
+    r"(?P<entry>[a-z]\d+)-\d+(?:-[a-z]+(?:-\d+)?)?|app-\d{8}T\d{12}Z-[a-z]+(?:-[a-z]+)*",
+    re.ASCII,
 )
 """A run folder's name: a register run id such as `e1-3` or `c1-2-closure`, or a demo fill's
-`app-<UTC time>-<arm>`. `entry` names the register entry, and is None for a demo fill."""
+`app-<UTC time>-<arm>`. `entry` names the register entry, and is None for a demo fill. Match it
+with `fullmatch`; it is ASCII-only, since a match becomes a path."""

@@ -106,7 +106,7 @@ nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/
 
     mkdir -p runs/<run-id>
     test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
-    mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv
+    mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
     uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
 
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
@@ -402,7 +402,7 @@ Two commands, inside `.venv`; the first spends money and needs an Anthropic cred
 second spends nothing:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --request completeness --log runs/<run-id>/calls.jsonl > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
-    mkdir -p runs/<run-id>-closure && test ! -e runs/<run-id>-closure/closure.csv && uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl [--data-dir <dir>] > runs/<run-id>-closure/closure.csv 2> runs/<run-id>-closure/closure.log
+    mkdir -p runs/<run-id>-closure && test ! -e runs/<run-id>-closure/closure.csv && test ! -e runs/<run-id>-closure/closure.log && uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl [--data-dir <dir>] > runs/<run-id>-closure/closure.csv 2> runs/<run-id>-closure/closure.log
 
 The `test ! -e` guards matter: the shell empties `candidates.jsonl` before `bko.generate` can
 refuse an existing log, and `candidates.jsonl` is the only copy of the candidates the second
@@ -450,7 +450,9 @@ command reads.
 A run of record keeps its artifacts in its own folder, `runs/<run-id>/` at the repository root,
 gitignored like `data/` and present only on the machine that ran it. `<run-id>` is the run's id in
 [EVIDENCE.md](EVIDENCE.md), such as `e1-3`; a run that checks or extends another takes that run's
-id and a suffix, such as `e1-3-replay` or `c1-2-closure`. Each artifact takes a fixed role name, so
+id and a suffix, such as `e1-3-replay` or `c1-2-closure`. A fill made in the Streamlit app is not a
+run of record; its folder is named `app-<UTC time>-<arm>`. `bko.app.runs.RUN_ID` matches both
+forms. Each artifact takes a fixed role name, so
 a reader finds it without knowing the command that wrote it. `bko.app.runs.ROLES` is the list's
 home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal:
 
@@ -477,17 +479,17 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 The commands in [Evaluation](#evaluation), [Generation](#generation) and
 [Gap closure](#gap-closure) write their folders. A free run of record writes its folder with one of:
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
-- **Earlier runs**: a run made before its entry's commands wrote run folders keeps its artifacts
-  where its Runs row says. The latest run of each entry also has a folder whose files are
-  read-only hard links to those artifacts: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5` and
-  `r1-2`. A hard link is the same file under a second name, so the row's paths, sha256 and commands
-  stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never redirect
-  a command's output into a linked folder: the shell would empty the register's artifact before the
-  command runs.
+- **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
+  each such entry also has a folder whose files are hard links to those artifacts, with write
+  permission removed: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5` and `r1-2`. A hard link is
+  the same file under a second name, sharing its bytes and its mode, so the row's paths, sha256 and
+  commands stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never
+  write into a linked folder or restore a linked file's write permission: a redirect into a
+  writable link empties the register's artifact before the command runs.
 - **Another machine**: a run shows there only after its folder is copied into that machine's `runs/`.
 
 ## Platforms

@@ -54,7 +54,7 @@ def test_run_id_reads_an_app_fill_and_refuses_other_names():
     closure = RUN_ID.fullmatch("c1-2-closure")
     assert closure is not None
     assert closure["entry"] == "c1"
-    for name in ("scratchpad", "e1", "e1-3.csv", "app-bko", "E1-3", "app-2026-bko"):
+    for name in ("scratchpad", "e1", "e1-3.csv", "app-bko", "E1-3", "app-2026-bko", "e\u0661-3"):
         assert RUN_ID.fullmatch(name) is None, name
 
 
