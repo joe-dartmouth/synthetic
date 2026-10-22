@@ -30,7 +30,7 @@ class Experiment:
         arms: The arms scored on every split, by name.
         candidate: The arm the criteria judge.
         comparators: The arms the candidate must beat.
-        replica_arms: The arms also asked for a replica of the training split's cells.
+        replica_arms: The row-adding arms also asked for a replica of the training split's cells.
         fill_to: Each cell holding fewer training records than this is filled up to it.
         margin: What the candidate must beat each comparator by, in the measure's own units.
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
@@ -64,9 +64,9 @@ class Experiment:
         Raises:
             ValueError: If there are fewer than 2 holdout seeds, a seed repeats or leaves
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
-                arm, the candidate is not an arm or is among its comparators, the confidence is
-                not in (0, 1), there is no attempt, the budget is below 1, the validity is not in
-                (0, 1], or the spend ceiling is not above 0 USD.
+                arm, a replica arm adds no rows, the candidate is not an arm or is among its
+                comparators, the confidence is not in (0, 1), there is no attempt, the budget is
+                below 1, the validity is not in (0, 1], or the spend ceiling is not above 0 USD.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -81,6 +81,12 @@ class Experiment:
         stray = sorted((set(self.comparators) | set(self.replica_arms)) - set(self.arms))
         if stray:
             msg = f"{stray} are not arms of this experiment"
+            raise ValueError(msg)
+        controls = sorted(
+            name for name in self.replica_arms if name in METHOD_ARMS and not Method(name).adds_rows
+        )
+        if controls:
+            msg = f"{controls} add no rows, so they have no replica to fit"
             raise ValueError(msg)
         if self.candidate not in self.arms:
             msg = f"the candidate {self.candidate} is not an arm of this experiment"

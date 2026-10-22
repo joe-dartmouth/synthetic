@@ -38,18 +38,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/replica-arms-accept-controls`: a control named in `replica_arms` crashes
-  `score`.** `Experiment.__post_init__` checks only that a replica arm is an arm
-  (`src/bko/evaluate/experiment.py:81-84`), and `_method_arm` hands a control an empty `Request()`
-  (`src/bko/evaluate/run.py:53`), so a control in `replica_arms` fits a classifier on no rows and
-  `score` exits 1 with a traceback. Fitting on a control's replica rows, as `score` would, prints
-  `ValueError: Found array with 0 sample(s) (shape=(0, 5)) while a minimum of 1 is required by
-  StandardScaler.` *Filed 2026-10-19 by `proposal-bko-replicas`.*
-  **Why deferred.** No configuration names a control there.
-  **What discharges it:** `__post_init__` refuses a replica arm that is a method whose `adds_rows`
-  is false, with a test.
-  **Trigger:** the next change to `Experiment`'s validation.
-
 - **`cleanup:evaluate/score-cannot-resume`: an interrupted `score` run cannot continue, so a stop
   late in a paid run repays every call before it.** `score` refuses an existing call log and
   `--replay` refuses a log with calls left over or missing (`src/bko/evaluate/__main__.py:172-173`,
@@ -65,16 +53,6 @@ links to where its blocker is tracked.
   cannot resume" and its consequence that a call with no response forfeits the run's spend change
   with it.
   **Trigger:** `proposal-guidance-ablation`, whose paid runs each take as long as `e1-3`.
-
-- **`cleanup:evaluate/guided-wiring-copied`: the app repeats `_guided`'s BKO arm wiring.**
-  `bko.app.steps.fill_and_score` builds `CallLog`, `Replay`, `GuidedArm` and the refusal of
-  unreplayed calls as `src/bko/evaluate/__main__.py:206-255` does. *Filed 2026-10-21 by
-  `proposal-streamlit-app`.*
-  **Why deferred.** A public home in `bko.evaluate` changes the command that
-  `proposal-guidance-ablation` edits.
-  **What discharges it:** one public function in `bko.evaluate` that builds a run's BKO arms over
-  one call log, called by the command and by `bko.app`.
-  **Trigger:** `proposal-guidance-ablation` landing, or the next change to either wiring.
 
 ## fusion
 

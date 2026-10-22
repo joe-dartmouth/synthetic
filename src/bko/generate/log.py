@@ -34,7 +34,8 @@ SCHEMA: Final = 2
 """The log format's version, written in the `run` line."""
 
 
-def _utc_now() -> datetime:
+def utc_now() -> datetime:
+    """The current time in UTC, the call log's default clock."""
     return datetime.now(UTC)
 
 
@@ -65,7 +66,7 @@ class CallLog:
         settings: Settings,
         *,
         replay: str | None = None,
-        now: Callable[[], datetime] = _utc_now,
+        now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
 

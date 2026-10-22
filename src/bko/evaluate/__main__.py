@@ -49,16 +49,15 @@ from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
-from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Score, parse, render
 from bko.evaluate.scores import Source as ScoreSource
 from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.errors import GenerationError, ReplayError
-from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Send
+from bko.generate.errors import GenerationError
+from bko.generate.messages import Send
 from bko.generate.replay import Replay
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
@@ -171,12 +170,13 @@ def _score(args: argparse.Namespace, context: Context) -> str:
         raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
+    answers = Replay(args.replay) if args.replay is not None else None
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
     _log_experiment(experiment)
     if guided:
-        scores = _guided(args, data_dir, frame, guided, context)
+        scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
         scores = run(frame, experiment, context.arms, factory=context.factory)
     text = render(scores)
@@ -209,8 +209,9 @@ def _guided(
     frame: pd.DataFrame,
     names: Sequence[str],
     context: Context,
+    answers: Replay | None,
 ) -> list[Score]:
-    """Run every arm, building a `GuidedArm` for each of `names` over one shared call log.
+    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
 
     Each BKO arm logs its run's validity sums on the way out, a stopped run included.
     """
@@ -223,36 +224,16 @@ def _guided(
     )
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
-    replay = Replay(args.replay) if args.replay is not None else None
-    with CallLog(args.log, SETTINGS, replay=replay.digest if replay is not None else None) as log:
-        send = replay if replay is not None else context.send()
-        arms = {
-            name: GuidedArm(
-                name,
-                BKO_ARMS[name],
-                knowledge,
-                send=send,
-                log=log,
-                budget=experiment.budget,
-                ceiling=experiment.spend_ceiling,
-            )
-            for name in names
-        }
-        try:
-            scores = run(
-                frame,
-                experiment,
-                {**context.arms, **arms},
-                factory=context.factory,
-                drains={name: arm.drain for name, arm in arms.items()},
-            )
-            if replay is not None and replay.remaining:
-                msg = f"{replay.remaining} logged calls were not replayed"
-                raise ReplayError(msg)
-            return scores
-        finally:
-            for arm in arms.values():
-                arm.summary()
+    with guided_arms(
+        names, knowledge, experiment, log=args.log, send=context.send, answers=answers
+    ) as paid:
+        return run(
+            frame,
+            experiment,
+            {**context.arms, **paid.arms},
+            factory=context.factory,
+            drains={name: arm.drain for name, arm in paid.arms.items()},
+        )
 
 
 def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:

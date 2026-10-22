@@ -25,7 +25,7 @@ from bko.datasets.split import Split, split
 from bko.datasets.uci import load_uci
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
-from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
 from bko.evaluate.run import Drain, score_holdout
 from bko.evaluate.scores import Score, render
 from bko.fusion.closure import Closure, closure
@@ -33,9 +33,7 @@ from bko.gaps.definitions import Definition, StatementGap, gaps
 from bko.gaps.detect import CellGap, count_gaps
 from bko.gaps.observe import Cells, record_cells
 from bko.gaps.scope import load_scope
-from bko.generate.errors import ReplayError
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS
 from bko.generate.replay import Replay
 
 
@@ -221,9 +219,9 @@ def fill_and_score(
 ) -> Outcome:
     """Fill E1's gap request on the default split with `name`, then score every method beside it.
 
-    The fill's run folder keeps its scores and training set, and a BKO arm's call log. A BKO arm's
-    calls go through `context.send()`, built only here, or are answered from the call log at
-    `replay`.
+    The fill's run folder keeps its scores and training set, and a BKO arm's call log. A BKO arm is
+    built by `bko.evaluate.guided.guided_arms`; its calls go through `context.send()`, built only
+    here, or are answered from the call log at `replay`.
 
     Raises:
         BaselineError: If the arm refuses every attempt, as `score_holdout`.
@@ -246,50 +244,27 @@ def fill_and_score(
             analysis, _outcome(analysis, name, recorder, scores, run_folder(context, name))
         )
     folder = run_folder(context, name)
-    log: CallLog | None = None
+    paid: GuidedRun | None = None
     try:
         answers = Replay(replay) if replay is not None else None
-        with CallLog(
-            folder / "calls.jsonl",
-            SETTINGS,
-            replay=None if answers is None else answers.digest,
+        with guided_arms(
+            (name,),
+            analysis.knowledge,
+            experiment,
+            log=folder / "calls.jsonl",
+            send=context.send,
+            answers=answers,
             now=context.now,
-        ) as log:
-            recorder, scores = _guided(analysis, name, context, experiment, log, answers)
+        ) as paid:
+            arm = paid.arms[name]
+            recorder = Recorder(arm)
+            scores = _score(analysis, experiment, context, recorder, drains={name: arm.drain})
     except Exception as exc:
+        log = None if paid is None else paid.log
         spent = "" if log is None else f"; it spent {log.usd:.6f} USD over {log.calls} calls"
         exc.add_note(f"The fill's run folder is {folder}{spent}.")
         raise
-    return _kept(analysis, _outcome(analysis, name, recorder, scores, folder, log=log))
-
-
-def _guided(
-    analysis: Analysis,
-    name: str,
-    context: Context,
-    experiment: Experiment,
-    log: CallLog,
-    answers: Replay | None,
-) -> tuple[Recorder, list[Score]]:
-    """Score with a `GuidedArm` for `name` over `log`, refusing a replay with calls left over."""
-    arm = GuidedArm(
-        name,
-        BKO_ARMS[name],
-        analysis.knowledge,
-        send=context.send() if answers is None else answers,
-        log=log,
-        budget=experiment.budget,
-        ceiling=experiment.spend_ceiling,
-    )
-    recorder = Recorder(arm)
-    try:
-        scores = _score(analysis, experiment, context, recorder, drains={name: arm.drain})
-    finally:
-        arm.summary()
-    if answers is not None and answers.remaining:
-        msg = f"{answers.remaining} logged calls were not replayed"
-        raise ReplayError(msg)
-    return recorder, scores
+    return _kept(analysis, _outcome(analysis, name, recorder, scores, folder, log=paid.log))
 
 
 def _score(
