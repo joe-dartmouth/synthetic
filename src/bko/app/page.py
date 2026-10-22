@@ -1,8 +1,8 @@
 """The Streamlit page: pick the dataset, analyze its gaps, fill and score them, download the result.
 
-The only module that imports streamlit. Each action runs with no streamlit call inside it and
-writes its result into a `Slot` placed in the session before it starts, so a rerun requested
-meanwhile neither aborts it nor loses its result (ADR `research/streamlit-app-design`).
+With `browse.py`, the only modules that import streamlit. Each action runs with no streamlit call
+inside it and writes its result into a `Slot` placed in the session before it starts, so a rerun
+requested meanwhile neither aborts it nor loses its result (ADR `research/streamlit-app-design`).
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from typing import Final
 
 import streamlit as st
 
+from bko.app.browse import earlier_runs
 from bko.app.context import Context
 from bko.app.steps import (
     Analysis,
@@ -88,6 +89,10 @@ def page() -> None:
     context: Context = st.session_state.setdefault(CONTEXT_KEY, Context())
     context.setup_logging()
     st.title("Fill clinical coverage gaps")
+    view = st.radio("View", ("Demo", "Earlier runs"), horizontal=True, key="bko.view")
+    if view == "Earlier runs":
+        earlier_runs(context)
+        return
     st.header("1. Dataset")
     st.selectbox("Dataset", DATASETS, key="bko.dataset")
     analysis = _analysis(context)
@@ -204,7 +209,10 @@ def _fill(context: Context, analysis: Analysis) -> Outcome | None:
         # The finished fill sits in its slot; the rerun draws the next fill's unticked box.
         st.rerun()
     slot: Slot[Outcome] | None = st.session_state.get(OUTCOME_KEY)
-    return None if slot is None else _shown(slot)
+    if slot is None or (slot.value is not None and slot.value.name != name):
+        # A view switch resets the method box but keeps the outcome; its run folder keeps it too.
+        return None
+    return _shown(slot)
 
 
 def _answers(context: Context, name: str) -> tuple[Path | None, bool]:

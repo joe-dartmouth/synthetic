@@ -45,9 +45,15 @@ We will build the page as follows.
   click; `SPEND_CEILING` per fill; the send built inside the action; the loopback bind; one action
   per process under a lock.
 * **Config home**: the flags live in the `make app` recipe, and nowhere else.
-* **Verdicts**: the page shows one split's measures and no verdict.
+* **Verdicts**: a demo fill shows one split's measures and no verdict; the Earlier runs view shows
+  E1's stored criteria table and the validity verdict `bko.evaluate.validity.verdict` gives on
+  the stored scores.
 * **`SPEND_CEILING`**: 0.25 USD per fill.
 * **Run folders**: each fill keeps its run folder (ADR `tooling/run-folders`).
+* **Earlier runs**: the page's Earlier runs view reads run folders' stored artifacts through the
+  stages' public readers (`bko.evaluate.scores.parse`, `bko.evaluate.validity` and
+  `bko.generate.candidates.read`) and pandas for the CSVs, and recomputes nothing from `data/`
+  (`docs/DEVELOPMENT.md`, App, lists what it shows).
 
 ## Rationale
 
@@ -95,11 +101,12 @@ fills, each bounded by the ceiling and a confirmation.
 | A headline improvement | One split is not E1's verdict | 2026-10-21 |
 | E1's 25 USD ceiling per fill | Bounds a whole experiment, not one click | 2026-10-21 |
 | `st.cache_data` | Cannot pickle `Ontology`, `Cells` or `Request` | 2026-10-21 |
+| Recomputing readings from `data/` in the Earlier runs view | Copies the gaps and fusion commands' private steps; the stored artifacts already hold what the register reads | 2026-10-21 |
 
 ## Enforcement
 - Owner: `src/bko/app/`
 - Pinned by: `tests/test_repo_gate.py`, `tests/test_app_page.py`, `tests/test_app_imports.py`,
-  `tests/test_app_steps.py`, `tests/test_app_views.py`
+  `tests/test_app_steps.py`, `tests/test_app_views.py`, `tests/test_app_browse.py`
 
 ## Reversal Conditions
 The app is served beyond loopback (then authentication and a spend ledger); `GuidedArm` gains a

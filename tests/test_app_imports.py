@@ -1,4 +1,4 @@
-"""`bko.app`'s import boundaries: one streamlit importer, no SDK or command module, no shadowing."""
+"""`bko.app`'s import boundaries: two streamlit importers, no SDK or command module or shadowing."""
 
 from __future__ import annotations
 
@@ -41,8 +41,8 @@ def test_discovery_finds_the_app_imports():
     assert "context.py" in _app_importers("bko.evaluate.run")
 
 
-def test_only_the_page_imports_streamlit():
-    assert _app_importers("streamlit") == {"page.py"}
+def test_only_the_page_and_the_browser_import_streamlit():
+    assert _app_importers("streamlit") == {"page.py", "browse.py"}
 
 
 def test_the_app_imports_no_sdk_and_no_command_module():

@@ -10,12 +10,10 @@ section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`proposal-run-browser`](proposal-run-browser.md) | ready | -- | Krish | working-prototype |
 | [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | ready | -- | Shirley | final-report |
 
 ```mermaid
 flowchart LR
-    run_browser[proposal-run-browser]
     guidance_ablation[proposal-guidance-ablation]
 ```
 
