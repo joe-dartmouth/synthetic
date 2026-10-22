@@ -515,6 +515,13 @@ running action. Launch it only through `make app`; a bare `streamlit run` drops 
   the split's scores, in the format `python -m bko.evaluate score` writes.
 - **What it judges**: nothing. The page shows one split's measures; E1's verdict comes only from
   `python -m bko.evaluate compare` over E1's holdouts ([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)).
+- **Earlier runs**: the page's second view lists the run folders under `runs/` ([Runs](#runs)) and
+  shows each one's stored artifacts by role: a call log's `end` totals; E1's criteria table, the
+  means over its holdouts and its arms' validity; candidates per call and cell; a closure table's
+  pairs and counts; the gap tables of E2 per ablation and detector; R1's reproduction rows; a demo
+  fill's scores and training set. It recomputes nothing from `data/` and writes nothing; it derives
+  only means, counts and E1's validity from the stored files, and lists logs and a `live` test's
+  `pytest` directory without reading them. A folder or role this machine lacks is not listed.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It
   starts only while its confirmation box is ticked, the box clears after each fill, the client is
   built only then, and the fill stops once its call log's spend reaches
