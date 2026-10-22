@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-19
+updated: 2026-10-22
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -32,9 +32,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
   candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
   confidence, the attempts per fill, the BKO arms' budget per attempt, the validity threshold and
-  the run's spend ceiling. It refuses a candidate that is not one of its arms. `docs/EVIDENCE.md`
-  (E1) states how each criterion is read. No flag changes a value: `score --log` and `--replay`
-  choose where calls are recorded and answered from, and `compare --candidate` judges another arm as
+  the run's spend ceiling. It refuses a candidate that is not one of its arms, and a replica arm
+  that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
+  value: `score --log`, `--replay` and `--resume` choose where calls are recorded and answered
+  from, and `compare --candidate` judges another arm as
   a dry run, never as E1's verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
@@ -65,7 +66,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   line per attempt with its outcome, its call range, the records asked, the candidates generated and
   passed, those dropped for each reason and those kept. Its refusal's message carries the same
   counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
-  reads the spend before every call.
+  reads the spend before every call. That spend is the call log's whole spend, a resumed log's
+  replayed calls included.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. It
   fills two requests on each holdout, the gap request and the replica request, and the rate reads
@@ -118,8 +120,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **The latest configuration is judged.** E1 judges its latest configuration: after a change to
   the system, the design or any configuration, E1 runs again, and only runs of the new
   configuration count. A configuration with one complete paid run (exit 0, call log ending
-  `complete`) is judged on it; runs of one configuration are combined into one result, and the
-  method is fixed, as a reading, before a configuration's second paid run. Every run's readings
+  `complete`) is judged on it. A resumed run whose log ends `complete` is one complete paid run,
+  and its paid spend is the stopped log's `usd` plus its own `live_usd`. Runs of one
+  configuration are combined into one result, and the method is fixed, as a reading, before a
+  configuration's second paid run. Every run's readings
   are fixed before it starts. Every run keeps its Runs row in `docs/EVIDENCE.md`, a failed one
   with its reason; reporting earlier configurations elsewhere is optional.
 
@@ -215,8 +219,8 @@ still judge on it. A call that gets no response is not a refusal of the request:
 no delay, so they add no patience against an outage, and they would read an infrastructure failure
 as the method's. Patience against an outage belongs to the SDK client that
 `bko.generate.api.default_send` builds, whose retries (`MAX_RETRIES`) back off over minutes and
-change no logged request: a run cannot resume (ADR `research/call-log-replay`), so the client
-carries it through a brief outage. Budget and attempts bound the records asked, not the calls, since
+change no logged request: a stopped run resumes and repays its stopped call (ADR
+`research/call-log-replay`), so the client still carries a brief outage. Budget and attempts bound the records asked, not the calls, since
 each short cell's top-up is one call however few rows it asks, so a spend ceiling bounds the run.
 Judging the latest configuration lets a change to the method or the design be judged on runs made in
 it. Each run's readings are fixed before it starts, so each verdict is one look at its
@@ -237,8 +241,8 @@ record is weak evidence of privacy, blind to attacks that need no near-copy; `ca
 a public SDMetrics export; baseline results on the real test split were in view when the readings
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
 than the holdout seed; a BKO arm ignores the seed, and its retry repeats the same request; the test
-split each arm is scored on depends on every arm's rows; a call with no response or a spend at the
-ceiling forfeits the run's spend; each BKO pipeline runs twice per holdout, for the gap request and
+split each arm is scored on depends on every arm's rows; a call with no response forfeits only that call,
+and a spend at the ceiling forfeits the run; each BKO pipeline runs twice per holdout, for the gap request and
 the replica request, so the three arms' paid generation grows with the holdout count and the
 training split's size; the replica configuration's readings were fixed with `e1-1`'s BKO results in
 view, and its generator was chosen for cost; a scores file from before the BKO arms filled a replica
@@ -292,6 +296,7 @@ register so how many configurations were tried is visible.
 | BKO arms filling no replica | Leaves them no fidelity or replica utility reading beside the baselines' | 2026-10-19 |
 | Validity over the gap fill's candidates only | One rule counts every candidate validation sees, replica candidates included | 2026-10-19 |
 | A validity verdict per fill | Two looks at one criterion | 2026-10-19 |
+| A control as a replica arm | It adds no rows, so its replica fit trains on nothing and score exits 1 | 2026-10-22 |
 
 ## Enforcement
 
@@ -332,3 +337,4 @@ run that judges it.
 - [Python 3.14, without synthcity](../tooling/python-314-without-synthcity.md)
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [Record validation: each field's number, bound and decimals, counted per check](record-validation-design.md)
+- [A paid run's call log answers its rerun](call-log-replay.md)

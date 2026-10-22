@@ -109,6 +109,15 @@ nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/
     mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
     uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
 
+A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
+calls from that log, sends the rest live, and writes one new call log at `--log`. The stopped run
+keeps its folder; the resumed run takes that id plus `-resume` ([Runs](#runs)):
+
+    test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
+
+Never resume a log that another process still writes. A run stopped at the spend ceiling cannot
+resume, because its first live call refuses again.
+
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
 refuse an existing log, and `scores.csv` is the only copy `compare` reads. A judged run keeps
 `compare`'s stdout and stderr in its folder:
@@ -129,7 +138,8 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
   baseline's. Every arm fills before any is scored. A test record that some arm's rows copy in every
   column leaves the test split each arm's utility is scored on. With `--replay`, every BKO call is
   answered from that call log instead of the API. A call that differs from the log's, or a logged
-  call left unplayed, stops the run.
+  call left unplayed, stops the run. With `--resume`, the stopped log's answered calls come first,
+  answered from it, then live calls.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
   arm it is set against, the measure, and the contrast's mean, interval, the upper bound at the
@@ -144,14 +154,16 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
   the budget, the validity threshold and the spend ceiling, and a `versions` line (the checkout's
   commit and whether its tree is dirty, `unknown` without git, then Python, the platform, the
-  evaluation stack, the SDK and the ontology parser), then per holdout the split line `cells`
+  evaluation stack, the SDK and the ontology parser), with `--resume` a `resume` line (`log=`,
+  `sha256=`, `answered=`) before any call, then per holdout the split line `cells`
   prints, one `quota` line per stratum, one `arm` line per fill (a replica fill is named
   `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and the method's parameters, a
   `retry` warning for each refused attempt before the last, and a `holdout` line with the progress
   and seconds, then the CSV's row count and sha256. It also logs per BKO attempt a `guided` line
   (outcome, seed, call range, records asked, candidates generated and passed, dropped for each
   reason, kept, the run's spend), a `spend` line before each BKO call with the run's spend so far
-  and the ceiling, `bko.generate`'s `log` line and per-call lines and the call log's totals line, a
+  and the ceiling, `bko.generate`'s `log` line and per-call lines and the call log's totals line
+  (with `live_usd=` and `resume=`), a
   `test` line per holdout with the test records any arm copied, and at the end of the run, a stopped
   run included, one `validity` line per BKO arm, its counts over both fills. A fill that stops the
   run logs a `refused` or `contract` error naming the holdout and arm. `compare` logs a `compare`
@@ -162,20 +174,24 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
   `replica` line per replica arm, measure and scope. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value;
-  `--log` and `--replay` choose where calls are recorded and answered from, never a value.
+  `--log`, `--replay` and `--resume` choose where calls are recorded and answered from, never a
+  value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to build, a
+  existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with no BKO arm to
+  build, `--resume` with `--replay`, a
   call that gets no response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and
   `candidates` or `replica-candidates` rows whose validity cannot be read; 3 also for a replay that
-  does not match its log. `compare` writes its table before it reads validity, so it keeps the table
+  does not match its log, and a stopped log that breaks the replay contract: a replay's log, or a
+  resume that stopped while it replayed. `compare` writes its table before it reads validity, so it keeps the table
   when it exits 2 on validity.
 - **Reproducibility**: a holdout seed gives the same split and requests, and the baselines keep
   the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
   seed; the paid run's call log is their record (ADR
   [`research/call-log-replay`](adr/research/call-log-replay.md)), and `--replay` rewrites the
-  scores byte for byte from it.
+  scores byte for byte from it. A resumed run's own log is its record: its paid spend is
+  `live_usd`, while `usd` counts the whole run and is what the ceiling reads.
 
 ## BKB fixtures
 
@@ -353,14 +369,15 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   `summary`, each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
-  sha256 (or null) and totals, each call's whole request and response and its USD spend included. An
+  sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
+  always writes null) and totals, `live_usd` among them, each call's whole request and response and its USD spend included. An
   interrupt or any other failure between a `request` line and its `reply` line writes the `error`
   line. stderr gets the split line, each ontology fragment's size, the request's name, cells and
   rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort, level, records per
-  call, token limit, and the replayed log's sha256 or `none`), the plan (calls, level, and the most
-  the output tokens can cost), a `send` line before each call and a `generate` line after it (or an
-  ERROR `failed` line naming the call and cell), the run's totals and spend with the replayed log's
-  sha256 or `none` and the log's path, and last the line count and sha256 of stdout. Its WARNING
+  call, token limit, the replayed log's sha256 or `none`, and `resume=none`), the plan (calls,
+  level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an
+  ERROR `failed` line naming the call and cell), the run's totals and spend (`usd` and `live_usd`)
+  with the replayed and resumed logs' sha256 or `none` and the log's path, and last the line count and sha256 of stdout. Its WARNING
   lines: `served`, a call served by a model other than the settings name; `short`, a call that wrote
   placeholders, with their reason; `unreached`, a gap statement no label-compatible mapping row
   reaches, left out of the prompt; `noreference`, a cell with no reference record, so no profile or
