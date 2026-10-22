@@ -24,7 +24,14 @@ from bko.gaps.definitions import Definition
 from bko.generate.decode import Reason, Undecoded
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
-from tests._fusion_fixtures import UCI_X, candidate_lines, scenario_a, training_split, young
+from tests._fusion_fixtures import (
+    UCI_X,
+    candidate_lines,
+    fusion_header,
+    scenario_a,
+    training_split,
+    young,
+)
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
 from tests._generate_fixtures import SIZES
 from tests._ontology_fixtures import RoutingOpener
@@ -51,9 +58,21 @@ def make_context(data: bytes = UCI_X, **change) -> Context:
     return dataclasses.replace(context, **change)
 
 
-def run(tmp_path: Path, candidates: bytes, context: Context | None = None) -> tuple[int, str, Path]:
+def run(
+    tmp_path: Path,
+    candidates: bytes,
+    context: Context | None = None,
+    *,
+    archive: bytes = UCI_X,
+    plan: list[tuple[str, int]] | None = None,
+    headed: bool = True,
+    **fields: object,
+) -> tuple[int, str, Path]:
+    """Run the command over `candidates`, behind the header for `archive` unless not `headed`."""
     path = tmp_path / "c.out"
-    path.write_bytes(candidates)
+    path.write_bytes(
+        fusion_header(archive, candidates, plan=plan, **fields) if headed else candidates
+    )
     out = io.StringIO()
     argv = [str(path), "--data-dir", str(tmp_path / "data")]
     code = main(argv, context=context or make_context(), out=out)
@@ -125,12 +144,11 @@ def test_a_file_answering_e1s_request_exits_three_and_writes_nothing(tmp_path, c
             (">=55/female/1", [planted(age=60, sex=0, target=1, cp=1)] * 2),
         ]
     )
-    code, out, _ = run(tmp_path, e1)
+    code, out, _ = run(tmp_path, e1, request="e1")
     assert (code, out) == (3, "")
     assert any(
         record.levelno == logging.ERROR
-        and "call 2 answers '>=55/female/1', a cell the completeness request does not ask for"
-        in record.getMessage()
+        and "the candidates answer the e1 request, not completeness" in record.getMessage()
         for record in caplog.records
     )
 
@@ -139,11 +157,11 @@ def test_a_requested_cell_with_too_few_lines_exits_three(tmp_path, caplog):
     short = candidate_lines(
         [("<55/female/0", [young(0, cp=4)] * 20), ("<55/female/1", [young(1, cp=1)] * 19)]
     )
-    code, out, _ = run(tmp_path, short)
+    code, out, _ = run(tmp_path, short, plan=[("<55/female/0", 20), ("<55/female/1", 20)])
     assert (code, out) == (3, "")
     assert any(
         record.levelno == logging.ERROR
-        and "<55/female/1 has 19 lines for 20 rows" in record.getMessage()
+        and "call 2 asked 20 records of <55/female/1 and wrote 19 lines" in record.getMessage()
         for record in caplog.records
     )
 
@@ -164,13 +182,13 @@ def test_a_key_outside_the_grid_exits_three(tmp_path, caplog):
             ("<55/female/9", [young(1, cp=1)]),
         ]
     )
-    code, out, _ = run(tmp_path, stray)
+    code, out, _ = run(tmp_path, stray, plan=[("<55/female/0", 20), ("<55/female/1", 20)])
     assert (code, out) == (3, "")
-    assert any("call 3 answers '<55/female/9'" in message for message in errors(caplog))
+    assert any("call 3 is not in the candidates' plan" in message for message in errors(caplog))
 
 
 def test_a_malformed_file_exits_three(tmp_path, caplog):
-    code, out, _ = run(tmp_path, scenario_a().rstrip(b"\n"))
+    code, out, _ = run(tmp_path, scenario_a().rstrip(b"\n"), headed=False)
     assert (code, out) == (3, "")
     assert any("has no newline" in message for message in errors(caplog))
 
@@ -244,7 +262,7 @@ def held_out_angina(tmp_path: Path) -> bytes:
 def test_the_test_split_never_grounds_the_before_reading(tmp_path, caplog):
     caplog.set_level(logging.INFO, logger="bko")
     data = held_out_angina(tmp_path)
-    code, _, _ = run(tmp_path, scenario_a(), make_context(data))
+    code, _, _ = run(tmp_path, scenario_a(), make_context(data), archive=data)
     assert code == 0
     assert any(
         message.startswith("closure definition=per-subgroup before=6 ")
@@ -311,7 +329,7 @@ def test_extra_lines_for_a_cell_are_validated_then_dropped_past_its_rows(tmp_pat
     data = candidate_lines(
         [("<55/female/0", [young(0, cp=4)] * 20), ("<55/female/1", [young(1, cp=1)] * 22)]
     )
-    code, _, _ = run(tmp_path, data)
+    code, _, _ = run(tmp_path, data, plan=[("<55/female/0", 20), ("<55/female/1", 20)])
     assert code == 0
     assert "validate key=<55/female/1 lines=22" in messages(caplog)
     assert any(
@@ -352,3 +370,70 @@ def test_an_archive_that_contradicts_its_pin_exits_three(tmp_path):
     context = make_context(open_url=RoutingOpener({**served, uci.url: tampered}), uci=uci)
     code, out, _ = run(tmp_path, scenario_a(), context)
     assert (code, out) == (3, "")
+
+
+def test_a_headerless_file_exits_three_before_any_download(tmp_path, caplog):
+    context = make_context()
+    code, out, _ = run(tmp_path, scenario_a(), context, headed=False)
+    assert (code, out) == (3, "")
+    assert any("line 1 is not a schema 1 header" in message for message in errors(caplog))
+    assert context.open_url.calls == []
+
+
+def test_another_uci_archive_exits_three_before_any_download(tmp_path, caplog):
+    context = make_context()
+    code, out, _ = run(tmp_path, scenario_a(), context, uci="0" * 64)
+    assert (code, out) == (3, "")
+    assert any("another UCI archive" in message for message in errors(caplog))
+    assert context.open_url.calls == []
+
+
+def test_another_split_exits_three(tmp_path, caplog):
+    code, out, _ = run(tmp_path, scenario_a(), fingerprint="0" * 64)
+    assert (code, out) == (3, "")
+    assert any("another split" in message for message in errors(caplog))
+
+
+def test_other_releases_exit_three(tmp_path, caplog):
+    code, out, _ = run(tmp_path, scenario_a(), releases={"HP": "0" * 64, "MONDO": "0" * 64})
+    assert (code, out) == (3, "")
+    assert any("other releases" in message for message in errors(caplog))
+
+
+def test_a_plan_unlike_the_request_names_both_quotas(tmp_path, caplog):
+    code, out, _ = run(tmp_path, scenario_a(), plan=[("<55/female/0", 20)])
+    assert (code, out) == (3, "")
+    assert any("the candidates' plan asks" in message for message in errors(caplog))
+
+
+def test_a_call_in_another_cell_than_its_plan_exits_three(tmp_path, caplog):
+    plan = [("<55/female/1", 20), ("<55/female/0", 20)]
+    code, out, _ = run(tmp_path, scenario_a(), plan=plan)
+    assert (code, out) == (3, "")
+    assert any(
+        "call 1 answers '<55/female/0', and its plan asks for '<55/female/1'" in message
+        for message in errors(caplog)
+    )
+
+
+def test_a_short_call_exits_three_even_when_a_later_call_makes_up_its_cell(tmp_path, caplog):
+    data = candidate_lines(
+        [
+            ("<55/female/1", [young(1, cp=1)] * 9),
+            ("<55/female/1", [young(1, cp=1)] * 11),
+            ("<55/female/0", [young(0, cp=4)] * 20),
+        ]
+    )
+    plan = [("<55/female/1", 10), ("<55/female/1", 10), ("<55/female/0", 20)]
+    code, out, _ = run(tmp_path, data, plan=plan)
+    assert (code, out) == (3, "")
+    assert any(
+        "call 1 asked 10 records of <55/female/1 and wrote 9 lines" in message
+        for message in errors(caplog)
+    )
+
+
+def test_a_header_only_file_exits_three(tmp_path, caplog):
+    code, out, _ = run(tmp_path, b"", plan=[("<55/female/0", 20), ("<55/female/1", 20)])
+    assert (code, out) == (3, "")
+    assert any("call 1 asked 20 records" in message for message in errors(caplog))

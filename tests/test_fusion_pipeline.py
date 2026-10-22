@@ -87,10 +87,10 @@ def test_a_failed_generation_leaves_a_file_the_closure_command_refuses(tmp_path,
     )
     code, path = generated(tmp_path, send)
     assert code == 2
-    assert len(path.read_text(encoding="utf-8").splitlines()) == 20
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 21
     assert closed(tmp_path, path) == 3
     assert any(
         record.levelno == logging.ERROR
-        and "<55/female/1 has 0 lines for 20 rows" in record.getMessage()
+        and "call 2 asked 20 records of <55/female/1 and wrote 0 lines" in record.getMessage()
         for record in caplog.records
     )

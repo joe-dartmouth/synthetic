@@ -7,8 +7,8 @@ from typing import Final
 
 import pytest
 
-from bko.gaps.errors import GapError
 from bko.datasets.split import SPLIT_SEED
+from bko.gaps.errors import GapError
 from bko.gaps.scope import load_scope, load_uci_scope
 from tests._datasets_fixtures import pin
 from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS, ladder_releases

@@ -11,7 +11,6 @@ each cell's rows in chunks of `Settings.per_call`, cells in quota order, so a ru
 from __future__ import annotations
 
 import logging
-import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
@@ -201,7 +200,8 @@ def generate(
         if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
             msg = f"quota of cell {cell!r} must be an int of at least 1, not {rows!r}"
             raise ValueError(msg)
-    calls = sum(math.ceil(rows / settings.per_call) for rows in quota.values())
+    planned = chunks(quota, settings.per_call)
+    calls = len(planned)
     ceiling = calls * settings.max_tokens * price_of(settings.model).output / 1e6
     logger.info(
         "plan calls=%d level=%s max_tokens=%d max_output_usd=%.2f",
@@ -211,11 +211,18 @@ def generate(
         ceiling,
     )
     batches: list[Batch] = []
-    for cell, rows in quota.items():
-        for start in range(0, rows, settings.per_call):
-            chunk = min(settings.per_call, rows - start)
-            batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings)
-            batches.append(batch)
-            if on_batch is not None:
-                on_batch(batch)
+    for cell, chunk in planned:
+        batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings)
+        batches.append(batch)
+        if on_batch is not None:
+            on_batch(batch)
     return Generation(tuple(batches))
+
+
+def chunks(quota: Mapping[Cell, int], per_call: int) -> tuple[tuple[Cell, int], ...]:
+    """Each call `generate` makes for `quota`: its cell and records asked, in call order."""
+    return tuple(
+        (cell, min(per_call, rows - start))
+        for cell, rows in quota.items()
+        for start in range(0, rows, per_call)
+    )

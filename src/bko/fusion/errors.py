@@ -8,6 +8,8 @@ from bko.datasets.errors import ContractError
 class ClosureError(ContractError):
     """A candidates file does not answer the completeness request.
 
-    It names a cell the request does not ask for, or holds fewer lines for a requested cell than
-    its rows, as a run that stopped early leaves it. Exit 3: the input contradicts its contract.
+    Its header names another request, UCI archive, split or releases; its plan's per-cell sums
+    differ from the request; or, read call by call, a line belongs to an unplanned call or names
+    another cell than its call's plan, or a planned call wrote fewer lines than it asked, as a run
+    that stopped early leaves it. Exit 3: the input contradicts its contract.
     """

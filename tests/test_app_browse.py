@@ -8,7 +8,9 @@ import pytest
 from streamlit.testing.v1 import AppTest
 
 from bko.evaluate.scores import render
+from bko.generate.candidates import render_lines
 from tests._app_fixtures import analyzed, app_context, launch, never, settled
+from tests._fusion_fixtures import young
 from tests._runs_fixtures import DEMO, SCORES, every_kind
 
 
@@ -113,3 +115,13 @@ def test_a_fill_survives_a_trip_to_earlier_runs(tmp_path):
     at = _earlier(at)
     at = settled(at.radio(key="bko.view").set_value("Demo").run())
     assert "4. Results" in [header.value for header in at.header]
+
+
+def test_a_headerless_candidates_file_shows_its_error_in_place(tmp_path):
+    runs = every_kind(tmp_path / "runs")
+    (runs / "c1-2" / "candidates.jsonl").write_text(
+        render_lines(1, ("<55", "female", 1), [young(1)]), encoding="utf-8"
+    )
+    at = _opened(tmp_path, runs, "c1-2")
+    assert "candidates.jsonl could not be shown." in [error.value for error in at.error]
+    assert any(block.value.startswith("CandidatesFormatError: ") for block in at.code)
