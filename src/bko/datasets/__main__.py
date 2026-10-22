@@ -25,9 +25,9 @@ from typing import TextIO
 from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec, ablate
 from bko.datasets.cells import CELL_COLUMNS, LABEL, UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
+from bko.datasets.split import uci_split
 from bko.datasets.synthea import load_population
 from bko.datasets.synthea_run import (
     DEFAULT_RUN,
@@ -37,7 +37,6 @@ from bko.datasets.synthea_run import (
     ensure_population,
     run_java,
 )
-from bko.datasets.uci import load_uci
 
 
 logger = logging.getLogger("bko.datasets")
@@ -126,15 +125,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _cells(data_dir: Path, context: Context, out: TextIO) -> None:
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
+    parts = uci_split(data_dir, source=context.uci, open_url=context.open_url)
     counts = cell_counts(parts.train)
     under = counts.loc[counts["underrepresented"]]
     cells = zip(*(under[column] for column in (*CELL_COLUMNS, "count")), strict=True)

@@ -34,17 +34,15 @@ import pandas as pd
 
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
-from bko.datasets.uci import load_uci
 from bko.fusion.closure import Closure, closure
 from bko.fusion.errors import ClosureError
 from bko.fusion.join import Joined, join
 from bko.gaps.definitions import completeness_request
 from bko.gaps.observe import Cell, Cells, cell_key, record_cells
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
-from bko.gaps.scope import load_scope
+from bko.gaps.scope import load_uci_scope
 from bko.generate.candidates import CandidateLine, read
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
@@ -149,22 +147,15 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
     lines = read(data)
     digest = hashlib.sha256(data).hexdigest()
     logger.info("candidates path=%s lines=%d sha256=%s", path, len(lines), digest)
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
-    ontologies, fragments = load_scope(
-        {row.concept for row in context.field_rows},
+    scope = load_uci_scope(
         data_dir,
+        uci=context.uci,
         releases=context.releases,
+        field_rows=context.field_rows,
         open_url=context.open_url,
     )
-    before = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    parts, ontologies, fragments = scope.parts, scope.ontologies, scope.fragments
+    before = scope.cells
     request = completeness_request(fragments, before)
     candidates = _answer(lines, request, before)
     accepted: dict[Cell, pd.DataFrame] = {}

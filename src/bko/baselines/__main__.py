@@ -30,10 +30,9 @@ from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import BASELINE_SEED, SEED_LIMIT, Method, Request, Strata, plan
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.split import uci_split
 
 
 logger = logging.getLogger("bko.baselines")
@@ -102,15 +101,7 @@ def render(train: pd.DataFrame, baseline: Baseline) -> str:
 
 def _run(args: argparse.Namespace, data_dir: Path, context: Context, out: TextIO) -> None:
     method = Method(args.method)
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
+    parts = uci_split(data_dir, source=context.uci, open_url=context.open_url)
     train = parts.train
     request = (
         plan(train, args.rows, strata=Strata(args.strata), seed=args.seed)

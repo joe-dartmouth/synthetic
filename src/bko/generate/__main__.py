@@ -38,14 +38,12 @@ import pandas as pd
 
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
-from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
-from bko.gaps.observe import Cell, cell_key, record_cells
-from bko.gaps.scope import load_scope
+from bko.gaps.observe import Cell, cell_key
+from bko.gaps.scope import load_uci_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.calls import Batch, generate
 from bko.generate.candidates import render_lines
@@ -195,22 +193,19 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     # exclusively, so a log made in between is never overwritten.
     if args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
-    ontologies, fragments = load_scope(
-        {row.concept for row in context.field_rows},
+    scope = load_uci_scope(
         data_dir,
+        uci=context.uci,
         releases=context.releases,
+        field_rows=context.field_rows,
         open_url=context.open_url,
     )
-    cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    parts, ontologies, fragments, cells = (
+        scope.parts,
+        scope.ontologies,
+        scope.fragments,
+        scope.cells,
+    )
     definition = Definition(args.definition)
     found = gaps(definition, fragments, cells)
     request = Request(args.request)

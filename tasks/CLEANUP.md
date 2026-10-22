@@ -54,18 +54,6 @@ links to where its blocker is tracked.
   it asked for.
   **Trigger:** a change that sets `SETTINGS.per_call` below `UNDERREPRESENTED_BELOW`.
 
-## gaps
-
-- **`cleanup:gaps/uci-load-sequence-copied`: the UCI load sequence is written once per command and
-  once in the app.** `ensure`, `load_uci`, `split`, `load_scope` and `record_cells` run in sequence
-  in `src/bko/gaps/__main__.py:177-188`, `src/bko/fusion/__main__.py:152-167`,
-  `src/bko/generate/__main__.py:202-217`, `src/bko/evaluate/__main__.py:175-176,217-224` and
-  `bko.app.steps.analyze`. *Filed 2026-10-21 by `proposal-streamlit-app`.*
-  **Why deferred.** Extracting it edits four commands owned by others, and
-  `proposal-guidance-ablation` edits `bko.evaluate`'s command.
-  **What discharges it:** one public loader in `bko.gaps` that every command and `bko.app` call.
-  **Trigger:** `proposal-guidance-ablation` landing, or the next change to any copy.
-
 ## generate
 
 - **`cleanup:generate/candidates-carry-no-run-identity`: a candidates file does not name the split,
