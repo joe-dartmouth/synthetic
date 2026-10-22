@@ -3,7 +3,7 @@ id: proposal-streamlit-app
 title: Streamlit interface
 status: ready
 depends_on: --
-blocks: --
+blocks: proposal-run-browser
 parallel_safe: true
 owner: Krish
 milestone: working-prototype
@@ -27,6 +27,8 @@ The Working Prototype milestone is a Streamlit UI over the pipeline
 - A Streamlit app in `src/bko/app/`: choose a dataset, analyze gaps, fill them, evaluate, and
   download the result.
 - A Make target that launches it.
+- Each fill keeps its artifacts in a run folder
+  ([`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#runs)).
 
 **Out.** New pipeline logic; the app calls the stages.
 
