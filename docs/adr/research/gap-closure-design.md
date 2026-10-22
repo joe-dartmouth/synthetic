@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 # Validated records join the training records of their asked cell, and closure is read per gap definition
 
@@ -70,7 +70,8 @@ updates both, while a fragment's reliability would be a weight no gap list reads
 **Gained**: closure regenerates from the candidates file at no cost; the paid and free runs are
 tied by the candidates file's sha256, which generate logs over what it writes and the closure
 command logs over what it reads; `fuse`'s refusal of a fused BKB is never reached.
-**Accepted**: the candidates file lives in the gitignored `scratchpad/`, so only the machine that
+**Accepted**: the candidates file lives in its run's folder under the gitignored `runs/`
+([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#runs)), so only the machine that
 holds it regenerates a recorded figure, and the Runs row's digest is the record; per-subgroup and
 population-level grounding only gain held concepts when records join, while frequency-aware
 reference shares move with any same-label cell's records and open or close pairs in cells that

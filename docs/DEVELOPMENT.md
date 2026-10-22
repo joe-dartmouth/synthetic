@@ -102,15 +102,18 @@ holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
 its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
 credential, and every call goes to the call log at `--log`, which must not exist. `compare` spends
-nothing. Inside `.venv`, writing to the gitignored `scratchpad/`, which a fresh clone lacks:
+nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/` ([Runs](#runs)):
 
-    mkdir -p scratchpad
-    test ! -e scratchpad/<run-id>.jsonl && test ! -e scratchpad/<run-id>.csv && test ! -e scratchpad/<run-id>.err && uv run --no-sync python -m bko.evaluate score --log scratchpad/<run-id>.jsonl [--data-dir <dir>] > scratchpad/<run-id>.csv 2> scratchpad/<run-id>.err
-    uv run --no-sync python -m bko.evaluate score --replay scratchpad/<run-id>.jsonl --log scratchpad/<run-id>.replay.jsonl [--data-dir <dir>] > scratchpad/<run-id>.replay.csv
-    uv run --no-sync python -m bko.evaluate compare scratchpad/<run-id>.csv [--candidate <arm>]
+    mkdir -p runs/<run-id>
+    test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
+    mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv
+    uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
 
-The `test ! -e` guards matter: the shell empties `.csv` and `.err` before `score` can refuse an
-existing log, and the CSV is the only copy `compare` reads.
+The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
+refuse an existing log, and `scores.csv` is the only copy `compare` reads. A judged run keeps
+`compare`'s stdout and stderr in its folder:
+
+    test ! -e runs/<run-id>/criteria.csv && test ! -e runs/<run-id>/criteria.log && uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv > runs/<run-id>/criteria.csv 2> runs/<run-id>/criteria.log
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -331,7 +334,7 @@ candidate records that fill a gap request, E1's count-based one or the completen
 [`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
 inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
-    uv run --no-sync python -m bko.generate <definition> [--guidance <level>] [--request <e1|completeness>] --log scratchpad/<run-id>.jsonl [--data-dir <dir>]
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate <definition> [--guidance <level>] [--request <e1|completeness>] --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
 
 - **What it does**: it fetches UCI Heart Disease and the releases the field mappings name into the
   data root (`--data-dir`, default `data/`) if absent, splits the records as [Data](#data) says,
@@ -387,7 +390,7 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
 
-      test ! -e scratchpad/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=scratchpad/<run-id> -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
+      test ! -e runs/<run-id>/pytest && mkdir -p runs/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=runs/<run-id>/pytest -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
 
 ## Gap closure
 
@@ -398,11 +401,12 @@ completeness criterion's reading of "after fusion" (ADR
 Two commands, inside `.venv`; the first spends money and needs an Anthropic credential, the
 second spends nothing:
 
-    test ! -e scratchpad/<run-id>.jsonl && test ! -e scratchpad/<run-id>.out && test ! -e scratchpad/<run-id>.err && uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --request completeness --log scratchpad/<run-id>.jsonl > scratchpad/<run-id>.out 2> scratchpad/<run-id>.err
-    uv run --no-sync python -m bko.fusion scratchpad/<run-id>.out [--data-dir <dir>] > scratchpad/<run-id>.csv 2> scratchpad/<run-id>.closure.err
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --request completeness --log runs/<run-id>/calls.jsonl > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
+    mkdir -p runs/<run-id>-closure && test ! -e runs/<run-id>-closure/closure.csv && uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl [--data-dir <dir>] > runs/<run-id>-closure/closure.csv 2> runs/<run-id>-closure/closure.log
 
-The `test ! -e` guards matter: the shell empties `.out` before `bko.generate` can refuse an
-existing log, and `.out` is the only copy of the candidates the second command reads.
+The `test ! -e` guards matter: the shell empties `candidates.jsonl` before `bko.generate` can
+refuse an existing log, and `candidates.jsonl` is the only copy of the candidates the second
+command reads.
 
 - **What it does**: it reads the candidates file, fetches UCI Heart Disease and the releases the
   field mappings name into the data root if absent, splits the records as [Data](#data) says,
@@ -440,6 +444,44 @@ existing log, and `.out` is the only copy of the candidates the second command r
   it with `--releases` once the data root holds the snapshot and releases:
 
       uv run --no-sync pytest tests/test_fusion_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+## Runs
+
+A run of record keeps its artifacts in its own folder, `runs/<run-id>/` at the repository root,
+gitignored like `data/` and present only on the machine that ran it. `<run-id>` is the run's id in
+[EVIDENCE.md](EVIDENCE.md), such as `e1-3`; a run that checks or extends another takes that run's
+id and a suffix, such as `e1-3-replay` or `c1-2-closure`. Each artifact takes a fixed role name, so
+a reader finds it without knowing the command that wrote it. `bko.app.runs.ROLES` is the list's
+home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal:
+
+| Role | What writes it |
+|---|---|
+| `calls.jsonl` | the call log of a run that calls the Messages API |
+| `scores.csv` | `python -m bko.evaluate score`'s stdout |
+| `scores.log` | its stderr |
+| `criteria.csv` | `python -m bko.evaluate compare`'s stdout |
+| `criteria.log` | its stderr |
+| `candidates.jsonl` | `python -m bko.generate`'s stdout |
+| `candidates.log` | its stderr |
+| `closure.csv` | `python -m bko.fusion`'s stdout |
+| `closure.log` | its stderr |
+| `gaps-uci.csv` | `python -m bko.gaps uci`'s stdout |
+| `gaps-uci.log` | its stderr |
+| `gaps-synthea.csv` | `python -m bko.gaps synthea`'s stdout |
+| `gaps-synthea.log` | its stderr |
+| `reproduction.csv` | `python -m bko.ontology reproduce`'s stdout |
+| `reproduction.log` | its stderr |
+| `training.csv` | the augmented training set of an app fill |
+| `pytest` | a `live` test's `--basetemp` directory |
+
+The commands in [Evaluation](#evaluation), [Generation](#generation) and
+[Gap closure](#gap-closure) write their folders. A free run of record writes its folder with one of:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
+
+- **Another machine**: a run shows there only after its folder is copied into that machine's `runs/`.
 
 ## Platforms
 

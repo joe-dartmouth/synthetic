@@ -31,8 +31,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
-- `uv run --no-sync python -m bko.evaluate score --log scratchpad/<run-id>.jsonl > scratchpad/<run-id>.csv`,
-  then `uv run --no-sync python -m bko.evaluate compare scratchpad/<run-id>.csv`: score every E1 arm
+- `uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl > runs/<run-id>/scores.csv`,
+  then `uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv`: score every E1 arm
   on E1's holdouts, then judge `bko` against E1's criteria. `score` spends money through the three
   BKO arms and needs an Anthropic credential
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command and says what
@@ -47,11 +47,11 @@ import it (ADR `tooling/agent-config-single-home`).
   list the gaps under each BKO gap definition and the count-based gaps of the UCI training split,
   or of the Synthea population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
-- `uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log scratchpad/<run-id>.jsonl`:
+- `uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log runs/<run-id>/calls.jsonl`:
   generate candidate records for E1's count-based gap request through the Anthropic Messages API,
   or for the completeness request with `--request completeness`. It spends money and needs an
   Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).
-- `uv run --no-sync python -m bko.fusion scratchpad/<run-id>.out`: read a completeness run's
+- `uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl`: read a completeness run's
   candidates, join the ones that pass validation to the training records of their cell, and list
   what closed, stayed open and is new under each BKO gap definition. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-closure) holds the guarded pair of commands).
@@ -71,6 +71,7 @@ synthetic/
 ├── AGENTS.md / CLAUDE.md / GEMINI.md / README.md / LICENSE / Makefile / pyproject.toml / uv.lock
 ├── ruff.toml / ty.toml / pyrightconfig.json
 ├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
+├── runs/        # one folder per run of record, gitignored (docs/DEVELOPMENT.md#runs)
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
 ├── papers/      # the source PDFs: the proposal 2-pager, the research brief and Santos et al. 2024
 ├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)

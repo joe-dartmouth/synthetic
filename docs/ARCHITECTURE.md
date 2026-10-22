@@ -57,7 +57,8 @@ of "after fusion". The Streamlit front end (`bko.app`) sits over every stage.
 
 Every experiment run, and every paid generation run, is recorded in [EVIDENCE.md](EVIDENCE.md): its
 configuration, including the dataset snapshot and the generator's model and sampling parameters,
-and one Runs row per run with its id, date, commit, log location and API spend.
+and one Runs row per run with its id, date, commit, log location and API spend. Each run's
+artifacts live in its folder under `runs/` ([DEVELOPMENT.md](DEVELOPMENT.md#runs)).
 
 ## Package map
 
