@@ -19,7 +19,7 @@ import pytest
 from bko.datasets.split import split
 from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition
-from bko.gaps.observe import cell_key
+from bko.gaps.observe import Cell, cell_key
 from bko.generate.__main__ import Context, configure_logging, main
 from bko.generate.calls import chunks
 from bko.generate.errors import GenerationError
@@ -38,7 +38,7 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 UCI = uci({}, "4.0")
 
-REQUEST = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
+REQUEST: dict[Cell, int] = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
 """The count-based request: each flagged cell asked for its shortfall below twenty."""
 
 RECORD = {"age": 41, "sex": 0}

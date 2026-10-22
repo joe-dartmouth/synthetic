@@ -377,6 +377,7 @@ def test_a_headerless_file_exits_three_before_any_download(tmp_path, caplog):
     code, out, _ = run(tmp_path, scenario_a(), context, headed=False)
     assert (code, out) == (3, "")
     assert any("line 1 is not a schema 1 header" in message for message in errors(caplog))
+    assert isinstance(context.open_url, RoutingOpener)
     assert context.open_url.calls == []
 
 
@@ -385,6 +386,7 @@ def test_another_uci_archive_exits_three_before_any_download(tmp_path, caplog):
     code, out, _ = run(tmp_path, scenario_a(), context, uci="0" * 64)
     assert (code, out) == (3, "")
     assert any("another UCI archive" in message for message in errors(caplog))
+    assert isinstance(context.open_url, RoutingOpener)
     assert context.open_url.calls == []
 
 
