@@ -5,8 +5,8 @@ Partiban Anathurai, Shirley Asangi, Joe Laws, Krish Sapru. ENGG 119 project.
 Testing whether medical knowledge can guide synthetic patient-data generation to fill coverage gaps
 and improve heart-disease prediction for underrepresented groups.
 
-> **Status: scaffold.** The toolchain and the `make check` gate run. Each pipeline stage under
-> `src/bko/` has a README naming its role, its owner and whether the stage is built.
+> **Status: every pipeline stage is built.** The toolchain and the `make check` gate run. Each
+> stage under `src/bko/` has a README naming its role, its owner and its status.
 
 ## Overview
 
@@ -32,11 +32,12 @@ Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the int
 `.python-version`.
 
 ```bash
-make setup     # dev tools and the data, synth, eval, ontology and llm extras from the lock
+make setup     # dev tools and the data, synth, eval, ontology, llm and app extras from the lock
 make check     # the whole gate
 make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 make synthea   # generate the Synthea population (needs a JDK) and ablate one cell
 make reproduce # rebuild Santos et al.'s MONDO/DO fusion example and compare it with the paper
+make app       # serve the Streamlit app on 127.0.0.1 (a live BKO fill spends money)
 ```
 
 ## Repository guide

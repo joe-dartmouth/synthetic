@@ -7,16 +7,15 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology` and
-`llm` extras from the lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
+and `app` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
   `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
-  (pronto) and `llm` (anthropic) are installed by `make setup`; only `app` (streamlit) is
-  installed on demand. `synth` brings `torch` to every machine, and on Linux the lock adds the
+  (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`. `synth` brings `torch` to every machine, and on Linux the lock adds the
   NVIDIA CUDA packages and `triton`. ADR [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states
   when an extra joins `make setup`. `make sync` installs every extra.
-- **Install an extra the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
+- **Try a new extra before it joins `make setup`, the lock-faithful way**: copy the `setup` recipe out of the `Makefile` and
   append `--extra <name>`. `uv sync` is exact, so a bare `uv sync --extra <name>` removes the
   others. Never `uv pip install -e ".[...]"`: it resolves fresh rather than from the lock, and
   `make synced` refuses the result.
@@ -492,6 +491,61 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
   writable link empties the register's artifact before the command runs.
 - **Another machine**: a run shows there only after its folder is copied into that machine's `runs/`.
 
+## App
+
+`bko.app` ([README](../src/bko/app/README.md)) serves a Streamlit page over the stages, with
+`make setup`'s `app` extra:
+
+    make app
+
+It serves `http://127.0.0.1:8501` until interrupted. The recipe's flags are the app's whole
+configuration: the loopback bind, a fixed port (a second launch fails rather than moving), no
+browser and no first-run prompt, no usage statistics, no file watcher, and no rerun that aborts a
+running action. Launch it only through `make app`; a bare `streamlit run` drops them.
+
+- **What it does**: Analyze fetches UCI Heart Disease and the releases the field mappings name into
+  the data root if absent, splits the records as [Data](#data) says, and lists the count-based
+  cells and each definition's gaps as [Gap detection](#gap-detection) does. Fill and score fills
+  E1's gap request on that split with the chosen arm, then fits every method of
+  `bko.evaluate.experiment.METHOD_ARMS` beside it, CTGAN and TVAE included, and scores them all
+  with `bko.evaluate.run.score_holdout`, with no replica fill, so the page shows no fidelity and no
+  train-on-synthetic reading. It lists each definition's gaps before and after the added rows join.
+  Download offers the augmented training set, in the format `python -m bko.baselines` prints, and
+  the split's scores, in the format `python -m bko.evaluate score` writes.
+- **What it judges**: nothing. The page shows one split's measures; E1's verdict comes only from
+  `python -m bko.evaluate compare` over E1's holdouts ([EVIDENCE.md](EVIDENCE.md#e1-uci-heart-disease-augmentation)).
+- **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It
+  starts only while its confirmation box is ticked, the box clears after each fill, the client is
+  built only then, and the fill stops once its call log's spend reaches
+  `bko.app.context.SPEND_CEILING`. One action runs at a time in the process. The credential is the
+  SDK's own (`ANTHROPIC_API_KEY` or `ant auth login`); a missing one stops the fill at its first
+  call, before any spend.
+- **Replay**: a BKO fill can instead answer every call from the call log of an earlier fill by the
+  same arm, picked from a list, with no API call. It refuses a log whose requests differ from the
+  fill's or that holds calls the fill does not make (ADR
+  [`research/call-log-replay`](adr/research/call-log-replay.md)), so a log replays only at the
+  commit, data and releases it was recorded with.
+- **What it writes**: besides the data root, one run folder per fill ([Runs](#runs)),
+  `runs/app-<UTC time>-<arm>/`, holding `scores.csv` and `training.csv` and, for a BKO fill, live
+  or replayed, `calls.jsonl` in the format [Generation](#generation) describes. A stopped fill
+  keeps what it wrote. A closed tab or Ctrl-C does not interrupt a running action; the process
+  finishes it first.
+- **The gate drives it** through `streamlit.testing.v1.AppTest` over `src/bko/app/streamlit_app.py`
+  with fake openers, fast method arms and a `ScriptedSend` or a call log recorded from one in
+  `tmp_path`; no gate test reaches the API.
+- **The live test**: `tests/test_app_live.py` makes one paid BKO fill through the page against the
+  data root (fetched if absent) and runs only under `--live`. Run it deliberately, as a G1 run:
+
+      test ! -e runs/<run-id>/pytest && mkdir -p runs/<run-id> && uv run --no-sync pytest tests/test_app_live.py --live --basetemp=runs/<run-id>/pytest -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO </dev/null
+
+- **The release test**: `tests/test_app_pinned_releases.py` drives a free fill through the page
+  over the releases already in `data/`, under `--releases`:
+
+      uv run --no-sync pytest tests/test_app_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+- **After a Streamlit bump**: `uv run --no-sync python -m streamlit config show` lists every option
+  the installed release accepts; each recipe flag must still be one of them.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -505,7 +559,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology` and `llm` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -515,6 +569,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `cells` | `python -m bko.datasets cells` | Not part of the gate; fetches UCI Heart Disease on its first run ([Data](#data)) |
 | `synthea` | `python -m bko.datasets synthea` | Not part of the gate; needs a JDK, and fetches the Synthea jar and generates on its first run ([Data](#data)) |
 | `reproduce` | `python -m bko.ontology reproduce` | Not part of the gate; fetches MONDO and DO on its first run ([Fusion reproduction](#fusion-reproduction)) |
+| `app` | `python -m streamlit run src/bko/app/streamlit_app.py` with the app's flags | Not part of the gate; serves until interrupted, and a live BKO fill spends money ([App](#app)) |
 | `synced` | `python -m tools.check_lock_drift` | Installed packages against `uv.lock` |
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |
@@ -561,7 +616,10 @@ A targeted run while working:
   in an unmarked test (ADR
   [`tooling/paid-api-request-guard`](adr/tooling/paid-api-request-guard.md)). Without `--live` it
   also points `ANTHROPIC_BASE_URL` at the loopback discard port, so a subprocess cannot spend.
-  The conftest imports anthropic, so every pytest run needs the `llm` extra.
+  The conftest imports anthropic, so every pytest run needs the `llm` extra. The app tests import
+  `streamlit.testing`, so every pytest run also needs the `app` extra. A request from an AppTest
+  script thread is refused too; the test then fails on AppTest's timeout rather than the guard's
+  message.
 - **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
   subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`

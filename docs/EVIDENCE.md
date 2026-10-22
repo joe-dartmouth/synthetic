@@ -4,7 +4,9 @@ Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 2, 3 and 5; [Santos 
 
 The results register: one entry per experiment, reproduction or paid generation run, holding its configuration, its result and what the
 result was read against. The criteria live in [RESEARCH.md](RESEARCH.md); an entry links the
-section that holds them rather than restating them.
+section that holds them rather than restating them. An interactive session of
+[`bko.app`](../src/bko/app/README.md) is not a run of record: it reads no criterion, and its run
+folder is its record.
 
 ## How to read an entry
 
