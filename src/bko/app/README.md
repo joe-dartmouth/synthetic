@@ -1,8 +1,17 @@
 # `bko.app`: Streamlit interface
 
-The Streamlit front end over the pipeline: pick a dataset, analyze its gaps, fill them, and evaluate the result.
+The Streamlit front end over the pipeline: pick a dataset, analyze its gaps, fill them, score the
+result and download the augmented training set.
 
-- **Dependencies:** The `app` extra (`pyproject.toml`).
+The app calls each stage's public functions and holds no pipeline logic. It fills E1's gap request
+on the default split with one arm of `bko.evaluate.experiment.E1` that adds rows, scores it beside
+every method of `bko.evaluate.experiment.METHOD_ARMS` with no verdict on E1's criteria, and keeps
+each fill in a run folder (`bko.app.runs`). [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#app)
+holds the command, what a fill spends and what the app writes; ADR
+[`research/streamlit-app-design`](../../../docs/adr/research/streamlit-app-design.md) holds the
+design.
+
+- **Dependencies:** The `app` extra (`pyproject.toml`), and the stages it calls with their extras:
+  `bko.datasets`, `bko.gaps`, `bko.fusion`, `bko.baselines`, `bko.evaluate` and `bko.generate`.
 - **Owner:** Krish Sapru
-- **Status:** not built: the package holds the run-folder layout (`bko.app.runs`); the page is
-  planned in [`proposal-streamlit-app`](../../../tasks/proposal-streamlit-app.md).
+- **Status:** built.

@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-18
+updated: 2026-10-21
 ---
 # uv, ruff and ty, wrapped by a Makefile
 
@@ -43,8 +43,9 @@ We will use:
   declared and locked now. **An extra joins `make setup` when something in `src/`, `tests/` or
   `tools/` imports it, and not before.** `make sync` installs every extra.
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
-  `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, and `cells` and `synthea`,
-  which run dataset commands outside the gate.
+  `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, `cells`, `synthea` and
+  `reproduce`, which run dataset and ontology commands outside the gate, and `app`, which serves
+  the Streamlit interface outside it.
 
 ## Rationale
 
@@ -68,7 +69,8 @@ verdicts that move only when a pin moves.
 import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
 it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto,
 and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
-paid-request guard. `synth`
+paid-request guard, and `app` because `bko.app` imports streamlit, which `make typecheck` must
+resolve. `synth`
 brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packages and `triton`.
 
 ## Ruled Out
@@ -89,7 +91,7 @@ brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packag
 - Pinned by: `tests/test_repo_gate.py`
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
   distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
-  `make setup` installs at least the `dev`, `data`, `synth`, `eval`, `ontology` and `llm`
+  `make setup` installs at least the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app`
   extras, and that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
 
 ## Reversal Conditions

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-21
 ---
 # A paid run's call log answers its rerun, call by call in order
 
@@ -47,6 +47,8 @@ holds every request's parameters and every reply's whole response.
 - `python -m bko.evaluate score --replay LOG --log NEW` answers every BKO call from `LOG` and
   writes its own log to `NEW`. That log's `run` line names `LOG`'s sha256 under `replay`, so a
   replay's log never reads as paid spend. The run refuses a log with calls left unplayed.
+- `bko.app` answers a BKO fill from the call log of an earlier fill by that arm, with the same
+  refusals, and writes its own log naming the replayed log's sha256.
 - Order, not content, pairs a call with its answer.
 
 ## Rationale
@@ -84,7 +86,8 @@ machine.
 ## Enforcement
 
 - Owner: `src/bko/generate/replay.py`
-- Pinned by: `tests/test_generate_replay.py`, `tests/test_evaluate_bko_cli.py`
+- Pinned by: `tests/test_generate_replay.py`, `tests/test_evaluate_bko_cli.py`,
+  `tests/test_app_steps.py`
 
 ## Reversal Conditions
 

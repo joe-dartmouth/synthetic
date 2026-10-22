@@ -2,9 +2,9 @@
 
 Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 3, 4, 5 and 6; [research brief](../papers/research-brief.pdf) F16; facts verified outside the PDFs (pybkb, ofs_app, synthcity resolution).
 
-> **Status: planned.** Each stage's README says whether the stage is built.
+> **Status: built.** Each stage's README says what the stage holds.
 
-How the planned system fits together. The method each stage implements is in
+How the system fits together. The method each stage implements is in
 [RESEARCH.md](RESEARCH.md#3-approach); each stage's README is the home for its role, extra, owner
 and status.
 
@@ -55,10 +55,11 @@ of "after fusion". The Streamlit front end (`bko.app`) sits over every stage.
 
 ## Run records
 
-Every experiment run, and every paid generation run, is recorded in [EVIDENCE.md](EVIDENCE.md): its
-configuration, including the dataset snapshot and the generator's model and sampling parameters,
-and one Runs row per run with its id, date, commit, log location and API spend. Each run's
-artifacts live in its folder under `runs/` ([DEVELOPMENT.md](DEVELOPMENT.md#runs)).
+Every experiment run, and every paid generation run outside an interactive app session, is
+recorded in [EVIDENCE.md](EVIDENCE.md): its configuration, including the dataset snapshot and the
+generator's model and sampling parameters, and one Runs row per run with its id, date, commit, log
+location and API spend. Each run's artifacts live in its folder under `runs/`
+([DEVELOPMENT.md](DEVELOPMENT.md#runs)).
 
 ## Package map
 
@@ -114,10 +115,12 @@ The 2-pager's method choices govern where they differ from the flow:
 | Point | Brief F16 | Plan |
 |---|---|---|
 | Front end | Streamlit or Gradio | Streamlit |
+| Step 1 | Upload or pick a dataset (UCI Heart Disease or a Synthea extract) | UCI Heart Disease, picked, not uploaded |
 | Step 2 | HPO, MONDO or SNOMED through OLS/BioPortal; a Bayesian coverage score | MONDO and HPO through pronto, from pinned OBO releases; gaps are ungrounded BKO statements, with count-based gaps alongside |
-| Step 3 | A dropdown of CLLM, GReaT, CTGAN, TVAE and SMOTE; SHACL validation | Generation through the Anthropic Messages API, compared against CTGAN, TVAE, SMOTE and ADASYN; validation against the consistency checks and range constraints |
+| Step 3 | A dropdown of CLLM, GReaT, CTGAN, TVAE and SMOTE; SHACL validation | Generation through the Anthropic Messages API, compared against CTGAN, TVAE, SMOTE and ADASYN; validation against the consistency checks and range constraints; the page's scores table shows a BKO fill's generated, passed and dropped counts once the fill ends, not live |
 | Step 4 | Optional human-in-the-loop tab | Not planned ([IDEAS.md](IDEAS.md#human-in-the-loop-expert-questions)) |
-| Step 5 | Improvement over no augmentation | The success criteria, which add the class-weighting control and the baselines ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
+| Step 5 | Improvement over no augmentation | The success criteria, which add the class-weighting control and the baselines ([RESEARCH.md](RESEARCH.md#4-success-criteria)); the page shows one split's measures, with no replica fidelity or train-on-synthetic reading and no verdict |
+| Step 6 | Download the augmented dataset and a one-page "synthetic data quality report" | The augmented training set and the scores, as CSV; no report |
 
 ## Prior code
 

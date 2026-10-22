@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
+
+from bko.datasets.fetch import default_data_dir
 
 
 ROLES: Final[Mapping[str, str]] = MappingProxyType(
@@ -42,3 +45,12 @@ RUN_ID: Final = re.compile(
 """A run folder's name: a register run id such as `e1-3` or `c1-2-closure`, or a demo fill's
 `app-<UTC time>-<arm>`. `entry` names the register entry, and is None for a demo fill. Match it
 with `fullmatch`; it is ASCII-only, since a match becomes a path."""
+
+
+def runs_root() -> Path:
+    """`runs/` at the repository root.
+
+    Raises:
+        UnavailableError: As `default_data_dir`, outside a checkout.
+    """
+    return default_data_dir().parent / "runs"

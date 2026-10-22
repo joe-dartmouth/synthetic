@@ -5,19 +5,20 @@ medical knowledge, held as a Bayesian Knowledge-driven Ontology (BKO), can find 
 clinical tabular dataset and guide synthetic-record generation that fills them, improving
 heart-disease prediction for underrepresented groups. The Python package is `bko`.
 
-> Status: scaffold. The toolchain and gate run; each `src/bko/` subpackage's README says whether
-> its stage is built. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md), converted from
-> the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
+> Status: every pipeline stage is built, and the gate runs; each `src/bko/` subpackage's README
+> says what its stage holds. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md),
+> converted from the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
 > [research brief](papers/research-brief.pdf) is background, and where the two disagree the
 > 2-pager governs (RESEARCH section 9).
+
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
 import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-- `make setup`: install the `dev`, `data`, `synth`, `eval`, `ontology` and `llm` extras from
-  `uv.lock`.
+- `make setup`: install the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app` extras
+  from `uv.lock`.
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
@@ -28,6 +29,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `make reproduce`: rebuild Santos et al.'s MONDO/DO fusion example from the pinned releases and
   compare each quantity with the paper
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#fusion-reproduction)).
+- `make app`: serve the Streamlit app over UCI Heart Disease on `127.0.0.1`. A live BKO fill
+  spends money and needs an Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#app)).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
@@ -89,10 +92,10 @@ synthetic/
   here. `bko.bkb` holds the part of it this project ports (ADR `research/bkb-layer-source`), and
   its test fixtures are exported from pybkb outside the lock
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#bkb-fixtures)).
-- **`make setup` installs `dev`, `data`, `synth`, `eval`, `ontology` and `llm`.** The other
-  runtime dependencies are locked extras installed on demand; ADR `tooling/uv-ruff-ty` says when
-  one joins `make setup`, and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to
-  install one. Never `uv pip install`: it resolves past the lock and `make synced` refuses the result.
+- **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
+  and `app`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never
+  `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install
   targets refuse a lock that disagrees with `pyproject.toml`. After editing a dependency, run
   `uv lock`, then `make setup`.
@@ -124,7 +127,8 @@ synthetic/
   home rather than copying it.
 - **State the current fact only.** Docs say what is true now, with its reason. No change-history
   narration; git holds history. `tests/test_no_history_narration.py` enforces this for this file,
-  `CLAUDE.md`, `GEMINI.md`, `docs/DEVELOPMENT.md` and `tools/README.md`.
+  `CLAUDE.md`, `GEMINI.md`, `README.md`, `docs/DEVELOPMENT.md`, `tools/README.md` and every
+  `src/**/README.md`.
 - **Prose describes guards; it never licenses a change** (ADR
   `tooling/prose-describes-guards-never-licenses-changes`). Run the guard or read its assertion.
 - **ADRs have no index and no numbers.** Discover them with `docs/adr/**/*.md` and read their
@@ -148,7 +152,7 @@ synthetic/
 - Research plan, success criteria, datasets, source reconciliation:
   [`docs/RESEARCH.md`](docs/RESEARCH.md)
 - Background, explained from scratch: [`docs/BACKGROUND.md`](docs/BACKGROUND.md)
-- Planned architecture and pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Architecture and pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Milestones and workload: [`docs/ROADMAP.md`](docs/ROADMAP.md); work units:
   [`tasks/proposal-index.md`](tasks/proposal-index.md)
 - Results register: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)

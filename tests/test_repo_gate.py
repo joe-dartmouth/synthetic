@@ -192,17 +192,41 @@ def test_every_interpreter_pin_agrees():
 
 
 def test_setup_installs_the_extras_something_imports():
-    """`synth`, `eval`, `ontology` and `llm` are installed because something imports each.
+    """`synth`, `eval`, `ontology`, `llm` and `app` are installed because something imports each.
 
     `bko.baselines` imports `synth`, `bko.evaluate` imports `eval`, `bko.ontology` imports
-    `ontology`, and `bko.generate.api` imports `llm`, as does `tests/conftest.py` for the
-    paid-request guard.
+    `ontology`, `bko.generate.api` imports `llm`, as does `tests/conftest.py` for the
+    paid-request guard, and `bko.app` imports `app`.
 
     ADR `tooling/uv-ruff-ty`. A subset, not equality: a stage that imports another extra adds it
     to the same line.
     """
     extras = set(re.findall(r"--extra\s+([a-z]+)", "\n".join(_recipe("setup"))))
-    assert {"dev", "data", "synth", "eval", "ontology", "llm"} <= extras
+    assert {"dev", "data", "synth", "eval", "ontology", "llm", "app"} <= extras
+
+
+def test_the_app_target_serves_the_entry_script_on_loopback_only():
+    """`make app` binds 127.0.0.1 on a fixed port, sends no usage statistics, and never reruns over
+    a running action.
+
+    ADR `research/streamlit-app-design`. The flags are the app's only configuration; a release
+    that renames one fails the launch (`docs/DEVELOPMENT.md`, App).
+    """
+    (line,) = _recipe("app")
+    words = line.split()
+    assert words[:7] == ["uv", "run", "--no-sync", "python", "-m", "streamlit", "run"]
+    assert (REPO_ROOT / words[7]).is_file(), f"`make app` serves {words[7]}, which does not exist"
+    flags = dict(zip(words[8::2], words[9::2], strict=True))
+    assert flags == {
+        "--server.address": "127.0.0.1",
+        "--server.port": "8501",
+        "--server.headless": "true",
+        "--browser.gatherUsageStats": "false",
+        "--runner.fastReruns": "false",
+        "--server.fileWatcherType": "none",
+    }
+    phony = next(line for line in makefile_text().splitlines() if line.startswith(".PHONY:"))
+    assert "app" in phony.split()[1:]
 
 
 def test_the_running_interpreter_matches_the_declared_pin():
