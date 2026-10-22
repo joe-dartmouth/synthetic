@@ -46,9 +46,9 @@ drawn again.
 - **Which records join.** The command refuses, in this order: a file with no header, through
   `read`; another request; another UCI archive; another split; other releases; a plan whose
   per-cell sums differ from the re-derived completeness request, naming both; a line of an
-  unplanned call; a call whose lines name another cell than its plan; and a planned call with
-  fewer lines than it asked. It takes no `--guidance`, so it logs the header's guidance and
-  definition rather than comparing them. It validates each requested cell's
+  unplanned call; a call whose lines name another cell than its plan; and a planned call that
+  wrote fewer of its positions than it asked. It takes no `--guidance`, so it logs the header's
+  guidance and definition rather than comparing them. It validates each requested cell's
   lines in file order, a placeholder counting as generated. Of the accepted records, one whose own
   age band, sex and label name another cell is dropped, and so is one past its cell's rows, each
   drop counted; the rest follow the training split's records in request order, indexed -1, -2,
@@ -79,7 +79,8 @@ updates both, while a fragment's reliability would be a weight no gap list reads
 
 **Gained**: closure regenerates from the candidates file at no cost; the paid and free runs are
 tied by the candidates file's sha256, which generate logs over what it writes, its header
-included, and the closure command logs over what it reads; `fuse`'s refusal of a fused BKB is never reached.
+included, and the closure command logs over what it reads; `fuse`'s refusal of a fused BKB is
+never reached.
 **Accepted**: the candidates file lives in its run's folder under the gitignored `runs/`
 ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#runs)), so only the machine that
 holds it regenerates a recorded figure, and the Runs row's digest is the record; per-subgroup and

@@ -6,6 +6,7 @@ import csv
 import dataclasses
 import hashlib
 import io
+import json
 import logging
 import os
 import subprocess
@@ -144,8 +145,11 @@ def test_a_file_answering_e1s_request_exits_three_and_writes_nothing(tmp_path, c
             (">=55/female/1", [planted(age=60, sex=0, target=1, cp=1)] * 2),
         ]
     )
-    code, out, _ = run(tmp_path, e1, request="e1")
+    context = make_context()
+    code, out, _ = run(tmp_path, e1, context, request="e1")
     assert (code, out) == (3, "")
+    assert isinstance(context.open_url, RoutingOpener)
+    assert context.open_url.calls == []
     assert any(
         record.levelno == logging.ERROR
         and "the candidates answer the e1 request, not completeness" in record.getMessage()
@@ -161,7 +165,7 @@ def test_a_requested_cell_with_too_few_lines_exits_three(tmp_path, caplog):
     assert (code, out) == (3, "")
     assert any(
         record.levelno == logging.ERROR
-        and "call 2 asked 20 records of <55/female/1 and wrote 19 lines" in record.getMessage()
+        and "call 2 asked 20 records of '<55/female/1' and wrote 19 of them" in record.getMessage()
         for record in caplog.records
     )
 
@@ -385,7 +389,7 @@ def test_another_uci_archive_exits_three_before_any_download(tmp_path, caplog):
     context = make_context()
     code, out, _ = run(tmp_path, scenario_a(), context, uci="0" * 64)
     assert (code, out) == (3, "")
-    assert any("another UCI archive" in message for message in errors(caplog))
+    assert any(f"another UCI archive: {'0' * 64}, not " in message for message in errors(caplog))
     assert isinstance(context.open_url, RoutingOpener)
     assert context.open_url.calls == []
 
@@ -399,13 +403,17 @@ def test_another_split_exits_three(tmp_path, caplog):
 def test_other_releases_exit_three(tmp_path, caplog):
     code, out, _ = run(tmp_path, scenario_a(), releases={"HP": "0" * 64, "MONDO": "0" * 64})
     assert (code, out) == (3, "")
-    assert any("other releases" in message for message in errors(caplog))
+    assert any("other releases: ['HP', 'MONDO']" in message for message in errors(caplog))
 
 
 def test_a_plan_unlike_the_request_names_both_quotas(tmp_path, caplog):
     code, out, _ = run(tmp_path, scenario_a(), plan=[("<55/female/0", 20)])
     assert (code, out) == (3, "")
-    assert any("the candidates' plan asks" in message for message in errors(caplog))
+    assert any(
+        "the candidates' plan asks, against the completeness request, '<55/female/1': 0 not 20"
+        in message
+        for message in errors(caplog)
+    )
 
 
 def test_a_call_in_another_cell_than_its_plan_exits_three(tmp_path, caplog):
@@ -430,7 +438,7 @@ def test_a_short_call_exits_three_even_when_a_later_call_makes_up_its_cell(tmp_p
     code, out, _ = run(tmp_path, data, plan=plan)
     assert (code, out) == (3, "")
     assert any(
-        "call 1 asked 10 records of <55/female/1 and wrote 9 lines" in message
+        "call 1 asked 10 records of '<55/female/1' and wrote 9 of them" in message
         for message in errors(caplog)
     )
 
@@ -439,3 +447,46 @@ def test_a_header_only_file_exits_three(tmp_path, caplog):
     code, out, _ = run(tmp_path, b"", plan=[("<55/female/0", 20), ("<55/female/1", 20)])
     assert (code, out) == (3, "")
     assert any("call 1 asked 20 records" in message for message in errors(caplog))
+
+
+def test_an_unplanned_call_is_refused_before_an_earlier_misplaced_one(tmp_path, caplog):
+    data = candidate_lines(
+        [
+            ("<55/female/1", [young(1, cp=1)] * 20),
+            ("<55/female/0", [young(0, cp=4)] * 20),
+            ("<55/female/0", [young(0, cp=4)]),
+        ]
+    )
+    plan = [("<55/female/0", 20), ("<55/female/1", 20)]
+    code, out, _ = run(tmp_path, data, plan=plan)
+    assert (code, out) == (3, "")
+    assert any("call 3 is not in the candidates' plan" in message for message in errors(caplog))
+
+
+def test_a_call_whose_positions_skip_below_its_ask_is_short(tmp_path, caplog):
+    lines = candidate_lines(
+        [("<55/female/0", [young(0, cp=4)] * 20), ("<55/female/1", [young(1, cp=1)] * 21)]
+    ).decode()
+    # Drop call 2's position 0, so it holds 20 lines, positions 1 to 20.
+    kept = [
+        line
+        for line in lines.splitlines()
+        if (json.loads(line)["call"], json.loads(line)["position"]) != (2, 0)
+    ]
+    plan = [("<55/female/0", 20), ("<55/female/1", 20)]
+    code, out, _ = run(tmp_path, ("\n".join(kept) + "\n").encode(), plan=plan)
+    assert (code, out) == (3, "")
+    assert any(
+        "call 2 asked 20 records of '<55/female/1' and wrote 19 of them" in message
+        for message in errors(caplog)
+    )
+
+
+def test_the_header_line_logs_what_fusion_does_not_compare(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="bko")
+    code, _, _ = run(tmp_path, scenario_a(), guidance="cell")
+    assert code == 0
+    assert any(
+        message.startswith("header request=completeness definition=per-subgroup guidance=cell ")
+        for message in messages(caplog)
+    )

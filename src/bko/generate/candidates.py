@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from types import MappingProxyType
 from typing import Final, NoReturn
 
 from bko.gaps.definitions import Definition
@@ -68,7 +67,7 @@ class Header:
         guidance: The guidance level.
         uci: The pinned sha256 of the UCI archive the split was made from.
         fingerprint: The split's fingerprint (`bko.datasets.split.Split.fingerprint`).
-        releases: Each loaded release's pinned sha256, by concept prefix.
+        releases: Each loaded release's concept prefix and pinned sha256, sorted by prefix.
         calls: Each call's cell key and records asked, in call order from call 1.
     """
 
@@ -77,7 +76,7 @@ class Header:
     guidance: Level
     uci: str
     fingerprint: str
-    releases: Mapping[str, str]
+    releases: tuple[tuple[str, str], ...]
     calls: tuple[tuple[str, int], ...]
 
 
@@ -182,17 +181,18 @@ def _header(raw: str) -> Header:
     try:
         value = json.loads(raw)
     except (ValueError, RecursionError) as exc:
-        _not_a_header(f"it is not JSON: {exc}")
+        _not_a_header(f"it is not JSON: {exc}", exc)
     if not isinstance(value, dict) or value.get("kind") != "header":
         _not_a_header("it holds no kind header")
-    if value.get("schema") != HEADER_SCHEMA or value.keys() != HEADER_KEYS:
+    schema = value.get("schema")
+    if type(schema) is not int or schema != HEADER_SCHEMA or value.keys() != HEADER_KEYS:
         _not_a_header(f"its schema or keys differ from {sorted(HEADER_KEYS)}")
     try:
         request = Request(value["request"])
         definition = Definition(value["definition"])
         guidance = Level(value["guidance"])
-    except ValueError, TypeError:
-        _not_a_header("its request, definition or guidance is not a known value")
+    except (ValueError, TypeError) as exc:
+        _not_a_header("its request, definition or guidance is not a known value", exc)
     if not all(_is_sha256(value[key]) for key in ("uci", "fingerprint")):
         _not_a_header("its uci or fingerprint is not a sha256")
     releases = value["releases"]
@@ -207,14 +207,15 @@ def _header(raw: str) -> Header:
         guidance=guidance,
         uci=value["uci"],
         fingerprint=value["fingerprint"],
-        releases=MappingProxyType(dict(releases)),
+        releases=tuple(sorted(releases.items())),
         calls=tuple((cell, asked) for cell, asked in calls),
     )
 
 
-def _not_a_header(why: str) -> NoReturn:
+def _not_a_header(why: str, cause: BaseException | None = None) -> NoReturn:
+    """Refuse the first line as a header, for `why`."""
     msg = f"line 1 is not a schema {HEADER_SCHEMA} header: {why}"
-    raise CandidatesFormatError(msg)
+    raise CandidatesFormatError(msg) from cause
 
 
 def _is_sha256(value: object) -> bool:

@@ -253,3 +253,13 @@ def test_uci_split_fetches_once_splits_and_logs_the_split(tmp_path, caplog):
     assert len(opener.calls) == 1
     assert parts.fingerprint == again.fingerprint
     assert f"split seed=0 train={len(parts.train)} test={len(parts.test)}" in caplog.text
+
+
+def test_uci_split_takes_its_seed(tmp_path):
+    archive = uci({(40, 0): "4.0"}, "1.0", SIZES)
+    source = pin(archive)
+    opener = RoutingOpener({source.url: archive})
+    default = uci_split(tmp_path, source=source, open_url=opener)
+    seeded = uci_split(tmp_path, source=source, open_url=opener, seed=7)
+    assert seeded.seed == 7
+    assert seeded.fingerprint != default.fingerprint

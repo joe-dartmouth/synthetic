@@ -33,7 +33,6 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from types import MappingProxyType
 from typing import TextIO
 
 import pandas as pd
@@ -163,7 +162,7 @@ def _parser(settings: Settings) -> argparse.ArgumentParser:
 
 
 class _Writer:
-    """Writes each batch's candidate lines to stdout as its call returns, and digests them."""
+    """Writes the header, then each batch's candidate lines as its call returns; digests both."""
 
     def __init__(self, out: TextIO) -> None:
         self._out = out
@@ -228,6 +227,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     log = CallLog(args.log, settings, now=context.now)
     try:
         with log:
+            send = context.send()
             writer.header(
                 render_header(
                     Header(
@@ -236,11 +236,9 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
                         guidance=settings.guidance,
                         uci=context.uci.sha256,
                         fingerprint=parts.fingerprint,
-                        releases=MappingProxyType(
-                            {
-                                prefix: context.releases[prefix].sha256
-                                for prefix in sorted(ontologies)
-                            }
+                        releases=tuple(
+                            (prefix, context.releases[prefix].sha256)
+                            for prefix in sorted(ontologies)
                         ),
                         calls=tuple(
                             (cell_key(cell), rows)
@@ -252,7 +250,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
             generate(
                 quota,
                 guidance,
-                send=context.send(),
+                send=send,
                 log=log,
                 settings=settings,
                 on_batch=writer.write,

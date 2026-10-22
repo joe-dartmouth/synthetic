@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
-from types import MappingProxyType
 from typing import Final
 
 from bko.evaluate.experiment import E1
@@ -90,7 +89,7 @@ HEADER: Final = Header(
     guidance=Level.ONTOLOGY,
     uci="a" * 64,
     fingerprint="b" * 64,
-    releases=MappingProxyType({"HP": "c" * 64, "MONDO": "d" * 64}),
+    releases=(("HP", "c" * 64), ("MONDO", "d" * 64)),
     calls=(("<55/female/1", 2),),
 )
 """A candidates header for the run browser, which reads but never checks it."""

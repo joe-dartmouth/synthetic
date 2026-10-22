@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import dataclasses
 import json
-from types import MappingProxyType
 from typing import Final
 
 import pytest
@@ -33,7 +32,7 @@ HEADER: Final = Header(
     guidance=Level.ONTOLOGY,
     uci="a" * 64,
     fingerprint="b" * 64,
-    releases=MappingProxyType({"HP": "c" * 64, "MONDO": "d" * 64}),
+    releases=(("HP", "c" * 64), ("MONDO", "d" * 64)),
     calls=(("<55/female/1", 2),),
 )
 HEAD: Final = render_header(HEADER)
@@ -103,6 +102,15 @@ def test_an_empty_plan_round_trips():
         lambda h: {**h, "uci": "short"},
         lambda h: {**h, "releases": {"HP": "short"}},
         lambda h: {**h, "calls": [["<55/female/1", True]]},
+        lambda h: {**h, "kind": "other"},
+        lambda h: {**h, "schema": True},
+        lambda h: {**h, "fingerprint": "B" * 64},
+        lambda h: {**h, "uci": "a" * 63},
+        lambda h: {**h, "releases": [["HP", "c" * 64]]},
+        lambda h: {**h, "calls": {"<55/female/1": 2}},
+        lambda h: {**h, "calls": [["<55/female/1", 2, 0]]},
+        lambda h: {**h, "calls": [[7, 2]]},
+        lambda h: {**h, "guidance": "loud"},
     ],
     ids=[
         "schema",
@@ -113,6 +121,15 @@ def test_an_empty_plan_round_trips():
         "bad sha256",
         "bad release",
         "bool asked",
+        "other kind",
+        "bool schema",
+        "uppercase fingerprint",
+        "short uci",
+        "releases list",
+        "calls object",
+        "three-item call",
+        "number cell",
+        "unknown guidance",
     ],
 )
 def test_a_malformed_header_is_refused(edit):

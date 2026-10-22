@@ -10,6 +10,6 @@ class ClosureError(ContractError):
 
     Its header names another request, UCI archive, split or releases; its plan's per-cell sums
     differ from the request; or, read call by call, a line belongs to an unplanned call or names
-    another cell than its call's plan, or a planned call wrote fewer lines than it asked, as a run
-    that stopped early leaves it. Exit 3: the input contradicts its contract.
+    another cell than its call's plan, or a planned call wrote fewer of its positions than it
+    asked, as a run that stopped early leaves it. Exit 3: the input contradicts its contract.
     """

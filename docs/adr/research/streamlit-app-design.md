@@ -35,7 +35,8 @@ We will build the page as follows.
   a G1 run.
 * **Orchestration**: `bko.app.steps` composes the stages' public APIs; the BKO wiring is
   `bko.evaluate.guided.guided_arms`, which the evaluate command and `bko.app.steps` both call; the
-  UCI load sequence is `bko.gaps.scope.load_uci_scope`, which the commands and the app share.
+  UCI load sequence is `bko.gaps.scope.load_uci_scope`, which the app shares with the gaps,
+  fusion and generate commands.
 * **Fill path**: E1's runner interface over E1's gap request on the default split, E1's first
   holdout.
 * **Methods**: the arms of E1 that add rows, row-adding methods first, then the three BKO arms.
@@ -63,7 +64,7 @@ public and a runner that reuses it. A replica fill would add many paid calls and
 click, and no criterion reads its fidelity. Replay lets the demo run free and repeatably from a
 recorded log, with the refusals the evaluate command already applies. A row per click would flood
 the register with readings no criterion uses. One loader keeps the app's split, cells and
-releases those the commands read.
+releases the ones the gaps, fusion and generate commands read.
 The completeness request is another request, and scoring it would pay twice. Controls add no rows,
 so they cannot fill. A confirmation keyed to a run counter cannot carry over to a second click; a
 credential pre-check would itself call the API, and a process-wide spend ledger guards a server
@@ -90,7 +91,7 @@ fills, each bounded by the ceiling and a confirmation.
 | A replica fill per BKO click | Many extra paid calls and minutes per click; no criterion reads fidelity | 2026-10-21 |
 | Live answers only | A demo would spend on every showing | 2026-10-21 |
 | A register row per click | Interactive readings answer no criterion | 2026-10-21 |
-| Copying the commands' UCI load sequence into the app | Two homes drift; one loader serves every command | 2026-10-22 |
+| Copying the commands' UCI load sequence into the app | Two homes drift; one loader serves the app and the commands that split once | 2026-10-22 |
 | Copying the evaluate command's BKO wiring into the app | Two homes drift; one public function serves both | 2026-10-22 |
 | The completeness request as the fill path | Another request; scoring it would pay twice | 2026-10-21 |
 | Controls as fill methods | They add no rows | 2026-10-21 |

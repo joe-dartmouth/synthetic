@@ -62,3 +62,12 @@ def test_load_uci_scope_splits_loads_and_observes(tmp_path, caplog):
     assert set(scope.ontologies) == {"HP", "MONDO"}
     assert scope.cells.whole.name == PIN.name
     assert f"fingerprint={scope.parts.fingerprint}" in caplog.text
+
+
+def test_load_uci_scope_splits_at_its_seed(tmp_path):
+    pins, served = ladder_releases()
+    opener = RoutingOpener({**served, PIN.url: UCI_E1})
+    scope = load_uci_scope(
+        tmp_path, uci=PIN, releases=pins, field_rows=(ANGINA, STENOSIS), open_url=opener, seed=7
+    )
+    assert scope.parts.seed == 7

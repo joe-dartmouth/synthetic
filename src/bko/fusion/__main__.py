@@ -3,10 +3,11 @@
 The command reads a candidates file `python -m bko.generate per-subgroup --request completeness`
 wrote, fetches UCI Heart Disease and the releases its field mappings name into the data root if
 they are absent, splits the records, and lists the training split's gaps under every definition
-of `bko.gaps.definitions`. It refuses, in this order: a file with no header; another request;
-another UCI archive; another split; other releases; a plan whose per-cell sums differ from the
-completeness request; a line of an unplanned call; a call whose lines name another cell than its
-plan; and a planned call with fewer lines than it asked. It logs the header's guidance and
+of `bko.gaps.definitions`. It refuses, in this order: a file `bko.generate.candidates.read`
+refuses (no header, or a malformed record line); another request; another UCI archive; another
+split; other releases; a plan whose per-cell sums differ from the completeness request; a line of
+an unplanned call; a call whose lines name another cell than its plan; and a planned call that
+wrote fewer of its positions than it asked. It logs the header's guidance and
 definition rather than comparing them, since it takes no `--guidance`. It then validates each
 requested cell's candidates, joins the accepted records (ADR `research/gap-closure-design`), lists
 the gaps again, and writes one CSV to stdout: every (cell,
@@ -183,7 +184,10 @@ def _identify(header: Header, context: Context) -> None:
         msg = f"the candidates answer the {header.request} request, not completeness"
         raise ClosureError(msg)
     if header.uci != context.uci.sha256:
-        msg = "the candidates were generated from another UCI archive"
+        msg = (
+            f"the candidates were generated from another UCI archive: {header.uci}, "
+            f"not {context.uci.sha256}"
+        )
         raise ClosureError(msg)
     logger.info(
         "header request=%s definition=%s guidance=%s fingerprint=%s",
@@ -202,8 +206,13 @@ def _same_scope(header: Header, scope: UciScope, context: Context) -> None:
             f"not {scope.parts.fingerprint}"
         )
         raise ClosureError(msg)
-    if dict(header.releases) != {p: context.releases[p].sha256 for p in scope.ontologies}:
-        msg = "the candidates were generated against other releases"
+    loaded = {prefix: context.releases[prefix].sha256 for prefix in scope.ontologies}
+    written = dict(header.releases)
+    if written != loaded:
+        differ = sorted(
+            p for p in written.keys() | loaded.keys() if written.get(p) != loaded.get(p)
+        )
+        msg = f"the candidates were generated against other releases: {differ[:5]!r}"
         raise ClosureError(msg)
 
 
@@ -215,33 +224,36 @@ def _answer(
     """Each requested cell's candidates in file order, every planned call checked.
 
     Raises:
-        ClosureError: If the plan's per-cell sums differ from `request`, a line belongs to a call
-            outside the plan or names another cell than its call's, or a planned call wrote
-            fewer lines than it asked.
+        ClosureError: In this order: the plan's per-cell sums differ from `request`; a line
+            belongs to a call outside the plan; a line names another cell than its call's; or a
+            planned call wrote fewer of its positions `0..asked-1` than it asked.
     """
     planned: dict[str, int] = {}
     for key, asked in plan:
         planned[key] = planned.get(key, 0) + asked
     wanted = {cell_key(cell): rows for cell, rows in request.items()}
     if planned != wanted:
-        msg = f"the candidates' plan asks {planned}, and the completeness request is {wanted}"
+        differ = sorted(
+            k for k in planned.keys() | wanted.keys() if planned.get(k) != wanted.get(k)
+        )
+        shown = ", ".join(f"{k!r}: {planned.get(k, 0)} not {wanted.get(k, 0)}" for k in differ[:5])
+        msg = f"the candidates' plan asks, against the completeness request, {shown}"
         raise ClosureError(msg)
-    written: dict[int, int] = {}
+    unplanned = sorted({line.call for line in lines if not 1 <= line.call <= len(plan)})
+    if unplanned:
+        msg = f"call {unplanned[0]} is not in the candidates' plan"
+        raise ClosureError(msg)
+    positions: dict[int, set[int]] = {}
     for line in lines:
-        if not 1 <= line.call <= len(plan):
-            msg = f"call {line.call} is not in the candidates' plan"
-            raise ClosureError(msg)
         key = plan[line.call - 1][0]
         if line.cell != key:
             msg = f"call {line.call} answers {line.cell!r}, and its plan asks for {key!r}"
             raise ClosureError(msg)
-        written[line.call] = written.get(line.call, 0) + 1
+        positions.setdefault(line.call, set()).add(line.position)
     for index, (key, asked) in enumerate(plan, start=1):
-        if written.get(index, 0) < asked:
-            msg = (
-                f"call {index} asked {asked} records of {key} "
-                f"and wrote {written.get(index, 0)} lines"
-            )
+        wrote = sum(position < asked for position in positions.get(index, ()))
+        if wrote < asked:
+            msg = f"call {index} asked {asked} records of {key!r} and wrote {wrote} of them"
             raise ClosureError(msg)
     keys = {cell_key(cell): cell for cell in request}
     found: dict[Cell, list[object]] = {cell: [] for cell in request}

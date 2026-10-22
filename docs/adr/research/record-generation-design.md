@@ -160,7 +160,7 @@ ladder.**
   call returns, through `generate`'s `on_batch`, so a failed or interrupted run keeps every paid
   batch that returned, and a run that fails before its first call leaves a header and no lines.
   Only the command imports `bko.gaps.scope`, the loader of the UCI split and the releases it
-  shares with `python -m bko.gaps`.
+  shares with `python -m bko.gaps`, `python -m bko.fusion` and `bko.app`.
 
 ## Rationale
 

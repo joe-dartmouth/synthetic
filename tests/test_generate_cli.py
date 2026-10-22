@@ -364,7 +364,8 @@ def test_the_header_is_the_first_line_and_names_the_run_and_its_plan(tmp_path, c
     assert header["uci"] == pin(UCI).sha256
     assert header["fingerprint"] == train.fingerprint
     assert f"fingerprint={train.fingerprint}" in caplog.text
-    assert set(header["releases"]) == {"HP", "MONDO"}
+    pins, _ = ladder_releases()
+    assert header["releases"] == {prefix: pins[prefix].sha256 for prefix in ("HP", "MONDO")}
     plan = chunks(REQUEST, SETTINGS.per_call)
     assert header["calls"] == [[cell_key(cell), rows] for cell, rows in plan]
 
@@ -374,3 +375,13 @@ def test_a_run_that_fails_at_its_first_call_leaves_only_the_header(tmp_path):
     code, out, _ = run(tmp_path, make_context(send))
     assert code == 2
     assert [json.loads(line)["kind"] for line in out.splitlines()] == ["header"]
+
+
+def test_the_header_names_the_completeness_request_and_the_chosen_level(tmp_path):
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    argv = ("--request", "completeness", "--guidance", "cell")
+    code, out, _ = run(tmp_path, completeness_context(send), *argv)
+    assert code == 0
+    header = json.loads(out.splitlines()[0])
+    assert (header["request"], header["guidance"]) == ("completeness", "cell")
+    assert header["calls"] == [["<55/female/0", 20], ["<55/female/1", 20]]

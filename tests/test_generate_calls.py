@@ -11,7 +11,7 @@ import pytest
 
 from bko.gaps.observe import Cell
 from bko.generate import calls as calls_module
-from bko.generate.calls import Generation, ask, generate
+from bko.generate.calls import Generation, ask, chunks, generate
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
@@ -225,3 +225,8 @@ def test_an_empty_generation_spends_a_float_zero():
     usd = Generation(()).usd
     assert isinstance(usd, float)
     assert not usd
+
+
+def test_chunks_splits_each_cell_by_per_call_in_quota_order():
+    first, second = ("<55", "female", 0), ("<55", "female", 1)
+    assert chunks({first: 45, second: 3}, 20) == ((first, 20), (first, 20), (first, 5), (second, 3))

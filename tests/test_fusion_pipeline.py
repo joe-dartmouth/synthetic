@@ -91,6 +91,6 @@ def test_a_failed_generation_leaves_a_file_the_closure_command_refuses(tmp_path,
     assert closed(tmp_path, path) == 3
     assert any(
         record.levelno == logging.ERROR
-        and "call 2 asked 20 records of <55/female/1 and wrote 0 lines" in record.getMessage()
+        and "call 2 asked 20 records of '<55/female/1' and wrote 0 of them" in record.getMessage()
         for record in caplog.records
     )
