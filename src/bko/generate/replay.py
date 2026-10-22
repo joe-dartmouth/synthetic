@@ -3,7 +3,12 @@
 `Replay` reads a schema-2 call log and answers a rerun's calls in the order the log made them.
 Each call must send the logged request's parameters. Its answer is the logged reply, rebuilt as a
 `Reply`, or the logged failure, raised again as `GenerationError`. Order, not content, pairs them,
-because one request can be logged many times with different replies. ADR
+because one request can be logged many times with different replies.
+
+`Resume` reads a stopped run's log the same way, then sends the calls past its answered ones live.
+It drops a final segment with no newline, which a killed process can leave, and a last call whose
+answer is not exactly one `reply` line. It refuses a log with a failed call before its last, a
+replay's log, and a resumed log that stopped before its replayed calls ran out. ADR
 `research/call-log-replay` records the design.
 """
 
@@ -12,15 +17,27 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import logging
 from collections import deque
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Any, Final, NamedTuple
 
 from bko.generate.errors import GenerationError, ReplayError
-from bko.generate.log import SCHEMA
-from bko.generate.messages import Call, Reply, Usage, text_of
+from bko.generate.log import SCHEMA, Answered
+from bko.generate.messages import Call, Reply, Send, Usage, text_of
+
+
+logger = logging.getLogger(__name__)
+
+
+class _Log(NamedTuple):
+    """A call log as read: its sha256, its `run` line, and its calls in order."""
+
+    digest: str
+    run: dict[str, Any]
+    calls: tuple[tuple[dict[str, Any], dict[str, Any]], ...]
 
 
 class Replay:
@@ -41,28 +58,17 @@ class Replay:
                 a field its kind needs.
             OSError: If the log cannot be read.
         """
-        data = path.read_bytes()
-        self.digest = hashlib.sha256(data).hexdigest()
-        lines = _lines(data, path)
-        if not lines or lines[0].get("kind") != "run" or lines[0].get("schema") != SCHEMA:
-            msg = f"{path} is not a schema {SCHEMA} call log"
-            raise ReplayError(msg)
-        requests = _by_call(lines, {"request"}, path)
-        outcomes = _by_call(lines, {"reply", "error"}, path)
-        if sorted(requests) != list(range(1, len(requests) + 1)):
-            msg = f"the request lines of {path} are not calls 1 to {len(requests)}"
-            raise ReplayError(msg)
-        unanswered = sorted(set(requests) - set(outcomes))
-        if unanswered:
-            msg = f"call {unanswered[0]} of {path} has no reply or error line"
-            raise ReplayError(msg)
-        unasked = sorted(set(outcomes) - set(requests))
-        if unasked:
-            msg = f"call {unasked[0]} of {path} has an answer and no request line"
-            raise ReplayError(msg)
-        for index in requests:
-            _check(requests[index], outcomes[index], path)
-        self._calls = deque((requests[index], outcomes[index]) for index in sorted(requests))
+        self._load(_read(path, stopped=False))
+
+    def _load(self, log: _Log) -> None:
+        self.digest = log.digest
+        self._calls = deque(log.calls)
+        self._total = len(log.calls)
+
+    @property
+    def answered(self) -> Answered:
+        """What the rerun's own log records about this source."""
+        return Answered("replay", self.digest, self._total)
 
     @property
     def remaining(self) -> int:
@@ -94,6 +100,139 @@ class Replay:
             raw=outcome["response"],
             attempts=outcome["attempts"],
         )
+
+
+class Resume(Replay):
+    """A `Send` that answers a stopped run's answered calls from its log, then sends the rest live.
+
+    Attributes:
+        digest: The stopped log's sha256, which the resumed run's log records under `resume`.
+    """
+
+    def __init__(self, path: Path, send: Send) -> None:
+        """Read the stopped log at `path`; calls past its answered ones go through `send`.
+
+        Raises:
+            ReplayError: As `Replay`, past a dropped last call; or if a call before the last
+                failed, the log replays another, its `resume` field is malformed, or it resumed
+                more calls than it holds.
+            OSError: If the log cannot be read.
+        """
+        log = _read(path, stopped=True)
+        source = log.run.get("replay")
+        if source is not None:
+            msg = f"{path} replays the log with sha256 {source}; replay that log instead"
+            raise ReplayError(msg)
+        prior = log.run.get("resume")
+        if prior is not None:
+            calls = prior.get("calls") if isinstance(prior, dict) else None
+            sha256 = prior.get("sha256") if isinstance(prior, dict) else None
+            if isinstance(calls, bool) or not isinstance(calls, int) or not isinstance(sha256, str):
+                msg = f"the run line of {path} has resume {prior!r}, not a sha256 and a call count"
+                raise ReplayError(msg)
+            if len(log.calls) < calls:
+                msg = f"{path} stopped while it replayed; resume the log with sha256 {sha256!r}"
+                raise ReplayError(msg)
+        self._load(log)
+        self._live = send
+        self._sent = False
+
+    @property
+    def answered(self) -> Answered:
+        """What the resumed run's own log records about this source."""
+        return Answered("resume", self.digest, self._total)
+
+    def __call__(self, call: Call) -> Reply:
+        """Answer from the stopped log while it holds calls, then send live."""
+        if self._calls:
+            return super().__call__(call)
+        if not self._sent:
+            self._sent = True
+            logger.info("resume live from call %d", self._total + 1)
+        return self._live(call)
+
+
+def _read(path: Path, *, stopped: bool) -> _Log:
+    """Read and check the call log at `path`; `stopped` reads a stopped run's log.
+
+    Raises:
+        ReplayError: As `Replay`, and for a stopped log, as `Resume`.
+        OSError: If the log cannot be read.
+    """
+    data = path.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if stopped and not data.endswith(b"\n"):
+        # A killed process can leave its last line unfinished; that line answered no call.
+        kept = data.rfind(b"\n") + 1
+        logger.warning(
+            "resume dropped a cut final line of %d bytes from %s", len(data) - kept, path
+        )
+        data = data[:kept]
+    lines = _lines(data, path)
+    if not lines or lines[0].get("kind") != "run" or lines[0].get("schema") != SCHEMA:
+        msg = f"{path} is not a schema {SCHEMA} call log"
+        raise ReplayError(msg)
+    if stopped:
+        lines = _without_unanswered_last(lines, path)
+    requests = _by_call(lines, {"request"}, path)
+    outcomes = _by_call(lines, {"reply", "error"}, path)
+    if sorted(requests) != list(range(1, len(requests) + 1)):
+        msg = f"the request lines of {path} are not calls 1 to {len(requests)}"
+        raise ReplayError(msg)
+    unanswered = sorted(set(requests) - set(outcomes))
+    if unanswered:
+        msg = f"call {unanswered[0]} of {path} has no reply or error line"
+        raise ReplayError(msg)
+    unasked = sorted(set(outcomes) - set(requests))
+    if unasked:
+        msg = f"call {unasked[0]} of {path} has an answer and no request line"
+        raise ReplayError(msg)
+    for index in requests:
+        _check(requests[index], outcomes[index], path)
+    failed = sorted(index for index, outcome in outcomes.items() if outcome["kind"] == "error")
+    if stopped and failed:
+        msg = (
+            f"call {failed[0]} of {path} failed before the run's last call, "
+            "so the run did not stop there"
+        )
+        raise ReplayError(msg)
+    calls = tuple((requests[index], outcomes[index]) for index in sorted(requests))
+    return _Log(digest, lines[0], calls)
+
+
+_CALL_KINDS: Final = frozenset({"request", "reply", "error"})
+
+
+def _without_unanswered_last(lines: list[dict[str, Any]], path: Path) -> list[dict[str, Any]]:
+    """`lines` without the last call when its answer is not exactly one reply line."""
+    last = max(
+        (
+            line["call"]
+            for line in lines
+            if line.get("kind") == "request"
+            and isinstance(line.get("call"), int)
+            and not isinstance(line.get("call"), bool)
+        ),
+        default=None,
+    )
+    if last is None:
+        return lines
+    answers = [
+        line["kind"]
+        for line in lines
+        if line.get("kind") in {"reply", "error"} and line.get("call") == last
+    ]
+    if answers == ["reply"]:
+        return lines
+    logger.warning(
+        "resume dropped call %d of %s, whose answer lines are %s; it is sent again",
+        last,
+        path,
+        answers or "none",
+    )
+    return [
+        line for line in lines if line.get("kind") not in _CALL_KINDS or line.get("call") != last
+    ]
 
 
 def _lines(data: bytes, path: Path) -> list[dict[str, Any]]:

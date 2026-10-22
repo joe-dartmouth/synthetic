@@ -8,15 +8,19 @@ Each accepted one that `check` would refuse is dropped by `bko.baselines.records
 rest count toward the cell their own values name. An attempt asks for at most `budget` times the
 request's rows, and refuses with a plain `BaselineError` as soon as the rest of its budget cannot
 cover the rows still short. The arm keeps its validity counts itself, since a refused attempt
-returns no `Baseline`. ADR `research/e1-evaluation-protocol` records the rule.
+returns no `Baseline`. ADR `research/e1-evaluation-protocol` records the rule. `guided_arms` builds
+a run's BKO arms over one call log, for the evaluate command and the app alike.
 """
 
 from __future__ import annotations
 
 import logging
 from collections import Counter, defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -27,13 +31,16 @@ from bko.baselines.records import Baseline, Drop, check, drops, number, unit_wei
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
 from bko.bkb.structure import BKB
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import BKO_ARMS, Experiment
 from bko.evaluate.scores import Measure
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, record_cells
 from bko.generate.calls import Batch, generate
+from bko.generate.errors import ReplayError
 from bko.generate.guidance import Guidance, guide
-from bko.generate.log import CallLog
-from bko.generate.messages import Send
+from bko.generate.log import CallLog, utc_now
+from bko.generate.messages import SETTINGS, Send
+from bko.generate.replay import Replay
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 from bko.validate.checks import validate
@@ -292,3 +299,64 @@ class GuidedArm:
         if spent >= self._ceiling:
             msg = f"the run's spend {spent:.4f} USD reached its ceiling of {self._ceiling} USD"
             raise EvaluationError(msg)
+
+
+@dataclass(frozen=True, slots=True)
+class GuidedRun:
+    """A run's BKO arms over one call log.
+
+    Attributes:
+        log: The call log every arm writes.
+        arms: Each BKO arm, by name.
+    """
+
+    log: CallLog
+    arms: Mapping[str, GuidedArm]
+
+
+@contextmanager
+def guided_arms(
+    names: Sequence[str],
+    knowledge: Knowledge,
+    experiment: Experiment,
+    *,
+    log: Path,
+    send: Callable[[], Send],
+    answers: Replay | None = None,
+    now: Callable[[], datetime] = utc_now,
+) -> Generator[GuidedRun]:
+    """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
+
+    Every call goes through `answers` when given, else through `send()`. Once the body returns,
+    answers left over are refused. Each arm logs its validity sums on the way out, a stopped run
+    included.
+
+    Raises:
+        ReplayError: If the body returns while `answers` holds calls it did not answer.
+        GenerationError: As `CallLog`, if the settings model has no price, before `log` exists.
+        importlib.metadata.PackageNotFoundError: As `CallLog`, before `log` exists.
+        FileExistsError: If `log` exists.
+    """
+    answered = None if answers is None else answers.answered
+    with CallLog(log, SETTINGS, answered=answered, now=now) as call_log:
+        sender = answers if answers is not None else send()
+        arms = {
+            name: GuidedArm(
+                name,
+                BKO_ARMS[name],
+                knowledge,
+                send=sender,
+                log=call_log,
+                budget=experiment.budget,
+                ceiling=experiment.spend_ceiling,
+            )
+            for name in names
+        }
+        try:
+            yield GuidedRun(call_log, MappingProxyType(arms))
+            if answers is not None and answers.remaining:
+                msg = f"{answers.remaining} logged calls were not replayed"
+                raise ReplayError(msg)
+        finally:
+            for arm in arms.values():
+                arm.summary()

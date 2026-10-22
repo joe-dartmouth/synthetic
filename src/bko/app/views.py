@@ -35,7 +35,9 @@ TOTALS: Final = (
     "input_tokens",
     "output_tokens",
     "usd",
+    "live_usd",
     "replay",
+    "resume",
 )
 """The `end` line's fields the page shows."""
 

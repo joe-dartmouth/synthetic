@@ -36,46 +36,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## evaluate
-
-- **`cleanup:evaluate/replica-arms-accept-controls`: a control named in `replica_arms` crashes
-  `score`.** `Experiment.__post_init__` checks only that a replica arm is an arm
-  (`src/bko/evaluate/experiment.py:81-84`), and `_method_arm` hands a control an empty `Request()`
-  (`src/bko/evaluate/run.py:53`), so a control in `replica_arms` fits a classifier on no rows and
-  `score` exits 1 with a traceback. Fitting on a control's replica rows, as `score` would, prints
-  `ValueError: Found array with 0 sample(s) (shape=(0, 5)) while a minimum of 1 is required by
-  StandardScaler.` *Filed 2026-10-19 by `proposal-bko-replicas`.*
-  **Why deferred.** No configuration names a control there.
-  **What discharges it:** `__post_init__` refuses a replica arm that is a method whose `adds_rows`
-  is false, with a test.
-  **Trigger:** the next change to `Experiment`'s validation.
-
-- **`cleanup:evaluate/score-cannot-resume`: an interrupted `score` run cannot continue, so a stop
-  late in a paid run repays every call before it.** `score` refuses an existing call log and
-  `--replay` refuses a log with calls left over or missing (`src/bko/evaluate/__main__.py:172-173`,
-  `:226-250`), so neither picks up where a run stopped. `e1-2` stopped at holdout 83 of 100 when the
-  runner's machine hibernated on battery (E1's Runs row); `e1-3` finished it through
-  `scratchpad/resume-run.py`, a gitignored script that replays the stopped log's answered calls
-  through `Context.send` and then sends live, for $2.15 of new spend against about $12.82 for a
-  fresh run. *Filed 2026-10-21 by `proposal-e1-replica-run`.*
-  **Why deferred.** It is a code change, and the evidence unit that found it changed no code.
-  **What discharges it:** `score --resume LOG` answers a stopped call log's answered calls from it
-  and sends the rest live, writing one call log that `score --replay` regenerates byte for byte,
-  with a test that resumes a stopped fake run; ADR `research/e1-evaluation-protocol`'s "a run
-  cannot resume" and its consequence that a call with no response forfeits the run's spend change
-  with it.
-  **Trigger:** `proposal-guidance-ablation`, whose paid runs each take as long as `e1-3`.
-
-- **`cleanup:evaluate/guided-wiring-copied`: the app repeats `_guided`'s BKO arm wiring.**
-  `bko.app.steps.fill_and_score` builds `CallLog`, `Replay`, `GuidedArm` and the refusal of
-  unreplayed calls as `src/bko/evaluate/__main__.py:206-255` does. *Filed 2026-10-21 by
-  `proposal-streamlit-app`.*
-  **Why deferred.** A public home in `bko.evaluate` changes the command that
-  `proposal-guidance-ablation` edits.
-  **What discharges it:** one public function in `bko.evaluate` that builds a run's BKO arms over
-  one call log, called by the command and by `bko.app`.
-  **Trigger:** `proposal-guidance-ablation` landing, or the next change to either wiring.
-
 ## fusion
 
 - **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
@@ -107,17 +67,6 @@ links to where its blocker is tracked.
   **Trigger:** `proposal-guidance-ablation` landing, or the next change to any copy.
 
 ## generate
-
-- **`cleanup:generate/usd-log-precision`: stderr rounds a call's spend to four decimals, a seventh
-  of a typical call at Haiku 5.5's prices.** `bko.generate.calls` and `bko.generate.log` write
-  `usd=%.4f` (`src/bko/generate/calls.py:141`, `src/bko/generate/log.py:166`). A call of 1000
-  input and 500 output tokens costs 0.00035 USD and prints `usd=0.0003`. The call log's `usd`
-  fields keep full precision, so no recorded figure is lost. Raised in PR #24's review. *Filed
-  2026-10-19 by `proposal-bko-replicas`.*
-  **Why deferred.** Only the stderr lines round, and every Runs row reads spend from the call log.
-  **What discharges it:** both lines print `usd` with enough decimals to show a single Haiku 5.5
-  call, with their test pins updated.
-  **Trigger:** the next change to either line's format.
 
 - **`cleanup:generate/candidates-carry-no-run-identity`: a candidates file does not name the split,
   releases or guidance level it was generated against.** `python -m bko.fusion` re-derives the

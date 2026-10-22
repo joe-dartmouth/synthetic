@@ -120,7 +120,7 @@ def test_a_short_call_warns_with_its_reason(tmp_path, caplog):
     assert "short call=1 cell=<55/female/1 asked=2 undecoded=2 reason=refused" in messages
     assert (
         "generate call=1 cell=<55/female/1 level=ontology asked=2 decoded=0 undecoded=2 "
-        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.0003 request_id=req_test"
+        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.000350 request_id=req_test"
     ) in messages
 
 

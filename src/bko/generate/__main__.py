@@ -29,7 +29,7 @@ import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import TextIO
@@ -51,7 +51,7 @@ from bko.generate.calls import Batch, generate
 from bko.generate.candidates import render_lines
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import guide
-from bko.generate.log import CallLog
+from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, Level, Send, Settings
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
@@ -70,10 +70,6 @@ class Request(StrEnum):
     """E1's count-based request: each count-flagged cell's shortfall below the threshold."""
     COMPLETENESS = "completeness"
     """The completeness request: the threshold for each cell holding a per-subgroup gap."""
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,7 +92,7 @@ class Context:
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     send: Callable[[], Send] = default_send
     settings: Settings = SETTINGS
-    now: Callable[[], datetime] = _utc_now
+    now: Callable[[], datetime] = utc_now
 
 
 def main(

@@ -9,13 +9,15 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
 call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
-log at LOG instead.
+log at LOG instead. `score --resume STOPPED --log NEW` finishes a stopped run: it answers the
+stopped log's answered calls from it and sends the rest live, all into NEW.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log, BKO arms with no `--log`, `--log` or `--replay` with no BKO arm to
-build, a call with no response, a failed gap query, a run whose spend reached the ceiling and
-scores whose validity cannot be read; 3 the data, a method's output, a scores file or a replay
-contradicts its contract.
+including an existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with
+no BKO arm to build, `--resume` with `--replay`, a call with no response, a failed gap query, a
+run whose spend reached the ceiling and scores whose validity cannot be read; 3 the data, a
+method's output, a scores file, a replay or a stopped log that cannot be resumed contradicts its
+contract.
 """
 
 from __future__ import annotations
@@ -49,17 +51,16 @@ from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
-from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Score, parse, render
 from bko.evaluate.scores import Source as ScoreSource
 from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.errors import GenerationError, ReplayError
-from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Send
-from bko.generate.replay import Replay
+from bko.generate.errors import GenerationError
+from bko.generate.messages import Send
+from bko.generate.replay import Replay, Resume
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -166,23 +167,43 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     if args.replay is not None and not guided:
         msg = "--replay needs a BKO arm"
         raise EvaluationError(msg)
+    if args.resume is not None and not guided:
+        msg = "--resume needs a BKO arm"
+        raise EvaluationError(msg)
     if args.log is not None and not guided:
         msg = "--log needs a BKO arm"
         raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
+    answers = _answers(args, context)
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
     _log_experiment(experiment)
     if guided:
-        scores = _guided(args, data_dir, frame, guided, context)
+        scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
         scores = run(frame, experiment, context.arms, factory=context.factory)
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
     return text
+
+
+def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
+    """The source that answers the BKO calls, read before any download or log is made."""
+    if args.replay is not None:
+        return Replay(args.replay)
+    if args.resume is None:
+        return None
+    resume = Resume(args.resume, context.send())
+    logger.info(
+        "resume log=%s sha256=%s answered=%d",
+        args.resume,
+        resume.digest,
+        resume.answered.calls,
+    )
+    return resume
 
 
 def _log_experiment(experiment: Experiment) -> None:
@@ -209,8 +230,9 @@ def _guided(
     frame: pd.DataFrame,
     names: Sequence[str],
     context: Context,
+    answers: Replay | None,
 ) -> list[Score]:
-    """Run every arm, building a `GuidedArm` for each of `names` over one shared call log.
+    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
 
     Each BKO arm logs its run's validity sums on the way out, a stopped run included.
     """
@@ -223,36 +245,16 @@ def _guided(
     )
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
-    replay = Replay(args.replay) if args.replay is not None else None
-    with CallLog(args.log, SETTINGS, replay=replay.digest if replay is not None else None) as log:
-        send = replay if replay is not None else context.send()
-        arms = {
-            name: GuidedArm(
-                name,
-                BKO_ARMS[name],
-                knowledge,
-                send=send,
-                log=log,
-                budget=experiment.budget,
-                ceiling=experiment.spend_ceiling,
-            )
-            for name in names
-        }
-        try:
-            scores = run(
-                frame,
-                experiment,
-                {**context.arms, **arms},
-                factory=context.factory,
-                drains={name: arm.drain for name, arm in arms.items()},
-            )
-            if replay is not None and replay.remaining:
-                msg = f"{replay.remaining} logged calls were not replayed"
-                raise ReplayError(msg)
-            return scores
-        finally:
-            for arm in arms.values():
-                arm.summary()
+    with guided_arms(
+        names, knowledge, experiment, log=args.log, send=context.send, answers=answers
+    ) as paid:
+        return run(
+            frame,
+            experiment,
+            {**context.arms, **paid.arms},
+            factory=context.factory,
+            drains={name: arm.drain for name, arm in paid.arms.items()},
+        )
 
 
 def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
@@ -402,11 +404,21 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="the call log to create for the BKO arms' calls; it must not exist",
     )
-    scoring.add_argument(
+    answering = scoring.add_mutually_exclusive_group()
+    answering.add_argument(
         "--replay",
         type=Path,
         default=None,
         help="answer every BKO call from this call log instead of the API",
+    )
+    answering.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help=(
+            "finish the stopped run whose call log this is: answer its answered calls from it, "
+            "then send the rest live"
+        ),
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")

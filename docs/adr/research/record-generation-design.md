@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-19
+updated: 2026-10-22
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -129,11 +129,14 @@ ladder.**
   unpriced model or an existing log is refused before any call and only the file's owner can read
   its prompts and responses; the SDK version it records is read before the file is created too.
   Its lines, each flushed as written: one `run` line
-  (schema 2, settings, price, SDK version, and `replay`: the sha256 of the call log a replay
-  answers from, or null), then per call a `request` line before it is sent and a
+  (schema 2, settings, price, SDK version, `replay`: the sha256 of the call log a replay
+  answers from, or null, and `resume`: the sha256 and answered calls of the stopped log a resume
+  continues, or null), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
-  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay` again, and the run's
-  totals. A `reply` line holds the
+  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay` and `resume` again, and
+  the run's totals, `live_usd` (the spend of calls past the answered ones) among them. The schema
+  stays 2: a replay reads only the `run` line's `kind` and `schema`, and a resume reads `replay`
+  and `resume` as absent when a log predates them. A `reply` line holds the
   whole response and `attempts`, the HTTP requests the SDK made for the call
   (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
   nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
@@ -189,8 +192,8 @@ cut mid-value and the stop already says the call failed.
 
 Haiku 5.5 is the generator because E1's replica configuration asks for 77400 records a run, of which
 the gap request asks 6000, and Opus 5.5's input and output rates are 40 times Haiku 5.5's; E1's
-Configuration in `docs/EVIDENCE.md` records the run's estimate. A run cannot resume, so the client
-retries for minutes, where the SDK's default of 2 retries backs off for about 1.5 s. A client
+Configuration in `docs/EVIDENCE.md` records the run's estimate. A stopped run resumes only by
+paying its stopped call again, so the client retries for minutes, where the SDK's default of 2 retries backs off for about 1.5 s. A client
 timeout other than the SDK's default skips the SDK's refusal of a non-streaming call above 21,333
 `max_tokens`; `max_tokens` is 16000.
 
@@ -246,7 +249,7 @@ timeout other than the SDK's default skips the SDK's refusal of a non-streaming 
 | The command importing `bko.evaluate` for E1's request | Imports a downstream stage | 2026-10-18 |
 | A `--rows` water-fill as the command's request | Needs `bko.baselines`, a downstream stage | 2026-10-18 |
 | `claude-opus-5-5` as the generator | Its input and output rates are 40 times Haiku 5.5's, and E1's replica configuration multiplies the records a run asks for | 2026-10-19 |
-| The SDK's default 2 retries | About 1.5 s of backoff, so one brief outage stops a run that cannot resume | 2026-10-19 |
+| The SDK's default 2 retries | About 1.5 s of backoff, so one brief outage stops a run whose resume repays its stopped call | 2026-10-19 |
 
 ## Enforcement
 
