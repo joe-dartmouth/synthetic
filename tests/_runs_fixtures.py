@@ -8,11 +8,12 @@ from typing import Final
 
 from bko.evaluate.experiment import E1
 from bko.evaluate.scores import Measure, Scope, Score, Source, render
+from bko.gaps.definitions import Definition
 from bko.generate.calls import ask
-from bko.generate.candidates import render_lines
+from bko.generate.candidates import Header, Request, render_header, render_lines
 from bko.generate.errors import GenerationError
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS
+from bko.generate.messages import SETTINGS, Level
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 
@@ -81,13 +82,27 @@ def call_log(path: Path) -> Path:
     return path
 
 
+CELL1: Final = ("<55", "female", 1)
+HEADER: Final = Header(
+    request=Request.COMPLETENESS,
+    definition=Definition.SUBGROUP,
+    guidance=Level.ONTOLOGY,
+    uci="a" * 64,
+    fingerprint="b" * 64,
+    releases=(("HP", "c" * 64), ("MONDO", "d" * 64)),
+    calls=(("<55/female/1", 2),),
+)
+"""A candidates header for the run browser, which reads but never checks it."""
+HEAD: Final = render_header(HEADER)
+
+
 def every_kind(root: Path) -> Path:
     """`root` holding one folder per register entry and one demo fill."""
     call_log(root / "e1-3" / "calls.jsonl")
     write(root / "e1-3", "scores.csv", render(SCORES))
     write(root / "e1-3", "criteria.csv", CRITERIA)
     call_log(root / "c1-2" / "calls.jsonl")
-    write(root / "c1-2", "candidates.jsonl", render_lines(1, ("<55", "female", 1), [young(1)] * 2))
+    write(root / "c1-2", "candidates.jsonl", HEAD + render_lines(1, CELL1, [young(1)] * 2))
     write(root / "c1-2-closure", "closure.csv", CLOSURE)
     write(root / "e2-5", "gaps-synthea.csv", GAPS_SYNTHEA)
     write(root / "e2-5", "gaps-uci.csv", GAPS_UCI)

@@ -36,50 +36,7 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## fusion
-
-- **`cleanup:fusion/completeness-counts-lines-not-calls`: the closure command checks each cell's
-  line count, not that each of its calls answered.** `bko.fusion.__main__._answer` refuses a cell
-  holding fewer lines than its rows. `bko.generate.decode` keeps every decoded item past the asked
-  count (`src/bko/generate/decode.py:69-70`), so one call can write more lines than it asked for.
-  With `SETTINGS.per_call` below a cell's rows, an early call that over-delivers can make up for a
-  later call that never ran, and a failed run's file then passes as an answer. Today
-  `per_call=20` equals `UNDERREPRESENTED_BELOW`, so each requested cell is one call and the hole
-  cannot open. Found by static trace in PR #18's review. *Filed 2026-10-19 by
-  `proposal-fusion-repair`.*
-  **Why deferred.** The candidates file records no call's asked count, so the fix needs a format
-  change in `bko.generate.candidates` or a call-log reader. Neither is warranted while each cell is
-  one call.
-  **What discharges it:** the closure command refuses a cell where any call wrote fewer lines than
-  it asked for.
-  **Trigger:** a change that sets `SETTINGS.per_call` below `UNDERREPRESENTED_BELOW`.
-
-## gaps
-
-- **`cleanup:gaps/uci-load-sequence-copied`: the UCI load sequence is written once per command and
-  once in the app.** `ensure`, `load_uci`, `split`, `load_scope` and `record_cells` run in sequence
-  in `src/bko/gaps/__main__.py:177-188`, `src/bko/fusion/__main__.py:152-167`,
-  `src/bko/generate/__main__.py:202-217`, `src/bko/evaluate/__main__.py:175-176,217-224` and
-  `bko.app.steps.analyze`. *Filed 2026-10-21 by `proposal-streamlit-app`.*
-  **Why deferred.** Extracting it edits four commands owned by others, and
-  `proposal-guidance-ablation` edits `bko.evaluate`'s command.
-  **What discharges it:** one public loader in `bko.gaps` that every command and `bko.app` call.
-  **Trigger:** `proposal-guidance-ablation` landing, or the next change to any copy.
-
 ## generate
-
-- **`cleanup:generate/candidates-carry-no-run-identity`: a candidates file does not name the split,
-  releases or guidance level it was generated against.** `python -m bko.fusion` re-derives the
-  split and the request and logs the split fingerprint. It refuses only a file whose cells or line
-  counts do not answer the request, so a file generated against another split or release with the
-  same requested cells is read as if it answered this one. The run's record ties the two through
-  the candidates sha256 that both commands log (ADR `research/gap-closure-design`, Consequences).
-  Raised in PR #18's review. *Filed 2026-10-19 by `proposal-fusion-repair`.*
-  **Why deferred.** It changes the candidates format, which `bko.generate.candidates` writes and
-  reads, and each completeness run is checked by digest.
-  **What discharges it:** generate writes the split fingerprint, release versions and guidance
-  level where the closure command reads them, and the closure command refuses a mismatch.
-  **Trigger:** `proposal-guidance-ablation`, which reads several completeness runs.
 
 - **`cleanup:generate/prompt-range-wider-than-training`: the user turn asks for ages the training
   split never holds, so about a fifth of BKO records are dropped.** `prompt.render` states each

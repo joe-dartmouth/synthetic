@@ -142,13 +142,15 @@ def role_table(run: Run) -> pd.DataFrame:
 
 
 def candidates_table(path: Path) -> pd.DataFrame:
-    """One row per line of a candidates file: its call, cell and position, then its fields.
+    """One row per record line of a candidates file: its call, cell and position, then its fields.
+
+    The header line is read, refused if malformed, and shown as no row.
 
     Raises:
         CandidatesFormatError: As `bko.generate.candidates.read`.
     """
     rows = []
-    for line in read(path.read_bytes()):
+    for line in read(path.read_bytes()).lines:
         candidate = line.candidate
         if isinstance(candidate, Undecoded):
             item = {"undecoded": candidate.reason.value}

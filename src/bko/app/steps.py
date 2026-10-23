@@ -20,9 +20,7 @@ from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import Method, Request
 from bko.datasets.cells import cell_counts
-from bko.datasets.fetch import ensure
-from bko.datasets.split import Split, split
-from bko.datasets.uci import load_uci
+from bko.datasets.split import Split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
 from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
@@ -32,7 +30,7 @@ from bko.fusion.closure import Closure, closure
 from bko.gaps.definitions import Definition, StatementGap, gaps
 from bko.gaps.detect import CellGap, count_gaps
 from bko.gaps.observe import Cells, record_cells
-from bko.gaps.scope import load_scope
+from bko.gaps.scope import load_uci_scope
 from bko.generate.log import CallLog
 from bko.generate.replay import Replay
 
@@ -65,28 +63,27 @@ def analyze(context: Context) -> Analysis:
     """Load UCI Heart Disease and the releases, fetching what is absent, and list every gap.
 
     Raises:
-        DatasetError: As `ensure`, `load_uci`, `load_scope` and `record_cells`.
+        DatasetError: As `load_uci_scope`.
+        GapError: As `load_uci_scope`.
         BKBError: As `gaps`.
         OSError: If the data root cannot be written.
     """
     data_dir = context.data_root()
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci), seed=context.experiment.holdout_seeds[0])
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
     rows = context.field_rows
-    ontologies, fragments = load_scope(
-        {row.concept for row in rows},
+    scope = load_uci_scope(
         data_dir,
+        uci=context.uci,
         releases=context.releases,
+        field_rows=rows,
         open_url=context.open_url,
+        seed=context.experiment.holdout_seeds[0],
     )
-    cells = record_cells(parts.train, rows, name=context.uci.name)
+    parts, ontologies, fragments, cells = (
+        scope.parts,
+        scope.ontologies,
+        scope.fragments,
+        scope.cells,
+    )
     counts = cell_counts(parts.train)
     return Analysis(
         parts=parts,

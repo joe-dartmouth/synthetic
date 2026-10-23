@@ -33,18 +33,16 @@ from bko.bkb.structure import BKB
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
 from bko.datasets.synthea import load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
-from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition, gaps, under_represented
 from bko.gaps.detect import count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation
-from bko.gaps.observe import Cells, Observed, cell_key, observe_population, record_cells
+from bko.gaps.observe import Cells, Observed, cell_key, observe_population
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
-from bko.gaps.scope import load_scope
+from bko.gaps.scope import load_scope, load_uci_scope
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
 from bko.ontology.terms import Ontology
@@ -174,18 +172,19 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _uci(data_dir: Path, context: Context) -> list[Row]:
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
+    scope = load_uci_scope(
+        data_dir,
+        uci=context.uci,
+        releases=context.releases,
+        field_rows=context.field_rows,
+        open_url=context.open_url,
     )
-    concepts = {row.concept for row in context.field_rows}
-    ontologies, fragments = _ontology(concepts, data_dir, context)
-    cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    parts, ontologies, fragments, cells = (
+        scope.parts,
+        scope.ontologies,
+        scope.fragments,
+        scope.cells,
+    )
     _log_observed(cells.whole)
     _log_cells(cells, f"dataset={cells.whole.name}")
     label = labeller(ontologies)

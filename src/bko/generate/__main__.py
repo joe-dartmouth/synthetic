@@ -5,10 +5,12 @@ if they are absent, splits the records, and reads the training split's gaps unde
 definition of `bko.gaps.definitions`. It asks the Anthropic Messages API for each count-flagged
 cell's shortfall below `UNDERREPRESENTED_BELOW` training records (E1's count-based gap request),
 or with `--request completeness` each cell holding a per-subgroup gap for
-`UNDERREPRESENTED_BELOW` rows, at the chosen guidance level, and writes one JSON line per asked
-record to stdout: the call, the cell, the record's position in the call, and its decoded
-`candidate` or its `undecoded` reason. Each call's lines are written and flushed as it returns,
-so a failed run keeps the earlier ones.
+`UNDERREPRESENTED_BELOW` rows, at the chosen guidance level. Inside the call log, before any
+call, it writes the candidates header to stdout (`bko.generate.candidates`): the run's request,
+definition, level, pins, split fingerprint and call plan. Then it writes one JSON line per asked
+record: the call, the cell, the record's position in the call, and its decoded `candidate` or its
+`undecoded` reason. Each call's lines are written and flushed as it returns, so a failed run
+keeps the earlier ones.
 Every call's request and response go to the call log at `--log`, which must not exist; the plan,
 each call, the run's totals and the output's digest go to stderr through logging. Calls spend
 money and a rerun's candidates differ. `docs/DEVELOPMENT.md` (Generation) is the usage home.
@@ -30,7 +32,6 @@ import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import TextIO
 
@@ -38,17 +39,15 @@ import pandas as pd
 
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
-from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
-from bko.gaps.observe import Cell, cell_key, record_cells
-from bko.gaps.scope import load_scope
+from bko.gaps.observe import Cell, cell_key
+from bko.gaps.scope import load_uci_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.calls import Batch, generate
-from bko.generate.candidates import render_lines
+from bko.generate.calls import Batch, chunks, generate
+from bko.generate.candidates import Header, Request, render_header, render_lines
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import guide
 from bko.generate.log import CallLog, utc_now
@@ -61,15 +60,6 @@ logger = logging.getLogger("bko.generate")
 
 QUIET_LOGGERS = HTTP_LOGGERS
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
-
-
-class Request(StrEnum):
-    """The gap request the command fills."""
-
-    E1 = "e1"
-    """E1's count-based request: each count-flagged cell's shortfall below the threshold."""
-    COMPLETENESS = "completeness"
-    """The completeness request: the threshold for each cell holding a per-subgroup gap."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,12 +162,18 @@ def _parser(settings: Settings) -> argparse.ArgumentParser:
 
 
 class _Writer:
-    """Writes each batch's candidate lines to stdout as its call returns, and digests them."""
+    """Writes the header, then each batch's candidate lines as its call returns; digests both."""
 
     def __init__(self, out: TextIO) -> None:
         self._out = out
         self._rows = 0
         self._digest = hashlib.sha256()
+
+    def header(self, text: str) -> None:
+        """Write the header line, flushed and digested, counting no row."""
+        self._out.write(text)
+        self._out.flush()
+        self._digest.update(text.encode())
 
     def write(self, batch: Batch) -> None:
         text = render_lines(batch.index, batch.cell, batch.candidates)
@@ -195,22 +191,19 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     # exclusively, so a log made in between is never overwritten.
     if args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
-    ontologies, fragments = load_scope(
-        {row.concept for row in context.field_rows},
+    scope = load_uci_scope(
         data_dir,
+        uci=context.uci,
         releases=context.releases,
+        field_rows=context.field_rows,
         open_url=context.open_url,
     )
-    cells = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    parts, ontologies, fragments, cells = (
+        scope.parts,
+        scope.ontologies,
+        scope.fragments,
+        scope.cells,
+    )
     definition = Definition(args.definition)
     found = gaps(definition, fragments, cells)
     request = Request(args.request)
@@ -234,10 +227,30 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     log = CallLog(args.log, settings, now=context.now)
     try:
         with log:
+            send = context.send()
+            writer.header(
+                render_header(
+                    Header(
+                        request=request,
+                        definition=definition,
+                        guidance=settings.guidance,
+                        uci=context.uci.sha256,
+                        fingerprint=parts.fingerprint,
+                        releases=tuple(
+                            (prefix, context.releases[prefix].sha256)
+                            for prefix in sorted(ontologies)
+                        ),
+                        calls=tuple(
+                            (cell_key(cell), rows)
+                            for cell, rows in chunks(quota, settings.per_call)
+                        ),
+                    )
+                )
+            )
             generate(
                 quota,
                 guidance,
-                send=context.send(),
+                send=send,
                 log=log,
                 settings=settings,
                 on_batch=writer.write,

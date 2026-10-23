@@ -359,7 +359,11 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   records than `UNDERREPRESENTED_BELOW` for its shortfall; with `--request completeness` it asks
   each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows, and exits 2 for any
   `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)). It asks in calls of at most
-  `Settings.per_call` records and writes one JSON line per asked record to stdout: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
+  `Settings.per_call` records and writes a header line to stdout first (the request, definition,
+  guidance level, the UCI archive's and releases' pinned sha256, the split's fingerprint and each
+  call's cell and records asked; ADR
+  [`research/gap-closure-design`](adr/research/gap-closure-design.md)), then one JSON line per
+  asked record: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
@@ -375,10 +379,11 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   line. stderr gets the split line, each ontology fragment's size, the request's name, cells and
   rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort, level, records per
   call, token limit, the replayed log's sha256 or `none`, and `resume=none`), the plan (calls,
-  level, and the most the output tokens can cost), a `send` line before each call and a `generate` line after it (or an
-  ERROR `failed` line naming the call and cell), the run's totals and spend (`usd` and `live_usd`)
-  with the replayed and resumed logs' sha256 or `none` and the log's path, and last the line count and sha256 of stdout. Its WARNING
-  lines: `served`, a call served by a model other than the settings name; `short`, a call that wrote
+  level, and the most the output tokens can cost), a `send` line before each call and a
+  `generate` line after it (or an ERROR `failed` line naming the call and cell), the run's totals
+  and spend (`usd` and `live_usd`) with the replayed and resumed logs' sha256 or `none` and the
+  log's path, and last the count of stdout's record lines (the header excluded) and the sha256 of
+  stdout, its header included. Its WARNING lines: `served`, a call served by a model other than the settings name; `short`, a call that wrote
   placeholders, with their reason; `unreached`, a gap statement no label-compatible mapping row
   reaches, left out of the prompt; `noreference`, a cell with no reference record, so no profile or
   summary; and the UCI loader's line naming the records it dropped for a missing value. The SDK
@@ -427,9 +432,12 @@ command reads.
 
 - **What it does**: it reads the candidates file, fetches UCI Heart Disease and the releases the
   field mappings name into the data root if absent, splits the records as [Data](#data) says,
-  and lists the training split's gaps under every definition. It refuses a file that is not the
-  completeness request's answer: a cell the request does not ask for, or fewer lines for a
-  requested cell than its rows. It validates each requested cell's lines with `bko.validate`, an
+  and lists the training split's gaps under every definition. It refuses, in this order: a file
+  that is not a candidates file, through `bko.generate.candidates.read` (no header, or a malformed
+  record line); another request; another UCI archive; another split; other releases; a plan
+  whose per-cell sums differ from the completeness request, naming the cells that differ; a line
+  of an unplanned call; a call whose lines name another cell than its plan; and a planned call
+  that wrote fewer of its positions than it asked. It validates each requested cell's lines with `bko.validate`, an
   `undecoded` line counting as generated and rejected, joins the accepted records as the ADR
   says, and lists the gaps again over the training and joined records.
 - **What it writes**: one CSV on stdout, the same bytes on every run over the same candidates
@@ -440,8 +448,9 @@ command reads.
   It prints no verdict; [EVIDENCE.md](EVIDENCE.md#c1-gap-closure-after-fusion) reads the counts
   against [RESEARCH.md](RESEARCH.md#4-success-criteria).
 - **What it logs**: stderr gets the data root and library versions, the candidates file's path,
-  line count and sha256 (the `candidates` digest `bko.generate` logged, when the file is its
-  stdout), the split line, each ontology fragment's size, a `request` line per requested cell, a
+  record-line count (the header excluded) and sha256 (the `candidates` digest `bko.generate`
+  logged, when the file is its stdout), a `header` line (`request=`, `definition=`, `guidance=`, `fingerprint=`), the split
+  line, each ontology fragment's size, a `request` line per requested cell, a
   `validate` line naming each cell before `bko.validate`'s counts for it, a `join` line per
   requested cell (lines, passed, off-cell, past its rows, joined, and the concepts the join newly
   gives the cell), a `closure` line per definition (before, after, closed, open, new and the
@@ -451,7 +460,10 @@ command reads.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing candidates file and a training split no cell holds
   a per-subgroup gap in; 3 the candidates file is malformed or does not answer the completeness
-  request, or the data or a release contradicts its pin or schema.
+  request (a header for another run, an unplanned or misplaced call, or a short call), or the data
+  or a release contradicts its pin or schema.
+- **Headerless files**: ADR [`research/gap-closure-design`](adr/research/gap-closure-design.md)
+  (Consequences) says what becomes of a candidates file with no header line.
 - **Reproducibility**: the same bytes on every run over the same inputs. The Messages API takes
   no seed, so the candidates file is the paid run's record, not a rerun.
 - **The gate does not run it.** `make check` drives it over an archive, releases and candidates

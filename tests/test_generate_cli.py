@@ -19,11 +19,12 @@ import pytest
 from bko.datasets.split import split
 from bko.datasets.uci import load_uci
 from bko.gaps.definitions import Definition
-from bko.gaps.observe import cell_key
+from bko.gaps.observe import Cell, cell_key
 from bko.generate.__main__ import Context, configure_logging, main
+from bko.generate.calls import chunks
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Basis
-from bko.generate.messages import Call, Level, Reply, Send
+from bko.generate.messages import SETTINGS, Call, Level, Reply, Send
 from bko.generate.prompt import BASES
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import archive, cleveland_line, pin
@@ -37,7 +38,7 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 UCI = uci({}, "4.0")
 
-REQUEST = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
+REQUEST: dict[Cell, int] = {("<55", "female", 0): 12, ("<55", "female", 1): 20}
 """The count-based request: each flagged cell asked for its shortfall below twenty."""
 
 RECORD = {"age": 41, "sex": 0}
@@ -101,7 +102,7 @@ def test_the_command_asks_each_flagged_cell_for_its_shortfall_and_prints_one_lin
     assert code == 0
     assert asked_per_cell(log) == {"<55/female/0": 12, "<55/female/1": 20}
     assert [(call.sex, call.label) for call in send.calls] == [(0, 0), (0, 1)]
-    assert len(out.splitlines()) == sum(REQUEST.values())
+    assert len(out.splitlines()) == 1 + sum(REQUEST.values())
     send.assert_consumed()
 
 
@@ -122,7 +123,7 @@ def test_the_completeness_request_asks_twenty_of_each_per_subgroup_gap_cell(tmp_
     assert code == 0
     assert asked_per_cell(log) == {"<55/female/0": 20, "<55/female/1": 20}
     assert [(call.sex, call.label) for call in send.calls] == [(0, 0), (0, 1)]
-    assert len(out.splitlines()) == 40
+    assert len(out.splitlines()) == 41
     send.assert_consumed()
 
 
@@ -238,7 +239,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
     send = ScriptedSend(reply([RECORD] * 12), GenerationError("the API could not be reached"))
     code, out, log = run(tmp_path, make_context(send))
     assert code == 2
-    assert [json.loads(line)["call"] for line in out.splitlines()] == [1] * 12
+    assert [json.loads(line)["call"] for line in out.splitlines()[1:]] == [1] * 12
     send.assert_consumed()
     digest = hashlib.sha256(out.encode()).hexdigest()
     assert f"candidates rows=12 sha256={digest}" in [r.getMessage() for r in caplog.records]
@@ -287,18 +288,19 @@ def test_each_batch_is_written_and_flushed_as_its_call_returns(tmp_path):
     argv = ["per-subgroup", "--log", str(tmp_path / "run.jsonl")]
     argv += ["--data-dir", str(tmp_path / "data")]
     assert main(argv, context=make_context(send), out=out) == 0
-    assert seen[0] == (0, 0)
-    assert seen[1][0] == 12
+    assert seen[0] == (1, 1)
+    assert seen[1][0] == 13
     assert seen[1][1] >= 1
 
 
 def test_stdout_is_json_lines_of_call_cell_position_and_candidate_or_undecoded_reason(tmp_path):
     _, out, _ = run(tmp_path, make_context(two_replies()))
-    lines = [json.loads(line) for line in out.splitlines()]
+    lines = [json.loads(line) for line in out.splitlines()[1:]]
     assert lines[0] == {"call": 1, "cell": "<55/female/0", "position": 0, "candidate": RECORD}
     assert lines[12] == {"call": 2, "cell": "<55/female/1", "position": 0, "candidate": RECORD}
     assert lines[-1] == {"call": 2, "cell": "<55/female/1", "position": 19, "undecoded": "short"}
     assert all(line == json.dumps(json.loads(line), sort_keys=True) for line in out.splitlines())
+    assert json.loads(out.splitlines()[0])["kind"] == "header"
 
 
 def test_the_summary_line_names_calls_tokens_usd_log_and_stdout_sha256(tmp_path, caplog):
@@ -349,3 +351,37 @@ def test_the_module_runs_as_a_program():
     assert "--guidance" in result.stdout
     assert "--request" in result.stdout
     assert "--log" in result.stdout
+
+
+def test_the_header_is_the_first_line_and_names_the_run_and_its_plan(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    _, out, _ = run(tmp_path, make_context(two_replies()))
+    header = json.loads(out.splitlines()[0])
+    train = split(load_uci(tmp_path / "data", source=pin(UCI)))
+    assert header["request"] == "e1"
+    assert header["definition"] == "per-subgroup"
+    assert header["guidance"] == "ontology"
+    assert header["uci"] == pin(UCI).sha256
+    assert header["fingerprint"] == train.fingerprint
+    assert f"fingerprint={train.fingerprint}" in caplog.text
+    pins, _ = ladder_releases()
+    assert header["releases"] == {prefix: pins[prefix].sha256 for prefix in ("HP", "MONDO")}
+    plan = chunks(REQUEST, SETTINGS.per_call)
+    assert header["calls"] == [[cell_key(cell), rows] for cell, rows in plan]
+
+
+def test_a_run_that_fails_at_its_first_call_leaves_only_the_header(tmp_path):
+    send = ScriptedSend(GenerationError("the API could not be reached"))
+    code, out, _ = run(tmp_path, make_context(send))
+    assert code == 2
+    assert [json.loads(line)["kind"] for line in out.splitlines()] == ["header"]
+
+
+def test_the_header_names_the_completeness_request_and_the_chosen_level(tmp_path):
+    send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
+    argv = ("--request", "completeness", "--guidance", "cell")
+    code, out, _ = run(tmp_path, completeness_context(send), *argv)
+    assert code == 0
+    header = json.loads(out.splitlines()[0])
+    assert (header["request"], header["guidance"]) == ("completeness", "cell")
+    assert header["calls"] == [["<55/female/0", 20], ["<55/female/1", 20]]

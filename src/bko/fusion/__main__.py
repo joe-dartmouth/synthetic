@@ -3,9 +3,14 @@
 The command reads a candidates file `python -m bko.generate per-subgroup --request completeness`
 wrote, fetches UCI Heart Disease and the releases its field mappings name into the data root if
 they are absent, splits the records, and lists the training split's gaps under every definition
-of `bko.gaps.definitions`. It refuses a file that does not answer the completeness request,
-validates each requested cell's candidates, joins the accepted records (ADR
-`research/gap-closure-design`), lists the gaps again, and writes one CSV to stdout: every (cell,
+of `bko.gaps.definitions`. It refuses, in this order: a file `bko.generate.candidates.read`
+refuses (no header, or a malformed record line); another request; another UCI archive; another
+split; other releases; a plan whose per-cell sums differ from the completeness request; a line of
+an unplanned call; a call whose lines name another cell than its plan; and a planned call that
+wrote fewer of its positions than it asked. It logs the header's guidance and
+definition rather than comparing them, since it takes no `--guidance`. It then validates each
+requested cell's candidates, joins the accepted records (ADR `research/gap-closure-design`), lists
+the gaps again, and writes one CSV to stdout: every (cell,
 statement) pair listed before or after the join under each definition, with whether it was
 listed before and after. The same bytes on every run over the same inputs, and nothing unless
 the whole report is built. It makes no API call. `docs/DEVELOPMENT.md` (Gap closure) is the
@@ -34,18 +39,16 @@ import pandas as pd
 
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.split import split
-from bko.datasets.uci import load_uci
 from bko.fusion.closure import Closure, closure
 from bko.fusion.errors import ClosureError
 from bko.fusion.join import Joined, join
 from bko.gaps.definitions import completeness_request
 from bko.gaps.observe import Cell, Cells, cell_key, record_cells
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
-from bko.gaps.scope import load_scope
-from bko.generate.candidates import CandidateLine, read
+from bko.gaps.scope import UciScope, load_uci_scope
+from bko.generate.candidates import CandidateLine, Header, Request, read
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 from bko.validate.checks import validate
@@ -146,27 +149,23 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
         importlib.metadata.version("scipy"),
     )
     data = path.read_bytes()
-    lines = read(data)
+    found = read(data)
+    header = found.header
     digest = hashlib.sha256(data).hexdigest()
-    logger.info("candidates path=%s lines=%d sha256=%s", path, len(lines), digest)
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    parts = split(load_uci(data_dir, source=context.uci))
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        parts.seed,
-        len(parts.train),
-        len(parts.test),
-        parts.fingerprint,
-    )
-    ontologies, fragments = load_scope(
-        {row.concept for row in context.field_rows},
+    logger.info("candidates path=%s lines=%d sha256=%s", path, len(found.lines), digest)
+    _identify(header, context)
+    scope = load_uci_scope(
         data_dir,
+        uci=context.uci,
         releases=context.releases,
+        field_rows=context.field_rows,
         open_url=context.open_url,
     )
-    before = record_cells(parts.train, context.field_rows, name=context.uci.name)
+    _same_scope(header, scope, context)
+    parts, ontologies, fragments = scope.parts, scope.ontologies, scope.fragments
+    before = scope.cells
     request = completeness_request(fragments, before)
-    candidates = _answer(lines, request, before)
+    candidates = _answer(found.lines, header.calls, request)
     accepted: dict[Cell, pd.DataFrame] = {}
     for cell, items in candidates.items():
         logger.info("validate key=%s lines=%d", cell_key(cell), len(items))
@@ -179,29 +178,87 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
     return _report(readings, before, labeller(ontologies))
 
 
+def _identify(header: Header, context: Context) -> None:
+    """Refuse a header for another request or UCI archive, before any download; log the rest."""
+    if header.request is not Request.COMPLETENESS:
+        msg = f"the candidates answer the {header.request} request, not completeness"
+        raise ClosureError(msg)
+    if header.uci != context.uci.sha256:
+        msg = (
+            f"the candidates were generated from another UCI archive: {header.uci}, "
+            f"not {context.uci.sha256}"
+        )
+        raise ClosureError(msg)
+    logger.info(
+        "header request=%s definition=%s guidance=%s fingerprint=%s",
+        header.request,
+        header.definition,
+        header.guidance,
+        header.fingerprint,
+    )
+
+
+def _same_scope(header: Header, scope: UciScope, context: Context) -> None:
+    """Refuse a header for another split or other releases than `scope` loaded."""
+    if header.fingerprint != scope.parts.fingerprint:
+        msg = (
+            f"the candidates were generated for another split: {header.fingerprint}, "
+            f"not {scope.parts.fingerprint}"
+        )
+        raise ClosureError(msg)
+    loaded = {prefix: context.releases[prefix].sha256 for prefix in scope.ontologies}
+    written = dict(header.releases)
+    if written != loaded:
+        differ = sorted(
+            p for p in written.keys() | loaded.keys() if written.get(p) != loaded.get(p)
+        )
+        msg = f"the candidates were generated against other releases: {differ[:5]!r}"
+        raise ClosureError(msg)
+
+
 def _answer(
-    lines: Sequence[CandidateLine], request: Mapping[Cell, int], cells: Cells
+    lines: Sequence[CandidateLine],
+    plan: Sequence[tuple[str, int]],
+    request: Mapping[Cell, int],
 ) -> dict[Cell, tuple[object, ...]]:
-    """Each requested cell's candidates in file order; a file that does not answer is refused."""
-    keys = {cell_key(cell): cell for cell in cells.each}
+    """Each requested cell's candidates in file order, every planned call checked.
+
+    Raises:
+        ClosureError: In this order: the plan's per-cell sums differ from `request`; a line
+            belongs to a call outside the plan; a line names another cell than its call's; or a
+            planned call wrote fewer of its positions `0..asked-1` than it asked.
+    """
+    planned: dict[str, int] = {}
+    for key, asked in plan:
+        planned[key] = planned.get(key, 0) + asked
+    wanted = {cell_key(cell): rows for cell, rows in request.items()}
+    if planned != wanted:
+        differ = sorted(
+            k for k in planned.keys() | wanted.keys() if planned.get(k) != wanted.get(k)
+        )
+        shown = ", ".join(f"{k!r}: {planned.get(k, 0)} not {wanted.get(k, 0)}" for k in differ[:5])
+        msg = f"the candidates' plan asks, against the completeness request, {shown}"
+        raise ClosureError(msg)
+    unplanned = sorted({line.call for line in lines if not 1 <= line.call <= len(plan)})
+    if unplanned:
+        msg = f"call {unplanned[0]} is not in the candidates' plan"
+        raise ClosureError(msg)
+    positions: dict[int, set[int]] = {}
+    for line in lines:
+        key = plan[line.call - 1][0]
+        if line.cell != key:
+            msg = f"call {line.call} answers {line.cell!r}, and its plan asks for {key!r}"
+            raise ClosureError(msg)
+        positions.setdefault(line.call, set()).add(line.position)
+    for index, (key, asked) in enumerate(plan, start=1):
+        wrote = sum(position < asked for position in positions.get(index, ()))
+        if wrote < asked:
+            msg = f"call {index} asked {asked} records of {key!r} and wrote {wrote} of them"
+            raise ClosureError(msg)
+    keys = {cell_key(cell): cell for cell in request}
     found: dict[Cell, list[object]] = {cell: [] for cell in request}
     for line in lines:
-        cell = keys.get(line.cell)
-        if cell is None or cell not in found:
-            msg = (
-                f"call {line.call} answers {line.cell!r}, "
-                "a cell the completeness request does not ask for"
-            )
-            raise ClosureError(msg)
-        found[cell].append(line.candidate)
-    short = [
-        f"{cell_key(cell)} has {len(found[cell])} lines for {rows} rows"
-        for cell, rows in request.items()
-        if len(found[cell]) < rows
-    ]
-    if short:
-        msg = f"the candidates do not answer the completeness request: {'; '.join(short)}"
-        raise ClosureError(msg)
+        found[keys[line.cell]].append(line.candidate)
     for cell, rows in request.items():
         logger.info("request key=%s rows=%d lines=%d", cell_key(cell), rows, len(found[cell]))
     return {cell: tuple(items) for cell, items in found.items()}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import collections
 import hashlib
+import logging
 import warnings
 
 import numpy as np
@@ -21,8 +22,10 @@ from bko.datasets.cells import (
     cell_keys,
 )
 from bko.datasets.errors import ContractError
-from bko.datasets.split import SPLIT_SEED, held_out_count, split
-from tests._datasets_fixtures import records
+from bko.datasets.split import SPLIT_SEED, held_out_count, split, uci_split
+from tests._datasets_fixtures import pin, records
+from tests._generate_fixtures import SIZES, uci
+from tests._ontology_fixtures import RoutingOpener
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -238,3 +241,25 @@ def test_a_duplicate_record_id_is_refused():
 def test_the_label_codes_have_meanings():
     assert set(LABEL_MEANINGS) == set(LABEL_CODES)
     assert all(meaning.strip() for meaning in LABEL_MEANINGS.values())
+
+
+def test_uci_split_fetches_once_splits_and_logs_the_split(tmp_path, caplog):
+    archive = uci({(40, 0): "4.0"}, "1.0", SIZES)
+    source = pin(archive)
+    opener = RoutingOpener({source.url: archive})
+    caplog.set_level(logging.INFO)
+    parts = uci_split(tmp_path, source=source, open_url=opener)
+    again = uci_split(tmp_path, source=source, open_url=opener)
+    assert len(opener.calls) == 1
+    assert parts.fingerprint == again.fingerprint
+    assert f"split seed=0 train={len(parts.train)} test={len(parts.test)}" in caplog.text
+
+
+def test_uci_split_takes_its_seed(tmp_path):
+    archive = uci({(40, 0): "4.0"}, "1.0", SIZES)
+    source = pin(archive)
+    opener = RoutingOpener({source.url: archive})
+    default = uci_split(tmp_path, source=source, open_url=opener)
+    seeded = uci_split(tmp_path, source=source, open_url=opener, seed=7)
+    assert seeded.seed == 7
+    assert seeded.fingerprint != default.fingerprint

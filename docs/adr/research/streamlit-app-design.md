@@ -35,7 +35,8 @@ We will build the page as follows.
   a G1 run.
 * **Orchestration**: `bko.app.steps` composes the stages' public APIs; the BKO wiring is
   `bko.evaluate.guided.guided_arms`, which the evaluate command and `bko.app.steps` both call; the
-  copy of the UCI load sequence is filed under `cleanup:gaps/uci-load-sequence-copied`.
+  UCI load sequence is `bko.gaps.scope.load_uci_scope`, which the app shares with the gaps,
+  fusion and generate commands.
 * **Fill path**: E1's runner interface over E1's gap request on the default split, E1's first
   holdout.
 * **Methods**: the arms of E1 that add rows, row-adding methods first, then the three BKO arms.
@@ -62,8 +63,8 @@ One action keeps the fill's private steps private: a second step would need the 
 public and a runner that reuses it. A replica fill would add many paid calls and minutes per BKO
 click, and no criterion reads its fidelity. Replay lets the demo run free and repeatably from a
 recorded log, with the refusals the evaluate command already applies. A row per click would flood
-the register with readings no criterion uses. Extracting the commands' load sequence first would
-edit four commands owned by others and collide with `proposal-guidance-ablation`.
+the register with readings no criterion uses. One loader keeps the app's split, cells and
+releases the ones the gaps, fusion and generate commands read.
 The completeness request is another request, and scoring it would pay twice. Controls add no rows,
 so they cannot fill. A confirmation keyed to a run counter cannot carry over to a second click; a
 credential pre-check would itself call the API, and a process-wide spend ledger guards a server
@@ -74,8 +75,7 @@ a whole experiment; one fill makes a few calls.
 
 **Gained**: every path that spends nothing runs in the gate; one paid transaction per click; a
 free, repeatable demo from a recorded log.
-**Accepted**: another copy of the UCI load sequence (`cleanup:gaps/uci-load-sequence-copied`); no
-live rejected-row counter; no
+**Accepted**: no live rejected-row counter; no
 cancel of an in-flight call, and a closed tab or Ctrl-C waits for the running action, CTGAN and TVAE
 fits included; the page's numbers never equal E1's mean over its holdouts; a closed or reloaded tab
 loses the shown result, which the run folder keeps and a replay answers again for free; clicks queue
@@ -91,7 +91,7 @@ fills, each bounded by the ceiling and a confirmation.
 | A replica fill per BKO click | Many extra paid calls and minutes per click; no criterion reads fidelity | 2026-10-21 |
 | Live answers only | A demo would spend on every showing | 2026-10-21 |
 | A register row per click | Interactive readings answer no criterion | 2026-10-21 |
-| Extracting the commands' load sequence first | Edits four commands owned by others and collides with `proposal-guidance-ablation` | 2026-10-21 |
+| Copying the commands' UCI load sequence into the app | Two homes drift; one loader serves the app and the commands that split once | 2026-10-22 |
 | Copying the evaluate command's BKO wiring into the app | Two homes drift; one public function serves both | 2026-10-22 |
 | The completeness request as the fill path | Another request; scoring it would pay twice | 2026-10-21 |
 | Controls as fill methods | They add no rows | 2026-10-21 |

@@ -78,3 +78,17 @@ def test_running_fusion_loads_no_sdk():
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False"
+
+
+def test_fusion_imports_only_the_candidates_format_from_generate():
+    names = {
+        name
+        for path in PACKAGE.rglob("*.py")
+        for name in _imported(path)
+        if name.startswith("bko.generate.")
+    }
+    assert names
+    assert all(
+        name == "bko.generate.candidates" or name.startswith("bko.generate.candidates.")
+        for name in names
+    )

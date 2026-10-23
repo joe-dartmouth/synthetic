@@ -43,6 +43,7 @@ from tests._runs_fixtures import (
     CLOSURE,
     GAPS_SYNTHEA,
     GAPS_UCI,
+    HEAD,
     REPRODUCTION,
     SCORES,
     call_log,
@@ -188,12 +189,13 @@ def test_e1_validity_refuses_a_partial_run():
 
 def test_candidates_table_has_one_row_per_line(tmp_path):
     path = tmp_path / "candidates.jsonl"
-    path.write_text(render_lines(1, ("<55", "female", 1), [young(1), young(1)]), encoding="utf-8")
+    path.write_text(HEAD + render_lines(1, ("<55", "female", 1), [young(1)] * 2), encoding="utf-8")
     table = candidates_table(path)
     assert len(table) == 2
     assert {"call", "cell", "position", "age"} <= set(table.columns)
     path.write_text(
-        render_lines(1, ("<55", "female", 1), [Undecoded(Reason.TRUNCATED)]), encoding="utf-8"
+        HEAD + render_lines(1, ("<55", "female", 1), [Undecoded(Reason.TRUNCATED)]),
+        encoding="utf-8",
     )
     assert candidates_table(path)["undecoded"].tolist() == ["truncated"]
 
