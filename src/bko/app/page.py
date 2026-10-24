@@ -35,13 +35,15 @@ from bko.app.views import (
     closure_pairs,
     closure_summary,
     gap_table,
+    prediction_column,
+    prediction_table,
     score_table,
 )
 from bko.baselines.errors import BaselineError
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.scores import Source
+from bko.evaluate.scores import Measure, Scope
 from bko.gaps.definitions import Definition
 from bko.generate.errors import GenerationError
 
@@ -71,6 +73,33 @@ RUNS_KEY: Final = "bko.runs"
 
 DATASETS: Final = ("UCI Heart Disease",)
 
+INTRO: Final = (
+    "Clinical models fail on groups with too few training records. This page finds where a "
+    "dataset is thin, using both record counts and medical knowledge from the MONDO and HPO "
+    "ontologies, fills those groups with synthetic records, and shows whether a heart-disease "
+    "classifier trained with them predicts better than one trained with the usual fixes."
+)
+"""The page's opening paragraph, for a reader who has not seen the project."""
+
+STEPS: Final = {
+    "gaps": (
+        "A cell is one age band, sex and diagnosis. Below the counts, each tab but the last lists "
+        "the statements the ontology implies for a cell that the training records do not "
+        "support, under one of the project's gap definitions; the last lists the cells that are "
+        "thin by count alone."
+    ),
+    "fill": (
+        "Pick how to add records to the underrepresented cells. The BKO arms ask Claude for "
+        "records guided by the ontology; the others are standard oversamplers and generators. "
+        "Every method is then trained and scored on the same held-out records."
+    ),
+}
+"""The caption under each step's header."""
+
+RECALL_COLUMNS: Final = tuple(prediction_column(Measure.RECALL, scope) for scope in Scope)
+"""The `prediction_table` columns the results chart draws: recall, overall and on the flagged
+subgroups, the plan's primary measure."""
+
 
 @dataclass(slots=True)
 class Slot[T]:
@@ -89,6 +118,7 @@ def page() -> None:
     context: Context = st.session_state.setdefault(CONTEXT_KEY, Context())
     context.setup_logging()
     st.title("Fill clinical coverage gaps")
+    st.markdown(INTRO)
     view = st.radio("View", ("Demo", "Earlier runs"), horizontal=True, key="bko.view")
     if view == "Earlier runs":
         earlier_runs(context)
@@ -147,6 +177,7 @@ def _shown[T](slot: Slot[T]) -> T | None:
 
 def _analysis(context: Context) -> Analysis | None:
     st.header("2. Gaps")
+    st.caption(STEPS["gaps"])
     clicked = st.button("Analyze gaps", type="primary", key="bko.analyze")
     if clicked and _run(
         ANALYSIS_KEY,
@@ -169,7 +200,8 @@ def _show_analysis(analysis: Analysis) -> None:
     records.metric("Training records", len(analysis.parts.train))
     flagged.metric("Underrepresented cells", len(analysis.counted))
     st.dataframe(balance(analysis), hide_index=True)
-    st.dataframe(cell_table(analysis), hide_index=True)
+    # `status` says the same in words, so colour and a tick never carry it alone.
+    st.dataframe(cell_table(analysis), hide_index=True, column_config={"underrepresented": None})
     tabs = st.tabs([definition.value for definition in Definition] + ["count-based"])
     for tab, definition in zip(tabs[:-1], Definition, strict=True):
         tab.dataframe(gap_table(analysis, definition), hide_index=True)
@@ -187,6 +219,7 @@ def _count_fill() -> None:
 
 def _fill(context: Context, analysis: Analysis) -> Outcome | None:
     st.header("3. Fill and score")
+    st.caption(STEPS["fill"])
     name: str = st.selectbox(
         "Method",
         fillers(context.experiment),
@@ -253,9 +286,26 @@ def _results(analysis: Analysis, outcome: Outcome) -> None:
     st.subheader("Gaps before and after the fill")
     st.dataframe(closure_summary(outcome), hide_index=True)
     st.dataframe(closure_pairs(analysis, outcome), hide_index=True)
-    st.subheader("Scores")
-    st.dataframe(score_table(outcome.scores, Source.AUGMENTED))
-    st.dataframe(score_table(outcome.scores))
+    st.subheader("Prediction on the held-out records")
+    st.caption(
+        "Each method's classifier, trained on the real training records plus the records it "
+        "added; the flagged subgroups are the test records of every age-sex group holding an "
+        "underrepresented cell. A blank is a measure this split cannot define."
+    )
+    prediction = prediction_table(outcome.scores, outcome.name)
+    st.bar_chart(
+        prediction,
+        x="arm",
+        y=list(RECALL_COLUMNS),
+        x_label="",
+        y_label="recall",
+        horizontal=True,
+        sort=False,
+        stack=False,
+    )
+    st.dataframe(prediction, hide_index=True)
+    with st.expander("Every measure"):
+        st.dataframe(score_table(outcome.scores))
     st.subheader("Download")
     st.download_button(
         "Augmented training set (CSV)",

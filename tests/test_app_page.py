@@ -14,7 +14,9 @@ from bko.app.page import (
     ANALYSIS_KEY,
     BUSY,
     CONTEXT_KEY,
+    INTRO,
     OUTCOME_KEY,
+    STEPS,
     UNFINISHED,
 )
 from bko.app.steps import analyze, fill_and_score
@@ -75,6 +77,12 @@ def test_an_api_call_outside_a_live_test_fails_the_test(monkeypatch):
     assert [str(exc).split(":")[0] for exc in escaped] == [
         "a request outside a `live` test's body reached the Anthropic API"
     ]
+
+
+def test_the_page_opens_with_what_it_does_before_any_click(tmp_path):
+    at = launch(app_context(tmp_path, send=never)[0])
+    assert INTRO in [block.value for block in at.markdown]
+    assert STEPS["gaps"] in [caption.value for caption in at.caption]
 
 
 def test_analyze_shows_the_flagged_cells_and_each_definitions_gaps(tmp_path):
@@ -179,6 +187,9 @@ def test_a_free_fill_ends_with_closure_scores_and_two_downloads(tmp_path):
     frame_with(at, {"closed", "still_open"})
     frame_with(at, {"definition", "status"})
     assert any({"none", "smote"} <= set(frame.value.columns) for frame in at.dataframe)
+    prediction = frame_with(at, {"arm", "role"})
+    assert prediction["arm"].tolist()[0] == "smote"
+    assert len(at.get("vega_lite_chart")) == 1
     assert len(at.get("download_button")) == 2
 
 

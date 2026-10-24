@@ -224,6 +224,7 @@ def test_the_app_target_serves_the_entry_script_on_loopback_only():
         "--browser.gatherUsageStats": "false",
         "--runner.fastReruns": "false",
         "--server.fileWatcherType": "none",
+        "--client.toolbarMode": "minimal",
     }
     phony = next(line for line in makefile_text().splitlines() if line.startswith(".PHONY:"))
     assert "app" in phony.split()[1:]

@@ -13,9 +13,9 @@ import pandas as pd
 
 from bko.app.runs import Run
 from bko.app.steps import Analysis, Outcome
-from bko.datasets.cells import CELL_COLUMNS, LABEL
+from bko.datasets.cells import CELL_COLUMNS, LABEL, LABEL_MEANINGS
 from bko.evaluate.experiment import E1
-from bko.evaluate.scores import Measure, Score, Source
+from bko.evaluate.scores import Measure, Scope, Score, Source
 from bko.evaluate.validity import reported, validity, verdict
 from bko.gaps.definitions import Definition
 from bko.gaps.report import STATEMENT_COLUMNS, cell_cells, labeller, statement_cells
@@ -27,6 +27,10 @@ GAP_COLUMNS: Final = (*STATEMENT_COLUMNS, *CELL_COLUMNS)
 PAIR_COLUMNS: Final = ("definition", "status", *GAP_COLUMNS)
 SUMMARY_COLUMNS: Final = ("definition", "before", "closed", "still_open", "new")
 SCORE_INDEX: Final = ("source", "measure", "scope")
+PREDICTION: Final = (Measure.RECALL, Measure.PRECISION, Measure.AUC_PR)
+"""The classifier measures the page compares across arms, in the order it shows them."""
+ROLES: Final = ("filled", "comparison")
+"""The `role` words of `prediction_table`: the arm that filled, and every other arm."""
 TOTALS: Final = (
     "status",
     "calls",
@@ -50,8 +54,33 @@ def cell_table(analysis: Analysis) -> pd.DataFrame:
 
 
 def balance(analysis: Analysis) -> pd.DataFrame:
-    """The training records per label."""
-    return analysis.counts.groupby(LABEL, as_index=False)[["count"]].sum()
+    """The training records per label, with each label's meaning in words."""
+    totals = analysis.counts.groupby(LABEL, as_index=False)[["count"]].sum()
+    return totals.assign(meaning=totals[LABEL].map(LABEL_MEANINGS))
+
+
+def prediction_column(measure: Measure, scope: Scope) -> str:
+    """The `prediction_table` column holding `measure` over `scope`."""
+    return f"{measure.value} ({scope.value})"
+
+
+def prediction_table(scores: Sequence[Score], filled: str) -> pd.DataFrame:
+    """Each arm's classifier on the holdout, fit on the real rows and the arm's added rows.
+
+    One row per arm, the arm named `filled` first and the others in `scores`' order, with a `role`
+    word, then one column per measure of `PREDICTION` and scope; a score the split cannot define
+    stays NaN. It ranks nothing and judges nothing: one split is not E1's verdict.
+    """
+    values: dict[str, dict[str, float]] = {}
+    for s in scores:
+        if s.source is Source.AUGMENTED and s.measure in PREDICTION:
+            values.setdefault(s.arm, {})[prediction_column(s.measure, s.scope)] = s.value
+    arms = [filled] if filled in values else []
+    arms += [arm for arm in values if arm != filled]
+    columns = [prediction_column(m, scope) for scope in Scope for m in PREDICTION]
+    frame = pd.DataFrame.from_dict(values, orient="index").reindex(index=arms, columns=columns)
+    roles = [ROLES[0] if arm == filled else ROLES[1] for arm in arms]
+    return frame.rename_axis("arm").reset_index().assign(role=roles)[["arm", "role", *columns]]
 
 
 def gap_table(analysis: Analysis, definition: Definition) -> pd.DataFrame:
