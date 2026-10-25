@@ -65,11 +65,12 @@ def prediction_column(measure: Measure, scope: Scope) -> str:
 
 
 def prediction_table(scores: Sequence[Score], filled: str) -> pd.DataFrame:
-    """Each arm's classifier on the holdout, fit on the real rows and the arm's added rows.
+    """Each arm's classifier on one holdout: the real rows plus what the arm adds or reweights.
 
-    One row per arm, the arm named `filled` first and the others in `scores`' order, with a `role`
-    word, then one column per measure of `PREDICTION` and scope; a score the split cannot define
-    stays NaN. It ranks nothing and judges nothing: one split is not E1's verdict.
+    `scores` hold one holdout, as `bko.evaluate.run.score_holdout` returns them. One row per arm,
+    the arm named `filled` first and the others in `scores`' order, with a `role` word, then one
+    column per measure of `PREDICTION` and scope; a score the split cannot define stays NaN. It
+    ranks nothing and judges nothing: one split is not E1's verdict.
     """
     values: dict[str, dict[str, float]] = {}
     for s in scores:

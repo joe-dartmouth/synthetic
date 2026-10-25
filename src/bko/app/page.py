@@ -76,8 +76,8 @@ DATASETS: Final = ("UCI Heart Disease",)
 INTRO: Final = (
     "Clinical models fail on groups with too few training records. This page finds where a "
     "dataset is thin, using both record counts and medical knowledge from the MONDO and HPO "
-    "ontologies, fills those groups with synthetic records, and shows whether a heart-disease "
-    "classifier trained with them predicts better than one trained with the usual fixes."
+    "ontologies, fills those groups with synthetic records, and compares a heart-disease "
+    "classifier trained with them against ones trained with the usual fixes, on one split."
 )
 """The page's opening paragraph, for a reader who has not seen the project."""
 
@@ -288,9 +288,9 @@ def _results(analysis: Analysis, outcome: Outcome) -> None:
     st.dataframe(closure_pairs(analysis, outcome), hide_index=True)
     st.subheader("Prediction on the held-out records")
     st.caption(
-        "Each method's classifier, trained on the real training records plus the records it "
-        "added; the flagged subgroups are the test records of every age-sex group holding an "
-        "underrepresented cell. A blank is a measure this split cannot define."
+        "Each method's classifier, trained on the real training records and whatever the method "
+        "adds or reweights; the flagged subgroups are the test records of every age-sex group "
+        "holding an underrepresented cell. A blank is a measure this split cannot define."
     )
     prediction = prediction_table(outcome.scores, outcome.name)
     st.bar_chart(
