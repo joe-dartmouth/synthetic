@@ -13,6 +13,8 @@ from bko.app.runs import call_totals, discover
 from bko.app.steps import Analysis, Outcome, analyze, fill_and_score, scores_csv, training_csv
 from bko.app.views import (
     GAP_COLUMNS,
+    PREDICTION,
+    ROLES,
     TOTALS,
     arm_means,
     balance,
@@ -24,12 +26,15 @@ from bko.app.views import (
     e1_validity,
     gap_counts,
     gap_table,
+    prediction_column,
+    prediction_table,
     role_table,
     score_table,
     status_counts,
     totals_table,
 )
 from bko.baselines.__main__ import render
+from bko.datasets.cells import LABEL_MEANINGS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
 from bko.evaluate.scores import Measure, Scope, Score, Source, parse
@@ -67,6 +72,9 @@ def test_balance_counts_training_records_by_label(analysis):
     table = balance(analysis)
     assert table["count"].sum() == len(analysis.parts.train)
     assert sorted(table["target"]) == sorted(analysis.parts.train["target"].unique())
+    assert table.set_index("target")["meaning"].to_dict() == {
+        code: LABEL_MEANINGS[code] for code in table["target"]
+    }
 
 
 def test_gap_table_lists_each_gap_with_its_labels(analysis):
@@ -141,11 +149,50 @@ def test_the_scores_csv_reads_back(filled):
         assert read.value == kept.value or (math.isnan(read.value) and math.isnan(kept.value))
 
 
-def test_score_table_keeps_only_the_named_source(filled):
+def test_prediction_table_puts_the_filled_arm_first_and_keeps_every_augmented_score(filled):
     _, outcome = filled
-    table = score_table(outcome.scores, Source.AUGMENTED)
-    assert set(table.index.get_level_values("source")) == {"augmented"}
-    assert len(table) < len(score_table(outcome.scores))
+    table = prediction_table(outcome.scores, outcome.name)
+    arms = list(dict.fromkeys(s.arm for s in outcome.scores if s.source is Source.AUGMENTED))
+    assert table["arm"].tolist()[0] == outcome.name
+    assert sorted(table["arm"]) == sorted(arms)
+    assert table["role"].tolist() == [ROLES[0], *[ROLES[1]] * (len(arms) - 1)]
+    columns = [prediction_column(m, scope) for scope in Scope for m in PREDICTION]
+    assert table.columns.tolist() == ["arm", "role", *columns]
+    for s in outcome.scores:
+        if s.source is Source.AUGMENTED and s.measure in PREDICTION:
+            shown = table.set_index("arm").loc[s.arm, prediction_column(s.measure, s.scope)]
+            assert shown == s.value or (math.isnan(shown) and math.isnan(s.value))
+
+
+def test_prediction_table_reads_no_other_source(filled):
+    _, outcome = filled
+    planted = (
+        *outcome.scores,
+        Score(0, "smote", Source.ADDED, Measure.RECALL, Scope.ALL, 99.0),
+        Score(0, "smote", Source.AUGMENTED, Measure.ROWS, Scope.ALL, 99.0),
+    )
+    table = prediction_table(planted, outcome.name)
+    assert 99.0 not in table.drop(columns=["arm", "role"]).to_numpy()
+
+
+def test_prediction_table_names_each_column_by_measure_and_scope_and_keeps_a_nan():
+    scores = (
+        Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.ALL, 0.25),
+        Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.FLAGGED, 0.75),
+        Score(0, "smote", Source.AUGMENTED, Measure.PRECISION, Scope.FLAGGED, math.nan),
+        Score(0, "smote", Source.AUGMENTED, Measure.AUC_PR, Scope.FLAGGED, 0.5),
+    )
+    table = prediction_table(scores, "smote").set_index("arm")
+    named = ["recall (all)", "recall (flagged-subgroups)", "auc-pr (flagged-subgroups)"]
+    assert [table.loc["smote", column] for column in named] == pytest.approx([0.25, 0.75, 0.5])
+    assert pd.isna(table.loc["smote", "precision (flagged-subgroups)"])
+
+
+def test_prediction_table_of_an_arm_with_no_scores_lists_the_others():
+    scores = (Score(0, "none", Source.AUGMENTED, Measure.RECALL, Scope.ALL, 0.5),)
+    table = prediction_table(scores, "bko")
+    assert table["arm"].tolist() == ["none"]
+    assert table["role"].tolist() == [ROLES[1]]
 
 
 def _csv(text: str) -> pd.DataFrame:

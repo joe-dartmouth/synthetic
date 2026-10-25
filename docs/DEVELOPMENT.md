@@ -530,8 +530,9 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
 
 It serves `http://127.0.0.1:8501` until interrupted. The recipe's flags are the app's whole
 configuration: the loopback bind, a fixed port (a second launch fails rather than moving), no
-browser and no first-run prompt, no usage statistics, no file watcher, and no rerun that aborts a
-running action. Launch it only through `make app`; a bare `streamlit run` drops them.
+browser and no first-run prompt, no usage statistics, no file watcher, a toolbar with no deploy
+button, and no rerun that aborts a running action. Launch it only through `make app`; a bare
+`streamlit run` drops them.
 
 - **What it does**: Analyze fetches UCI Heart Disease and the releases the field mappings name into
   the data root if absent, splits the records as [Data](#data) says, and lists the count-based
@@ -539,7 +540,9 @@ running action. Launch it only through `make app`; a bare `streamlit run` drops 
   E1's gap request on that split with the chosen arm, then fits every method of
   `bko.evaluate.experiment.METHOD_ARMS` beside it, CTGAN and TVAE included, and scores them all
   with `bko.evaluate.run.score_holdout`, with no replica fill, so the page shows no fidelity and no
-  train-on-synthetic reading. It lists each definition's gaps before and after the added rows join.
+  train-on-synthetic reading. It charts each arm's recall, overall and on the flagged subgroups,
+  beside a table of its recall, precision and AUC-PR, with every measure behind an expander. It
+  lists each definition's gaps before and after the added rows join.
   Download offers the augmented training set, in the format `python -m bko.baselines` prints, and
   the split's scores, in the format `python -m bko.evaluate score` writes.
 - **What it judges**: a demo fill judges nothing. It shows one split's measures; E1's verdict comes

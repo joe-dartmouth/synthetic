@@ -71,7 +71,7 @@ reproduce:
 # Not part of the gate; a live BKO fill spends money. The flags are the app's whole configuration
 # (ADR research/streamlit-app-design).
 app:
-	uv run --no-sync python -m streamlit run src/bko/app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --runner.fastReruns false --server.fileWatcherType none
+	uv run --no-sync python -m streamlit run src/bko/app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --runner.fastReruns false --server.fileWatcherType none --client.toolbarMode minimal
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final
