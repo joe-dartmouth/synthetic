@@ -116,13 +116,9 @@ def closure_pairs(analysis: Analysis, outcome: Outcome) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=list(PAIR_COLUMNS))
 
 
-def score_table(scores: Sequence[Score], source: Source | None = None) -> pd.DataFrame:
+def score_table(scores: Sequence[Score]) -> pd.DataFrame:
     """One holdout's scores, one row per source, measure and scope and one column per arm."""
-    rows = [
-        (s.source.value, s.measure.value, s.scope.value, s.arm, s.value)
-        for s in scores
-        if source is None or s.source is source
-    ]
+    rows = [(s.source.value, s.measure.value, s.scope.value, s.arm, s.value) for s in scores]
     frame = pd.DataFrame(rows, columns=[*SCORE_INDEX, "arm", "value"])
     return frame.pivot(index=list(SCORE_INDEX), columns="arm", values="value")
 

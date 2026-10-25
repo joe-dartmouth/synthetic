@@ -149,13 +149,6 @@ def test_the_scores_csv_reads_back(filled):
         assert read.value == kept.value or (math.isnan(read.value) and math.isnan(kept.value))
 
 
-def test_score_table_keeps_only_the_named_source(filled):
-    _, outcome = filled
-    table = score_table(outcome.scores, Source.AUGMENTED)
-    assert set(table.index.get_level_values("source")) == {"augmented"}
-    assert len(table) < len(score_table(outcome.scores))
-
-
 def test_prediction_table_puts_the_filled_arm_first_and_keeps_every_augmented_score(filled):
     _, outcome = filled
     table = prediction_table(outcome.scores, outcome.name)
@@ -171,7 +164,7 @@ def test_prediction_table_puts_the_filled_arm_first_and_keeps_every_augmented_sc
             assert shown == s.value or (math.isnan(shown) and math.isnan(s.value))
 
 
-def test_prediction_table_reads_no_other_source_and_keeps_an_undefined_score(filled):
+def test_prediction_table_reads_no_other_source(filled):
     _, outcome = filled
     planted = (
         *outcome.scores,
@@ -180,7 +173,19 @@ def test_prediction_table_reads_no_other_source_and_keeps_an_undefined_score(fil
     )
     table = prediction_table(planted, outcome.name)
     assert 99.0 not in table.drop(columns=["arm", "role"]).to_numpy()
-    assert table.drop(columns=["arm", "role"]).isna().any().any()
+
+
+def test_prediction_table_names_each_column_by_measure_and_scope_and_keeps_a_nan():
+    scores = (
+        Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.ALL, 0.25),
+        Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.FLAGGED, 0.75),
+        Score(0, "smote", Source.AUGMENTED, Measure.PRECISION, Scope.FLAGGED, math.nan),
+        Score(0, "smote", Source.AUGMENTED, Measure.AUC_PR, Scope.FLAGGED, 0.5),
+    )
+    table = prediction_table(scores, "smote").set_index("arm")
+    named = ["recall (all)", "recall (flagged-subgroups)", "auc-pr (flagged-subgroups)"]
+    assert [table.loc["smote", column] for column in named] == pytest.approx([0.25, 0.75, 0.5])
+    assert pd.isna(table.loc["smote", "precision (flagged-subgroups)"])
 
 
 def test_prediction_table_of_an_arm_with_no_scores_lists_the_others():

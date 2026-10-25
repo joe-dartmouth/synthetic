@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import threading
 from typing import BinaryIO
 
+import pyarrow as pa
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -16,6 +18,7 @@ from bko.app.page import (
     CONTEXT_KEY,
     INTRO,
     OUTCOME_KEY,
+    RECALL_COLUMNS,
     STEPS,
     UNFINISHED,
 )
@@ -83,13 +86,17 @@ def test_the_page_opens_with_what_it_does_before_any_click(tmp_path):
     at = launch(app_context(tmp_path, send=never)[0])
     assert INTRO in [block.value for block in at.markdown]
     assert STEPS["gaps"] in [caption.value for caption in at.caption]
+    assert STEPS["fill"] not in [caption.value for caption in at.caption]
 
 
 def test_analyze_shows_the_flagged_cells_and_each_definitions_gaps(tmp_path):
     at = analyzed(app_context(tmp_path, send=never)[0])
     cells = frame_with(at, {"count", "status"})
     assert set(cells.loc[cells["status"] == "underrepresented", "age_band"]) == {"<55"}
+    shown = next(frame for frame in at.dataframe if "status" in frame.value.columns)
+    assert json.loads(shown.proto.columns)["underrepresented"] == {"hidden": True}
     assert len(at.tabs) == len(Definition) + 1
+    assert STEPS["fill"] in [caption.value for caption in at.caption]
 
 
 def test_a_busy_app_refuses_a_second_action(tmp_path):
@@ -189,7 +196,10 @@ def test_a_free_fill_ends_with_closure_scores_and_two_downloads(tmp_path):
     assert any({"none", "smote"} <= set(frame.value.columns) for frame in at.dataframe)
     prediction = frame_with(at, {"arm", "role"})
     assert prediction["arm"].tolist()[0] == "smote"
-    assert len(at.get("vega_lite_chart")) == 1
+    (chart,) = at.get("vega_lite_chart")
+    (drawn,) = (pa.ipc.open_stream(data.data.data).read_pandas() for data in chart.proto.datasets)
+    assert drawn.iloc[:, 0].iloc[0] == "smote"
+    assert sorted(set(drawn.iloc[:, 1])) == sorted(RECALL_COLUMNS)
     assert len(at.get("download_button")) == 2
 
 
