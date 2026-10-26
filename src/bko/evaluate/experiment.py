@@ -51,7 +51,8 @@ class Experiment:
             with no verdict.
         projection_after: The holdouts after which a paid run's spend, scaled to every holdout, is
             read against the ceiling (`bko.evaluate.watch`).
-        idle_limit: The seconds without a completed call after which a paid run stops.
+        idle_limit: The seconds a paid run's call may go without a reply, its retries included,
+            before the run stops.
     """
 
     holdout_seeds: tuple[int, ...]

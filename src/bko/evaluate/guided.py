@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from collections import Counter, defaultdict
 from collections.abc import Callable, Generator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -187,7 +187,7 @@ class GuidedArm:
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
             ceiling: The run's spend in USD at which no further call is made.
-            watch: The run's other stop rules, read before and after each call.
+            watch: The run's other stop rules; each call runs under its idle limit.
         """
         self.name = name
         self.totals = Tally()
@@ -288,20 +288,17 @@ class GuidedArm:
                 # `generate`'s own chunks, one call each, so the ceiling is read before every call.
                 for start in range(0, rows, per_call):
                     self._spendable()
-                    generate(
-                        {cell: min(per_call, rows - start)},
-                        guidance,
-                        send=self._send,
-                        log=self._log,
-                        on_batch=attempt.take,
-                    )
-                    if self._watch is not None:
-                        self._watch.call_done()
+                    with self._watch.call() if self._watch is not None else nullcontext():
+                        generate(
+                            {cell: min(per_call, rows - start)},
+                            guidance,
+                            send=self._send,
+                            log=self._log,
+                            on_batch=attempt.take,
+                        )
 
     def _spendable(self) -> None:
         """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
-        if self._watch is not None:
-            self._watch.before_call()
         spent = self._log.usd
         logger.info("spend usd=%.4f ceiling=%.2f", spent, self._ceiling)
         if spent >= self._ceiling:

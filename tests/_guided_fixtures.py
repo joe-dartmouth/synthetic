@@ -9,6 +9,7 @@ import pandas as pd
 
 from bko.baselines.request import Request, Strata
 from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition
 from bko.gaps.scope import load_scope
 from bko.generate.log import CallLog
@@ -46,6 +47,7 @@ def guided(
     budget: int = 3,
     ceiling: float = 50.0,
     definition: Definition = Definition.SUBGROUP,
+    watch: Watch | None = None,
 ) -> tuple[GuidedArm, CallLog]:
     """A BKO arm and its call log under `directory`; use the log in a `with` block."""
     log = CallLog(directory / "calls.jsonl", SETTINGS)
@@ -57,5 +59,6 @@ def guided(
         log=log,
         budget=budget,
         ceiling=ceiling,
+        watch=watch,
     )
     return arm, log

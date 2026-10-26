@@ -411,6 +411,24 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     ]
 
 
+def test_the_projection_stops_a_live_run_between_holdouts(tmp_path, caplog):
+    send = scripted()
+    ctx, _ = context(send)
+    spent = cost(reply([]).usage, SETTINGS.model)
+    # One holdout spends at least two calls' worth; scaled to two holdouts that reaches four.
+    rules = dataclasses.replace(NARROW, projection_after=1, spend_ceiling=3 * spent)
+    ctx = dataclasses.replace(ctx, experiment=rules)
+    log = tmp_path / "calls.jsonl"
+    out = io.StringIO()
+    caplog.set_level(logging.INFO)
+    assert main(_score(log, tmp_path), context=ctx, out=out) == 2
+    assert out.getvalue() == ""
+    assert len(send.calls) == 2
+    assert _end(log)["status"] == "failed"
+    assert "stop rule=projection" in caplog.text
+    assert "reached its ceiling" not in caplog.text
+
+
 def test_a_failure_mid_run_keeps_the_calls_before_it_in_the_sums(tmp_path, caplog):
     holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
     failure = GenerationError("the API could not be reached: APIConnectionError")

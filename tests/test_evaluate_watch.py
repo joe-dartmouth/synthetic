@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import threading
+import time
 
 import pytest
 
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.run import run
 from bko.evaluate.watch import Watch
-from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Timers, interrupt
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -22,14 +24,6 @@ RULES = dataclasses.replace(
     spend_ceiling=5.0,
     idle_limit=60.0,
 )
-
-
-class Clock:
-    def __init__(self) -> None:
-        self.now = 1000.0
-
-    def __call__(self) -> float:
-        return self.now
 
 
 def test_the_spend_projecting_past_the_ceiling_stops_the_run_with_its_measure(caplog):
@@ -44,12 +38,19 @@ def test_the_spend_projecting_past_the_ceiling_stops_the_run_with_its_measure(ca
 
 
 def test_a_projection_within_the_ceiling_never_fires(caplog):
-    watch = Watch(RULES, lambda: 1.0)
+    watch = Watch(RULES, lambda: 0.9)
     caplog.set_level(logging.INFO)
     for _ in range(10):
         watch.holdout_done()
-    assert "projection holdouts=2 of=10 usd=1.0000 projected_usd=5.0000" in caplog.text
+    assert "projection holdouts=2 of=10 usd=0.9000 projected_usd=4.5000" in caplog.text
     assert "stop rule" not in caplog.text
+
+
+def test_a_projection_at_the_ceiling_fires_as_the_ceiling_would():
+    watch = Watch(RULES, lambda: 1.0)
+    watch.holdout_done()
+    with pytest.raises(EvaluationError, match=r"projects to 5\.0000 USD over 10, reaching"):
+        watch.holdout_done()
 
 
 def test_the_projection_is_read_once_after_the_configured_holdouts():
@@ -61,38 +62,60 @@ def test_the_projection_is_read_once_after_the_configured_holdouts():
     watch.holdout_done()
 
 
-def test_a_replay_is_never_projected():
+def test_a_replay_is_never_projected(caplog):
+    caplog.set_level(logging.INFO)
     watch = Watch(RULES, lambda: 1000.0, projecting=False)
     for _ in range(10):
         watch.holdout_done()
+    assert "stop rules projecting=False projection_after=2 idle_limit_seconds=60.0" in caplog.text
 
 
 def test_a_projection_after_every_holdout_has_nothing_to_scale():
     late = dataclasses.replace(RULES, projection_after=10)
     watch = Watch(late, lambda: 1000.0)
+    assert not watch.projecting
     for _ in range(10):
         watch.holdout_done()
 
 
-def test_no_completed_call_within_the_idle_limit_stops_the_run_with_its_measure(caplog):
-    clock = Clock()
-    watch = Watch(RULES, lambda: 0.0, clock=clock)
+def test_each_call_runs_under_its_own_idle_timer():
+    timers = Timers()
+    watch = Watch(RULES, lambda: 0.0, timers=timers, interrupt=interrupt)
+    for _ in range(3):
+        with watch.call():
+            assert timers.made[-1].started
+            assert not timers.made[-1].cancelled
+    assert [(t.seconds, t.daemon, t.cancelled) for t in timers.made] == [(60.0, True, True)] * 3
+
+
+def test_a_call_with_no_reply_within_the_idle_limit_stops_the_run_with_its_measure(caplog):
+    timers = Timers()
+    watch = Watch(RULES, lambda: 0.0, timers=timers, interrupt=interrupt)
     caplog.set_level(logging.INFO)
-    clock.now += 60
-    watch.before_call()
-    clock.now += 1
-    with pytest.raises(EvaluationError, match="no call completed in 61 s, past the idle limit"):
-        watch.before_call()
-    assert "stop rule=idle idle_seconds=61.0 limit_seconds=60.0" in caplog.text
+    with (
+        pytest.raises(EvaluationError, match="no reply within the idle limit of 60 s"),
+        watch.call(),
+    ):
+        timers.made[-1].action()
+    assert watch.fired
+    assert timers.made[-1].cancelled
+    assert "stop rule=idle limit_seconds=60.0" in caplog.text
 
 
-def test_a_completed_call_restarts_the_idle_clock():
-    clock = Clock()
-    watch = Watch(RULES, lambda: 0.0, clock=clock)
-    for _ in range(5):
-        clock.now += 50
-        watch.before_call()
-        watch.call_done()
+def test_an_interrupt_the_rule_did_not_send_stays_an_interrupt():
+    watch = Watch(RULES, lambda: 0.0, timers=Timers(), interrupt=interrupt)
+    with pytest.raises(KeyboardInterrupt), watch.call():
+        raise KeyboardInterrupt
+
+
+def test_the_idle_timer_interrupts_a_blocked_main_thread():
+    assert threading.current_thread() is threading.main_thread()
+    quick = dataclasses.replace(RULES, idle_limit=0.05)
+    watch = Watch(quick, lambda: 0.0)
+    started = time.monotonic()
+    with pytest.raises(EvaluationError, match="idle limit"), watch.call():
+        time.sleep(30)
+    assert time.monotonic() - started < 10
 
 
 @pytest.mark.parametrize(
