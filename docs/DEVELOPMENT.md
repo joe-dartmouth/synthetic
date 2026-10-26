@@ -122,6 +122,25 @@ keeps its folder; the resumed run takes that id plus `-resume` ([Runs](#runs)):
 Never resume a log that another process still writes. A run stopped at the spend ceiling cannot
 resume, because its first live call refuses again.
 
+**The paid-run protocol.** Every paid run starts with `launch`, which a Runs row cites instead of a
+script:
+
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
+
+It refuses a run id that is not a run of record, a folder that already holds `calls.jsonl`,
+`scores.csv` or `scores.log`, and a machine that reports battery power (`pmset -g batt` on macOS;
+elsewhere it cannot check and records `power=unchecked`). Otherwise it starts `score <run> --log`
+in its own session, held awake by `caffeinate -i` on macOS, with stdout and stderr in the folder's
+`scores.csv` and `scores.log`, records the power reading, the keep-awake and the command in
+`launch.log`, and prints the command that watches the folder (`tail -f runs/<run-id>/scores.log`).
+`--dry-run` writes the folder's roles and starts nothing. The run itself stops, exit 2 with the call
+log ending `failed`, on any of three rules, each logged as `stop rule=<name>` with the measure that
+fired: the spend ceiling (`E1.spend_ceiling`), the projection (the live spend after
+`projection_after` holdouts, scaled to every holdout, past the ceiling; a replay and a resume are
+not projected), and the idle limit (`idle_limit` seconds since the last completed call, read before
+each call, so a call still in flight is bounded by the API client's own timeout).
+`bko.evaluate.watch` holds the rules. The call log is copied off the runner before any replay.
+
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
 refuse an existing log, and `scores.csv` is the only copy `compare` reads. A judged run keeps
 `compare`'s stdout and stderr in its folder:
@@ -497,6 +516,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `calls.jsonl` | the call log of a run that calls the Messages API |
 | `scores.csv` | `python -m bko.evaluate score`'s stdout |
 | `scores.log` | its stderr |
+| `launch.log` | `python -m bko.evaluate launch`'s record of the power reading and command |
 | `criteria.csv` | `python -m bko.evaluate compare`'s stdout |
 | `criteria.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |

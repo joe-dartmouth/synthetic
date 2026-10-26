@@ -79,8 +79,11 @@ def run(
     *,
     factory: Factory = build,
     drains: Mapping[str, Drain] = MappingProxyType({}),
+    on_holdout: Callable[[], None] | None = None,
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `frame`.
+
+    `on_holdout` is called after each holdout, so a caller can stop the run between holdouts.
 
     Raises:
         EvaluationError: If an arm has no runner, no cell needs filling, or a fit does not
@@ -99,6 +102,8 @@ def run(
         scores += score_holdout(parts, experiment, arms, factory=factory, drains=drains)
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
+        if on_holdout is not None:
+            on_holdout()
     return scores
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
-from bko.datasets.fetch import default_data_dir
+from bko.datasets.run_folders import RUN_ID
 
 
 ROLES: Final[Mapping[str, str]] = MappingProxyType(
@@ -22,6 +22,7 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "calls.jsonl": "the call log of a run that calls the Messages API",
         "scores.csv": "`python -m bko.evaluate score`'s stdout",
         "scores.log": "its stderr",
+        "launch.log": "`python -m bko.evaluate launch`'s record of the power reading and command",
         "criteria.csv": "`python -m bko.evaluate compare`'s stdout",
         "criteria.log": "its stderr",
         "candidates.jsonl": "`python -m bko.generate`'s stdout",
@@ -39,24 +40,6 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 """Each artifact's name in a run folder, in reading order, and what writes it."""
-
-RUN_ID: Final = re.compile(
-    r"(?P<entry>[a-z]\d+)-\d+(?:-[a-z]+(?:-\d+)?)?|app-\d{8}T\d{12}Z-[a-z]+(?:-[a-z]+)*",
-    re.ASCII,
-)
-"""A run folder's name: a register run id such as `e1-3` or `c1-2-closure`, or a demo fill's
-`app-<UTC time>-<arm>`. `entry` names the register entry, and is None for a demo fill. Match it
-with `fullmatch`; it is ASCII-only, since a match becomes a path."""
-
-
-def runs_root() -> Path:
-    """`runs/` at the repository root.
-
-    Raises:
-        UnavailableError: As `default_data_dir`, outside a checkout.
-    """
-    return default_data_dir().parent / "runs"
-
 
 TAIL: Final = 1 << 16
 """Bytes read from a call log's end to find its `end` line; paid logs run to hundreds of MB."""

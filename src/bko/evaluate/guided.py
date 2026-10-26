@@ -33,6 +33,7 @@ from bko.bkb.structure import BKB
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, Experiment
 from bko.evaluate.scores import Measure
+from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, record_cells
 from bko.generate.calls import Batch, generate
@@ -174,6 +175,7 @@ class GuidedArm:
         log: CallLog,
         budget: int,
         ceiling: float,
+        watch: Watch | None = None,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
 
@@ -185,6 +187,7 @@ class GuidedArm:
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
             ceiling: The run's spend in USD at which no further call is made.
+            watch: The run's other stop rules, read before and after each call.
         """
         self.name = name
         self.totals = Tally()
@@ -194,6 +197,7 @@ class GuidedArm:
         self._log = log
         self._budget = budget
         self._ceiling = ceiling
+        self._watch = watch
         self._pending = Tally()
 
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
@@ -291,9 +295,13 @@ class GuidedArm:
                         log=self._log,
                         on_batch=attempt.take,
                     )
+                    if self._watch is not None:
+                        self._watch.call_done()
 
     def _spendable(self) -> None:
         """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
+        if self._watch is not None:
+            self._watch.before_call()
         spent = self._log.usd
         logger.info("spend usd=%.4f ceiling=%.2f", spent, self._ceiling)
         if spent >= self._ceiling:
@@ -308,10 +316,12 @@ class GuidedRun:
     Attributes:
         log: The call log every arm writes.
         arms: Each BKO arm, by name.
+        watch: The run's stop rules, which the harness calls after each holdout.
     """
 
     log: CallLog
     arms: Mapping[str, GuidedArm]
+    watch: Watch
 
 
 @contextmanager
@@ -341,6 +351,7 @@ def guided_arms(
     answered = None if answers is None else answers.answered
     with CallLog(log, settings, answered=answered, now=now) as call_log:
         sender = answers if answers is not None else send()
+        watch = Watch(experiment, lambda: call_log.live_usd, projecting=answers is None)
         arms = {
             name: GuidedArm(
                 name,
@@ -350,11 +361,12 @@ def guided_arms(
                 log=call_log,
                 budget=experiment.budget,
                 ceiling=experiment.spend_ceiling,
+                watch=watch,
             )
             for name in names
         }
         try:
-            yield GuidedRun(call_log, MappingProxyType(arms))
+            yield GuidedRun(call_log, MappingProxyType(arms), watch)
             if answers is not None and answers.remaining:
                 msg = f"{answers.remaining} logged calls were not replayed"
                 raise ReplayError(msg)

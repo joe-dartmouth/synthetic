@@ -49,6 +49,9 @@ class Experiment:
         spend_ceiling: The call log's spend in USD at which a run stops.
         criteria: The criteria `compare` judges, of `CRITERION_NAMES`; none reports every measure
             with no verdict.
+        projection_after: The holdouts after which a paid run's spend, scaled to every holdout, is
+            read against the ceiling (`bko.evaluate.watch`).
+        idle_limit: The seconds without a completed call after which a paid run stops.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -65,6 +68,8 @@ class Experiment:
     validity: Fraction = Fraction(19, 20)
     spend_ceiling: float = 25.0
     criteria: tuple[str, ...] = CRITERION_NAMES
+    projection_after: int = 5
+    idle_limit: float = 900.0
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -74,8 +79,9 @@ class Experiment:
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
                 arm, a replica arm adds no rows, the candidate is not an arm or is among its
                 comparators, the confidence is not in (0, 1), there is no attempt, the budget is
-                below 1, the validity is not in (0, 1], the spend ceiling is not above 0 USD, or a
-                criterion is unknown or named twice.
+                below 1, the validity is not in (0, 1], the spend ceiling is not above 0 USD, a
+                criterion is unknown or named twice, the projection is not read after at least one
+                holdout, or the idle limit is not above 0 seconds.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -122,6 +128,15 @@ class Experiment:
             CRITERION_NAMES
         ):
             msg = f"criteria {self.criteria} must be distinct names among {CRITERION_NAMES}"
+            raise ValueError(msg)
+        self._check_stop_rules()
+
+    def _check_stop_rules(self) -> None:
+        if self.projection_after < 1:
+            msg = f"projection after {self.projection_after} holdouts: read it after one at least"
+            raise ValueError(msg)
+        if not self.idle_limit > 0:
+            msg = f"idle limit {self.idle_limit} must be above 0 seconds"
             raise ValueError(msg)
 
 
