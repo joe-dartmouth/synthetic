@@ -100,3 +100,32 @@ def test_every_code_in_the_spec_makes_a_case(population):
 def test_a_whole_population_spec_that_matches_nothing_says_so(population):
     with pytest.raises(DatasetError, match=r"0 patients have \['999'\], none in the population$"):
         ablate(population, AblationSpec(codes=frozenset({"999"}), age_band=None, sex=None))
+
+
+def test_a_fraction_removes_that_share_of_the_cases_rounded_up(population):
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=0.5)
+    assert len(ablate(population, spec).removed) == 2
+    tiny = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=0.01)
+    assert len(ablate(population, tiny).removed) == 1
+
+
+def test_a_fractions_draw_is_seeded_sorted_and_a_subset_of_the_cases(population):
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=0.5, seed=3)
+    first, again = ablate(population, spec), ablate(population, spec)
+    assert list(first.removed) == list(again.removed)
+    assert list(first.removed) == sorted(first.removed)
+    assert set(first.removed) <= {"p1", "p2", "p3"}
+    kept = set(first.kept.patients.index)
+    assert kept.isdisjoint(first.removed)
+    assert kept | set(first.removed) == set(population.patients.index)
+
+
+def test_a_fraction_of_one_removes_every_case(population):
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=1.0, seed=9)
+    assert list(ablate(population, spec).removed) == ["p1", "p2", "p3"]
+
+
+@pytest.mark.parametrize("fraction", [0, -0.5, 1.5])
+def test_a_fraction_outside_zero_to_one_is_refused(population, fraction):
+    with pytest.raises(DatasetError, match="fraction"):
+        ablate(population, AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction))

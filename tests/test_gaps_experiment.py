@@ -14,7 +14,16 @@ from bko.datasets.synthea_run import DEFAULT_RUN
 from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, ontology_fragments
 from bko.gaps.errors import GapError
-from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, Recovery, recovery, run_ablation
+from bko.gaps.experiment import (
+    E2_ABLATIONS,
+    E2_RUN,
+    REMOVED_FRACTIONS,
+    Detection,
+    Recovery,
+    detection,
+    recovery,
+    run_ablation,
+)
 from bko.ontology.obo import parse_obo
 from bko.ontology.terms import Ontology
 from tests._datasets_fixtures import condition, patient, synthea_tables
@@ -66,8 +75,35 @@ def test_recovery_with_nothing_eligible_reads_zero_of_zero():
     assert recovery(before={"a"}, after={"a"}, truth={"a"}) == Recovery(1, 0, 0, 0, 0, 0)
 
 
+def test_detection_reads_sensitivity_and_specificity_against_the_truth():
+    reading = detection(
+        before={"a"}, after={"a", "b", "x"}, truth={"a", "b", "c", "d"}, universe=set("abcdexyz")
+    )
+    # eligible b, c, d (a was flagged before); only b recovered; outside e, x, y, z, with x new
+    assert reading == Detection(sensitivity=1 / 3, specificity=0.75)
+
+
+def test_detection_with_nothing_eligible_or_outside_reads_none():
+    assert detection(before={"a"}, after={"a"}, truth={"a"}, universe={"a"}) == Detection(
+        None, None
+    )
+
+
 def test_e2_removes_one_cell_then_the_whole_condition_from_the_default_population():
-    assert list(E2_ABLATIONS) == ["cell", "condition"]
+    assert list(E2_ABLATIONS) == [
+        "cell",
+        "condition",
+        *(
+            f"{name}-{round(fraction * 100)}"
+            for name in ("cell", "condition")
+            for fraction in REMOVED_FRACTIONS
+        ),
+    ]
+    assert REMOVED_FRACTIONS == (0.25, 0.5, 0.75)
+    for name in ("cell", "condition"):
+        for fraction in REMOVED_FRACTIONS:
+            partial = E2_ABLATIONS[f"{name}-{round(fraction * 100)}"]
+            assert partial == dataclasses.replace(E2_ABLATIONS[name], fraction=fraction)
     assert E2_ABLATIONS["cell"] == DEFAULT_ABLATION
     condition = E2_ABLATIONS["condition"]
     assert (condition.codes, condition.age_band, condition.sex, condition.edges) == (
@@ -195,3 +231,23 @@ def test_a_gap_off_the_ablations_grid_is_refused(tmp_path, mondo):
     broken = dataclasses.replace(run, after={**run.after, Definition.SUBGROUP: (stray,)})
     with pytest.raises(GapError, match="the cell ablation lists gaps off its grid: <40/male"):
         broken.listed(Definition.SUBGROUP)
+
+
+def test_a_partial_cell_removal_is_seen_by_the_count_and_not_by_grounding(tmp_path, mondo):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", E2_POPULATION)
+    half = dataclasses.replace(CELL, fraction=0.5)
+    run = run_ablation("cell-50", people, half, fragments, [ISCHEMIA])
+    assert len(run.ablation.removed) == 10
+    # Ten men of the cell still ground every statement, so no definition flags it anew.
+    assert run.detection(Definition.SUBGROUP) == Detection(sensitivity=0.0, specificity=1.0)
+    assert run.detection(Definition.POPULATION).sensitivity == pytest.approx(0.0)
+    # The cell's count fell from the threshold to ten, which the count flags.
+    assert run.count_detection == Detection(sensitivity=1.0, specificity=1.0)
+
+
+def test_a_full_removal_reads_full_sensitivity_for_grounding(tmp_path, mondo):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", E2_POPULATION)
+    run = run_ablation("cell", people, CELL, fragments, [ISCHEMIA])
+    assert run.detection(Definition.SUBGROUP) == Detection(sensitivity=1.0, specificity=1.0)
