@@ -109,6 +109,10 @@ nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/
     mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
     uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
 
+Each command takes an optional run name before its other arguments, as in `score <run> --log ...`
+and `compare <run> runs/<run-id>/scores.csv`; the default is `e1`. A named run is a value of
+`bko.evaluate.experiment.RUNS`, and its folder under `runs/` is named for it, as `<run>-<n>`.
+
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log`. The stopped run
 keeps its folder; the resumed run takes that id plus `-resume` ([Runs](#runs)):
@@ -174,7 +178,8 @@ refuse an existing log, and `scores.csv` is the only copy `compare` reads. A jud
   counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, and a
   `replica` line per replica arm, measure and scope. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **Where the configuration lives**: `bko.evaluate.experiment.E1`; no flag changes a value;
+- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1`;
+  no flag changes a value;
   `--log`, `--replay` and `--resume` choose where calls are recorded and answered from, never a
   value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that

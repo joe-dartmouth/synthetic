@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-22
+updated: 2026-10-26
 ---
 # E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
 
@@ -36,7 +36,13 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
   value: `score --log`, `--replay` and `--resume` choose where calls are recorded and answered
   from, and `compare --candidate` judges another arm as
-  a dry run, never as E1's verdict.
+  a dry run, never as E1's verdict. A variant is a named run: `bko.evaluate.experiment.RUNS` maps a
+  run name to its `Experiment` and generator `Settings`, `e1` being `E1` at `SETTINGS` and the
+  default, and `score` and `compare` take the name as a positional. A named run is a value fixed in
+  code and committed, so it replays at its commit as E1 does, and the name does not reopen the
+  ruled-out flags: no flag sets a reading, a holdout count or a setting. A run lists its own
+  `criteria`, which may be none, and `compare` judges only those, reporting every measure beside
+  them; a run with none is reported with no verdict.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same

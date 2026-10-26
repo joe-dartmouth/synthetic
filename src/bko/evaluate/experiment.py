@@ -18,6 +18,11 @@ from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
+from bko.generate.messages import SETTINGS, Settings
+
+
+CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
+"""The criteria `compare` can judge, by name; `docs/EVIDENCE.md` (E1) states how each is read."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +47,8 @@ class Experiment:
         budget: The records a BKO arm's attempt may ask for, as a multiple of the request's rows.
         validity: The share of generated candidates that must pass every check, read as a point.
         spend_ceiling: The call log's spend in USD at which a run stops.
+        criteria: The criteria `compare` judges, of `CRITERION_NAMES`; none reports every measure
+            with no verdict.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -57,6 +64,7 @@ class Experiment:
     budget: int = 3
     validity: Fraction = Fraction(19, 20)
     spend_ceiling: float = 25.0
+    criteria: tuple[str, ...] = CRITERION_NAMES
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -66,7 +74,8 @@ class Experiment:
                 `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
                 arm, a replica arm adds no rows, the candidate is not an arm or is among its
                 comparators, the confidence is not in (0, 1), there is no attempt, the budget is
-                below 1, the validity is not in (0, 1], or the spend ceiling is not above 0 USD.
+                below 1, the validity is not in (0, 1], the spend ceiling is not above 0 USD, or a
+                criterion is unknown or named twice.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -109,6 +118,11 @@ class Experiment:
         if not self.spend_ceiling > 0:
             msg = f"spend ceiling {self.spend_ceiling} must be above 0 USD"
             raise ValueError(msg)
+        if len(set(self.criteria)) != len(self.criteria) or not set(self.criteria) <= set(
+            CRITERION_NAMES
+        ):
+            msg = f"criteria {self.criteria} must be distinct names among {CRITERION_NAMES}"
+            raise ValueError(msg)
 
 
 HOLDOUTS: Final = 100
@@ -134,6 +148,28 @@ E1: Final = Experiment(
     replica_arms=(*(method.value for method in Method if method.adds_rows), *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
+
+
+@dataclass(frozen=True, slots=True)
+class NamedRun:
+    """One run of the harness, fixed in code and selected by name.
+
+    Attributes:
+        experiment: What the run fixes before it starts.
+        settings: How its generator calls are made; the call log records them.
+    """
+
+    experiment: Experiment
+    settings: Settings = SETTINGS
+
+
+DEFAULT_RUN: Final = "e1"
+"""The run `score` and `compare` take when none is named."""
+
+RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType({DEFAULT_RUN: NamedRun(E1)})
+"""Every named run, by name: `e1` is `E1` at `SETTINGS`. A variant adds its own entry in its own
+change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and
+criteria."""
 
 
 def flagged(train: pd.DataFrame, experiment: Experiment) -> tuple[Stratum, ...]:

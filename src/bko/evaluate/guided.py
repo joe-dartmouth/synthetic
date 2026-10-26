@@ -39,7 +39,7 @@ from bko.generate.calls import Batch, generate
 from bko.generate.errors import ReplayError
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
-from bko.generate.messages import SETTINGS, Send
+from bko.generate.messages import SETTINGS, Send, Settings
 from bko.generate.replay import Replay
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
@@ -320,6 +320,7 @@ def guided_arms(
     knowledge: Knowledge,
     experiment: Experiment,
     *,
+    settings: Settings = SETTINGS,
     log: Path,
     send: Callable[[], Send],
     answers: Replay | None = None,
@@ -338,7 +339,7 @@ def guided_arms(
         FileExistsError: If `log` exists.
     """
     answered = None if answers is None else answers.answered
-    with CallLog(log, SETTINGS, answered=answered, now=now) as call_log:
+    with CallLog(log, settings, answered=answered, now=now) as call_log:
         sender = answers if answers is not None else send()
         arms = {
             name: GuidedArm(
