@@ -2,7 +2,7 @@
 id: evaluate-dose-response
 title: Fill above the threshold
 status: blocked
-depends_on: evaluate-e1-second-configuration, evaluate-named-runs
+depends_on: evaluate-e1-second-configuration
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -30,12 +30,12 @@ direction.
   [`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting) and decides
   the flagged subgroups, and a fill target each flagged cell is filled up to, the threshold by
   default; a test pins that `E1`'s flagged set and requests are unchanged.
-- Two named runs (`evaluate-named-runs`) on the judged configuration, targets 30 and 40, each with
+- Two named runs (`bko.evaluate.experiment.RUNS`) on the judged configuration, targets 30 and 40, each with
   the baselines and the `bko` arm, its gap and replica fills live, since replay pairs calls by
   order and a changed gap request differs at the first call. Spend estimate per run: one arm's
   share of the judged run's spend, its gap-fill part scaled by the rows the target asks over the
   rows the threshold asks, stated in the Runs row before the run, under the run's ceiling and the
-  protocol of `evaluate-run-protocol`.
+  paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - Per target: each arm's measures, each contrast's corrected interval, validity, drops, privacy and
   test copies, in a new `docs/EVIDENCE.md` entry that reads the judged run as the target-20 point.
 

@@ -1,8 +1,8 @@
 ---
 id: detect-graded-grounding
 title: Graded grounding and the frequency-aware level
-status: blocked
-depends_on: detect-partial-removal
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Partiban
@@ -22,8 +22,7 @@ and on UCI most of what they flag sits in the 2-record cell that counts already 
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e2-synthea-gap-detection-ablation), the `uci` reading).
 The frequency-aware rule flags at posterior mass 0.95, and two UCI flags sat within 0.003 of that
 level. Neither the grounding count nor the level has been varied, and
-[`detect-partial-removal`](detect-partial-removal.md) supplies the truth that makes varying them
-measurable.
+E2's fraction ablations (`e2-7`) supply the truth that makes varying them measurable.
 
 ## Scope
 
@@ -36,7 +35,7 @@ measurable.
 - A sweep over `k` in 1, 2, 3 and 5 and over the level in 0.90, 0.95 and 0.99, read against the
   partial-removal truth at every fraction of both ablations, and listed on the UCI default
   training split; per setting and detector, sensitivity and specificity as
-  `detect-partial-removal` defines them.
+  E2 defines them (`bko.gaps.experiment.detection`).
 - The rule that picks the reported default, stated here before the sweep runs: for the
   frequency-aware definition on the `cell` ablation, the level with the highest specificity among
   those whose sensitivity at fraction 0.5 is at least the count-based detector's, the lower level

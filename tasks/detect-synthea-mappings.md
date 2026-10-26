@@ -1,8 +1,8 @@
 ---
 id: detect-synthea-mappings
 title: Map more Synthea conditions to MONDO
-status: blocked
-depends_on: detect-partial-removal
+status: ready
+depends_on: --
 blocks: evaluate-synthea-downstream
 parallel_safe: true
 owner: Partiban
@@ -22,9 +22,7 @@ pair count in its Result is a multiple of 9, the `cell` ablation is one cell's d
 frequency-aware score has nothing to be wrong about
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e2-synthea-gap-detection-ablation), Limits). A richer
 scope gives every detector pairs outside the truth to flag or not, and the Synthea downstream
-experiment needs the same concepts as features. It lands after
-[`detect-partial-removal`](detect-partial-removal.md), which rewrites the same E2 entry and
-`bko.gaps.experiment`.
+experiment needs the same concepts as features.
 
 ## Scope
 

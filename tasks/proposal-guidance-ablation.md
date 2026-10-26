@@ -1,8 +1,8 @@
 ---
 id: proposal-guidance-ablation
 title: Guidance-level ablation of record generation
-status: blocked
-depends_on: evaluate-named-runs, evaluate-run-protocol
+status: ready
+depends_on: --
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley
@@ -36,10 +36,9 @@ spreads; `profile` and `summary` add them, so which level E1 runs is this unit's
 **In.**
 
 - One named run per level of `bko.generate.messages.Level` other than `ontology`
-  (`evaluate-named-runs`), each with the baselines and the `bko` arm at `SETTINGS` otherwise
+  (`bko.evaluate.experiment.RUNS`), each with the baselines and the `bko` arm at `SETTINGS` otherwise
   unchanged, Haiku 5.5 settings and the replica fill included, so the level is the only difference
-  from E1's judged run, which is level `ontology` itself. Each run under the protocol of
-  `evaluate-run-protocol`, with a spend estimate before it of one arm's share of the judged run's
+  from E1's judged run, which is level `ontology` itself. Each run under the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation), with a spend estimate before it of one arm's share of the judged run's
   spend ([`experiments-index.md`](experiments-index.md#spend)).
 - Read `cell` and `coherent` as the no-ontology controls: among the components every level sends
   (ADR [`research/record-generation-design`](../docs/adr/research/record-generation-design.md)),
