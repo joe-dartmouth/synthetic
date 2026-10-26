@@ -192,6 +192,8 @@ def judge(
     ratio = _ratio(series)
     contrasts: list[Contrast] = []
     for name, scope in CRITERIA:
+        if name not in experiment.criteria:
+            continue
         pairs = [
             (
                 Key(arm, Source.AUGMENTED, measure, scope),
@@ -211,6 +213,8 @@ def judge(
             margin=experiment.margin,
             confidence=experiment.confidence,
         )
+    if "privacy" not in experiment.criteria:
+        return contrasts
     privacy = [
         (
             Key(arm, Source.ADDED, Measure.DCR_P5, Scope.ALL),

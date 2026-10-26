@@ -32,7 +32,7 @@ import platform
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Final, TextIO
 
@@ -49,7 +49,7 @@ from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.criteria import JUDGED, judge, table
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
-from bko.evaluate.experiment import BKO_ARMS, E1, Experiment
+from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.run import ARMS, run
@@ -59,7 +59,7 @@ from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.errors import GenerationError
-from bko.generate.messages import Send
+from bko.generate.messages import SETTINGS, Send, Settings
 from bko.generate.replay import Replay, Resume
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
@@ -89,7 +89,9 @@ class Context:
     Attributes:
         open_url: The HTTPS opener.
         uci: The pinned UCI archive.
-        experiment: The configuration `score` runs and `compare` judges by.
+        experiment: The configuration the run named `e1` is; every other name reads `runs`.
+        settings: The generator settings of the run named `e1`.
+        runs: Every other named run, by name.
         arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
             the API.
         factory: Builds the unfitted classifier.
@@ -101,6 +103,8 @@ class Context:
     open_url: UrlOpener = open_https
     uci: Source = UCI_HEART_DISEASE
     experiment: Experiment = E1
+    settings: Settings = SETTINGS
+    runs: Mapping[str, NamedRun] = RUNS
     arms: Mapping[str, Runner] = ARMS
     factory: Factory = build
     releases: Mapping[str, Source] = RELEASES
@@ -131,6 +135,7 @@ def main(
     args = _parser().parse_args(argv)
     sink = out or sys.stdout
     try:
+        context = _named(args.run, context)
         if args.command == "compare":
             _compare(args, context, sink)
             return 0
@@ -144,6 +149,23 @@ def main(
         return 2
     sink.write(text)
     return 0
+
+
+def _named(name: str, context: Context) -> Context:
+    """`context` with the experiment and settings of the run `name`.
+
+    `e1` is the context's own experiment and settings, so a test can stand in for it.
+
+    Raises:
+        EvaluationError: If no run has that name.
+    """
+    if name == DEFAULT_RUN:
+        return context
+    run = context.runs.get(name)
+    if run is None:
+        msg = f"no run named {name!r}; the runs are {', '.join(sorted(context.runs))}"
+        raise EvaluationError(msg)
+    return replace(context, experiment=run.experiment, settings=run.settings)
 
 
 def configure_logging() -> None:
@@ -179,7 +201,7 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
-    _log_experiment(experiment)
+    _log_experiment(args.run, experiment)
     if guided:
         scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
@@ -206,10 +228,11 @@ def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
     return resume
 
 
-def _log_experiment(experiment: Experiment) -> None:
+def _log_experiment(name: str, experiment: Experiment) -> None:
     logger.info(
-        "experiment holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
-        "spend_ceiling=%.2f",
+        "experiment run=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
+        "spend_ceiling=%.2f criteria=%s",
+        name,
         len(experiment.holdout_seeds),
         ",".join(experiment.arms),
         ",".join(experiment.replica_arms),
@@ -217,6 +240,7 @@ def _log_experiment(experiment: Experiment) -> None:
         experiment.budget,
         experiment.validity,
         experiment.spend_ceiling,
+        ",".join(experiment.criteria) or "none",
     )
     commit, dirty = _commit()
     logger.info(
@@ -246,7 +270,13 @@ def _guided(
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
     with guided_arms(
-        names, knowledge, experiment, log=args.log, send=context.send, answers=answers
+        names,
+        knowledge,
+        experiment,
+        settings=context.settings,
+        log=args.log,
+        send=context.send,
+        answers=answers,
     ) as paid:
         return run(
             frame,
@@ -295,7 +325,12 @@ def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: st
     arms = reported(scores)
     if candidate in BKO_ARMS or candidate in arms:
         found = validity(scores, experiment, candidate)
-        logger.info("criterion=validity verdict=%s %s", verdict(found, experiment), found.line())
+        if "validity" in experiment.criteria:
+            logger.info(
+                "criterion=validity verdict=%s %s", verdict(found, experiment), found.line()
+            )
+        else:
+            logger.info("validity %s", found.line())
         _log_fills(found)
     for arm in arms:
         if arm != candidate:
@@ -392,6 +427,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m bko.evaluate", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     scoring = commands.add_parser("score", help="score every arm on every holdout")
+    scoring.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     scoring.add_argument(
         "--data-dir",
         type=Path,
@@ -421,6 +457,7 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
+    comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
     comparing.add_argument(
         "--candidate", default=None, help="the row-adding arm judged; default: the experiment's own"

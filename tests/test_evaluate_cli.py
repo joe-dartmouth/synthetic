@@ -24,6 +24,7 @@ from bko.evaluate.__main__ import (
     main,
 )
 from bko.evaluate.criteria import CONTRAST_COLUMNS
+from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
@@ -279,3 +280,67 @@ def test_compare_logs_every_replica_arms_utility_and_fidelity_means(scores_file,
     }
     assert expected
     assert {m for m in caplog.messages if m.startswith("replica ")} == expected
+
+
+def test_the_default_run_is_e1_at_the_generators_settings():
+    assert DEFAULT_RUN == "e1"
+    assert RUNS["e1"] == NamedRun(E1)
+
+
+def test_score_e1_writes_the_bytes_score_writes(tmp_path):
+    data = archive(TEXT)
+    plain, named = io.StringIO(), io.StringIO()
+    context = Context(open_url=FakeOpener(data), uci=pin(data), experiment=SCORED, arms=FAST_ARMS)
+    assert main(["score", "--data-dir", str(tmp_path)], context=context, out=plain) == 0
+    assert main(["score", "e1", "--data-dir", str(tmp_path)], context=context, out=named) == 0
+    assert named.getvalue() == plain.getvalue()
+
+
+def test_a_named_run_without_criteria_scores_and_compares_with_no_verdict(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    quiet = dataclasses.replace(SCORED, criteria=())
+    data = archive(TEXT)
+    context = Context(
+        open_url=FakeOpener(data),
+        uci=pin(data),
+        runs={"quiet": NamedRun(quiet)},
+        arms=FAST_ARMS,
+    )
+    out = io.StringIO()
+    assert main(["score", "quiet", "--data-dir", str(tmp_path)], context=context, out=out) == 0
+    scored = tmp_path / "quiet.csv"
+    scored.write_text(out.getvalue(), encoding="utf-8")
+    compared = io.StringIO()
+    with caplog.at_level(logging.INFO):
+        code = main(
+            ["compare", "quiet", str(scored), "--candidate", "tvae"], context=context, out=compared
+        )
+    assert code == 0
+    assert list(pd.read_csv(io.StringIO(compared.getvalue()))["criterion"]) == []
+    assert "run=quiet" in caplog.text
+    assert "criteria=none" in caplog.text
+    assert "criterion=" not in caplog.text
+
+
+def test_an_unknown_run_name_exits_two_naming_the_runs(tmp_path, caplog):
+    out = io.StringIO()
+    with caplog.at_level(logging.ERROR):
+        assert main(["score", "nope", "--data-dir", str(tmp_path)], out=out) == 2
+    assert "no run named 'nope'" in caplog.text
+    assert "e1" in caplog.text
+    assert out.getvalue() == ""
+
+
+def test_criteria_are_distinct_known_names():
+    assert CRITERION_NAMES == ("primary", "secondary", "privacy", "validity")
+    for bad in (("nope",), ("primary", "primary")):
+        with pytest.raises(ValueError, match="criteria"):
+            dataclasses.replace(SMALL, criteria=bad)
+
+
+def test_a_run_naming_only_privacy_judges_only_privacy(scores_file):
+    only = dataclasses.replace(SMALL, criteria=("privacy",))
+    out = io.StringIO()
+    context = Context(experiment=only)
+    assert main(["compare", str(scores_file), "--candidate", "tvae"], context=context, out=out) == 0
+    assert list(dict.fromkeys(pd.read_csv(io.StringIO(out.getvalue()))["criterion"])) == ["privacy"]
