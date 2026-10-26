@@ -20,7 +20,7 @@ with the removal, so its gaps can vanish.
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Final
 
@@ -32,7 +32,7 @@ from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population
 from bko.datasets.synthea_run import DEFAULT_RUN
 from bko.gaps.definitions import Definition, StatementGap, gaps
-from bko.gaps.detect import CellGap, Statement, count_gaps, grounded
+from bko.gaps.detect import CellGap, Statement, count_gaps, grounded, represent, statements
 from bko.gaps.errors import GapError
 from bko.gaps.observe import Cell, Cells, cell_key, dataset_fragment, population_cells
 from bko.ontology.schema import CodeMapping
@@ -44,16 +44,26 @@ SYNTHEA: Final = "synthea"
 E2_RUN: Final = DEFAULT_RUN
 """The population E2 reads."""
 
+_CONDITION: Final = AblationSpec(codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band=None, sex=None)
+
+REMOVED_FRACTIONS: Final = (0.25, 0.5, 0.75)
+"""The shares of a cell's or the condition's cases a partial ablation removes, besides all."""
+
 E2_ABLATIONS: Final[Mapping[str, AblationSpec]] = MappingProxyType(
     {
         "cell": DEFAULT_ABLATION,
-        "condition": AblationSpec(
-            codes=frozenset({ISCHEMIC_HEART_DISEASE}), age_band=None, sex=None
-        ),
+        "condition": _CONDITION,
+        **{
+            f"{name}-{round(fraction * 100)}": replace(spec, fraction=fraction)
+            for name, spec in (("cell", DEFAULT_ABLATION), ("condition", _CONDITION))
+            for fraction in REMOVED_FRACTIONS
+        },
     }
 )
 """E2's ablations, in report order: one cell, whose statements other patients' records still ground
-for population-level grounding, and the whole condition, whose statements they do not."""
+for population-level grounding, and the whole condition, whose statements they do not, each removing
+every case, then each removing 25, 50 and 75% of its cases, named `cell-25`, `condition-75` and so
+on. A fraction below 1 removes the first cases of a draw seeded by the spec's seed."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +103,42 @@ def recovery(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class Detection:
+    """One detector's sensitivity and specificity for one removal.
+
+    Attributes:
+        sensitivity: The share of the eligible truth gaps recovered; `None` when none is eligible.
+        specificity: The share of the items outside the truth that the removal left unflagged
+            anew; `None` when every item lies inside the truth.
+    """
+
+    sensitivity: float | None
+    specificity: float | None
+
+
+def detection(
+    before: Iterable[Hashable],
+    after: Iterable[Hashable],
+    truth: Iterable[Hashable],
+    universe: Iterable[Hashable],
+) -> Detection:
+    """Read one detector's sensitivity and specificity for one removal.
+
+    Sensitivity is the share of the truth gaps absent before the removal that are present after
+    it. Specificity is the share of the items of `universe` outside the truth that are not newly
+    flagged: absent before and present after.
+    """
+    was, now, true = set(before), set(after), set(truth)
+    eligible = true - was
+    outside = set(universe) - true
+    new = (now - was) & outside
+    return Detection(
+        sensitivity=len(eligible & now) / len(eligible) if eligible else None,
+        specificity=1 - len(new) / len(outside) if outside else None,
+    )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class AblationRun:
     """One ablation, read by every gap definition and the count-based detector.
@@ -109,6 +155,7 @@ class AblationRun:
         count_before: The underrepresented cells before the removal.
         count_after: Those after it.
         count_truth: The cells whose count fell, in grid order.
+        statements: Every ontology statement, the statements a cell can be a gap for.
     """
 
     name: str
@@ -121,6 +168,7 @@ class AblationRun:
     count_before: tuple[CellGap, ...]
     count_after: tuple[CellGap, ...]
     count_truth: tuple[tuple[str, str, int], ...]
+    statements: tuple[Statement, ...]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "before", MappingProxyType(dict(self.before)))
@@ -129,6 +177,15 @@ class AblationRun:
     def reading(self, definition: Definition) -> Recovery:
         """`definition`'s reading of the removal."""
         return recovery(self.before[definition], self.after[definition], self.truth)
+
+    def detection(self, definition: Definition) -> Detection:
+        """`definition`'s sensitivity and specificity, over every (cell, statement) pair."""
+        universe = (
+            StatementGap(cell, statement)
+            for cell in self.before_cells.each
+            for statement in self.statements
+        )
+        return detection(self.before[definition], self.after[definition], self.truth, universe)
 
     def listed(self, definition: Definition) -> tuple[StatementGap, ...]:
         """`definition`'s gaps before or after the removal and the truth, in grid order.
@@ -147,6 +204,17 @@ class AblationRun:
             StatementGap(cell, statement)
             for cell in self.before_cells.each
             for statement in sorted(by_cell.get(cell, ()))
+        )
+
+    @property
+    def count_detection(self) -> Detection:
+        """The count-based detector's sensitivity and specificity, over every age-sex-label cell."""
+        grid = self.ablation.before[list(CELL_COLUMNS)].itertuples(index=False, name=None)
+        return detection(
+            (gap.cell for gap in self.count_before),
+            (gap.cell for gap in self.count_after),
+            self.count_truth,
+            ((str(band), str(sex), int(target)) for band, sex, target in grid),
         )
 
     @property
@@ -202,6 +270,7 @@ def run_ablation(
         count_before=count_gaps(ablation.before),
         count_after=count_gaps(ablation.after),
         count_truth=_fallen(ablation.before, ablation.after),
+        statements=statements(represent(fragments, dataset_fragment(before.whole))),
     )
 
 

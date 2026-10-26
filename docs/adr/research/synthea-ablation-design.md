@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-17
+updated: 2026-10-26
 ---
 # The Synthea ablation: a pinned generated population, with whole patients removed
 
@@ -40,7 +40,7 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
 - **A case is a patient**: the ablation removes every patient who has one of the spec's condition
   codes by the snapshot date, with all their condition rows. The spec narrows the cases to one age
   band, one sex, both, or neither; neither removes the condition from the whole population.
-- **Removal is complete** within the spec.
+- **Removal is complete** within the spec: a spec removes whole patients, all the cases it selects or a seeded fraction of them (`AblationSpec.fraction`, drawn with `AblationSpec.seed`, rounded up so a positive fraction removes one case at least).
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 
 `bko.datasets.synthea_run`, `bko.datasets.synthea` and `bko.datasets.ablation` hold the values. The
@@ -60,8 +60,8 @@ detector's finding is the ablation and not natural sparsity, and the pinned para
 identity. Removing condition rows alone would keep the patient as a non-case, which inflates the
 cell of patients without the condition. Both grounding definitions of ADR
 `research/bko-formal-gap-definition` ground a statement from one remaining record, of the cell or
-of the population, so partial removal is invisible to them; the frequency-aware score reads shares
-and could see it, which E2 does not test. Population-level grounding, over an ontology with no age-
+of the population, so removing a fraction of a cell's cases is invisible to them; the frequency-aware score reads shares
+and could see it, and the count-based detector reads the cell's fallen count; E2's fraction ablations measure both. Population-level grounding, over an ontology with no age-
 or sex-specific statement, sees only a whole condition's absence, and per-subgroup grounding a
 whole cell's, which is why the spec can narrow to a cell or drop the band and the sex.
 
@@ -82,7 +82,7 @@ checksums.
 | The apr2020 pre-generated sample | No seed, and no cell can hold 20 cases | 2026-10-14 |
 | The `latest` pre-generated sample | Its contents change under one name, and it has no seed | 2026-10-14 |
 | Removing condition rows only | Turns a case into a non-case; see Rationale | 2026-10-14 |
-| Partial removal | Invisible to both grounding definitions; E2 can add it for the count-based arm | 2026-10-14 |
+| Removing part of a patient's rows | Turns a case into a non-case; a fraction removes whole patients instead | 2026-10-14 |
 | Synthea's `-a` age range | Samples ages uniformly instead of from the census, distorting frequencies | 2026-10-14 |
 
 ## Enforcement
@@ -92,9 +92,6 @@ checksums.
   `tests/test_datasets_ablation.py`
 
 ## Reversal Conditions
-
-**Partial removal is added if E2's configuration in `docs/EVIDENCE.md` asks for a count-based arm
-with a fraction removed**; this record is then edited.
 
 **The jar moves to another release if E2's configuration names one**; populations are regenerated
 under a new directory key.

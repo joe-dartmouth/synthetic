@@ -331,7 +331,10 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
     assert fetched(context) == {context.synthea_jar.url, context.releases["MONDO"].url}
     for line in (
         "observed dataset=synthea records=42 held=1 of=1 MONDO:9000003=21",
-        "ablation name=cell codes=414545008 age_band=>=60 sex=1 edges=60 removed=20",
+        (
+            "ablation name=cell codes=414545008 age_band=>=60 sex=1 edges=60 fraction=1.0 "
+            "seed=0 removed=20"
+        ),
         "cell ablation=cell when=after key=>=60/male records=0 held=0 of=1 assumed=\n",
         "bko ablation=cell definition=per-subgroup before=4 after=6 listed=6",
         "bko ablation=cell definition=population-level before=0 after=0 listed=2",
@@ -360,7 +363,10 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
             "recovery ablation=cell detector=count truth=1 eligible=1 recovered=1 "
             "outside=6 new_outside=0 vanished=0"
         ),
-        "ablation name=condition codes=414545008 age_band=None sex=None edges=60 removed=21",
+        (
+            "ablation name=condition codes=414545008 age_band=None sex=None edges=60 "
+            "fraction=1.0 seed=0 removed=21"
+        ),
         (
             "recovery ablation=condition detector=per-subgroup truth=4 eligible=4 recovered=4 "
             "outside=4 new_outside=0 vanished=0"
@@ -377,6 +383,15 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
             "recovery ablation=condition detector=count truth=2 eligible=1 recovered=1 "
             "outside=5 new_outside=0 vanished=0"
         ),
+        (
+            "detection ablation=condition detector=per-subgroup sensitivity=1.0000 "
+            "specificity=1.0000"
+        ),
+        (
+            "detection ablation=condition detector=population-level sensitivity=1.0000 "
+            "specificity=0.0000"
+        ),
+        ("detection ablation=condition detector=count sensitivity=1.0000 specificity=1.0000"),
     ):
         assert line in caplog.text
     assert "invariant" not in caplog.text

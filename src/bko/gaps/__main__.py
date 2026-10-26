@@ -234,12 +234,14 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     for name, spec in context.ablations.items():
         run = run_ablation(name, population, spec, fragments, context.code_rows)
         logger.info(
-            "ablation name=%s codes=%s age_band=%s sex=%s edges=%s removed=%d",
+            "ablation name=%s codes=%s age_band=%s sex=%s edges=%s fraction=%s seed=%d removed=%d",
             name,
             ",".join(sorted(spec.codes)),
             spec.age_band,
             spec.sex,
             ",".join(str(edge) for edge in spec.edges),
+            spec.fraction,
+            spec.seed,
             len(run.ablation.removed),
         )
         _log_cells(run.before_cells, f"ablation={name} when=before")
@@ -274,8 +276,21 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
                     name,
                     detector,
                 )
+        detections = [(definition.value, run.detection(definition)) for definition in Definition]
+        for detector, found in [*detections, ("count", run.count_detection)]:
+            logger.info(
+                "detection ablation=%s detector=%s sensitivity=%s specificity=%s",
+                name,
+                detector,
+                _share(found.sensitivity),
+                _share(found.specificity),
+            )
         rows.extend(_ablation_rows(run, label))
     return rows
+
+
+def _share(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.4f}"
 
 
 def _ablation_rows(run: AblationRun, label: Label) -> Iterator[Row]:

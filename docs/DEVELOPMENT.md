@@ -318,8 +318,9 @@ inside `.venv`:
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
   ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
-  `E2_ABLATIONS` lists every definition's gaps and the count-based ones before and after the
-  removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without `count`,
+  `E2_ABLATIONS`, each removing all of a spec's cases or a seeded fraction of them (`cell-50` is
+  half of the cell's cases), lists every definition's gaps and the count-based ones before and
+  after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without `count`,
   then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
   among the gaps the removed patients account for. Every cell uses the ablation's age bands
   (`AblationSpec.edges`). A definition's cells carry no label, so its rows leave `target` blank,
@@ -333,7 +334,8 @@ inside `.venv`:
   posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts
   and the count-based cells with the threshold, for `synthea` each ablation, each definition's gap
   counts before and after the removal and its listed rows, and each detector's recovery (truth,
-  eligible, recovered, outside the truth, new outside the truth, and vanished), with a warning when
+  eligible, recovered, outside the truth, new outside the truth, and vanished) and its sensitivity
+  and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
   removing whole patients cannot cause, and last the row count and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
