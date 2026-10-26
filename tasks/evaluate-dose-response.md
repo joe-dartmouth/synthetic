@@ -2,7 +2,7 @@
 id: evaluate-dose-response
 title: Fill above the threshold
 status: blocked
-depends_on: evaluate-e1-second-configuration
+depends_on: evaluate-e1-second-configuration, evaluate-named-runs
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -26,14 +26,16 @@ direction.
 
 **In.**
 
-- A fill target in `E1`, the threshold by default: every row-adding arm fills each underrepresented
-  cell up to it, so the comparison stays at equal row counts, and the threshold that defines
-  underrepresentation ([`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting))
-  does not move.
-- Runs at targets 30 and 40 on the judged configuration: the baselines free; the BKO arms' gap
-  fills paid at an estimate of the target over 20 times the gap fill's share of the judged run's
-  spend, their replica fills answered from the judged run's log; each run detached, kept awake, on
-  mains power and watched as `e1-3` was.
+- `Experiment.fill_to` split in two: the threshold that flags a cell, which stays the one of
+  [`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting) and decides
+  the flagged subgroups, and a fill target each flagged cell is filled up to, the threshold by
+  default; a test pins that `E1`'s flagged set and requests are unchanged.
+- Two named runs (`evaluate-named-runs`) on the judged configuration, targets 30 and 40, each with
+  the baselines and the `bko` arm, its gap and replica fills live, since replay pairs calls by
+  order and a changed gap request differs at the first call. Spend estimate per run: one arm's
+  share of the judged run's spend, its gap-fill part scaled by the rows the target asks over the
+  rows the threshold asks, stated in the Runs row before the run, under the run's ceiling and the
+  protocol of `evaluate-run-protocol`.
 - Per target: each arm's measures, each contrast's corrected interval, validity, drops, privacy and
   test copies, in a new `docs/EVIDENCE.md` entry that reads the judged run as the target-20 point.
 
@@ -42,6 +44,6 @@ threshold).
 
 ## Acceptance
 
-- Each target's measures regenerate from a committed command and its run is recorded with its
-  spend.
+- Each target's measures regenerate from `score <run>` and `compare <run>`, and its run is
+  recorded with its spend and replays byte for byte.
 - `make check`.

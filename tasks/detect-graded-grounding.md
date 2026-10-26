@@ -29,27 +29,33 @@ measurable.
 
 **In.**
 
-- A grounding count `k` for the per-subgroup and population-level definitions: a statement counts
-  as grounded only when at least `k` records of the fragment show its concept, `k` of 1 being
-  today's rule; and the frequency-aware level as a parameter, 0.95 being today's.
+- A grounding count `k` for the per-subgroup and population-level definitions, a statement
+  counting as grounded only when at least `k` records of the fragment show its concept, through
+  `bko.gaps.detect`'s held set; and the frequency-aware level as a parameter of `bko.gaps.gaps`;
+  `k` of 1 and level 0.95 are the rules E2 ran.
 - A sweep over `k` in 1, 2, 3 and 5 and over the level in 0.90, 0.95 and 0.99, read against the
-  partial-removal truth at every fraction, and listed on the UCI default training split; per
-  setting, each detector's sensitivity and specificity.
-- The rule that picks a default, stated before the sweep runs: the setting with the highest
-  specificity among those whose sensitivity at fraction 0.5 is at least the count-based
-  detector's, or today's values when none qualifies.
-- ADRs [`research/bko-formal-gap-definition`](../docs/adr/research/bko-formal-gap-definition.md)
-  and [`research/frequency-aware-gap-score`](../docs/adr/research/frequency-aware-gap-score.md)
-  edited: a `k` above 1 departs from the ungrounded-statement definition of Santos et al.'s
-  Proposition 5.1.1, so it runs as an ablation beside the formal definition and E1's judged arm
-  keeps `k` of 1 unless [`docs/RESEARCH.md`](../docs/RESEARCH.md#detect) changes first.
-- E2's entry gaining the sweep.
+  partial-removal truth at every fraction of both ablations, and listed on the UCI default
+  training split; per setting and detector, sensitivity and specificity as
+  `detect-partial-removal` defines them.
+- The rule that picks the reported default, stated here before the sweep runs: for the
+  frequency-aware definition on the `cell` ablation, the level with the highest specificity among
+  those whose sensitivity at fraction 0.5 is at least the count-based detector's, the lower level
+  on a tie; for the grounding definitions, `k` is reported at every value and E1's judged arm
+  keeps `k` of 1, since a count above 1 departs from the ungrounded-statement definition of
+  Santos et al.'s Proposition 5.1.1 (ADR
+  [`research/bko-formal-gap-definition`](../docs/adr/research/bko-formal-gap-definition.md)).
+- A new `docs/EVIDENCE.md` entry, since ADR
+  [`research/frequency-aware-gap-score`](../docs/adr/research/frequency-aware-gap-score.md) makes
+  a changed rule after E2's run a new experiment entry; that ADR and
+  `research/bko-formal-gap-definition` record the parameters and that `bko-frequency` reads the
+  chosen level only once [`docs/RESEARCH.md`](../docs/RESEARCH.md#detect) says so.
 
-**Out.** Rerunning E1 under a new default; a Dirichlet score in place of the coverage-style one.
+**Out.** Rerunning E1 under a new rule; a Dirichlet score in place of the coverage-style one.
 
 ## Acceptance
 
-- The sweep prints from one committed command, identical on a second run, with a test pinning the
-  `k` of 1 and level 0.95 setting to today's gap lists.
-- The chosen default is recorded with the measure that chose it.
+- The sweep prints from `uv run --no-sync python -m bko.gaps synthea` and `bko.gaps uci`,
+  identical on a second run, and a test on a `tmp_path` population pins that `k` of 1 and level
+  0.95 list the same gaps as before the parameters existed.
+- The chosen level is recorded with the measure that chose it.
 - `make check`.

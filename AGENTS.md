@@ -77,7 +77,7 @@ synthetic/
 ├── runs/        # one folder per run of record, gitignored (docs/DEVELOPMENT.md#runs)
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
 ├── papers/      # the source PDFs: the proposal 2-pager, the research brief and Santos et al. 2024
-├── tasks/       # the open task set: one unit per PR (tasks/proposal-index.md)
+├── tasks/       # the open task sets: one unit per PR (tasks/<set>-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
@@ -154,7 +154,8 @@ synthetic/
 - Background, explained from scratch: [`docs/BACKGROUND.md`](docs/BACKGROUND.md)
 - Architecture and pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Milestones and workload: [`docs/ROADMAP.md`](docs/ROADMAP.md); work units:
-  [`tasks/proposal-index.md`](tasks/proposal-index.md)
+  [`tasks/proposal-index.md`](tasks/proposal-index.md) and
+  [`tasks/experiments-index.md`](tasks/experiments-index.md)
 - Results register: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
 - Deferred cleanup and its blockers: [`tasks/CLEANUP.md`](tasks/CLEANUP.md)
 - Unscheduled ideas: [`docs/IDEAS.md`](docs/IDEAS.md); market and regulation:

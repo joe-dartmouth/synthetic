@@ -4,8 +4,9 @@ Small owed work that no task unit carries: review findings judged outside the bo
 change that found them, costs that do not bite at today's sizes, and gaps a later reader will trip
 over. Each entry names its blocker when it has one.
 
-The research queue lives elsewhere: planned work is a task unit
-([`proposal-index.md`](proposal-index.md)), and unscheduled research is in
+The research queue lives elsewhere: planned work is a task unit on a set's index
+([`proposal-index.md`](proposal-index.md), [`experiments-index.md`](experiments-index.md)), and
+unscheduled research is in
 [`docs/IDEAS.md`](../docs/IDEAS.md). An entry here is not on any plan. It waits for a change that
 passes close enough to pay it.
 
@@ -35,67 +36,17 @@ passes close enough to pay it.
 `tests/test_cleanup_backlog.py` enforces the key form, the topic set, unique keys, that every cited
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
+## tests
 
-## generate
-
-- **`cleanup:generate/prompt-range-wider-than-training`: the user turn asks for ages the training
-  split never holds, so about a fifth of BKO records are dropped.** `prompt.render` states each
-  numeric field's bounds from `guidance.intervals` (`src/bko/generate/prompt.py:191-204`), which are
-  `RANGES`' plausible bounds with age clipped to the cell's band
-  (`src/bko/generate/guidance.py:140-165`): age 18 to 54 and 55 to 120, trestbps 10 to 250. The drop
-  rule keeps only rows inside the training split's minimum and maximum
-  (`src/bko/baselines/records.py:43-44`, `:150-155`), and UCI's ages run 29 to 77. In `e1-3`,
-  `bko`'s fills dropped 5840 of 31643 generated records as outside the range (its `validity` line in
-  E1's Result), and of the 94753 records its call log decodes, 7.2% are younger than 29 and 9.3%
-  older than 77. Each drop costs a top-up call, and the kept records spread wider in age than the
-  training rows (a standard deviation of 9 to 11 years per cell against 3 to 6). The figures come
-  from `env -u ANTHROPIC_API_KEY uv run --no-sync python -I scratchpad/quality.py
-  scratchpad/e1-3.jsonl` (gitignored, sha256
-  `aa21abfedf484d8f23677ddfe5805bf055906aaf40aef928670403a06ec834fb`). *Filed 2026-10-21 by
-  `proposal-e1-replica-run`.*
-  **Why deferred.** It changes what every call sends, so it is a code change and a new
-  configuration of `E1`, and the evidence unit that found it changed no code.
-  **What discharges it:** the user turn bounds each numeric field by the training split's minimum
-  and maximum, the bounds the drop rule enforces, with a test pinning the rendered text.
-  **Trigger:** the next change to `prompt.render`'s numeric bounds, or a new configuration of
-  `E1`.
-
-- **`cleanup:generate/replica-marginals-drift`: at level `ontology`, BKO records match their cell's
-  sex, target and age band but not its field distributions.** Over the 94753 records `e1-3`'s call
-  log decodes, against the real records of each requested cell (pooled, weighted to the synthetic
-  cells): `cp` 4 at 0.28 against 0.50, with `cp` near uniform; `restecg` 1 at 0.26 and 2 at 0.13
-  against 0.01 and 0.49; `thal` 6 at 0.25 against 0.06; `ca` 0 at 0.42 against 0.61; `chol`'s
-  standard deviation narrower in every cell (28 to 37 against 35 to 80); `thalach` 14 to 24 bpm
-  lower in the 55-and-over cells; and `trestbps` on a multiple of 10 in 14.2% of records against
-  55.2% of real ones. E1's Result reads the effect: trained on its replica alone, `bko` scores a
-  fidelity quality of 0.7766, below every non-BKO arm's, and a flagged-subgroup recall of 0.3260.
-  The prompt at level `ontology` gives no frequencies or spreads; levels `profile` and `summary` add
-  them (`src/bko/generate/prompt.py:129-153`, `src/bko/generate/messages.py:22-30`). The figures
-  come from `env -u ANTHROPIC_API_KEY uv run --no-sync python -I scratchpad/quality.py
-  scratchpad/e1-3.jsonl` (gitignored, sha256
-  `aa21abfedf484d8f23677ddfe5805bf055906aaf40aef928670403a06ec834fb`). *Filed 2026-10-21 by
-  `proposal-e1-replica-run`.*
-  **Why deferred.** Which level E1 runs is a result of `proposal-guidance-ablation`, not a fix in
-  this unit.
-  **What discharges it:** E1 runs its BKO arms at the level whose replica column shapes and column
-  pair trends the guidance ablation measures closest to the training rows, or the ablation's
-  record states that no level closes the drift.
-  **Trigger:** `proposal-guidance-ablation`'s result.
-
-- **`cleanup:generate/haiku-thinks-every-call`: at effort `medium`, Haiku 5.5 thinks on every call
-  and writes about twice Opus 5.5's output tokens per record.** `SETTINGS` sends
-  `output_config.effort` `medium` (`src/bko/generate/messages.py:76`). All 9340 replies in `e1-3`'s
-  call log hold a `thinking` block before their text, against 13 of 603 in `e1-1`'s; output tokens
-  per record asked are 197.046 against 94.163, and output is about three quarters of the spend at
-  `bko.generate.spend.PRICES`. Seconds per call are unchanged (8.1 against 8.2 over the first 682
-  calls of `e1-2` and all of `e1-1`), since Haiku streams about twice as fast. The block counts come
-  from `jq -r 'select(.kind=="reply") | .response.content[0].type'` over each call log, and the
-  seconds per call from `scratchpad/latency.py` (gitignored, sha256
-  `e0a1d87e242f6e43b489f0ada80f9b9a07b588fc93b8bb98ae3f15b8f1c05e25`) over `scratchpad/e1-1.jsonl`
-  and `scratchpad/e1-2.jsonl`. *Filed 2026-10-21 by `proposal-e1-replica-run`.*
-  **Why deferred.** Changing effort is a new configuration of `E1`, and whether a lower effort
-  keeps validity and fidelity is unmeasured.
-  **What discharges it:** `SETTINGS` uses the lowest effort whose validity rate meets
-  `E1.validity` and whose replica fidelity does not fall below effort `medium`'s on a measured
-  run, or this entry records that `medium` is that effort.
-  **Trigger:** the next change to `SETTINGS`.
+- **`cleanup:tests/proposal-index-witness`: two corpus witnesses name `tasks/proposal-index.md`,
+  which leaves when the proposal set's last unit lands.** `tests/test_docs_citations.py:91` and
+  `tests/test_adr_frontmatter.py:666` each hold `Path("tasks/proposal-index.md")` as the file
+  that proves the `tasks/` root is walked, and `tests/test_companion_guard.py:62` reads `A landed
+  set's index is deleted with its last unit`. The proposal set holds one unit,
+  `proposal-guidance-ablation`, so the commit that lands it deletes the index and fails both
+  witnesses. *Filed 2026-10-26 by the diff review of PR #32.*
+  **Why deferred.** The witnesses are not in the boundary of a change that adds a second task set.
+  **What discharges it:** each witness names an index that outlives the proposal set,
+  `tasks/experiments-index.md`, or `tasks/CLEANUP.md`, which no set's landing deletes.
+  **Trigger:** the landing of `proposal-guidance-ablation`, or the next change to either witness
+  list.

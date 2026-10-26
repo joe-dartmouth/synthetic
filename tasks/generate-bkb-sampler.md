@@ -1,9 +1,9 @@
 ---
 id: generate-bkb-sampler
 title: Generate records from the BKO without an LLM
-status: ready
-depends_on: --
-blocks: generate-bkb-skeleton-fill
+status: blocked
+depends_on: evaluate-named-runs
+blocks: generate-bkb-skeleton-fill, generate-bkb-curation
 parallel_safe: true
 owner: Partiban
 milestone: final-report
@@ -19,49 +19,64 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 
 Every BKO arm of E1 generates through the Messages API, so its result mixes what the ontology
 contributes with what the model's prior contributes, and C1's record notes that `cell`-level
-candidates, whose prompt names no gap, closed the same per-subgroup gaps as `ontology`-level ones.
-An arm that samples records from the fused BKB alone isolates the knowledge: it is free, seeded,
-reproducible, sends nothing off the machine, and closes per-subgroup gaps by construction, which is
-itself a finding to report. `bko.bkb` holds structure, instantiation and the joint mass of a set of
-S-nodes (`bko.bkb.inference.probability`), and no sampler.
+candidates, whose prompt names no gap, closed the same per-subgroup gaps as `ontology`-level ones
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#c1-gap-closure-after-fusion), Limits). An arm that
+draws records from the fused BKB alone isolates the knowledge: it is free, seeded, reproducible
+and sends nothing off the machine.
+
+What the fused BKB holds fixes the design. Every class component has one state, the individual
+(`bko.ontology.fragments.INDIVIDUAL`; ADR
+[`research/bko-fragment-encoding`](../docs/adr/research/bko-fragment-encoding.md) rules out
+member and non-member states), each dataset fragment is one prior per concept its records show, at
+that concept's share (ADR
+[`research/dataset-fragment-encoding`](../docs/adr/research/dataset-fragment-encoding.md)), and
+every `is_a` S-node has probability 1. There is no absent state to draw, so a sampler cannot walk
+the BKB choosing states; what it can draw is each concept's presence at its fused share, closed
+upward under `is_a`.
 
 ## Scope
 
 **In.**
 
-- `bko.bkb.sample`: forward sampling of one complete set of I-node states from a BKB, each
-  component's state drawn among the S-nodes whose antecedents the states drawn so far support, by
-  their probabilities, in an order the structure fixes; seeded; refusing a BKB with a cycle it
-  cannot order. A new ADR under `docs/adr/research/` fixes the algorithm, how a component with no
-  supported S-node is read, and how the ontology and dataset fragments are weighted in the fused
-  BKB the sampler reads.
-- `bko.generate.direct`: for each requested cell, sample concept states from the BKB fused from the
-  ontology fragments and the cell's and the population's dataset fragments (`bko.gaps.observe`),
-  map each sampled state back to field values through `bko.ontology.mapping` (a codebook state
-  gives the code; a guideline cutoff gives the side of the cutoff), and draw each numeric field
-  inside its side from the training label group's empirical distribution, the cell's own records
-  when the cell holds any. The output is a candidates file in `bko.generate.candidates`'s form, so
-  `bko.validate`, the drop rule and `bko.fusion` read it unchanged.
-- Per record, which fields the BKB decided and which the empirical fallback drew, reported as a
-  count per field, since the mapping covers few fields.
-- An arm `bko-direct` in `bko.evaluate.experiment.E1`, no criterion reading it, scored beside the
-  other arms on every holdout from `e1-3`'s call log through `score --replay` (it makes no call,
-  so the replay's call order is unchanged): validity, drops, replica fidelity and utility, test
-  copies, and each criterion's measures with no verdict. If the replay refuses the new arm, the
-  record states why and the arm is scored alone.
+- `bko.generate.direct`: for each requested cell, build the BKB fused from the ontology fragments
+  and the cell's and the population's dataset fragments (`bko.gaps.observe`), read each mapped
+  concept's fused share from its S-nodes, draw the concept present with that probability, close
+  the drawn set upward under the ontology's `is_a` statements, and map the result to field values
+  through `bko.ontology.mapping`: a codebook row gives its code, a cutoff row the side of its
+  cutoff, and each numeric field is drawn inside its side from the training label group's
+  empirical distribution, the cell's own records when the cell holds any. Draws come from a seeded
+  numpy generator held by `bko.generate`, so `bko.bkb` stays standard-library only (ADR
+  [`research/bkb-layer-source`](../docs/adr/research/bkb-layer-source.md)) and the sampler meets
+  the repository's ruff rules.
+- A new ADR under `docs/adr/research/` fixes the fused BKB's weighting of the cell's fragment
+  against the population's (which decides whether a concept the cell never shows can be drawn,
+  and so whether the arm can close a per-subgroup gap), how a row that names several codes or
+  several fields is read back, how a label-only row is read in a cell of the other label, what a
+  concept with no mapping row contributes, and the numeric fallback when the cell holds no record
+  on the drawn side of a cutoff. The mapping covers every feature but `thalach`, so the ADR also
+  states which fields the draw decides and which the fallback draws, reported per field.
+- The output is a candidates file; `bko.generate.candidates`'s header gains a generator field so
+  the file names the sampler rather than a guidance level, and `bko.validate`, the drop rule and
+  `bko.fusion` read it unchanged. A `direct` subcommand of `python -m bko.generate` with `--seed`
+  and `--log` writes it.
+- A named run (`evaluate-named-runs`) with the baselines and an arm `bko-direct`, free, on E1's
+  holdouts: validity, drops, replica fidelity and utility, test copies and each criterion's
+  measures with no verdict, read beside the judged run's `bko` at the same holdouts.
 - Closure under C1's reading over the default split (`python -m bko.fusion` over the sampler's
   candidates file), reported beside `c1-2`'s.
-- A new E1 Runs row and a Result addition in `docs/EVIDENCE.md`.
+- A new `docs/EVIDENCE.md` entry, and [`docs/RESEARCH.md`](../docs/RESEARCH.md#generate-and-validate),
+  which says records are generated through the Messages API, gains the arm.
 
 **Out.** Any API call; a verdict on the arm (a criterion reading it means changing
 [`docs/RESEARCH.md`](../docs/RESEARCH.md#4-success-criteria) first); exact belief updating, which
-[`docs/IDEAS.md`](../docs/IDEAS.md#exact-belief-updating-over-a-bkb) keeps.
+[`docs/IDEAS.md`](../docs/IDEAS.md#exact-belief-updating-over-a-bkb) keeps; a change to the
+fragment encoding.
 
 ## Acceptance
 
-- `uv run --no-sync python -m bko.generate direct --request completeness` writes a candidates file
-  identical on a second run with the same seed, and a test pins a hand-worked sample on a fixture
-  BKB.
-- The arm's measures regenerate from `score --replay` over `e1-3`'s call log, recorded in
+- `uv run --no-sync python -m bko.generate direct --request completeness --seed 0 --log <new file>`
+  writes a candidates file identical on a second run, and a test pins the draw on a fixture BKB
+  whose shares are 0 and 1, so the expected record is known by hand.
+- The arm's measures regenerate from `score <run>` and `compare <run>`, recorded in
   `docs/EVIDENCE.md`.
 - `make check`.

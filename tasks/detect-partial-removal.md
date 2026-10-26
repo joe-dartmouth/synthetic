@@ -3,7 +3,7 @@ id: detect-partial-removal
 title: Partial removal in the Synthea ablation
 status: ready
 depends_on: --
-blocks: detect-graded-grounding
+blocks: detect-graded-grounding, detect-synthea-mappings
 parallel_safe: true
 owner: Partiban
 milestone: final-report
@@ -24,24 +24,25 @@ and population-level grounding are blind to partial removal by construction, sin
 record grounds a statement (ADR
 [`research/synthea-ablation-design`](../docs/adr/research/synthea-ablation-design.md)); the
 frequency-aware score and the count-based detector can see it, and how much of a cell must go
-before each flags it is the number the status update's next step asks for.
+before each flags it is unmeasured.
 
 ## Scope
 
 **In.**
 
 - `AblationSpec` gains a removed fraction: the cases the spec names are ordered by a seeded draw and
-  the first fraction of them removed whole, as today's removal does, with the fraction 1 equal to
-  today's ablation.
-- `E2_ABLATIONS` gains the `cell` and `condition` ablations at fractions 0.25, 0.5, 0.75 and 1.
-- The reading, per fraction and detector: the truth is the cells the removal touched (for the
-  count-based detector, those whose count fell below the threshold; for the three definitions, the
-  (cell, concept) pairs of the touched cells); sensitivity is the share of the truth flagged after
-  the removal and not before, and specificity the share of the untouched cells not newly flagged.
-  Both grounding definitions are expected at zero sensitivity below fraction 1, and the record
-  states that as the definitions' consequence, not a defect.
+  the first fraction of them removed whole, as today's removal does; fraction 1 is the existing
+  `cell` and `condition` ablations.
+- `E2_ABLATIONS` gains `cell` and `condition` at fractions 0.25, 0.5 and 0.75.
+- The reading keeps E2's truth, the (cell, statement) pairs the removed patients ground and the
+  cells whose count fell, and its recovered, outside, new-outside and vanished counts, and adds
+  per fraction and detector: sensitivity, the share of eligible truth pairs (or cells) flagged
+  after the removal and not before, and specificity, the share of pairs (or cells) outside the
+  truth not newly flagged. Both grounding definitions read zero sensitivity below fraction 1, and
+  the record states that as the definitions' consequence.
 - ADR `research/synthea-ablation-design` edited as its reversal condition says, and the E2 entry in
-  `docs/EVIDENCE.md` gaining the configuration, a Runs row and the Result at each fraction.
+  `docs/EVIDENCE.md` gaining the fractions in its Configuration, a Runs row and the Result at each
+  fraction.
 
 **Out.** Changing a definition's rule (that is
 [`detect-graded-grounding`](detect-graded-grounding.md)); a new mapped concept (that is
@@ -50,6 +51,8 @@ before each flags it is the number the status update's next step asks for.
 ## Acceptance
 
 - `uv run --no-sync python -m bko.gaps synthea` prints every fraction's reading, identical on a
-  second run, and a test pins the fraction-1 reading to today's.
-- E2's entry records the sweep.
+  second run over the pinned population, and the fraction-1 rows equal `e2-6`'s `recovery` lines
+  byte for byte.
+- A test on a `tmp_path` population pins the fraction draw and the sensitivity and specificity
+  arithmetic.
 - `make check`.
