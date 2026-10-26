@@ -38,7 +38,7 @@ that do not can be measured before any paid arm is built on it.
   `docs/adr/research/` fixes the score, what a concept with no mapping row contributes, and the
   tie-break among equal scores.
 - Phase 1, free: one committed command scores every candidate in the per-holdout candidates files
-  the judged run writes (a run-folder role of `evaluate-run-protocol`), and reports per cell the
+  the judged run writes (a run-folder role that `cleanup:evaluate/per-holdout-candidates-role` owes), and reports per cell the
   score's spread, the share of records at the minimum, and the replica fidelity (quality, column
   shapes, column pair trends against the training rows) of the top half by score against the
   bottom half, paired over the holdouts.
@@ -46,8 +46,8 @@ that do not can be measured before any paid arm is built on it.
   each of the three measures over the paired holdouts: a named run with the baselines and an arm
   `bko-curated` that asks each cell for a multiple of its quota at `SETTINGS` and keeps the quota's
   highest-scoring records. Spend estimate: the multiple times one arm's share of the judged run's
-  spend, stated in the Runs row before the run, under the named run's ceiling and the protocol of
-  `evaluate-run-protocol`. If phase 1 shows no separation, the record says so and phase 2 does
+  spend, stated in the Runs row before the run, under the named run's ceiling and the paid-run protocol
+  (`docs/DEVELOPMENT.md`, Evaluation). If phase 1 shows no separation, the record says so and phase 2 does
   not run.
 - A new `docs/EVIDENCE.md` entry holding phase 1's measures and, when it runs, phase 2's run with
   its spend; [`docs/IDEAS.md`](../docs/IDEAS.md#cllm-and-great-as-alternative-generators) and

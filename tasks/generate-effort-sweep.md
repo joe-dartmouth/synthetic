@@ -2,7 +2,7 @@
 id: generate-effort-sweep
 title: The lowest effort that keeps validity and fidelity
 status: blocked
-depends_on: evaluate-named-runs, evaluate-run-protocol, evaluate-second-classifier
+depends_on: evaluate-second-classifier
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley
@@ -29,7 +29,7 @@ lower effort keeps validity and replica fidelity is unmeasured, and the answer s
 
 **In.**
 
-- A named run (`evaluate-named-runs`) over the first 10 holdout seeds with the baselines and the
+- A named run (`bko.evaluate.experiment.RUNS`) over the first 10 holdout seeds with the baselines and the
   `bko` arm, one per effort, `low` and `medium`, at `SETTINGS` otherwise unchanged; both run live,
   since `e1-3`'s log interleaves three arms over 100 holdouts and replays only whole. Spend
   estimate: for each effort, a tenth of one arm's share of `e1-3`'s spend, `low`'s below it.

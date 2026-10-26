@@ -10,7 +10,7 @@ section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | blocked | evaluate-named-runs, evaluate-run-protocol | Shirley | final-report |
+| [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | ready | -- | Shirley | final-report |
 
 The unit's dependencies are harness units of the experiments set, and
 [`experiments-index.md`](experiments-index.md) draws their edges.

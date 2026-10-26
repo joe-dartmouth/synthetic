@@ -14,10 +14,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
-from bko.app.runs import runs_root
 from bko.baselines.methods import Runner
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
+from bko.datasets.run_folders import runs_root
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
@@ -63,7 +63,7 @@ class Context:
         send: Builds the send a live BKO fill's calls go through; called only inside that fill.
         ceiling: The spend in USD at which one paid fill stops.
         data_dir: The data root; `default_data_dir()` when None.
-        runs_dir: The run folders' root; `bko.app.runs.runs_root()` when None.
+        runs_dir: The run folders' root; `bko.datasets.run_folders.runs_root()` when None.
         now: The clock that names each fill's run folder.
         setup_logging: Configures logging; every rerun calls it.
     """

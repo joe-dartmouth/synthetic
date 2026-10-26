@@ -2,7 +2,7 @@
 id: evaluate-data-scarcity-curve
 title: Augmentation against training-set size
 status: blocked
-depends_on: evaluate-e1-second-configuration, evaluate-named-runs
+depends_on: evaluate-e1-second-configuration
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -32,12 +32,12 @@ whether knowledge guidance pays when data is scarcer than UCI.
   records, since SMOTE and ADASYN refuse a stratum under 2 (`bko.baselines.oversample`); the test
   split is unchanged, and every stage that reads the training rows, the gaps, the guidance, the
   baselines and the classifier, reads the subsample.
-- Three named runs (`evaluate-named-runs`) on the judged configuration, fractions 0.25, 0.5 and
+- Three named runs (`bko.evaluate.experiment.RUNS`) on the judged configuration, fractions 0.25, 0.5 and
   0.75, each with the baselines and the `bko` arm, its gap and replica fills live. Spend estimate
   per run: one arm's share of the judged run's spend, its replica part scaled by the fraction and
   its gap-fill part by the rows the subsample's shortfall asks over the rows the full split's
   asks, since the shortfall grows as rows leave, stated in the Runs row before the run, under the
-  run's ceiling and the protocol of `evaluate-run-protocol`.
+  run's ceiling and the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - Per fraction: each arm's recall and AUC-PR over the whole test split and the flagged subgroups
   with each contrast's corrected interval, and which cells fall under the threshold, in a new
   `docs/EVIDENCE.md` entry that reads the judged run as the fraction-1 point.

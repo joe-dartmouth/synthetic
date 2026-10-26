@@ -1,10 +1,11 @@
-"""Command line for the evaluation: `python -m bko.evaluate score` and `compare`.
+"""Command line for the evaluation: `python -m bko.evaluate score`, `compare` and `launch`.
 
 `score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
 every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; its logs carry
 each BKO arm's counts per fill and each replica arm's mean replica utility and fidelity.
 `--candidate` judges another arm, a dry run whose verdict is not E1's. Logs go to stderr.
+`launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
@@ -15,7 +16,8 @@ stopped log's answered calls from it and sends the rest live, all into NEW.
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with
 no BKO arm to build, `--resume` with `--replay`, a call with no response, a failed gap query, a
-run whose spend reached the ceiling and scores whose validity cannot be read; 3 the data, a
+run whose spend reached the ceiling, projects to it or stalled, a `launch` on battery power
+or into a folder that holds a run, and scores whose validity cannot be read; 3 the data, a
 method's output, a scores file, a replay or a stopped log that cannot be resumed contradicts its
 contract.
 """
@@ -44,6 +46,7 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
+from bko.datasets.run_folders import runs_root
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
@@ -52,8 +55,10 @@ from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.guided import Knowledge, guided_arms
+from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
+from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.run import ARMS, run
-from bko.evaluate.scores import Measure, Scope, Score, parse, render
+from bko.evaluate.scores import Score, parse, render
 from bko.evaluate.scores import Source as ScoreSource
 from bko.evaluate.validity import Validity, reported, validity, verdict
 from bko.gaps.scope import load_scope
@@ -98,6 +103,9 @@ class Context:
         releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
         field_rows: The field mappings the BKO arms observe cells by.
         send: Builds the send every BKO arm's call goes through.
+        power: Whether the machine runs on battery, for `launch`.
+        start: Starts `launch`'s detached run.
+        runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
     """
 
     open_url: UrlOpener = open_https
@@ -110,6 +118,9 @@ class Context:
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     send: Callable[[], Send] = default_send
+    power: Power = on_battery
+    start: Spawn = spawn
+    runs_dir: Path | None = None
 
 
 def main(
@@ -135,11 +146,13 @@ def main(
     args = _parser().parse_args(argv)
     sink = out or sys.stdout
     try:
-        context = _named(args.run, context)
-        if args.command == "compare":
-            _compare(args, context, sink)
+        if args.command == "launch":
+            sink.write(_launch(args, context))
             return 0
-        text = _score(args, context)
+        if args.command == "compare":
+            _compare(args, _named(args.run, context), sink)
+            return 0
+        text = _score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -149,6 +162,30 @@ def main(
         return 2
     sink.write(text)
     return 0
+
+
+def _launch(args: argparse.Namespace, context: Context) -> str:
+    """Start the run, and return the command that watches its folder, one line.
+
+    Raises:
+        EvaluationError: If the run has no BKO arm, so `score --log` would refuse it, or as
+            `launch`.
+    """
+    context = _named(args.run, context)
+    if not set(context.experiment.arms) & set(BKO_ARMS):
+        msg = f"the run {args.run!r} has no BKO arm, so it spends nothing to launch"
+        raise EvaluationError(msg)
+    found = launch(
+        args.run_id,
+        args.run,
+        root=context.runs_dir if context.runs_dir is not None else runs_root(),
+        data_dir=args.data_dir,
+        dry_run=args.dry_run,
+        power=context.power,
+        start=context.start,
+    )
+    logger.info("launch started=%s pid=%s command=%s", found.started, found.pid, found.command)
+    return f"{found.watch}\n"
 
 
 def _named(name: str, context: Context) -> Context:
@@ -284,6 +321,7 @@ def _guided(
             {**context.arms, **paid.arms},
             factory=context.factory,
             drains={name: arm.drain for name, arm in paid.arms.items()},
+            on_holdout=paid.watch.holdout_done,
         )
 
 
@@ -312,9 +350,9 @@ def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
         logger.info("criterion=%s verdict=%s", criterion, outcome)
     out.write(table(contrasts))
     _log_validity(scores, context.experiment, candidate)
-    _log_copies(scores)
-    _log_means(scores)
-    _log_means(scores, source=ScoreSource.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
+    log_copies(scores)
+    log_means(scores)
+    log_means(scores, source=ScoreSource.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
@@ -342,51 +380,6 @@ def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: st
 def _log_fills(found: Validity) -> None:
     for line in found.fill_lines():
         logger.info("candidates %s", line)
-
-
-def _log_copies(scores: Sequence[Score]) -> None:
-    """Log each arm's test records copied, summed over the holdouts, by added and replica rows."""
-    totals: dict[str, dict[ScoreSource, float]] = {}
-    for s in scores:
-        if s.measure is Measure.TEST_COPIES:
-            found = totals.setdefault(s.arm, {})
-            found[s.source] = found.get(s.source, 0.0) + s.value
-    for arm, found in totals.items():
-        added, replica = found.get(ScoreSource.ADDED, 0.0), found.get(ScoreSource.REPLICA, 0.0)
-        logger.info("copies arm=%s added=%.0f replica=%.0f", arm, added, replica)
-
-
-def _log_means(
-    scores: Sequence[Score],
-    *,
-    source: ScoreSource = ScoreSource.AUGMENTED,
-    measures: Sequence[Measure] = JUDGED,
-    tag: str = "mean",
-) -> None:
-    """Log each arm's mean of `measures` over the holdouts, from `source`'s rows, in every scope.
-
-    No verdict reads them. A measure and scope with no value for an arm gets no line.
-    """
-    for arm in dict.fromkeys(s.arm for s in scores if s.source is source):
-        for measure in measures:
-            for scope in Scope:
-                values = [
-                    s.value
-                    for s in scores
-                    if (s.arm, s.source, s.measure, s.scope) == (arm, source, measure, scope)
-                ]
-                if not values:
-                    continue
-                mean = sum(values) / len(values)
-                logger.info(
-                    "%s arm=%s measure=%s scope=%s value=%.6f holdouts=%d",
-                    tag,
-                    arm,
-                    measure,
-                    scope,
-                    mean,
-                    len(values),
-                )
 
 
 def _commit() -> tuple[str, str]:
@@ -455,6 +448,17 @@ def _parser() -> argparse.ArgumentParser:
             "finish the stopped run whose call log this is: answer its answered calls from it, "
             "then send the rest live"
         ),
+    )
+    launching = commands.add_parser(
+        "launch", help="start a paid score run detached, kept awake and on mains power"
+    )
+    launching.add_argument("run_id", help="the run's id, such as e1-4; its folder under runs/")
+    launching.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
+    launching.add_argument(
+        "--data-dir", type=Path, default=None, help="the data root `score` reads"
+    )
+    launching.add_argument(
+        "--dry-run", action="store_true", help="write the folder's roles and start nothing"
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")

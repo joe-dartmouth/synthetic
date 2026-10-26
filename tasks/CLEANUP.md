@@ -36,6 +36,22 @@ passes close enough to pay it.
 `tests/test_cleanup_backlog.py` enforces the key form, the topic set, unique keys, that every cited
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
+## evaluate
+
+- **`cleanup:evaluate/per-holdout-candidates-role`: no run-folder role holds the candidates a BKO
+  arm generated on each holdout.** The paid-run protocol unit's scope gave `bko.app.runs.ROLES` and
+  the Runs table of `docs/DEVELOPMENT.md` "a per-holdout candidates file the BKO arms generated";
+  `ROLES` gained only `launch.log`, and `bko.evaluate` writes no such file, so a role would name an
+  artifact nothing writes. `tasks/generate-bkb-curation.md` (Phase 1) reads that file. A named
+  run's scores and criteria take the existing `scores.csv` and `criteria.csv` roles. *Filed
+  2026-10-26 by the diff review of PR #37.*
+  **Why deferred.** The writer does not exist; adding the role first breaks the rule that a role
+  names what writes it.
+  **What discharges it:** `score` writes each BKO arm's candidates per holdout into the run folder,
+  `ROLES` and the Runs table gain the role, and `tests/test_run_folders.py` holds them equal.
+  **Trigger:** the first change that writes per-holdout candidates, at the latest
+  `generate-bkb-curation`.
+
 ## tests
 
 - **`cleanup:tests/proposal-index-witness`: two corpus witnesses name `tasks/proposal-index.md`,

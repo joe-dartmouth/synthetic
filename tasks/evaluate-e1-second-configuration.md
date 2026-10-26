@@ -2,7 +2,7 @@
 id: evaluate-e1-second-configuration
 title: E1 under the chosen level, bounds and effort
 status: blocked
-depends_on: proposal-guidance-ablation, generate-prompt-training-bounds, generate-effort-sweep, evaluate-run-protocol
+depends_on: proposal-guidance-ablation, generate-prompt-training-bounds, generate-effort-sweep
 blocks: evaluate-dose-response, evaluate-data-scarcity-curve, evaluate-generator-comparison, generate-bkb-curation
 parallel_safe: false
 owner: Joe
@@ -37,7 +37,7 @@ configuration that will be judged.
   (C1's configuration rules that a change to what a call sends supersedes the judged run), stopping
   to report if validity falls below `E1.validity`.
 - A free rehearsal on all holdouts with canned replies, then one paid `score` run under
-  `E1.spend_ceiling` through `evaluate-run-protocol`'s launch and stop rules; the call log copied
+  `E1.spend_ceiling` through the paid-run protocol's launch and stop rules (`docs/DEVELOPMENT.md`, Evaluation); the call log copied
   off the runner before replay; then `score --replay` and `compare`.
 - A new judged Runs row with its spend, Result and Read against in E1's entry; `e1-3` keeps its
   row.

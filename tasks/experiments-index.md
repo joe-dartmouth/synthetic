@@ -6,7 +6,7 @@ work that lets a variant run from a committed command, changes to how records ar
 how gaps are detected, and to the power of the evaluation, each one pull request. The plan is
 [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a criterion, a definition or a
 decision an ADR records edits that document in its own PR. The guidance-level ablation stays in
-[`proposal-index.md`](proposal-index.md) and waits on this set's harness units. Owners follow the
+[`proposal-index.md`](proposal-index.md). Owners follow the
 workstreams of [`docs/ROADMAP.md`](../docs/ROADMAP.md#workload), and each unit's `milestone` names
 the ROADMAP heading it serves.
 
@@ -16,8 +16,6 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-named-runs`](evaluate-named-runs.md) | ready | -- | Joe | final-report |
-| [`evaluate-run-protocol`](evaluate-run-protocol.md) | ready | -- | Joe | final-report |
 | [`evaluate-second-classifier`](evaluate-second-classifier.md) | ready | -- | Joe | final-report |
 | [`evaluate-frame-generic-pipeline`](evaluate-frame-generic-pipeline.md) | ready | -- | Joe | final-report |
 
@@ -26,61 +24,47 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier | Shirley | final-report |
-| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-named-runs, evaluate-run-protocol, evaluate-second-classifier | Shirley | final-report |
-| [`generate-bkb-sampler`](generate-bkb-sampler.md) | blocked | evaluate-named-runs | Partiban | final-report |
-| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler, evaluate-run-protocol | Shirley | final-report |
+| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier | Shirley | final-report |
+| [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
+| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
 
 ### Detection
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`detect-partial-removal`](detect-partial-removal.md) | ready | -- | Partiban | final-report |
-| [`detect-graded-grounding`](detect-graded-grounding.md) | blocked | detect-partial-removal | Partiban | final-report |
-| [`detect-synthea-mappings`](detect-synthea-mappings.md) | blocked | detect-partial-removal | Partiban | final-report |
+| [`detect-graded-grounding`](detect-graded-grounding.md) | ready | -- | Partiban | final-report |
+| [`detect-synthea-mappings`](detect-synthea-mappings.md) | ready | -- | Partiban | final-report |
 
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) | blocked | proposal-guidance-ablation, generate-prompt-training-bounds, generate-effort-sweep, evaluate-run-protocol | Joe | final-report |
-| [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration, evaluate-named-runs | Joe | final-report |
-| [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration, evaluate-named-runs | Joe | final-report |
-| [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration, evaluate-named-runs | Shirley | final-report |
-| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings, evaluate-frame-generic-pipeline, evaluate-named-runs, evaluate-run-protocol | Joe | final-report |
+| [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) | blocked | proposal-guidance-ablation, generate-prompt-training-bounds, generate-effort-sweep | Joe | final-report |
+| [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
+| [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
+| [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
+| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings, evaluate-frame-generic-pipeline | Joe | final-report |
 
-The diagram draws this set's edges and the edges into `proposal-guidance-ablation`, whose own
+The diagram draws this set's edges and the edge out of `proposal-guidance-ablation`, whose own
 set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
-    named_runs[evaluate-named-runs] --> guidance_ablation[proposal-guidance-ablation]
-    run_protocol[evaluate-run-protocol] --> guidance_ablation[proposal-guidance-ablation]
-    named_runs[evaluate-named-runs] --> effort_sweep[generate-effort-sweep]
-    run_protocol[evaluate-run-protocol] --> effort_sweep[generate-effort-sweep]
     second_classifier[evaluate-second-classifier] --> effort_sweep[generate-effort-sweep]
     second_classifier[evaluate-second-classifier] --> prompt_bounds[generate-prompt-training-bounds]
-    named_runs[evaluate-named-runs] --> bkb_sampler[generate-bkb-sampler]
     bkb_sampler[generate-bkb-sampler] --> skeleton_fill[generate-bkb-skeleton-fill]
-    run_protocol[evaluate-run-protocol] --> skeleton_fill[generate-bkb-skeleton-fill]
     bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
-    partial_removal[detect-partial-removal] --> graded_grounding[detect-graded-grounding]
-    partial_removal[detect-partial-removal] --> synthea_mappings[detect-synthea-mappings]
     guidance_ablation[proposal-guidance-ablation] --> e1_second[evaluate-e1-second-configuration]
     prompt_bounds[generate-prompt-training-bounds] --> e1_second[evaluate-e1-second-configuration]
     effort_sweep[generate-effort-sweep] --> e1_second[evaluate-e1-second-configuration]
-    run_protocol[evaluate-run-protocol] --> e1_second[evaluate-e1-second-configuration]
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
-    named_runs[evaluate-named-runs] --> dose_response[evaluate-dose-response]
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
-    named_runs[evaluate-named-runs] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
-    named_runs[evaluate-named-runs] --> generator_comparison[evaluate-generator-comparison]
+    graded_grounding[detect-graded-grounding]
     synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
     frame_generic[evaluate-frame-generic-pipeline] --> synthea_downstream[evaluate-synthea-downstream]
-    named_runs[evaluate-named-runs] --> synthea_downstream[evaluate-synthea-downstream]
-    run_protocol[evaluate-run-protocol] --> synthea_downstream[evaluate-synthea-downstream]
 ```
 
 ## Why the harness units come first
@@ -92,12 +76,11 @@ flowchart LR
   a unit's acceptance that names a replay holds at a commit where the judged log replays.
 - **No flag changes a value of `E1`** (`bko.evaluate.experiment`; ADR
   [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) rules out
-  flags for the readings or the holdout count), and `compare` reads only E1's holdouts, so a
-  variant needs a configuration fixed in code and selected by name:
-  [`evaluate-named-runs`](evaluate-named-runs.md).
-- **A paid run's launch, stop rules and power check live in gitignored scripts** today (E1's
-  `e1-2` and `e1-3` Runs rows), so a paid unit cannot cite them:
-  [`evaluate-run-protocol`](evaluate-run-protocol.md) commits them.
+  flags for the readings or the holdout count), so a variant is a configuration fixed in code and
+  selected by name, a value of `bko.evaluate.experiment.RUNS`.
+- **A paid run starts with `launch` and stops on the rules of `bko.evaluate.watch`**, the paid-run
+  protocol of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation), which every paid unit
+  cites.
 
 ## Where results go
 

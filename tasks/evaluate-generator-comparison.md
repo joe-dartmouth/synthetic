@@ -2,7 +2,7 @@
 id: evaluate-generator-comparison
 title: The generator model at a fixed level
 status: blocked
-depends_on: evaluate-e1-second-configuration, evaluate-named-runs
+depends_on: evaluate-e1-second-configuration
 blocks: --
 parallel_safe: true
 owner: Shirley
@@ -31,13 +31,12 @@ against the judged run's level, bounds and effort, which
 - `bko.generate.spend.PRICES` gains Sonnet 5.5's and Opus 5.5's rates, read from the pricing page
   `PRICES`' docstring names on the day they are added, with `tests/test_generate_spend.py` pinning
   the three rows.
-- Two named runs (`evaluate-named-runs`) with the baselines and the `bko` arm at the judged
+- Two named runs (`bko.evaluate.experiment.RUNS`) with the baselines and the `bko` arm at the judged
   configuration's level, bounds and effort, `SETTINGS.model` at Sonnet 5.5 and then at Opus 5.5,
   each run's spend estimated before it from the judged run's tokens per record asked at the
   model's rates. The Opus estimate at `e1-3`'s tokens passes `E1.spend_ceiling` many times over,
   so the Opus run has its own ceiling in its `Experiment`, and the commit that sets it is the
-  sign-off; until that commit the unit records Sonnet alone. Each run under the protocol of
-  `evaluate-run-protocol`.
+  sign-off; until that commit the unit records Sonnet alone. Each run under the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - Per model, beside the judged Haiku figures at the same holdouts: validity, drops, tokens and
   seconds per record asked, replica fidelity and utility, each criterion's measures with no
   verdict, in a new `docs/EVIDENCE.md` entry.

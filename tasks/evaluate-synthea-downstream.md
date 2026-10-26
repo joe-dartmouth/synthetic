@@ -2,7 +2,7 @@
 id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
 status: blocked
-depends_on: detect-synthea-mappings, evaluate-frame-generic-pipeline, evaluate-named-runs, evaluate-run-protocol
+depends_on: detect-synthea-mappings, evaluate-frame-generic-pipeline
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -35,15 +35,14 @@ recovers on the held-out cases is the measure of the augmentation itself.
   the label, the age bands, the split, the removed share, the replica policy and the run's
   ceiling, with the reason for each, and excludes from the features any code that stands in for
   the label (a procedure or finding that only cases carry).
-- Cell-stratified holdouts as E1's, with `detect-partial-removal`'s draw applied to the training
+- Cell-stratified holdouts as E1's, with `bko.datasets.ablation`'s fraction draw applied to the training
   rows only: women with the condition removed to the ADR's share, so the test split keeps every
   case.
-- A named run (`evaluate-named-runs`) with every arm of E1 on the frame, the BKO arms with a
+- A named run (`bko.evaluate.experiment.RUNS`) with every arm of E1 on the frame, the BKO arms with a
   Synthea prompt rendered from the frame and guidance from the Synthea BKO; the measures E1
   reports, with recall on the removed cell's held-out cases as the headline, read against the
   un-ablated training set. Spend estimated before the run from `e1-3`'s tokens per record asked
-  and the frame's quotas, stated in the Runs row, under the run's ceiling and the protocol of
-  `evaluate-run-protocol`.
+  and the frame's quotas, stated in the Runs row, under the run's ceiling and the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - ADRs [`research/record-generation-design`](../docs/adr/research/record-generation-design.md)
   and [`research/record-validation-design`](../docs/adr/research/record-validation-design.md)
   edited as their reversal conditions for a Synthea request say.

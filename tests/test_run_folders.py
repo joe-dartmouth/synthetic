@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Final
 
 from bko.app import runs
-from bko.app.runs import ROLES, RUN_ID, call_totals, discover
+from bko.app.runs import ROLES, call_totals, discover
+from bko.datasets.run_folders import RUN_ID
 from tests._corpus import REPO_ROOT
 from tests._runs_fixtures import DEMO, call_log, every_kind
 

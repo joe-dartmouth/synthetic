@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from pathlib import Path
@@ -14,6 +15,7 @@ from bko.baselines.request import Request, Strata
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.guided import GuidedArm, Knowledge, guided_arms
 from bko.evaluate.validity import COUNTS
+from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
@@ -21,7 +23,7 @@ from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS
 from bko.generate.replay import Resume
 from bko.generate.spend import cost
-from tests._evaluate_fixtures import SMALL
+from tests._evaluate_fixtures import SMALL, Timers, interrupt
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
@@ -180,3 +182,51 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
         pass
     assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["status"] == "failed"
     assert "validity arm=bko" in caplog.text
+
+
+def test_each_call_of_an_arm_runs_under_the_idle_rule(tmp_path):
+    timers = Timers()
+    watch = Watch(SMALL, lambda: 0.0, timers=timers, interrupt=interrupt)
+    arm, log = guided(tmp_path, ScriptedSend(reply([young(1)] * 3)), watch=watch)
+    with log:
+        arm(train(tmp_path / "train"), REQUEST)
+    assert asked(log.path) == [3]
+    assert [(t.started, t.cancelled) for t in timers.made] == [(True, True)]
+
+
+def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
+    timers = Timers()
+    watch = Watch(SMALL, lambda: 0.0, timers=timers, interrupt=interrupt)
+
+    def stalled(call):
+        timers.made[-1].action()
+
+    arm, log = guided(tmp_path, stalled, watch=watch)
+    caplog.set_level(logging.WARNING)
+    with pytest.raises(EvaluationError, match="idle limit"), log:
+        arm(train(tmp_path / "train"), REQUEST)
+    lines = log.path.read_text(encoding="utf-8").splitlines()
+    assert json.loads(lines[-1])["status"] == "failed"
+    assert "stop rule=idle" in caplog.text
+
+
+def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
+    knowledge = Knowledge("x", {}, (), ())
+    early = dataclasses.replace(SMALL, projection_after=1)
+    with guided_arms(
+        ("bko",), knowledge, early, log=tmp_path / "live.jsonl", send=ScriptedSend
+    ) as live:
+        assert live.watch.projecting
+    stopped = tmp_path / "stopped.jsonl"
+    with CallLog(stopped, SETTINGS):
+        pass
+    resume = Resume(stopped, ScriptedSend())
+    with guided_arms(
+        ("bko",),
+        knowledge,
+        early,
+        log=tmp_path / "resumed.jsonl",
+        send=ScriptedSend,
+        answers=resume,
+    ) as resumed:
+        assert not resumed.watch.projecting

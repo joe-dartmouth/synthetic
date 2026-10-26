@@ -1,8 +1,8 @@
 ---
 id: generate-bkb-sampler
 title: Generate records from the BKO without an LLM
-status: blocked
-depends_on: evaluate-named-runs
+status: ready
+depends_on: --
 blocks: generate-bkb-skeleton-fill, generate-bkb-curation
 parallel_safe: true
 owner: Partiban
@@ -59,7 +59,7 @@ upward under `is_a`.
   the file names the sampler rather than a guidance level, and `bko.validate`, the drop rule and
   `bko.fusion` read it unchanged. A `direct` subcommand of `python -m bko.generate` with `--seed`
   and `--log` writes it.
-- A named run (`evaluate-named-runs`) with the baselines and an arm `bko-direct`, free, on E1's
+- A named run (`bko.evaluate.experiment.RUNS`) with the baselines and an arm `bko-direct`, free, on E1's
   holdouts: validity, drops, replica fidelity and utility, test copies and each criterion's
   measures with no verdict, read beside the judged run's `bko` at the same holdouts.
 - Closure under C1's reading over the default split (`python -m bko.fusion` over the sampler's

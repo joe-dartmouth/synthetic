@@ -18,13 +18,12 @@ import pytest
 from bko.evaluate.__main__ import (
     Context,
     _commit,
-    _log_copies,
-    _log_means,
     configure_logging,
     main,
 )
 from bko.evaluate.criteria import CONTRAST_COLUMNS
 from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
+from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
@@ -219,7 +218,7 @@ def test_stdout_carries_only_the_csv(tmp_path):
 def test_a_mean_with_no_values_is_skipped(caplog):
     scores = [Score(0, "smote", Source.AUGMENTED, Measure.RECALL, Scope.ALL, 0.5)]
     with caplog.at_level(logging.INFO):
-        _log_means(scores)
+        log_means(scores)
     means = [m for m in caplog.messages if m.startswith("mean ")]
     assert means == ["mean arm=smote measure=recall scope=all value=0.500000 holdouts=1"]
 
@@ -230,7 +229,7 @@ def test_copies_are_logged_as_whole_counts(caplog):
         for seed, source, value in ((0, Source.ADDED, 2.0), (1, Source.ADDED, 1.0))
     ]
     with caplog.at_level(logging.INFO):
-        _log_copies(scores)
+        log_copies(scores)
     assert "copies arm=smote added=3 replica=0" in caplog.messages
 
 

@@ -2,7 +2,7 @@
 id: generate-bkb-skeleton-fill
 title: BKB-drawn concepts, LLM-filled fields
 status: blocked
-depends_on: generate-bkb-sampler, evaluate-run-protocol
+depends_on: generate-bkb-sampler
 blocks: --
 parallel_safe: true
 owner: Shirley
@@ -37,9 +37,9 @@ record's present concepts, and one call fills the records.
   concepts differ from its prescribed ones is dropped and topped up, counted like an off-cell
   drop; `bko.validate` is unchanged, since it reads no ontology relationship (ADR
   [`research/record-validation-design`](../docs/adr/research/record-validation-design.md)).
-- A named run (`evaluate-named-runs`) with the baselines and an arm `bko-skeleton` at `SETTINGS`
-  on E1's holdouts with its gap and replica fills, under the named run's ceiling and the protocol
-  of `evaluate-run-protocol`. Spend estimate: one arm's share of the judged run's spend plus the
+- A named run (`bko.evaluate.experiment.RUNS`) with the baselines and an arm `bko-skeleton` at `SETTINGS`
+  on E1's holdouts with its gap and replica fills, under the named run's ceiling and the paid-run protocol
+  (`docs/DEVELOPMENT.md`, Evaluation). Spend estimate: one arm's share of the judged run's spend plus the
   longer user turn's input tokens, stated in the Runs row before the run.
 - A new `docs/EVIDENCE.md` entry with validity, drops, replica fidelity and utility, test copies,
   and each criterion's measures with no verdict, read beside the judged run's `bko` and the
