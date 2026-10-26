@@ -165,8 +165,16 @@ def main(
 
 
 def _launch(args: argparse.Namespace, context: Context) -> str:
-    """Start the run, and return the command that watches its folder, one line."""
+    """Start the run, and return the command that watches its folder, one line.
+
+    Raises:
+        EvaluationError: If the run has no BKO arm, so `score --log` would refuse it, or as
+            `launch`.
+    """
     context = _named(args.run, context)
+    if not set(context.experiment.arms) & set(BKO_ARMS):
+        msg = f"the run {args.run!r} has no BKO arm, so it spends nothing to launch"
+        raise EvaluationError(msg)
     found = launch(
         args.run_id,
         args.run,

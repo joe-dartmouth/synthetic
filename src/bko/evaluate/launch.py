@@ -6,12 +6,16 @@ with a call in flight is what the checks here prevent: the command refuses to st
 reports battery power, starts `score` in its own session with `caffeinate` holding the machine awake
 (macOS; elsewhere it records that nothing holds it awake), sends its stdout and stderr to the run
 folder's `scores.csv` and `scores.log`, records what it checked and ran in `launch.log`, and prints
-the command that watches the folder. A dry run does everything but start the process.
+the command that watches the folder. It creates the two output files exclusively before it starts
+the process, so two launches into one folder cannot both start, and removes them if the process
+cannot start, so a failed launch leaves the folder free. A dry run writes `launch.log` and starts
+nothing.
 """
 
 from __future__ import annotations
 
 import logging
+import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Sequence
@@ -25,6 +29,9 @@ from bko.evaluate.errors import EvaluationError
 
 
 logger = logging.getLogger(__name__)
+
+TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log")
+"""The roles a run of record writes; a folder that holds any of them holds a run."""
 
 BATTERY: Final = "'Battery Power'"
 """What `pmset -g batt` prints between quotes when the machine runs on its battery."""
@@ -49,9 +56,11 @@ def on_battery() -> bool | None:
             timeout=30,
             check=False,
         )
-    except OSError, subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.warning("pmset unreadable error=%s", type(exc).__name__)
         return None
     if result.returncode != 0:
+        logger.warning("pmset unreadable returncode=%d", result.returncode)
         return None
     return BATTERY in result.stdout
 
@@ -114,12 +123,16 @@ def launch(
         now: The clock the log's line reads.
 
     Raises:
-        EvaluationError: If `run_id` is not a run id of record, the machine reports battery power,
-            or the folder already holds the call log, the scores or their log.
+        EvaluationError: If `run_id` is not a run id of record of `run`, the machine reports
+            battery power, or on macOS its power cannot be read, the folder already holds the call
+            log, the scores or their log, or the process cannot start.
     """
     match = RUN_ID.fullmatch(run_id)
     if match is None or match["entry"] is None:
         msg = f"{run_id!r} is not a run id of record, such as e1-4"
+        raise EvaluationError(msg)
+    if match["entry"] != run:
+        msg = f"{run_id!r} is not a run id of the run {run!r}, such as {run}-4"
         raise EvaluationError(msg)
     battery = power()
     if battery:
@@ -127,14 +140,15 @@ def launch(
             "the machine reports battery power; a paid run lost to sleep is lost money, so plug in"
         )
         raise EvaluationError(msg)
+    if battery is None and platform == "darwin":
+        msg = "pmset could not report the machine's power, so mains power cannot be confirmed"
+        raise EvaluationError(msg)
     folder = root / run_id
-    taken = [
-        name for name in ("calls.jsonl", "scores.csv", "scores.log") if (folder / name).exists()
-    ]
+    taken = [name for name in TAKEN if (folder / name).exists()]
     if taken:
         msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
         raise EvaluationError(msg)
-    awake = ["caffeinate", "-i"] if platform == "darwin" else []
+    awake = ["caffeinate", "-i", "-s"] if platform == "darwin" else []
     command = (
         *awake,
         sys.executable,
@@ -148,18 +162,48 @@ def launch(
     )
     folder.mkdir(parents=True, exist_ok=True)
     out, err = folder / "scores.csv", folder / "scores.log"
-    out.touch()
-    err.touch()
     reading = "unchecked" if battery is None else "mains"
-    pid = None if dry_run else start(command, out, err)
     lines = [
         f"launched {now().strftime('%Y-%m-%dT%H:%M:%SZ')} run={run} dry_run={dry_run}",
         f"power={reading}",
         f"awake={'caffeinate' if awake else 'none'}",
-        f"pid={pid}",
-        f"command={' '.join(command)}",
+        f"command={shlex.join(command)}",
     ]
-    (folder / "launch.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    watch = f"tail -f {err}"
+    if not dry_run:
+        _claim(out, err)
+    record = folder / "launch.log"
+    record.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    pid = None
+    if not dry_run:
+        try:
+            pid = start(command, out, err)
+        except OSError as exc:
+            out.unlink()
+            err.unlink()
+            with record.open("a", encoding="utf-8") as appending:
+                appending.write(f"error={type(exc).__name__}\n")
+            msg = f"{command[0]} could not start: {exc}"
+            raise EvaluationError(msg) from exc
+    with record.open("a", encoding="utf-8") as appending:
+        appending.write(f"pid={pid}\n")
+    watch = f"tail -f {shlex.quote(str(err))}"
     logger.info("launch folder=%s power=%s dry_run=%s pid=%s", folder, reading, dry_run, pid)
     return Launch(folder, command, watch, started=not dry_run, pid=pid)
+
+
+def _claim(out: Path, err: Path) -> None:
+    """Create `out` and `err` exclusively, so one launch alone owns the folder.
+
+    Raises:
+        EvaluationError: If another launch created either file first.
+    """
+    made: list[Path] = []
+    try:
+        for path in (out, err):
+            path.open("x").close()
+            made.append(path)
+    except FileExistsError:
+        for path in made:
+            path.unlink()
+        msg = f"{out.parent} already holds a run's output; another launch started first"
+        raise EvaluationError(msg) from None
