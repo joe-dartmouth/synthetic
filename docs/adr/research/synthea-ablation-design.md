@@ -40,7 +40,10 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
 - **A case is a patient**: the ablation removes every patient who has one of the spec's condition
   codes by the snapshot date, with all their condition rows. The spec narrows the cases to one age
   band, one sex, both, or neither; neither removes the condition from the whole population.
-- **Removal is complete** within the spec: a spec removes whole patients, all the cases it selects or a seeded fraction of them (`AblationSpec.fraction`, drawn with `AblationSpec.seed`, rounded up so a positive fraction removes one case at least).
+- **Removal is complete** within the spec: a spec removes whole patients, all the cases it selects
+  or a seeded fraction of them (`AblationSpec.fraction`, drawn with `AblationSpec.seed`, rounded up
+  so a positive fraction removes one case at least). Fractions of one spec at one seed share its
+  draw, so each removes the cases of every smaller fraction and more.
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 
 `bko.datasets.synthea_run`, `bko.datasets.synthea` and `bko.datasets.ablation` hold the values. The
@@ -60,10 +63,13 @@ detector's finding is the ablation and not natural sparsity, and the pinned para
 identity. Removing condition rows alone would keep the patient as a non-case, which inflates the
 cell of patients without the condition. Both grounding definitions of ADR
 `research/bko-formal-gap-definition` ground a statement from one remaining record, of the cell or
-of the population, so removing a fraction of a cell's cases is invisible to them; the frequency-aware score reads shares
-and could see it, and the count-based detector reads the cell's fallen count; E2's fraction ablations measure both. Population-level grounding, over an ontology with no age-
-or sex-specific statement, sees only a whole condition's absence, and per-subgroup grounding a
-whole cell's, which is why the spec can narrow to a cell or drop the band and the sex.
+of the population, so a partial removal is visible to them only where it removes every case of a
+cell (per-subgroup) or of the population (population-level), which a fraction below 1 can do in a
+cell with few cases; the frequency-aware score reads shares and could see it, and the count-based
+detector reads the cell's fallen count; E2's fraction ablations measure all four.
+Population-level grounding, over an ontology with no age- or sex-specific statement, sees only a
+whole condition's absence, and per-subgroup grounding a whole cell's, which is why the spec can
+narrow to a cell or drop the band and the sex.
 
 ## Consequences
 
