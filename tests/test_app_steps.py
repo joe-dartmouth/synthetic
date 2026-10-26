@@ -14,7 +14,6 @@ import pandas as pd
 import pytest
 
 from bko.app.context import SPEND_CEILING, Context, configure_logging
-from bko.app.runs import RUN_ID
 from bko.app.steps import (
     Analysis,
     Outcome,
@@ -30,7 +29,7 @@ from bko.app.steps import (
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
-from bko.datasets.run_folders import runs_root
+from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.run import ARMS, method_arms

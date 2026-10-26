@@ -63,7 +63,7 @@ class Context:
         send: Builds the send a live BKO fill's calls go through; called only inside that fill.
         ceiling: The spend in USD at which one paid fill stops.
         data_dir: The data root; `default_data_dir()` when None.
-        runs_dir: The run folders' root; `bko.app.runs.runs_root()` when None.
+        runs_dir: The run folders' root; `bko.datasets.run_folders.runs_root()` when None.
         now: The clock that names each fill's run folder.
         setup_logging: Configures logging; every rerun calls it.
     """
