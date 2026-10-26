@@ -10,21 +10,21 @@ and improve heart-disease prediction for underrepresented groups.
 
 ## Overview
 
-Clinical machine-learning models fail on long-tail populations: rare subtypes and underserved
+Clinical [machine-learning](https://en.wikipedia.org/wiki/Machine_learning) models fail on long-tail populations: rare subtypes and underserved
 subgroups have too few training records. Commercial synthetic-data platforms optimize fidelity to
 the data they are given, so they reproduce its gaps. This project instead uses Bayesian
-Knowledge-driven Ontologies (BKOs; Santos, Jurmain and Ragazzi, PLOS ONE 2024), which combine
-description logic with Bayesian Knowledge Bases and treat incompleteness as a property of the
+Knowledge-driven Ontologies ([BKOs](https://journals.plos.org/plosone/); Santos, Jurmain and Ragazzi, [PLOS ONE](https://journals.plos.org/plosone/) 2024), which combine
+[description logic](https://en.wikipedia.org/wiki/Description_logic) with [Bayesian Knowledge Bases](https://github.com/di2ag/pybkb) and treat incompleteness as a property of the
 representation. The pipeline:
 
-1. **Represent.** Load MONDO and HPO as BKO fragments, and the dataset as a second fragment weighted
+1. **Represent.** Load [MONDO](https://mondo.monarchinitiative.org/) (Monarch Disease Ontology) and [HPO](https://hpo.jax.org/) (Human Phenotype Ontology) as BKO fragments, and the dataset as a second fragment weighted
    by observed frequency.
 2. **Detect.** Statements the ontology implies but the data does not support are the plan's formal
-   definition of a dataset gap (ADR `research/bko-formal-gap-definition`).
+   definition of a dataset gap ([ADR](https://adr.github.io/) `research/bko-formal-gap-definition`).
 3. **Generate and validate.** Generate candidate records for each gap through the Anthropic
-   Messages API, guided by the ontology, and validate each before augmentation.
-4. **Evaluate.** On UCI Heart Disease, compare rare-class recall and AUC-PR against no
-   augmentation, class weighting, SMOTE, ADASYN, CTGAN and TVAE.
+   [Messages API](https://docs.anthropic.com/en/api/messages), guided by the ontology, and validate each before augmentation.
+4. **Evaluate.** On [UCI Heart Disease](https://archive.ics.uci.edu/dataset/45/heart+disease), compare rare-class recall and [AUC-PR](https://en.wikipedia.org/wiki/Precision_and_recall) (Area Under the Precision-Recall Curve) against no
+   augmentation, class weighting, [SMOTE](https://arxiv.org/abs/1106.1813), [ADASYN](https://ieeexplore.ieee.org/document/4633969), [CTGAN](https://arxiv.org/abs/1907.00503) and [TVAE](https://arxiv.org/abs/1907.00503).
 
 ## Setup
 
@@ -40,20 +40,22 @@ make reproduce # rebuild Santos et al.'s MONDO/DO fusion example and compare it 
 make app       # serve the Streamlit app on 127.0.0.1 (a live BKO fill spends money)
 ```
 
+Tools used above: [Synthea](https://synthetichealth.github.io/synthea/) (synthetic patient generator), [JDK](https://openjdk.org/) (Java Development Kit), [DO](https://disease-ontology.org/) (Human Disease Ontology), [Streamlit](https://streamlit.io/).
+
 ## Repository guide
 
 The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md); the source documents are in
 [`papers/`](papers/proposal-2-pager.pdf). [`AGENTS.md`](AGENTS.md) holds the commands, layout,
 conventions and document index.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the full record of the environment and the gate.
-Decisions are in [`docs/adr/`](docs/adr/README.md).
+Decisions ([ADRs](https://adr.github.io/)) are in [`docs/adr/`](docs/adr/README.md).
 
 ## License
 
-Copyright (C) 2026 Dartmouth College. The code is licensed under the GNU General Public
-License, version 3 only ([`LICENSE`](LICENSE)); ADR
+Copyright (C) 2026 Dartmouth College. The code is licensed under the [GNU General Public
+License, version 3 only](https://www.gnu.org/licenses/gpl-3.0.html) ([`LICENSE`](LICENSE)); ADR
 [`tooling/gpl-3-license`](docs/adr/tooling/gpl-3-license.md) records why.
-`src/bko/bkb/` and its tests under `tests/` adapt code and data from
-[pybkb](https://github.com/di2ag/pybkb) by Chase Yakaboski, also licensed under the GNU General
-Public License, version 3; ADR [`research/bkb-layer-source`](docs/adr/research/bkb-layer-source.md)
+`src/bko/bkb/` (BKB: Bayesian Knowledge Base) and its tests under `tests/` adapt code and data from
+[pybkb](https://github.com/di2ag/pybkb) by Chase Yakaboski, also licensed under the [GNU General
+Public License, version 3](https://www.gnu.org/licenses/gpl-3.0.html); ADR [`research/bkb-layer-source`](docs/adr/research/bkb-layer-source.md)
 records the commit and the changes.
