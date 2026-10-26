@@ -122,30 +122,36 @@ keeps its folder; the resumed run takes that id plus `-resume` ([Runs](#runs)):
 Never resume a log that another process still writes. A run stopped at the spend ceiling cannot
 resume, because its first live call refuses again.
 
-**The paid-run protocol.** Every paid run starts with `launch`, which a Runs row cites instead of a
-script:
-
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
-
-It refuses a run id that is not a run of record, a folder that already holds `calls.jsonl`,
-`scores.csv` or `scores.log`, and a machine that reports battery power (`pmset -g batt` on macOS;
-elsewhere it cannot check and records `power=unchecked`). Otherwise it starts `score <run> --log`
-in its own session, held awake by `caffeinate -i` on macOS, with stdout and stderr in the folder's
-`scores.csv` and `scores.log`, records the power reading, the keep-awake and the command in
-`launch.log`, and prints the command that watches the folder (`tail -f runs/<run-id>/scores.log`).
-`--dry-run` writes the folder's roles and starts nothing. The run itself stops, exit 2 with the call
-log ending `failed`, on any of three rules, each logged as `stop rule=<name>` with the measure that
-fired: the spend ceiling (`E1.spend_ceiling`), the projection (the live spend after
-`projection_after` holdouts, scaled to every holdout, past the ceiling; a replay and a resume are
-not projected), and the idle limit (`idle_limit` seconds since the last completed call, read before
-each call, so a call still in flight is bounded by the API client's own timeout).
-`bko.evaluate.watch` holds the rules. The call log is copied off the runner before any replay.
-
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
 refuse an existing log, and `scores.csv` is the only copy `compare` reads. A judged run keeps
 `compare`'s stdout and stderr in its folder:
 
     test ! -e runs/<run-id>/criteria.csv && test ! -e runs/<run-id>/criteria.log && uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv > runs/<run-id>/criteria.csv 2> runs/<run-id>/criteria.log
+
+**The paid-run protocol.** A new paid run starts with `launch`, which a Runs row cites instead of
+the `score --log` command above; a resume still runs the guarded `--resume` command:
+
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
+
+It refuses a run id that is not a run of record of `<run>` (`<run>-<n>`), a run with no BKO arm, a
+folder that already holds `calls.jsonl`, `scores.csv` or `scores.log`, and a machine that reports
+battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and
+records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a
+second launch into the folder refuses, records the power reading, the keep-awake and the command in
+`launch.log`, and starts `score <run> --log` in its own session, held awake by `caffeinate -i -s` on
+macOS, with stdout and stderr in those two files. It appends the process id to `launch.log`, or the
+error and removes the two files when the process cannot start, and prints the command that watches
+the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute). `--dry-run` writes
+`launch.log` and starts nothing, so the folder stays free to launch. The power is read once, at
+launch: a machine unplugged afterwards is not caught, and `caffeinate -s` holds it awake on mains
+power only. The run itself stops, exit 2 with the call log ending `failed`, on any of three rules,
+each logged as `stop rule=<name>` with the measure that fired: the spend ceiling
+(`E1.spend_ceiling`), the projection (the live spend after `projection_after` holdouts, scaled to
+every holdout, reaching the ceiling; a replay and a resume are not projected, and `stop rules
+projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call to get a
+reply, its retries included, timed while the call is in flight). `bko.evaluate.watch` holds the
+rules. A `scores.log` with no `run status=` line, which the call log writes as it closes, belongs to
+a process that is still running or was killed. Copy the call log off the runner before any replay.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -344,8 +350,8 @@ inside `.venv`:
   ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
   `E2_ABLATIONS`, each removing all of a spec's cases or a seeded fraction of them (`cell-50` is
   half of the cell's cases), lists every definition's gaps and the count-based ones before and
-  after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without `count`,
-  then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
+  after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without
+  `count`, then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
   among the gaps the removed patients account for. Every cell uses the ablation's age bands
   (`AblationSpec.edges`). A definition's cells carry no label, so its rows leave `target` blank,
   and a (cell, statement) pair is listed when it is a gap before or after the removal or in the
@@ -506,8 +512,8 @@ A run of record keeps its artifacts in its own folder, `runs/<run-id>/` at the r
 gitignored like `data/` and present only on the machine that ran it. `<run-id>` is the run's id in
 [EVIDENCE.md](EVIDENCE.md), such as `e1-3`; a run that checks or extends another takes that run's
 id and a suffix, such as `e1-3-replay` or `c1-2-closure`. A fill made in the Streamlit app is not a
-run of record; its folder is named `app-<UTC time>-<arm>`. `bko.app.runs.RUN_ID` matches both
-forms. Each artifact takes a fixed role name, so
+run of record; its folder is named `app-<UTC time>-<arm>`. `bko.datasets.run_folders.RUN_ID`
+matches both forms. Each artifact takes a fixed role name, so
 a reader finds it without knowing the command that wrote it. `bko.app.runs.ROLES` is the list's
 home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal:
 

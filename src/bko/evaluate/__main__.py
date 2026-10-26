@@ -16,7 +16,7 @@ stopped log's answered calls from it and sends the rest live, all into NEW.
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with
 no BKO arm to build, `--resume` with `--replay`, a call with no response, a failed gap query, a
-run whose spend reached the ceiling, projects past it or stalled, a `launch` on battery power
+run whose spend reached the ceiling, projects to it or stalled, a `launch` on battery power
 or into a folder that holds a run, and scores whose validity cannot be read; 3 the data, a
 method's output, a scores file, a replay or a stopped log that cannot be resumed contradicts its
 contract.
