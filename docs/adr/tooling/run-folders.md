@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-21
-updated: 2026-10-21
+updated: 2026-10-26
 ---
 # Run folders: one gitignored folder per run of record, artifacts under fixed role names
 
@@ -26,7 +26,7 @@ We will keep each run of record's artifacts in **`runs/<run-id>/`**, gitignored.
 takes a role name from `bko.app.runs.ROLES`, which `docs/DEVELOPMENT.md` (Runs) mirrors in a
 table. The guarded commands in `docs/DEVELOPMENT.md` write there. A run folder's name is the run's
 EVIDENCE id; a run that checks or extends another takes that run's id and a suffix, such as
-`e1-3-replay` or `c1-2-closure`; an app fill, which is not a run of record, takes
+`e1-3-replay` or `c1-2-closure`; an entry holds named runs, `<entry>` or `<entry>-<word>`, and a run id's entry is the part of its name before the first dash, as in `g3-1` and `g3-cell`; an app fill, which is not a run of record, takes
 `app-<UTC time>-<arm>`. The latest run of each entry whose rows name `scratchpad/` is hard-linked
 into its folder (`docs/DEVELOPMENT.md`, Runs, lists them); earlier runs stay where their rows say.
 

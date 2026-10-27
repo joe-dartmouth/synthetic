@@ -107,11 +107,13 @@ nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/
     mkdir -p runs/<run-id>
     test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
     mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
-    uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
+    uv run --no-sync python -m bko.evaluate compare [<run>] runs/<run-id>/scores.csv [--candidate <arm>] [--beside <scores> [--beside-arm <arm>]]
 
 Each command takes an optional run name before its other arguments, as in `score <run> --log ...`
 and `compare <run> runs/<run-id>/scores.csv`; the default is `e1`. A named run is a value of
-`bko.evaluate.experiment.RUNS`, and its folder under `runs/` is named for it, as `<run>-<n>`.
+`bko.evaluate.experiment.RUNS`, and a run's folder under `runs/` is `<entry>-<n>`.
+
+`--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another scores file over the holdouts both hold, at the run's confidence with no verdict. A holdout pairs only when its held-out rows match and no arm in either file copied a test record there, since the test split loses every record any arm copied; the rest are counted as excluded, and fewer than two paired holdouts is refused.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log`. The stopped run
@@ -133,7 +135,7 @@ the `score --log` command above; a resume still runs the guarded `--resume` comm
 
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
 
-It refuses a run id that is not a run of record of `<run>` (`<run>-<n>`), a run with no BKO arm, a
+`<run>` defaults to the run id's entry and must share it: `launch g3-1 g3-cell`. It refuses a run id that is not a run of record of `<run>` (`<entry>-<n>`), a run with no BKO arm, a
 folder that already holds `calls.jsonl`, `scores.csv` or `scores.log`, and a machine that reports
 battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and
 records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a

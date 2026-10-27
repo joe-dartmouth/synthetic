@@ -41,8 +41,8 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command and says what
   `--candidate` judges); `score --replay` rereads a paid run's call log for free. Each takes an
   optional run name first (default `e1`).
-- `uv run --no-sync python -m bko.evaluate launch <run-id> [--dry-run]`: start a new paid `score`
-  run detached, kept awake and refused on battery power, into `runs/<run-id>/`; it spends money
+- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run]`: start a new paid `score`
+  run detached, kept awake and refused on battery power, into `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paid-run protocol).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent

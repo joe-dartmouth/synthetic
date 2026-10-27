@@ -35,8 +35,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the run's spend ceiling. It refuses a candidate that is not one of its arms, and a replica arm
   that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
   value: `score --log`, `--replay` and `--resume` choose where calls are recorded and answered
-  from, and `compare --candidate` judges another arm as
-  a dry run, never as E1's verdict. A variant is a named run: `bko.evaluate.experiment.RUNS` maps a
+  from, `compare --candidate` judges another arm as
+  a dry run, never as E1's verdict, and `compare --beside` reads an arm beside another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out rows match and no arm in either file copied a test record. A variant is a named run: `bko.evaluate.experiment.RUNS` maps a
   run name to its `Experiment` and generator `Settings`, `e1` being `E1` at `SETTINGS` and the
   default, and `score` and `compare` take the name as a positional. A named run is a value fixed in
   code and committed, so it replays at its commit as E1 does, and the name does not reopen the
