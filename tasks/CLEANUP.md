@@ -5,7 +5,7 @@ change that found them, costs that do not bite at today's sizes, and gaps a late
 over. Each entry names its blocker when it has one.
 
 The research queue lives elsewhere: planned work is a task unit on a set's index
-([`proposal-index.md`](proposal-index.md), [`experiments-index.md`](experiments-index.md)), and
+([`experiments-index.md`](experiments-index.md)), and
 unscheduled research is in
 [`docs/IDEAS.md`](../docs/IDEAS.md). An entry here is not on any plan. It waits for a change that
 passes close enough to pay it.
@@ -106,8 +106,7 @@ links to where its blocker is tracked.
   PR #44's named runs, and each G3 run writes its own folder.
   **What discharges it:** `run=` and `level=` on the `run status=` and `compare` lines, and a
   per-retry line or a per-call `retried=` count.
-  **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`, or an idle stop
-  during G3.
+  **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`.
 
 - **`cleanup:evaluate/idle-timer-interrupt-escapes`: the idle-timer test can crash its xdist
   worker.** One `make check` run on 2026-10-27 (under `pytest -n auto`) failed

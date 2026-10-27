@@ -1,8 +1,8 @@
 ---
 id: generate-prompt-training-bounds
 title: Bound each numeric field by the training split
-status: blocked
-depends_on: proposal-guidance-ablation
+status: ready
+depends_on: --
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley

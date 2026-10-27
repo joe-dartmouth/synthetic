@@ -1,8 +1,8 @@
 ---
 id: generate-effort-sweep
 title: The lowest effort that keeps validity and fidelity
-status: blocked
-depends_on: proposal-guidance-ablation
+status: ready
+depends_on: --
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley

@@ -2,7 +2,7 @@
 id: evaluate-e1-second-configuration
 title: E1 under the chosen level, bounds and effort
 status: blocked
-depends_on: proposal-guidance-ablation, generate-prompt-training-bounds, generate-effort-sweep
+depends_on: generate-prompt-training-bounds, generate-effort-sweep
 blocks: evaluate-dose-response, evaluate-data-scarcity-curve, evaluate-generator-comparison, generate-bkb-curation
 parallel_safe: false
 owner: Joe
@@ -28,8 +28,8 @@ configuration that will be judged.
 
 **In.**
 
-- `SETTINGS` set to the level `proposal-guidance-ablation`'s record chooses, or `ontology` kept
-  with the record's statement that no level closes the drift.
+- `SETTINGS.guidance` set to `summary`, the level the decision rule of
+  [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level) G3 chooses.
 - E1's Configuration in `docs/EVIDENCE.md` restated for the new settings, with the spend and
   duration estimate derived as [`experiments-index.md`](experiments-index.md#spend) says, from
   `e1-3`'s tokens per record asked and the effort sweep's rate.
