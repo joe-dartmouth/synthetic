@@ -40,7 +40,9 @@ label: chest pain shows in 0.218 of the records with disease.
   `CREDIBILITY_LEVELS` and chooses one by a rule stated before its run: on E2's `cell` ablation
   at fraction 0.5 (`cell-50`), among the levels whose frequency-aware sensitivity is at least the
   count-based detector's, the level with the highest frequency-aware specificity, the lower level
-  on a tie; no level is chosen when none qualifies. `bko-frequency` keeps 0.95 until
+  on a tie. A level whose sensitivity or specificity reads `n/a` does not qualify; when the
+  count-based sensitivity reads `n/a`, or the run holds no `cell-50`, no level is chosen; and no
+  level is chosen when none qualifies. `bko-frequency` keeps 0.95 until
   [`docs/RESEARCH.md`](../../RESEARCH.md#detect) says it reads the chosen level.
 - **No minimum cell size.** The posterior is the size guard: an empty cell's posterior is the prior,
   which puts at most 0.705 of its mass below 0.8 p, so an empty cell is never flagged. A cell none
