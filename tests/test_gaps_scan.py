@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import math
 from datetime import date
 from fractions import Fraction
@@ -10,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+import bko.gaps.scan
 from bko.datasets.ablation import AblationSpec, ablate, cases, removal_order
 from bko.datasets.errors import DatasetError
 from bko.datasets.synthea import Population, load_population
@@ -27,6 +29,7 @@ from tests._gaps_fixtures import (
     E2_POPULATION,
     ISCHEMIA,
     LADDER_MONDO,
+    UNSEEN,
 )
 from tests._ontology_fixtures import write_obo
 
@@ -196,3 +199,44 @@ def test_a_spec_ablate_refuses_is_refused_by_the_scan(people, fragments):
     spec = AblationSpec(codes=CELL.codes, age_band="65-70", sex=1, edges=(60,))
     with pytest.raises(DatasetError, match="age band"):
         scan("x", people, spec, fragments, [ISCHEMIA])
+
+
+def test_the_scan_silences_fusion_lines_and_restores_the_level(people, fragments, caplog):
+    fusion = logging.getLogger("bko.bkb.fusion")
+    fusion.setLevel(logging.DEBUG)
+    try:
+        with caplog.at_level(logging.INFO, logger="bko"):
+            scan("condition", people, CONDITION, fragments, [ISCHEMIA])
+            assert not [r for r in caplog.records if r.name == "bko.bkb.fusion"]
+            assert fusion.level == logging.DEBUG
+            with pytest.raises(GapError):
+                scan("x", people, dataclasses.replace(CONDITION, fraction=0.5), fragments, [])
+            run_ablation("condition", people, CONDITION, fragments, [ISCHEMIA])
+        assert fusion.level == logging.DEBUG
+        assert [r for r in caplog.records if r.name == "bko.bkb.fusion"]
+    finally:
+        fusion.setLevel(logging.NOTSET)
+
+
+def test_a_failing_scan_restores_the_fusion_level(people, fragments, monkeypatch):
+    fusion = logging.getLogger("bko.bkb.fusion")
+
+    def broken(*_: object) -> None:
+        assert fusion.level == logging.WARNING
+        raise RuntimeError("mid-scan")
+
+    monkeypatch.setattr(bko.gaps.scan, "_listings", broken)
+    with pytest.raises(RuntimeError, match="mid-scan"):
+        scan("condition", people, CONDITION, fragments, [ISCHEMIA])
+    assert fusion.level == logging.NOTSET
+
+
+def test_the_scan_logs_a_header_even_for_an_ablation_with_no_truth(tmp_path, people, caplog):
+    mondo = parse_obo(write_obo(tmp_path, LADDER_MONDO, "mondo.obo"), name="mondo")
+    unseen = ontology_fragments({"MONDO": mondo}, {UNSEEN.concept})
+    with caplog.at_level(logging.INFO, logger="bko.gaps"):
+        scan("condition", people, CONDITION, unseen, [UNSEEN])
+    assert (
+        "first-flag ablation=condition cases=21 truth per-subgroup=0 population-level=0 "
+        "frequency-aware=0 count=2"
+    ) in caplog.text

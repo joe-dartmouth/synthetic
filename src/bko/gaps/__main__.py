@@ -247,10 +247,12 @@ def _first_flag(data_dir: Path, context: Context) -> list[Row]:
     label = labeller(ontologies)
     rows: list[Row] = [FIRST_FLAG_COLUMNS]
     for name, spec in context.ablations.items():
-        if spec.fraction == 1:
-            flags = scan(name, population, spec, fragments, context.code_rows)
-            log_first_flags(name, flags)
-            rows.extend(first_flag_rows(name, flags, label))
+        if spec.fraction != 1:
+            logger.info("first-flag skip ablation=%s fraction=%s", name, spec.fraction)
+            continue
+        flags = scan(name, population, spec, fragments, context.code_rows)
+        log_first_flags(name, flags)
+        rows.extend(first_flag_rows(name, flags, label))
     return rows
 
 

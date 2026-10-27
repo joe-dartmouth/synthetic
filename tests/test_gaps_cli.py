@@ -502,7 +502,21 @@ def test_first_flag_scans_each_whole_ablation_and_skips_the_partial_ones(tmp_pat
         f"gaps rows=21 sha256={digest}",
     ):
         assert line in caplog.text
-    assert "condition-50" not in caplog.text
+    assert "first-flag skip ablation=condition-50 fraction=0.5\n" in caplog.text
+    assert "first-flag ablation=condition-50 " not in caplog.text
+    messages = [record.getMessage() for record in caplog.records]
+    headers = [message for message in messages if " truth per-subgroup=" in message]
+    assert headers == [
+        (
+            "first-flag ablation=cell cases=20 truth per-subgroup=2 population-level=2 "
+            "frequency-aware=2 count=1"
+        ),
+        (
+            "first-flag ablation=condition cases=21 truth per-subgroup=4 population-level=4 "
+            "frequency-aware=4 count=2"
+        ),
+    ]
+    assert "fused " not in caplog.text.split("first-flag ablation=cell cases=")[1]
 
 
 def test_a_second_first_flag_run_writes_the_same_bytes(tmp_path):

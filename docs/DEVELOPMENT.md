@@ -462,9 +462,19 @@ commands, inside `.venv`:
   eligible, recovered, outside the truth, new outside the truth, and vanished) and its sensitivity
   and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
-  removing whole patients cannot cause, for `first-flag` one `first-flag` line per ablation,
-  detector and truth cell with the cell's cases, its truth items, how many were ever listed and
-  the earliest and latest first flag, and last the row count and sha256 of stdout.
+  removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
+  `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
+  partial ablation it passes over; for each whole ablation a header,
+  `first-flag ablation=<name> cases=<n> truth per-subgroup=<k> population-level=<k>
+  frequency-aware=<k> count=<k>`, giving its truth item counts, so an ablation with no truth still
+  logs; then one line per detector and truth cell, `first-flag ablation=<name> detector=<d>
+  cell=<key> cases=<n> items=<k> flagged=<k> first=<r> last=<r>`, `first` and `last` being the
+  earliest and latest first flag among the cell's items and `n/a` when none is flagged; and last
+  the `gaps rows=<k> sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The
+  scan's per-state fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING
+  while it runs and restores it after, so `synthea`, `uci` and the fusion reproduction keep
+  theirs.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
   contradicts its pin or schema, including a release naming an `is_a` parent it lacks.

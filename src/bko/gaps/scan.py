@@ -18,9 +18,10 @@ lines are rendered here, for `python -m bko.gaps first-flag`.
 from __future__ import annotations
 
 import bisect
+import contextlib
 import itertools
 import logging
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Collection, Generator, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -120,8 +121,26 @@ def scan(
             f"{name} removes fraction {spec.fraction}"
         )
         raise GapError(msg)
+    with _quiet_fusion():
+        return _scan(name, population, spec, fragments, rows)
+
+
+def _scan(
+    name: str,
+    population: Population,
+    spec: AblationSpec,
+    fragments: Sequence[BKB],
+    rows: Sequence[CodeMapping],
+) -> tuple[FirstFlag, ...]:
     full = run_ablation(name, population, spec, fragments, rows)
     order = removal_order(full.ablation.removed, spec.seed)
+    logger.info(
+        "first-flag ablation=%s cases=%d truth %s count=%d",
+        name,
+        len(order),
+        " ".join(f"{definition.value}={len(full.truth)}" for definition in Definition),
+        len(full.count_truth),
+    )
     keys = cell_keys(subjects(population, codes=spec.codes), edges=spec.edges).loc[order]
     places: dict[Cell, list[int]] = {}
     for nth, (band, sex) in enumerate(keys[["age_band", "sex"]].itertuples(index=False), 1):
@@ -248,6 +267,18 @@ def _truth_from(
             if not wanted:
                 break
     return entered
+
+
+@contextlib.contextmanager
+def _quiet_fusion() -> Generator[None]:
+    """Hold `bko.bkb.fusion`'s logger at WARNING, so the scan's many fusions log no `fused` line."""
+    fusion = logging.getLogger("bko.bkb.fusion")
+    level = fusion.level
+    fusion.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        fusion.setLevel(level)
 
 
 def _cell(item: Item) -> Cell:
