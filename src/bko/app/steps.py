@@ -21,6 +21,7 @@ from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import Method, Request
 from bko.datasets.cells import cell_counts
 from bko.datasets.split import Split
+from bko.evaluate.classifier import Model
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
 from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
@@ -276,7 +277,8 @@ def _score(
     drains: Mapping[str, Drain] = MappingProxyType({}),
 ) -> list[Score]:
     arms = {**context.arms, experiment.candidate: recorder}
-    return score_holdout(analysis.parts, experiment, arms, factory=context.factory, drains=drains)
+    models = {Model.LR: context.factory}
+    return score_holdout(analysis.parts, experiment, arms, models=models, drains=drains)
 
 
 def _outcome(

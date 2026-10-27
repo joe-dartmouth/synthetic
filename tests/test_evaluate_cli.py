@@ -20,6 +20,7 @@ from bko.evaluate.__main__ import (
     configure_logging,
     main,
 )
+from bko.evaluate.classifier import MODELS
 from bko.evaluate.criteria import CONTRAST_COLUMNS
 from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
 from bko.evaluate.logs import log_copies, log_means
@@ -66,6 +67,12 @@ def test_score_writes_every_arm_on_every_holdout(scores_file):
     assert tuple(frame.columns) == SCORE_COLUMNS
     assert set(frame["holdout"]) == set(SMALL.holdout_seeds)
     assert set(frame["arm"]) == set(SMALL.arms)
+    augmented = frame[frame["source"] == "augmented"]
+    assert {"recall-hgb", "precision-hgb", "auc-pr-hgb"} <= set(augmented["measure"])
+
+
+def test_score_fits_every_model_by_default():
+    assert Context().models is MODELS
 
 
 def test_compare_judges_a_candidate_from_the_scores_file(scores_file):
