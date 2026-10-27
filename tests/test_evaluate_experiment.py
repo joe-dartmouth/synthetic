@@ -14,9 +14,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
-    CRITERION_NAMES,
     E1,
-    HOLDOUTS,
     METHOD_ARMS,
     RUNS,
     Experiment,
@@ -51,24 +49,37 @@ def test_e1_judges_bko_against_every_method():
 
 
 def test_e1_is_its_stated_configuration():
-    stated = Experiment(
-        holdout_seeds=tuple(range(HOLDOUTS)),
-        arms=(*METHOD_ARMS, "bko", "bko-population", "bko-frequency"),
-        candidate="bko",
-        comparators=METHOD_ARMS,
-        replica_arms=("smote", "adasyn", "ctgan", "tvae", "bko", "bko-population", "bko-frequency"),
-        spend_ceiling=25.0,
-        criteria=CRITERION_NAMES,
-    )
-    assert stated == E1
+    methods = ("none", "class-weight", "smote", "adasyn", "ctgan", "tvae")
+    stated = {
+        "holdout_seeds": tuple(range(100)),
+        "arms": (*methods, "bko", "bko-population", "bko-frequency"),
+        "candidate": "bko",
+        "comparators": methods,
+        "replica_arms": (
+            *("smote", "adasyn", "ctgan", "tvae"),
+            *("bko", "bko-population", "bko-frequency"),
+        ),
+        "fill_to": 20,
+        "margin": 0.0,
+        "privacy_margin": 0.9,
+        "confidence": 0.95,
+        "attempts": 5,
+        "budget": 3,
+        "validity": Fraction(19, 20),
+        "spend_ceiling": 25.0,
+        "criteria": ("primary", "secondary", "privacy", "validity"),
+        "projection_after": 5,
+        "idle_limit": 900.0,
+    }
+    assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
+    assert Experiment(**stated) == E1
+    assert methods == METHOD_ARMS
     assert ADDS_ROWS == ("smote", "adasyn", "ctgan", "tvae")
     assert RUNS["e1"] == NamedRun(E1)
 
 
 def test_one_guidance_run_per_level_besides_ontology():
-    names = {f"g3-{level}" for level in LEVELS if level is not Level.ONTOLOGY}
-    assert set(RUNS) == {"e1", *names}
-    assert len(names) == len(LEVELS) - 1
+    assert set(RUNS) == {"e1", "g3-cell", "g3-coherent", "g3-findings", "g3-profile", "g3-summary"}
 
 
 @pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])
