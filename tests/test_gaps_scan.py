@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import math
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -82,7 +83,7 @@ def test_removal_order_reproduces_every_fractions_draw(people):
             for step in range(1, 101):
                 fraction = step / 100
                 drawn = ablate(people, dataclasses.replace(spec, fraction=fraction, seed=seed))
-                prefix = order[: math.ceil(fraction * len(selected))].sort_values()
+                prefix = order[: math.ceil(Fraction(str(fraction)) * len(selected))].sort_values()
                 assert list(drawn.removed) == list(prefix)
 
 
@@ -97,7 +98,7 @@ def test_a_monotone_detector_flags_at_a_fraction_exactly_from_its_first_flag(
     partial = run_ablation(
         "x", people, dataclasses.replace(spec, fraction=fraction), fragments, [ISCHEMIA]
     )
-    removed = math.ceil(fraction * len(cases(people, spec)))
+    removed = math.ceil(Fraction(str(fraction)) * len(cases(people, spec)))
     after: dict[str, set[object]] = {
         definition.value: set(partial.after[definition])
         for definition in (Definition.SUBGROUP, Definition.POPULATION)

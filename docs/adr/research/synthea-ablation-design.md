@@ -44,8 +44,10 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
   or a seeded fraction of them (`AblationSpec.fraction`, drawn with `AblationSpec.seed`, rounded up
   so a positive fraction removes one case at least). Fractions of one spec at one seed share its
   draw, so each removes the cases of every smaller fraction and more. The draw is an order of the
-  cases (`removal_order`), and a fraction removes its first `ceil(f * n)` cases; the first-flag
-  scan (`bko.gaps.scan`) reads the same order one case at a time, so its removed counts and the
+  cases (`removal_order`), numpy's `default_rng` stream at the seed under the locked numpy, and a
+  fraction removes its first `ceil(f * n)` cases, the product taken exactly from the fraction's
+  decimal text, so 0.07 of 100 cases is 7 where floating point would give 8; the first-flag scan
+  (`bko.gaps.scan`) reads the same order one case at a time, so its removed counts and the
   fraction ablations name the same removals.
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 

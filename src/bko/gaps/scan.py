@@ -8,11 +8,11 @@ cell for the count-based detector, the scan records the removed count from which
 the truth, the removed count at which the detector first lists it (0 when it is listed before any
 removal), and the cell's own removed cases then. Per-subgroup, population-level and count-based
 listings only grow as cases go, so an item listed first at removed count `r` is a gap after the
-fraction ablation that removes `ceil(f * n)` of the `n` cases exactly when `r` is at most that
-count; the frequency-aware reference share moves as cases go, so that definition can unlist an
-item, and each time it does is a reversal. Removed counts are counted, never turned into
-fractions: `r / n` does not round back to `r` at every `n`. The rows and log lines are rendered
-here, for `python -m bko.gaps first-flag`.
+fraction ablation that removes `ceil(f * n)` of the `n` cases, the product taken exactly, exactly
+when `r` is at most that count; the frequency-aware reference share moves as cases go, so that
+definition can unlist an item, and each time it does is a reversal. Removed counts are counted,
+never turned into fractions: `r / n` does not round back to `r` at every `n`. The rows and log
+lines are rendered here, for `python -m bko.gaps first-flag`.
 """
 
 from __future__ import annotations

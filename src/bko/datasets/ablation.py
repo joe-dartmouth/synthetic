@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Final
 
 import numpy as np
@@ -36,8 +37,9 @@ class AblationSpec:
         sex: 0 female, 1 male, or `None` for both.
         edges: Age band starts.
         fraction: The share of the selected cases to remove, in (0, 1]; 1 removes them all. Fewer
-            cases are chosen by a draw seeded with `seed`, and the count rounds up, so a positive
-            fraction removes at least one case.
+            cases are chosen by a draw seeded with `seed`, and the count is `ceil(f * n)` of `n`
+            cases, computed exactly from the fraction's decimal text (0.07 of 100 is 7, which
+            floating point would make 8), so a positive fraction removes at least one case.
         seed: The seed of the draw that orders the cases when `fraction` is below 1.
     """
 
@@ -129,8 +131,9 @@ def cases(population: Population, spec: AblationSpec) -> pd.Index:
 def removal_order(selected: pd.Index, seed: int) -> pd.Index:
     """`selected` in the order a draw seeded by `seed` removes them.
 
-    A fraction `f` of `selected` removes the first `ceil(f * len(selected))` of this order, so each
-    fraction at one seed removes the cases of every smaller one.
+    A fraction `f` of `selected` removes the first `ceil(f * len(selected))` of this order, the
+    product taken exactly, so each fraction at one seed removes the cases of every smaller one.
+    The order is numpy's `default_rng` stream under the locked numpy.
 
     Args:
         selected: The cases, sorted, as `cases` returns them.
@@ -188,5 +191,5 @@ def _drawn(selected: pd.Index, spec: AblationSpec) -> pd.Index:
     """The first `spec.fraction` of `selected` in a draw seeded by `spec.seed`, sorted."""
     if spec.fraction == 1:
         return selected
-    count = math.ceil(spec.fraction * len(selected))
+    count = math.ceil(Fraction(str(spec.fraction)) * len(selected))
     return removal_order(selected, spec.seed)[:count].sort_values()

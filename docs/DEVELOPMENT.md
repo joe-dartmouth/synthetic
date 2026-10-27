@@ -444,8 +444,8 @@ commands, inside `.venv`:
   removed count then; frequency-aware can unlist, so its reversals are counted. The draw order is
   the one a fraction ablation takes its first cases from (`bko.datasets.ablation.removal_order`),
   so an item a per-subgroup, population-level or count row lists first at removed count `r` is a
-  gap after the fraction ablation removing `ceil(f * n)` of the `n` cases exactly when `r` is at
-  most that count. The truth items are the full removal's truth, as `synthea` lists it. stdout
+  gap after the fraction ablation removing `ceil(f * n)` of the `n` cases (the product taken
+  exactly, `bko.datasets.ablation.AblationSpec`) exactly when `r` is at most that count. The truth items are the full removal's truth, as `synthea` lists it. stdout
   gets a CSV with `synthea`'s columns up to `target`, then `cases` (the ablation's cases in the
   item's cell), `truth_from` (the removed count from which the item is in the truth),
   `first_flag` (the removed count at which the detector first lists it, 0 when it is listed before
