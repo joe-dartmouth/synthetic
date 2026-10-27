@@ -602,7 +602,7 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   request from the fused BKB's concept shares (ADR
   [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)), seeded by the
   required `--seed`, a non-negative integer; it takes no `--guidance`, and `--log` names its draw
-  log, which must not exist:
+  log, which must not exist and is created readable by its owner only:
 
       mkdir -p runs/<run-id> && test ! -e runs/<run-id>/draws.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate direct [--request <e1|completeness>] --seed <n> --log runs/<run-id>/draws.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log </dev/null
 

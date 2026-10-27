@@ -482,3 +482,9 @@ def test_a_malformed_direct_command_exits_2(tmp_path, argv):
     with pytest.raises(SystemExit) as raised:
         main(argv, context=completeness_context(ScriptedSend()), out=io.StringIO())
     assert raised.value.code == 2
+
+
+def test_direct_creates_its_draw_log_readable_by_its_owner_only(tmp_path):
+    code, _, log = direct(tmp_path)
+    assert code == 0
+    assert log.stat().st_mode & 0o777 == 0o600

@@ -18,9 +18,9 @@ money and a rerun's candidates differ. `--guidance` sets the level, default `ont
 `python -m bko.generate direct --seed N --log PATH` makes no call: it fills the same request
 from the fused BKB's concept shares through `bko.generate.direct`, writes a schema 2 header naming
 the generator and seed, then one line per record, and the same bytes on every run with the same
-seed and inputs. `--log` is its draw log: a `draw` line per record with the concepts drawn, their
-closure and the fields read from the label group. `docs/DEVELOPMENT.md` (Generation) is the usage
-home.
+seed and inputs. `--log` is its draw log, created readable by its owner only: a `draw` line per
+record with the concepts drawn, their closure and the fields read from the label group.
+`docs/DEVELOPMENT.md` (Generation) is the usage home.
 
 Exit codes: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the command
 could not run, no credential, an API failure, an existing log, a completeness request no cell holds
@@ -35,6 +35,7 @@ import dataclasses
 import errno
 import hashlib
 import logging
+import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -319,7 +320,9 @@ def _direct(args: argparse.Namespace, data_dir: Path, context: Context, writer: 
         seed=args.seed,
     )
     plan = chunks(quota, context.settings.per_call)
-    with args.log.open("x", encoding="utf-8") as log:
+    # Owner-only and exclusive, as `CallLog` creates the call log.
+    descriptor = os.open(args.log, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as log:
         writer.header(
             render_header(
                 Header(
