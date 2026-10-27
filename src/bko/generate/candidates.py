@@ -1,12 +1,16 @@
 """The candidates file `python -m bko.generate` writes: a header line, then one line per record.
 
-The header names the run the file answers: `kind` `header`, `schema`, the `request`, the gap
-`definition`, the `guidance` level, the UCI archive's pinned sha256 (`uci`), the split's
+The header names the run the file answers: `kind` `header`, `schema`, the `request`, the
+`generator` (`messages`, the Messages API, or `direct`, the sampler of `bko.generate.direct`), its
+`seed` (null for `messages`), the gap `definition` and the `guidance` level (each null for
+`direct`, which reads neither), the UCI archive's pinned sha256 (`uci`), the split's
 `fingerprint`, each loaded release's pinned sha256 by prefix (`releases`), and the call plan
-(`calls`: each call's cell key and records asked, in call order from call 1). Each later line, one
-per asked record, holds `call` (the call's 1-based index), `cell` (`bko.gaps.observe.cell_key`),
-`position` (0-based within the call) and either the decoded `candidate`, as the reply gave it, or
-the `undecoded` reason, its keys sorted. `bko.fusion` reads it back.
+(`calls`: each call's cell key and records asked, in call order from call 1; a direct file plans
+the calls a Messages run of the same quota would make). Each later line, one per asked record,
+holds `call` (the call's 1-based index), `cell` (`bko.gaps.observe.cell_key`), `position`
+(0-based within the call) and either the decoded `candidate`, as the reply gave it, or the
+`undecoded` reason, its keys sorted. `read` accepts schema 2 and the schema 1 header written
+before the generator existed, read as `messages`. `bko.fusion` reads it back.
 """
 
 from __future__ import annotations
@@ -29,9 +33,9 @@ KEYS: Final = frozenset({"call", "cell", "position"})
 """The keys every line holds."""
 OUTCOMES: Final = frozenset({"candidate", "undecoded"})
 """The keys of which every line holds exactly one."""
-HEADER_SCHEMA: Final = 1
-"""The header's format version."""
-HEADER_KEYS: Final = frozenset(
+HEADER_SCHEMA: Final = 2
+"""The header's format version, which `render_header` writes."""
+SCHEMA_1_KEYS: Final = frozenset(
     {
         "kind",
         "schema",
@@ -44,8 +48,19 @@ HEADER_KEYS: Final = frozenset(
         "calls",
     }
 )
+"""The keys a schema 1 header holds."""
+HEADER_KEYS: Final = SCHEMA_1_KEYS | {"generator", "seed"}
 """The keys the header holds."""
 _SHA256: Final = re.compile(r"[0-9a-f]{64}")
+
+
+class Generator(StrEnum):
+    """What turned the request into candidates."""
+
+    MESSAGES = "messages"
+    """The Anthropic Messages API, guided by a gap definition at a guidance level."""
+    DIRECT = "direct"
+    """The seeded sampler of `bko.generate.direct`, which reads neither."""
 
 
 class Request(StrEnum):
@@ -63,21 +78,40 @@ class Header:
 
     Attributes:
         request: The gap request filled.
-        definition: The gap definition whose gaps guided each cell.
-        guidance: The guidance level.
+        definition: The gap definition whose gaps guided each cell; None for `direct`.
+        guidance: The guidance level; None for `direct`.
         uci: The pinned sha256 of the UCI archive the split was made from.
         fingerprint: The split's fingerprint (`bko.datasets.split.Split.fingerprint`).
         releases: Each loaded release's concept prefix and pinned sha256, sorted by prefix.
         calls: Each call's cell key and records asked, in call order from call 1.
+        generator: What generated the candidates.
+        seed: The sampler's seed; None for `messages`.
     """
 
     request: Request
-    definition: Definition
-    guidance: Level
+    definition: Definition | None
+    guidance: Level | None
     uci: str
     fingerprint: str
     releases: tuple[tuple[str, str], ...]
     calls: tuple[tuple[str, int], ...]
+    generator: Generator = Generator.MESSAGES
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse a header whose definition, guidance and seed disagree with its generator.
+
+        Raises:
+            ValueError: If `definition` or `guidance` is None for `messages` or set for
+                `direct`, or `seed` is set for `messages` or None for `direct`.
+        """
+        direct = self.generator is Generator.DIRECT
+        if direct != (self.definition is None) or direct != (self.guidance is None):
+            msg = "a header has a definition and guidance exactly when its generator is messages"
+            raise ValueError(msg)
+        if direct == (self.seed is None):
+            msg = "a header has a seed exactly when its generator is direct"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,8 +150,10 @@ def render_header(header: Header) -> str:
         "kind": "header",
         "schema": HEADER_SCHEMA,
         "request": header.request.value,
-        "definition": header.definition.value,
-        "guidance": header.guidance.value,
+        "generator": header.generator.value,
+        "seed": header.seed,
+        "definition": None if header.definition is None else header.definition.value,
+        "guidance": None if header.guidance is None else header.guidance.value,
         "uci": header.uci,
         "fingerprint": header.fingerprint,
         "releases": dict(header.releases),
@@ -144,8 +180,8 @@ def read(data: bytes) -> Candidates:
 
     Raises:
         CandidatesFormatError: If the bytes are not UTF-8, the last line has no newline, the file
-            is empty or its first line is not a schema `HEADER_SCHEMA` header, a later line is
-            not one candidate line, a (call, position) repeats, or a call names two cells.
+            is empty or its first line is not a schema 1 or `HEADER_SCHEMA` header, a later line
+            is not one candidate line, a (call, position) repeats, or a call names two cells.
     """
     try:
         text = data.decode("utf-8")
@@ -185,14 +221,30 @@ def _header(raw: str) -> Header:
     if not isinstance(value, dict) or value.get("kind") != "header":
         _not_a_header("it holds no kind header")
     schema = value.get("schema")
-    if type(schema) is not int or schema != HEADER_SCHEMA or value.keys() != HEADER_KEYS:
+    keys = {1: SCHEMA_1_KEYS, HEADER_SCHEMA: HEADER_KEYS}
+    if type(schema) is not int or schema not in keys or value.keys() != keys[schema]:
         _not_a_header(f"its schema or keys differ from {sorted(HEADER_KEYS)}")
+    current = schema == HEADER_SCHEMA
     try:
         request = Request(value["request"])
-        definition = Definition(value["definition"])
-        guidance = Level(value["guidance"])
+        generator = Generator(value["generator"] if current else Generator.MESSAGES)
     except (ValueError, TypeError) as exc:
-        _not_a_header("its request, definition or guidance is not a known value", exc)
+        _not_a_header("its request or generator is not a known value", exc)
+    seed = value["seed"] if current else None
+    if generator is Generator.DIRECT:
+        if value["definition"] is not None or value["guidance"] is not None:
+            _not_a_header("a direct header names a definition or guidance")
+        if type(seed) is not int:
+            _not_a_header("a direct header's seed is not an integer")
+        definition, guidance = None, None
+    else:
+        if seed is not None:
+            _not_a_header("a messages header names a seed")
+        try:
+            definition = Definition(value["definition"])
+            guidance = Level(value["guidance"])
+        except (ValueError, TypeError) as exc:
+            _not_a_header("its definition or guidance is not a known value", exc)
     if not all(_is_sha256(value[key]) for key in ("uci", "fingerprint")):
         _not_a_header("its uci or fingerprint is not a sha256")
     releases = value["releases"]
@@ -209,12 +261,14 @@ def _header(raw: str) -> Header:
         fingerprint=value["fingerprint"],
         releases=tuple(sorted(releases.items())),
         calls=tuple((cell, asked) for cell, asked in calls),
+        generator=generator,
+        seed=seed,
     )
 
 
 def _not_a_header(why: str, cause: BaseException | None = None) -> NoReturn:
     """Refuse the first line as a header, for `why`."""
-    msg = f"line 1 is not a schema {HEADER_SCHEMA} header: {why}"
+    msg = f"line 1 is not a schema 1 or {HEADER_SCHEMA} header: {why}"
     raise CandidatesFormatError(msg) from cause
 
 

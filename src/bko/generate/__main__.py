@@ -1,4 +1,4 @@
-"""Command line for generation: `python -m bko.generate <definition> --log PATH`.
+"""Command line for generation: `python -m bko.generate <definition> --log PATH`, or `direct`.
 
 The command fetches UCI Heart Disease and the releases its field mappings name into the data root
 if they are absent, splits the records, and reads the training split's gaps under the chosen
@@ -13,12 +13,19 @@ record: the call, the cell, the record's position in the call, and its decoded `
 keeps the earlier ones.
 Every call's request and response go to the call log at `--log`, which must not exist; the plan,
 each call, the run's totals and the output's digest go to stderr through logging. Calls spend
-money and a rerun's candidates differ. `docs/DEVELOPMENT.md` (Generation) is the usage home.
+money and a rerun's candidates differ. `--guidance` sets the level, default `ontology`.
+
+`python -m bko.generate direct --seed N --log PATH` makes no call: it fills the same request
+from the fused BKB's concept shares through `bko.generate.direct`, writes a schema 2 header naming
+the generator and seed, then one line per record, and the same bytes on every run with the same
+seed and inputs. `--log` is its draw log: a `draw` line per record with the concepts drawn, their
+closure and the fields read from the label group. `docs/DEVELOPMENT.md` (Generation) is the usage
+home.
 
 Exit codes: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the command
 could not run, no credential, an API failure, an existing log, a completeness request no cell holds
-a gap for, or `--request completeness` with another definition; 3 the data or a release
-contradicts its pin or schema.
+a gap for, `--request completeness` with another definition, or a draw no training record can
+supply; 3 the data or a release contradicts its pin or schema.
 """
 
 from __future__ import annotations
@@ -37,17 +44,19 @@ from typing import TextIO
 
 import pandas as pd
 
+from bko.bkb.structure import BKB
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
-from bko.gaps.observe import Cell, cell_key
+from bko.gaps.observe import Cell, Cells, cell_key
 from bko.gaps.scope import load_uci_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.calls import Batch, chunks, generate
-from bko.generate.candidates import Header, Request, render_header, render_lines
+from bko.generate.candidates import Generator, Header, Request, render_header, render_lines
+from bko.generate.direct import draw_line, sample
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import guide
 from bko.generate.log import CallLog, utc_now
@@ -57,6 +66,9 @@ from bko.ontology.schema import FieldMapping
 
 
 logger = logging.getLogger("bko.generate")
+
+DIRECT = "direct"
+"""The subcommand that draws from the fused BKB instead of calling the API."""
 
 QUIET_LOGGERS = HTTP_LOGGERS
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
@@ -99,17 +111,23 @@ def main(
         out: Where the candidates go; stdout when omitted.
 
     Returns:
-        0 done, 2 the command could not run or a call got no response, 3 the data contradicts
-        its pin or schema. Any other exception propagates, so the process exits 1.
+        0 done, 2 the command could not run, a call got no response or a draw had no record,
+        3 the data contradicts its pin or schema. Any other exception propagates, so the process
+        exits 1.
     """
     context = context or Context()
     parser = _parser(context.settings)
     args = parser.parse_args(argv)
-    if args.request == Request.COMPLETENESS and args.definition != Definition.SUBGROUP:
+    if (
+        args.command != DIRECT
+        and args.request == Request.COMPLETENESS
+        and args.command != Definition.SUBGROUP
+    ):
         parser.error("--request completeness reads the per-subgroup gaps; use per-subgroup")
+    run = _direct if args.command == DIRECT else _run
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        _run(args, data_dir, context, _Writer(out or sys.stdout))
+        run(args, data_dir, context, _Writer(out or sys.stdout))
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -131,34 +149,55 @@ def configure_logging() -> None:
 
 
 def _parser(settings: Settings) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m bko.generate", description=__doc__)
-    parser.add_argument(
-        "definition",
-        choices=[definition.value for definition in Definition],
-        help="the gap definition whose gaps guide each cell",
-    )
-    parser.add_argument(
-        "--guidance",
-        choices=[level.value for level in Level],
-        default=settings.guidance.value,
-        help="the guidance level; default: %(default)s",
-    )
-    parser.add_argument(
+    shared = argparse.ArgumentParser(add_help=False)
+    shared.add_argument(
         "--request",
         choices=[request.value for request in Request],
         default=Request.E1.value,
         help="the gap request to fill; completeness needs per-subgroup; default: %(default)s",
     )
-    parser.add_argument(
-        "--log", type=Path, required=True, help="the call log to create; it must not exist"
-    )
-    parser.add_argument(
+    shared.add_argument(
         "--data-dir",
         type=Path,
         default=None,
         help="the data root; default: data/ at the repository root",
     )
+    parser = argparse.ArgumentParser(
+        prog="python -m bko.generate",
+        description=__doc__,
+    )
+    commands = parser.add_subparsers(
+        dest="command",
+        required=True,
+        help="a gap definition whose gaps guide each cell's calls, or direct",
+    )
+    for definition in Definition:
+        command = commands.add_parser(definition.value, parents=[shared])
+        command.add_argument(
+            "--guidance",
+            choices=[level.value for level in Level],
+            default=settings.guidance.value,
+            help="the guidance level; default: %(default)s",
+        )
+        command.add_argument(
+            "--log", type=Path, required=True, help="the call log to create; it must not exist"
+        )
+    direct = commands.add_parser(DIRECT, parents=[shared])
+    direct.add_argument(
+        "--seed", type=_seed, required=True, help="the sampler's seed, a non-negative integer"
+    )
+    direct.add_argument(
+        "--log", type=Path, required=True, help="the draw log to create; it must not exist"
+    )
     return parser
+
+
+def _seed(text: str) -> int:
+    seed = int(text)
+    if seed < 0:
+        msg = f"the seed must be a non-negative integer, not {seed}"
+        raise argparse.ArgumentTypeError(msg)
+    return seed
 
 
 class _Writer:
@@ -176,10 +215,14 @@ class _Writer:
         self._digest.update(text.encode())
 
     def write(self, batch: Batch) -> None:
-        text = render_lines(batch.index, batch.cell, batch.candidates)
+        self.lines(batch.index, batch.cell, batch.candidates)
+
+    def lines(self, index: int, cell: Cell, candidates: Sequence[object]) -> None:
+        """Write one call's candidate lines, flushed and digested."""
+        text = render_lines(index, cell, candidates)
         self._out.write(text)
         self._out.flush()
-        self._rows += len(batch.candidates)
+        self._rows += len(candidates)
         self._digest.update(text.encode())
 
     def summary(self) -> None:
@@ -204,16 +247,10 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
         scope.fragments,
         scope.cells,
     )
-    definition = Definition(args.definition)
+    definition = Definition(args.command)
     found = gaps(definition, fragments, cells)
     request = Request(args.request)
-    if request is Request.COMPLETENESS:
-        quota = completeness_request(fragments, cells)
-    else:
-        quota = _quota(parts.train)
-    logger.info("request name=%s cells=%d rows=%d", request, len(quota), sum(quota.values()))
-    for cell, rows in quota.items():
-        logger.info("quota key=%s rows=%d", cell_key(cell), rows)
+    quota = _request(request, parts.train, fragments, cells)
     guidance = guide(
         parts.train,
         cells,
@@ -258,6 +295,71 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     finally:
         # After the last write and the run's totals, whether or not every call returned.
         writer.summary()
+
+
+def _direct(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Writer) -> None:
+    """Fill the request from the fused BKB's shares: header, then each planned call's records."""
+    if args.log.exists():
+        raise FileExistsError(errno.EEXIST, "the draw log exists", str(args.log))
+    scope = load_uci_scope(
+        data_dir,
+        uci=context.uci,
+        releases=context.releases,
+        field_rows=context.field_rows,
+        open_url=context.open_url,
+    )
+    request = Request(args.request)
+    quota = _request(request, scope.parts.train, scope.fragments, scope.cells)
+    drawn = sample(
+        scope.parts.train,
+        quota,
+        rows=context.field_rows,
+        ontologies=scope.ontologies,
+        name=context.uci.name,
+        seed=args.seed,
+    )
+    plan = chunks(quota, context.settings.per_call)
+    with args.log.open("x", encoding="utf-8") as log:
+        writer.header(
+            render_header(
+                Header(
+                    request=request,
+                    definition=None,
+                    guidance=None,
+                    uci=context.uci.sha256,
+                    fingerprint=scope.parts.fingerprint,
+                    releases=tuple(
+                        (prefix, context.releases[prefix].sha256)
+                        for prefix in sorted(scope.ontologies)
+                    ),
+                    calls=tuple((cell_key(cell), rows) for cell, rows in plan),
+                    generator=Generator.DIRECT,
+                    seed=args.seed,
+                )
+            )
+        )
+        taken = dict.fromkeys(quota, 0)
+        for index, (cell, rows) in enumerate(plan, start=1):
+            draws = drawn[cell][taken[cell] : taken[cell] + rows]
+            taken[cell] += rows
+            log.write("".join(draw_line(index, p, d) for p, d in enumerate(draws)))
+            writer.lines(index, cell, [dict(d.record) for d in draws])
+    logger.info("draws seed=%d rows=%d log=%s", args.seed, sum(quota.values()), args.log)
+    writer.summary()
+
+
+def _request(
+    request: Request, train: pd.DataFrame, fragments: Sequence[BKB], cells: Cells
+) -> dict[Cell, int]:
+    """The request's rows per cell, each logged."""
+    if request is Request.COMPLETENESS:
+        quota = completeness_request(fragments, cells)
+    else:
+        quota = _quota(train)
+    logger.info("request name=%s cells=%d rows=%d", request, len(quota), sum(quota.values()))
+    for cell, rows in quota.items():
+        logger.info("quota key=%s rows=%d", cell_key(cell), rows)
+    return quota
 
 
 def _quota(train: pd.DataFrame) -> dict[Cell, int]:

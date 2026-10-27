@@ -12,6 +12,7 @@ from bko.gaps.definitions import Definition
 from bko.generate.candidates import (
     CandidateLine,
     Candidates,
+    Generator,
     Header,
     Request,
     read,
@@ -73,7 +74,7 @@ def test_a_header_round_trips():
 
 
 def test_a_headerless_file_is_refused():
-    with pytest.raises(CandidatesFormatError, match="line 1 is not a schema 1 header"):
+    with pytest.raises(CandidatesFormatError, match="line 1 is not a schema 1 or 2 header"):
         read(render_lines(1, CELL, [young(1)]).encode())
 
 
@@ -91,10 +92,61 @@ def test_an_empty_plan_round_trips():
     assert read(render_header(empty).encode()).header == empty
 
 
+DIRECT: Final = dataclasses.replace(
+    HEADER, generator=Generator.DIRECT, seed=0, definition=None, guidance=None
+)
+
+
+def test_the_header_is_schema_2_and_names_its_generator():
+    raw = json.loads(HEAD)
+    assert (raw["schema"], raw["generator"], raw["seed"]) == (2, "messages", None)
+    direct = json.loads(render_header(DIRECT))
+    assert (direct["generator"], direct["seed"]) == ("direct", 0)
+    assert (direct["definition"], direct["guidance"]) == (None, None)
+
+
+def test_a_direct_header_round_trips():
+    found = read((render_header(DIRECT) + render_lines(1, CELL, [young(1)] * 2)).encode())
+    assert found.header == DIRECT
+
+
+def test_a_schema_1_header_reads_as_a_messages_run():
+    raw = {k: v for k, v in json.loads(HEAD).items() if k not in {"generator", "seed"}}
+    old = json.dumps(raw | {"schema": 1}, sort_keys=True) + "\n"
+    assert read(old.encode()).header == HEADER
+    assert HEADER.generator is Generator.MESSAGES
+    assert HEADER.seed is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"generator": Generator.DIRECT, "seed": 0},
+        {"generator": Generator.DIRECT, "seed": 0, "definition": None},
+        {"generator": Generator.DIRECT, "definition": None, "guidance": None},
+        {"seed": 0},
+        {"guidance": None},
+    ],
+    ids=["direct-guided", "direct-guidance", "direct-seedless", "messages-seeded", "no-level"],
+)
+def test_a_header_whose_fields_disagree_with_its_generator_is_refused(change):
+    with pytest.raises(ValueError, match="exactly when"):
+        dataclasses.replace(HEADER, **change)
+
+
 @pytest.mark.parametrize(
     "edit",
     [
-        lambda h: {**h, "schema": 2},
+        lambda h: {**h, "schema": 3},
+        lambda h: {k: v for k, v in h.items() if k != "seed"},
+        lambda h: {**h, "schema": 1},
+        lambda h: {**h, "generator": "other"},
+        lambda h: {**h, "seed": 0},
+        lambda h: {**h, "generator": "direct", "seed": 0},
+        lambda h: {**h, "generator": "direct", "seed": True, "definition": None, "guidance": None},
+        lambda h: {**h, "generator": "direct", "seed": None, "definition": None, "guidance": None},
+        lambda h: {**h, "generator": "direct", "seed": 0, "guidance": None},
+        lambda h: {**h, "definition": None},
         lambda h: {**h, "request": "other"},
         lambda h: {**h, "extra": 1},
         lambda h: {k: v for k, v in h.items() if k != "calls"},
@@ -114,6 +166,15 @@ def test_an_empty_plan_round_trips():
     ],
     ids=[
         "schema",
+        "schema 2 without a seed",
+        "schema 1 with a generator",
+        "unknown generator",
+        "messages with a seed",
+        "direct with a definition and guidance",
+        "direct with a bool seed",
+        "direct without a seed",
+        "direct with a definition",
+        "messages without a definition",
         "request",
         "extra key",
         "missing key",
