@@ -2,7 +2,7 @@
 id: generate-effort-sweep
 title: The lowest effort that keeps validity and fidelity
 status: blocked
-depends_on: evaluate-second-classifier, proposal-guidance-ablation
+depends_on: proposal-guidance-ablation
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley

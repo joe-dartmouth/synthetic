@@ -16,14 +16,13 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-second-classifier`](evaluate-second-classifier.md) | ready | -- | Joe | final-report |
 
 ### Generation
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
-| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
+| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
+| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
 | [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
@@ -50,8 +49,6 @@ set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
-    second_classifier[evaluate-second-classifier] --> effort_sweep[generate-effort-sweep]
-    second_classifier[evaluate-second-classifier] --> prompt_bounds[generate-prompt-training-bounds]
     bkb_sampler[generate-bkb-sampler] --> skeleton_fill[generate-bkb-skeleton-fill]
     bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
