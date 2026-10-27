@@ -18,10 +18,9 @@ lines are rendered here, for `python -m bko.gaps first-flag`.
 from __future__ import annotations
 
 import bisect
-import contextlib
 import itertools
 import logging
-from collections.abc import Collection, Generator, Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -32,7 +31,7 @@ from bko.datasets.ablation import AblationSpec, only, removal_order, without
 from bko.datasets.cells import CELL_COLUMNS, cell_counts, cell_keys
 from bko.datasets.synthea import Population, subjects
 from bko.gaps.definitions import Definition, StatementGap, gaps
-from bko.gaps.detect import count_gaps, grounded
+from bko.gaps.detect import count_gaps, grounded, quiet_fusion
 from bko.gaps.errors import GapError
 from bko.gaps.experiment import SYNTHEA, AblationRun, run_ablation
 from bko.gaps.observe import Cell, cell_key, dataset_fragment, population_cells
@@ -267,21 +266,6 @@ def _truth_from(
             if not wanted:
                 break
     return entered
-
-
-@contextlib.contextmanager
-def quiet_fusion() -> Generator[None]:
-    """Hold `bko.bkb.fusion`'s logger at WARNING, so many fusions log no `fused` line.
-
-    The scan and `bko.gaps.sweep` fuse once per cell for every state or setting they read.
-    """
-    fusion = logging.getLogger("bko.bkb.fusion")
-    level = fusion.level
-    fusion.setLevel(logging.WARNING)
-    try:
-        yield
-    finally:
-        fusion.setLevel(level)
 
 
 def _cell(item: Item) -> Cell:

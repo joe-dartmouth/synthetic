@@ -485,14 +485,17 @@ commands, inside `.venv`:
   population-level at each count of `GROUNDING_COUNTS` and the default level, or frequency-aware
   at each level of `CREDIBILITY_LEVELS` and count 1. After each ablation's `detection` lines,
   `synthea` logs one `sweep ablation=<name> detector=<d> grounding=<k> credibility=<level>
-  sensitivity=<s> specificity=<s>` line per setting, read as the `detection` lines are, and after
-  the last ablation one `chosen level=<level> ablation=cell-50 floor=<s> sensitivity=<s>
-  specificity=<s> tied=<levels>` line: the level the rule of ADR
-  `research/frequency-aware-gap-score` chooses, `floor` being the count-based detector's
-  sensitivity on `cell-50`, `sensitivity` and `specificity` the chosen level's, and `tied` every
-  qualifying level sharing its specificity; `level=none` and `tied=none` when no level qualifies
-  or the run has no `cell-50`. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name> detector=<d>
-  grounding=<k> credibility=<level> gaps=<k> cells=<k>` line per setting.
+  sensitivity=<s> specificity=<s>` line per setting, read as the `detection` lines are. After the
+  last ablation it logs one `chosen level=<level> ablation=<name> floor=<s> sensitivity=<s>
+  specificity=<s> tied=<levels>` line, the outcome of the rule ADR
+  `research/frequency-aware-gap-score` states. `floor` is the count-based detector's sensitivity
+  on `cell-50`; `sensitivity` and `specificity` are the chosen level's; `tied` lists every
+  qualifying level sharing its specificity. `level=none` says no level was chosen, and the other
+  fields say why: `ablation=none` when the run has no `cell-50`; `ablation=cell-50 floor=n/a` when
+  the count-based detector has no eligible cell there; a floor with `level=none` when no level
+  reaches it. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name>
+  detector=<d> grounding=<k> credibility=<level> gaps=<n> cells=<c>` line per setting, `<n>`
+  being the setting's gap count and `<c>` the cells holding them.
 - **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
   `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
   partial ablation it passes over; for each whole ablation a header,

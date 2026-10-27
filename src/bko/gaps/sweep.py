@@ -18,9 +18,9 @@ from typing import Final
 
 from bko.bkb.structure import BKB
 from bko.gaps.definitions import CREDIBILITY, Definition, StatementGap, gaps
-from bko.gaps.experiment import AblationRun, Detection, detection
+from bko.gaps.detect import quiet_fusion
+from bko.gaps.experiment import AblationRun, Detection, detection, share
 from bko.gaps.observe import Cells
-from bko.gaps.scan import quiet_fusion
 
 
 logger = logging.getLogger("bko.gaps")
@@ -102,6 +102,7 @@ class Choice:
     """The level the rule chooses, with the measures that chose it.
 
     Attributes:
+        ablation: `CHOOSING_ABLATION`, or `None` when the sweeps hold no such ablation.
         level: The chosen level; `None` when no level qualifies.
         floor: The count-based detector's sensitivity on `CHOOSING_ABLATION`, which a level's
             must reach; `None` when the sweeps hold no such ablation or it reads `n/a`.
@@ -110,6 +111,7 @@ class Choice:
         tied: Every qualifying level sharing the chosen level's specificity, ascending.
     """
 
+    ablation: str | None
     level: float | None
     floor: float | None
     sensitivity: float | None
@@ -125,27 +127,26 @@ def sweep(run: AblationRun, fragments: Sequence[BKB]) -> Sweep:
         fragments: The ontology fragments `run` was read with.
     """
     universe = run.universe
-    readings = []
+    readings: list[Reading] = []
     for setting in SETTINGS:
-        before, after = (
-            _gaps(setting, fragments, cells) for cells in (run.before_cells, run.after_cells)
-        )
+        if setting == Setting(setting.definition, 1, CREDIBILITY):
+            before, after = run.before[setting.definition], run.after[setting.definition]
+        else:
+            before, after = (
+                _gaps(setting, fragments, cells) for cells in (run.before_cells, run.after_cells)
+            )
         readings.append(Reading(setting, detection(before, after, run.truth, universe)))
     return Sweep(run.name, run.count_detection, tuple(readings))
 
 
 def choose(readings: Iterable[Sweep]) -> Choice:
-    """The level ADR `research/frequency-aware-gap-score` chooses from the sweeps.
-
-    On `CHOOSING_ABLATION`, among the frequency-aware levels whose sensitivity is at least the
-    count-based detector's, the level with the highest specificity, the lower level on a tie. A
-    level whose sensitivity or specificity reads `n/a` does not qualify, and none does when the
-    count-based sensitivity reads `n/a`.
-    """
+    """The level the rule of ADR `research/frequency-aware-gap-score` chooses from the sweeps."""
     chosen = next((one for one in readings if one.ablation == CHOOSING_ABLATION), None)
-    floor = None if chosen is None else chosen.count.sensitivity
-    if chosen is None or floor is None:
-        return Choice(None, floor, None, None, ())
+    if chosen is None:
+        return Choice(None, None, None, None, None, ())
+    floor = chosen.count.sensitivity
+    if floor is None:
+        return Choice(CHOOSING_ABLATION, None, None, None, None, ())
     qualifying: dict[float, tuple[float, float]] = {}
     for reading in chosen.readings:
         sensitivity, specificity = reading.detection.sensitivity, reading.detection.specificity
@@ -157,10 +158,10 @@ def choose(readings: Iterable[Sweep]) -> Choice:
         ):
             qualifying[reading.setting.credibility] = (sensitivity, specificity)
     if not qualifying:
-        return Choice(None, floor, None, None, ())
+        return Choice(CHOOSING_ABLATION, None, floor, None, None, ())
     best = max(specificity for _, specificity in qualifying.values())
     tied = tuple(sorted(level for level, (_, spec) in qualifying.items() if spec == best))
-    return Choice(tied[0], floor, qualifying[tied[0]][0], best, tied)
+    return Choice(CHOOSING_ABLATION, tied[0], floor, qualifying[tied[0]][0], best, tied)
 
 
 def listing(
@@ -173,11 +174,6 @@ def listing(
         cells: The dataset, observed whole and per cell.
     """
     return tuple((setting, _gaps(setting, fragments, cells)) for setting in SETTINGS)
-
-
-def share(value: float | None) -> str:
-    """A sensitivity or specificity as the log writes it: four decimals, or `n/a` for `None`."""
-    return "n/a" if value is None else f"{value:.4f}"
 
 
 def log_sweep(swept: Sweep) -> None:
@@ -196,11 +192,16 @@ def log_sweep(swept: Sweep) -> None:
 
 
 def log_choice(choice: Choice) -> None:
-    """Log the `chosen` line: the level, or `none`, with the measures that chose it."""
+    """Log the `chosen` line: the level, or `none`, with the measures that chose it.
+
+    `ablation=none` says the sweeps hold no `CHOOSING_ABLATION`; with it, `floor=n/a` says its
+    count-based sensitivity has no eligible cell, and `level=none` with a floor says no level
+    reaches it.
+    """
     logger.info(
         "chosen level=%s ablation=%s floor=%s sensitivity=%s specificity=%s tied=%s",
         "none" if choice.level is None else f"{choice.level:.2f}",
-        CHOOSING_ABLATION,
+        choice.ablation or "none",
         share(choice.floor),
         share(choice.sensitivity),
         share(choice.specificity),

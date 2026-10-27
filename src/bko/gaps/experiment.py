@@ -231,6 +231,11 @@ class AblationRun:
         )
 
 
+def share(value: float | None) -> str:
+    """A sensitivity or specificity as the log writes it: four decimals, or `n/a` for `None`."""
+    return "n/a" if value is None else f"{value:.4f}"
+
+
 def run_ablation(
     name: str,
     population: Population,

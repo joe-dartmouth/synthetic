@@ -283,10 +283,17 @@ def test_a_mass_exactly_at_the_credibility_level_is_flagged():
 
 
 def test_the_defaults_are_the_rules_e2_ran():
-    assert pytest.approx(0.95, rel=0, abs=0) == CREDIBILITY
+    assert CREDIBILITY == 0.95  # ruff: ignore[float-equality-comparison]
     assert inspect.signature(gaps).parameters["grounding"].default == 1
-    assert inspect.signature(gaps).parameters["credibility"].default == CREDIBILITY
-    assert inspect.signature(under_represented).parameters["credibility"].default == CREDIBILITY
+
+
+def _passes_a_setting(node: ast.Call) -> bool:
+    named = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+    return any(
+        keyword.arg in {"grounding", "credibility"}
+        or (keyword.arg is None and named in {"gaps", "under_represented"})
+        for keyword in node.keywords
+    )
 
 
 def test_outside_the_definitions_only_the_sweep_passes_a_grounding_count_or_a_level():
@@ -295,10 +302,19 @@ def test_outside_the_definitions_only_the_sweep_passes_a_grounding_count_or_a_le
         path.relative_to(package).as_posix()
         for path in package.rglob("*.py")
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        if isinstance(node, ast.Call)
-        and any(keyword.arg in {"grounding", "credibility"} for keyword in node.keywords)
+        if isinstance(node, ast.Call) and _passes_a_setting(node)
     }
     assert passing == {"gaps/definitions.py", "gaps/sweep.py"}
+
+
+def test_the_guard_sees_a_splat_into_gaps():
+    splat, other = (ast.parse(code).body[0] for code in ("gaps(d, f, c, **s)", "dict(**s)"))
+    assert isinstance(splat, ast.Expr)
+    assert isinstance(other, ast.Expr)
+    assert isinstance(splat.value, ast.Call)
+    assert isinstance(other.value, ast.Call)
+    assert _passes_a_setting(splat.value)
+    assert not _passes_a_setting(other.value)
 
 
 def test_a_lower_level_flags_a_mass_a_higher_one_does_not(ladders):

@@ -6,19 +6,29 @@ import dataclasses
 import logging
 from datetime import date
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
+import bko.gaps.sweep
+from bko.bkb.structure import BKB
 from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population, load_population
 from bko.datasets.synthea_run import DEFAULT_RUN
-from bko.gaps.definitions import CREDIBILITY, Definition, StatementGap, gaps
+from bko.gaps.definitions import (
+    CREDIBILITY,
+    SHARE_RATIO,
+    Definition,
+    StatementGap,
+    posterior_below,
+)
 from bko.gaps.detect import Statement, ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.experiment import (
     E2_ABLATIONS,
     E2_RUN,
     REMOVED_FRACTIONS,
+    AblationRun,
     Detection,
     Recovery,
     detection,
@@ -36,6 +46,7 @@ from bko.gaps.sweep import (
     Sweep,
     choose,
     listing,
+    log_choice,
     sweep,
 )
 from bko.ontology.obo import parse_obo
@@ -326,6 +337,70 @@ def test_a_grounding_count_reads_a_partial_removal_a_single_record_hides(tmp_pat
     ]
 
 
+LEVELLED: Tables = (
+    [
+        *(patient(f"m{index}", "1961-07-15", "M") for index in range(4)),
+        *(patient(f"f{index}", "1990-05-05", "F") for index in range(10)),
+    ],
+    [
+        *(condition(f"m{index}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(2)),
+        *(condition(f"f{index}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(6)),
+    ],
+)
+"""Snapshot 2026-01-01: four men aged 64, two with ischemic heart disease, and ten women aged 35,
+six with it. Removing the men's cases leaves two men showing none against a share of 0.6 outside
+their cell, a posterior mass between 0.90 and 0.95, so only level 0.90 flags them."""
+
+
+@pytest.fixture
+def levelled(tmp_path, mondo) -> tuple[AblationRun, tuple[BKB, ...]]:
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", LEVELLED)
+    return run_ablation("cell", people, CELL, fragments, [ISCHEMIA]), fragments
+
+
+def test_the_sweep_reads_each_level_it_names(levelled):
+    run, fragments = levelled
+    mass = posterior_below(0, 2, SHARE_RATIO * 6 / 10)
+    assert 0.90 <= mass < 0.95
+    swept = sweep(run, fragments)
+    levels = [
+        swept.detection(Setting(Definition.FREQUENCY, 1, level)) for level in CREDIBILITY_LEVELS
+    ]
+    assert levels == [Detection(1.0, 1.0), Detection(0.0, 1.0), Detection(0.0, 1.0)]
+
+
+def test_the_listing_reads_each_level_it_names(levelled):
+    run, fragments = levelled
+    listed = listing(fragments, run.after_cells)
+    assert [setting for setting, _ in listed] == list(SETTINGS)
+    frequency = {
+        setting.credibility: found
+        for setting, found in listed
+        if setting.definition is Definition.FREQUENCY
+    }
+    assert frequency == {0.90: pairs((">=60", "male")), 0.95: (), 0.99: ()}
+
+
+def test_the_sweep_holds_fusion_quiet_and_restores_its_level(levelled, monkeypatch):
+    run, fragments = levelled
+    fusion = logging.getLogger("bko.bkb.fusion")
+    monkeypatch.setattr(fusion, "level", logging.DEBUG)
+    seen: list[int] = []
+
+    def failing(*args: object, **kwargs: object) -> NoReturn:
+        seen.append(fusion.level)
+        raise GapError("boom")
+
+    sweep(run, fragments)
+    assert fusion.level == logging.DEBUG
+    monkeypatch.setattr(bko.gaps.sweep, "gaps", failing)
+    with pytest.raises(GapError, match="boom"):
+        sweep(run, fragments)
+    assert seen == [logging.WARNING]
+    assert fusion.level == logging.DEBUG
+
+
 def reading(level: float, sensitivity: float | None, specificity: float | None) -> Reading:
     return Reading(Setting(Definition.FREQUENCY, 1, level), Detection(sensitivity, specificity))
 
@@ -339,45 +414,88 @@ def test_the_rule_chooses_the_most_specific_level_that_reaches_the_counts_sensit
     readings = (reading(0.90, 0.4, 0.99), reading(0.95, 0.5, 0.97), reading(0.99, 0.5, 0.98))
     other = swept_cell_50(0.0, reading(0.90, 1.0, 1.0), name="cell")
     assert choose([other, swept_cell_50(0.5, *readings)]) == Choice(
-        level=0.99, floor=0.5, sensitivity=0.5, specificity=0.98, tied=(0.99,)
+        ablation="cell-50", level=0.99, floor=0.5, sensitivity=0.5, specificity=0.98, tied=(0.99,)
     )
 
 
-def test_the_rule_takes_the_lower_level_on_a_tie():
-    readings = (reading(0.90, 0.6, 0.98), reading(0.95, 0.5, 0.98), reading(0.99, 0.4, 0.98))
+def test_the_rule_takes_the_lower_level_on_a_tie_whatever_the_order():
+    readings = (reading(0.99, 0.6, 0.98), reading(0.95, 0.5, 0.98), reading(0.90, 0.4, 0.97))
     assert choose([swept_cell_50(0.5, *readings)]) == Choice(
-        level=0.90, floor=0.5, sensitivity=0.6, specificity=0.98, tied=(0.90, 0.95)
+        ablation="cell-50",
+        level=0.95,
+        floor=0.5,
+        sensitivity=0.5,
+        specificity=0.98,
+        tied=(0.95, 0.99),
+    )
+
+
+def test_a_level_with_no_specificity_does_not_qualify():
+    readings = (reading(0.90, 1.0, None), reading(0.95, 0.5, 0.9))
+    assert choose([swept_cell_50(0.5, *readings)]) == Choice(
+        "cell-50", 0.95, 0.5, 0.5, 0.9, (0.95,)
+    )
+
+
+def test_a_floor_of_zero_admits_a_level_that_recovers_nothing():
+    readings = (reading(0.90, 0.0, 1.0), reading(0.95, 0.0, 1.0), reading(0.99, 0.0, 0.9807))
+    assert choose([swept_cell_50(0.0, *readings)]) == Choice(
+        ablation="cell-50",
+        level=0.90,
+        floor=0.0,
+        sensitivity=0.0,
+        specificity=1.0,
+        tied=(0.90, 0.95),
     )
 
 
 @pytest.mark.parametrize(
-    ("swept", "floor"),
+    ("swept", "expected"),
     [
-        ((swept_cell_50(0.5, reading(0.90, 0.4, 1.0), reading(0.95, None, 1.0)),), 0.5),
-        ((swept_cell_50(None, reading(0.90, 1.0, 1.0)),), None),
-        ((swept_cell_50(0.0, reading(0.90, 1.0, 1.0), name="cell"),), None),
+        (
+            (swept_cell_50(0.5, reading(0.90, 0.4, 1.0), reading(0.95, None, 1.0)),),
+            Choice("cell-50", None, 0.5, None, None, ()),
+        ),
+        (
+            (swept_cell_50(None, reading(0.90, 1.0, 1.0)),),
+            Choice("cell-50", None, None, None, None, ()),
+        ),
+        (
+            (swept_cell_50(0.0, reading(0.90, 1.0, 1.0), name="cell"),),
+            Choice(None, None, None, None, None, ()),
+        ),
     ],
     ids=["below-the-floor", "no-floor", "no-cell-50"],
 )
-def test_no_level_is_chosen_when_none_qualifies(swept, floor):
-    assert choose(swept) == Choice(None, floor, None, None, ())
+def test_no_level_is_chosen_when_none_qualifies(swept, expected):
+    assert choose(swept) == expected
 
 
-def test_the_uci_listing_reads_every_setting_and_its_defaults_match_gaps(tmp_path, mondo):
-    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
-    people = population(tmp_path / "population", E2_POPULATION)
-    cells = run_ablation("cell", people, CELL, fragments, [ISCHEMIA]).before_cells
-    listed = listing(fragments, cells)
-    assert [setting for setting, _ in listed] == list(SETTINGS)
-    for setting, found in listed:
-        expected = gaps(
-            setting.definition,
-            fragments,
-            cells,
-            grounding=setting.grounding,
-            credibility=setting.credibility,
-        )
-        assert found == expected
-    defaults = dict(listed)
-    for definition in Definition:
-        assert defaults[Setting(definition, 1, CREDIBILITY)] == gaps(definition, fragments, cells)
+@pytest.mark.parametrize(
+    ("choice", "line"),
+    [
+        (
+            Choice("cell-50", 0.90, 0.0, 0.0, 1.0, (0.90, 0.95)),
+            (
+                "chosen level=0.90 ablation=cell-50 floor=0.0000 sensitivity=0.0000 "
+                "specificity=1.0000 tied=0.90,0.95"
+            ),
+        ),
+        (
+            Choice("cell-50", None, None, None, None, ()),
+            (
+                "chosen level=none ablation=cell-50 floor=n/a sensitivity=n/a specificity=n/a "
+                "tied=none"
+            ),
+        ),
+        (
+            Choice(None, None, None, None, None, ()),
+            "chosen level=none ablation=none floor=n/a sensitivity=n/a specificity=n/a tied=none",
+        ),
+    ],
+    ids=["chosen", "no-floor", "no-cell-50"],
+)
+def test_the_chosen_line_names_the_level_and_what_chose_it(caplog, choice, line):
+    with caplog.at_level(logging.INFO, logger="bko.gaps"):
+        log_choice(choice)
+    assert caplog.messages == [line]

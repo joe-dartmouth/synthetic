@@ -417,14 +417,14 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
             "sweep ablation=condition detector=frequency-aware grounding=1 credibility=0.99 "
             "sensitivity=0.0000 specificity=1.0000\n"
         ),
-        "chosen level=none ablation=cell-50 floor=n/a sensitivity=n/a specificity=n/a tied=none\n",
+        "chosen level=none ablation=none floor=n/a sensitivity=n/a specificity=n/a tied=none\n",
     ):
         assert line in caplog.text
     assert "invariant" not in caplog.text
     sweeps = [m for m in caplog.messages if m.startswith("sweep ablation=")]
     assert len(sweeps) == 2 * len(SETTINGS)
     assert [m for m in caplog.messages if m.startswith("chosen ")] == [
-        "chosen level=none ablation=cell-50 floor=n/a sensitivity=n/a specificity=n/a tied=none"
+        "chosen level=none ablation=none floor=n/a sensitivity=n/a specificity=n/a tied=none"
     ]
 
 
