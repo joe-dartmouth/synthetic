@@ -46,6 +46,7 @@ from bko.gaps.observe import Cells, Observed, cell_key, observe_population
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
 from bko.gaps.scan import FIRST_FLAG_COLUMNS, first_flag_rows, log_first_flags, scan
 from bko.gaps.scope import load_scope, load_uci_scope
+from bko.gaps.sweep import choose, listing, log_choice, log_listing, log_sweep, share, sweep
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
 from bko.ontology.terms import Ontology
@@ -210,6 +211,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
             (definition.value, *statement_cells(gap.statement, label), *cell_cells(gap.cell), "")
             for gap in found
         )
+    log_listing(cells.whole.name, listing(fragments, cells))
     counted = count_gaps(cell_counts(parts.train))
     logger.info(
         "count dataset=%s flagged=%d below=%d",
@@ -260,6 +262,7 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     population, ontologies, fragments = _population(data_dir, context)
     label = labeller(ontologies)
     rows: list[Row] = [SYNTHEA_COLUMNS]
+    swept = []
     for name, spec in context.ablations.items():
         run = run_ablation(name, population, spec, fragments, context.code_rows)
         logger.info(
@@ -311,15 +314,14 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
                 "detection ablation=%s detector=%s sensitivity=%s specificity=%s",
                 name,
                 detector,
-                _share(found.sensitivity),
-                _share(found.specificity),
+                share(found.sensitivity),
+                share(found.specificity),
             )
+        swept.append(sweep(run, fragments))
+        log_sweep(swept[-1])
         rows.extend(_ablation_rows(run, label))
+    log_choice(choose(swept))
     return rows
-
-
-def _share(value: float | None) -> str:
-    return "n/a" if value is None else f"{value:.4f}"
 
 
 def _ablation_rows(run: AblationRun, label: Label) -> Iterator[Row]:

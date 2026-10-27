@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from datetime import date
 from pathlib import Path
 
@@ -11,7 +12,7 @@ import pytest
 from bko.datasets.ablation import DEFAULT_ABLATION, AblationSpec
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population, load_population
 from bko.datasets.synthea_run import DEFAULT_RUN
-from bko.gaps.definitions import Definition, StatementGap
+from bko.gaps.definitions import CREDIBILITY, Definition, StatementGap, gaps
 from bko.gaps.detect import Statement, ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.experiment import (
@@ -23,6 +24,19 @@ from bko.gaps.experiment import (
     detection,
     recovery,
     run_ablation,
+)
+from bko.gaps.sweep import (
+    CHOOSING_ABLATION,
+    CREDIBILITY_LEVELS,
+    GROUNDING_COUNTS,
+    SETTINGS,
+    Choice,
+    Reading,
+    Setting,
+    Sweep,
+    choose,
+    listing,
+    sweep,
 )
 from bko.ontology.obo import parse_obo
 from bko.ontology.terms import Ontology
@@ -251,3 +265,119 @@ def test_a_full_removal_reads_full_sensitivity_for_grounding(tmp_path, mondo):
     people = population(tmp_path / "population", E2_POPULATION)
     run = run_ablation("cell", people, CELL, fragments, [ISCHEMIA])
     assert run.detection(Definition.SUBGROUP) == Detection(sensitivity=1.0, specificity=1.0)
+
+
+THINNED: Tables = (
+    [
+        *(patient(f"m{index}", "1961-07-15", "M") for index in range(4)),
+        *(patient(f"f{index:02d}", "1990-05-05", "F") for index in range(20)),
+    ],
+    [condition(f"m{index}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(4)],
+)
+"""Snapshot 2026-01-01: four men aged 64 with ischemic heart disease, so removing half leaves two,
+and twenty women aged 35 with no condition."""
+
+
+def test_the_sweep_reads_every_setting_and_its_defaults_match_the_ablations_reading(
+    tmp_path, mondo, caplog
+):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", E2_POPULATION)
+    run = run_ablation("cell", people, CELL, fragments, [ISCHEMIA])
+    with caplog.at_level(logging.INFO, logger="bko"):
+        swept = sweep(run, fragments)
+        listing(fragments, run.before_cells)
+    assert caplog.messages == []  # its fusions log no `fused` line
+    assert (swept.ablation, swept.count) == ("cell", run.count_detection)
+    assert [reading.setting for reading in swept.readings] == list(SETTINGS)
+    assert list(SETTINGS) == [
+        *(Setting(Definition.SUBGROUP, k, CREDIBILITY) for k in GROUNDING_COUNTS),
+        *(Setting(Definition.POPULATION, k, CREDIBILITY) for k in GROUNDING_COUNTS),
+        *(Setting(Definition.FREQUENCY, 1, level) for level in CREDIBILITY_LEVELS),
+    ]
+    assert (GROUNDING_COUNTS, CREDIBILITY_LEVELS) == ((1, 2, 3, 5), (0.90, 0.95, 0.99))
+    for definition in Definition:
+        default = Setting(definition, 1, CREDIBILITY)
+        assert swept.detection(default) == run.detection(definition)
+
+
+def test_a_grounding_count_reads_a_partial_removal_a_single_record_hides(tmp_path, mondo):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", THINNED)
+    half = dataclasses.replace(CELL, fraction=0.5)
+    swept = sweep(run_ablation("cell-50", people, half, fragments, [ISCHEMIA]), fragments)
+
+    def read(definition: Definition) -> list[Detection]:
+        return [swept.detection(Setting(definition, k, CREDIBILITY)) for k in GROUNDING_COUNTS]
+
+    # Two of the four men remain: grounded at counts 1 and 2, a new gap at 3, a gap before at 5.
+    assert read(Definition.SUBGROUP) == [
+        Detection(0.0, 1.0),
+        Detection(0.0, 1.0),
+        Detection(1.0, 1.0),
+        Detection(None, 1.0),
+    ]
+    # Population-level gaps hold in every cell, so the other three cells' pairs fall new outside.
+    assert read(Definition.POPULATION) == [
+        Detection(0.0, 1.0),
+        Detection(0.0, 1.0),
+        Detection(1.0, 0.0),
+        Detection(None, 1.0),
+    ]
+
+
+def reading(level: float, sensitivity: float | None, specificity: float | None) -> Reading:
+    return Reading(Setting(Definition.FREQUENCY, 1, level), Detection(sensitivity, specificity))
+
+
+def swept_cell_50(floor: float | None, *readings: Reading, name: str = CHOOSING_ABLATION) -> Sweep:
+    grounding = Reading(Setting(Definition.SUBGROUP, 1, CREDIBILITY), Detection(1.0, 1.0))
+    return Sweep(name, Detection(floor, 1.0), (grounding, *readings))
+
+
+def test_the_rule_chooses_the_most_specific_level_that_reaches_the_counts_sensitivity():
+    readings = (reading(0.90, 0.4, 0.99), reading(0.95, 0.5, 0.97), reading(0.99, 0.5, 0.98))
+    other = swept_cell_50(0.0, reading(0.90, 1.0, 1.0), name="cell")
+    assert choose([other, swept_cell_50(0.5, *readings)]) == Choice(
+        level=0.99, floor=0.5, sensitivity=0.5, specificity=0.98, tied=(0.99,)
+    )
+
+
+def test_the_rule_takes_the_lower_level_on_a_tie():
+    readings = (reading(0.90, 0.6, 0.98), reading(0.95, 0.5, 0.98), reading(0.99, 0.4, 0.98))
+    assert choose([swept_cell_50(0.5, *readings)]) == Choice(
+        level=0.90, floor=0.5, sensitivity=0.6, specificity=0.98, tied=(0.90, 0.95)
+    )
+
+
+@pytest.mark.parametrize(
+    ("swept", "floor"),
+    [
+        ((swept_cell_50(0.5, reading(0.90, 0.4, 1.0), reading(0.95, None, 1.0)),), 0.5),
+        ((swept_cell_50(None, reading(0.90, 1.0, 1.0)),), None),
+        ((swept_cell_50(0.0, reading(0.90, 1.0, 1.0), name="cell"),), None),
+    ],
+    ids=["below-the-floor", "no-floor", "no-cell-50"],
+)
+def test_no_level_is_chosen_when_none_qualifies(swept, floor):
+    assert choose(swept) == Choice(None, floor, None, None, ())
+
+
+def test_the_uci_listing_reads_every_setting_and_its_defaults_match_gaps(tmp_path, mondo):
+    fragments = ontology_fragments({"MONDO": mondo}, {ISCHEMIA.concept})
+    people = population(tmp_path / "population", E2_POPULATION)
+    cells = run_ablation("cell", people, CELL, fragments, [ISCHEMIA]).before_cells
+    listed = listing(fragments, cells)
+    assert [setting for setting, _ in listed] == list(SETTINGS)
+    for setting, found in listed:
+        expected = gaps(
+            setting.definition,
+            fragments,
+            cells,
+            grounding=setting.grounding,
+            credibility=setting.credibility,
+        )
+        assert found == expected
+    defaults = dict(listed)
+    for definition in Definition:
+        assert defaults[Setting(definition, 1, CREDIBILITY)] == gaps(definition, fragments, cells)

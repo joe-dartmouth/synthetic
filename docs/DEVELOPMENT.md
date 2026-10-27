@@ -490,8 +490,8 @@ commands, inside `.venv`:
   specificity=<s> tied=<levels>` line: the level the rule of ADR
   `research/frequency-aware-gap-score` chooses, `floor` being the count-based detector's
   sensitivity on `cell-50`, `sensitivity` and `specificity` the chosen level's, and `tied` every
-  qualifying level sharing its specificity; `level=none` when no level qualifies or the run has no
-  `cell-50`. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name> detector=<d>
+  qualifying level sharing its specificity; `level=none` and `tied=none` when no level qualifies
+  or the run has no `cell-50`. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name> detector=<d>
   grounding=<k> credibility=<level> gaps=<k> cells=<k>` line per setting.
 - **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
   `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each

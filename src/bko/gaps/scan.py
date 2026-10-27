@@ -121,7 +121,7 @@ def scan(
             f"{name} removes fraction {spec.fraction}"
         )
         raise GapError(msg)
-    with _quiet_fusion():
+    with quiet_fusion():
         return _scan(name, population, spec, fragments, rows)
 
 
@@ -270,8 +270,11 @@ def _truth_from(
 
 
 @contextlib.contextmanager
-def _quiet_fusion() -> Generator[None]:
-    """Hold `bko.bkb.fusion`'s logger at WARNING, so the scan's many fusions log no `fused` line."""
+def quiet_fusion() -> Generator[None]:
+    """Hold `bko.bkb.fusion`'s logger at WARNING, so many fusions log no `fused` line.
+
+    The scan and `bko.gaps.sweep` fuse once per cell for every state or setting they read.
+    """
     fusion = logging.getLogger("bko.bkb.fusion")
     level = fusion.level
     fusion.setLevel(logging.WARNING)
