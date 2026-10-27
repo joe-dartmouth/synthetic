@@ -519,8 +519,9 @@ commands, inside `.venv`:
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
 candidate records that fill a gap request, E1's count-based one or the completeness request (ADR
-[`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
-inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
+[`research/record-generation-design`](adr/research/record-generation-design.md)), or draws them
+from the fused BKB with no call (the direct sampler, below). The paid command, inside `.venv`,
+with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate <definition> [--guidance <level>] [--request <e1|completeness>] --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
 
@@ -531,9 +532,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   records than `UNDERREPRESENTED_BELOW` for its shortfall; with `--request completeness` it asks
   each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows, and exits 2 for any
   `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)). It asks in calls of at most
-  `Settings.per_call` records and writes a header line to stdout first (the request, definition,
-  guidance level, the UCI archive's and releases' pinned sha256, the split's fingerprint and each
-  call's cell and records asked; ADR
+  `Settings.per_call` records and writes a header line to stdout first (schema 2: the request,
+  generator `messages` with a null seed, definition, guidance level, the UCI archive's and
+  releases' pinned sha256, the split's fingerprint and each call's cell and records asked; ADR
   [`research/gap-closure-design`](adr/research/gap-closure-design.md)), then one JSON line per
   asked record: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
@@ -570,7 +571,7 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   completeness request no cell holds a gap for, `--request completeness` with another
   `<definition>`, and a `--log` path that exists (checked before any download or call); 3 the data
   or a release contradicts its pin or schema.
-- **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
+- **Reproducibility**: none for a `<definition>` run. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
   releases built in `tmp_path` (`tests/test_generate_cli.py`); no gate test reaches the API.
@@ -582,6 +583,26 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
 
       uv run --no-sync pytest tests/test_generate_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+- **The direct sampler**: `direct` makes no API call and needs no credential. It fills the same
+  request from the fused BKB's concept shares (ADR
+  [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)), seeded by the
+  required `--seed`, a non-negative integer; it takes no `--guidance`, and `--log` names its draw
+  log, which must not exist:
+
+      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/draws.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate direct [--request <e1|completeness>] --seed <n> --log runs/<run-id>/draws.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log </dev/null
+
+  Its stdout is a candidates file whose header names generator `direct` and the seed, with a null
+  definition and guidance, and whose call plan is the one a Messages run of the same request
+  writes, so `bko.validate` and `bko.fusion` read it unchanged; every line holds a `candidate`.
+  The draw log holds one `draw` line per record: `call`, `cell`, `position`, the `concepts` drawn
+  present, their `closed` closure under `is_a`, and the `fallback` fields read from the label
+  group's records. stderr gets the split line, each ontology fragment's size, the request and
+  `quota` lines, a `direct` line per cell (rows, the cell's records, its label group's records), a
+  `fallback` line per cell and field read from the label group, a `draws` line (seed, rows, the
+  draw log's path), and the stdout `candidates` line. It exits 2, writing no line, when no training
+  record matches a draw (a `cannot draw` message) or the draw log exists (checked before any
+  download). The same seed and inputs write the same stdout and draw log, byte for byte. The gate
+  drives it over an archive and releases built in `tmp_path` (`tests/test_generate_cli.py`).
 - **The live test**: `tests/test_generate_live.py` makes one paid call for 2 records and checks the
   reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
@@ -603,6 +624,10 @@ second spends nothing:
 The `test ! -e` guards matter: the shell empties `candidates.jsonl` before `bko.generate` can
 refuse an existing log, and `candidates.jsonl` is the only copy of the candidates the second
 command reads.
+
+The direct sampler's `--request completeness` file ([Generation](#generation)) replaces the first
+command for free; the second reads it unchanged, and its `header` line reads `definition=None
+guidance=None`.
 
 - **What it does**: it reads the candidates file, fetches UCI Heart Disease and the releases the
   field mappings name into the data root if absent, splits the records as [Data](#data) says,
@@ -671,6 +696,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `criteria.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
+| `draws.jsonl` | `python -m bko.generate direct`'s draw log |
 | `closure.csv` | `python -m bko.fusion`'s stdout |
 | `closure.log` | its stderr |
 | `gaps-uci.csv` | `python -m bko.gaps uci`'s stdout |

@@ -22,7 +22,8 @@ representation. The pipeline:
 2. **Detect.** Statements the ontology implies but the data does not support are the plan's formal
    definition of a dataset gap ([ADR](https://adr.github.io/) `research/bko-formal-gap-definition`).
 3. **Generate and validate.** Generate candidate records for each gap through the Anthropic
-   [Messages API](https://docs.anthropic.com/en/api/messages), guided by the ontology, and validate each before augmentation.
+   [Messages API](https://docs.anthropic.com/en/api/messages), guided by the ontology, or draw them from the fused BKB with
+   the direct sampler, and validate each before augmentation.
 4. **Evaluate.** On [UCI Heart Disease](https://archive.ics.uci.edu/dataset/45/heart+disease), compare rare-class recall and [AUC-PR](https://en.wikipedia.org/wiki/Precision_and_recall) (Area Under the Precision-Recall Curve) against no
    augmentation, class weighting, [SMOTE](https://arxiv.org/abs/1106.1813), [ADASYN](https://ieeexplore.ieee.org/document/4633969), [CTGAN](https://arxiv.org/abs/1907.00503) and [TVAE](https://arxiv.org/abs/1907.00503).
 

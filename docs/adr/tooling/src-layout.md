@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-19
+updated: 2026-10-27
 ---
 # src layout, one subpackage per pipeline stage
 
@@ -31,7 +31,7 @@ pipeline stage:
 | `ontology` | MONDO, HPO and DO loading; field mapping; BKO fragments | `ontology` |
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
 | `gaps` | Ungrounded-statement and count-based gap detection | `data` |
-| `generate` | Candidate-record generation through the Messages API | `llm` |
+| `generate` | Candidate-record generation through the Messages API or the direct sampler | `llm` |
 | `validate` | Record consistency checks | `data` |
 | `fusion` | Validated records joined back into the BKO; gap closure | `data` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
