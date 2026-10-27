@@ -3,7 +3,7 @@ id: evaluate-frame-generic-pipeline
 title: The stages read a frame, not the UCI constants
 status: ready
 depends_on: --
-blocks: evaluate-synthea-downstream
+blocks: evaluate-synthea-downstream, generate-prompt-training-bounds, generate-effort-sweep
 parallel_safe: false
 owner: Joe
 milestone: final-report

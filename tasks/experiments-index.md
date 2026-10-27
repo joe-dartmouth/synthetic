@@ -23,8 +23,8 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier | Shirley | final-report |
-| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier | Shirley | final-report |
+| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation, evaluate-frame-generic-pipeline | Shirley | final-report |
+| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation, evaluate-frame-generic-pipeline | Shirley | final-report |
 | [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
@@ -46,7 +46,7 @@ the ROADMAP heading it serves.
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
 | [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings, evaluate-frame-generic-pipeline | Joe | final-report |
 
-The diagram draws this set's edges and the edge out of `proposal-guidance-ablation`, whose own
+The diagram draws this set's edges and the edges out of `proposal-guidance-ablation`, whose own
 set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
@@ -57,6 +57,8 @@ flowchart LR
     bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
     guidance_ablation[proposal-guidance-ablation] --> e1_second[evaluate-e1-second-configuration]
+    guidance_ablation[proposal-guidance-ablation] --> prompt_bounds[generate-prompt-training-bounds]
+    guidance_ablation[proposal-guidance-ablation] --> effort_sweep[generate-effort-sweep]
     prompt_bounds[generate-prompt-training-bounds] --> e1_second[evaluate-e1-second-configuration]
     effort_sweep[generate-effort-sweep] --> e1_second[evaluate-e1-second-configuration]
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
@@ -65,6 +67,8 @@ flowchart LR
     graded_grounding[detect-graded-grounding]
     synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
     frame_generic[evaluate-frame-generic-pipeline] --> synthea_downstream[evaluate-synthea-downstream]
+    frame_generic[evaluate-frame-generic-pipeline] --> prompt_bounds[generate-prompt-training-bounds]
+    frame_generic[evaluate-frame-generic-pipeline] --> effort_sweep[generate-effort-sweep]
 ```
 
 ## Why the harness units come first
@@ -108,7 +112,8 @@ new entry, not an E2 row (ADR
 ## Conventions
 
 - A unit is one PR. A landed unit's file is deleted after rehoming anything it deferred, and its
-  row leaves the board; units it blocked become `ready`.
+  row leaves the board; each unit it blocked drops it from `depends_on`, and becomes `ready`
+  when none remain.
 - A unit names a future ADR in its `adrs:` frontmatter only; prose says "a new ADR under
   `docs/adr/<topic>/`". A unit that edits an existing ADR names it in prose and keeps `adrs: --`.
 - `paid: true` marks a unit that calls a paid API. Its tests are marked `live`, and each run's spend

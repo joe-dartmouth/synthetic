@@ -88,7 +88,7 @@ CORPUS_WITNESSES = (
     Path("AGENTS.md"),
     Path("docs/RESEARCH.md"),
     Path("src/bko/bkb/README.md"),
-    Path("tasks/proposal-index.md"),
+    Path("tasks/CLEANUP.md"),
     Path("tools/README.md"),
 )
 """One file per root :func:`doc_files` walks, so a root that stops matching fails by name."""

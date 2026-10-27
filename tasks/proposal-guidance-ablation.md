@@ -3,7 +3,7 @@ id: proposal-guidance-ablation
 title: Guidance-level ablation of record generation
 status: ready
 depends_on: --
-blocks: evaluate-e1-second-configuration
+blocks: evaluate-e1-second-configuration, generate-prompt-training-bounds, generate-effort-sweep
 parallel_safe: true
 owner: Shirley
 milestone: final-report
@@ -13,7 +13,7 @@ adrs: --
 
 # Guidance-level ablation of record generation
 
-The set's graph is [`proposal-index.md`](proposal-index.md); its dependencies are in
+The set's graph is [`proposal-index.md`](proposal-index.md); its edges are drawn in
 [`experiments-index.md`](experiments-index.md).
 
 ## Why this unit exists

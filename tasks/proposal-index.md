@@ -12,8 +12,8 @@ section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 |---|---|---|---|---|
 | [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | ready | -- | Shirley | final-report |
 
-The unit's dependencies are harness units of the experiments set, and
-[`experiments-index.md`](experiments-index.md) draws their edges.
+The unit's edges are drawn in [`experiments-index.md`](experiments-index.md), beside the units
+it blocks.
 
 ```mermaid
 flowchart LR
@@ -27,7 +27,8 @@ flowchart LR
 ## Conventions
 
 - A unit is one PR. A landed unit's file is deleted after rehoming anything it deferred, and its
-  row leaves the board; units it blocked become `ready`.
+  row leaves the board; each unit it blocked drops it from `depends_on`, and becomes `ready`
+  when none remain.
 - A unit names a future ADR in its `adrs:` frontmatter only; prose says "a new ADR under
   `docs/adr/<topic>/`".
 - `paid: true` marks a unit that calls a paid API. Its tests are marked `live`, and each run's spend

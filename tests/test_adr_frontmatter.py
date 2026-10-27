@@ -663,7 +663,7 @@ CORPUS_WITNESSES = (
     Path("AGENTS.md"),
     Path("docs/DEVELOPMENT.md"),
     Path("src/bko/bkb/README.md"),
-    Path("tasks/proposal-index.md"),
+    Path("tasks/CLEANUP.md"),
     Path("tools/README.md"),
     Path("src/bko/__init__.py"),
     Path("tests/test_adr_frontmatter.py"),
