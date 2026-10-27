@@ -104,7 +104,9 @@ shapes and column pairs 0.931, 0.968 and 0.894 over 10 holdouts; privacy margin 
 
 **Gained**: a free, seeded arm that sends nothing off the machine and isolates what the mapping
 table and the data's concept shares contribute; candidates `bko.validate` and `bko.fusion` read
-unchanged.
+unchanged. The arm `bko-direct` of the named run `g2` (`bko.evaluate.direct`) runs the sampler on
+each of E1's requests, seeded by the request's seed, through the attempt bookkeeping a BKO arm uses,
+writing each record to the per-holdout candidates file with a null call.
 **Accepted**: the arm reads nothing the ontology fragments add beyond the closure it records, so it
 cannot test the ontology's structure; within-group values are copies of training records, so the
 arm's privacy and test-copy readings matter; a cell whose label group shows no record matching a
@@ -127,7 +129,7 @@ draw refuses the attempt.
 
 - Owner: `src/bko/generate/direct.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
-  `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`
+  `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`
 
 ## Reversal Conditions
 

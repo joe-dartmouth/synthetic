@@ -20,11 +20,14 @@ neither file may exist. `score --replay LOG`
 answers every BKO call from the call log at LOG instead. `score --resume STOPPED --log NEW`
 finishes a stopped run: it answers the stopped log's answered calls from it and sends the rest
 live, all into NEW. `score --rehearse` answers every BKO call with canned records
-(`bko.evaluate.rehearse`), so the stop rules and spend lines run for free.
+(`bko.evaluate.rehearse`), so the stop rules and spend lines run for free. `score g2
+--candidates FILE` is free: its direct arm draws from the fused BKB (`bko.evaluate.direct`), writes
+FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`,
-`--log`, `--candidates`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build, one
+including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a
+direct arm with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm
+to build, `--candidates` with neither, one
 path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a call with no
 response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
 `launch` on battery power or into a folder that holds a run, and scores whose validity cannot be
@@ -58,10 +61,19 @@ from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.compare import compare
+from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
+from bko.evaluate.experiment import (
+    BKO_ARMS,
+    DEFAULT_RUN,
+    DIRECT_ARM,
+    E1,
+    RUNS,
+    Experiment,
+    NamedRun,
+)
 from bko.evaluate.guided import Knowledge, guided_arms
-from bko.evaluate.holdout_candidates import Origin
+from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.rehearse import CannedSend, Rehearse
@@ -250,6 +262,36 @@ def configure_logging() -> None:
 def _score(args: argparse.Namespace, context: Context) -> str:
     experiment = context.experiment
     guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
+    direct = DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
+    _refuse_flags(args, guided, direct=direct)
+    if args.rehearse:
+        # scores.csv carries no marker, so its log says what the run was before anything else.
+        logger.warning(
+            "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
+            "not paid figures"
+        )
+    answers = _answers(args, context)
+    data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
+    ensure(context.uci, data_dir, open_url=context.open_url)
+    frame = load_uci(data_dir, source=context.uci)
+    log_experiment(args.run, experiment, context.models)
+    if guided or direct:
+        scores = _guided(args, data_dir, frame, guided, context, answers, direct=direct)
+    else:
+        scores = run(frame, experiment, context.arms, models=context.models)
+    text = render(scores)
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
+    return text
+
+
+def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bool) -> None:
+    """Refuse flags the run's arms cannot use, before any download or file is made.
+
+    Raises:
+        EvaluationError: As the module's exit code 2 lists.
+        FileExistsError: If the call log or candidates file exists.
+    """
     if guided and args.log is None:
         msg = f"--log is required: the arms {guided} call the Messages API"
         raise EvaluationError(msg)
@@ -262,14 +304,15 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     if args.rehearse and not guided:
         msg = "--rehearse needs a BKO arm"
         raise EvaluationError(msg)
-    if guided and args.candidates is None:
-        msg = f"--candidates is required: the arms {guided} generate candidates"
+    generating = [*guided, *([DIRECT_ARM] if direct else [])]
+    if generating and args.candidates is None:
+        msg = f"--candidates is required: the arms {generating} generate candidates"
         raise EvaluationError(msg)
     if args.log is not None and not guided:
-        msg = "--log needs a BKO arm"
+        msg = "--log needs a BKO arm that calls the Messages API"
         raise EvaluationError(msg)
-    if args.candidates is not None and not guided:
-        msg = "--candidates needs a BKO arm"
+    if args.candidates is not None and not generating:
+        msg = "--candidates needs a BKO arm or the direct arm"
         raise EvaluationError(msg)
     if args.log is not None and args.candidates.resolve() == args.log.resolve():
         msg = f"--candidates and --log name one file, {args.log}"
@@ -278,25 +321,6 @@ def _score(args: argparse.Namespace, context: Context) -> str:
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
     if args.candidates is not None and args.candidates.exists():
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
-    if args.rehearse:
-        # scores.csv carries no marker, so its log says what the run was before anything else.
-        logger.warning(
-            "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
-            "not paid figures"
-        )
-    answers = _answers(args, context)
-    data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    frame = load_uci(data_dir, source=context.uci)
-    log_experiment(args.run, experiment, context.models)
-    if guided:
-        scores = _guided(args, data_dir, frame, guided, context, answers)
-    else:
-        scores = run(frame, experiment, context.arms, models=context.models)
-    text = render(scores)
-    digest = hashlib.sha256(text.encode()).hexdigest()
-    logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
-    return text
 
 
 def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
@@ -322,10 +346,14 @@ def _guided(
     names: Sequence[str],
     context: Context,
     answers: Replay | None,
+    *,
+    direct: bool,
 ) -> list[Score]:
     """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
 
-    Each BKO arm logs its run's validity sums on the way out, a stopped run included.
+    With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
+    writes that file alone and no call log is made. Each BKO or direct arm logs its run's validity
+    sums on the way out, a stopped run included.
     """
     rows = context.field_rows
     ontologies, fragments = load_scope(
@@ -336,6 +364,12 @@ def _guided(
     )
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
+    origin = Origin(args.run, context.uci, context.releases)
+    if not names:
+        with CandidateFile(args.candidates, origin, context.settings) as kept:
+            return run_direct(
+                frame, experiment, context.arms, knowledge, sink=kept, models=context.models
+            )
     canned = context.rehearse(frame, experiment, context.settings) if args.rehearse else None
     with guided_arms(
         names,
@@ -344,17 +378,30 @@ def _guided(
         settings=context.settings,
         log=args.log,
         candidates=args.candidates,
-        origin=Origin(args.run, context.uci, context.releases),
+        origin=origin,
         send=context.send if canned is None else lambda: canned,
         answers=answers,
         rehearsal=args.rehearse,
     ) as paid:
+        arms = {**context.arms, **paid.arms}
+        drains = {name: arm.drain for name, arm in paid.arms.items()}
+        if direct:
+            return run_direct(
+                frame,
+                experiment,
+                arms,
+                knowledge,
+                sink=paid.candidates,
+                models=context.models,
+                drains=drains,
+                on_holdout=paid.watch.holdout_done,
+            )
         return run(
             frame,
             experiment,
-            {**context.arms, **paid.arms},
+            arms,
             models=context.models,
-            drains={name: arm.drain for name, arm in paid.arms.items()},
+            drains=drains,
             on_holdout=paid.watch.holdout_done,
         )
 

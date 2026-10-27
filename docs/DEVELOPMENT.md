@@ -120,6 +120,17 @@ takes it after the run id, and there it defaults to the run id's entry. A named 
 `bko.datasets.run_folders.RUN_ID`: `<entry>-<n>` with an optional suffix (ADR
 [`tooling/run-folders`](adr/tooling/run-folders.md)).
 
+The run `g2` spends nothing: in place of the BKO arms it runs the direct arm `bko-direct`
+(`bko.evaluate.direct`), which draws each request's rows from the fused BKB, seeded by the
+request's seed (ADR [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)). It
+makes no call log, so it refuses `--log`, `--replay`, `--resume` and `--rehearse`, requires
+`--candidates`, whose lines carry a null `call`, and is judged by no criterion:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score g2 --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+
+Its stderr logs a `direct` line per attempt (`arm=`, `seed=`, `outcome=` and the attempt's
+counts) and the arm's `validity` sums at the end, as a BKO arm's.
+
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
 holds is not counted. A holdout pairs only when its held-out rows match and no arm in either file
@@ -294,15 +305,17 @@ the runner before any replay.
   (`arm=`, `against=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
   `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
   row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1`;
+- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
+  `G2` as `g2`;
   no flag changes a value;
   `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
   candidates are recorded and where calls are answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, `--log`,
-  `--candidates`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build, one path for
+  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a direct arm
+  with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
+  `--candidates` with neither, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match
