@@ -230,6 +230,7 @@ class GuidedArm:
         spent = self._log.usd
         logger.info("spend usd=%.4f ceiling=%.2f", spent, self._ceiling)
         if spent >= self._ceiling:
+            logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, self._ceiling)
             msg = f"the run's spend {spent:.4f} USD reached its ceiling of {self._ceiling} USD"
             raise EvaluationError(msg)
 

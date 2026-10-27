@@ -340,6 +340,8 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     assert _end(log)["status"] == "failed"
     assert _end(log)["calls"] == 3
     assert "reached its ceiling" in caplog.text
+    stops = [m for m in caplog.messages if m.startswith("stop rule=")]
+    assert stops == [f"stop rule=ceiling usd={ceiling:.4f} ceiling={ceiling:.2f}"]
     assert not any(m.startswith("retry ") for m in caplog.messages)
     assert [m.split()[1] for m in _validity(caplog)] == [
         "arm=bko",
