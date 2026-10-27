@@ -23,8 +23,8 @@ def class_weighting(train: pd.DataFrame, request: Request) -> Baseline:
     label = request.frame.label
     sizes = train[label].value_counts().sort_index()
     by_label = {
-        int(label): len(train) / (len(sizes) * int(n))
-        for label, n in zip(sizes.index.tolist(), sizes.tolist(), strict=True)
+        int(code): len(train) / (len(sizes) * int(n))
+        for code, n in zip(sizes.index.tolist(), sizes.tolist(), strict=True)
     }
     weights = train[label].map(by_label).astype("float64").rename("weight")
     return Baseline(added=no_rows(request.frame), weights=weights, params={"weights": by_label})
