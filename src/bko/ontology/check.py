@@ -1,4 +1,7 @@
-"""Check the table's concept rows against parsed releases: `python -m bko.ontology check`'s core."""
+"""Check the table's rows against parsed releases: `python -m bko.ontology check`'s core.
+
+The rows are the concept rows and the excluded Synthea codes (`bko.ontology.mapping.CHECKED_ROWS`).
+"""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
     Clause,
+    CodedRow,
     CodeMapping,
     Codes,
     ConceptRow,
@@ -31,13 +35,14 @@ type _Holders = Mapping[str, Mapping[str, tuple[str, ...]]]
 
 @dataclass(frozen=True, slots=True)
 class Verdict:
-    """One concept row against its release.
+    """One checked row against its release: a concept row or an excluded code.
 
     Attributes:
         table: Which kind of row it is.
-        subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `SCTID:414545008`, or empty.
+        subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `SCTID:414545008` (a code row or
+            an excluded code), or empty.
         concept: The row's concept; empty for an excluded code.
-        label: The row's label.
+        label: The row's label; for an excluded code, the code's description.
         problem: None when the release agrees; otherwise how it disagrees.
     """
 
@@ -51,6 +56,8 @@ class Verdict:
 def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tuple[Verdict, ...]:
     """Check each row, in order, against the ontology its concept's prefix names.
 
+    An excluded code names no concept, so it is checked against the `EXCLUDED_PREFIX` release.
+
     An out-of-scope row also disagrees when its concept is an `is_a` ancestor of a concept another
     of `rows` maps, since the scope rule puts every such ancestor in scope. An excluded code
     disagrees when a live `EXCLUDED_PREFIX` concept carries its `skos:exactMatch`. Each release's
@@ -58,7 +65,7 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     excluded codes name its prefix.
     """
     rows = tuple(rows)
-    mapped = frozenset(row.concept for row in rows if isinstance(row, (FieldMapping, CodeMapping)))
+    mapped = frozenset(row.concept for row in rows if isinstance(row, FieldMapping | CodeMapping))
     wanted: dict[str, set[str]] = {}
     for row in rows:
         match row:
@@ -66,8 +73,6 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
                 wanted.setdefault(row.concept.partition(":")[0], set()).add(_target(row))
             case UnmappedCode():
                 wanted.setdefault(EXCLUDED_PREFIX, set()).add(_target(row))
-            case _:
-                pass
     holders = {
         prefix: _exact_holders(ontologies[prefix], frozenset(targets))
         for prefix, targets in wanted.items()
@@ -79,22 +84,26 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
 def _verdict(
     row: CheckedRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str], holders: _Holders
 ) -> Verdict:
-    if isinstance(row, UnmappedCode):
-        return Verdict(
-            table="excluded-code",
-            subject=_target(row),
-            concept="",
-            label=row.label,
-            problem=_excluded_problem(row, ontologies, holders),
-        )
-    table, subject = _describe(row)
-    return Verdict(
-        table=table,
-        subject=subject,
-        concept=row.concept,
-        label=row.label,
-        problem=_problem(row, ontologies, mapped, holders),
-    )
+    match row:
+        case UnmappedCode():
+            return Verdict(
+                table="excluded-code",
+                subject=_target(row),
+                concept="",
+                label=row.label,
+                problem=_excluded_problem(row, ontologies, holders),
+            )
+        case FieldMapping() | CodeMapping() | OutOfScope():
+            table, subject = _describe(row)
+            return Verdict(
+                table=table,
+                subject=subject,
+                concept=row.concept,
+                label=row.label,
+                problem=_problem(row, ontologies, mapped, holders),
+            )
+        case _:
+            assert_never(row)
 
 
 def _describe(row: ConceptRow) -> tuple[Table, str]:
@@ -162,7 +171,7 @@ def _scope_problem(
     return None
 
 
-def _target(row: CodeMapping | UnmappedCode) -> str:
+def _target(row: CodedRow) -> str:
     return f"SCTID:{row.snomed}"
 
 
@@ -172,6 +181,7 @@ def _excluded_problem(
     if EXCLUDED_PREFIX not in ontologies:
         return f"no release for prefix {EXCLUDED_PREFIX}"
     target = _target(row)
+    # `check` indexes `EXCLUDED_PREFIX` whenever it checks an excluded code and holds its release.
     found = holders[EXCLUDED_PREFIX].get(target, ())
     if found:
         return f"skos:exactMatch {target} is on {', '.join(found)}"

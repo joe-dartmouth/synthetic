@@ -15,6 +15,7 @@ from bko.ontology.obo import parse_obo
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
+    CodedRow,
     CodeMapping,
     Codes,
     FieldMapping,
@@ -320,7 +321,7 @@ SECOND = _term("MONDO:0000002", "second", matches=(("skos:exactMatch", "SCTID:2"
 SECOND_ROW = CodeMapping(snomed="2", concept="MONDO:0000002", label="second", source="mondo")
 
 
-def _scans(*rows: CodeMapping | UnmappedCode) -> int:
+def _scans(*rows: CodedRow) -> int:
     terms = _CountingTerms(_mondo(ISCHEMIA, SECOND).terms)
     check(rows, {"MONDO": replace(_mondo(), terms=terms)})
     return terms.scans

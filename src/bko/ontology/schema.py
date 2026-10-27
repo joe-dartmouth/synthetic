@@ -146,3 +146,6 @@ class UnmappedCode:
 type ConceptRow = FieldMapping | CodeMapping | OutOfScope
 
 type CheckedRow = ConceptRow | UnmappedCode
+
+type CodedRow = CodeMapping | UnmappedCode
+"""A row whose subject is a Synthea SNOMED-CT code."""
