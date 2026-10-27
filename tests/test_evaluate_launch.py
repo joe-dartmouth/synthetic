@@ -6,6 +6,7 @@ import dataclasses
 import io
 import logging
 import os
+import re
 import subprocess
 import sys
 
@@ -15,7 +16,7 @@ from bko.app.runs import ROLES
 from bko.evaluate import launch as launching
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1
+from bko.evaluate.experiment import E1, RUNS, NamedRun
 from bko.evaluate.launch import TAKEN, launch, on_battery, spawn
 
 
@@ -246,3 +247,44 @@ def test_the_command_refuses_a_run_with_no_bko_arm(tmp_path, caplog):
     assert "has no BKO arm" in caplog.text
     assert start.commands == []
     assert not (tmp_path / "e1-4").exists()
+
+
+def named(tmp_path, runs):
+    return Context(power=lambda: False, runs_dir=tmp_path, start=Starts(), runs=runs)
+
+
+def test_the_run_defaults_to_the_run_ids_entry(tmp_path):
+    context = named(tmp_path, {**RUNS, "e2": NamedRun(E1)})
+    assert main(["launch", "e2-4", "--dry-run"], context=context, out=io.StringIO()) == 0
+    assert "run=e2 " in (tmp_path / "e2-4" / "launch.log").read_text(encoding="utf-8")
+    assert main(["launch", "e1-4", "--dry-run"], context=context, out=io.StringIO()) == 0
+    assert "run=e1 " in (tmp_path / "e1-4" / "launch.log").read_text(encoding="utf-8")
+
+
+def test_a_named_run_of_the_run_ids_entry_launches(tmp_path):
+    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    assert main(["launch", "g3-1", "g3-cell", "--dry-run"], context=context, out=io.StringIO()) == 0
+    log = (tmp_path / "g3-1" / "launch.log").read_text(encoding="utf-8")
+    assert "run=g3-cell " in log
+    assert " score g3-cell --log " in log
+
+
+def test_a_named_run_of_another_entry_is_refused(tmp_path, caplog):
+    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    with caplog.at_level(logging.ERROR):
+        assert main(["launch", "g3-1", "e1"], context=context, out=io.StringIO()) == 2
+    assert "not a run id of the run 'e1'" in caplog.text
+    assert not (tmp_path / "g3-1").exists()
+    with pytest.raises(EvaluationError, match="not a run id of the run 'e1'"):
+        launch("g3-1", "e1", root=tmp_path, power=lambda: False, start=Starts())
+
+
+@pytest.mark.parametrize("run_id", ["nope", "app-20260101T000000000000Z-bko", "../e1-4"])
+def test_an_id_that_is_not_a_run_of_record_exits_two(tmp_path, caplog, run_id):
+    with caplog.at_level(logging.ERROR):
+        assert main(["launch", run_id], context=named(tmp_path, RUNS), out=io.StringIO()) == 2
+    assert "not a run id of record" in caplog.text
+
+
+def test_every_named_run_is_an_entry_or_a_word_after_it():
+    assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)?", name) for name in RUNS)

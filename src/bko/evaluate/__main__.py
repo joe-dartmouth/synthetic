@@ -7,7 +7,8 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 `--candidate` judges another arm, a dry run whose verdict is not E1's; `--beside SCORES` logs the
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
-`launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`).
+`launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
+the run id's entry.
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
@@ -44,7 +45,7 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
-from bko.datasets.run_folders import runs_root
+from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
@@ -155,17 +156,24 @@ def main(
 def _launch(args: argparse.Namespace, context: Context) -> str:
     """Start the run, and return the command that watches its folder, one line.
 
+    The named run defaults to the run id's entry, so `launch e1-4` launches `e1`.
+
     Raises:
-        EvaluationError: If the run has no BKO arm, so `score --log` would refuse it, or as
-            `launch`.
+        EvaluationError: If the run id is not a run id of record, the run has no BKO arm, so
+            `score --log` would refuse it, or as `launch`.
     """
-    context = _named(args.run, context)
+    match = RUN_ID.fullmatch(args.run_id)
+    if match is None or match["entry"] is None:
+        msg = f"{args.run_id!r} is not a run id of record, such as e1-4"
+        raise EvaluationError(msg)
+    run = args.run or match["entry"]
+    context = _named(run, context)
     if not set(context.experiment.arms) & set(BKO_ARMS):
-        msg = f"the run {args.run!r} has no BKO arm, so it spends nothing to launch"
+        msg = f"the run {run!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     found = launch(
         args.run_id,
-        args.run,
+        run,
         root=context.runs_dir if context.runs_dir is not None else runs_root(),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
@@ -330,7 +338,9 @@ def _parser() -> argparse.ArgumentParser:
         "launch", help="start a paid score run detached, kept awake and on mains power"
     )
     launching.add_argument("run_id", help="the run's id, such as e1-4; its folder under runs/")
-    launching.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
+    launching.add_argument(
+        "run", nargs="?", default=None, help="the named run; default: the run id's entry"
+    )
     launching.add_argument(
         "--data-dir", type=Path, default=None, help="the data root `score` reads"
     )

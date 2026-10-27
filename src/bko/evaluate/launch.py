@@ -113,7 +113,8 @@ def launch(
 
     Args:
         run_id: The run's id, such as `e1-4`.
-        run: The named run `score` takes.
+        run: The named run `score` takes: its entry, `<entry>` or `<entry>-<word>`, is the run
+            id's.
         root: The run folders' root.
         data_dir: The data root `score` reads, or its default.
         dry_run: Write the folder's roles and the log, and start nothing.
@@ -123,16 +124,16 @@ def launch(
         now: The clock the log's line reads.
 
     Raises:
-        EvaluationError: If `run_id` is not a run id of record of `run`, the machine reports
-            battery power, or on macOS its power cannot be read, the folder already holds the call
-            log, the scores or their log, or the process cannot start.
+        EvaluationError: If `run_id` is not a run id of record of `run`'s entry, the machine
+            reports battery power, or on macOS its power cannot be read, the folder already holds
+            the call log, the scores or their log, or the process cannot start.
     """
     match = RUN_ID.fullmatch(run_id)
     if match is None or match["entry"] is None:
         msg = f"{run_id!r} is not a run id of record, such as e1-4"
         raise EvaluationError(msg)
-    if match["entry"] != run:
-        msg = f"{run_id!r} is not a run id of the run {run!r}, such as {run}-4"
+    if run.partition("-")[0] != match["entry"]:
+        msg = f"{run_id!r} is not a run id of the run {run!r}, such as {run.partition('-')[0]}-4"
         raise EvaluationError(msg)
     battery = power()
     if battery:
