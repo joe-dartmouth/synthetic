@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date
+from fractions import Fraction
 
+import pandas as pd
 import pytest
 
-from bko.datasets.ablation import AblationSpec, ablate
+from bko.datasets.ablation import AblationSpec, ablate, cases, only, removal_order, without
 from bko.datasets.errors import DatasetError
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
-from tests._datasets_fixtures import SMALL_POPULATION, synthea_tables
+from tests._datasets_fixtures import SMALL_POPULATION, condition, patient, synthea_tables
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -129,3 +132,62 @@ def test_a_fraction_of_one_removes_every_case(population):
 def test_a_fraction_outside_zero_to_one_is_refused(population, fraction):
     with pytest.raises(DatasetError, match="fraction"):
         ablate(population, AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction))
+
+
+def test_cases_are_every_selected_patient_sorted(population):
+    assert list(cases(population, AblationSpec(codes=IHD, age_band=None, sex=None))) == [
+        "p1",
+        "p2",
+        "p3",
+    ]
+    with pytest.raises(DatasetError, match="age band"):
+        cases(population, AblationSpec(codes=IHD, age_band="65-70", sex=1))
+
+
+def test_a_removal_order_is_a_seeded_permutation_of_the_cases(population):
+    selected = cases(population, AblationSpec(codes=IHD, age_band=None, sex=None))
+    order = removal_order(selected, 3)
+    assert list(order) == list(removal_order(selected, 3))
+    assert sorted(order) == list(selected)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 3])
+@pytest.mark.parametrize("fraction", [0.01, 0.34, 0.5, 0.67, 0.99, 1.0])
+def test_a_fraction_removes_the_first_cases_of_its_seeds_order(population, seed, fraction):
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction, seed=seed)
+    order = removal_order(cases(population, spec), seed)
+    expected = order[: math.ceil(Fraction(str(fraction)) * len(order))].sort_values()
+    assert list(ablate(population, spec).removed) == list(expected)
+
+
+def test_a_seeded_draw_removes_the_ids_it_always_removed(population):
+    """Pinned from the draw before `removal_order` existed, so the prefix tests rest on a fact."""
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=0.5, seed=3)
+    assert list(ablate(population, spec).removed) == ["p2", "p3"]
+
+
+def test_seed_zero_orders_the_cases_as_numpys_default_stream_does(population):
+    selected = cases(population, AblationSpec(codes=IHD, age_band=None, sex=None))
+    assert list(removal_order(selected, 0)) == ["p3", "p1", "p2"]
+
+
+@pytest.mark.parametrize(("size", "fraction"), [(100, 0.07), (50, 0.14)])
+def test_a_fraction_removes_exactly_its_share_where_floats_round_up(tmp_path, size, fraction):
+    """`0.07 * 100` is `7.000000000000001` in floating point; the count is the exact share, 7."""
+    people = [patient(f"c{index:03d}", "1961-07-15", "M") for index in range(size)]
+    rows = [
+        condition(f"c{index:03d}", ISCHEMIC_HEART_DISEASE, "2019-06-01") for index in range(size)
+    ]
+    synthea_tables(tmp_path, people, rows)
+    many = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction)
+    assert len(ablate(many, spec).removed) == 7
+
+
+def test_only_and_without_split_a_population_and_its_rows(population):
+    chosen = pd.Index(["p2", "p1"])
+    alone, rest = only(population, chosen), without(population, chosen)
+    assert list(alone.patients.index) == ["p2", "p1"]
+    assert set(alone.conditions["patient"]) == {"p1", "p2"}
+    assert not set(rest.patients.index) & set(chosen)
+    assert len(alone.conditions) + len(rest.conditions) == len(population.conditions)

@@ -1,4 +1,4 @@
-"""Command line for gap detection: `python -m bko.gaps uci` and `synthea`.
+"""Command line for gap detection: `python -m bko.gaps uci`, `synthea` and `first-flag`.
 
 `uci` fetches UCI Heart Disease and the releases its field mappings name into the data root if
 they are absent, splits the records, and lists the training split's gaps under each definition of
@@ -6,8 +6,10 @@ they are absent, splits the records, and lists the training split's gaps under e
 than the threshold. `synthea` generates the population E2 reads if it is absent, fetches the
 releases its code mappings name, and for each of E2's ablations lists every definition's gaps and
 the count-based ones before and after the removal, marking the gaps the removed patients account
-for. Each writes one CSV to stdout, the same bytes on every run over the same inputs, and nothing
-unless the whole report is built; each input's identity, each cell's records, each flagged concept,
+for. `first-flag` reads the same population and, for each of E2's whole ablations, lists where each
+detector first flags each truth item as the cases go one at a time (`bko.gaps.scan`). Each writes
+one CSV to stdout, the same bytes on every run over the same inputs, and nothing unless the whole
+report is built; each input's identity, each cell's records, each flagged concept,
 each list's length, each detector's recovery and the report's digest go to stderr through logging.
 `docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
@@ -35,13 +37,14 @@ from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
-from bko.datasets.synthea import load_population
+from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.gaps.definitions import Definition, gaps, under_represented
 from bko.gaps.detect import count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation
 from bko.gaps.observe import Cells, Observed, cell_key, observe_population
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
+from bko.gaps.scan import FIRST_FLAG_COLUMNS, first_flag_rows, log_first_flags, scan
 from bko.gaps.scope import load_scope, load_uci_scope
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
@@ -113,7 +116,7 @@ def main(
     args = _parser().parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        command = {"uci": _uci, "synthea": _synthea}[args.command]
+        command = {"uci": _uci, "synthea": _synthea, "first-flag": _first_flag}[args.command]
         logger.info(
             "data_dir=%s pandas=%s scipy=%s",
             data_dir,
@@ -168,6 +171,11 @@ def _parser() -> argparse.ArgumentParser:
             "each of E2's ablations"
         ),
     )
+    commands.add_parser(
+        "first-flag",
+        parents=[common],
+        help="find where each detector first flags a truth item as E2's whole ablations thin",
+    )
     return parser
 
 
@@ -216,7 +224,9 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
     return rows
 
 
-def _synthea(data_dir: Path, context: Context) -> list[Row]:
+def _population(
+    data_dir: Path, context: Context
+) -> tuple[Population, dict[str, Ontology], tuple[BKB, ...]]:
     directory = ensure_population(
         context.run,
         data_dir,
@@ -229,6 +239,25 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
     concepts = {row.concept for row in context.code_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
     _log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
+    return population, ontologies, fragments
+
+
+def _first_flag(data_dir: Path, context: Context) -> list[Row]:
+    population, ontologies, fragments = _population(data_dir, context)
+    label = labeller(ontologies)
+    rows: list[Row] = [FIRST_FLAG_COLUMNS]
+    for name, spec in context.ablations.items():
+        if spec.fraction != 1:
+            logger.info("first-flag skip ablation=%s fraction=%s", name, spec.fraction)
+            continue
+        flags = scan(name, population, spec, fragments, context.code_rows)
+        log_first_flags(name, flags)
+        rows.extend(first_flag_rows(name, flags, label))
+    return rows
+
+
+def _synthea(data_dir: Path, context: Context) -> list[Row]:
+    population, ontologies, fragments = _population(data_dir, context)
     label = labeller(ontologies)
     rows: list[Row] = [SYNTHEA_COLUMNS]
     for name, spec in context.ablations.items():

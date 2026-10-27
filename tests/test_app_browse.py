@@ -125,3 +125,18 @@ def test_a_headerless_candidates_file_shows_its_error_in_place(tmp_path):
     at = _opened(tmp_path, runs, "c1-2")
     assert "candidates.jsonl could not be shown." in [error.value for error in at.error]
     assert any(block.value.startswith("CandidatesFormatError: ") for block in at.code)
+
+
+def test_a_first_flag_scan_is_listed_and_not_read(tmp_path):
+    runs = every_kind(tmp_path / "runs")
+    folder = runs / "e2-8"
+    folder.mkdir()
+    (folder / "first-flag.csv").write_text("not a first-flag table\n", encoding="utf-8")
+    (folder / "first-flag.log").write_text("INFO bko.gaps: gaps rows=0\n", encoding="utf-8")
+    at = _opened(tmp_path, runs, "e2-8")
+    roles = next(
+        frame.value for frame in at.dataframe if list(frame.value.columns) == ["role", "bytes"]
+    )
+    assert sorted(roles["role"]) == ["first-flag.csv", "first-flag.log"]
+    assert not at.subheader
+    assert not at.error

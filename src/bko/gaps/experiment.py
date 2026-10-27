@@ -27,7 +27,7 @@ from typing import Final
 import pandas as pd
 
 from bko.bkb.structure import BKB
-from bko.datasets.ablation import DEFAULT_ABLATION, Ablation, AblationSpec, ablate
+from bko.datasets.ablation import DEFAULT_ABLATION, Ablation, AblationSpec, ablate, only
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, Population
 from bko.datasets.synthea_run import DEFAULT_RUN
@@ -257,7 +257,7 @@ def run_ablation(
     before = population_cells(population, rows, name=SYNTHEA, edges=spec.edges)
     after = population_cells(ablation.kept, rows, name=SYNTHEA, edges=spec.edges)
     removed = population_cells(
-        _removed(population, ablation.removed), rows, name=SYNTHEA, edges=spec.edges
+        only(population, ablation.removed), rows, name=SYNTHEA, edges=spec.edges
     )
     return AblationRun(
         name=name,
@@ -279,15 +279,6 @@ def _truth(fragments: Sequence[BKB], removed: Cells) -> tuple[StatementGap, ...]
         StatementGap(cell, statement)
         for cell, records in removed.each.items()
         for statement in grounded(fragments, dataset_fragment(records.observed))
-    )
-
-
-def _removed(population: Population, removed: pd.Index) -> Population:
-    conditions = population.conditions
-    return Population(
-        patients=population.patients.loc[removed],
-        conditions=conditions.loc[conditions["patient"].isin(removed)].reset_index(drop=True),
-        snapshot_date=population.snapshot_date,
     )
 
 

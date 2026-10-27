@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Final
 
 import numpy as np
@@ -36,8 +37,9 @@ class AblationSpec:
         sex: 0 female, 1 male, or `None` for both.
         edges: Age band starts.
         fraction: The share of the selected cases to remove, in (0, 1]; 1 removes them all. Fewer
-            cases are chosen by a draw seeded with `seed`, and the count rounds up, so a positive
-            fraction removes at least one case.
+            cases are chosen by a draw seeded with `seed`, and the count is `ceil(f * n)` of `n`
+            cases, computed exactly from the fraction's decimal text (0.07 of 100 is 7, which
+            floating point would make 8), so a positive fraction removes at least one case.
         seed: The seed of the draw that orders the cases when `fraction` is below 1.
     """
 
@@ -75,15 +77,15 @@ class Ablation:
     after: pd.DataFrame
 
 
-def ablate(population: Population, spec: AblationSpec) -> Ablation:
-    """Remove every case `spec` selects from `population`.
+def cases(population: Population, spec: AblationSpec) -> pd.Index:
+    """Every case `spec` selects from `population`, whatever its fraction.
 
     Args:
         population: The population; it is not modified.
-        spec: What to remove.
+        spec: What to select.
 
     Returns:
-        The ablation.
+        The selected patient ids, sorted.
 
     Raises:
         DatasetError: If `spec` names no code, bad band edges, an unknown band or sex, a fraction
@@ -112,8 +114,8 @@ def ablate(population: Population, spec: AblationSpec) -> Ablation:
         selected &= keys["age_band"] == spec.age_band
     if spec.sex is not None:
         selected &= keys["sex"] == SEXES[spec.sex]
-    removed = people.index[selected.to_numpy()].sort_values()
-    if removed.empty:
+    found = people.index[selected.to_numpy()].sort_values()
+    if found.empty:
         where = [
             *([f"age band {spec.age_band}"] if spec.age_band is not None else []),
             *([f"sex {SEXES[spec.sex]}"] if spec.sex is not None else []),
@@ -123,18 +125,82 @@ def ablate(population: Population, spec: AblationSpec) -> Ablation:
             f"{sorted(spec.codes)}, none in {' and '.join(where) or 'the population'}"
         )
         raise DatasetError(msg)
-    removed = _drawn(removed, spec)
+    return found
+
+
+def removal_order(selected: pd.Index, seed: int) -> pd.Index:
+    """`selected` in the order a draw seeded by `seed` removes them.
+
+    A fraction `f` of `selected` removes the first `ceil(f * len(selected))` of this order, the
+    product taken exactly, so each fraction at one seed removes the cases of every smaller one.
+    The order is numpy's `default_rng` stream under the locked numpy.
+
+    Args:
+        selected: The cases, sorted, as `cases` returns them.
+        seed: The draw's seed.
+
+    Returns:
+        `selected`, permuted.
+    """
+    return selected[np.random.default_rng(seed).permutation(len(selected))]
+
+
+def without(population: Population, removed: pd.Index) -> Population:
+    """`population` without the `removed` patients or any of their condition rows.
+
+    Args:
+        population: The population; it is not modified.
+        removed: Patient ids of `population`.
+
+    Returns:
+        The rest of the population.
+    """
     conditions = population.conditions
-    kept = Population(
+    return Population(
         patients=population.patients.drop(index=removed),
         conditions=conditions.loc[~conditions["patient"].isin(removed)].reset_index(drop=True),
         snapshot_date=population.snapshot_date,
     )
+
+
+def only(population: Population, kept: pd.Index) -> Population:
+    """The `kept` patients of `population` alone, with their condition rows and no one else's.
+
+    Args:
+        population: The population; it is not modified.
+        kept: Patient ids of `population`, in the order the result holds them.
+
+    Returns:
+        Those patients.
+    """
+    conditions = population.conditions
+    return Population(
+        patients=population.patients.loc[kept],
+        conditions=conditions.loc[conditions["patient"].isin(kept)].reset_index(drop=True),
+        snapshot_date=population.snapshot_date,
+    )
+
+
+def ablate(population: Population, spec: AblationSpec) -> Ablation:
+    """Remove every case `spec` selects from `population`, or its seeded fraction of them.
+
+    Args:
+        population: The population; it is not modified.
+        spec: What to remove.
+
+    Returns:
+        The ablation.
+
+    Raises:
+        DatasetError: As `cases`.
+    """
+    removed = _drawn(cases(population, spec), spec)
+    kept = without(population, removed)
     return Ablation(
         spec=spec,
         kept=kept,
         removed=removed,
-        before=cell_counts(people, edges=spec.edges),
+        before=cell_counts(subjects(population, codes=spec.codes), edges=spec.edges),
         after=cell_counts(subjects(kept, codes=spec.codes), edges=spec.edges),
     )
 
@@ -143,6 +209,5 @@ def _drawn(selected: pd.Index, spec: AblationSpec) -> pd.Index:
     """The first `spec.fraction` of `selected` in a draw seeded by `spec.seed`, sorted."""
     if spec.fraction == 1:
         return selected
-    count = math.ceil(spec.fraction * len(selected))
-    order = np.random.default_rng(spec.seed).permutation(len(selected))
-    return selected[np.sort(order[:count])]
+    count = math.ceil(Fraction(str(spec.fraction)) * len(selected))
+    return removal_order(selected, spec.seed)[:count].sort_values()
