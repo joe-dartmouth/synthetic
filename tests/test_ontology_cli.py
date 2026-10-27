@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import importlib.metadata
 import io
 import logging
@@ -15,8 +16,8 @@ import pytest
 
 from bko.datasets.sources import Source
 from bko.ontology.__main__ import Context, configure_logging, main
-from bko.ontology.mapping import CODE_MAPPINGS
-from bko.ontology.schema import CodeMapping, Codes, ConceptRow, FieldMapping, OutOfScope
+from bko.ontology.mapping import CODE_MAPPINGS, UNMAPPED_CODES
+from bko.ontology.schema import CheckedRow, CodeMapping, Codes, FieldMapping, OutOfScope
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import pin
 from tests._ontology_fixtures import (
@@ -37,13 +38,21 @@ FIELD_ROW = FieldMapping(
     limits="test",
 )
 SCOPE_ROW = OutOfScope(concept="HP:0000822", label="Hypertension", reason="test", source="hpo")
-ROWS: tuple[ConceptRow, ...] = (*CODE_MAPPINGS, FIELD_ROW, SCOPE_ROW)
+ROWS: tuple[CheckedRow, ...] = (*CODE_MAPPINGS, FIELD_ROW, SCOPE_ROW, *UNMAPPED_CODES)
 
 EXPECTED = (
     "table,subject,concept,label,status\n"
     "code,SCTID:414545008,MONDO:0024644,myocardial ischemia,ok\n"
+    "code,SCTID:59621000,MONDO:0001134,essential hypertension,ok\n"
+    "code,SCTID:44054006,MONDO:0005148,type 2 diabetes mellitus,ok\n"
+    "code,SCTID:55822004,MONDO:0021187,hyperlipidemia,ok\n"
+    "code,SCTID:22298006,MONDO:0005068,myocardial infarction,ok\n"
+    "code,SCTID:401303003,MONDO:0041656,ST-elevation myocardial infarction,ok\n"
+    "code,SCTID:230690007,MONDO:0005098,stroke disorder,ok\n"
     "field,cp in 1|2|3,HP:0100749,Chest pain,ok\n"
     "out-of-scope,,HP:0000822,Hypertension,ok\n"
+    "excluded-code,SCTID:401314000,,Acute non-ST segment elevation myocardial infarction "
+    "(disorder),ok\n"
 )
 
 
@@ -55,7 +64,7 @@ def _releases(mondo: bytes, hpo: bytes) -> tuple[dict[str, Source], dict[str, by
 def _run(
     data_dir: Path,
     *,
-    rows: tuple[ConceptRow, ...] = ROWS,
+    rows: tuple[CheckedRow, ...] = ROWS,
     mondo: bytes = MONDO_TEXT.encode(),
     hpo: bytes = HPO_TEXT.encode(),
     served: dict[str, bytes] | None = None,
@@ -79,9 +88,30 @@ def test_agreeing_rows_exit_zero(tmp_path, caplog):
     assert "data_version=releases/2026-10-06" in caplog.text
     assert "data_version=hp/releases/2026-09-01" in caplog.text
     assert "release mondo data_version=releases/2026-10-06" in caplog.text
-    assert "terms=9 obsolete=2" in caplog.text
-    assert "checked 3 rows: 0 disagree" in caplog.text
+    assert "terms=19 obsolete=2" in caplog.text
+    assert "checked 10 rows: 0 disagree" in caplog.text
     assert f"parser pronto {importlib.metadata.version('pronto')}" in caplog.text
+
+
+def _excluded_rows(out: str) -> list[list[str]]:
+    return [row for row in csv.reader(io.StringIO(out)) if row[0] == "excluded-code"]
+
+
+def test_the_default_rows_include_the_excluded_codes(tmp_path: Path) -> None:
+    releases, bodies = _releases(MONDO_TEXT.encode(), HPO_TEXT.encode())
+    out = io.StringIO()
+    context = Context(open_url=RoutingOpener(bodies), releases=releases)
+    code = main(["check", "--data-dir", str(tmp_path / "data")], context=context, out=out)
+    assert code == 0
+    assert _excluded_rows(out.getvalue()) == [
+        [
+            "excluded-code",
+            "SCTID:401314000",
+            "",
+            "Acute non-ST segment elevation myocardial infarction (disorder)",
+            "ok",
+        ]
+    ]
 
 
 def test_a_second_run_is_identical_and_offline(tmp_path):
@@ -102,9 +132,31 @@ def test_a_disagreeing_row_exits_four_after_the_report(tmp_path, caplog):
     lines = out.splitlines()
     assert len(lines) == 4
     assert lines[1].split(",")[-1].startswith("named 'myocardial ischemia'")
-    assert lines[2:] == EXPECTED.splitlines()[2:]
+    assert lines[2:] == [
+        line for line in EXPECTED.splitlines() if line.startswith(("field,", "out-of-scope,"))
+    ]
     [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert warning.startswith("row code MONDO:0024644 disagrees: named 'myocardial ischemia'")
+
+
+def test_an_excluded_code_that_gains_a_match_warns_with_its_code(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    stanza = "id: MONDO:0005068\nname: myocardial infarction\n"
+    assert stanza in MONDO_TEXT
+    gained = MONDO_TEXT.replace(
+        stanza, f"{stanza}property_value: skos:exactMatch SCTID:401314000\n"
+    )
+    with caplog.at_level(logging.WARNING, logger="bko.ontology"):
+        code, out, _ = _run(tmp_path / "data", rows=UNMAPPED_CODES, mondo=gained.encode())
+    assert code == 4
+    [row] = _excluded_rows(out)
+    assert row[-1] == "skos:exactMatch SCTID:401314000 is on MONDO:0005068"
+    [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warning == (
+        "row excluded-code SCTID:401314000 disagrees: "
+        "skos:exactMatch SCTID:401314000 is on MONDO:0005068"
+    )
 
 
 def test_an_unreachable_release_exits_two(tmp_path):

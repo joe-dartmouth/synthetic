@@ -1,8 +1,8 @@
 ---
 id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
-status: blocked
-depends_on: detect-synthea-mappings
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -30,8 +30,8 @@ recovers on the held-out cases is the measure of the augmentation itself.
 
 - A Synthea frame (`evaluate-frame-generic-pipeline`) from the pinned population: one row per
   patient alive on the snapshot date, with age, sex, the conditions
-  [`detect-synthea-mappings`](detect-synthea-mappings.md) maps as indicators, and the label
-  ischemic heart disease by the snapshot; a new ADR under `docs/adr/research/` fixes the fields,
+  `bko.ontology.mapping.CODE_MAPPINGS` maps as indicators (`UNMAPPED_CODES` lists the named
+  conditions' codes it excludes), and the label ischemic heart disease by the snapshot; a new ADR under `docs/adr/research/` fixes the fields,
   the label, the age bands, the split, the removed share, the replica policy and the run's
   ceiling, with the reason for each, and excludes from the features any code that stands in for
   the label (a procedure or finding that only cases carry).

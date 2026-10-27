@@ -27,7 +27,6 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`detect-graded-grounding`](detect-graded-grounding.md) | ready | -- | Partiban | final-report |
-| [`detect-synthea-mappings`](detect-synthea-mappings.md) | ready | -- | Partiban | final-report |
 
 ### Evaluation power
 
@@ -37,7 +36,7 @@ the ROADMAP heading it serves.
 | [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
-| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings | Joe | final-report |
+| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | ready | -- | Joe | final-report |
 
 The diagram draws this set's edges and the edges out of `proposal-guidance-ablation`, whose own
 set is [`proposal-index.md`](proposal-index.md).
@@ -56,7 +55,7 @@ flowchart LR
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
     graded_grounding[detect-graded-grounding]
-    synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
+    synthea_downstream[evaluate-synthea-downstream]
 ```
 
 ## What every unit relies on

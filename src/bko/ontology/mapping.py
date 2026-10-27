@@ -15,7 +15,9 @@ in its release, reached through classes with the release's prefix. Every other c
 scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and
 `bko.ontology.check` refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO
 holds the part of it the dataset's own rows reach: `FIELD_MAPPINGS` for UCI Heart Disease,
-`CODE_MAPPINGS` for Synthea (`bko.gaps`).
+`CODE_MAPPINGS` for Synthea (`bko.gaps`). A Synthea disorder code maps to the one live MONDO concept
+carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the named conditions' disorder codes none
+carries, and `bko.ontology.check` refuses one that gains a live match.
 
 **Labels** are the releases' `name:` values, copied verbatim from MONDO (CC BY 4.0) and HPO (its
 attribution is in `bko.datasets.sources.HPO`).
@@ -33,12 +35,14 @@ from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.uci import RANGES  # ruff: ignore[unused-import]  (re-exported)
 from bko.ontology.schema import (
     AtLeast,
+    CheckedRow,
     CodeMapping,
     Codes,
     ConceptRow,
     FieldMapping,
     OutOfScope,
     Unmapped,
+    UnmappedCode,
 )
 
 
@@ -120,7 +124,7 @@ FIELD_MAPPINGS: Final[tuple[FieldMapping, ...]] = (
         limits=(
             "one fasting reading above the dataset's 120 mg/dl cut, which lies above the ADA's "
             "normal fasting range; it spans impaired fasting glucose and the diabetes range, so "
-            "diabetes is not implied"
+            "diabetes is not implied (MONDO:0005015 diabetes mellitus)"
         ),
     ),
     FieldMapping(
@@ -257,12 +261,6 @@ OUT_OF_SCOPE: Final[tuple[OutOfScope, ...]] = (
         source="hpo",
     ),
     OutOfScope(
-        concept="MONDO:0005015",
-        label="diabetes mellitus",
-        reason="fbs is one reading, and a diagnosis needs confirmation",
-        source="ada-2026",
-    ),
-    OutOfScope(
         concept="HP:0033992",
         label="Chronotropic incompetence",
         reason=(
@@ -292,12 +290,62 @@ CODE_MAPPINGS: Final[tuple[CodeMapping, ...]] = (
         label="myocardial ischemia",
         source="mondo",
     ),
+    CodeMapping(
+        snomed="59621000",
+        concept="MONDO:0001134",
+        label="essential hypertension",
+        source="mondo",
+    ),
+    CodeMapping(
+        snomed="44054006",
+        concept="MONDO:0005148",
+        label="type 2 diabetes mellitus",
+        source="mondo",
+    ),
+    CodeMapping(
+        snomed="55822004",
+        concept="MONDO:0021187",
+        label="hyperlipidemia",
+        source="mondo",
+    ),
+    CodeMapping(
+        snomed="22298006",
+        concept="MONDO:0005068",
+        label="myocardial infarction",
+        source="mondo",
+    ),
+    CodeMapping(
+        snomed="401303003",
+        concept="MONDO:0041656",
+        label="ST-elevation myocardial infarction",
+        source="mondo",
+    ),
+    CodeMapping(
+        snomed="230690007",
+        concept="MONDO:0005098",
+        label="stroke disorder",
+        source="mondo",
+    ),
 )
-"""The Synthea ablation's SNOMED-CT codes, each with the MONDO concept the release equates with it
-by `skos:exactMatch`."""
+"""Synthea's SNOMED-CT disorder codes, each with the MONDO concept the release equates with it by
+`skos:exactMatch`: the ablation's code first."""
+
+UNMAPPED_CODES: Final[tuple[UnmappedCode, ...]] = (
+    UnmappedCode(
+        snomed="401314000",
+        label="Acute non-ST segment elevation myocardial infarction (disorder)",
+        reason="no skos:exactMatch in the pinned MONDO",
+        source="mondo",
+    ),
+)
+"""The named conditions' Synthea disorder codes no MONDO concept is equated with, each with its
+reason; the population holds other codes with no match, which no row records."""
 
 CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (*FIELD_MAPPINGS, *CODE_MAPPINGS, *OUT_OF_SCOPE)
-"""Every row that names a concept, in table order: what `bko.ontology.check` checks."""
+"""Every row that names a concept, in table order."""
+
+CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES)
+"""Every concept row, then every excluded code: what `bko.ontology.check` checks."""
 
 MAPPED: Final = frozenset(row.concept for row in (*FIELD_MAPPINGS, *CODE_MAPPINGS))
 """The concepts a row maps; with their is_a ancestors, the table's scope.

@@ -10,10 +10,19 @@ from types import MappingProxyType
 import pytest
 
 from bko.ontology.check import Verdict, check
-from bko.ontology.mapping import CONCEPT_ROWS
+from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
-from bko.ontology.schema import AtLeast, CodeMapping, Codes, FieldMapping, OutOfScope
-from bko.ontology.terms import Ontology, Term
+from bko.ontology.schema import (
+    AtLeast,
+    CheckedRow,
+    CodedRow,
+    CodeMapping,
+    Codes,
+    FieldMapping,
+    OutOfScope,
+    UnmappedCode,
+)
+from bko.ontology.terms import Ontology, Term, ancestors
 from tests._ontology_fixtures import HPO_LABELS, HPO_TEXT, MONDO_TEXT, write_obo
 
 
@@ -76,6 +85,13 @@ CODE_ROW = CodeMapping(
 SCOPE_ROW = OutOfScope(
     concept="MONDO:0005015", label="diabetes mellitus", reason="test", source="ada-2026"
 )
+EXCLUDED_ROW = UnmappedCode(
+    snomed="401314000",
+    label="Acute non-ST segment elevation myocardial infarction (disorder)",
+    reason="test",
+    source="mondo",
+)
+EXCLUDED_MATCH = ("skos:exactMatch", "SCTID:401314000")
 
 
 def _agreeing() -> dict[str, Ontology]:
@@ -101,7 +117,7 @@ def test_no_rows_give_no_verdicts() -> None:
     assert check((), _agreeing()) == ()
 
 
-def _problem(row: FieldMapping | CodeMapping | OutOfScope, ontologies: dict[str, Ontology]) -> str:
+def _problem(row: CheckedRow, ontologies: dict[str, Ontology]) -> str:
     [verdict] = check((row,), ontologies)
     assert verdict.problem is not None
     return verdict.problem
@@ -218,14 +234,70 @@ def test_an_unrelated_out_of_scope_concept_passes_without_mapped_rows() -> None:
     assert verdict.problem is None
 
 
-def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
-    ontologies = {
+def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
+    return {
         "MONDO": parse_obo(write_obo(tmp_path, MONDO_TEXT, "mondo.obo"), name="mondo"),
         "HP": parse_obo(write_obo(tmp_path, HPO_TEXT, "hp.obo"), name="hpo"),
     }
-    assert [v.problem for v in check(CONCEPT_ROWS, ontologies)] == [None] * len(CONCEPT_ROWS)
-    table_hp = {row.concept: row.label for row in CONCEPT_ROWS if row.concept.startswith("HP:")}
+
+
+def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
+    verdicts = check(CHECKED_ROWS, _fixture_releases(tmp_path))
+    assert [v.problem for v in verdicts] == [None] * len(CHECKED_ROWS)
+    assert "excluded-code" in {v.table for v in verdicts}
+    table_hp = {
+        row.concept: row.label
+        for row in CHECKED_ROWS
+        if not isinstance(row, UnmappedCode) and row.concept.startswith("HP:")
+    }
     assert table_hp == dict(HPO_LABELS)
+
+
+def test_no_out_of_scope_row_is_an_ancestor_of_a_mapped_concept(tmp_path: Path) -> None:
+    """The fixture reaches one level of ancestors; the full guard is the `--releases` test."""
+    mondo = _fixture_releases(tmp_path)["MONDO"]
+    above = {
+        ancestor
+        for concept in MAPPED
+        if concept.startswith("MONDO:")
+        for ancestor in ancestors(mondo, concept, prefix="MONDO")
+    }
+    assert "MONDO:0005015" in above, "the control: type 2 diabetes reaches diabetes mellitus"
+    assert above.isdisjoint(row.concept for row in OUT_OF_SCOPE)
+
+
+def test_diabetes_mellitus_is_in_scope_once_type_2_diabetes_maps(tmp_path: Path) -> None:
+    [diabetes] = [row for row in CODE_MAPPINGS if row.label == "type 2 diabetes mellitus"]
+    verdicts = check((diabetes, SCOPE_ROW), _fixture_releases(tmp_path))
+    assert [v.problem for v in verdicts] == [
+        None,
+        "is_a ancestor of mapped MONDO:0005148 in mondo releases/2026-10-06, so it is in scope",
+    ]
+
+
+def test_an_excluded_code_without_a_holder_passes() -> None:
+    assert check((EXCLUDED_ROW,), _agreeing()) == (
+        Verdict("excluded-code", "SCTID:401314000", "", EXCLUDED_ROW.label, None),
+    )
+
+
+def test_an_excluded_code_that_gains_a_live_exact_match_is_reported() -> None:
+    gained = _term("MONDO:0000002", "gained", matches=(EXCLUDED_MATCH,))
+    assert _problem(EXCLUDED_ROW, {"MONDO": _mondo(ISCHEMIA, gained)}) == (
+        "skos:exactMatch SCTID:401314000 is on MONDO:0000002"
+    )
+
+
+def test_an_excluded_code_ignores_obsolete_and_close_holders() -> None:
+    gone = _term("MONDO:0000002", "gone", matches=(EXCLUDED_MATCH,), obsolete=True)
+    close = _term("MONDO:0000003", "close", matches=(("skos:closeMatch", "SCTID:401314000"),))
+    [verdict] = check((EXCLUDED_ROW,), {"MONDO": _mondo(gone, close)})
+    assert verdict.problem is None
+
+
+def test_an_excluded_code_without_mondo_is_a_verdict() -> None:
+    hp_only = {"HP": _ontology("hpo", "hp/releases/2026-09-01", DEPRESSION)}
+    assert _problem(EXCLUDED_ROW, hp_only) == "no release for prefix MONDO"
 
 
 class _CountingTerms(Mapping[str, Term]):
@@ -250,7 +322,7 @@ SECOND = _term("MONDO:0000002", "second", matches=(("skos:exactMatch", "SCTID:2"
 SECOND_ROW = CodeMapping(snomed="2", concept="MONDO:0000002", label="second", source="mondo")
 
 
-def _scans(*rows: CodeMapping) -> int:
+def _scans(*rows: CodedRow) -> int:
     terms = _CountingTerms(_mondo(ISCHEMIA, SECOND).terms)
     check(rows, {"MONDO": replace(_mondo(), terms=terms)})
     return terms.scans
@@ -259,6 +331,10 @@ def _scans(*rows: CodeMapping) -> int:
 def test_a_second_code_row_does_not_scan_the_release_again() -> None:
     assert _scans(CODE_ROW) > 0, "the control: checking a code row reads the release"
     assert _scans(CODE_ROW, SECOND_ROW) == _scans(CODE_ROW)
+
+
+def test_an_excluded_code_shares_the_code_rows_scan() -> None:
+    assert _scans(CODE_ROW, EXCLUDED_ROW) == _scans(CODE_ROW)
 
 
 def test_a_code_row_without_its_release_is_a_verdict() -> None:
