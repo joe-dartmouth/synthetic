@@ -16,7 +16,16 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.direct import DirectArm
-from bko.evaluate.experiment import ADDS_ROWS, DIRECT_ARM, E1, G2, METHOD_ARMS, RUNS, NamedRun
+from bko.evaluate.experiment import (
+    ADDS_ROWS,
+    CRITERION_NAMES,
+    DIRECT_ARM,
+    E1,
+    G2,
+    METHOD_ARMS,
+    RUNS,
+    NamedRun,
+)
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.scores import Source
 from bko.ontology.mapping import FIELD_MAPPINGS
@@ -209,3 +218,39 @@ def test_a_run_with_bko_arms_and_the_direct_arm_shares_one_candidates_file(tmp_p
     assert calls == {("bko", False), (DIRECT_ARM, True)}
     scores = pd.read_csv(io.StringIO(out.getvalue()))
     assert {"bko", DIRECT_ARM} <= set(scores[scores["source"] == "candidates"]["arm"])
+
+
+def test_compare_on_a_run_with_no_criteria_logs_e1s_criteria_unjudged(tmp_path, caplog):
+    code, out, _ = scored(tmp_path)
+    assert code == 0
+    path = tmp_path / "scores.csv"
+    path.write_text(out, encoding="utf-8")
+    ctx, _ = g2_context()
+    caplog.set_level(logging.INFO)
+    table = io.StringIO()
+    assert main(["compare", "g2", str(path)], context=ctx, out=table) == 0
+    assert table.getvalue().count("\n") == 1, "the table holds its header alone"
+    unjudged = [m for m in caplog.messages if m.startswith("unjudged ")]
+    criteria = {m.split()[1] for m in unjudged}
+    assert criteria == {f"criterion={name}" for name in CRITERION_NAMES if name != "validity"}
+    assert any(
+        m.startswith("unjudged criterion=primary scope=all arm=bko-direct against=none ")
+        and " measure=recall mean=" in m
+        and " refuting_high=" in m
+        and " holdouts=2 differing=" in m
+        for m in unjudged
+    )
+    assert not any("verdict=" in m for m in caplog.messages if "criterion=" in m)
+
+
+def test_compare_on_a_judged_run_logs_nothing_unjudged(tmp_path, caplog):
+    code, out, _ = scored(tmp_path)
+    assert code == 0
+    path = tmp_path / "scores.csv"
+    path.write_text(out, encoding="utf-8")
+    ctx, _ = g2_context()
+    judged = dataclasses.replace(SMALL_G2, criteria=("primary",))
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(judged)})
+    caplog.set_level(logging.INFO)
+    assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 0
+    assert not any(m.startswith("unjudged ") for m in caplog.messages)

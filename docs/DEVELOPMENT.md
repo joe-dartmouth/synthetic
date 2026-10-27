@@ -297,8 +297,10 @@ the runner before any replay.
   `contrast model=hgb` line per contrast of the boosting model's measures when the scores hold them
   (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`, `high=`,
   `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which lacks
-  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), and a `replica` line per replica arm, measure and
-  scope. With `--beside`, it then logs a `beside` counts
+  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
+  judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
+  holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
+  the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
   `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
   `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line
