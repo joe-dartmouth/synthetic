@@ -3,8 +3,8 @@
 The frame has one row per complete record, indexed by `record_id`, the record's 1-based line number
 in `processed.cleveland.data`. Its columns are the 13 UCI predictors under their UCI names with
 their UCI integer codes (`CODEBOOK`), and `target`: 1 where `num` is 1 to 4 (disease present), 0
-where it is 0. `num` is dropped, because a model given it reads the label off it. ADR
-`research/uci-evaluation-frame` records why.
+where it is 0. `num` is dropped, because a model given it reads the label off it. `UCI_FRAME`
+holds what the stages read of it. ADR `research/uci-evaluation-frame` records why.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from typing import Final
 
 import pandas as pd
 
-from bko.datasets.cells import LABEL, SEXES
+from bko.datasets.cells import AGE_BAND_EDGES, LABEL, LABEL_CODES, LABEL_MEANINGS, SEXES
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
-from bko.datasets.frames import RangeConstraint
+from bko.datasets.frames import FrameSpec, RangeConstraint
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 
 
@@ -178,6 +178,23 @@ RANGES: Final[tuple[RangeConstraint, ...]] = (
 
 `bko.ontology.mapping` re-exports it beside the mapping table.
 """
+
+UCI_FRAME: Final = FrameSpec(
+    name="uci",
+    features=FEATURES,
+    numeric=NUMERIC,
+    fractional=FRACTIONAL,
+    fraction_digits=FRACTION_DIGITS,
+    categorical=CATEGORICAL,
+    codebook=CODEBOOK,
+    descriptions=DESCRIPTIONS,
+    ranges=RANGES,
+    label_codes=tuple(sorted(LABEL_CODES)),
+    label_meanings=LABEL_MEANINGS,
+    edges=AGE_BAND_EDGES,
+    label=LABEL,
+)
+"""UCI Heart Disease's frame: what every stage reads of it, built from this module's constants."""
 
 
 def parse_cleveland(text: str) -> pd.DataFrame:

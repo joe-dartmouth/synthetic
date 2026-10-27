@@ -133,7 +133,8 @@ criteria, and no other frame from this archive adds records of women with heart 
 ## Enforcement
 
 - Owner: `src/bko/datasets/`
-- Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`
+- Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`,
+  `tests/test_datasets_frame.py`
 
 ## Reversal Conditions
 
