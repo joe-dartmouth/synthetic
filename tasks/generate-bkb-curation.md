@@ -2,7 +2,7 @@
 id: generate-bkb-curation
 title: Curate LLM candidates by their likelihood under the BKO
 status: blocked
-depends_on: generate-bkb-sampler, evaluate-e1-second-configuration
+depends_on: evaluate-e1-second-configuration
 blocks: --
 parallel_safe: true
 owner: Shirley
@@ -23,7 +23,7 @@ rows by a classifier's confidence; the fused BKB offers a knowledge likelihood i
 mass of the S-nodes instantiation reaches is not that likelihood: every dataset prior is reached
 from any anchor and every `is_a` S-node has probability 1, so the mass is the same for every
 record of a cell. With one state per class (the encoding
-[`generate-bkb-sampler`](generate-bkb-sampler.md) describes), the score the fused BKB can give a
+ADR `research/bkb-direct-generation` describes), the score the fused BKB can give a
 record is the likelihood of its mapped concepts' presence and absence under their fused shares,
 and whether that score separates records that match the real cell's distribution from records
 that do not can be measured before any paid arm is built on it.
