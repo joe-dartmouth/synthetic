@@ -22,13 +22,15 @@ and open each one's artifacts without knowing the command that wrote them.
 
 ## Decision
 
-We will keep each run of record's artifacts in **`runs/<run-id>/`**, gitignored. Each artifact
-takes a role name from `bko.app.runs.ROLES`, which `docs/DEVELOPMENT.md` (Runs) mirrors in a
-table. The guarded commands in `docs/DEVELOPMENT.md` write there. A run folder's name is the run's
-EVIDENCE id; a run that checks or extends another takes that run's id and a suffix, such as
-`e1-3-replay` or `c1-2-closure`; an entry holds named runs, `<entry>` or `<entry>-<word>`, and a run id's entry is the part of its name before the first dash, as in `g3-1` and `g3-cell`; an app fill, which is not a run of record, takes
-`app-<UTC time>-<arm>`. The latest run of each entry whose rows name `scratchpad/` is hard-linked
-into its folder (`docs/DEVELOPMENT.md`, Runs, lists them); earlier runs stay where their rows say.
+We will keep each run of record's artifacts in **`runs/<run-id>/`**, gitignored. Each artifact takes
+a role name from `bko.app.runs.ROLES`, which `docs/DEVELOPMENT.md` (Runs) mirrors in a table. The
+guarded commands in `docs/DEVELOPMENT.md` write there. A run folder's name is the run's EVIDENCE id;
+a run that checks or extends another takes that run's id and a suffix, such as `e1-3-replay` or
+`c1-2-closure`; an entry holds named runs, `<entry>` or `<entry>-<word>`, and a run id's entry is
+the part of its name before the first dash: a run registered as `g3-cell` launches into `runs/g3-1/`
+as `launch g3-1 g3-cell`; an app fill, which is not a run of record, takes `app-<UTC time>-<arm>`.
+The latest run of each entry whose rows name `scratchpad/` is hard-linked into its folder
+(`docs/DEVELOPMENT.md`, Runs, lists them); earlier runs stay where their rows say.
 
 ## Rationale
 
