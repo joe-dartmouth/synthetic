@@ -279,6 +279,12 @@ def test_a_named_run_of_another_entry_is_refused(tmp_path, caplog):
         launch("g3-1", "e1", root=tmp_path, power=lambda: False, start=Starts())
 
 
+def test_a_named_run_whose_entry_only_starts_with_the_run_ids_is_refused(tmp_path):
+    context = named(tmp_path, {**RUNS, "e10": NamedRun(E1)})
+    assert main(["launch", "e1-4", "e10", "--dry-run"], context=context, out=io.StringIO()) == 2
+    assert not (tmp_path / "e1-4").exists()
+
+
 @pytest.mark.parametrize("run_id", ["nope", "app-20260101T000000000000Z-bko", "../e1-4"])
 def test_an_id_that_is_not_a_run_of_record_exits_two(tmp_path, caplog, run_id):
     with caplog.at_level(logging.ERROR):

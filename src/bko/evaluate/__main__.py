@@ -166,14 +166,14 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     if match is None or match["entry"] is None:
         msg = f"{args.run_id!r} is not a run id of record, such as e1-4"
         raise EvaluationError(msg)
-    run = args.run or match["entry"]
-    context = _named(run, context)
+    name = args.run or match["entry"]
+    context = _named(name, context)
     if not set(context.experiment.arms) & set(BKO_ARMS):
-        msg = f"the run {run!r} has no BKO arm, so it spends nothing to launch"
+        msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     found = launch(
         args.run_id,
-        run,
+        name,
         root=context.runs_dir if context.runs_dir is not None else runs_root(),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
