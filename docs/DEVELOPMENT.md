@@ -101,12 +101,15 @@ command per method, inside `.venv`:
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
 its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
-credential, and every call goes to the call log at `--log`, which must not exist. `compare` spends
-nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/` ([Runs](#runs)):
+credential, and every call goes to the call log at `--log`, which must not exist. Whenever a BKO arm
+runs, live, with `--replay` or with `--resume`, `--candidates <path>` is required and must not exist
+either: the candidates file holds one line per candidate a BKO arm generated, with its holdout,
+fill, attempt, call, cell, record or undecoded reason, and outcome. `compare` spends nothing.
+Inside `.venv`, writing to the run's folder under the gitignored `runs/` ([Runs](#runs)):
 
     mkdir -p runs/<run-id>
-    test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
-    mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
+    test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
+    mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/holdout-candidates.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl --candidates runs/<run-id>-replay/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
     uv run --no-sync python -m bko.evaluate compare [<run>] runs/<run-id>/scores.csv [--candidate <arm>] [--beside <scores> [--beside-arm <arm>]]
 
 `score` and `compare` take an optional run name before their other arguments, as in
@@ -130,17 +133,19 @@ series either arm lacks, or that fewer than two paired holdouts define, is skipp
 (`cleanup:evaluate/beside-flagged-scope-fingerprint`).
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
-calls from that log, sends the rest live, and writes one new call log at `--log`. The stopped run
-keeps its folder; the resumed run takes that id plus `-resume` ([Runs](#runs)):
+calls from that log, sends the rest live, and writes one new call log at `--log` and one new
+candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
+included. The stopped run keeps its folder; the resumed run takes that id plus `-resume`
+([Runs](#runs)):
 
-    test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
+    test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
 
 Never resume a log that another process still writes. A run stopped at the spend ceiling cannot
 resume, because its first live call refuses again.
 
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
-refuse an existing log, and `scores.csv` is the only copy `compare` reads. A judged run keeps
-`compare`'s stdout and stderr in its folder:
+refuse an existing log or candidates file, and `scores.csv` is the only copy `compare` reads. A
+judged run keeps `compare`'s stdout and stderr in its folder:
 
     test ! -e runs/<run-id>/criteria.csv && test ! -e runs/<run-id>/criteria.log && uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv > runs/<run-id>/criteria.csv 2> runs/<run-id>/criteria.log
 
@@ -152,24 +157,27 @@ the `score --log` command above; a resume still runs the guarded `--resume` comm
 `<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
 into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a run of record
 (`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
-`scores.csv` or `scores.log`, and a machine that reports battery power or, on macOS, whose power
-`pmset -g batt` cannot read (elsewhere it cannot check and records `power=unchecked`). Otherwise it
-creates `scores.csv` and `scores.log` exclusively, so a second launch into the folder refuses,
-records the power reading, the keep-awake and the command in `launch.log`, and starts
-`score <run> --log` in its own session, held awake by `caffeinate -i -s` on macOS, with stdout and
-stderr in those two files. It appends the process id to `launch.log`, or the error and removes the
-two files when the process cannot start, and prints the command that watches the folder
-(`tail -f <runs>/<run-id>/scores.log`, its path absolute). `--dry-run` writes `launch.log` and
-starts nothing, so the folder stays free to launch. The power is read once, at launch: a machine
-unplugged afterwards is not caught, and `caffeinate -s` holds it awake on mains power only. The run
-itself stops, exit 2 with the call log ending `failed`, on any of three rules, each logged as
-`stop rule=<name>` with the measure that fired: the spend ceiling (`E1.spend_ceiling`), the
-projection (the live spend after `projection_after` holdouts, scaled to every holdout, reaching the
-ceiling; a replay and a resume are not projected, and `stop rules projecting=` says which applies),
-and the idle limit (`idle_limit` seconds for one call to get a reply, its retries included, timed
-while the call is in flight). `bko.evaluate.watch` holds the rules. A `scores.log` with no
-`run status=` line, which the call log writes as it closes, belongs to a process that is still
-running or was killed. Copy the call log off the runner before any replay.
+`scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports battery power
+or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
+`power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
+launch into the folder refuses, records the power reading, the keep-awake and the command in
+`launch.log`, and starts
+`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
+session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files. It
+appends the process id to `launch.log`, or the error and removes the two files when the process
+cannot start, and prints the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`,
+its path absolute). `--dry-run` writes `launch.log` and starts nothing, so the folder stays free to
+launch. The power is read once, at launch: a machine unplugged afterwards is not caught, and
+`caffeinate -s` holds it awake on mains power only. The run itself stops, exit 2 with the call log
+ending `failed`, on any of three rules, each logged as `stop rule=<name>` with the measure that
+fired: the spend ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend
+before the call it refuses), the projection (the live spend after `projection_after` holdouts,
+scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, and
+`stop rules projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call
+to get a reply, its retries included, timed while the call is in flight). `bko.evaluate.watch`
+holds the rules. A `scores.log` with no `run status=` line, which the call log writes as it closes,
+belongs to a process that is still running or was killed. Copy the call log off the runner before
+any replay.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -187,6 +195,16 @@ running or was killed. Copy the call log off the runner before any replay.
   answered from that call log instead of the API. A call that differs from the log's, or a logged
   call left unplayed, stops the run. With `--resume`, the stopped log's answered calls come first,
   answered from it, then live calls.
+- **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
+  header line (`kind` `header`, `schema`, the run name, the UCI archive's and each release's
+  sha256, the generator settings), then one line per candidate (`kind` `candidate`): `holdout`,
+  `arm`, `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a
+  refused attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded
+  `candidate` or the `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`,
+  `dropped-cell` or `dropped-quota`) and the `failed` checks of a rejected one. An arm writes a
+  fill's lines after the fill, so a stopped run's file holds the fills before the stop. Each arm,
+  holdout and fill's lines count what its `candidates` or `replica-candidates` rows count;
+  `bko.evaluate.holdout_candidates.read` reads the file.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
   arm it is set against, the measure, and the contrast's mean, interval, the upper bound at the
@@ -229,13 +247,14 @@ running or was killed. Copy the call log off the runner before any replay.
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1`;
   no flag changes a value;
-  `--log`, `--replay` and `--resume` choose where calls are recorded and answered from, never a
-  value.
+  `--log`, `--candidates`, `--replay` and `--resume` choose where calls and candidates are recorded
+  and where calls are answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with no BKO arm to
-  build, `--resume` with `--replay`, a call that gets no response, a failed gap query, a run whose
+  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, `--log`,
+  `--candidates`, `--replay` or `--resume` with no BKO arm to build, one path for both files,
+  `--resume` with `--replay`, a call that gets no response, a failed gap query, a run whose
   spend reached `E1.spend_ceiling` and `candidates` or `replica-candidates` rows whose validity
   cannot be read; 3 also for a replay that does not match its log, and a stopped log that breaks
   the replay contract: a replay's log, or a resume that stopped while it replayed. `compare`
@@ -244,8 +263,8 @@ running or was killed. Copy the call log off the runner before any replay.
   the promise of [Baselines](#baselines). A BKO arm's rows do not repeat, since the API takes no
   seed; the paid run's call log is their record (ADR
   [`research/call-log-replay`](adr/research/call-log-replay.md)), and `--replay` rewrites the
-  scores byte for byte from it. A resumed run's own log is its record: its paid spend is
-  `live_usd`, while `usd` counts the whole run and is what the ceiling reads.
+  scores and the candidates file byte for byte from it. A resumed run's own log is its record: its
+  paid spend is `live_usd`, while `usd` counts the whole run and is what the ceiling reads.
 
 ## BKB fixtures
 
@@ -546,7 +565,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `calls.jsonl` | the call log of a run that calls the Messages API |
 | `scores.csv` | `python -m bko.evaluate score`'s stdout |
 | `scores.log` | its stderr |
-| `holdout-candidates.jsonl` | every candidate its BKO arms generated, per holdout |
+| `holdout-candidates.jsonl` | every candidate a run's BKO arms generated, per holdout |
 | `launch.log` | `python -m bko.evaluate launch`'s record of the power reading and command |
 | `criteria.csv` | `python -m bko.evaluate compare`'s stdout |
 | `criteria.log` | its stderr |
@@ -631,7 +650,9 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   commit, data and releases it was recorded with.
 - **What it writes**: besides the data root, one run folder per fill ([Runs](#runs)),
   `runs/app-<UTC time>-<arm>/`, holding `scores.csv` and `training.csv` and, for a BKO fill, live
-  or replayed, `calls.jsonl` in the format [Generation](#generation) describes. A stopped fill
+  or replayed, `calls.jsonl` in the format [Generation](#generation) describes and
+  `holdout-candidates.jsonl` in the format [Evaluation](#evaluation) describes, its header's run
+  `app`. A stopped fill
   keeps what it wrote, and its message names the folder and the spend its call log recorded. A closed tab or Ctrl-C does not interrupt a running action; the process
   finishes it first.
 - **The gate drives it** through `streamlit.testing.v1.AppTest` over `src/bko/app/streamlit_app.py`

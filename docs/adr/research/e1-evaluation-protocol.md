@@ -34,20 +34,21 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   confidence, the attempts per fill, the BKO arms' budget per attempt, the validity threshold and
   the run's spend ceiling. It refuses a candidate that is not one of its arms, and a replica arm
   that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
-  value: `score --log`, `--replay` and `--resume` choose where calls are recorded and answered from,
-  `compare --candidate` judges another arm as a dry run, never as E1's verdict, and
-  `compare --beside` reads an arm beside another run's arm, a reading with no verdict, over the
-  holdouts both files hold where the held-out rows match and no arm in either file copied a test
-  record. A variant is a named run: `bko.evaluate.experiment.RUNS` maps a run name to its
-  `Experiment` and generator `Settings`, `e1` being `E1` at `SETTINGS` and the default, and `score`
-  and `compare` take the name as a positional. A named run is a value fixed in code and committed,
-  so it replays at its commit as E1 does, and the name does not reopen the ruled-out flags: no flag
-  sets a reading, a holdout count or a setting. A run lists its own `criteria`, which may be none,
-  and `compare` judges only those, reporting every measure beside them; a run with none is reported
-  with no verdict. A paid run also stops on two rules beside the spend ceiling, each value held by
-  its `Experiment`: its spend after `projection_after` holdouts, scaled to every holdout, reaching
-  the ceiling, and a call with no reply within `idle_limit` seconds (`bko.evaluate.watch`); `launch`
-  starts it detached, kept awake and refused on battery power (`docs/DEVELOPMENT.md`, Evaluation).
+  value: `score --log`, `--candidates`, `--replay` and `--resume` choose where calls and candidates
+  are recorded and where calls are answered from, `compare --candidate` judges another arm as a dry
+  run, never as E1's verdict, and `compare --beside` reads an arm beside another run's arm, a
+  reading with no verdict, over the holdouts both files hold where the held-out rows match and no
+  arm in either file copied a test record. A variant is a named run: `bko.evaluate.experiment.RUNS`
+  maps a run name to its `Experiment` and generator `Settings`, `e1` being `E1` at `SETTINGS` and
+  the default, and `score` and `compare` take the name as a positional. A named run is a value fixed
+  in code and committed, so it replays at its commit as E1 does, and the name does not reopen the
+  ruled-out flags: no flag sets a reading, a holdout count or a setting. A run lists its own
+  `criteria`, which may be none, and `compare` judges only those, reporting every measure beside
+  them; a run with none is reported with no verdict. A paid run also stops on two rules beside the
+  spend ceiling, each value held by its `Experiment`: its spend after `projection_after` holdouts,
+  scaled to every holdout, reaching the ceiling, and a call with no reply within `idle_limit`
+  seconds (`bko.evaluate.watch`); `launch` starts it detached, kept awake and refused on battery
+  power (`docs/DEVELOPMENT.md`, Evaluation).
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
@@ -77,8 +78,12 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   line per attempt with its outcome, its call range, the records asked, the candidates generated and
   passed, those dropped for each reason and those kept. Its refusal's message carries the same
   counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
-  reads the spend before every call. That spend is the call log's whole spend, a resumed log's
-  replayed calls included.
+  reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. That
+  spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
+  arm generates, refused attempts included, goes to the run's candidates file
+  (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call, cell and outcome, so a
+  later reading of single candidates needs no new run; `score` requires the file whenever a BKO
+  arm runs, and a replay rewrites it byte for byte.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. It
   fills two requests on each holdout, the gap request and the replica request, and the rate reads

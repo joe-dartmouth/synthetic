@@ -51,17 +51,3 @@ links to where its blocker is tracked.
   **What discharges it:** `score` records a per-holdout fingerprint of the flagged cells, and
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
-
-- **`cleanup:evaluate/per-holdout-candidates-role`: no run-folder role holds the candidates a BKO
-  arm generated on each holdout.** The paid-run protocol unit's scope gave `bko.app.runs.ROLES` and
-  the Runs table of `docs/DEVELOPMENT.md` "a per-holdout candidates file the BKO arms generated";
-  `ROLES` gained only `launch.log`, and `bko.evaluate` writes no such file, so a role would name an
-  artifact nothing writes. `tasks/generate-bkb-curation.md` (Phase 1) reads that file. A named
-  run's scores and criteria take the existing `scores.csv` and `criteria.csv` roles. *Filed
-  2026-10-26 by the diff review of PR #37.*
-  **Why deferred.** The writer does not exist; adding the role first breaks the rule that a role
-  names what writes it.
-  **What discharges it:** `score` writes each BKO arm's candidates per holdout into the run folder,
-  `ROLES` and the Runs table gain the role, and `tests/test_run_folders.py` holds them equal.
-  **Trigger:** the first change that writes per-holdout candidates, at the latest
-  `generate-bkb-curation`.
