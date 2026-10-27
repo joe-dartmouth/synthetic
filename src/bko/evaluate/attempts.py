@@ -133,8 +133,8 @@ class Attempt:
         # `.loc`: a plain `frame[[]]` would select no columns when nothing passed.
         kept = rows.loc[[reason is None for reason in reasons]]
         keys = stratum_keys(kept, Strata.CELL)
-        for cell in dict.fromkeys(keys):
-            self.kept[cell].append(kept.loc[[key == cell for key in keys]])
+        for stratum in dict.fromkeys(keys):
+            self.kept[stratum].append(kept.loc[[key == stratum for key in keys]])
 
     def rows(self) -> pd.DataFrame:
         """The kept rows, cell by cell in the quota's order, in generation order within one."""

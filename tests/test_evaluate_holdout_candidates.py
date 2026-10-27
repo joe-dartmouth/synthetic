@@ -250,11 +250,14 @@ def test_candidates_need_a_bko_arm(tmp_path, caplog):
     assert not path.exists()
 
 
-def test_candidates_and_the_call_log_must_be_two_files(tmp_path, caplog):
+@pytest.mark.parametrize("spelling", ["calls.jsonl", "sub/../calls.jsonl"])
+def test_candidates_and_the_call_log_must_be_two_files(tmp_path, caplog, spelling):
     ctx, opener = context(scripted())
+    (tmp_path / "sub").mkdir()
     log = tmp_path / "calls.jsonl"
-    argv = ["score", "--log", str(log), "--candidates", str(log)]
+    argv = ["score", "--log", str(log), "--candidates", str(tmp_path / spelling)]
     assert main([*argv, "--data-dir", str(tmp_path / "data")], context=ctx, out=io.StringIO()) == 2
+    assert "name one file" in caplog.text
     assert not log.exists()
     assert opener.calls == []
 
@@ -271,6 +274,9 @@ def test_candidates_and_the_call_log_must_be_two_files(tmp_path, caplog):
         HEADER + json.dumps({**LINE, "holdout": "0"}).encode() + b"\n",
         HEADER + json.dumps({**LINE, "failed": []}).encode() + b"\n",
         HEADER + json.dumps({**LINE, "outcome": "kept"}).encode() + b"\n",
+        HEADER.replace(b'"schema": 1', b'"schema": true'),
+        HEADER + json.dumps({**LINE, "undecoded": None}).encode() + b"\n",
+        HEADER + json.dumps({**LINE, "outcome": "dropped-range", "failed": []}).encode() + b"\n",
         b"not json\n",
     ],
 )

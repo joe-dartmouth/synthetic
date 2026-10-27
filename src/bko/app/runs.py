@@ -107,5 +107,5 @@ def _holds(path: Path, role: str) -> bool:
 
 def _natural(path: Path) -> tuple[tuple[int, int | str], ...]:
     return tuple(
-        (0, int(part)) if part.isdigit() else (1, part) for part in re.split(r"(\d+)", path.name)
+        (0, int(part)) if part.isdecimal() else (1, part) for part in re.split(r"(\d+)", path.name)
     )

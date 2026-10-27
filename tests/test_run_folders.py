@@ -128,6 +128,12 @@ def test_discover_skips_links_and_entries_of_the_wrong_kind(tmp_path):
     assert "rehearsal" not in found["c1-2"]
 
 
+def test_a_name_with_a_digit_that_is_not_decimal_does_not_stop_discovery(tmp_path):
+    (tmp_path / "e1-3").mkdir()
+    (tmp_path / "e1\u00b2").mkdir()
+    assert [run.name for run in discover(tmp_path)] == ["e1-3"]
+
+
 def test_discover_orders_run_numbers_as_numbers(tmp_path):
     for name in ("e1-10", "e1-9", "e1-3-replay", "e1-3"):
         (tmp_path / name).mkdir()

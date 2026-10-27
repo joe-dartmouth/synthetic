@@ -287,7 +287,7 @@ def read(data: bytes) -> HoldoutCandidates:
     if not isinstance(first, dict) or set(first) != _HEADER or first["kind"] != "header":
         msg = f"a candidates file's first line is its header, with the keys {sorted(_HEADER)}"
         raise CandidatesFormatError(msg)
-    if first["schema"] != SCHEMA:
+    if isinstance(first["schema"], bool) or first["schema"] != SCHEMA:
         msg = f"the candidates file's schema is {first['schema']!r}, not {SCHEMA}"
         raise CandidatesFormatError(msg)
     return HoldoutCandidates(
@@ -313,7 +313,7 @@ def _candidate(number: int, line: object) -> Candidate:
         _count(line["call"], 1),
         isinstance(line["cell"], str),
         _count(line["position"], 0),
-        undecoded is None or isinstance(undecoded, str),
+        "undecoded" not in line or isinstance(undecoded, str),
         line["outcome"] in OUTCOMES,
         isinstance(failed, list) and all(isinstance(check, str) for check in failed),
     )
@@ -321,6 +321,8 @@ def _candidate(number: int, line: object) -> Candidate:
         _refuse(number, "holds a value of the wrong type")
     if bool(failed) != (line["outcome"] == REJECTED):
         _refuse(number, "names failed checks unless it is rejected, or none when it is")
+    if undecoded is not None and line["outcome"] != REJECTED:
+        _refuse(number, "is undecoded, so its outcome is rejected")
     seen = Seen(
         line["call"],
         line["cell"],

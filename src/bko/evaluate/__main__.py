@@ -271,7 +271,7 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     if args.candidates is not None and not guided:
         msg = "--candidates needs a BKO arm"
         raise EvaluationError(msg)
-    if args.log is not None and args.candidates.absolute() == args.log.absolute():
+    if args.log is not None and args.candidates.resolve() == args.log.resolve():
         msg = f"--candidates and --log name one file, {args.log}"
         raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
