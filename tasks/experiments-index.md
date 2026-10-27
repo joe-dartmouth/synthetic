@@ -36,6 +36,7 @@ set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
+    skeleton_fill[generate-bkb-skeleton-fill]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
     guidance_ablation[proposal-guidance-ablation] --> e1_second[evaluate-e1-second-configuration]
     guidance_ablation[proposal-guidance-ablation] --> prompt_bounds[generate-prompt-training-bounds]

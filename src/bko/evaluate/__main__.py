@@ -27,7 +27,7 @@ FILE, and takes no `--log`.
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a
 direct arm with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm
-to build, `--candidates` with neither, one
+to build, `--candidates` with no BKO or direct arm, one
 path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a call with no
 response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
 `launch` on battery power or into a folder that holds a run, and scores whose validity cannot be

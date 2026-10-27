@@ -104,7 +104,8 @@ its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra 
 credential, and every call goes to the call log at `--log`, which must not exist. Whenever a BKO arm
 runs, live, with `--replay`, with `--resume` or with `--rehearse`, `--candidates <path>` is required
 and must not exist either: the candidates file holds one line per candidate a BKO arm generated,
-with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome. `compare`
+with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome; a direct
+arm's lines (below) carry a null call. `compare`
 spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
 ([Runs](#runs)):
 
@@ -128,8 +129,12 @@ makes no call log, so it refuses `--log`, `--replay`, `--resume` and `--rehearse
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score g2 --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
 
-Its stderr logs a `direct` line per attempt (`arm=`, `seed=`, `outcome=` and the attempt's
-counts) and the arm's `validity` sums at the end, as a BKO arm's.
+Its stderr carries, from logger `bko.evaluate.direct`, a `direct arm=` line per attempt (`seed=`,
+`outcome=` and the attempt's counts) and the arm's `validity` sums at the end, as a BKO arm's;
+and from logger `bko.generate.direct`, for every fill, a `direct key=` line per cell (rows, the
+cell's records, its label group's records) and a `fallback` line per cell and field read from the
+label group. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
+logs every criterion's intervals as `unjudged` lines.
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
@@ -317,7 +322,7 @@ the runner before any replay.
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a direct arm
   with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
-  `--candidates` with neither, one path for
+  `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match
@@ -557,6 +562,8 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `bko.validate` checks them.
 - **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
   cell and its training record count, and the guidance of the chosen level. Never a record.
+- **Option order**: the definition or `direct` comes first and its options follow it, as in
+  `per-subgroup --guidance ontology --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
   `summary`, each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and

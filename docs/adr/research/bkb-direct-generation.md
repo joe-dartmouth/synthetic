@@ -36,24 +36,28 @@ concept shares, not the ontology's structure: closure is recorded and never read
 
 ## Decision
 
-1. **Share.** A concept's share in a cell is `s(c) = (n_c p_c + 20 p_g) / (n_c + 20)`: `p_c` is
+1. **Share.** A concept's share in a cell is `s(c) = (n_c p_c + w p_g) / (n_c + w)`: `p_c` is
    the cell's dataset-fragment prior, `p_g` its label group's (every training record of the
-   cell's label), each 0 where the fragment holds no S-node for the concept, and `n_c` the cell's
-   record count. 20 is `UNDERREPRESENTED_BELOW` (`bko.generate.direct.GROUP_WEIGHT`).
-2. **Concepts are drawn independently, except `restecg`'s.** Each concept but the label-only ones
-   is drawn present when a uniform draw falls below its share, in sorted order. `HP:0001712`
-   (`restecg` 2) is drawn at its share; `HP:0003115` (`restecg` 1 or 2) is present when it is, and
-   otherwise drawn at `(s_EKG - s_LVH) / (1 - s_LVH)`, present outright when `s_LVH = 1`. The
+   cell's label), each 0 where the fragment holds no S-node for the concept, `n_c` the cell's
+   record count, and `w` is `bko.generate.direct.GROUP_WEIGHT`, which is `UNDERREPRESENTED_BELOW`.
+2. **Concepts are drawn independently, except a nested pair's.** Each concept but the label-only
+   ones is drawn present when a uniform draw falls below its share. The order is sorted by name,
+   with each concept that holds a nested one after the rest, so the nested one is drawn first. The
    nesting is read from the rows: one concept whose one row's codes lie strictly inside another's
-   on the same field (`bko.generate.direct.nested`).
+   on the same field (`bko.generate.direct.nested`); on UCI it pairs the two `restecg` rows,
+   `HP:0001712` inside `HP:0003115`. The inner is drawn at its share; the outer is present when
+   the inner is, and otherwise drawn at `(s_outer - s_inner) / (1 - s_inner)`, present outright
+   when `s_inner = 1`. Only one level is drawn: a concept inside two others, or holding two, is
+   refused.
 3. **Closure upward** (`bko.ontology.terms.ancestors`, within each concept's release) is recorded
    in the draw log and never forces an ancestor's row: an ancestor with a row of its own, drawn
    absent, keeps its fields' absent side.
 4. **Label-only rows** (`MONDO:0006715`, `HP:0005145`, every row of which reads only the label)
    follow the cell's label: present in a target 1 cell, absent in a target 0 cell, drawing nothing.
-5. **Field groups.** The rows' fields join when one concept's rows read both, giving `cp`+`exang`,
-   `trestbps` (its side of 130), `chol` (its side of 240), `fbs`, `restecg`, `oldpeak`+`slope`,
-   `ca` and `thal` (`bko.generate.direct.field_groups`). Each group's fields are copied together
+5. **Field groups.** The rows' fields join when one concept's rows read both
+   (`bko.generate.direct.field_groups`); on UCI this gives `cp`+`exang`, `oldpeak`+`slope`, and
+   each other field a row reads alone, a cutoff row's field by the side of its `AtLeast` limit in
+   `bko.ontology.mapping.FIELD_MAPPINGS`. Each group's fields are copied together
    from one record drawn uniformly from the cell's records that show exactly the group's drawn
    concepts, else from the label group's such records, else the attempt refuses
    (`SamplingError`). A concept drawn absent reads as the contrapositive of its rows: a matching
@@ -64,10 +68,13 @@ concept shares, not the ontology's structure: closure is recorded and never read
    stays in its cell; each is a fallback when it comes from the label group. `sex` and the label
    come from the cell.
 7. **Randomness.** One `numpy.random.default_rng(seed)`, held by `bko.generate.direct`, consumed in
-   quota order, then record order, then per record the concepts in their drawing order and the
-   fields in column order. A draw consumes a number only where chance decides it.
+   quota order, then record order. Per record, each concept but the label-only ones takes one
+   `random()` in the order of Decision 2, a share of 0 or 1 included; an outer whose inner is
+   present, or whose inner's share is 1, takes none. Then each pick of a record, in column order
+   (`age`, each field group at its first field, each other field), takes one `integers(n)` over
+   the `n` records it may read; numpy draws nothing when `n` is 1.
 8. **The file.** A direct candidates file's call plan is `chunks(quota, per_call)` at
-   `SETTINGS.per_call`, 20, the plan a Messages run of the same request writes, so fusion's line
+   `SETTINGS.per_call`, the plan a Messages run of the same request writes, so fusion's line
    checks read it unchanged. Its header is schema 2, naming `generator` `direct` and the `seed`,
    with `definition` and `guidance` null (ADR `research/gap-closure-design`). `--log` names the
    draw log: one `draw` line per record with its call, cell, position, drawn concepts, closure and
@@ -77,16 +84,16 @@ concept shares, not the ontology's structure: closure is recorded and never read
 
 A weighted share is the one way a cell can draw a concept it never shows without discarding what
 it does show: the cell's prior alone could never close its own gap, and the label group's alone
-would erase the cell. Weighting the group as 20 records reads the fused BKB's two priors at the
-count the gap request already calls enough, so a cell at the threshold weighs its own records and
+would erase the cell. Weighting the group as `UNDERREPRESENTED_BELOW` records reads the fused
+BKB's two priors at the count the gap request already calls enough, so a cell at the threshold weighs its own records and
 its group's equally, and an empty cell draws its group's shares. The label group, not every
 record, keeps the label's share: the population pools both labels, so a target 0 cell would draw
 target 1 findings at the pooled rate.
 
 Drawing concepts independently is all the BKB supports, since it represents no co-occurrence (ADR
 `research/dataset-fragment-encoding`, Consequences). `restecg` is the one exception the table
-forces: its two rows nest, so independent draws would produce LVH without an abnormal EKG, a
-pattern no record shows, and the conditional keeps both shares as marginals.
+forces: its two `restecg` rows nest, so independent draws would produce LVH without an abnormal
+EKG, a pattern no record shows, and the conditional keeps both shares as marginals.
 
 Copying a group's fields from one matching record, instead of drawing each value inside its side,
 keeps every value a training value and every within-group combination one a record holds, so a
@@ -98,8 +105,9 @@ supports.
 Run `g2-2` over E1's 100 holdouts
 ([EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb), G2) measured validity
 1.0000 with 0 drops and no attempt refused; 0 test copies; replica quality, column shapes and
-column pair trends 0.9295, 0.9681 and 0.8910; and a privacy margin of +0.0375 [0.0154, 0.0597],
-added rows sitting closer to the training rows than `bko`'s.
+column pair trends 0.9295, 0.9681 and 0.8910; and a privacy margin of +0.0375 [0.0154, 0.0597]
+(the `unjudged criterion=privacy` line of `runs/g2-2/criteria.log`), added rows sitting closer to
+the training rows than `bko`'s.
 
 ## Consequences
 
