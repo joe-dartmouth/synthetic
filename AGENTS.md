@@ -166,7 +166,6 @@ synthetic/
 - Background, explained from scratch: [`docs/BACKGROUND.md`](docs/BACKGROUND.md)
 - Architecture and pipeline: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Milestones and workload: [`docs/ROADMAP.md`](docs/ROADMAP.md); work units:
-  [`tasks/proposal-index.md`](tasks/proposal-index.md) and
   [`tasks/experiments-index.md`](tasks/experiments-index.md)
 - Results register: [`docs/EVIDENCE.md`](docs/EVIDENCE.md)
 - Deferred cleanup and its blockers: [`tasks/CLEANUP.md`](tasks/CLEANUP.md)

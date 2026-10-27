@@ -5,7 +5,7 @@ change that found them, costs that do not bite at today's sizes, and gaps a late
 over. Each entry names its blocker when it has one.
 
 The research queue lives elsewhere: planned work is a task unit on a set's index
-([`proposal-index.md`](proposal-index.md), [`experiments-index.md`](experiments-index.md)), and
+([`experiments-index.md`](experiments-index.md)), and
 unscheduled research is in
 [`docs/IDEAS.md`](../docs/IDEAS.md). An entry here is not on any plan. It waits for a change that
 passes close enough to pay it.
@@ -94,6 +94,19 @@ links to where its blocker is tracked.
   **What discharges it:** each takes the frame, or requires `edges`.
   **Trigger:** the first non-UCI frame that runs `score` or `generate`
   (`evaluate-synthea-downstream`).
+
+- **`cleanup:evaluate/concurrent-run-log-identity`: concurrent runs' logs name neither run nor
+  level, and a retry storm leaves no line until the run ends.** `bko.evaluate.compare`'s `beside arm=`
+  lines and `bko.generate.log`'s `run status=` line carry no `run=` or `level=` field (their
+  format strings in those modules), so the logs of G3's six concurrent runs are told apart only by their files.
+  `retried` (calls the SDK retried over HTTP) is written only when the run ends, in the call log's
+  `end` line and that closing `run status=` line, so a rate-limit storm that trips the idle rule
+  leaves no line saying why. *Filed 2026-10-27 by the review of PR #44.*
+  **Why deferred.** It changes log bytes in `bko.generate.log` and `bko.evaluate.compare`, outside
+  PR #44's named runs, and each G3 run writes its own folder.
+  **What discharges it:** `run=` and `level=` on the `run status=` and `compare` lines, and a
+  per-retry line or a per-call `retried=` count.
+  **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`.
 
 - **`cleanup:evaluate/idle-timer-interrupt-escapes`: the idle-timer test can crash its xdist
   worker.** One `make check` run on 2026-10-27 (under `pytest -n auto`) failed

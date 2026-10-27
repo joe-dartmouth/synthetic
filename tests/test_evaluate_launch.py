@@ -222,8 +222,8 @@ def test_a_data_root_is_forwarded_absolute_so_a_leading_dash_never_reads_as_an_o
 def _stopped(
     tmp_path: Path, *, stop: str | None = "idle", rehearsal: bool = False, settings=SETTINGS
 ) -> Path:
-    """A stopped call log under `g3-1`, its end line naming `stop`."""
-    source = tmp_path / "g3-1" / "calls.jsonl"
+    """A stopped call log under `g9-1`, its end line naming `stop`."""
+    source = tmp_path / "g9-1" / "calls.jsonl"
     source.parent.mkdir(exist_ok=True)
     with CallLog(source, settings, rehearsal=rehearsal):
         pass
@@ -246,25 +246,25 @@ def test_a_resume_refuses_a_log_it_cannot_resume_before_the_folder(
     tmp_path, caplog, flags, message
 ):
     source = _stopped(tmp_path, **flags)
-    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
     with caplog.at_level(logging.ERROR):
-        code = main(["launch", "g3-6", "g3-cell", "--resume", str(source)], context=context)
+        code = main(["launch", "g9-6", "g9-probe", "--resume", str(source)], context=context)
     assert code == 2
     assert message in caplog.text
-    assert not (tmp_path / "g3-6").exists()
+    assert not (tmp_path / "g9-6").exists()
     assert context.start.commands == []
 
 
 def test_a_resume_starts_score_on_the_stopped_log_into_a_new_folder(tmp_path):
     source = _stopped(tmp_path)
-    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
-    argv = ["launch", "g3-6", "g3-cell", "--resume", str(source)]
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(source)]
     assert main(argv, context=context, out=io.StringIO()) == 0
-    folder = tmp_path / "g3-6"
+    folder = tmp_path / "g9-6"
     (command,) = context.start.commands
     assert command[-8:] == (
         "score",
-        "g3-cell",
+        "g9-probe",
         "--resume",
         str(source.absolute()),
         "--log",
@@ -277,12 +277,12 @@ def test_a_resume_starts_score_on_the_stopped_log_into_a_new_folder(tmp_path):
 
 
 def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
-    source = tmp_path / "g3-6" / "old.jsonl"
+    source = tmp_path / "g9-6" / "old.jsonl"
     source.parent.mkdir()
     source.write_text("{}\n", encoding="utf-8")
     start = Starts()
     with pytest.raises(EvaluationError, match="inside"):
-        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=start)
+        launch("g9-6", "g9", root=tmp_path, resume=source, power=lambda: False, start=start)
     assert sorted(path.name for path in source.parent.iterdir()) == ["old.jsonl"]
     assert start.commands == []
 
@@ -290,46 +290,46 @@ def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
 def test_a_relative_resume_source_is_forwarded_absolute(tmp_path, monkeypatch):
     _stopped(tmp_path)
     monkeypatch.chdir(tmp_path)
-    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
-    argv = ["launch", "g3-6", "g3-cell", "--resume", "g3-1/calls.jsonl"]
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", "g9-1/calls.jsonl"]
     assert main(argv, context=context, out=io.StringIO()) == 0
     (command,) = context.start.commands
-    assert command[command.index("--resume") + 1] == str(tmp_path / "g3-1" / "calls.jsonl")
+    assert command[command.index("--resume") + 1] == str(tmp_path / "g9-1" / "calls.jsonl")
 
 
 def test_a_resume_source_in_a_subfolder_of_the_target_folder_is_refused(tmp_path):
-    source = tmp_path / "g3-6" / "deep" / "old.jsonl"
+    source = tmp_path / "g9-6" / "deep" / "old.jsonl"
     source.parent.mkdir(parents=True)
     source.write_text("{}\n", encoding="utf-8")
     start = Starts()
     with pytest.raises(EvaluationError, match="inside"):
-        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=start)
+        launch("g9-6", "g9", root=tmp_path, resume=source, power=lambda: False, start=start)
     assert start.commands == []
-    assert not (tmp_path / "g3-6" / "scores.log").exists()
+    assert not (tmp_path / "g9-6" / "scores.log").exists()
 
 
 def test_a_resume_source_that_is_not_a_file_is_refused(tmp_path):
     start = Starts()
     with pytest.raises(EvaluationError, match="not a file"):
         launch(
-            "g3-6",
-            "g3",
+            "g9-6",
+            "g9",
             root=tmp_path,
             resume=tmp_path / "missing.jsonl",
             power=lambda: False,
             start=start,
         )
-    assert not (tmp_path / "g3-6").exists()
+    assert not (tmp_path / "g9-6").exists()
 
 
 def test_a_resume_keeps_the_power_and_folder_checks(tmp_path):
     source = _stopped(tmp_path)
     with pytest.raises(EvaluationError, match="battery power"):
-        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: True, start=Starts())
-    (tmp_path / "g3-6").mkdir()
-    (tmp_path / "g3-6" / "calls.jsonl").write_text("x", encoding="utf-8")
+        launch("g9-6", "g9", root=tmp_path, resume=source, power=lambda: True, start=Starts())
+    (tmp_path / "g9-6").mkdir()
+    (tmp_path / "g9-6" / "calls.jsonl").write_text("x", encoding="utf-8")
     with pytest.raises(EvaluationError, match="already holds"):
-        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=Starts())
+        launch("g9-6", "g9", root=tmp_path, resume=source, power=lambda: False, start=Starts())
 
 
 def test_rehearse_and_resume_are_exclusive(tmp_path):
@@ -516,21 +516,22 @@ def test_the_run_defaults_to_the_run_ids_entry(tmp_path):
 
 
 def test_a_named_run_of_the_run_ids_entry_launches(tmp_path):
-    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
-    assert main(["launch", "g3-1", "g3-cell", "--dry-run"], context=context, out=io.StringIO()) == 0
-    log = (tmp_path / "g3-1" / "launch.log").read_text(encoding="utf-8")
-    assert "run=g3-cell " in log
-    assert " score g3-cell --log " in log
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-1", "g9-probe", "--dry-run"]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    log = (tmp_path / "g9-1" / "launch.log").read_text(encoding="utf-8")
+    assert "run=g9-probe " in log
+    assert " score g9-probe --log " in log
 
 
 def test_a_named_run_of_another_entry_is_refused(tmp_path, caplog):
-    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
     with caplog.at_level(logging.ERROR):
-        assert main(["launch", "g3-1", "e1"], context=context, out=io.StringIO()) == 2
+        assert main(["launch", "g9-1", "e1"], context=context, out=io.StringIO()) == 2
     assert "not a run id of the run 'e1'" in caplog.text
-    assert not (tmp_path / "g3-1").exists()
+    assert not (tmp_path / "g9-1").exists()
     with pytest.raises(EvaluationError, match="not a run id of the run 'e1'"):
-        launch("g3-1", "e1", root=tmp_path, power=lambda: False, start=Starts())
+        launch("g9-1", "e1", root=tmp_path, power=lambda: False, start=Starts())
 
 
 def test_a_named_run_whose_entry_only_starts_with_the_run_ids_is_refused(tmp_path):

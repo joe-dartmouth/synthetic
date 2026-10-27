@@ -1,8 +1,8 @@
 ---
 id: generate-prompt-training-bounds
 title: Bound each numeric field by the training split
-status: blocked
-depends_on: proposal-guidance-ablation
+status: ready
+depends_on: --
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley
@@ -28,7 +28,11 @@ top-up call, and of the records its call log decodes 7.2% are younger than 29 an
 standard deviation of 9 to 11 years per cell against 3 to 6). Those figures come from
 `env -u ANTHROPIC_API_KEY uv run --no-sync python -I scratchpad/quality.py scratchpad/e1-3.jsonl`
 on the runner's machine (gitignored, sha256
-`aa21abfedf484d8f23677ddfe5805bf055906aaf40aef928670403a06ec834fb`). It is the cheapest likely
+`aa21abfedf484d8f23677ddfe5805bf055906aaf40aef928670403a06ec834fb`), and are `ontology`'s. At
+`summary`, the level G3 chose and the one this unit measures at, `g3-5`'s `bko` arm dropped 3805
+of the 29617 records it generated as outside the range (its `validity` line in G3's Result,
+[`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level)): fewer than at `ontology`, still
+one in eight. It is the cheapest likely
 gain in fidelity, and it changes what every call sends, so it is a new configuration of E1 that
 [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) runs, and it lands
 after the units that replay `e1-3`'s log.
@@ -56,6 +60,6 @@ through `UCI_FRAME.ranges`; the drop rule.
 ## Acceptance
 
 - The rendered prompts on the fixture split are pinned, and `uv run --no-sync python -m bko.generate
-  per-subgroup --guidance ontology --log <new file>` with a fake `Send` renders bounds equal to the
+  per-subgroup --guidance summary --log <new file>` with a fake `Send` renders bounds equal to the
   default training split's intersection per field.
 - `make check`.

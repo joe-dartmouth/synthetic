@@ -4,7 +4,6 @@ Sources: [2-pager](../papers/proposal-2-pager.pdf) section 6; [research brief](.
 
 The schedule is the 2-pager's timeline. It runs Oct 10 - Nov 25; the proposal is dated October 7,
 2026. The dependency-ordered work units, with their status and owners, are in
-[tasks/proposal-index.md](../tasks/proposal-index.md) and
 [tasks/experiments-index.md](../tasks/experiments-index.md).
 
 Under each milestone, the Work column is the 2-pager's timeline row as written. The Workstream

@@ -1,7 +1,10 @@
-"""E1's configuration, fixed before any run, and the requests it gives every arm on a split.
+"""E1's configuration, fixed before any run, its named runs, and the requests it gives every arm.
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
-each criterion is read. No command-line flag changes a value here.
+each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
+`g3-ontology` being the replicate of E1's level (`docs/EVIDENCE.md`, G3), and `g2`, the direct
+arm's run (`G2`).
+No command-line flag changes a value here.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
-from bko.generate.messages import SETTINGS, Settings
+from bko.generate.messages import LEVELS, SETTINGS, Settings
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -202,10 +205,29 @@ DEFAULT_RUN: Final = "e1"
 """The run `score` and `compare` take when none is named."""
 
 RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
-    {DEFAULT_RUN: NamedRun(E1), "g2": NamedRun(G2)}
+    {
+        DEFAULT_RUN: NamedRun(E1),
+        **{
+            f"g3-{level}": NamedRun(
+                replace(
+                    E1,
+                    arms=(*METHOD_ARMS, "bko"),
+                    replica_arms=(*ADDS_ROWS, "bko"),
+                    spend_ceiling=10.0,
+                    criteria=(),
+                ),
+                replace(SETTINGS, guidance=level),
+            )
+            for level in LEVELS
+        },
+        "g2": NamedRun(G2),
+    }
 )
-"""Every named run, by name: `e1` is `E1` at `SETTINGS`, `g2` is `G2`. A variant adds its own
-entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
+"""Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
+`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-ontology`
+replicates E1's level as the null control), and `g2` is `G2`. A
+variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
+seeds, fill target,
 ceiling and criteria."""
 
 

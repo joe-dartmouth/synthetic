@@ -176,7 +176,7 @@ def test_each_break_is_refused(text: str, expected: str) -> None:
 
 
 def test_a_blocked_entry_with_a_tracker_passes() -> None:
-    text = GOOD + "\n  **Blocked on** a decision. Tracked in [the index](proposal-index.md).\n"
+    text = GOOD + "\n  **Blocked on** a decision. Tracked in [the index](experiments-index.md).\n"
     assert backlog_problems(text, frozenset({"ontology"})) == []
 
 
