@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-26
+updated: 2026-10-27
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -19,6 +19,9 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
 
 - **MONDO carries `property_value: skos:exactMatch SCTID:<code>` annotations.** The Synthea
   ablation's SNOMED-CT code sits on the myocardial ischemia concept and on no other live term.
+  Measured on 2026-10-27: the Synthea disorder codes of essential hypertension, type 2 diabetes,
+  hyperlipidemia, myocardial infarction, ST-elevation myocardial infarction and stroke each sit on
+  one live MONDO concept; the code of acute non-ST-elevation myocardial infarction sits on none.
 - **HPO carries no SNOMED-CT reference.**
 - **pronto read both releases**, with every term converted to standard-library values, no import
   and no warning.
@@ -65,13 +68,26 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   part of this scope its own rows reach: the field mappings' concepts for UCI Heart Disease and the
   code mappings' for Synthea, each with its `is_a` ancestors in its release, following only parents
   with the release's prefix.
+- **Synthea code rows**: a Synthea disorder code maps to the one live MONDO concept that carries
+  its `skos:exactMatch`, applied mechanically: ST-elevation myocardial infarction maps because its
+  code has one, beside myocardial infarction. `CODE_MAPPINGS` holds ischemic heart disease and six
+  rows for hypertension, type 2 diabetes, hyperlipidemia, myocardial infarction, ST-elevation
+  myocardial infarction and stroke. A disorder code with no such concept is an `UnmappedCode` row
+  in `UNMAPPED_CODES` with its reason, and the check refuses one that gains a live
+  `skos:exactMatch`. No finding or situation code joins.
+- **No out-of-scope row above a mapped concept**: once type 2 diabetes maps, diabetes mellitus
+  (MONDO:0005015) is its `is_a` ancestor and so in scope, and it has no out-of-scope row. The
+  reason no UCI field grounds it, that `fbs` is one reading and a diagnosis needs confirmation,
+  sits in the `fbs` row's limits; UCI's scope takes the field mappings' concepts only, so it still
+  excludes diabetes mellitus.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
   ([`harutyunyan-2019`](../../literature.md#gap-detection-and-data-quality)); team-specified where
   no published bound exists, with the reason below. UCI's bounds are `bko.datasets.uci.RANGES`.
 - **SNOMED-CT evidence**: MONDO's `skos:exactMatch SCTID:<code>` annotation, which the check
-  requires on the mapped concept and on no other live concept.
+  requires on the mapped concept and on no other live concept, and on no live concept for an
+  excluded code.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
   row against the real releases.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
@@ -140,6 +156,8 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | One scope for every dataset, the union of the table's concepts | A concept only another dataset's rows map can never be held, so its statements would be gaps of the table, not of the data, against RESEARCH's rule that a concept without a defensible field is out of scope | 2026-10-17 |
 | The release tests inside `make check` | The gate reads no download, and a clone without `data/` would fail them or skip them on a condition that reads as a pass | 2026-10-17 |
 | Defining the range constraints in `bko.ontology` | Validation and generation read them, and neither is an ontology stage; they belong to the frame in `bko.datasets` | 2026-10-26 |
+| Mapping acute non-ST-elevation myocardial infarction to a broader concept, such as acute myocardial infarction (MONDO:0004781) | A broader concept is not an equivalence; the code rows hold `skos:exactMatch` only | 2026-10-27 |
+| Leaving ST-elevation myocardial infarction out because myocardial infarction already maps | The rule is mechanical; a judgment per code would need a source the release does not give | 2026-10-27 |
 
 ## Enforcement
 
