@@ -1,9 +1,9 @@
 # Experiments: work-unit index
 
 **What this set is.** The experiments that follow the first full evaluation
-([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), E1): the harness
-work that lets a variant run from a committed command, changes to how records are generated, to
-how gaps are detected, and to the power of the evaluation, each one pull request. The plan is
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), E1): changes to
+how records are generated, to how gaps are detected, and to the power of the evaluation, each one
+pull request. The plan is
 [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a criterion, a definition or a
 decision an ADR records edits that document in its own PR. The guidance-level ablation stays in
 [`proposal-index.md`](proposal-index.md). Owners follow the
@@ -11,11 +11,6 @@ workstreams of [`docs/ROADMAP.md`](../docs/ROADMAP.md#workload), and each unit's
 the ROADMAP heading it serves.
 
 ## Graph and status
-
-### Harness
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
 
 ### Generation
 
@@ -64,7 +59,7 @@ flowchart LR
     synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
 ```
 
-## Why the harness units come first
+## What every unit relies on
 
 - **Replay pairs calls by order and refuses a differing request** (ADR
   [`research/call-log-replay`](../docs/adr/research/call-log-replay.md)), so a unit that changes
