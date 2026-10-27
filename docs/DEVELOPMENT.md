@@ -157,7 +157,11 @@ spend is a wiring check, not an estimate; the call log's `run` line holds `"rehe
 resume refuses it. `bko.evaluate.rehearse` holds the canned send and the tokens per record. A replay
 of a rehearsal's log works, and the replay's own `run` line keeps `"rehearsal": true`. A rehearsal
 starts with `launch <run-id> [<run>] --rehearse`, which writes into the `rehearsal` folder inside
-the run's folder, so the run's own folder stays free to launch.
+the run's folder, so the run's own folder stays free to launch. A rehearsal's `scores.csv` carries
+no marker: its folder (`rehearsal/`), its call log and the WARNING line `score` writes to stderr
+before any other run line
+(`rehearsal canned replies: spend, projection and stop lines are wiring checks, not paid figures`)
+do, and `compare` reads its scores like any scores file.
 
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
 refuse an existing log or candidates file, and `scores.csv` is the only copy `compare` reads. A

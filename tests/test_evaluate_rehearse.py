@@ -112,6 +112,20 @@ def test_a_rehearsal_runs_with_no_request_and_its_log_says_so(tmp_path):
     assert out.getvalue().startswith("holdout,")
 
 
+def test_a_rehearsal_says_so_before_any_other_run_line(tmp_path, caplog):
+    ctx, _ = context(ScriptedSend())
+    caplog.set_level(logging.INFO)
+    log = tmp_path / "calls.jsonl"
+    assert main(score_argv(log, tmp_path, "--rehearse"), context=ctx, out=io.StringIO()) == 0
+    first = caplog.records[0]
+    assert first.levelno == logging.WARNING
+    assert first.getMessage() == (
+        "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
+        "not paid figures"
+    )
+    assert sum(m == first.getMessage() for m in caplog.messages) == 1
+
+
 def test_rehearse_needs_a_bko_arm(tmp_path, caplog):
     ctx, _ = context(ScriptedSend())
     unpaid = dataclasses.replace(

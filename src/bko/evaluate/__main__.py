@@ -276,6 +276,12 @@ def _score(args: argparse.Namespace, context: Context) -> str:
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
     if args.candidates is not None and args.candidates.exists():
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
+    if args.rehearse:
+        # scores.csv carries no marker, so its log says what the run was before anything else.
+        logger.warning(
+            "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
+            "not paid figures"
+        )
     answers = _answers(args, context)
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
