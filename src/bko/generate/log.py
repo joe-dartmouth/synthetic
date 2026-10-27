@@ -4,9 +4,10 @@ A run writes one `run` line, then per call a `request` line before the call and 
 `error` line after it, then one `end` line holding the run's status and totals. The `run` and
 `end` lines name the log a replay answers from under `replay` and the stopped log a resume
 continues under `resume`, and say under `rehearsal` whether canned replies answered every call;
-the totals split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is
-flushed as it is written, so the lines of every call made survive a failure, an interrupt or a
-killed process. The file is created exclusively, so a rerun never overwrites a paid log, with mode
+the `end` line names under `stop` the stop rule that ended a failed run, or null, and its totals
+split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is flushed as it
+is written, so the lines of every call made survive a failure, an interrupt or a killed process.
+The file is created exclusively, so a rerun never overwrites a paid log, with mode
 0o600, so only its owner reads it. ADR `research/record-generation-design` records the format.
 """
 
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
 
 SCHEMA: Final = 2
 """The log format's version, written in the `run` line."""
+
+STOP_RULES: Final = ("ceiling", "projection", "idle")
+"""The stop rules a failed run's `end` line can name under `stop`."""
 
 
 def utc_now() -> datetime:
@@ -185,7 +189,9 @@ class CallLog:
         paid.
 
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
-        `failed` for any other.
+        `failed` for any other. `stop` names the stop rule that ended a failed run, read from the
+        exception's `stop_rule` attribute when it is one of `STOP_RULES` (`bko.evaluate` raises
+        it), and is null otherwise.
         """
         if kind is None:
             status = "complete"
@@ -193,6 +199,8 @@ class CallLog:
             status = "interrupted"
         else:
             status = "failed"
+        rule = getattr(error, "stop_rule", None) if status == "failed" else None
+        stop = rule if rule in STOP_RULES else None
         try:
             self._write(
                 {
@@ -202,6 +210,7 @@ class CallLog:
                     "replay": self.replay,
                     "resume": self.resume,
                     "rehearsal": self.rehearsal,
+                    "stop": stop,
                     **self._totals(),
                 }
             )

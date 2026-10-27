@@ -5,7 +5,7 @@ the protocol these rules belong to. A `Watch` reads two things a paid run can ge
 ceiling is reached: a spend that, scaled from the first holdouts to every holdout, passes the
 ceiling, and a call that gets no reply within the idle limit, its retries included. Each rule's
 values are the run's `Experiment`'s, each firing logs the measure that fired, and each refuses with
-an `EvaluationError`, so the command exits 2 and the call log ends `failed` (`bko.generate.log`).
+a `StopRuleError`, so the command exits 2 and the call log ends `failed` (`bko.generate.log`).
 The idle rule is a timer armed for each call: when it runs out it interrupts the main thread, which
 breaks a stalled read, and `call` turns that interrupt into the refusal. A replay spends nothing
 live, so its projection never fires.
@@ -20,7 +20,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Protocol
 
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import StopRuleError
 from bko.evaluate.experiment import Experiment
 
 
@@ -97,7 +97,7 @@ class Watch:
         """Run one call under the idle limit.
 
         Raises:
-            EvaluationError: If the call got no reply within `idle_limit` seconds.
+            StopRuleError: If the call got no reply within `idle_limit` seconds.
         """
         timer = self._timers(self._idle, self._fire)
         timer.daemon = True
@@ -108,7 +108,7 @@ class Watch:
             if not self.fired:
                 raise
             msg = f"a call got no reply within the idle limit of {self._idle:.0f} s"
-            raise EvaluationError(msg) from None
+            raise StopRuleError(msg, "idle") from None
         finally:
             timer.cancel()
 
@@ -125,7 +125,7 @@ class Watch:
         ceiling itself stops a run that reaches it.
 
         Raises:
-            EvaluationError: If the projection reaches the spend ceiling.
+            StopRuleError: If the projection reaches the spend ceiling.
         """
         self._done += 1
         if not self.projecting or self._done != self._after:
@@ -149,4 +149,4 @@ class Watch:
                 f"{projected:.4f} USD over {self._holdouts}, reaching its ceiling of "
                 f"{self._ceiling} USD"
             )
-            raise EvaluationError(msg)
+            raise StopRuleError(msg, "projection")

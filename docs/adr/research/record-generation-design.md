@@ -136,11 +136,12 @@ ladder.**
   `score --rehearse` makes them, else false), then per call a `request` line before it is sent and
   a `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
   for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay`, `resume` and
-  `rehearsal` again, and the run's totals, `live_usd` (the spend of calls past the answered ones,
-  a rehearsal's billed spend included) among them. The schema stays 2: a replay reads only the
-  `run` line's `kind` and `schema`, and a resume reads `replay`, `resume` and `rehearsal` as
-  absent when a log predates them. A `reply` line holds the
-  whole response and `attempts`, the HTTP requests the SDK made for the call
+  `rehearsal` again, `stop` (the stop rule that ended a failed run: `ceiling`, `projection` or
+  `idle`, read from the exception's `stop_rule`, else null), and the run's totals, `live_usd` (the
+  spend of calls past the answered ones, a rehearsal's billed spend included) among them. The
+  schema stays 2: a replay reads only the `run` line's `kind` and `schema`, and a resume reads
+  `replay`, `resume`, `rehearsal` and `stop` as absent when a log predates them. A `reply` line
+  holds the whole response and `attempts`, the HTTP requests the SDK made for the call
   (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
   nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
   attempt. Anything raised after a `request` line and before its `reply` line (no

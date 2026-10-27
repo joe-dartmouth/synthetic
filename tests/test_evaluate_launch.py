@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import io
+import json
 import logging
 import os
 import pathlib
@@ -20,6 +21,8 @@ from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, RUNS, NamedRun
 from bko.evaluate.launch import REHEARSAL, TAKEN, launch, on_battery, spawn
+from bko.generate.log import CallLog
+from bko.generate.messages import SETTINGS, Level
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -176,11 +179,40 @@ def test_a_data_root_that_reads_as_an_option_is_refused_before_the_folder(tmp_pa
     assert not (tmp_path / "e1-4").exists()
 
 
-def _stopped(tmp_path: Path) -> Path:
+def _stopped(
+    tmp_path: Path, *, stop: str | None = "idle", rehearsal: bool = False, settings=SETTINGS
+) -> Path:
+    """A stopped call log under `g3-1`, its end line naming `stop`."""
     source = tmp_path / "g3-1" / "calls.jsonl"
-    source.parent.mkdir()
-    source.write_text("{}\n", encoding="utf-8")
+    source.parent.mkdir(exist_ok=True)
+    with CallLog(source, settings, rehearsal=rehearsal):
+        pass
+    lines = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    lines[-1].update(status="failed", stop=stop)
+    source.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     return source
+
+
+@pytest.mark.parametrize(
+    ("flags", "message"),
+    [
+        ({"rehearsal": True}, "rehearsal"),
+        ({"stop": "projection"}, "reported, not resumed"),
+        ({"stop": "ceiling"}, "reported, not resumed"),
+        ({"settings": dataclasses.replace(SETTINGS, guidance=Level.CELL)}, "settings"),
+    ],
+)
+def test_a_resume_refuses_a_log_it_cannot_resume_before_the_folder(
+    tmp_path, caplog, flags, message
+):
+    source = _stopped(tmp_path, **flags)
+    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    with caplog.at_level(logging.ERROR):
+        code = main(["launch", "g3-6", "g3-cell", "--resume", str(source)], context=context)
+    assert code == 2
+    assert message in caplog.text
+    assert not (tmp_path / "g3-6").exists()
+    assert context.start.commands == []
 
 
 def test_a_resume_starts_score_on_the_stopped_log_into_a_new_folder(tmp_path):

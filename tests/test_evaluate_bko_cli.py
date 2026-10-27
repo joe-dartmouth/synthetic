@@ -339,6 +339,7 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     assert len(send.calls) == 3
     assert _end(log)["status"] == "failed"
     assert _end(log)["calls"] == 3
+    assert _end(log)["stop"] == "ceiling"
     assert "reached its ceiling" in caplog.text
     stops = [m for m in caplog.messages if m.startswith("stop rule=")]
     assert stops == [f"stop rule=ceiling usd={ceiling:.4f} ceiling={ceiling:.2f}"]
@@ -364,6 +365,7 @@ def test_the_projection_stops_a_live_run_between_holdouts(tmp_path, caplog):
     assert out.getvalue() == ""
     assert len(send.calls) == 2
     assert _end(log)["status"] == "failed"
+    assert _end(log)["stop"] == "projection"
     assert "stop rule=projection" in caplog.text
     assert "reached its ceiling" not in caplog.text
 

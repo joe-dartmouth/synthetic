@@ -8,8 +8,10 @@ because one request can be logged many times with different replies.
 `Resume` reads a stopped run's log the same way, then sends the calls past its answered ones live.
 It drops a final segment with no newline, which a killed process can leave, and a last call whose
 answer is not exactly one `reply` line. It refuses a log with a failed call before its last, a
-replay's log, a rehearsal's log, whose replies are canned, and a resumed log that stopped before
-its replayed calls ran out. ADR
+replay's log, a rehearsal's log, whose replies are canned, a run the projection or the ceiling
+stopped, which is reported rather than resumed, and a resumed log that stopped before its replayed
+calls ran out. `refuse_unresumable` holds the checks on the `run` and `end` lines, and
+`log_ends` reads those two lines alone, so `launch --resume` refuses before it claims a folder. ADR
 `research/call-log-replay` records the design.
 """
 
@@ -34,11 +36,72 @@ logger = logging.getLogger(__name__)
 
 
 class _Log(NamedTuple):
-    """A call log as read: its sha256, its `run` line, and its calls in order."""
+    """A call log as read: its sha256, its `run` line, its calls in order and its `end` line."""
 
     digest: str
     run: dict[str, Any]
     calls: tuple[tuple[dict[str, Any], dict[str, Any]], ...]
+    end: dict[str, Any] | None
+
+
+UNRESUMABLE: Final = frozenset({"projection", "ceiling"})
+"""The stop rules whose runs are reported, never resumed: resuming would spend past the rule."""
+
+TAIL: Final = 1 << 16
+"""Bytes read from a call log's end to find its `end` line."""
+
+
+def refuse_unresumable(path: Path, run: Mapping[str, Any], end: Mapping[str, Any] | None) -> None:
+    """Refuse a stopped log whose `run` or `end` line says it must not be resumed.
+
+    Raises:
+        ReplayError: If the log replays another, is a rehearsal's, or ended on a stop rule in
+            `UNRESUMABLE`.
+    """
+    source = run.get("replay")
+    if source is not None:
+        msg = f"{path} replays the log with sha256 {source}; replay that log instead"
+        raise ReplayError(msg)
+    if run.get("rehearsal"):
+        msg = f"{path} is a rehearsal's log, whose replies are canned; a resume sends live"
+        raise ReplayError(msg)
+    stop = end.get("stop") if end is not None else None
+    if stop in UNRESUMABLE:
+        msg = (
+            f"{path} was stopped by the {stop} rule, so it is reported, not resumed; "
+            "a rerun needs a new run id"
+        )
+        raise ReplayError(msg)
+
+
+def log_ends(path: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """The `run` line of the call log at `path` and its `end` line, or None when it has none.
+
+    Only the first line and the last `TAIL` bytes are read, so a paid log of hundreds of MB costs
+    nothing to check.
+
+    Raises:
+        ReplayError: If the first line is not a schema `SCHEMA` `run` line.
+        OSError: If the log cannot be read.
+    """
+    with path.open("rb") as handle:
+        first = handle.readline()
+        size = handle.seek(0, 2)
+        handle.seek(max(0, size - TAIL))
+        tail = [line for line in handle.read().splitlines() if line.strip()]
+    try:
+        run = json.loads(first)
+    except ValueError:
+        run = None
+    if not isinstance(run, dict) or run.get("kind") != "run" or run.get("schema") != SCHEMA:
+        msg = f"{path} is not a schema {SCHEMA} call log"
+        raise ReplayError(msg)
+    try:
+        last = json.loads(tail[-1]) if tail else None
+    except ValueError:
+        last = None
+    end = last if isinstance(last, dict) and last.get("kind") == "end" else None
+    return run, end
 
 
 class Replay:
@@ -115,18 +178,12 @@ class Resume(Replay):
 
         Raises:
             ReplayError: As `Replay`, past a dropped last call; or if a call before the last
-                failed, the log replays another or is a rehearsal's, its `resume` field is
-                malformed, or it resumed more calls than it holds.
+                failed, as `refuse_unresumable`, if its `resume` field is malformed, or if it
+                resumed more calls than it holds.
             OSError: If the log cannot be read.
         """
         log = _read(path, stopped=True)
-        source = log.run.get("replay")
-        if source is not None:
-            msg = f"{path} replays the log with sha256 {source}; replay that log instead"
-            raise ReplayError(msg)
-        if log.run.get("rehearsal"):
-            msg = f"{path} is a rehearsal's log, whose replies are canned; a resume sends live"
-            raise ReplayError(msg)
+        refuse_unresumable(path, log.run, log.end)
         prior = log.run.get("resume")
         if prior is not None:
             calls = prior.get("calls") if isinstance(prior, dict) else None
@@ -201,7 +258,8 @@ def _read(path: Path, *, stopped: bool) -> _Log:
         )
         raise ReplayError(msg)
     calls = tuple((requests[index], outcomes[index]) for index in sorted(requests))
-    return _Log(digest, lines[0], calls)
+    end = lines[-1] if lines[-1].get("kind") == "end" else None
+    return _Log(digest, lines[0], calls, end)
 
 
 _CALL_KINDS: Final = frozenset({"request", "reply", "error"})

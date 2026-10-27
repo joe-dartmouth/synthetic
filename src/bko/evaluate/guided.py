@@ -31,7 +31,7 @@ from bko.baselines.records import Baseline, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.evaluate.attempts import Attempt, Tally
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import BKO_ARMS, Experiment
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Origin, Seen
 from bko.evaluate.scores import Measure, Source
@@ -121,7 +121,8 @@ class GuidedArm:
 
         Raises:
             BaselineError: Plain, when the rest of the budget cannot cover the rows still short.
-            EvaluationError: If the request is not by cell, or the run's spend reached the ceiling.
+            EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
+                reached the ceiling.
             GenerationError: As `bko.generate.calls.generate`: a call with no response.
         """
         if request.strata is not Strata.CELL:
@@ -232,7 +233,7 @@ class GuidedArm:
         if spent >= self._ceiling:
             logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, self._ceiling)
             msg = f"the run's spend {spent:.4f} USD reached its ceiling of {self._ceiling} USD"
-            raise EvaluationError(msg)
+            raise StopRuleError(msg, "ceiling")
 
 
 @dataclass(frozen=True, slots=True)

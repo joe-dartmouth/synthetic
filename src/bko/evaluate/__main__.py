@@ -35,10 +35,11 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
+import json
 import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
@@ -66,9 +67,9 @@ from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.errors import GenerationError
+from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.messages import SETTINGS, Send, Settings
-from bko.generate.replay import Replay, Resume
+from bko.generate.replay import Replay, Resume, log_ends, refuse_unresumable
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -180,6 +181,8 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     if not set(context.experiment.arms) & set(BKO_ARMS):
         msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
+    if args.resume is not None and args.resume.is_file():
+        _resumable(args.resume, context.settings)
     found = launch(
         args.run_id,
         name,
@@ -193,6 +196,24 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     )
     logger.info("launch started=%s pid=%s command=%s", found.started, found.pid, found.command)
     return f"{found.watch}\n"
+
+
+def _resumable(path: Path, settings: Settings) -> None:
+    """Refuse a stopped log `launch --resume` cannot resume, before any folder is claimed.
+
+    Raises:
+        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
+            differ from the named run's, so its first replayed call would differ.
+    """
+    try:
+        run_line, end = log_ends(path)
+        refuse_unresumable(path, run_line, end)
+    except ReplayError as exc:
+        raise EvaluationError(str(exc)) from exc
+    expected = json.loads(json.dumps(asdict(settings)))
+    if run_line.get("settings") != expected:
+        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
+        raise EvaluationError(msg)
 
 
 def _named(name: str, context: Context) -> Context:

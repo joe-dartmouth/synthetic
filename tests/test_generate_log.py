@@ -201,6 +201,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "replay": None,
         "resume": None,
         "rehearsal": False,
+        "stop": None,
         "calls": 2,
         "failed": 1,
         "retried": 0,
@@ -329,6 +330,36 @@ def test_a_rehearsals_run_and_end_lines_and_log_lines_say_so(tmp_path, caplog):
     assert lines[0]["rehearsal"] is True
     assert lines[-1]["rehearsal"] is True
     assert sum("rehearsal=true" in message for message in caplog.messages) == 2
+
+
+class StoppedError(Exception):
+    def __init__(self, rule: object) -> None:
+        super().__init__("stopped")
+        self.stop_rule = rule
+
+
+@pytest.mark.parametrize(
+    ("raised", "stop"),
+    [
+        (StoppedError("idle"), "idle"),
+        (StoppedError("projection"), "projection"),
+        (StoppedError("ceiling"), "ceiling"),
+        (StoppedError("other"), None),
+        (ValueError("x"), None),
+    ],
+)
+def test_the_end_line_names_the_stop_rule_that_ended_the_run(tmp_path, raised, stop):
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS, now=_now):
+        raise raised
+    assert _lines(path)[-1]["stop"] == stop
+
+
+def test_a_complete_runs_end_line_names_no_stop(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, SETTINGS, now=_now):
+        pass
+    assert _lines(path)[-1]["stop"] is None
 
 
 def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):

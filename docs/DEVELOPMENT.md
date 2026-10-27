@@ -142,9 +142,14 @@ reads:
 
     test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
 
-Never resume a log that another process still writes. A run stopped at the spend ceiling cannot
-resume, because its first live call refuses again. A run stopped by the projection is reported, not
-resumed; a run stopped by the idle limit resumes.
+Never resume a log that another process still writes. A run stopped by the projection or the
+spend ceiling is reported, not resumed, and a rerun takes a new run id; a run stopped by the idle
+limit resumes. The call log's `end` line names the stop rule that ended a failed run under `stop`
+(`ceiling`, `projection` or `idle`, else null), and a guard holds the policy: `score --resume`
+refuses, exit 3, a log whose `end` line reads `stop` `projection` or `ceiling`, a rehearsal's log
+and a replay's log, and `launch --resume` refuses those, and a log whose `run` line's settings
+differ from the named run's, exit 2 before it claims a folder
+(`bko.generate.replay.refuse_unresumable`). A log with no `stop` field predates it and resumes.
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at e1-3's tokens per record, so the stop rules and spend lines run for free; its
@@ -470,25 +475,25 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
-  always writes null), `rehearsal` (false: generate never rehearses) and totals, `live_usd` among
-  them, each call's whole request and response and its USD spend included. An interrupt or any other
-  failure between a `request` line and its `reply` line writes the `error` line. stderr gets the
-  split line, each ontology fragment's size, the request's name, cells and rows, a `quota` line per
-  asked cell, a `log` line (path, schema, model, effort, level, records per call, token limit, the
-  replayed log's sha256 or `none`, `resume=none` and `rehearsal=false`), the plan (calls, level, and
-  the most the output tokens can cost), a `send` line before each call and a `generate` line after
-  it (or an ERROR `failed` line naming the call and cell), the run's totals and spend (`usd` and
-  `live_usd`) with the replayed and resumed logs' sha256 or `none`, `rehearsal=false` and the log's
-  path, and last the count of stdout's record lines (the header excluded) and the sha256 of stdout,
-  its header included. Its WARNING lines: `served`, a call served by a model other than the settings
-  name; `short`, a call that wrote placeholders, with their reason; `unreached`, a gap statement no
-  label-compatible mapping row reaches, left out of the prompt; `noreference`, a cell with no
-  reference record, so no profile or summary; and the UCI loader's line naming the records it
-  dropped for a missing value. The SDK client retries a failed attempt up to
-  `bko.generate.api.MAX_RETRIES` times, backing off between tries, and logs each retry at INFO
-  between the call's `send` line and its result; each `reply` and `error` line records the call's
-  `attempts`, and the `end` line counts the calls `retried`. A retried attempt can be billed, so
-  logged spend is a lower bound when `retried` is above 0.
+  always writes null), `rehearsal` (false: generate never rehearses), `stop` (null: generate has no
+  stop rule) and totals, `live_usd` among them, each call's whole request and response and its USD
+  spend included. An interrupt or any other failure between a `request` line and its `reply` line
+  writes the `error` line. stderr gets the split line, each ontology fragment's size, the request's
+  name, cells and rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort,
+  level, records per call, token limit, the replayed log's sha256 or `none`, `resume=none` and
+  `rehearsal=false`), the plan (calls, level, and the most the output tokens can cost), a `send`
+  line before each call and a `generate` line after it (or an ERROR `failed` line naming the call
+  and cell), the run's totals and spend (`usd` and `live_usd`) with the replayed and resumed logs'
+  sha256 or `none`, `rehearsal=false` and the log's path, and last the count of stdout's record
+  lines (the header excluded) and the sha256 of stdout, its header included. Its WARNING lines:
+  `served`, a call served by a model other than the settings name; `short`, a call that wrote
+  placeholders, with their reason; `unreached`, a gap statement no label-compatible mapping row
+  reaches, left out of the prompt; `noreference`, a cell with no reference record, so no profile or
+  summary; and the UCI loader's line naming the records it dropped for a missing value. The SDK
+  client retries a failed attempt up to `bko.generate.api.MAX_RETRIES` times, backing off between
+  tries, and logs each retry at INFO between the call's `send` line and its result; each `reply` and
+  `error` line records the call's `attempts`, and the `end` line counts the calls `retried`. A
+  retried attempt can be billed, so logged spend is a lower bound when `retried` is above 0.
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, a
   completeness request no cell holds a gap for, `--request completeness` with another

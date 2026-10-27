@@ -50,7 +50,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   reply within `idle_limit` seconds (`bko.evaluate.watch`); `launch` starts it detached, kept awake
   and refused on battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
   resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
-  or the ceiling stopped is reported, not resumed. `launch --rehearse` first runs the whole run on
+  or the ceiling stopped is reported, not resumed, since resuming would spend past the rule that
+  stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's
+  `end` line records it under `stop`, and a resume refuses a `projection` or `ceiling` stop (ADR
+  `research/call-log-replay`); `launch --resume` also refuses a log whose settings differ from
+  the named run's, before it claims a folder. `launch --rehearse` first runs the whole run on
   canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal` directory, so the stop
   rules, the spend lines and the folder roles are checked for free before any spend. A rehearsal
   bills each record asked at the judged run's tokens per record (its Runs row's input and output

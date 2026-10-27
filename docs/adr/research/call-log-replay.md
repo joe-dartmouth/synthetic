@@ -48,8 +48,12 @@ rows in `docs/EVIDENCE.md`).
     keys are not `Usage`'s or whose counts are not whole numbers;
   - for a resume only: an `error` line before the stopped log's last call; a stopped log whose
     `run` line names `replay`; a stopped log whose `run` line reads `rehearsal: true`, since its
-    replies are canned and a resume sends the rest live; a resumed log that holds fewer answered
-    calls than it resumed.
+    replies are canned and a resume sends the rest live; a stopped log whose `end` line reads
+    `stop` `projection` or `ceiling`, since such a run is reported, not resumed, and a rerun takes
+    a new run id (a log with no `stop` field predates it and resumes); a resumed log that holds
+    fewer answered calls than it resumed. `bko.generate.replay.refuse_unresumable` holds the
+    checks on the `run` and `end` lines, and `launch --resume` runs them on those two lines alone
+    before it claims a folder.
 
   Every check but the first two runs when the log is read, before any call.
 - `bko.generate.replay.Resume` is a `Replay` over a stopped log's answered calls; after them, it

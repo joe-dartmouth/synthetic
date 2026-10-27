@@ -223,6 +223,7 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
         arm(train(tmp_path / "train"), REQUEST)
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
+    assert json.loads(lines[-1])["stop"] == "idle"
     assert "stop rule=idle" in caplog.text
 
 
