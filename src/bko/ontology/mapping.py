@@ -16,8 +16,8 @@ scope; `OUT_OF_SCOPE` records the near misses considered and why each was reject
 `bko.ontology.check` refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO
 holds the part of it the dataset's own rows reach: `FIELD_MAPPINGS` for UCI Heart Disease,
 `CODE_MAPPINGS` for Synthea (`bko.gaps`). A Synthea disorder code maps to the one live MONDO concept
-carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the codes none carries, and
-`bko.ontology.check` refuses one that gains a live match.
+carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the named conditions' disorder codes none
+carries, and `bko.ontology.check` refuses one that gains a live match.
 
 **Labels** are the releases' `name:` values, copied verbatim from MONDO (CC BY 4.0) and HPO (its
 attribution is in `bko.datasets.sources.HPO`).
@@ -338,7 +338,8 @@ UNMAPPED_CODES: Final[tuple[UnmappedCode, ...]] = (
         source="mondo",
     ),
 )
-"""Synthea disorder codes no MONDO concept is equated with, with the reason for each."""
+"""The named conditions' Synthea disorder codes no MONDO concept is equated with, each with its
+reason; the population holds other codes with no match, which no row records."""
 
 CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (*FIELD_MAPPINGS, *CODE_MAPPINGS, *OUT_OF_SCOPE)
 """Every row that names a concept, in table order."""

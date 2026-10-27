@@ -72,9 +72,10 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   its `skos:exactMatch`, applied mechanically: ST-elevation myocardial infarction maps because its
   code has one, beside myocardial infarction. `CODE_MAPPINGS` holds ischemic heart disease and six
   rows for hypertension, type 2 diabetes, hyperlipidemia, myocardial infarction, ST-elevation
-  myocardial infarction and stroke. A disorder code with no such concept is an `UnmappedCode` row
-  in `UNMAPPED_CODES` with its reason, and the check refuses one that gains a live
-  `skos:exactMatch`. No finding or situation code joins.
+  myocardial infarction and stroke. A disorder code of these named conditions with no such
+  concept is an `UnmappedCode` row in `UNMAPPED_CODES` with its reason, and the check refuses one
+  that gains a live `skos:exactMatch`; the population's other codes with no match, such as type 2
+  diabetes complications, have no row. No finding or situation code joins.
 - **No out-of-scope row above a mapped concept**: once type 2 diabetes maps, diabetes mellitus
   (MONDO:0005015) is its `is_a` ancestor and so in scope, and it has no out-of-scope row. The
   reason no UCI field grounds it, that `fbs` is one reading, sits in the `fbs` row's limits, which
@@ -158,6 +159,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | Defining the range constraints in `bko.ontology` | Validation and generation read them, and neither is an ontology stage; they belong to the frame in `bko.datasets` | 2026-10-26 |
 | Mapping acute non-ST-elevation myocardial infarction to a broader concept, such as acute myocardial infarction (MONDO:0004781) | A broader concept is not an equivalence; the code rows hold `skos:exactMatch` only | 2026-10-27 |
 | Leaving ST-elevation myocardial infarction out because myocardial infarction already maps | The rule is mechanical; a judgment per code would need a source the release does not give | 2026-10-27 |
+| An out-of-scope row for diabetes mellitus | Once type 2 diabetes maps it is an is_a ancestor and in scope; the check refuses an out-of-scope row above a mapped concept | 2026-10-27 |
 
 ## Enforcement
 

@@ -254,6 +254,7 @@ def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
 
 
 def test_no_out_of_scope_row_is_an_ancestor_of_a_mapped_concept(tmp_path: Path) -> None:
+    """The fixture reaches one level of ancestors; the full guard is the `--releases` test."""
     mondo = _fixture_releases(tmp_path)["MONDO"]
     above = {
         ancestor

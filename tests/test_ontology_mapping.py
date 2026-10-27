@@ -109,7 +109,8 @@ NAMED_CONDITIONS = {
     "401303003": "ST-elevation myocardial infarction",
     "230690007": "stroke disorder",
 }
-"""The Synthea disorder codes `detect-synthea-mappings` names, with their MONDO labels."""
+"""The six Synthea disorder codes `bko.ontology.mapping.CODE_MAPPINGS` maps beside ischemic heart
+disease, ST-elevation myocardial infarction among them, with their MONDO labels."""
 
 
 def test_each_named_synthea_condition_has_a_row() -> None:

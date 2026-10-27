@@ -359,14 +359,16 @@ Synthea condition codes, with the codes it excludes (ADR
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
 - **What it does**: it fetches the two releases into the data root if absent, verifies each against
-  its pin, parses them with pronto, and checks every concept row: the concept exists and is not
-  obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
+  its pin, parses them with pronto, and checks every row: a concept row's concept exists and is
+  not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
   `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
-  `skos:exactMatch` of no live concept, and an out-of-scope concept is not an `is_a` ancestor of a
-  mapped one. stdout gets a CSV with the columns `table` (`field`, `code`, `out-of-scope` or
-  `excluded-code`), `subject` (the dataset side, such as `cp in 1|2|3` or `SCTID:<code>`),
-  `concept` (empty for an excluded code), `label` and `status` (`ok`, or how the release
-  disagrees), one row per checked row, the same bytes on every run over the same releases.
+  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), and an
+  out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets a CSV with the
+  columns `table` (`field`, `code`, `out-of-scope` or `excluded-code`), `subject` (the dataset
+  side, such as `cp in 1|2|3` or `SCTID:<code>`), `concept` (empty for an excluded code), `label`
+  and `status` (`ok`, or how the release disagrees; for an `excluded-code` row, `ok` means the
+  code still has no live `skos:exactMatch`), one row per checked row, the same bytes on every run
+  over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.
@@ -443,10 +445,9 @@ commands, inside `.venv`:
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
   ([Data](#data)), fetches the releases the code mappings name, observes every mapped condition
-  code, and for each ablation in
-  `E2_ABLATIONS`, each removing all of a spec's cases or a seeded fraction of them (`cell-50` is
-  half of the cell's cases), lists every definition's gaps and the count-based ones before and
-  after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without
+  code, and for each ablation in `E2_ABLATIONS`, each removing all of a spec's cases or a seeded
+  fraction of them (`cell-50` is half of the cell's cases), lists every definition's gaps and the
+  count-based ones before and after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without
   `count`, then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
   among the gaps the removed patients account for. Every cell uses the ablation's age bands
   (`AblationSpec.edges`). A definition's cells carry no label, so its rows leave `target` blank,
