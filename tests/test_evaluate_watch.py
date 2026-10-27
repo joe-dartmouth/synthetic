@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.run import run
 from bko.evaluate.watch import Watch
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Timers, interrupt
@@ -32,9 +32,10 @@ def test_the_spend_projecting_past_the_ceiling_stops_the_run_with_its_measure(ca
     caplog.set_level(logging.INFO)
     watch.holdout_done()
     spent[0] = 1.2
-    with pytest.raises(EvaluationError, match=r"projects to 6\.0000 USD over 10"):
+    with pytest.raises(StopRuleError, match=r"projects to 6\.0000 USD over 10") as raised:
         watch.holdout_done()
     assert "stop rule=projection projected_usd=6.0000 ceiling=5.00" in caplog.text
+    assert raised.value.stop_rule == "projection"
 
 
 def test_a_projection_within_the_ceiling_never_fires(caplog):
@@ -93,10 +94,11 @@ def test_a_call_with_no_reply_within_the_idle_limit_stops_the_run_with_its_measu
     watch = Watch(RULES, lambda: 0.0, timers=timers, interrupt=interrupt)
     caplog.set_level(logging.INFO)
     with (
-        pytest.raises(EvaluationError, match="no reply within the idle limit of 60 s"),
+        pytest.raises(StopRuleError, match="no reply within the idle limit of 60 s") as raised,
         watch.call(),
     ):
         timers.made[-1].action()
+    assert raised.value.stop_rule == "idle"
     assert watch.fired
     assert timers.made[-1].cancelled
     assert "stop rule=idle limit_seconds=60.0" in caplog.text

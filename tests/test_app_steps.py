@@ -32,6 +32,7 @@ from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
+from bko.evaluate.holdout_candidates import read
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
 from bko.gaps.definitions import Definition
@@ -186,9 +187,12 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     assert outcome.replayed is False
     assert sorted(path.name for path in outcome.folder.iterdir()) == [
         "calls.jsonl",
+        "holdout-candidates.jsonl",
         "scores.csv",
         "training.csv",
     ]
+    header = read((outcome.folder / "holdout-candidates.jsonl").read_bytes()).header
+    assert header["run"] == "app"
 
 
 def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):
@@ -200,7 +204,10 @@ def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):
         fill_and_score(analysis, "bko", context)
     assert len(send.calls) == 1
     (folder,) = (tmp_path / "runs").iterdir()
-    assert [path.name for path in folder.iterdir()] == ["calls.jsonl"]
+    assert sorted(path.name for path in folder.iterdir()) == [
+        "calls.jsonl",
+        "holdout-candidates.jsonl",
+    ]
     assert caught.value.__notes__ == [
         f"The fill's run folder is {folder}; it spent {ceiling:.6f} USD over 1 calls."
     ]

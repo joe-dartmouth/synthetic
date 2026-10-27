@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-22
+updated: 2026-10-26
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -131,14 +131,17 @@ ladder.**
   its prompts and responses; the SDK version it records is read before the file is created too.
   Its lines, each flushed as written: one `run` line
   (schema 2, settings, price, SDK version, `replay`: the sha256 of the call log a replay
-  answers from, or null, and `resume`: the sha256 and answered calls of the stopped log a resume
-  continues, or null), then per call a `request` line before it is sent and a
-  `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
-  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay` and `resume` again, and
-  the run's totals, `live_usd` (the spend of calls past the answered ones) among them. The schema
-  stays 2: a replay reads only the `run` line's `kind` and `schema`, and a resume reads `replay`
-  and `resume` as absent when a log predates them. A `reply` line holds the
-  whole response and `attempts`, the HTTP requests the SDK made for the call
+  answers from, or null, `resume`: the sha256 and answered calls of the stopped log a resume
+  continues, or null, and `rehearsal`: true when canned replies answer every call, as
+  `score --rehearse` makes them, else false), then per call a `request` line before it is sent and
+  a `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
+  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay`, `resume` and
+  `rehearsal` again, `stop` (the stop rule that ended a failed run: `ceiling`, `projection` or
+  `idle`, read from the exception's `stop_rule`, else null), and the run's totals, `live_usd` (the
+  spend of calls past the answered ones, a rehearsal's billed spend included) among them. The
+  schema stays 2: a replay reads only the `run` line's `kind` and `schema`, and a resume reads
+  `replay`, `resume`, `rehearsal` and `stop` as absent when a log predates them. A `reply` line
+  holds the whole response and `attempts`, the HTTP requests the SDK made for the call
   (`bko.generate.api.Attempts` counts them). An `error` line holds `attempts` too, null when
   nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
   attempt. Anything raised after a `request` line and before its `reply` line (no

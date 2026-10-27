@@ -12,8 +12,11 @@ import pytest
 
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
+from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.guided import GuidedArm, Knowledge, guided_arms
+from bko.evaluate.holdout_candidates import Origin
+from bko.evaluate.scores import Source
 from bko.evaluate.validity import COUNTS
 from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition
@@ -23,12 +26,16 @@ from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS
 from bko.generate.replay import Resume
 from bko.generate.spend import cost
+from bko.ontology.mapping import RELEASES
 from tests._evaluate_fixtures import SMALL, Timers, interrupt
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
 from tests._validate_fixtures import planted
 
+
+ORIGIN: Final = Origin("e1", UCI_HEART_DISEASE, RELEASES)
+"""The header of every candidates file these tests make."""
 
 OLD: Final = planted(age=63, sex=0, target=1)
 """A valid candidate of `(">=55", "female", 1)`, a cell `REQUEST` does not ask for."""
@@ -42,7 +49,7 @@ def asked(path: Path) -> list[int]:
 
 def counted(arm: GuidedArm) -> tuple[float, ...]:
     """The arm's drained counts: generated, passed, dropped for range, cell and quota."""
-    found = arm.drain()
+    found = arm.drain(0, Source.CANDIDATES)
     return tuple(found[measure] for measure in COUNTS)
 
 
@@ -177,7 +184,16 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
     caplog.set_level(logging.INFO)
     with (
         pytest.raises(ReplayError, match="1 logged calls were not replayed"),
-        guided_arms(("bko",), knowledge, SMALL, log=path, send=ScriptedSend, answers=resume),
+        guided_arms(
+            ("bko",),
+            knowledge,
+            SMALL,
+            log=path,
+            candidates=tmp_path / "candidates.jsonl",
+            origin=ORIGIN,
+            send=ScriptedSend,
+            answers=resume,
+        ),
     ):
         pass
     assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["status"] == "failed"
@@ -207,6 +223,7 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
         arm(train(tmp_path / "train"), REQUEST)
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
+    assert json.loads(lines[-1])["stop"] == "idle"
     assert "stop rule=idle" in caplog.text
 
 
@@ -214,7 +231,13 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
     knowledge = Knowledge("x", {}, (), ())
     early = dataclasses.replace(SMALL, projection_after=1)
     with guided_arms(
-        ("bko",), knowledge, early, log=tmp_path / "live.jsonl", send=ScriptedSend
+        ("bko",),
+        knowledge,
+        early,
+        log=tmp_path / "live.jsonl",
+        candidates=tmp_path / "live-candidates.jsonl",
+        origin=ORIGIN,
+        send=ScriptedSend,
     ) as live:
         assert live.watch.projecting
     stopped = tmp_path / "stopped.jsonl"
@@ -226,6 +249,8 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         knowledge,
         early,
         log=tmp_path / "resumed.jsonl",
+        candidates=tmp_path / "resumed-candidates.jsonl",
+        origin=ORIGIN,
         send=ScriptedSend,
         answers=resume,
     ) as resumed:

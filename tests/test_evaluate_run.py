@@ -239,7 +239,9 @@ def test_a_holdout_with_no_copy_scores_the_whole_test_split(monkeypatch):
 
 
 def test_a_drain_writes_candidates_rows_per_holdout():
-    scores = run(GRADED, PAIR, FAST_ARMS, drains={"smote": lambda: {Measure.GENERATED: 1.0}})
+    scores = run(
+        GRADED, PAIR, FAST_ARMS, drains={"smote": lambda seed, source: {Measure.GENERATED: 1.0}}
+    )
     rows = [s for s in scores if s.source is Source.CANDIDATES]
     assert sorted((s.holdout, s.arm, s.measure) for s in rows) == [
         (0, "smote", Measure.GENERATED),
@@ -251,10 +253,19 @@ def test_a_replica_arms_drain_is_read_after_each_fill():
     counted = iter(range(1, 5))
     experiment = dataclasses.replace(PAIR, replica_arms=("smote",))
 
-    def drain() -> dict[Measure, float]:
+    asked: list[tuple[int, Source]] = []
+
+    def drain(seed: int, source: Source) -> dict[Measure, float]:
+        asked.append((seed, source))
         return {Measure.GENERATED: float(next(counted))}
 
     scores = run(GRADED, experiment, FAST_ARMS, drains={"smote": drain})
+    assert asked == [
+        (0, Source.CANDIDATES),
+        (0, Source.REPLICA_CANDIDATES),
+        (1, Source.CANDIDATES),
+        (1, Source.REPLICA_CANDIDATES),
+    ]
     found = {(s.holdout, s.source): s.value for s in scores if s.measure is Measure.GENERATED}
     assert found == {
         (0, Source.CANDIDATES): 1.0,
@@ -268,7 +279,7 @@ def test_an_arm_filling_no_replica_is_drained_once_per_holdout_beside_one_that_d
     calls: Counter[str] = Counter()
 
     def counter(name: str):
-        def drain() -> dict[Measure, float]:
+        def drain(seed: int, source: Source) -> dict[Measure, float]:
             calls[name] += 1
             return {Measure.GENERATED: float(calls[name])}
 

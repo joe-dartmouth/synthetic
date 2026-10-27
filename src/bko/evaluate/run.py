@@ -56,10 +56,10 @@ def _method_arm(
 ARMS: Final[Mapping[str, Runner]] = MappingProxyType(method_arms())
 """Every comparison method of `bko.baselines`, by name."""
 
-type Drain = Callable[[], Mapping[Measure, float]]
-"""A BKO arm's counts since the last call. The harness drains each arm after the gap fills and,
-for a replica arm, after the replica fills, and writes them per holdout as `Source.CANDIDATES` and
-`Source.REPLICA_CANDIDATES` scores."""
+type Drain = Callable[[int, Source], Mapping[Measure, float]]
+"""A BKO arm's counts since the last call, given the holdout's seed and the source they score as.
+The harness drains each arm after the gap fills and, for a replica arm, after the replica fills,
+and writes them per holdout as `Source.CANDIDATES` and `Source.REPLICA_CANDIDATES` scores."""
 
 
 def held_out_ratio(parts: Split) -> float:
@@ -132,7 +132,9 @@ def score_holdout(
         name: _fill(arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name)
         for name in experiment.arms
     }
-    gap_counts = {name: drains[name]() for name in experiment.arms if name in drains}
+    gap_counts = {
+        name: drains[name](seed, Source.CANDIDATES) for name in experiment.arms if name in drains
+    }
     replicas = {
         name: _fill(
             arms[name],
@@ -144,7 +146,9 @@ def score_holdout(
         ).added
         for name in experiment.replica_arms
     }
-    replica_counts = {name: drains[name]() for name in replicas if name in drains}
+    replica_counts = {
+        name: drains[name](seed, Source.REPLICA_CANDIDATES) for name in replicas if name in drains
+    }
     clean = decontaminated(test, [*(fill.added for fill in fills.values()), *replicas.values()])
     logger.info("test holdout=%d records=%d copied=%d", seed, len(test), len(test) - len(clean))
     held_out = {Measure.HELD_OUT_RATIO: held_out_ratio(parts), **distances(test, train)}

@@ -285,6 +285,40 @@ def test_resume_refuses_a_replays_log(tmp_path):
         Resume(path, ScriptedSend())
 
 
+def test_resume_refuses_a_rehearsals_log_and_replay_reads_it(tmp_path):
+    path = tmp_path / "rehearsal.jsonl"
+    with CallLog(path, SETTINGS, rehearsal=True) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+    with pytest.raises(ReplayError, match="rehearsal's log"):
+        Resume(path, ScriptedSend())
+    assert Replay(path).remaining == 1
+
+
+def _stopped_by(tmp_path: Path, rule: str | None) -> Path:
+    """A one-call log whose end line names `rule` under `stop`, or has no `stop` when None."""
+    path = logged(tmp_path, answer())
+
+    def edit(lines: list[dict]) -> None:
+        lines[-1]["status"] = "failed"
+        if rule is None:
+            del lines[-1]["stop"]
+        else:
+            lines[-1]["stop"] = rule
+
+    return rewritten(path, edit)
+
+
+@pytest.mark.parametrize("rule", ["projection", "ceiling"])
+def test_resume_refuses_a_run_the_projection_or_the_ceiling_stopped(tmp_path, rule):
+    with pytest.raises(ReplayError, match="reported, not resumed"):
+        Resume(_stopped_by(tmp_path, rule), ScriptedSend())
+
+
+@pytest.mark.parametrize("rule", ["idle", None])
+def test_resume_accepts_an_idle_stop_and_a_log_that_predates_the_stop_field(tmp_path, rule):
+    assert Resume(_stopped_by(tmp_path, rule), ScriptedSend()).remaining == 1
+
+
 def test_resume_refuses_a_resume_that_stopped_while_it_replayed(tmp_path):
     path = tmp_path / "resumed.jsonl"
     earlier = Answered("resume", "ab" * 32, 3)

@@ -37,9 +37,9 @@ that do not can be measured before any paid arm is built on it.
   shares and their smoothing read from the fused BKB the sampler's ADR fixes. A new ADR under
   `docs/adr/research/` fixes the score, what a concept with no mapping row contributes, and the
   tie-break among equal scores.
-- Phase 1, free: one committed command scores every candidate in the per-holdout candidates files
-  the judged run writes (a run-folder role that `cleanup:evaluate/per-holdout-candidates-role` owes), and reports per cell the
-  score's spread, the share of records at the minimum, and the replica fidelity (quality, column
+- Phase 1, free: one committed command scores every candidate in the per-holdout candidates file
+  the judged run writes (the `holdout-candidates.jsonl` role), and reports per cell the score's
+  spread, the share of records at the minimum, and the replica fidelity (quality, column
   shapes, column pair trends against the training rows) of the top half by score against the
   bottom half, paired over the holdouts.
 - Phase 2, paid, only if phase 1's top half is closer to the training rows than its bottom half on

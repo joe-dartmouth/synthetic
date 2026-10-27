@@ -53,6 +53,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "schema": 2,
         "replay": None,
         "resume": None,
+        "rehearsal": False,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -199,6 +200,8 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "status": "failed",
         "replay": None,
         "resume": None,
+        "rehearsal": False,
+        "stop": None,
         "calls": 2,
         "failed": 1,
         "retried": 0,
@@ -242,7 +245,7 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     assert (
         "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
         f"input_tokens=1000 output_tokens=500 usd=0.000350 live_usd=0.000350 replay=none "
-        f"resume=none log={path}"
+        f"resume=none rehearsal=false log={path}"
     ) in caplog.text
 
 
@@ -265,6 +268,18 @@ def test_a_failed_header_write_closes_the_file(tmp_path, monkeypatch):
         CallLog(path, SETTINGS, now=_now)
     assert len(opened) == 1
     assert opened[0].closed
+    assert not path.exists()
+
+
+def test_a_log_whose_file_cannot_be_opened_is_removed(tmp_path, monkeypatch):
+    def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("no descriptor")
+
+    monkeypatch.setattr(os, "fdopen", refuse)
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(OSError, match="no descriptor"):
+        CallLog(path, SETTINGS, now=_now)
+    assert not path.exists()
 
 
 def test_the_log_exposes_the_settings_it_priced(tmp_path):
@@ -304,7 +319,7 @@ def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
     assert (
         f"log path={path} schema=2 model={SETTINGS.model} effort={SETTINGS.effort} "
         f"level={SETTINGS.guidance} per_call={SETTINGS.per_call} "
-        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none"
+        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none rehearsal=false"
     ) in caplog.messages
 
 
@@ -317,6 +332,46 @@ def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):
         pass
     assert _lines(path)[-1]["replay"] == "ab12"
     assert any(m.startswith("run status=complete") and "replay=ab12" in m for m in caplog.messages)
+
+
+def test_a_rehearsals_run_and_end_lines_and_log_lines_say_so(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, rehearsal=True, now=_now):
+        pass
+    lines = _lines(path)
+    assert lines[0]["rehearsal"] is True
+    assert lines[-1]["rehearsal"] is True
+    assert sum("rehearsal=true" in message for message in caplog.messages) == 2
+
+
+class StoppedError(Exception):
+    def __init__(self, rule: object) -> None:
+        super().__init__("stopped")
+        self.stop_rule = rule
+
+
+@pytest.mark.parametrize(
+    ("raised", "stop"),
+    [
+        (StoppedError("idle"), "idle"),
+        (StoppedError("projection"), "projection"),
+        (StoppedError("ceiling"), "ceiling"),
+        (StoppedError("other"), None),
+        (ValueError("x"), None),
+    ],
+)
+def test_the_end_line_names_the_stop_rule_that_ended_the_run(tmp_path, raised, stop):
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS, now=_now):
+        raise raised
+    assert _lines(path)[-1]["stop"] == stop
+
+
+def test_a_complete_runs_end_line_names_no_stop(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, SETTINGS, now=_now):
+        pass
+    assert _lines(path)[-1]["stop"] is None
 
 
 def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
