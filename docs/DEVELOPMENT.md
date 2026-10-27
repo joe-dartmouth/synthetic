@@ -295,7 +295,8 @@ the runner before any replay.
   `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
   row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
-  each guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes a value;
+  each guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no
+  flag changes a value;
   `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
   candidates are recorded and where calls are answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that

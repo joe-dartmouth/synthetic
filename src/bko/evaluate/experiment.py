@@ -1,7 +1,8 @@
-"""E1's configuration, fixed before any run, and the requests it gives every arm on a split.
+"""E1's configuration, fixed before any run, its named runs, and the requests it gives every arm.
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
-each criterion is read. No command-line flag changes a value here.
+each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level
+other than `ontology` (`docs/EVIDENCE.md`, G3). No command-line flag changes a value here.
 """
 
 from __future__ import annotations
