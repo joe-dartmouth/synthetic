@@ -45,7 +45,7 @@ def toy_records() -> pd.DataFrame:
             for target in (0, 1):
                 size = 6 if (age, target) == (50, 1) else 25
                 for i in range(size):
-                    level = 0.5 + ((i * 37 + age + 11 * sex + 5 * target) % 400) / 100
+                    level = round(0.5 + ((i * 37 + age + 11 * sex + 5 * target) % 400) / 100, 2)
                     rows.append({"age": age + i % 9, "sex": sex, "level": level, "target": target})
     frame = pd.DataFrame(rows).astype(dict(TOY.dtypes))
     frame.index = pd.RangeIndex(1, len(frame) + 1, name="record_id")

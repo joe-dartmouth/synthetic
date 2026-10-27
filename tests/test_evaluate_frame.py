@@ -26,7 +26,7 @@ from bko.evaluate.run import ARMS, held_out_ratio, run
 from bko.evaluate.scores import Measure, Scope, Source
 from bko.evaluate.utility import in_scope, utility
 from bko.generate.messages import SETTINGS, Call
-from tests._evaluate_fixtures import GRADED, SMALL
+from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
 from tests._frame_fixtures import SHORT, TOY, TOY_PARTS, TOY_TRAIN, toy_records
 
 
@@ -93,6 +93,17 @@ def test_smote_fills_a_toy_request():
     assert len(baseline.added) == 5
     real = training_set(TOY_TRAIN, baseline, frame=TOY)
     assert real.columns.tolist() == ["age", "sex", "level", "target", "weight"]
+    hundredths = (baseline.added["level"] * 100).round().astype(int)
+    assert (hundredths % 10 != 0).any(), "SMOTE kept one decimal, not the toy frame's two"
+
+
+@pytest.mark.parametrize("method", [Method.CTGAN, Method.TVAE])
+def test_a_synthesizer_fills_a_toy_request(method):
+    request = Request(quota={SHORT[0]: 2}, frame=TOY, seed=0)
+    baseline = augment(TOY_TRAIN, method, request, methods=FAST_METHODS)
+    assert baseline.added.columns.tolist() == ["age", "sex", "level", "target"]
+    assert baseline.added["age"].between(45, 69).all()
+    assert baseline.added["target"].eq(1).all()
 
 
 def test_the_sdv_metadata_reads_the_frame():
@@ -135,8 +146,25 @@ def test_copies_and_distances_read_the_toy_columns():
     rows = test.head(2).assign(extra=1)
     assert copies(rows, test, frame=TOY) == 2
     assert decontaminated(test, [rows], frame=TOY).index.equals(test.index[2:])
-    near = distances(rows, TOY_TRAIN, frame=TOY)
-    assert set(near) == {Measure.DCR_P5, Measure.DCR_MEDIAN}
+
+
+def test_distances_read_the_toy_metadata():
+    train = toy_added(
+        [
+            {"age": 30, "sex": 0, "level": 0.5, "target": 0},
+            {"age": 90, "sex": 1, "level": 4.5, "target": 1},
+        ]
+    )
+    rows = toy_added(
+        [
+            {"age": 30, "sex": 0, "level": 4.5, "target": 0},
+            {"age": 60, "sex": 1, "level": 4.5, "target": 1},
+        ]
+    )
+    # Nearest rows: a level gap of 4 over a range of 4, then an age gap of 30 over 60, each
+    # averaged over the 4 columns, so 0.25 and 0.125.
+    near = distances(rows, train, frame=TOY)
+    assert near == pytest.approx({Measure.DCR_P5: 0.13125, Measure.DCR_MEDIAN: 0.1875})
 
 
 def test_scopes_and_the_held_out_ratio_read_the_toy_edges():
@@ -146,7 +174,8 @@ def test_scopes_and_the_held_out_ratio_read_the_toy_edges():
     probability = pd.Series(0.6, index=test.index)
     scores = utility(test, probability, SHORT, edges=TOY.edges)
     assert not math.isnan(scores[Measure.RECALL, Scope.FLAGGED])
-    assert held_out_ratio(TOY_PARTS, edges=TOY.edges) > 0
+    # Toy cells of 25 hold out 5 of them, 20 kept; under UCI's edge the ratio would be 9/26.
+    assert held_out_ratio(TOY_PARTS, edges=TOY.edges) == pytest.approx(0.25)
 
 
 def test_the_experiment_requests_read_the_toy_frame():
@@ -167,6 +196,13 @@ def test_a_toy_experiment_runs_end_to_end():
     ]
     assert [s.value for s in added] == [30.0, 30.0]
     assert {s.holdout for s in scores} == {0, 1}
+    ratios = [s.value for s in scores if s.measure is Measure.HELD_OUT_RATIO]
+    assert ratios == pytest.approx([0.25, 0.25])
+    flagged_recall = [
+        s for s in scores if (s.arm, s.measure, s.scope) == ("smote", Measure.RECALL, Scope.FLAGGED)
+    ]
+    assert {s.source for s in flagged_recall} == {Source.AUGMENTED, Source.REPLICA}
+    assert not any(math.isnan(s.value) for s in flagged_recall)
 
 
 def test_a_rehearsal_refuses_another_frame():
