@@ -1,7 +1,10 @@
 """Offline inputs for the `bko.ontology` tests: OBO release text and a URL-routing opener.
 
 The MONDO:0024644 stanza of `MONDO_TEXT`, with the header lines that declare its prefixes, is from
-MONDO release 2026-10-06 (CC BY 4.0); every other `MONDO_TEXT` stanza is invented.
+MONDO release 2026-10-06 (CC BY 4.0). Its six other stanzas with a `skos:exactMatch SCTID:` line
+abridge that release's stanzas to the id, name, is_a and that line, qualifiers dropped. Every other
+`MONDO_TEXT` stanza is invented: an edge case, or a stub of a parent or a table concept that
+reuses the release's id and name.
 `SANTOS_MONDO_TEXT` abridges MONDO release 2026-10-06 (CC BY 4.0) to the id, name and is_a lines
 and the skos:exactMatch lines to DO of the six MONDO classes of Santos et al.'s example, with the
 id and name of their parents, qualifiers dropped; `SANTOS_DO_TEXT` abridges Human Disease Ontology
@@ -53,6 +56,58 @@ id: MONDO:0005015
 name: diabetes mellitus
 
 [Term]
+id: MONDO:0001134
+name: essential hypertension
+is_a: MONDO:0005044 ! hypertensive disorder
+property_value: skos:exactMatch SCTID:59621000
+
+[Term]
+id: MONDO:0005044
+name: hypertensive disorder
+
+[Term]
+id: MONDO:0005148
+name: type 2 diabetes mellitus
+is_a: MONDO:0005015 ! diabetes mellitus
+property_value: skos:exactMatch SCTID:44054006
+
+[Term]
+id: MONDO:0021187
+name: hyperlipidemia
+is_a: MONDO:0005066 ! metabolic disease
+property_value: skos:exactMatch SCTID:55822004
+
+[Term]
+id: MONDO:0005066
+name: metabolic disease
+
+[Term]
+id: MONDO:0005068
+name: myocardial infarction
+is_a: MONDO:0024643 ! myocardial disorder
+property_value: skos:exactMatch SCTID:22298006
+
+[Term]
+id: MONDO:0041656
+name: ST-elevation myocardial infarction
+is_a: MONDO:0004781 ! acute myocardial infarction
+property_value: skos:exactMatch SCTID:401303003
+
+[Term]
+id: MONDO:0004781
+name: acute myocardial infarction
+
+[Term]
+id: MONDO:0005098
+name: stroke disorder
+is_a: MONDO:0011057 ! cerebrovascular disorder
+property_value: skos:exactMatch SCTID:230690007
+
+[Term]
+id: MONDO:0011057
+name: cerebrovascular disorder
+
+[Term]
 id: MONDO:0021661
 name: coronary atherosclerosis
 
@@ -71,8 +126,8 @@ replaced_by: ENVO:03000144
 id: MONDO:9999997
 name: Sjögren-like test term
 """
-"""A MONDO-shaped release: one real stanza, its stub parents, a stanza per other MONDO id the
-mapping table names, and invented edge cases."""
+"""A MONDO-shaped release: a stanza per MONDO id the mapping table names, the code rows' abridged
+from the release, their stub parents, and invented edge cases."""
 
 HPO_LABELS: Mapping[str, str] = {
     "HP:0000822": "Hypertension",

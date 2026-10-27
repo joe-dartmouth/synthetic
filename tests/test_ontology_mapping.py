@@ -20,6 +20,7 @@ from bko.ontology.mapping import (
     OUT_OF_SCOPE,
     RELEASES,
     UNMAPPED,
+    UNMAPPED_CODES,
 )
 from bko.ontology.schema import AtLeast, Codes
 from tests._corpus import REPO_ROOT
@@ -100,6 +101,32 @@ def test_every_removed_synthea_code_has_a_row() -> None:
     assert all(c.concept.startswith("MONDO:") for c in CODE_MAPPINGS)
 
 
+NAMED_CONDITIONS = {
+    "59621000": "essential hypertension",
+    "44054006": "type 2 diabetes mellitus",
+    "55822004": "hyperlipidemia",
+    "22298006": "myocardial infarction",
+    "401303003": "ST-elevation myocardial infarction",
+    "230690007": "stroke disorder",
+}
+"""The Synthea disorder codes `detect-synthea-mappings` names, with their MONDO labels."""
+
+
+def test_each_named_synthea_condition_has_a_row() -> None:
+    labels = {c.snomed: c.label for c in CODE_MAPPINGS}
+    assert len(CODE_MAPPINGS) == 7
+    assert labels == {ISCHEMIC_HEART_DISEASE: "myocardial ischemia", **NAMED_CONDITIONS}
+
+
+def test_excluded_codes_are_disjoint_from_mapped_codes() -> None:
+    excluded = [c.snomed for c in UNMAPPED_CODES]
+    assert excluded
+    assert len(excluded) == len(set(excluded))
+    assert {c.snomed for c in CODE_MAPPINGS}.isdisjoint(excluded)
+    for code in excluded:
+        assert re.fullmatch(r"[0-9]+", code, re.ASCII), code
+
+
 def _well_formed(curie: str) -> bool:
     return (
         re.fullmatch(r"(MONDO|HP):[0-9]{7}", curie, re.ASCII) is not None
@@ -127,7 +154,7 @@ def _resolves(source: str) -> bool:
 
 
 def _all_sources() -> Iterable[str]:
-    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE):
+    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE, UNMAPPED_CODES):
         for row in table:
             yield row.source
 
@@ -152,5 +179,8 @@ def test_every_row_explains_itself() -> None:
     for row in OUT_OF_SCOPE:
         assert row.label.strip(), row
         assert row.reason.strip(), row
-    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE):
+    for row in UNMAPPED_CODES:
+        assert row.label.strip(), row
+        assert row.reason.strip(), row
+    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE, UNMAPPED_CODES):
         assert len(table) == len(set(table)), table

@@ -4,21 +4,26 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Literal, assert_never
+from typing import Final, Literal, assert_never
 
 from bko.ontology.schema import (
     AtLeast,
+    CheckedRow,
     Clause,
     CodeMapping,
     Codes,
     ConceptRow,
     FieldMapping,
     OutOfScope,
+    UnmappedCode,
 )
 from bko.ontology.terms import Ontology, ancestors
 
 
-type Table = Literal["field", "code", "out-of-scope"]
+type Table = Literal["field", "code", "out-of-scope", "excluded-code"]
+
+EXCLUDED_PREFIX: Final = "MONDO"
+"""The release an excluded code is checked against: the one code rows map into."""
 
 type _Holders = Mapping[str, Mapping[str, tuple[str, ...]]]
 """Per release prefix, each wanted `SCTID:` object to the live terms that carry it."""
@@ -31,7 +36,7 @@ class Verdict:
     Attributes:
         table: Which kind of row it is.
         subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `SCTID:414545008`, or empty.
-        concept: The row's concept.
+        concept: The row's concept; empty for an excluded code.
         label: The row's label.
         problem: None when the release agrees; otherwise how it disagrees.
     """
@@ -43,20 +48,26 @@ class Verdict:
     problem: str | None
 
 
-def check(rows: Iterable[ConceptRow], ontologies: Mapping[str, Ontology]) -> tuple[Verdict, ...]:
+def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tuple[Verdict, ...]:
     """Check each row, in order, against the ontology its concept's prefix names.
 
     An out-of-scope row also disagrees when its concept is an `is_a` ancestor of a concept another
-    of `rows` maps, since the scope rule puts every such ancestor in scope. Each release's
-    `skos:exactMatch` holders are collected in one pass per call, however many `CodeMapping` rows
-    name its prefix.
+    of `rows` maps, since the scope rule puts every such ancestor in scope. An excluded code
+    disagrees when a live `EXCLUDED_PREFIX` concept carries its `skos:exactMatch`. Each release's
+    `skos:exactMatch` holders are collected in one pass per call, however many code rows and
+    excluded codes name its prefix.
     """
     rows = tuple(rows)
-    mapped = frozenset(row.concept for row in rows if not isinstance(row, OutOfScope))
+    mapped = frozenset(row.concept for row in rows if isinstance(row, (FieldMapping, CodeMapping)))
     wanted: dict[str, set[str]] = {}
     for row in rows:
-        if isinstance(row, CodeMapping):
-            wanted.setdefault(row.concept.partition(":")[0], set()).add(_target(row))
+        match row:
+            case CodeMapping():
+                wanted.setdefault(row.concept.partition(":")[0], set()).add(_target(row))
+            case UnmappedCode():
+                wanted.setdefault(EXCLUDED_PREFIX, set()).add(_target(row))
+            case _:
+                pass
     holders = {
         prefix: _exact_holders(ontologies[prefix], frozenset(targets))
         for prefix, targets in wanted.items()
@@ -66,8 +77,16 @@ def check(rows: Iterable[ConceptRow], ontologies: Mapping[str, Ontology]) -> tup
 
 
 def _verdict(
-    row: ConceptRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str], holders: _Holders
+    row: CheckedRow, ontologies: Mapping[str, Ontology], mapped: frozenset[str], holders: _Holders
 ) -> Verdict:
+    if isinstance(row, UnmappedCode):
+        return Verdict(
+            table="excluded-code",
+            subject=_target(row),
+            concept="",
+            label=row.label,
+            problem=_excluded_problem(row, ontologies, holders),
+        )
     table, subject = _describe(row)
     return Verdict(
         table=table,
@@ -143,8 +162,20 @@ def _scope_problem(
     return None
 
 
-def _target(row: CodeMapping) -> str:
+def _target(row: CodeMapping | UnmappedCode) -> str:
     return f"SCTID:{row.snomed}"
+
+
+def _excluded_problem(
+    row: UnmappedCode, ontologies: Mapping[str, Ontology], holders: _Holders
+) -> str | None:
+    if EXCLUDED_PREFIX not in ontologies:
+        return f"no release for prefix {EXCLUDED_PREFIX}"
+    target = _target(row)
+    found = holders[EXCLUDED_PREFIX].get(target, ())
+    if found:
+        return f"skos:exactMatch {target} is on {', '.join(found)}"
+    return None
 
 
 def _exact_holders(ontology: Ontology, targets: frozenset[str]) -> Mapping[str, tuple[str, ...]]:

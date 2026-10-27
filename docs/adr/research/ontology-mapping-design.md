@@ -77,9 +77,9 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   `skos:exactMatch`. No finding or situation code joins.
 - **No out-of-scope row above a mapped concept**: once type 2 diabetes maps, diabetes mellitus
   (MONDO:0005015) is its `is_a` ancestor and so in scope, and it has no out-of-scope row. The
-  reason no UCI field grounds it, that `fbs` is one reading and a diagnosis needs confirmation,
-  sits in the `fbs` row's limits; UCI's scope takes the field mappings' concepts only, so it still
-  excludes diabetes mellitus.
+  reason no UCI field grounds it, that `fbs` is one reading, sits in the `fbs` row's limits, which
+  name the concept; UCI's scope takes the field mappings' concepts only, so it still excludes
+  diabetes mellitus.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
