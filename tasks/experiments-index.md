@@ -22,11 +22,6 @@ the ROADMAP heading it serves.
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
 
-### Detection
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
