@@ -226,19 +226,28 @@ scored the same on the baselines while its own seed moved subgroup recall by one
 linear model may not exploit the 18 and 2 rows the gap fill adds to its two cells, so a null result
 on it alone does not show the rows carry nothing; the boosting model reads the same rows with no
 seed. Histogram gradient boosting with early stopping off and every feature draws no random number
-below 200000 training rows, and measured 2026-10-26 its scores were bit-identical at OpenMP threads
-1 to 18 and at `random_state` 0, 1 and None. Under the gate's parallel workers unbounded OpenMP
-threads crawl: the median fit took 41749 ms against 78 ms on one thread under 12 processes. At
-these settings, measured 2026-10-26, it fits its training set, reads lower than the regression
-alone, and responds to added rows more often: SMOTE against no augmentation changes flagged-subgroup
-recall on 5 of 20 holdouts, against the regression's 1; judged, its intervals would move no
-verdict. A leaf size below the gap fill's smallest cell is read as below that cell's 2 rows, so a
-leaf holds 1 record; read as below the whole 20-row fill, a leaf of 19 would pass, and it cannot
-hold the 2-row cell's rows apart, as scikit-learn's default of 20 cannot. The criteria still read
-the regression: they were fixed on it before any run, and judging a second model adds a look at
-each criterion after `e1-3`'s results were in view. Replica utility stays on the regression, its
-only reading beside fidelity. The
-test rows are real records no generator saw, the natural real-data baseline for distance to closest
+below 200000 training rows, and its scores were bit-identical at OpenMP threads 1 to 18 and at
+`random_state` 0, 1 and None. Under the gate's parallel workers unbounded OpenMP threads crawl: the
+median fit took 41749 ms against 78 ms on one thread under 12 processes. Both are planning
+measurements of 2026-10-26 whose script was not kept. At these settings it classifies every
+training row correctly where the regression does not (measured 2026-10-27 on holdouts 0 to 2 of the
+pinned archive, each training split scored by `bko.evaluate.classifier.probabilities` on itself), and
+its recall and AUC-PR read lower than the regression's on
+every arm in both scopes (EVIDENCE E1, `e1-3-replay-2`). It responds to added rows more often: SMOTE
+against no augmentation changes flagged-subgroup recall on 31 of `e1-3`'s 100 holdouts under it and
+on 10 under the regression, read from `e1-3-replay-2`'s scores with
+
+    uv run --no-sync python -c "import pandas as pd; s=pd.read_csv('runs/e1-3-replay-2/scores.csv'); f=s[(s.source=='augmented')&(s.scope=='flagged-subgroups')].pivot_table(index=['holdout','measure'],columns='arm',values='value'); [print(m, (f.xs(m,level='measure')['smote']!=f.xs(m,level='measure')['none']).sum(), 'of', len(f.xs(m,level='measure'))) for m in ('recall','recall-hgb')]"
+
+Judged, its intervals would move no verdict: read as each criterion reads the regression's, its
+primary and secondary contrasts in `e1-3-replay-2`'s `criteria.log` are inconclusive, as E1's are. A leaf size below the gap fill's smallest cell is read
+as below that cell's 2 rows, so a leaf holds 1 record; read as below the whole 20-row fill, a leaf of
+19 would pass, and it cannot hold the 2-row cell's rows apart, as scikit-learn's default of 20
+cannot. The criteria still read the regression: they were fixed on it before any run, and judging a
+second model adds a look at each criterion after `e1-3`'s results were in view. Replica utility
+stays on the regression, its only reading beside fidelity.
+
+The test rows are real records no generator saw, the natural real-data baseline for distance to closest
 record, and the 5th percentile is the reading that catches near-copies
 ([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). The gap cells are cells of women
 with heart disease, and a training row of the other label or sex already sits 1/14 (0.071) away
