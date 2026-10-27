@@ -22,6 +22,7 @@ from bko.datasets.uci import FRAME_COLUMNS, NUMERIC
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import RUNS, NamedRun
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.rehearse import (
     INPUT_PER_RECORD,
@@ -31,8 +32,8 @@ from bko.evaluate.rehearse import (
     safe_ranges,
 )
 from bko.generate.guidance import Guidance, intervals
-from bko.generate.messages import LEVELS, SETTINGS, Call
-from bko.generate.prompt import render
+from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
+from bko.generate.prompt import COHERENCE, render
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, SMALL
@@ -127,6 +128,22 @@ def test_a_rehearsal_says_so_before_any_other_run_line(tmp_path, caplog):
         "not paid figures"
     )
     assert sum(m == first.getMessage() for m in caplog.messages) == 1
+
+
+@pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])
+def test_a_guidance_runs_calls_are_made_at_its_level(tmp_path, level):
+    name = f"g3-{level}"
+    ctx, _ = context(ScriptedSend())
+    ctx = dataclasses.replace(ctx, runs={name: NamedRun(NARROW, RUNS[name].settings)})
+    log = tmp_path / "calls.jsonl"
+    argv = ["score", name, *score_argv(log, tmp_path, "--rehearse")[1:]]
+    assert main(argv, context=ctx, out=io.StringIO()) == 0
+    lines = _lines(log)
+    assert lines[0]["settings"]["guidance"] == level
+    requests = [json.dumps(line["params"]) for line in lines if line["kind"] == "request"]
+    assert requests
+    coherence = json.dumps(COHERENCE)[1:-1]
+    assert all((coherence in params) is reaches(level, Level.COHERENT) for params in requests)
 
 
 def test_rehearse_needs_a_bko_arm(tmp_path, caplog):
