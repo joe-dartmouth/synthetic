@@ -26,7 +26,6 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`detect-graded-grounding`](detect-graded-grounding.md) | ready | -- | Partiban | final-report |
 
 ### Evaluation power
 
@@ -54,7 +53,6 @@ flowchart LR
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
-    graded_grounding[detect-graded-grounding]
     synthea_downstream[evaluate-synthea-downstream]
 ```
 
