@@ -113,8 +113,71 @@ def test_a_toy_frame_with_other_edges_builds():
         ({"ranges": (*TOY.ranges, TOY.ranges[1])}, "numeric field level has 2 ranges, not 1"),
         ({"ranges": (*TOY.ranges, replace(TOY.ranges[0], field="sex"))}, "sex is not numeric"),
         ({"descriptions": {"age": "a", "sex": "s", "level": "l"}}, "column target has no desc"),
+        ({"label": "outcome"}, "label outcome is not target"),
+        ({"features": ("age", "sex", "level", "target")}, "label target is listed as a feature"),
+        ({"label_codes": (0, 1, 2)}, r"label codes \(0, 1, 2\) are not \(0, 1\)"),
+        ({"codebook": {"sex": {0: "woman", 1: "man"}}}, "sex codes .* are not"),
+        ({"codebook": {}}, "categorical field sex has no codes"),
+        ({"categorical": ("sex", "kind")}, "categorical field kind is not a feature"),
+        (
+            {
+                "categorical": ("sex", "level"),
+                "codebook": {"sex": {0: "female", 1: "male"}, "level": {0: "x"}},
+            },
+            "field level is both numeric and categorical",
+        ),
+        (
+            {"features": ("age", "sex", "level", "note")},
+            "feature note is neither numeric nor categorical",
+        ),
+        (
+            {
+                "numeric": ("level",),
+                "ranges": TOY.ranges[1:],
+                "categorical": ("sex", "age"),
+                "codebook": {"sex": {0: "female", 1: "male"}, "age": {1: "x"}},
+            },
+            "age is not numeric",
+        ),
+        (
+            {
+                "numeric": ("age", "level", "sex"),
+                "categorical": (),
+                "codebook": {},
+                "ranges": (*TOY.ranges, replace(TOY.ranges[0], field="sex")),
+            },
+            "sex is not categorical",
+        ),
+        (
+            {"ranges": (replace(TOY.ranges[0], low=91), TOY.ranges[1])},
+            "range of age runs from 91 to 90",
+        ),
+        ({"edges": (70, 45)}, r"edges \(70, 45\) are not strictly increasing"),
+        ({"edges": (45, 45)}, r"edges \(45, 45\) are not strictly increasing"),
+        ({"edges": ()}, r"edges \(\) are not strictly increasing"),
     ],
-    ids=["numeric", "fractional", "no-range", "two-ranges", "stray-range", "description"],
+    ids=[
+        "numeric",
+        "fractional",
+        "no-range",
+        "two-ranges",
+        "stray-range",
+        "description",
+        "label-name",
+        "label-feature",
+        "label-codes",
+        "sex-meanings",
+        "no-codes",
+        "categorical-feature",
+        "both",
+        "neither",
+        "age-numeric",
+        "sex-categorical",
+        "low-above-high",
+        "unsorted-edges",
+        "duplicate-edges",
+        "no-edges",
+    ],
 )
 def test_a_frame_refuses_values_that_contradict_it(change, match):
     with pytest.raises(ValueError, match=match):
@@ -122,8 +185,32 @@ def test_a_frame_refuses_values_that_contradict_it(change, match):
 
 
 def test_frames_compare_by_identity():
-    assert replace(TOY) != TOY
-    assert isinstance(hash(TOY), int)
+    twin = replace(TOY)
+    assert twin is not TOY
+    assert twin != TOY
+    same = TOY
+    assert same == TOY
+    assert hash(twin) != hash(TOY)
+    assert {TOY: 1, twin: 2}[TOY] == 1
+
+
+def test_a_frame_snapshots_its_mappings_read_only():
+    codebook = {"sex": {0: "female", 1: "male"}}
+    descriptions = dict(TOY.descriptions)
+    meanings = {0: "absent", 1: "present"}
+    frame = replace(TOY, codebook=codebook, descriptions=descriptions, label_meanings=meanings)
+    codebook["sex"][0] = "changed"
+    descriptions["age"] = "changed"
+    meanings[0] = "changed"
+    assert frame.codebook["sex"][0] == "female"
+    assert frame.descriptions["age"] == "age at the visit"
+    assert frame.label_meanings[0] == "absent"
+    with pytest.raises(TypeError):
+        frame.codebook["sex"][0] = "x"  # ty: ignore[invalid-assignment]
+    with pytest.raises(TypeError):
+        frame.descriptions["age"] = "x"  # ty: ignore[invalid-assignment]
+    with pytest.raises(TypeError):
+        frame.label_meanings[0] = "x"  # ty: ignore[invalid-assignment]
     assert isinstance(UCI_FRAME, FrameSpec)
 
 
