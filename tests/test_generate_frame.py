@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import anthropic
 import pytest
 
+from bko.baselines.request import Request
+from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.gaps.definitions import Definition
 from bko.generate.api import send_with
+from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, record_schema
-from tests._frame_fixtures import TOY
+from bko.generate.prompt import system
+from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 from tests._generate_fixtures import message, records_text
 
 
@@ -33,3 +39,40 @@ def test_send_with_sends_the_toy_calls_params(monkeypatch):
     assert sent == [call.params()]
     body: Any = sent[0]
     assert body["output_config"]["format"]["schema"] == record_schema(0, 1, frame=TOY)
+
+
+TOY_ROW = {"age": 50, "sex": 0, "level": 1.5, "target": 1}
+"""A toy record of `SHORT[0]`, inside every toy training range."""
+
+
+def test_a_guided_arm_fills_a_toy_request_through_the_sdk_adapter(monkeypatch, tmp_path):
+    client, sent = fake_client(monkeypatch, [TOY_ROW, TOY_ROW | {"level": 1.25}])
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    arm = GuidedArm(
+        "bko",
+        Definition.SUBGROUP,
+        Knowledge("toy", {}, (), ()),
+        send=send_with(client),
+        log=log,
+        budget=3,
+        ceiling=50.0,
+    )
+    with log:
+        baseline = arm(TOY_TRAIN, Request(quota={SHORT[0]: 2}, frame=TOY, seed=0))
+    assert len(sent) == 1
+    body: Any = sent[0]
+    assert body["output_config"]["format"]["schema"] == record_schema(0, 1, frame=TOY)
+    assert body["system"] == system(TOY)
+    user = body["messages"][0]["content"]
+    assert user.startswith(
+        "Write exactly 2 records of patients in this group: sex 0 (female), target 1 (toy "
+        "condition present), age 45 to 69 years."
+    )
+    assert "level 0.5 to 4.5 mg/dL" in user
+    logged = [
+        line for line in log.path.read_text(encoding="utf-8").splitlines() if '"params"' in line
+    ]
+    assert len(logged) == 1
+    assert json.loads(logged[0])["params"] == json.loads(json.dumps(body))
+    assert baseline.added.columns.tolist() == ["age", "sex", "level", "target"]
+    assert baseline.added["level"].tolist() == [1.5, 1.25]

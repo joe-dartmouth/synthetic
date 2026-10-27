@@ -14,7 +14,6 @@ from bko.baselines.records import Baseline, Drop, check, drops, no_rows, trainin
 from bko.baselines.request import Method, Request, plan
 from bko.baselines.synthesizers import METADATA, metadata
 from bko.datasets.cells import cell_counts
-from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import fidelity as fidelity_module
 from bko.evaluate.classifier import build, probabilities
@@ -28,27 +27,9 @@ from bko.evaluate.scores import Measure, Scope, Source
 from bko.evaluate.utility import in_scope, utility
 from bko.generate.messages import SETTINGS, Call
 from tests._evaluate_fixtures import GRADED, SMALL
-from tests._frame_fixtures import TOY
+from tests._frame_fixtures import SHORT, TOY, TOY_PARTS, TOY_TRAIN, toy_records
 
 
-def toy_records() -> pd.DataFrame:
-    """25 records per toy cell, but 6 in each `45-69` cell with the condition."""
-    rows: list[dict[str, int | float]] = []
-    for age in (35, 50, 75):
-        for sex in (0, 1):
-            for target in (0, 1):
-                size = 6 if (age, target) == (50, 1) else 25
-                for i in range(size):
-                    level = 0.5 + ((i * 37 + age + 11 * sex + 5 * target) % 400) / 100
-                    rows.append({"age": age + i % 9, "sex": sex, "level": level, "target": target})
-    frame = pd.DataFrame(rows).astype(dict(TOY.dtypes))
-    frame.index = pd.RangeIndex(1, len(frame) + 1, name="record_id")
-    return frame
-
-
-TOY_PARTS = split(toy_records(), seed=0, edges=TOY.edges)
-TOY_TRAIN = TOY_PARTS.train
-SHORT = (("45-69", "female", 1), ("45-69", "male", 1))
 TOY_EXPERIMENT = Experiment(
     holdout_seeds=(0, 1),
     arms=("none", "class-weight", "smote"),

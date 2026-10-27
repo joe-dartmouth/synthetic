@@ -192,7 +192,7 @@ class GuidedArm:
 
     def _guidance(self, train: pd.DataFrame, frame: FrameSpec) -> dict[Cell, Guidance]:
         known = self._knowledge
-        cells = record_cells(train, known.field_rows, name=known.name)
+        cells = record_cells(train, known.field_rows, name=known.name, edges=frame.edges)
         found = gaps(self._definition, known.fragments, cells)
         return guide(
             train,

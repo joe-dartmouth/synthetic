@@ -189,7 +189,7 @@ def test_a_calls_params_carry_its_frames_schema():
 def test_the_system_prompt_lists_the_toy_fields():
     text = system(TOY)
     assert "- age: age at the visit; years, plausible from 30 to 90" in text
-    assert "- sex: recorded sex; 0 = woman; 1 = man" in text
+    assert "- sex: recorded sex; 0 = female; 1 = male" in text
     assert "- level: toy marker level; mg/dL, plausible from 0.5 to 4.5" in text
     assert "- target: whether the toy condition is present; 0 = toy condition absent" in text
     assert "cp" not in text
@@ -216,7 +216,7 @@ def test_the_user_turn_reads_the_toy_frame():
     sent, user = render(guidance, 4, Level.CELL, frame=TOY)
     assert sent == system(TOY)
     assert user.startswith(
-        "Write exactly 4 records of patients in this group: sex 0 (woman), target 1 (toy "
+        "Write exactly 4 records of patients in this group: sex 0 (female), target 1 (toy "
         "condition present), age 45 to 69 years."
     )
     assert "Keep each numeric field within: age 45 to 69 years; level 0.5 to 4.5 mg/dL." in user
