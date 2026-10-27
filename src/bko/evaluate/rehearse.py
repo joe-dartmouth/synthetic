@@ -20,6 +20,7 @@ from typing import Final
 
 import pandas as pd
 
+from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
 from bko.datasets.uci import (
     CODEBOOK,
@@ -95,26 +96,34 @@ class CannedSend:
 
     def __init__(
         self,
-        frame: pd.DataFrame,
+        records: pd.DataFrame,
         experiment: Experiment,
         settings: Settings,
         *,
         per_record: tuple[int, int] = (INPUT_PER_RECORD, OUTPUT_PER_RECORD),
+        frame: FrameSpec = UCI_FRAME,
     ) -> None:
-        """Read the safe ranges over `experiment`'s holdouts of `frame`.
+        """Read the safe ranges over `experiment`'s holdouts of `records`.
 
         Args:
-            frame: The records the run splits; no canned record equals one of them.
+            records: The records the run splits; no canned record equals one of them.
             experiment: The run; its holdout seeds bound the ranges.
             settings: The run's settings; each reply names their model.
             per_record: The input and output tokens billed per record asked.
+            frame: The run's frame; only `UCI_FRAME` is answered.
 
         Raises:
+            ValueError: If `frame` is not `UCI_FRAME`.
             EvaluationError: As `safe_ranges`, or if a field has no value on its precision there.
         """
-        ranges = safe_ranges(frame, experiment.holdout_seeds)
+        if frame is not UCI_FRAME:
+            msg = f"a rehearsal writes UCI records only, not frame {frame.name}"
+            raise ValueError(msg)
+        ranges = safe_ranges(records, experiment.holdout_seeds)
         self._grids = {name: _grid(*ranges[name], name) for name in NUMERIC}
-        self._real = frozenset(frame.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
+        self._real = frozenset(
+            records.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None)
+        )
         self._model = settings.model
         self._input, self._output = per_record
         self.calls = 0

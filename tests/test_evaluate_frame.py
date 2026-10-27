@@ -169,6 +169,11 @@ def test_a_toy_experiment_runs_end_to_end():
     assert {s.holdout for s in scores} == {0, 1}
 
 
+def test_a_rehearsal_refuses_another_frame():
+    with pytest.raises(ValueError, match="UCI records only, not frame toy"):
+        CannedSend(GRADED, SMALL, SETTINGS, frame=TOY)
+
+
 def test_a_rehearsal_refuses_a_call_for_another_frame():
     send = CannedSend(GRADED, SMALL, SETTINGS)
     with pytest.raises(ValueError, match="toy"):
