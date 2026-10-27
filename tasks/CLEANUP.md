@@ -36,6 +36,7 @@ passes close enough to pay it.
 `tests/test_cleanup_backlog.py` enforces the key form, the topic set, unique keys, that every cited
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
+
 ## evaluate
 
 - **`cleanup:evaluate/per-holdout-candidates-role`: no run-folder role holds the candidates a BKO

@@ -112,7 +112,8 @@ new entry, not an E2 row (ADR
 ## Conventions
 
 - A unit is one PR. A landed unit's file is deleted after rehoming anything it deferred, and its
-  row leaves the board; units it blocked become `ready`.
+  row leaves the board; each unit it blocked drops it from `depends_on`, and becomes `ready`
+  when none remain.
 - A unit names a future ADR in its `adrs:` frontmatter only; prose says "a new ADR under
   `docs/adr/<topic>/`". A unit that edits an existing ADR names it in prose and keeps `adrs: --`.
 - `paid: true` marks a unit that calls a paid API. Its tests are marked `live`, and each run's spend
