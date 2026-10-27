@@ -68,7 +68,8 @@ rows in `docs/EVIDENCE.md`).
   rest live; NEW's `usd` counts its replayed calls, and its `live_usd` counts what it paid.
   `launch <run-id> [<run>] --resume STOPPED` starts that command under the paid-run protocol
   (ADR `research/e1-evaluation-protocol`). A rehearsal's log (`score --rehearse`) replays like any
-  other.
+  other, and the replay's own `run` line keeps `"rehearsal": true`, so it never reads as a paid
+  run's replay.
 - `bko.app` answers a BKO fill from the call log of an earlier fill by that arm, with the same
   refusals, and writes its own log naming the replayed log's sha256.
 - Order, not content, pairs a call with its answer.

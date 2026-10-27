@@ -109,6 +109,7 @@ class Replay:
 
     Attributes:
         digest: The log's sha256, which the rerun's own log records under `replay`.
+        rehearsal: Whether the log is a rehearsal's, so the rerun's own log keeps the mark.
     """
 
     def __init__(self, path: Path) -> None:
@@ -126,6 +127,7 @@ class Replay:
 
     def _load(self, log: _Log) -> None:
         self.digest = log.digest
+        self.rehearsal = bool(log.run.get("rehearsal"))
         self._calls = deque(log.calls)
         self._total = len(log.calls)
 

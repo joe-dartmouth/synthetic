@@ -271,8 +271,9 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     The candidates file at `candidates` is created before the call log, with a header naming
     `origin` and `settings`, and every arm writes its lines there. Every call goes through
     `answers` when given, else through `send()`; `rehearsal` marks the call log as a rehearsal's,
-    whose `send()` answers with canned replies. Once the body returns, answers left over are
-    refused. Each arm logs its validity sums on the way out, a stopped run included.
+    whose `send()` answers with canned replies, and a replay of a rehearsal's log keeps the mark.
+    Once the body returns, answers left over are refused. Each arm logs its validity sums on the
+    way out, a stopped run included.
 
     Raises:
         ReplayError: If the body returns while `answers` holds calls it did not answer.
@@ -284,6 +285,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             removed.
     """
     answered = None if answers is None else answers.answered
+    rehearsal = rehearsal or (answers is not None and answers.rehearsal)
     kept = CandidateFile(candidates, origin, settings)
     try:
         call_log = CallLog(log, settings, answered=answered, rehearsal=rehearsal, now=now)

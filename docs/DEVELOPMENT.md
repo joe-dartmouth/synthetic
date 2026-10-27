@@ -153,10 +153,11 @@ differ from the named run's, exit 2 before it claims a folder
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at e1-3's tokens per record, so the stop rules and spend lines run for free; its
-spend is a wiring check, not an estimate; the call log reads `rehearsal: true`, and a resume refuses
-it. `bko.evaluate.rehearse` holds the canned send and the tokens per record. A replay of a
-rehearsal's log works. A rehearsal starts with `launch <run-id> [<run>] --rehearse`, which writes
-into the `rehearsal` folder inside the run's folder, so the run's own folder stays free to launch.
+spend is a wiring check, not an estimate; the call log's `run` line holds `"rehearsal": true`, and a
+resume refuses it. `bko.evaluate.rehearse` holds the canned send and the tokens per record. A replay
+of a rehearsal's log works, and the replay's own `run` line keeps `"rehearsal": true`. A rehearsal
+starts with `launch <run-id> [<run>] --rehearse`, which writes into the `rehearsal` folder inside
+the run's folder, so the run's own folder stays free to launch.
 
 The `test ! -e` guards matter: the shell empties `scores.csv` and `scores.log` before `score` can
 refuse an existing log or candidates file, and `scores.csv` is the only copy `compare` reads. A

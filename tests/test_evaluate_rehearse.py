@@ -154,3 +154,16 @@ def test_a_rehearsals_log_replays_but_never_resumes(tmp_path, caplog):
     again = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
     assert main(again, context=ctx, out=replayed) == 0
     assert replayed.getvalue() == first.getvalue()
+
+
+def test_a_replay_of_a_rehearsal_keeps_the_mark(tmp_path):
+    ctx, _ = context(ScriptedSend())
+    log = tmp_path / "calls.jsonl"
+    assert main(score_argv(log, tmp_path, "--rehearse"), context=ctx, out=io.StringIO()) == 0
+    replay = tmp_path / "replay.jsonl"
+    argv = score_argv(replay, tmp_path, "--replay", str(log))
+    assert main(argv, context=ctx, out=io.StringIO()) == 0
+    lines = _lines(replay)
+    assert lines[0]["rehearsal"] is True
+    assert lines[0]["replay"] is not None
+    assert lines[-1]["rehearsal"] is True
