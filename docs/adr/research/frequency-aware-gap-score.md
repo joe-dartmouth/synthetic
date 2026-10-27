@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-27
 ---
 # A frequency-aware gap: a concept credibly under four-fifths of its share in the rest of its label group
 
@@ -35,6 +35,13 @@ label: chest pain shows in 0.218 of the records with disease.
 - **Rule.** With k of the cell's n records showing the concept, the concept is under-represented in
   the cell when P(θ < 0.8 p) ≥ 0.95 for θ ~ Beta(k + 1/2, n − k + 1/2), the posterior under
   Jeffreys' prior. A reference share of 0, or no record outside the cell, flags nothing.
+- **Level.** The level is a parameter: `gaps` and `under_represented` take it as `credibility`,
+  and 0.95, the level E2 ran, is the default. D1 sweeps it over `bko.gaps.sweep`'s
+  `CREDIBILITY_LEVELS` and chooses one by a rule stated before its run: on E2's `cell` ablation
+  at fraction 0.5 (`cell-50`), among the levels whose frequency-aware sensitivity is at least the
+  count-based detector's, the level with the highest frequency-aware specificity, the lower level
+  on a tie; no level is chosen when none qualifies. `bko-frequency` keeps 0.95 until
+  [`docs/RESEARCH.md`](../../RESEARCH.md#detect) says it reads the chosen level.
 - **No minimum cell size.** The posterior is the size guard: an empty cell's posterior is the prior,
   which puts at most 0.705 of its mass below 0.8 p, so an empty cell is never flagged. A cell none
   of whose n records shows a concept is flagged for it only when p exceeds 0.964 at n = 1, 0.711
@@ -47,7 +54,8 @@ label: chest pain shows in 0.218 of the records with disease.
   concepts leaves their priors out of the fragment, since a prior grounds its concept whatever the
   anchor. An under-represented concept no record of the cell shows counts too.
 - **Home.** `bko.gaps.definitions`, beside the two grounding definitions; its `SHARE_RATIO` and
-  `CREDIBILITY` hold the ratio and the level.
+  `CREDIBILITY` hold the ratio and the default level, and `bko.gaps.sweep` the swept levels and
+  the rule that chooses one.
 
 ## Rationale
 
@@ -101,7 +109,8 @@ group, which per-subgroup grounding and the count-based detector catch.
 ## Reversal Conditions
 
 **The rule changes only while `docs/EVIDENCE.md` (E2) records no run of the three definitions**;
-after that run, a changed rule is a new experiment entry.
+after that run, a changed rule is a new experiment entry, as
+[D1](../../EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level) is for the level.
 
 **The score leaves E1 if `docs/EVIDENCE.md` (E2) records it recovering no eligible gap of the `cell`
 ablation**; E1 then runs two BKO arms, and this record and ADR `research/e1-evaluation-protocol` say

@@ -479,6 +479,20 @@ commands, inside `.venv`:
   and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
   removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What the sweep logs**: `synthea` and `uci` also read each grounding count and level of
+  `bko.gaps.sweep` ([D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level)), to
+  stderr only, so stdout is the same bytes as without it. A setting is per-subgroup or
+  population-level at each count of `GROUNDING_COUNTS` and the default level, or frequency-aware
+  at each level of `CREDIBILITY_LEVELS` and count 1. After each ablation's `detection` lines,
+  `synthea` logs one `sweep ablation=<name> detector=<d> grounding=<k> credibility=<level>
+  sensitivity=<s> specificity=<s>` line per setting, read as the `detection` lines are, and after
+  the last ablation one `chosen level=<level> ablation=cell-50 floor=<s> sensitivity=<s>
+  specificity=<s> tied=<levels>` line: the level the rule of ADR
+  `research/frequency-aware-gap-score` chooses, `floor` being the count-based detector's
+  sensitivity on `cell-50`, `sensitivity` and `specificity` the chosen level's, and `tied` every
+  qualifying level sharing its specificity; `level=none` when no level qualifies or the run has no
+  `cell-50`. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name> detector=<d>
+  grounding=<k> credibility=<level> gaps=<k> cells=<k>` line per setting.
 - **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
   `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
   partial ablation it passes over; for each whole ablation a header,
