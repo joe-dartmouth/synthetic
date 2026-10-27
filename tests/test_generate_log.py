@@ -268,6 +268,18 @@ def test_a_failed_header_write_closes_the_file(tmp_path, monkeypatch):
         CallLog(path, SETTINGS, now=_now)
     assert len(opened) == 1
     assert opened[0].closed
+    assert not path.exists()
+
+
+def test_a_log_whose_file_cannot_be_opened_is_removed(tmp_path, monkeypatch):
+    def refuse(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("no descriptor")
+
+    monkeypatch.setattr(os, "fdopen", refuse)
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(OSError, match="no descriptor"):
+        CallLog(path, SETTINGS, now=_now)
+    assert not path.exists()
 
 
 def test_the_log_exposes_the_settings_it_priced(tmp_path):

@@ -16,10 +16,11 @@ from typing import Final
 import pandas as pd
 import pytest
 
+from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import CandidatesFormatError
 from bko.evaluate.guided import Knowledge, guided_arms
-from bko.evaluate.holdout_candidates import SCHEMA, Candidate, Origin, read
+from bko.evaluate.holdout_candidates import SCHEMA, Candidate, CandidateFile, Origin, read
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (
     BAD,
@@ -307,3 +308,52 @@ def test_a_call_log_that_cannot_be_made_leaves_no_candidates_file(tmp_path):
     ):
         pass
     assert not candidates.exists()
+
+
+def _arms(tmp_path: Path, send) -> tuple[Path, Path]:
+    """Enter `guided_arms` over files in `tmp_path` with `send`; return the two paths."""
+    log, candidates = tmp_path / "calls.jsonl", tmp_path / "candidates.jsonl"
+    with guided_arms(
+        ("bko",),
+        Knowledge("x", {}, (), ()),
+        NARROW,
+        log=log,
+        candidates=candidates,
+        origin=Origin("e1", PIN, {}),
+        send=send,
+    ):
+        pass
+    return log, candidates
+
+
+def test_a_send_that_cannot_be_built_leaves_neither_file(tmp_path):
+    def unbuildable():
+        raise RuntimeError("no credential")
+
+    with pytest.raises(RuntimeError, match="no credential"):
+        _arms(tmp_path, unbuildable)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_an_existing_candidates_file_is_refused_and_left_untouched(tmp_path):
+    candidates = tmp_path / "candidates.jsonl"
+    candidates.write_text("theirs\n", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        _arms(tmp_path, ScriptedSend)
+    assert candidates.read_text(encoding="utf-8") == "theirs\n"
+    assert not (tmp_path / "calls.jsonl").exists()
+
+
+@pytest.mark.parametrize("fault", ["fdopen", "header"])
+def test_a_candidates_file_whose_setup_fails_is_removed(tmp_path, monkeypatch, fault):
+    def refuse(*args, **kwargs):
+        raise OSError("disk full")
+
+    if fault == "fdopen":
+        monkeypatch.setattr(holdout_candidates.os, "fdopen", refuse)
+    else:
+        monkeypatch.setattr(CandidateFile, "_write", refuse)
+    path = tmp_path / "candidates.jsonl"
+    with pytest.raises(OSError, match="disk full"):
+        CandidateFile(path, Origin("e1", PIN, {}), SETTINGS)
+    assert not path.exists()

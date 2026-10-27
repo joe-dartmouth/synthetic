@@ -110,6 +110,8 @@ class CallLog:
             importlib.metadata.PackageNotFoundError: If `anthropic` is not installed, before the
                 file is created.
             FileExistsError: If `path` exists.
+            OSError: If the file cannot be opened or its `run` line written; the file is then
+                removed.
         """
         price = price_of(settings.model)
         # Read before the file exists, so a failure here leaves no log to block a rerun.
@@ -139,8 +141,10 @@ class CallLog:
         self.live_usd = 0.0
         # Exclusive, and owner-only whatever the umask: the log holds every prompt and response.
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8")
+        opened: TextIO | None = None
         try:
+            opened = os.fdopen(descriptor, "w", encoding="utf-8")
+            self._file: TextIO = opened
             self._write(
                 {
                     "kind": "run",
@@ -155,7 +159,12 @@ class CallLog:
                 }
             )
         except BaseException:
-            self._file.close()
+            # No log of a run that never started, so nothing blocks a rerun.
+            if opened is None:
+                os.close(descriptor)
+            else:
+                opened.close()
+            path.unlink(missing_ok=True)
             raise
         logger.info(
             "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d "
@@ -236,6 +245,11 @@ class CallLog:
             )
         finally:
             self._file.close()
+
+    def discard(self) -> None:
+        """Close and remove the log, for a run that failed before its first call."""
+        self._file.close()
+        self.path.unlink(missing_ok=True)
 
     def request(self, cell: Cell, asked: int, call: Call) -> int:
         """Write a call's `request` line, before it is sent.

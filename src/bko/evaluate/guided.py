@@ -283,6 +283,8 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             candidates file is then removed.
         FileExistsError: If `candidates` exists, or `log` does; the candidates file made is then
             removed.
+        Exception: Anything building `send()` or the arms raises, before the first call; both
+            files are then removed.
     """
     answered = None if answers is None else answers.answered
     rehearsal = rehearsal or (answers is not None and answers.rehearsal)
@@ -292,7 +294,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     except BaseException:
         kept.discard()
         raise
-    with kept, call_log:
+    try:
         sender = answers if answers is not None else send()
         watch = Watch(experiment, lambda: call_log.live_usd, projecting=answers is None)
         arms = {
@@ -309,6 +311,11 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             )
             for name in names
         }
+    except BaseException:
+        call_log.discard()
+        kept.discard()
+        raise
+    with kept, call_log:
         try:
             yield GuidedRun(call_log, MappingProxyType(arms), watch)
             if answers is not None and answers.remaining:

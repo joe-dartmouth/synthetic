@@ -224,14 +224,21 @@ class CandidateFile:
 
         Raises:
             FileExistsError: If `path` exists.
+            OSError: If the file cannot be opened or its header written; the file is then removed.
         """
         self.path = path
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8")
+        opened: TextIO | None = None
         try:
+            opened = os.fdopen(descriptor, "w", encoding="utf-8")
+            self._file: TextIO = opened
             self._write([header(origin, settings)])
         except BaseException:
-            self._file.close()
+            if opened is None:
+                os.close(descriptor)
+            else:
+                opened.close()
+            path.unlink(missing_ok=True)
             raise
 
     def __enter__(self) -> Self:
@@ -254,7 +261,7 @@ class CandidateFile:
     def discard(self) -> None:
         """Close and remove the file, so a run that never started leaves none to block a rerun."""
         self._file.close()
-        self.path.unlink()
+        self.path.unlink(missing_ok=True)
 
     def _write(self, lines: list[dict[str, object]]) -> None:
         self._file.write("".join(json.dumps(line, sort_keys=True) + "\n" for line in lines))
