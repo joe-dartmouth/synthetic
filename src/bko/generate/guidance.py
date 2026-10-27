@@ -2,7 +2,8 @@
 
 Every level carries the cell, its training record count and each numeric field's plausible
 interval, with age clipped to the cell's band. Higher levels add ontology findings, a profile of
-concept shares and numeric spreads. ADR `research/record-generation-design` records the ladder.
+concept shares and numeric spreads. The numeric fields, their ranges and the band edges are the
+frame's, UCI's by default. ADR `research/record-generation-design` records the ladder.
 """
 
 from __future__ import annotations
@@ -15,12 +16,13 @@ from enum import StrEnum
 import pandas as pd
 
 from bko.bkb.structure import BKB
-from bko.datasets.cells import AGE_BAND_EDGES, LABEL, SEXES, age_band_labels, cell_keys
-from bko.datasets.uci import NUMERIC
+from bko.datasets.cells import LABEL, SEXES, age_band_labels, cell_keys
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, grounded
 from bko.gaps.observe import Cell, Cells, cell_key, dataset_fragment
-from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
+from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
@@ -137,32 +139,37 @@ class Guidance:
     summary: Mapping[str, Spread] | None = None
 
 
-def intervals(cell: Cell, edges: Sequence[int] = AGE_BAND_EDGES) -> dict[str, tuple[float, float]]:
+def intervals(
+    cell: Cell, edges: Sequence[int] | None = None, *, frame: FrameSpec = UCI_FRAME
+) -> dict[str, tuple[float, float]]:
     """Return each numeric field's plausible interval for `cell`, age clipped to its band.
 
     Args:
         cell: The cell's key; its first item is its age band's label.
-        edges: Age band starts; band i covers `edges[i-1]` to `edges[i] - 1`.
+        edges: Age band starts; band i covers `edges[i-1]` to `edges[i] - 1`. The frame's when
+            None.
+        frame: The frame whose numeric fields and ranges are read.
 
     Returns:
-        Each `NUMERIC` field's `RANGES` bounds, both inclusive.
+        Each of the frame's numeric fields' range bounds, both inclusive.
 
     Raises:
         ValueError: If the cell's band is not one of `edges`' bands.
     """
+    edges = frame.edges if edges is None else edges
     labels = age_band_labels(edges)
     if cell[0] not in labels:
         msg = f"age band {cell[0]!r} is not one of {labels}"
         raise ValueError(msg)
     band = labels.index(str(cell[0]))
-    bounds = {bound.field: (bound.low, bound.high) for bound in RANGES}
+    bounds = {bound.field: (bound.low, bound.high) for bound in frame.ranges}
     low, high = bounds["age"]
     if band > 0:
         low = max(low, edges[band - 1])
     if band < len(edges):
         high = min(high, edges[band] - 1)
     bounds["age"] = (low, high)
-    return {name: bounds[name] for name in NUMERIC}
+    return {name: bounds[name] for name in frame.numeric}
 
 
 def guide(
@@ -174,7 +181,8 @@ def guide(
     fragments: Sequence[BKB],
     ontologies: Mapping[str, Ontology],
     rows: Sequence[FieldMapping] = FIELD_MAPPINGS,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int] | None = None,
+    frame: FrameSpec = UCI_FRAME,
 ) -> dict[Cell, Guidance]:
     """Each cell's guidance: its gaps under `definition`, else what its records ground, else none.
 
@@ -197,7 +205,8 @@ def guide(
         fragments: The ontology fragments the gaps were read against.
         ontologies: The loaded release for each concept prefix.
         rows: The field mappings.
-        edges: Age band starts.
+        edges: Age band starts; the frame's when None.
+        frame: The frame whose numeric fields, ranges and band edges are read.
 
     Returns:
         One guidance per cell, in grid order.
@@ -208,6 +217,7 @@ def guide(
             than `cells` does, so it is not the frame `cells` was observed from.
         ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes.
     """
+    edges = frame.edges if edges is None else edges
     by_cell: dict[Cell, list[Statement]] = {}
     for gap in found:
         if gap.cell not in cells.each:
@@ -229,13 +239,13 @@ def guide(
             why, chosen = Basis.SHOWN, grounded(fragments, dataset_fragment(records.observed))
         else:
             why, chosen = Basis.NONE, ()
-        profile, summary = _reference(train, keys, cells, cell, records.label, rows)
+        profile, summary = _reference(train, keys, cells, cell, records.label, rows, frame)
         guided[cell] = Guidance(
             cell=cell,
             sex=sexes[str(cell[1])],
             label=records.label,
             records=records.observed.records,
-            interval=intervals(cell, edges),
+            interval=intervals(cell, edges, frame=frame),
             basis=why,
             findings=_findings(cell, records.label, chosen, rows, reach, ontologies),
             profile=profile,
@@ -251,6 +261,7 @@ def _reference(
     cell: Cell,
     label: int,
     rows: Sequence[FieldMapping],
+    frame: FrameSpec,
 ) -> tuple[Profile | None, dict[str, Spread] | None]:
     """The profile and summary of the records outside `cell` that share its label.
 
@@ -287,7 +298,7 @@ def _reference(
         )
         raise ValueError(msg)
     summary: dict[str, Spread] = {}
-    for name in NUMERIC:
+    for name in frame.numeric:
         low, median, high = (float(q) for q in reference[name].quantile([0.25, 0.5, 0.75]))
         summary[name] = Spread(low, median, high)
     return Profile(records=total, shares=shares), summary

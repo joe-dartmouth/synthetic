@@ -1,13 +1,18 @@
-"""The frame value: UCI's holds UCI's constants, and a frame refuses values that contradict it."""
+"""The frame value, and validation and generation following the frame they are given."""
 
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import RANGES, UCI_FRAME
+from bko.generate.guidance import Guidance, intervals
+from bko.generate.messages import SETTINGS, Call, Level, record_schema
+from bko.generate.prompt import SYSTEM, render, system
+from bko.validate.checks import CHECKS, checks, validate
 from tests._frame_fixtures import TOY
 
 
@@ -119,3 +124,99 @@ def test_frames_compare_by_identity():
     assert replace(TOY) != TOY
     assert isinstance(hash(TOY), int)
     assert isinstance(UCI_FRAME, FrameSpec)
+
+
+TOY_RECORD = {"age": 50, "sex": 0, "level": 1.25, "target": 1}
+TOY_CELL = ("45-69", "female", 1)
+
+
+def test_validation_reads_the_toy_frame():
+    planted = [TOY_RECORD, TOY_RECORD | {"level": 5.0}, TOY_RECORD | {"level": 1.255}]
+    result = validate(planted, frame=TOY)
+    assert result.accepted.columns.tolist() == ["age", "sex", "level", "target"]
+    assert result.accepted.dtypes.astype(str).to_dict() == dict(TOY.dtypes)
+    assert [rejection.failed for rejection in result.rejected] == [
+        ("range:level",),
+        ("precision:level",),
+    ]
+    assert list(result.rejections) == list(checks(TOY))
+    assert result.rejections["range:level"] == 1
+
+
+def test_validation_refuses_a_uci_field_under_the_toy_frame():
+    result = validate([TOY_RECORD | {"cp": 1}], frame=TOY)
+    assert result.rejected[0].failed == ("fields",)
+
+
+def test_the_checks_follow_the_frame():
+    assert checks(TOY) == (
+        "fields",
+        "number:age",
+        "number:sex",
+        "number:level",
+        "number:target",
+        "range:age",
+        "precision:age",
+        "code:sex",
+        "range:level",
+        "precision:level",
+        "code:target",
+    )
+    assert checks(UCI_FRAME) == CHECKS
+    assert checks(TOY) is checks(TOY)
+
+
+def test_the_record_schema_names_the_toy_columns():
+    schema: Any = record_schema(0, 1, frame=TOY)
+    record = schema["properties"]["records"]["items"]
+    assert record["required"] == ["age", "sex", "level", "target"]
+    assert record["properties"] == {
+        "age": {"type": "integer"},
+        "sex": {"type": "integer", "enum": [0]},
+        "level": {"type": "number"},
+        "target": {"type": "integer", "enum": [1]},
+    }
+
+
+def test_a_call_sends_its_frames_schema():
+    call = Call(SETTINGS, 0, 1, "system", "user", frame=TOY)
+    params: Any = call.params()
+    schema = params["output_config"]["format"]["schema"]
+    assert schema == record_schema(0, 1, frame=TOY)
+    assert Call(SETTINGS, 0, 1, "system", "user").frame is UCI_FRAME
+
+
+def test_the_system_prompt_lists_the_toy_fields():
+    text = system(TOY)
+    assert "- age: age at the visit; years, plausible from 30 to 90" in text
+    assert "- sex: recorded sex; 0 = woman; 1 = man" in text
+    assert "- level: toy marker level; mg/dL, plausible from 0.5 to 4.5" in text
+    assert "- target: whether the toy condition is present; 0 = toy condition absent" in text
+    assert "cp" not in text
+    assert "Whole numbers except level, which has one decimal place." not in text
+    assert "Whole numbers except level, which has 2 decimal places." in text
+
+
+def test_the_uci_system_prompt_is_the_shared_one():
+    assert system(UCI_FRAME) == SYSTEM
+    assert system(UCI_FRAME) is system(UCI_FRAME)
+
+
+def test_intervals_follow_the_toy_ranges_and_edges():
+    assert intervals(TOY_CELL, frame=TOY) == {"age": (45, 69), "level": (0.5, 4.5)}
+    assert intervals(("<45", "male", 0), frame=TOY) == {"age": (30, 44), "level": (0.5, 4.5)}
+    with pytest.raises(ValueError, match="not one of"):
+        intervals(("<55", "male", 0), frame=TOY)
+
+
+def test_the_user_turn_reads_the_toy_frame():
+    guidance = Guidance(
+        cell=TOY_CELL, sex=0, label=1, records=3, interval=intervals(TOY_CELL, frame=TOY)
+    )
+    sent, user = render(guidance, 4, Level.CELL, frame=TOY)
+    assert sent == system(TOY)
+    assert user.startswith(
+        "Write exactly 4 records of patients in this group: sex 0 (woman), target 1 (toy "
+        "condition present), age 45 to 69 years."
+    )
+    assert "Keep each numeric field within: age 45 to 69 years; level 0.5 to 4.5 mg/dL." in user

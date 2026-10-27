@@ -5,7 +5,8 @@ Anthropic API, so every other module and test runs on a fake. The structured-out
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
 and `target` are pinned to one value each, and the whole-number fields are `integer`. Structured
 outputs cannot bound a number, so plausibility ranges and `oldpeak`'s one decimal stay in the
-prompt. ADR `research/record-generation-design` records why.
+prompt. Each call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by default. ADR
+`research/record-generation-design` records why.
 """
 
 from __future__ import annotations
@@ -15,8 +16,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final, Literal
 
-from bko.datasets.cells import LABEL
-from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 
 
 class Level(StrEnum):
@@ -125,9 +126,10 @@ class Call:
     Attributes:
         settings: How the call is made.
         sex: The cell's `sex` code.
-        label: The cell's `LABEL` code.
+        label: The cell's label code.
         system: The system prompt.
         user: The user turn.
+        frame: The frame whose records the call asks for.
     """
 
     settings: Settings
@@ -135,6 +137,7 @@ class Call:
     label: int
     system: str
     user: str
+    frame: FrameSpec = UCI_FRAME
 
     def params(self) -> dict[str, object]:
         """Return the request body `bko.generate.api.send_with` sends, as keyword arguments."""
@@ -145,7 +148,10 @@ class Call:
             "messages": [{"role": "user", "content": self.user}],
             "output_config": {
                 "effort": self.settings.effort,
-                "format": {"type": "json_schema", "schema": record_schema(self.sex, self.label)},
+                "format": {
+                    "type": "json_schema",
+                    "schema": record_schema(self.sex, self.label, frame=self.frame),
+                },
             },
         }
 
@@ -168,32 +174,33 @@ type Send = Callable[[Call], Reply]
 """Makes one call and returns its reply, or raises `GenerationError` when none arrives."""
 
 
-def record_schema(sex: int, label: int) -> dict[str, object]:
-    """The structured-output schema of one call: a `records` array of complete UCI records.
+def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:
+    """The structured-output schema of one call: a `records` array of complete `frame` records.
 
     Args:
         sex: The cell's `sex` code, the only one a record may hold.
-        label: The cell's `LABEL` code, the only one a record may hold.
+        label: The cell's label code, the only one a record may hold.
+        frame: The frame whose columns, codes and whole-number fields the schema fixes.
 
     Returns:
         A JSON schema whose every object is closed and requires all of its properties.
     """
     fields: dict[str, object] = {}
-    for name in FRAME_COLUMNS:
+    for name in frame.columns:
         if name == "sex":
             fields[name] = {"type": "integer", "enum": [sex]}
-        elif name == LABEL:
+        elif name == frame.label:
             fields[name] = {"type": "integer", "enum": [label]}
-        elif name in CATEGORICAL:
-            fields[name] = {"type": "integer", "enum": sorted(CODEBOOK[name])}
-        elif name in FRACTIONAL:
+        elif name in frame.categorical:
+            fields[name] = {"type": "integer", "enum": sorted(frame.codebook[name])}
+        elif name in frame.fractional:
             fields[name] = {"type": "number"}
         else:
             fields[name] = {"type": "integer"}
     record = {
         "type": "object",
         "properties": fields,
-        "required": list(FRAME_COLUMNS),
+        "required": list(frame.columns),
         "additionalProperties": False,
     }
     return {
