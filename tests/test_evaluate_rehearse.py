@@ -130,7 +130,7 @@ def test_a_rehearsal_says_so_before_any_other_run_line(tmp_path, caplog):
     assert sum(m == first.getMessage() for m in caplog.messages) == 1
 
 
-@pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])
+@pytest.mark.parametrize("level", LEVELS)
 def test_a_guidance_runs_calls_are_made_at_its_level(tmp_path, level):
     name = f"g3-{level}"
     ctx, _ = context(ScriptedSend())

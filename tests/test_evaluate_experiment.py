@@ -24,7 +24,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.gaps.definitions import Definition
-from bko.generate.messages import LEVELS, SETTINGS, Level
+from bko.generate.messages import LEVELS, SETTINGS
 from bko.generate.spend import price_of
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
@@ -78,19 +78,20 @@ def test_e1_is_its_stated_configuration():
     assert RUNS["e1"] == NamedRun(E1)
 
 
-def test_one_guidance_run_per_level_besides_ontology():
+def test_one_guidance_run_per_level():
     assert set(RUNS) == {
         "e1",
         "g2",
         "g3-cell",
         "g3-coherent",
         "g3-findings",
+        "g3-ontology",
         "g3-profile",
         "g3-summary",
     }
 
 
-@pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])
+@pytest.mark.parametrize("level", LEVELS)
 def test_a_guidance_run_differs_from_e1_only_in_its_arms_ceiling_criteria_and_level(level):
     run = RUNS[f"g3-{level}"]
     assert run.experiment.arms == (*METHOD_ARMS, "bko")
