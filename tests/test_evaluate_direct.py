@@ -168,7 +168,8 @@ def test_score_g2_needs_a_candidates_file(tmp_path, caplog):
     assert "--candidates is required: the arms ['bko-direct']" in caplog.text
 
 
-def test_a_draw_no_record_matches_is_a_refusal_the_harness_may_retry(tmp_path):
+def test_a_draw_no_record_matches_is_a_refusal_the_harness_may_retry(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
     train = frame(
         [planted(age=40, sex=0, target=1, cp=1, exang=0) for _ in range(5)]
         + [planted(age=40, sex=0, target=1, cp=4, exang=0) for _ in range(5)]
@@ -178,6 +179,10 @@ def test_a_draw_no_record_matches_is_a_refusal_the_harness_may_retry(tmp_path):
     request = Request(quota={("<55", "female", 1): 100}, strata=Strata.CELL, seed=0)
     with pytest.raises(BaselineError, match=r"cannot draw cp\+exang"):
         arm(train, request)
+    assert any(
+        m.startswith(f"direct arm={DIRECT_ARM} seed=0 outcome=refused asked=")
+        for m in caplog.messages
+    )
 
 
 def test_the_arm_fills_its_request_from_the_seed_and_names_its_generator(tmp_path):

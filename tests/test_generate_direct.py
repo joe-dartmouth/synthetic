@@ -16,7 +16,9 @@ from bko.gaps.detect import ontology_fragments
 from bko.gaps.observe import Cell, dataset_fragment, observe_records, record_cells
 from bko.generate.direct import (
     GROUP_WEIGHT,
+    Draw,
     FieldGroup,
+    draw_line,
     field_groups,
     label_only,
     nested,
@@ -323,3 +325,103 @@ def test_nesting_deeper_or_wider_than_one_pair_is_refused(rows, message):
         nested(rows)
     with pytest.raises(ValueError, match=message):
         sample(frame([planted()]), {}, rows=rows, ontologies={}, name=NAME, seed=0)
+
+
+def test_an_empty_cells_age_comes_from_its_label_group_inside_its_band():
+    train = frame(
+        [planted(age=40 + i, sex=1, target=1, thalach=120 + i) for i in range(3)]
+        + [planted(age=60 + i, sex=1, target=1, thalach=150 + i) for i in range(12)]
+    )
+    draws = draw(train, {YOUNG_WOMEN_1: 60})[YOUNG_WOMEN_1]
+    assert {d.record["age"] for d in draws} == {40, 41, 42}
+    assert all({"age", "thalach"} <= d.fallback for d in draws)
+    assert {d.record["thalach"] for d in draws} > {120, 121, 122}, "thalach reads every band"
+
+
+def test_an_empty_cell_with_no_label_record_in_its_band_refuses():
+    train = frame([planted(age=60 + i, sex=1, target=1) for i in range(5)])
+    with pytest.raises(SamplingError, match="<55/female/1 cannot draw age"):
+        draw(train, {YOUNG_WOMEN_1: 1})
+
+
+def test_a_cell_with_records_reads_age_and_thalach_from_them_with_no_fallback():
+    train = frame(
+        [planted(age=40, sex=0, target=1, thalach=111)]
+        + [planted(age=63, sex=1, target=1, thalach=150) for _ in range(5)]
+    )
+    draws = draw(train, {YOUNG_WOMEN_1: 20})[YOUNG_WOMEN_1]
+    assert {(d.record["age"], d.record["thalach"]) for d in draws} == {(40, 111)}
+    assert not any({"age", "thalach"} & d.fallback for d in draws)
+
+
+def test_the_draw_log_line_holds_every_field_of_the_draw():
+    record = {"age": 41, "target": 1}
+    found = Draw(
+        YOUNG_WOMEN_1,
+        record,
+        frozenset({"HP:2", "HP:1"}),
+        frozenset({"HP:2", "HP:1", "HP:0"}),
+        frozenset({"exang", "cp"}),
+    )
+    assert draw_line(3, 7, found) == (
+        '{"call": 3, "cell": "<55/female/1", "closed": ["HP:0", "HP:1", "HP:2"], '
+        '"concepts": ["HP:1", "HP:2"], "fallback": ["cp", "exang"], "kind": "draw", '
+        '"position": 7}\n'
+    )
+
+
+def test_seed_0_draws_each_cell_in_quota_order_and_each_concept_in_its_order():
+    drawn = draw(varied(), {YOUNG_WOMEN_1: 3, YOUNG_WOMEN_0: 3}, seed=0)
+    assert list(drawn) == [YOUNG_WOMEN_1, YOUNG_WOMEN_0]
+    first, second = drawn[YOUNG_WOMEN_1][0], drawn[YOUNG_WOMEN_0][0]
+    assert dict(first.record) == {
+        "age": 42,
+        "sex": 0,
+        "cp": 4,
+        "trestbps": 114,
+        "chol": 190,
+        "fbs": 1,
+        "restecg": 2,
+        "thalach": 102,
+        "exang": 0,
+        "oldpeak": 2.2,
+        "slope": 2,
+        "ca": 2,
+        "thal": 7,
+        "target": 1,
+    }
+    assert first.concepts == {
+        "HP:0001712",
+        "HP:0001717",
+        "HP:0003074",
+        "HP:0003115",
+        "HP:0005145",
+        "HP:0012250",
+        "HP:0500018",
+        "MONDO:0006715",
+    }
+    assert first.fallback == {"cp", "exang"}
+    assert dict(second.record) == {
+        "age": 44,
+        "sex": 0,
+        "cp": 1,
+        "trestbps": 142,
+        "chol": 380,
+        "fbs": 1,
+        "restecg": 0,
+        "thalach": 108,
+        "exang": 1,
+        "oldpeak": 0.8,
+        "slope": 3,
+        "ca": 0,
+        "thal": 7,
+        "target": 0,
+    }
+    assert second.concepts == {
+        "HP:0001681",
+        "HP:0003074",
+        "HP:0003124",
+        "HP:0004421",
+        "HP:0100749",
+        "HP:0500018",
+    }

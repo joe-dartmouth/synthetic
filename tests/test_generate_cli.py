@@ -488,3 +488,25 @@ def test_direct_creates_its_draw_log_readable_by_its_owner_only(tmp_path):
     code, _, log = direct(tmp_path)
     assert code == 0
     assert log.stat().st_mode & 0o777 == 0o600
+
+
+def test_direct_exits_2_writing_nothing_when_no_training_record_can_supply_a_draw(tmp_path, caplog):
+    no_young_sick = uci({}, "4.0", {**SIZES, (40, 1, 1): 0})
+    _, served = ladder_releases()
+    source = pin(no_young_sick)
+    send = ScriptedSend()
+    context = make_context(
+        send, open_url=RoutingOpener({**served, source.url: no_young_sick}), uci=source
+    )
+    log = tmp_path / "draws.jsonl"
+    argv = ["direct", "--request", "completeness", "--seed", "0", "--log", str(log)]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    out = io.StringIO()
+    assert main(argv, context=context, out=out) == 2
+    assert out.getvalue() == ""
+    assert not log.exists()
+    assert send.calls == []
+    assert any(
+        r.levelno == logging.ERROR and "<55/female/1 cannot draw age" in r.getMessage()
+        for r in caplog.records
+    )
