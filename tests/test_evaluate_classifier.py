@@ -52,8 +52,8 @@ def test_every_code_has_a_column_whatever_the_training_rows_hold():
 
 
 def test_a_fit_that_does_not_converge_stops_the_run():
-    def stingy():
-        pipeline = build()
+    def stingy(frame):
+        pipeline = build(frame)
         pipeline.set_params(model__max_iter=1)
         return pipeline
 

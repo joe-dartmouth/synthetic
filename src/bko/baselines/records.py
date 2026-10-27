@@ -1,8 +1,8 @@
 """The rows a method adds and the weights it gives: their shape, and the check they must pass.
 
-`Baseline.added` has the evaluation frame's columns and dtypes (`bko.datasets.uci`), so the harness
-treats a method's rows like any generator's. Added rows are numbered -1, -2, ... so no `record_id`
-of the archive can collide with one.
+`Baseline.added` has its request's frame's columns and dtypes (`bko.datasets.frames.FrameSpec`,
+UCI's by default), so the harness treats a method's rows like any generator's. Added rows are
+numbered -1, -2, ... so no `record_id` of the archive can collide with one.
 
 `drops` exposes the per-row rules, so a runner that drops rows uses the rules `check` refuses by.
 """
@@ -21,16 +21,8 @@ import pandas as pd
 
 from bko.baselines.errors import OutputContractError
 from bko.baselines.request import Request, Stratum, stratum_keys
-from bko.datasets.cells import LABEL, LABEL_CODES
-from bko.datasets.uci import (
-    CATEGORICAL,
-    CODEBOOK,
-    FRACTION_DIGITS,
-    FRACTIONAL,
-    FRAME_COLUMNS,
-    FRAME_DTYPES,
-    NUMERIC,
-)
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 
 
 INDEX_NAME: Final = "record_id"
@@ -53,8 +45,8 @@ class Baseline:
     """One method's output for one training split.
 
     Attributes:
-        added: The synthetic rows: `FRAME_COLUMNS` with `FRAME_DTYPES`, indexed -1, -2, ... with
-            each stratum's rows together, in the quota's order.
+        added: The synthetic rows: the request's frame's columns with its dtypes, indexed -1, -2,
+            ... with each stratum's rows together, in the quota's order.
         weights: One weight per training record, on the training index; 1.0 except under class
             weighting.
         params: What reproduces the run beyond the commit: parameters and neighbour counts.
@@ -72,9 +64,9 @@ def number(added: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def no_rows() -> pd.DataFrame:
-    """An added frame with no rows, the evaluation columns and their dtypes."""
-    columns = {name: pd.Series(dtype=dtype) for name, dtype in FRAME_DTYPES.items()}
+def no_rows(frame: FrameSpec = UCI_FRAME) -> pd.DataFrame:
+    """An added frame with no rows, `frame`'s columns and their dtypes."""
+    columns = {name: pd.Series(dtype=dtype) for name, dtype in frame.dtypes.items()}
     return number(pd.DataFrame(columns))
 
 
@@ -83,32 +75,34 @@ def unit_weights(train: pd.DataFrame) -> pd.Series:
     return pd.Series(1.0, index=train.index, name="weight")
 
 
-def training_set(train: pd.DataFrame, baseline: Baseline) -> pd.DataFrame:
+def training_set(
+    train: pd.DataFrame, baseline: Baseline, *, frame: FrameSpec = UCI_FRAME
+) -> pd.DataFrame:
     """The rows a classifier fits on: real rows with their weights, then added rows at 1.0.
 
-    The frame has `FRAME_COLUMNS` and `weight`; the real rows keep `baseline.weights`.
+    The result has `frame`'s columns and `weight`; the real rows keep `baseline.weights`.
     """
-    real = train.loc[:, list(FRAME_COLUMNS)].assign(weight=baseline.weights)
+    real = train.loc[:, list(frame.columns)].assign(weight=baseline.weights)
     return pd.concat([real, baseline.added.assign(weight=1.0)])
 
 
-def whole(values: pd.DataFrame) -> pd.DataFrame:
-    """Round generated values to the archive's precision and cast them to `FRAME_DTYPES`.
+def whole(values: pd.DataFrame, frame: FrameSpec = UCI_FRAME) -> pd.DataFrame:
+    """Round generated values to `frame`'s precision and cast them to its dtypes.
 
-    Whole-number columns round to the nearest integer and `oldpeak` to one decimal, never by
-    truncation, which would bias every interpolated value down.
+    Whole-number columns round to the nearest integer and fractional ones (UCI's `oldpeak`) to
+    the frame's decimals, never by truncation, which would bias every interpolated value down.
 
     Raises:
         OutputContractError: If a value is missing or infinite.
     """
-    out = values.loc[:, list(FRAME_COLUMNS)].astype("float64")
+    out = values.loc[:, list(frame.columns)].astype("float64")
     if not np.isfinite(out.to_numpy()).all():
         msg = "the output breaks its contract: a value is missing or infinite"
         raise OutputContractError(msg)
-    integers = [name for name in FRAME_COLUMNS if name not in FRACTIONAL]
+    integers = [name for name in frame.columns if name not in frame.fractional]
     out[integers] = np.rint(out[integers])
-    out[list(FRACTIONAL)] = out[list(FRACTIONAL)].round(FRACTION_DIGITS)
-    return out.astype(dict(FRAME_DTYPES))
+    out[list(frame.fractional)] = out[list(frame.fractional)].round(frame.fraction_digits)
+    return out.astype(dict(frame.dtypes))
 
 
 def derived_seed(seed: int, *parts: object) -> int:
@@ -126,10 +120,12 @@ def keep(rows: int, of: int, *, seed: int, label: object) -> list[int]:
     return sorted(sorted(range(of), key=rank)[:rows])
 
 
-def within_split(rows: pd.DataFrame, train: pd.DataFrame) -> pd.DataFrame:
-    """Whether each row's value of each `NUMERIC` column lies in the training split's range."""
+def within_split(
+    rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec = UCI_FRAME
+) -> pd.DataFrame:
+    """Whether each row's value of each of `frame`'s numeric columns lies in the split's range."""
     return pd.DataFrame(
-        {name: rows[name].between(train[name].min(), train[name].max()) for name in NUMERIC},
+        {name: rows[name].between(train[name].min(), train[name].max()) for name in frame.numeric},
         index=rows.index,
     )
 
@@ -143,14 +139,16 @@ def drops(
 ) -> tuple[Drop | None, ...]:
     """The first reason `check` would refuse each row for, or None for a row it would keep.
 
-    Rows are read in order, and a row's cell is the one its own values name. A row past its
-    cell's quota counts the rows kept before it, `held` included. A row dropped for an earlier
-    reason uses none of the quota.
+    Rows are read in order, and a row's cell is the one its own values name under the request's
+    frame. A row past its cell's quota counts the rows kept before it, `held` included. A row
+    dropped for an earlier reason uses none of the quota.
     """
-    inside = within_split(rows, train).all(axis="columns").tolist()
+    frame = request.frame
+    inside = within_split(rows, train, frame).all(axis="columns").tolist()
+    keys = stratum_keys(rows, request.strata, edges=frame.edges)
     taken = Counter(held or {})
     reasons: list[Drop | None] = []
-    for fits, key in zip(inside, stratum_keys(rows, request.strata), strict=True):
+    for fits, key in zip(inside, keys, strict=True):
         if not fits:
             reasons.append(Drop.RANGE)
         elif key not in request.quota:
@@ -164,34 +162,35 @@ def drops(
 
 
 def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:
-    """Refuse an output that breaks a promise `Baseline` documents.
+    """Refuse an output that breaks a promise `Baseline` documents, under the request's frame.
 
     Raises:
         OutputContractError: Naming the first broken promise.
     """
+    frame = request.frame
     added, weights = baseline.added, baseline.weights
     dtypes = added.dtypes.astype(str).to_dict()
-    _require(list(added.columns) == list(FRAME_COLUMNS), f"columns are {list(added.columns)}")
-    _require(dtypes == dict(FRAME_DTYPES), f"dtypes are {dtypes}")
+    _require(list(added.columns) == list(frame.columns), f"columns are {list(added.columns)}")
+    _require(dtypes == dict(frame.dtypes), f"dtypes are {dtypes}")
     expected = list(range(-1, -len(added) - 1, -1))
     _require(
         added.index.name == INDEX_NAME and added.index.tolist() == expected,
         "the index is not -1, -2, ... under record_id",
     )
     _require(bool(np.isfinite(added.to_numpy(dtype="float64")).all()), "a value is missing")
-    for name in CATEGORICAL:
-        outside = sorted(set(added[name]) - set(CODEBOOK[name]))
+    for name in frame.categorical:
+        outside = sorted(set(added[name]) - set(frame.codebook[name]))
         _require(not outside, f"{name} holds {outside}, outside its codebook")
-    labels = sorted(set(added[LABEL]))
-    _require(set(labels) <= LABEL_CODES, f"{LABEL} holds {labels}")
-    inside = within_split(added, train)
-    for name in NUMERIC:
+    labels = sorted(set(added[frame.label]))
+    _require(set(labels) <= set(frame.label_codes), f"{frame.label} holds {labels}")
+    inside = within_split(added, train, frame)
+    for name in frame.numeric:
         low, high = train[name].min(), train[name].max()
         _require(bool(inside[name].all()), f"{name} leaves [{low}, {high}]")
-    for name in FRACTIONAL:
-        scaled = added[name].to_numpy() * 10**FRACTION_DIGITS
+    for name in frame.fractional:
+        scaled = added[name].to_numpy() * 10**frame.fraction_digits
         _require(bool(np.allclose(scaled, np.rint(scaled))), f"{name} has extra decimals")
-    keys = stratum_keys(added, request.strata)
+    keys = stratum_keys(added, request.strata, edges=frame.edges)
     _require(Counter(keys) == Counter(request.quota), f"rows per stratum are {dict(Counter(keys))}")
     in_order = [stratum for stratum, rows in request.quota.items() for _ in range(rows)]
     _require(keys == in_order, "the strata are not together in the quota's order")

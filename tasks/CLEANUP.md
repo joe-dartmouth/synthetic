@@ -52,6 +52,25 @@ links to where its blocker is tracked.
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
 
+- **`cleanup:evaluate/spawn-child-reaped-early`: the spawn test can fail with no child to wait
+  for.** One `make test` run on 2026-10-26 (under `pytest -n auto`) failed
+  `tests/test_evaluate_launch.py::test_spawn_starts_the_command_detached_with_its_output_in_the_files`
+  with these lines of its report:
+
+  ```
+  E       ChildProcessError: [Errno 10] No child processes
+  tests/test_evaluate_launch.py:396: ChildProcessError
+  ```
+
+  The test passed alone and in the next full run. `bko.evaluate.launch.spawn` returns the pid of a
+  `subprocess.Popen` it drops, and the test then calls `os.waitpid` on that pid. A likely cause,
+  not yet confirmed: when the child has already exited, `Popen.__del__` polls and reaps it, so
+  `os.waitpid` finds no child. *Filed 2026-10-26 by the `evaluate-frame-generic-pipeline` work.*
+  **Why deferred.** It is unrelated to the change that met it, which touched no launch code.
+  **What discharges it:** `spawn` keeps or returns the `Popen` (or the test waits through it), so
+  nothing reaps the child before the waiter does, and the cause is confirmed.
+  **Trigger:** the test's next failure, or the next change to `bko.evaluate.launch.spawn`.
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
@@ -65,3 +84,19 @@ links to where its blocker is tracked.
   `uci` as in `first-flag`, so it lies outside that change.
   **What discharges it:** `main` maps `BKBError` to a logged refusal with a documented exit code.
   **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
+
+## generate
+
+- **`cleanup:generate/system-prompt-uci-only`: the system prompt is UCI's for every frame.**
+  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units, ranges and decimals,
+  but its opening sentence is fixed text about heart-disease prediction and patients referred for
+  coronary angiography, which `FrameSpec` has no field to replace. Its closing sentence indexes the
+  frame's fractional fields, so a frame with none raises `IndexError` in
+  `_alternatives` (`items[0]` of an empty list). Evidence: `system(TOY)` in
+  `tests/test_datasets_frame.py` still opens with the heart-disease sentence. *Filed 2026-10-26 by
+  the `evaluate-frame-generic-pipeline` work.*
+  **Why deferred.** UCI is the only frame that generates records, and its prompt must stay
+  byte-identical through that unit.
+  **What discharges it:** the frame (or the caller) supplies the opening sentence, and a frame
+  with no fractional field renders a closing sentence without one; UCI's text stays unchanged.
+  **Trigger:** the first non-UCI frame that generates records (`evaluate-synthea-downstream`).

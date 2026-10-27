@@ -6,7 +6,7 @@ each criterion is read. No command-line flag changes a value here.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
@@ -15,7 +15,9 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
-from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import AGE_BAND_EDGES, UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
 from bko.generate.messages import SETTINGS, Settings
@@ -188,42 +190,49 @@ change, listing its arms, candidate, comparators, holdout seeds, fill target, ce
 criteria."""
 
 
-def flagged(train: pd.DataFrame, experiment: Experiment) -> tuple[Stratum, ...]:
-    """The cells holding fewer than `experiment.fill_to` training records, in grid order."""
-    return tuple(_short(train, experiment))
+def flagged(
+    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int] = AGE_BAND_EDGES
+) -> tuple[Stratum, ...]:
+    """The cells under `edges` holding fewer than `experiment.fill_to` records, in grid order."""
+    return tuple(_short(train, experiment, edges))
 
 
-def gap_request(train: pd.DataFrame, experiment: Experiment, *, seed: int) -> Request:
-    """Ask for every flagged cell to be filled up to `experiment.fill_to` training records.
+def gap_request(
+    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec = UCI_FRAME
+) -> Request:
+    """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
 
     Raises:
         EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
     """
-    quota = _short(train, experiment)
+    quota = _short(train, experiment, frame.edges)
     if not quota:
         msg = f"no cell holds fewer than {experiment.fill_to} training records; nothing to fill"
         raise EvaluationError(msg)
-    return Request(quota=quota, strata=Strata.CELL, seed=seed)
+    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def replica_request(train: pd.DataFrame, *, seed: int) -> Request:
+def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec = UCI_FRAME) -> Request:
     """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells."""
-    quota = {cell: count for cell, count, _ in _cells(train) if count}
-    return Request(quota=quota, strata=Strata.CELL, seed=seed)
+    quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
+    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def _short(train: pd.DataFrame, experiment: Experiment) -> dict[Stratum, int]:
+def _short(train: pd.DataFrame, experiment: Experiment, edges: Sequence[int]) -> dict[Stratum, int]:
     return {
         cell: experiment.fill_to - count
-        for cell, count, short in _cells(train, experiment.fill_to)
+        for cell, count, short in _cells(train, experiment.fill_to, edges=edges)
         if short
     }
 
 
 def _cells(
-    train: pd.DataFrame, below: int = UNDERREPRESENTED_BELOW
+    train: pd.DataFrame,
+    below: int = UNDERREPRESENTED_BELOW,
+    *,
+    edges: Sequence[int] = AGE_BAND_EDGES,
 ) -> list[tuple[Stratum, int, bool]]:
-    counts = cell_counts(train, below=below)
+    counts = cell_counts(train, edges=edges, below=below)
     return [
         ((str(band), str(sex), int(label)), int(count), bool(short))
         for band, sex, label, count, short in counts.itertuples(index=False)

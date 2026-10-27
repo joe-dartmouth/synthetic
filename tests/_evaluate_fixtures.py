@@ -18,6 +18,7 @@ from sklearn.pipeline import Pipeline
 from bko.baselines.methods import METHODS
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
+from bko.datasets.frames import FrameSpec
 from bko.evaluate.classifier import build
 from bko.evaluate.experiment import BKO_ARMS, E1
 from bko.evaluate.run import method_arms
@@ -76,10 +77,10 @@ class Spy:
     def __init__(self) -> None:
         self.models: list[Recording] = []
 
-    def __call__(self) -> Pipeline:
-        model = Recording(**build().named_steps["model"].get_params())
+    def __call__(self, frame: FrameSpec) -> Pipeline:
+        model = Recording(**build(frame).named_steps["model"].get_params())
         self.models.append(model)
-        pipeline = build()
+        pipeline = build(frame)
         pipeline.set_params(model=model)
         return pipeline
 

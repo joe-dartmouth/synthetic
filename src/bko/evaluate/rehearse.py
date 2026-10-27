@@ -4,7 +4,8 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its spend is a wiring
+none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its records are
+UCI's, so it refuses a call for another frame. Its spend is a wiring
 check, not an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
 recomputed.
 """
@@ -20,7 +21,14 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.split import split
-from bko.datasets.uci import CODEBOOK, FRACTION_DIGITS, FRACTIONAL, FRAME_COLUMNS, NUMERIC
+from bko.datasets.uci import (
+    CODEBOOK,
+    FRACTION_DIGITS,
+    FRACTIONAL,
+    FRAME_COLUMNS,
+    NUMERIC,
+    UCI_FRAME,
+)
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
@@ -116,11 +124,14 @@ class CannedSend:
         """Answer `call` with its records, billed at the tokens per record.
 
         Raises:
-            ValueError: If the user turn does not read as the prompt renders it or names another
-                cell than the call's.
+            ValueError: If the call is for another frame than UCI's, or its user turn does not
+                read as the prompt renders it or names another cell than the call's.
             EvaluationError: If no canned record of the cell's ages fits the safe ranges, or
                 `SKIPS` in a row equal real records.
         """
+        if call.frame is not UCI_FRAME:
+            msg = f"a rehearsal answers UCI calls only, not a call for frame {call.frame.name}"
+            raise ValueError(msg)
         found = PROMPT.match(call.user)
         if found is None:
             msg = f"the user turn does not read as the prompt renders it: {call.user[:200]!r}"
