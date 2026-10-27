@@ -98,7 +98,7 @@ links to where its blocker is tracked.
 - **`cleanup:evaluate/concurrent-run-log-identity`: concurrent runs' logs name neither run nor
   level, and a retry storm leaves no line until the run ends.** `bko.evaluate.compare`'s `beside arm=`
   lines and `bko.generate.log`'s `run status=` line carry no `run=` or `level=` field (their
-  format strings in those modules), so the logs of G3's five concurrent runs are told apart only by their files.
+  format strings in those modules), so the logs of G3's six concurrent runs are told apart only by their files.
   `retried` (calls the SDK retried over HTTP) is written only when the run ends, in the call log's
   `end` line and that closing `run status=` line, so a rate-limit storm that trips the idle rule
   leaves no line saying why. *Filed 2026-10-27 by the review of PR #44.*
