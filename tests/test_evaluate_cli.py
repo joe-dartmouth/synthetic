@@ -134,6 +134,24 @@ def test_compare_logs_the_boosting_contrasts_only_when_the_scores_hold_them(
     assert not [line for line in lines if line.startswith("contrast ") or "-hgb" in line]
 
 
+def test_an_arm_without_boosting_rows_is_skipped_and_the_table_kept(scores_file, tmp_path, caplog):
+    table, _ = _compared(scores_file, caplog)
+    text = scores_file.read_text(encoding="utf-8")
+    kept = [
+        line
+        for line in text.splitlines(keepends=True)
+        if not (line.split(",")[1] == "smote" and "-hgb," in line)
+    ]
+    partial = tmp_path / "partial.csv"
+    partial.write_text("".join(kept), encoding="utf-8")
+    alone, lines = _compared(partial, caplog)
+    assert alone == table
+    assert "contrast skip model=hgb arm=tvae against=smote reason=absent" in lines
+    contrasts = [line for line in lines if line.startswith("contrast model=hgb")]
+    assert len(contrasts) == 2 * 2 * (len(SMALL.comparators) - 2)
+    assert not [line for line in contrasts if "against=smote" in line]
+
+
 def test_a_scores_file_that_is_not_utf8_exits_three(tmp_path):
     path = tmp_path / "scores.csv"
     path.write_bytes(b"\xff\xfe")

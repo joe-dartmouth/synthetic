@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import TextIO
 
 from bko.evaluate.beside import Pairing, Skipped, check, pair, pairable
-from bko.evaluate.classifier import Model
 from bko.evaluate.criteria import (
     BOOSTED,
     JUDGED,
+    Absent,
     Reported,
     held_out_ratio_of,
     judge,
@@ -47,8 +47,9 @@ def compare(
 ) -> None:
     """Write the criteria's table to `out`, then log validity, copies, means and replica means.
 
-    The boosting model's contrasts are logged after the means when the scores hold its rows; they
-    never change the table.
+    The boosting model's contrasts are read after the table and logged after the means when the
+    scores hold its rows; they never change the table, and a pair of arms either of which lacks
+    them is logged as skipped.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -80,7 +81,6 @@ def compare(
     )
     rows = parse(text)
     contrasts = judge(rows, experiment, candidate=candidate)
-    boosted = reported_contrasts(rows, experiment, candidate=candidate)
     reading = (
         None
         if beside is None
@@ -93,7 +93,7 @@ def compare(
     _log_validity(rows, experiment, candidate)
     log_copies(rows)
     log_means(rows, measures=(*JUDGED, *BOOSTED))
-    _log_boosted(boosted)
+    _log_boosted(reported_contrasts(rows, experiment, candidate=candidate))
     log_means(rows, source=Source.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
     if reading is not None:
         _log_beside(reading, rows, experiment)
@@ -195,13 +195,18 @@ def _log_beside(reading: _Reading, ours: Sequence[Score], experiment: Experiment
         )
 
 
-def _log_boosted(readings: Sequence[Reported]) -> None:
-    """Log each of the boosting model's contrasts, with no verdict."""
+def _log_boosted(readings: Sequence[Reported | Absent]) -> None:
+    """Log each of the boosting model's contrasts, with no verdict, or the pair it skips."""
     for r in readings:
+        if isinstance(r, Absent):
+            logger.info(
+                "contrast skip model=%s arm=%s against=%s reason=absent", r.model, r.arm, r.against
+            )
+            continue
         logger.info(
             "contrast model=%s criterion=%s scope=%s arm=%s against=%s measure=%s mean=%.6f "
             "low=%.6f high=%.6f refuting_high=%.6f holdouts=%d differing=%d",
-            Model.HGB,
+            r.model,
             r.criterion,
             r.scope,
             r.arm,

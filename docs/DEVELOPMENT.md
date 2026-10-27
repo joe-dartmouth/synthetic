@@ -256,8 +256,10 @@ the runner before any replay.
   `E1.validity` or above. It logs each arm's mean recall and AUC-PR over the holdouts, both
   models', and each replica arm's mean replica recall, AUC-PR and fidelity, with no verdict. When
   the scores hold the boosting model's rows, it logs each primary and secondary contrast of its
-  recall and AUC-PR, read as the criterion reads the regression's, with no verdict; the table
-  reads the regression only, so it is the same with or without them. A scores file is compared
+  recall and AUC-PR, read as the criterion reads the regression's, with no verdict, after the
+  table is written; a pair of arms either of which holds none of its rows is skipped, and the
+  criterion's family still counts it. The table reads the regression only, so it is the same with
+  or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
   the budget, the validity threshold and the spend ceiling, and a `versions` line (the checkout's
@@ -282,7 +284,8 @@ the runner before any replay.
   counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, a
   `contrast model=hgb` line per contrast of the boosting model's measures when the scores hold them
   (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`, `high=`,
-  `refuting_high=`, `holdouts=`, `differing=`), and a `replica` line per replica arm, measure and
+  `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which lacks
+  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), and a `replica` line per replica arm, measure and
   scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
   `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,

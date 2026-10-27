@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t as student
 
+from bko.evaluate.classifier import Model
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
@@ -118,6 +119,7 @@ class Reported:
     """One interval read as a criterion reads it, for a measure no criterion judges.
 
     Attributes:
+        model: The model whose measure it contrasts.
         criterion: The criterion whose reading it follows.
         scope: The test records the contrast covers.
         arm: The candidate.
@@ -127,6 +129,7 @@ class Reported:
         differing: The holdouts where the two scores differ.
     """
 
+    model: Model
     criterion: str
     scope: Scope
     arm: str
@@ -134,6 +137,21 @@ class Reported:
     measure: Measure
     interval: Interval
     differing: int
+
+
+@dataclass(frozen=True, slots=True)
+class Absent:
+    """A pair of arms whose contrasts of a model are skipped: one of them holds none of its rows.
+
+    Attributes:
+        model: The model whose rows are missing.
+        arm: The candidate.
+        against: The reference arm.
+    """
+
+    model: Model
+    arm: str
+    against: str
 
 
 def refuting_confidence(confidence: float, family: int) -> float:
@@ -259,43 +277,49 @@ def reported_contrasts(
     experiment: Experiment,
     *,
     candidate: str | None = None,
-    measures: Sequence[Measure] = BOOSTED,
-) -> list[Reported]:
-    """Each separation criterion's contrasts of `measures`, read as it reads `JUDGED`'s.
+    model: Model = Model.HGB,
+) -> list[Reported | Absent]:
+    """Each separation criterion's contrasts of `model`'s measures, read as it reads `JUDGED`'s.
 
-    Each criterion the experiment holds gets its intervals of `measures` at its own family size,
-    margin and confidence, with no verdict. Scores that hold no augmented row of the candidate's
-    in `measures` give none.
+    Each criterion the experiment holds gets its intervals of `model`'s measures at its own family
+    size, margin and confidence, with no verdict. A pair of arms either of which holds no
+    augmented row of `model` comes first as one `Absent`, and the family still counts it. Scores
+    that hold no augmented row of `model` give nothing.
 
     Raises:
-        EvaluationError: As `judge`, for a series of `measures` it reads.
+        EvaluationError: As `judge`, for a series of `model`'s measures it reads.
     """
-    arm = experiment.candidate if candidate is None else candidate
-    if not any(
-        s.arm == arm and s.source is Source.AUGMENTED and s.measure in measures for s in scores
-    ):
+    measures = tuple(Measure(f"{measure}-{model}") for measure in JUDGED)
+    held = {s.arm for s in scores if s.source is Source.AUGMENTED and s.measure in measures}
+    if not held:
         return []
-    holdouts = set(experiment.holdout_seeds)
+    arm = experiment.candidate if candidate is None else candidate
     others = [name for name in experiment.comparators if name != arm]
+    found: list[Reported | Absent] = [
+        Absent(model, arm, other) for other in others if not {arm, other} <= held
+    ]
+    present = [other for other in others if {arm, other} <= held]
     series = series_of(scores)
     ratio = held_out_ratio_of(series)
-    found: list[Reported] = []
     for name, scope in CRITERIA:
         if name not in experiment.criteria:
             continue
-        pairs = _separation(arm, others, measures, scope)
+        pairs = _separation(arm, present, measures, scope)
         paired, intervals = _intervals(
             pairs,
             series,
-            holdouts=holdouts,
+            holdouts=set(experiment.holdout_seeds),
             ratio=ratio,
             factor=1.0,
             margin=experiment.margin,
             confidence=experiment.confidence,
+            family=len(measures) * len(others),
         )
         found += [
-            Reported(name, scope, left.arm, right.arm, left.measure, interval, _differing(*both))
-            for (left, right), interval, both in zip(pairs, intervals, paired, strict=True)
+            Reported(
+                model, name, scope, left.arm, right.arm, left.measure, interval, _differing(*b)
+            )
+            for (left, right), interval, b in zip(pairs, intervals, paired, strict=True)
         ]
     return found
 
@@ -374,15 +398,16 @@ def _intervals(
     factor: float,
     margin: float,
     confidence: float,
+    family: int | None = None,
 ) -> tuple[list[tuple[list[float], list[float]]], list[Interval]]:
-    """Each pair's scores by holdout and its interval, the family being every pair."""
+    """Each pair's scores by holdout and its interval, the family every pair unless given."""
     paired = [_paired(series, left, right, holdouts) for left, right in pairs]
     intervals = [
         corrected_interval(
             [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)],
             ratio=ratio,
             confidence=confidence,
-            family=len(pairs),
+            family=len(pairs) if family is None else family,
         )
         for ours, theirs in paired
     ]
