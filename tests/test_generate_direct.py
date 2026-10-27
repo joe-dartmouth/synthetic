@@ -25,6 +25,7 @@ from bko.generate.direct import (
 )
 from bko.generate.errors import SamplingError
 from bko.ontology.mapping import FIELD_MAPPINGS
+from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology, Term
 from bko.validate.checks import validate
 from tests._validate_fixtures import planted
@@ -294,3 +295,31 @@ def test_the_mapping_table_reads_as_eight_field_groups_one_nesting_and_two_label
     )
     assert nested(FIELD_MAPPINGS) == {"HP:0001712": "HP:0003115"}
     assert label_only(FIELD_MAPPINGS) == {"MONDO:0006715", "HP:0005145"}
+
+
+def _restecg(concept: str, *codes: int) -> FieldMapping:
+    return FieldMapping(
+        when=(Codes("restecg", frozenset(codes)),),
+        concept=concept,
+        label=concept,
+        source="test",
+        limits="test",
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "message"),
+    [
+        (
+            (_restecg("HP:1", 2), _restecg("HP:2", 1, 2), _restecg("HP:3", 0, 1, 2)),
+            "HP:1 lies inside 2 concepts",
+        ),
+        ((_restecg("HP:1", 1), _restecg("HP:2", 2), _restecg("HP:3", 1, 2)), "HP:3 holds 2"),
+    ],
+    ids=["chain", "two-inners"],
+)
+def test_nesting_deeper_or_wider_than_one_pair_is_refused(rows, message):
+    with pytest.raises(ValueError, match=message):
+        nested(rows)
+    with pytest.raises(ValueError, match=message):
+        sample(frame([planted()]), {}, rows=rows, ontologies={}, name=NAME, seed=0)

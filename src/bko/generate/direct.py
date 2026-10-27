@@ -122,24 +122,33 @@ def nested(rows: Sequence[FieldMapping]) -> dict[str, str]:
     """Each concept whose one row's codes lie strictly inside another's, on one field, to it.
 
     On UCI, `HP:0001712` (`restecg` 2) to `HP:0003115` (`restecg` 1 or 2): a record showing the
-    first shows the second, so the second is drawn given the first.
+    first shows the second, so the second is drawn given the first. Only one level is drawn.
+
+    Raises:
+        ValueError: If a concept lies inside more than one other, so a chain of nesting, or holds
+            more than one.
     """
     single = {
         concept: mapped[0].when[0]
         for concept, mapped in _by_concept(rows).items()
         if len(mapped) == 1 and len(mapped[0].when) == 1 and isinstance(mapped[0].when[0], Codes)
     }
-    inside: dict[str, str] = {}
-    for inner, small in single.items():
-        for outer, large in single.items():
-            if (
-                isinstance(small, Codes)
-                and isinstance(large, Codes)
-                and small.field == large.field
-                and small.codes < large.codes
-            ):
-                inside[inner] = outer
-    return inside
+    pairs = [
+        (inner, outer)
+        for inner, small in single.items()
+        for outer, large in single.items()
+        if isinstance(small, Codes)
+        and isinstance(large, Codes)
+        and small.field == large.field
+        and small.codes < large.codes
+    ]
+    for side, word in ((0, "lies inside"), (1, "holds")):
+        counts = Counter(pair[side] for pair in pairs)
+        for concept, times in sorted(counts.items()):
+            if times > 1:
+                msg = f"{concept} {word} {times} concepts; only one level of nesting is drawn"
+                raise ValueError(msg)
+    return dict(pairs)
 
 
 def field_groups(
@@ -216,6 +225,7 @@ def sample(
         SamplingError: If a field group has no record matching a draw in the cell or its label
             group, or a free field has no record to read from.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
+        ValueError: As `nested`, for nesting deeper or wider than one pair.
     """
     mappings = tuple(rows)
     cells = record_cells(train, mappings, name=name, edges=frame.edges)
