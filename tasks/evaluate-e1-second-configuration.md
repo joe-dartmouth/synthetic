@@ -17,7 +17,7 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 
 ## Why this unit exists
 
-Three changes each make a new configuration of E1: the level the guidance ablation picks, the
+Three changes each make a new configuration of E1: the level G3 chose, the
 training-split bounds in the prompt, and the effort the sweep picks. E1 is judged on its latest
 configuration (ADR
 [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)), so the three
@@ -32,7 +32,8 @@ configuration that will be judged.
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level) G3 chooses.
 - E1's Configuration in `docs/EVIDENCE.md` restated for the new settings, with the spend and
   duration estimate derived as [`experiments-index.md`](experiments-index.md#spend) says, from
-  `e1-3`'s tokens per record asked and the effort sweep's rate.
+  `g3-5`'s tokens per record asked (the `bko` arm at `summary`, G3's Runs) and the effort sweep's
+  rate.
 - The `live` generation test, then a paid completeness request and its closure as a C1 Runs row
   (C1's configuration rules that a change to what a call sends supersedes the judged run), stopping
   to report if validity falls below `E1.validity`.

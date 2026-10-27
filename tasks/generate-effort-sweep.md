@@ -30,9 +30,13 @@ lower effort keeps validity and replica fidelity is unmeasured, and the answer s
 **In.**
 
 - A named run (`bko.evaluate.experiment.RUNS`) over the first 10 holdout seeds with the baselines and the
-  `bko` arm, one per effort, `low` and `medium`, at `SETTINGS` otherwise unchanged; both run live,
-  since `e1-3`'s log interleaves three arms over 100 holdouts and replays only whole. Spend
-  estimate: for each effort, a tenth of one arm's share of `e1-3`'s spend, `low`'s below it.
+  `bko` arm, one per effort, `low` and `medium`, at `replace(SETTINGS, guidance=Level.SUMMARY)`,
+  the level G3 chose and the one
+  [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) judges at, otherwise
+  unchanged; both run live, since a call log replays only whole and `g3-5`'s
+  covers 100 holdouts. Spend estimate: for each effort, `g3-5`'s input and output tokens per
+  record asked (G3's Runs, [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level)) times the
+  records its first 10 holdouts ask, at `bko.generate.spend.PRICES`, `low`'s below it.
 - Per effort, paired over the same 10 holdouts: validity, candidates dropped as outside the
   range, replica fidelity (quality, column shapes, column pair trends), replica utility, tokens per
   record asked, seconds per call, and spend.
