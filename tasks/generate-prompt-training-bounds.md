@@ -19,8 +19,9 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 
 The user turn bounds each numeric field by its frame's plausible range (UCI's `RANGES`, which
 lives in `bko.datasets.uci`), age clipped to the cell's band, while the drop rule in
-`bko.baselines.records` keeps only rows inside the training split's minimum and maximum. In `e1-3` the `bko` arm dropped 5840 of the 31643 records it generated as
-outside that range (its `validity` line in E1's Result,
+`bko.baselines.records` keeps only rows inside the training split's minimum and maximum. In
+`e1-3` the `bko` arm dropped 5840 of the 31643 records it generated as outside that range (its
+`validity` line in E1's Result,
 [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)), each drop costing a
 top-up call, and of the records its call log decodes 7.2% are younger than 29 and 9.3% older than
 77, where UCI runs 29 to 77, so the kept records spread wider in age than the training rows (a

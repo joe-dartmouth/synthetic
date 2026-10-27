@@ -139,6 +139,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | Keeping owlready2 in the `ontology` extra | A Cython build on every clone for a library nothing imports | 2026-10-16 |
 | One scope for every dataset, the union of the table's concepts | A concept only another dataset's rows map can never be held, so its statements would be gaps of the table, not of the data, against RESEARCH's rule that a concept without a defensible field is out of scope | 2026-10-17 |
 | The release tests inside `make check` | The gate reads no download, and a clone without `data/` would fail them or skip them on a condition that reads as a pass | 2026-10-17 |
+| Defining the range constraints in `bko.ontology` | Validation and generation read them, and neither is an ontology stage; they belong to the frame in `bko.datasets` | 2026-10-26 |
 
 ## Enforcement
 

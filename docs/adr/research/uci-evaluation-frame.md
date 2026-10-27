@@ -134,7 +134,7 @@ criteria, and no other frame from this archive adds records of women with heart 
 
 - Owner: `src/bko/datasets/`
 - Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`,
-  `tests/test_datasets_frame.py`
+  `tests/test_datasets_frame.py`, `tests/test_evaluate_frame.py`
 
 ## Reversal Conditions
 
