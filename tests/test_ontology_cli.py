@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import importlib.metadata
 import io
 import logging
@@ -92,6 +93,27 @@ def test_agreeing_rows_exit_zero(tmp_path, caplog):
     assert f"parser pronto {importlib.metadata.version('pronto')}" in caplog.text
 
 
+def _excluded_rows(out: str) -> list[list[str]]:
+    return [row for row in csv.reader(io.StringIO(out)) if row[0] == "excluded-code"]
+
+
+def test_the_default_rows_include_the_excluded_codes(tmp_path: Path) -> None:
+    releases, bodies = _releases(MONDO_TEXT.encode(), HPO_TEXT.encode())
+    out = io.StringIO()
+    context = Context(open_url=RoutingOpener(bodies), releases=releases)
+    code = main(["check", "--data-dir", str(tmp_path / "data")], context=context, out=out)
+    assert code == 0
+    assert _excluded_rows(out.getvalue()) == [
+        [
+            "excluded-code",
+            "SCTID:401314000",
+            "",
+            "Acute non-ST segment elevation myocardial infarction (disorder)",
+            "ok",
+        ]
+    ]
+
+
 def test_a_second_run_is_identical_and_offline(tmp_path):
     _, first, opener = _run(tmp_path / "data")
     calls = len(opener.calls)
@@ -117,7 +139,9 @@ def test_a_disagreeing_row_exits_four_after_the_report(tmp_path, caplog):
     assert warning.startswith("row code MONDO:0024644 disagrees: named 'myocardial ischemia'")
 
 
-def test_an_excluded_code_that_gains_a_match_warns_with_its_code(tmp_path, caplog):
+def test_an_excluded_code_that_gains_a_match_warns_with_its_code(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     stanza = "id: MONDO:0005068\nname: myocardial infarction\n"
     assert stanza in MONDO_TEXT
     gained = MONDO_TEXT.replace(
@@ -126,7 +150,8 @@ def test_an_excluded_code_that_gains_a_match_warns_with_its_code(tmp_path, caplo
     with caplog.at_level(logging.WARNING, logger="bko.ontology"):
         code, out, _ = _run(tmp_path / "data", rows=UNMAPPED_CODES, mondo=gained.encode())
     assert code == 4
-    assert out.splitlines()[1].endswith(",skos:exactMatch SCTID:401314000 is on MONDO:0005068")
+    [row] = _excluded_rows(out)
+    assert row[-1] == "skos:exactMatch SCTID:401314000 is on MONDO:0005068"
     [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert warning == (
         "row excluded-code SCTID:401314000 disagrees: "
