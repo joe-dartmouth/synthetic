@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date
 
 import pytest
 
-from bko.datasets.ablation import AblationSpec, ablate
+from bko.datasets.ablation import AblationSpec, ablate, cases, removal_order
 from bko.datasets.errors import DatasetError
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
 from tests._datasets_fixtures import SMALL_POPULATION, synthea_tables
@@ -129,3 +130,29 @@ def test_a_fraction_of_one_removes_every_case(population):
 def test_a_fraction_outside_zero_to_one_is_refused(population, fraction):
     with pytest.raises(DatasetError, match="fraction"):
         ablate(population, AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction))
+
+
+def test_cases_are_every_selected_patient_sorted(population):
+    assert list(cases(population, AblationSpec(codes=IHD, age_band=None, sex=None))) == [
+        "p1",
+        "p2",
+        "p3",
+    ]
+    with pytest.raises(DatasetError, match="age band"):
+        cases(population, AblationSpec(codes=IHD, age_band="65-70", sex=1))
+
+
+def test_a_removal_order_is_a_seeded_permutation_of_the_cases(population):
+    selected = cases(population, AblationSpec(codes=IHD, age_band=None, sex=None))
+    order = removal_order(selected, 3)
+    assert list(order) == list(removal_order(selected, 3))
+    assert sorted(order) == list(selected)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 3])
+@pytest.mark.parametrize("fraction", [0.01, 0.34, 0.5, 0.67, 0.99, 1.0])
+def test_a_fraction_removes_the_first_cases_of_its_seeds_order(population, seed, fraction):
+    spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction, seed=seed)
+    order = removal_order(cases(population, spec), seed)
+    expected = order[: math.ceil(fraction * len(order))].sort_values()
+    assert list(ablate(population, spec).removed) == list(expected)

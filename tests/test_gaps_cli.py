@@ -226,7 +226,7 @@ def test_the_module_runs_as_a_program():
         timeout=60,
     )
     assert result.returncode == 0, result.stderr
-    assert "{uci,synthea}" in result.stdout
+    assert "{uci,synthea,first-flag}" in result.stdout
 
 
 ISCHEMIA_STATEMENTS = (
@@ -437,3 +437,74 @@ def test_synthea_with_a_concept_its_release_lacks_exits_two(tmp_path, caplog):
     with caplog.at_level(logging.ERROR, logger="bko.gaps"):
         assert run("synthea", tmp_path, make_context(code_rows=(absent,))) == (2, "")
     assert "MONDO:9999999 is absent" in caplog.text
+
+
+S1, S2 = ISCHEMIA_STATEMENTS
+FIRST_FLAG_EXPECTED = (
+    "ablation,detector,source,antecedent,antecedent_label,consequent,consequent_label,"
+    "age_band,sex,target,cases,truth_from,first_flag,cell_removed,reversals,flagged_at_all\n"
+    f"cell,per-subgroup,{S1},>=60,male,,20,1,20,20,0,True\n"
+    f"cell,per-subgroup,{S2},>=60,male,,20,1,20,20,0,True\n"
+    f"cell,population-level,{S1},>=60,male,,20,1,,,0,False\n"
+    f"cell,population-level,{S2},>=60,male,,20,1,,,0,False\n"
+    f"cell,frequency-aware,{S1},>=60,male,,20,1,,,0,False\n"
+    f"cell,frequency-aware,{S2},>=60,male,,20,1,,,0,False\n"
+    "cell,count,,,,,,>=60,male,1,20,1,1,1,0,True\n"
+    f"condition,per-subgroup,{S1},>=60,female,,1,16,16,1,0,True\n"
+    f"condition,per-subgroup,{S2},>=60,female,,1,16,16,1,0,True\n"
+    f"condition,per-subgroup,{S1},>=60,male,,20,1,21,20,0,True\n"
+    f"condition,per-subgroup,{S2},>=60,male,,20,1,21,20,0,True\n"
+    f"condition,population-level,{S1},>=60,female,,1,16,21,1,0,True\n"
+    f"condition,population-level,{S2},>=60,female,,1,16,21,1,0,True\n"
+    f"condition,population-level,{S1},>=60,male,,20,1,21,20,0,True\n"
+    f"condition,population-level,{S2},>=60,male,,20,1,21,20,0,True\n"
+    f"condition,frequency-aware,{S1},>=60,female,,1,16,,,0,False\n"
+    f"condition,frequency-aware,{S2},>=60,female,,1,16,,,0,False\n"
+    f"condition,frequency-aware,{S1},>=60,male,,20,1,,,0,False\n"
+    f"condition,frequency-aware,{S2},>=60,male,,20,1,,,0,False\n"
+    "condition,count,,,,,,>=60,female,1,1,16,0,0,0,True\n"
+    "condition,count,,,,,,>=60,male,1,20,1,1,1,0,True\n"
+)
+"""Seed 0 draws the one woman with the condition sixteenth of its 21 cases."""
+
+
+def test_first_flag_scans_each_whole_ablation_and_skips_the_partial_ones(tmp_path, caplog):
+    ablations = {
+        "cell": CELL,
+        "condition": CONDITION,
+        "condition-50": dataclasses.replace(CONDITION, fraction=0.5),
+    }
+    context = make_context(ablations=ablations)
+    with caplog.at_level(logging.INFO, logger="bko"):
+        assert run("first-flag", tmp_path, context) == (0, FIRST_FLAG_EXPECTED)
+    digest = hashlib.sha256(FIRST_FLAG_EXPECTED.encode()).hexdigest()
+    for line in (
+        (
+            "first-flag ablation=cell detector=per-subgroup cell=>=60/male cases=20 items=2 "
+            "flagged=2 first=20 last=20\n"
+        ),
+        (
+            "first-flag ablation=cell detector=population-level cell=>=60/male cases=20 items=2 "
+            "flagged=0 first=n/a last=n/a\n"
+        ),
+        (
+            "first-flag ablation=cell detector=count cell=>=60/male/1 cases=20 items=1 flagged=1 "
+            "first=1 last=1\n"
+        ),
+        (
+            "first-flag ablation=condition detector=per-subgroup cell=>=60/female cases=1 items=2 "
+            "flagged=2 first=16 last=16\n"
+        ),
+        (
+            "first-flag ablation=condition detector=count cell=>=60/female/1 cases=1 items=1 "
+            "flagged=1 first=0 last=0\n"
+        ),
+        f"gaps rows=21 sha256={digest}",
+    ):
+        assert line in caplog.text
+    assert "condition-50" not in caplog.text
+
+
+def test_a_second_first_flag_run_writes_the_same_bytes(tmp_path):
+    assert run("first-flag", tmp_path, make_context()) == (0, FIRST_FLAG_EXPECTED)
+    assert run("first-flag", tmp_path, make_context()) == (0, FIRST_FLAG_EXPECTED)

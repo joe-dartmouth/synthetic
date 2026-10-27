@@ -98,7 +98,7 @@ checksums.
 
 - Owner: `src/bko/datasets/`
 - Pinned by: `tests/test_datasets_synthea_run.py`, `tests/test_datasets_synthea.py`,
-  `tests/test_datasets_ablation.py`
+  `tests/test_datasets_ablation.py`, `tests/test_gaps_scan.py`
 
 ## Reversal Conditions
 
