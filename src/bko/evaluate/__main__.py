@@ -4,7 +4,9 @@
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
 every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; its logs carry
 each BKO arm's counts per fill and each replica arm's mean replica utility and fidelity.
-`--candidate` judges another arm, a dry run whose verdict is not E1's. Logs go to stderr.
+`--candidate` judges another arm, a dry run whose verdict is not E1's; `--beside SCORES` logs the
+judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
+stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
@@ -129,7 +131,14 @@ def main(
             sink.write(_launch(args, context))
             return 0
         if args.command == "compare":
-            compare(_named(args.run, context).experiment, args.candidate, args.scores, sink)
+            compare(
+                _named(args.run, context).experiment,
+                args.candidate,
+                args.scores,
+                sink,
+                beside=args.beside,
+                beside_arm=args.beside_arm,
+            )
             return 0
         text = _score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
@@ -333,6 +342,15 @@ def _parser() -> argparse.ArgumentParser:
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
     comparing.add_argument(
         "--candidate", default=None, help="the row-adding arm judged; default: the experiment's own"
+    )
+    comparing.add_argument(
+        "--beside",
+        type=Path,
+        default=None,
+        help="another scores file; log the judged arm read beside its arm, with no verdict",
+    )
+    comparing.add_argument(
+        "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
     return parser
 
