@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import replace
 from typing import Any
 
@@ -9,7 +10,7 @@ import pytest
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import RANGES, UCI_FRAME
-from bko.generate.guidance import Guidance, intervals
+from bko.generate.guidance import Guidance, guide, intervals
 from bko.generate.messages import SETTINGS, Call, Level, record_schema
 from bko.generate.prompt import SYSTEM, render, system
 from bko.validate.checks import CHECKS, checks, validate
@@ -220,3 +221,14 @@ def test_the_user_turn_reads_the_toy_frame():
         "condition present), age 45 to 69 years."
     )
     assert "Keep each numeric field within: age 45 to 69 years; level 0.5 to 4.5 mg/dL." in user
+
+
+def test_intervals_refuse_edges_that_contradict_the_frame_given():
+    with pytest.raises(ValueError, match=r"edges \(55,\) differ from frame toy's \(45, 70\)"):
+        intervals(TOY_CELL, (55,), frame=TOY)
+    assert intervals(TOY_CELL, (45, 70), frame=TOY) == intervals(TOY_CELL, frame=TOY)
+    assert intervals(("40-59", "male", 1), (40, 60))["age"] == (40, 59)
+
+
+def test_guide_takes_its_edges_from_the_frame():
+    assert "edges" not in inspect.signature(guide).parameters
