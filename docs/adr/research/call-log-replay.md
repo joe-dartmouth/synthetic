@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-22
+updated: 2026-10-26
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -47,7 +47,9 @@ rows in `docs/EVIDENCE.md`).
     usage, response or attempts, an error line missing its error or attempts, or a usage whose
     keys are not `Usage`'s or whose counts are not whole numbers;
   - for a resume only: an `error` line before the stopped log's last call; a stopped log whose
-    `run` line names `replay`; a resumed log that holds fewer answered calls than it resumed.
+    `run` line names `replay`; a stopped log whose `run` line reads `rehearsal: true`, since its
+    replies are canned and a resume sends the rest live; a resumed log that holds fewer answered
+    calls than it resumed.
 
   Every check but the first two runs when the log is read, before any call.
 - `bko.generate.replay.Resume` is a `Replay` over a stopped log's answered calls; after them, it
@@ -60,6 +62,9 @@ rows in `docs/EVIDENCE.md`).
   replay's log never reads as paid spend; its `live_usd` is 0. The run refuses a log with calls
   left unplayed. `score --resume STOPPED --log NEW` answers STOPPED's answered calls and sends the
   rest live; NEW's `usd` counts its replayed calls, and its `live_usd` counts what it paid.
+  `launch <run-id> [<run>] --resume STOPPED` starts that command under the paid-run protocol
+  (ADR `research/e1-evaluation-protocol`). A rehearsal's log (`score --rehearse`) replays like any
+  other.
 - `bko.app` answers a BKO fill from the call log of an earlier fill by that arm, with the same
   refusals, and writes its own log naming the replayed log's sha256.
 - Order, not content, pairs a call with its answer.

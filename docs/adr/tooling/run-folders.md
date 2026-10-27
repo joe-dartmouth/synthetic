@@ -29,8 +29,10 @@ a run that checks or extends another takes that run's id and a suffix, such as `
 `c1-2-closure`; an entry holds named runs, `<entry>` or `<entry>-<word>`, and a run id's entry is
 the part of its name before the first dash: a run registered as `g3-cell` launches into `runs/g3-1/`
 as `launch g3-1 g3-cell`; an app fill, which is not a run of record, takes `app-<UTC time>-<arm>`.
-A role is one regular file, except `pytest`, a directory: a run's per-holdout candidates are one
-file, `holdout-candidates.jsonl`, whose every line names its holdout.
+A role is one regular file, except `pytest` and `rehearsal`, directories: a run's per-holdout
+candidates are one file, `holdout-candidates.jsonl`, whose every line names its holdout, and a
+run's rehearsal (`launch <run-id> [<run>] --rehearse`) writes its own roles into
+`runs/<run-id>/rehearsal/`, so the run's folder stays free for the run itself.
 The latest run of each entry whose rows name `scratchpad/` is hard-linked into its folder
 (`docs/DEVELOPMENT.md`, Runs, lists them); earlier runs stay where their rows say.
 

@@ -34,21 +34,29 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   confidence, the attempts per fill, the BKO arms' budget per attempt, the validity threshold and
   the run's spend ceiling. It refuses a candidate that is not one of its arms, and a replica arm
   that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
-  value: `score --log`, `--candidates`, `--replay` and `--resume` choose where calls and candidates
-  are recorded and where calls are answered from, `compare --candidate` judges another arm as a dry
-  run, never as E1's verdict, and `compare --beside` reads an arm beside another run's arm, a
-  reading with no verdict, over the holdouts both files hold where the held-out rows match and no
-  arm in either file copied a test record. A variant is a named run: `bko.evaluate.experiment.RUNS`
-  maps a run name to its `Experiment` and generator `Settings`, `e1` being `E1` at `SETTINGS` and
-  the default, and `score` and `compare` take the name as a positional. A named run is a value fixed
-  in code and committed, so it replays at its commit as E1 does, and the name does not reopen the
-  ruled-out flags: no flag sets a reading, a holdout count or a setting. A run lists its own
-  `criteria`, which may be none, and `compare` judges only those, reporting every measure beside
-  them; a run with none is reported with no verdict. A paid run also stops on two rules beside the
-  spend ceiling, each value held by its `Experiment`: its spend after `projection_after` holdouts,
-  scaled to every holdout, reaching the ceiling, and a call with no reply within `idle_limit`
-  seconds (`bko.evaluate.watch`); `launch` starts it detached, kept awake and refused on battery
-  power (`docs/DEVELOPMENT.md`, Evaluation).
+  value: `score --log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls
+  and candidates are recorded and where calls are answered from, `compare --candidate` judges
+  another arm as a dry run, never as E1's verdict, and `compare --beside` reads an arm beside
+  another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
+  rows match and no arm in either file copied a test record. A variant is a named run:
+  `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment` and generator `Settings`, `e1`
+  being `E1` at `SETTINGS` and the default, and `score` and `compare` take the name as a positional.
+  A named run is a value fixed in code and committed, so it replays at its commit as E1 does, and
+  the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
+  setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
+  reporting every measure beside them; a run with none is reported with no verdict. A paid run also
+  stops on two rules beside the spend ceiling, each value held by its `Experiment`: its spend after
+  `projection_after` holdouts, scaled to every holdout, reaching the ceiling, and a call with no
+  reply within `idle_limit` seconds (`bko.evaluate.watch`); `launch` starts it detached, kept awake
+  and refused on battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
+  resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
+  or the ceiling stopped is reported, not resumed. `launch --rehearse` first runs the whole run on
+  canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal` directory, so the stop
+  rules, the spend lines and the folder roles are checked for free before any spend. A rehearsal
+  bills each record asked at the judged run's tokens per record (its Runs row's input and output
+  tokens over its records asked), so its spend and projection read on the scale of a real run; its
+  spend is a wiring check, not an estimate. Those tokens per record are recomputed from the judged
+  run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
