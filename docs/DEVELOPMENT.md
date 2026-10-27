@@ -414,11 +414,12 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
 `bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
 statement) pairs under each definition of ADR `research/bko-formal-gap-definition`
 (`per-subgroup`, `population-level` and `frequency-aware`, in that order), and as the age-sex
-subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). Two commands,
-inside `.venv`:
+subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). Three
+commands, inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps first-flag [--data-dir <dir>]
 
 - **What `uci` does**: it fetches UCI Heart Disease and the releases the field mappings name into
   the data root if absent, splits the records as [Data](#data) says, and lists the training
@@ -437,6 +438,20 @@ inside `.venv`:
   and a (cell, statement) pair is listed when it is a gap before or after the removal or in the
   truth; a `count` row's cell is listed when it is a gap before or after the removal or its count
   fell. [EVIDENCE.md](EVIDENCE.md#e2-synthea-gap-detection-ablation) (E2) holds the reading.
+- **What `first-flag` does**: it reads `synthea`'s population and releases, and for each E2
+  ablation at fraction 1, removes its cases one at a time in its seed's draw order and records, per
+  detector and truth item, the removed count at which the item is first listed and the cell's own
+  removed count then; frequency-aware can unlist, so its reversals are counted. The draw order is
+  the one a fraction ablation takes its first cases from (`bko.datasets.ablation.removal_order`),
+  so an item a per-subgroup, population-level or count row lists first at removed count `r` is a
+  gap after the fraction ablation removing `ceil(f * n)` of the `n` cases exactly when `r` is at
+  most that count. The truth items are the full removal's truth, as `synthea` lists it. stdout
+  gets a CSV with `synthea`'s columns up to `target`, then `cases` (the ablation's cases in the
+  item's cell), `truth_from` (the removed count from which the item is in the truth),
+  `first_flag` (the removed count at which the detector first lists it, 0 when it is listed before
+  any removal, blank when never), `cell_removed` (the cell's removed cases at `first_flag`, blank
+  when never), `reversals` (how often the detector stops listing it as cases go) and
+  `flagged_at_all`.
 - **What it logs**: stderr gets the data root and the pandas and scipy versions, each input's
   identity (the split or the population, the parser and each release), each ontology fragment's
   size, how many records show each mapped concept, each cell's record count, held-concept count
@@ -447,7 +462,9 @@ inside `.venv`:
   eligible, recovered, outside the truth, new outside the truth, and vanished) and its sensitivity
   and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
-  removing whole patients cannot cause, and last the row count and sha256 of stdout.
+  removing whole patients cannot cause, for `first-flag` one `first-flag` line per ablation,
+  detector and truth cell with the cell's cases, its truth items, how many were ever listed and
+  the earliest and latest first flag, and last the row count and sha256 of stdout.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks; 3 the data or a release
   contradicts its pin or schema, including a release naming an `is_a` parent it lacks.
@@ -617,6 +634,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-uci.log` | its stderr |
 | `gaps-synthea.csv` | `python -m bko.gaps synthea`'s stdout |
 | `gaps-synthea.log` | its stderr |
+| `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
+| `first-flag.log` | its stderr |
 | `reproduction.csv` | `python -m bko.ontology reproduce`'s stdout |
 | `reproduction.log` | its stderr |
 | `training.csv` | the augmented training set of an app fill |
@@ -627,6 +646,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
 - **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
