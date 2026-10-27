@@ -38,9 +38,9 @@ prompts up to 100,000 tokens: input $0.10, 5-minute cache writes $0.125, cache h
 $0.50, each per million tokens. A call's prompt runs to a few thousand tokens, so the higher tier
 never applies. The API reports a call's tokens and no price.
 
-A record's fields, codes and plausible ranges already have homes: `bko.datasets.uci` (`CODEBOOK`,
-`DESCRIPTIONS`, `FRAME_COLUMNS`), `bko.datasets.cells` (`SEXES`, `LABEL_MEANINGS`) and
-`bko.ontology.mapping.RANGES`.
+A record's fields, codes and plausible ranges already have a home: the frame
+(`bko.datasets.frames.FrameSpec`), whose UCI instance `bko.datasets.uci.UCI_FRAME` holds UCI's
+columns, codebook, descriptions, label meanings and `RANGES`.
 
 ## Decision Drivers
 
@@ -106,7 +106,8 @@ ladder.**
   record gets neither, with a WARNING.
 - **What every level sends:**
   - each field's meaning, codes and unit;
-  - each numeric field's plausible range from `RANGES`, with age clipped to the cell's band;
+  - each numeric field's plausible range from the frame's ranges (UCI's `RANGES`), with age
+    clipped to the cell's band;
   - the cell and its training record count;
   - an instruction to invent new patients.
 
@@ -188,8 +189,8 @@ Six levels separate what the ontology adds from what any careful prompt adds: `c
 for a plain request for clinical sense, and `findings` and `ontology` differ by exactly the `is_a`
 chains. A single fixed prompt gives no ablation axis.
 
-The ranges come from `RANGES` rather than a training split's minimum and maximum, because the
-prompt states what is possible for a patient, not what one split happens to hold.
+The ranges come from the frame's ranges rather than a training split's minimum and maximum,
+because the prompt states what is possible for a patient, not what one split happens to hold.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
 or a short array lowers validity rather than vanishing. `None` cannot be the placeholder, since a

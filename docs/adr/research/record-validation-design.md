@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-18
+updated: 2026-10-26
 ---
 # Record validation: each field's number, bound and decimals, counted per check
 
@@ -17,13 +17,13 @@ Messages API as decoded JSON. A candidate can therefore hold any JSON value: a s
 
 What the model holds that a record can break:
 
-- **The codebook** of every categorical field (`bko.datasets.uci.CODEBOOK`), and the label's codes
-  (`bko.datasets.cells.LABEL_CODES`, beside `LABEL`).
-- **The range constraints** of the numeric fields (`bko.ontology.mapping.RANGES`). They catch gross
-  errors only (ADR [`research/ontology-mapping-design`](ontology-mapping-design.md),
-  Consequences).
-- **The archive's precision:** whole numbers, and `oldpeak` at `bko.datasets.uci.FRACTION_DIGITS`
-  decimals.
+- **The codebook** of every categorical field, and the label's codes, both in the frame
+  (`bko.datasets.frames.FrameSpec`; UCI's is `bko.datasets.uci.UCI_FRAME`).
+- **The range constraints** of the numeric fields, the frame's `ranges` (UCI's are
+  `bko.datasets.uci.RANGES`). They catch gross errors only (ADR
+  [`research/ontology-mapping-design`](ontology-mapping-design.md), Consequences).
+- **The archive's precision:** whole numbers, and each fractional field (UCI's `oldpeak`) at the
+  frame's `fraction_digits` decimals.
 - **No ontology relationship.** The mapping rows record presence only, so a check derived from
   `is_a` rejects nothing (same ADR, Consequences). No other axiom gives a check:
   - Measured on 2026-10-17 on the releases `bko.datasets.sources` holds, HPO declares no
@@ -45,14 +45,13 @@ Measured on 2026-10-17 over the 297 complete Cleveland records:
   than vanishing.
 * **Must name each check**, so the counts say which promise generation breaks.
 * **Must never raise on a candidate's content**, since that would lose a paid batch.
-* **Must read each bound from its home:** the codebook in `bko.datasets.uci`, the ranges in
-  `bko.ontology.mapping`.
+* **Must read each bound from its home:** the frame's codebook and ranges.
 * **Should add no check that cannot fail.**
 
 ## Decision
 
-We will **check each candidate field by field against the codebook, the mapping table's ranges and
-the archive's precision. A candidate is refused, never repaired, and counted under every check it
+We will **check each candidate field by field against the frame's codebook, ranges and
+precision. A candidate is refused, never repaired, and counted under every check it
 fails.**
 
 - **Input:** the decoded candidates, one item per record generation produced, unfiltered, plus one
@@ -84,8 +83,9 @@ fails.**
   - One INFO summary per batch, with counts only, and a WARNING for an empty batch.
 - **No threshold:** the stage reports counts, and the final evaluation judges the criterion.
 - **No ontology check**, for the reasons in Context.
-- **Library only**, with the `data` extra. The evaluation frame's columns and dtypes live in
-  `bko.datasets.uci`, so this stage imports only upstream stages.
+- **Library only**, with the `data` extra. `validate` takes the frame as a keyword defaulting to
+  `UCI_FRAME`, and the frame's columns and dtypes live in `bko.datasets`, so this stage imports
+  only upstream stages.
 
 ## Rationale
 
@@ -97,7 +97,7 @@ whole-number check on a coded field could never fail alone, because a non-whole 
 its codebook; so precision applies to the numeric fields only.
 
 The bounds come from their existing homes. A codes constraint in the mapping table would be a
-second home for the codebook. The frame's columns and dtypes live in `bko.datasets.uci` with the
+second home for the codebook. The frame's columns and dtypes live in `bko.datasets` with the
 frame they describe, rather than in `bko.baselines.records`, a downstream stage.
 
 Repairing a near miss would count a broken record as valid. Judging the criterion here would put a second

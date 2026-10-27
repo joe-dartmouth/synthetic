@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-17
+updated: 2026-10-26
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -49,7 +49,9 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto; it returns frozen
   standard-library `Ontology` and `Term` values with sorted tuples and a sorted term map.
 - **Table form**: typed `Final` constants in `bko.ontology.mapping`, with the row types in
-  `bko.ontology.schema`.
+  `bko.ontology.schema`. The range constraints belong to a frame, so they are defined in
+  `bko.datasets` (`RangeConstraint` in `bko.datasets.frames`, UCI's `RANGES` in
+  `bko.datasets.uci`), and `bko.ontology.schema` and `bko.ontology.mapping` re-export them.
 - **Row meaning**: when every clause of a row holds for a record, the record shows the row's
   concept (SSSOM `skos:broadMatch`, with the dataset state as subject). Rows record presence only.
 - **Mapping rule**: a field state maps to a concept when `heart-disease.names` names the concept,
@@ -67,7 +69,7 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
   ([`harutyunyan-2019`](../../literature.md#gap-detection-and-data-quality)); team-specified where
-  no published bound exists, with the reason below.
+  no published bound exists, with the reason below. UCI's bounds are `bko.datasets.uci.RANGES`.
 - **SNOMED-CT evidence**: MONDO's `skos:exactMatch SCTID:<code>` annotation, which the check
   requires on the mapped concept and on no other live concept.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
