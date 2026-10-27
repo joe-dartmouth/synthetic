@@ -2,7 +2,7 @@
 
 The report's default thresholds leave out every column pair whose real correlation or association
 is weak, which on this frame drops most pairs and changes the set from split to split; both are set
-to 0, so the same pairs count every time.
+to 0, so the same pairs count every time. The table is named for the frame, UCI's by default.
 """
 
 from __future__ import annotations
@@ -13,41 +13,43 @@ from typing import Final
 import pandas as pd
 from sdmetrics.reports import QualityReport
 
-from bko.baselines.synthesizers import METADATA
-from bko.datasets.uci import FRAME_COLUMNS
+from bko.baselines import synthesizers
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scores import Measure
 
-
-TABLE: Final = "uci"
-"""The table `METADATA` describes."""
 
 MEASURES: Final = (Measure.QUALITY, Measure.COLUMN_SHAPES, Measure.COLUMN_PAIR_TRENDS)
 """The measures `fidelity` returns, in its order."""
 
 
-def metadata() -> dict[str, object]:
-    """`METADATA` as the plain, private dict SDMetrics requires."""
-    return copy.deepcopy(dict(METADATA))
+def metadata(frame: FrameSpec = UCI_FRAME) -> dict[str, object]:
+    """`frame`'s SDV metadata as the plain, private dict SDMetrics requires."""
+    return copy.deepcopy(dict(synthesizers.metadata(frame)))
 
 
-def quality_report(reference: pd.DataFrame, synthetic: pd.DataFrame) -> QualityReport:
+def quality_report(
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+) -> QualityReport:
     """SDMetrics' quality report of `synthetic` against `reference`, generated quietly."""
-    columns = list(FRAME_COLUMNS)
+    columns = list(frame.columns)
     report = QualityReport()
     report.real_correlation_threshold = 0
     report.real_association_threshold = 0
     report.generate(
-        {TABLE: reference.loc[:, columns]},
-        {TABLE: synthetic.loc[:, columns]},
-        metadata(),
+        {frame.name: reference.loc[:, columns]},
+        {frame.name: synthetic.loc[:, columns]},
+        metadata(frame),
         verbose=False,
     )
     return report
 
 
-def fidelity(reference: pd.DataFrame, synthetic: pd.DataFrame) -> dict[Measure, float]:
+def fidelity(
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+) -> dict[Measure, float]:
     """The quality score and its two properties for `synthetic` against `reference`."""
-    report = quality_report(reference, synthetic)
+    report = quality_report(reference, synthetic, frame=frame)
     properties = report.get_properties().set_index("Property")["Score"]
     return {
         Measure.QUALITY: float(report.get_score()),

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-15
+updated: 2026-10-26
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -52,8 +52,11 @@ seed their sampling after every fit, and seed no fit.
 - **Seeds**: imbalanced-learn takes one seed per stratum, derived from the run's seed. CTGAN and TVAE
   fit with numpy's and torch's global generators seeded from it and one torch thread, all restored
   afterwards; SDV seeds sampling itself after every fit.
-- **Output**: in process, the added rows (the evaluation frame's columns and dtypes, indexed -1, -2,
-  ...) and one weight per training record. The command writes the training set they make to stdout
+- **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
+  defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
+  metadata read its columns, codes and precision.
+- **Output**: in process, the added rows (the frame's columns and dtypes, indexed -1, -2, ...) and
+  one weight per training record. The command writes the training set they make to stdout
   as CSV and writes nothing under `data/` but the snapshot `bko.datasets` fetches.
 
 `bko.baselines.request`, `bko.baselines.oversample` and `bko.baselines.synthesizers` hold the values.

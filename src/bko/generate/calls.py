@@ -14,6 +14,8 @@ import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import Undecoded, decode, undecoded_in
 from bko.generate.guidance import Guidance
@@ -96,6 +98,7 @@ def ask(
     send: Send,
     log: CallLog,
     settings: Settings | None = None,
+    frame: FrameSpec = UCI_FRAME,
 ) -> Batch:
     """Make one call for `rows` records of `guidance`'s cell, and log it.
 
@@ -105,6 +108,7 @@ def ask(
         send: Makes the call.
         log: The run's call log.
         settings: How the call is made, its guidance level included; the log's when None.
+        frame: The frame whose records the call asks for.
 
     Returns:
         The call's outcome.
@@ -116,8 +120,8 @@ def ask(
             and the `reply` line, a `KeyboardInterrupt` included, which propagates unchanged.
     """
     settings = _settings(log, settings)
-    system, user = render(guidance, rows, settings.guidance)
-    call = Call(settings, guidance.sex, guidance.label, system, user)
+    system, user = render(guidance, rows, settings.guidance, frame=frame)
+    call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
     key = cell_key(guidance.cell)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
@@ -171,6 +175,7 @@ def generate(
     log: CallLog,
     settings: Settings | None = None,
     on_batch: Callable[[Batch], None] | None = None,
+    frame: FrameSpec = UCI_FRAME,
 ) -> Generation:
     """Ask for each cell's quota in chunks of `settings.per_call`, cells in quota order.
 
@@ -182,6 +187,7 @@ def generate(
         settings: How each call is made; the log's when None.
         on_batch: Called with each call's outcome as it returns, before the next call, so a
             caller can write it out before a later call fails.
+        frame: The frame whose records each call asks for.
 
     Returns:
         Every call's outcome, in call order.
@@ -212,7 +218,7 @@ def generate(
     )
     batches: list[Batch] = []
     for cell, chunk in planned:
-        batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings)
+        batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings, frame=frame)
         batches.append(batch)
         if on_batch is not None:
             on_batch(batch)

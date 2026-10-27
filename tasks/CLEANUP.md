@@ -52,6 +52,49 @@ links to where its blocker is tracked.
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
 
+- **`cleanup:evaluate/spawn-child-reaped-early`: the spawn test can fail with no child to wait
+  for.** One `make test` run on 2026-10-26 (under `pytest -n auto`) failed
+  `test_spawn_starts_the_command_detached_with_its_output_in_the_files` in
+  `tests/test_evaluate_launch.py` with these lines of its report:
+
+  ```
+  E       ChildProcessError: [Errno 10] No child processes
+  tests/test_evaluate_launch.py:396: ChildProcessError
+  ```
+
+  The test passed alone and in the next full run. `bko.evaluate.launch.spawn` returns the pid of a
+  `subprocess.Popen` it drops, and the test then calls `os.waitpid` on that pid. A likely cause,
+  not yet confirmed: when the child has already exited, `Popen.__del__` polls and reaps it, so
+  `os.waitpid` finds no child. *Filed 2026-10-26 by the `evaluate-frame-generic-pipeline` work.*
+  **Why deferred.** It is unrelated to the change that met it, which touched no launch code.
+  **What discharges it:** `spawn` keeps or returns the `Popen` (or the test waits through it), so
+  nothing reaps the child before the waiter does, and the cause is confirmed.
+  **Trigger:** the test's next failure, or the next change to `bko.evaluate.launch.spawn`.
+
+- **`cleanup:evaluate/frame-unnamed-in-run-logs`: no log says which frame a run read.** No run
+  log line, call log line, candidates header or `validated` summary names the frame, so two runs
+  over different frames read alike. A refusal that is not a `GenerationError`, such as
+  `CannedSend`'s frame refusal, reaches the call log as its type name only. Evidence:
+  `bko.generate.log.CallLog`'s run line and `bko.evaluate.holdout_candidates`' header carry
+  settings and origin with no frame field, and `bko.validate.checks._log` writes counts only.
+  *Filed 2026-10-27 by the review of PR #42.*
+  **Why deferred.** Naming the frame in the call log's run line changes call-log bytes, and only
+  one frame runs.
+  **What discharges it:** the run line, the candidates header and the `validated` line carry
+  `frame=`, and `log.failure` keeps a refusal's message.
+  **Trigger:** the first non-UCI frame that runs `score` or `generate`
+  (`evaluate-synthea-downstream`).
+
+- **`cleanup:evaluate/edges-default-to-uci`: helpers taking `edges` fall back to UCI's bands.**
+  `bko.evaluate.experiment.flagged`, `bko.evaluate.run.held_out_ratio`,
+  `bko.evaluate.utility.in_scope` and `utility`, and `bko.baselines.request.Strata.grid` and
+  `stratum_keys` default `edges` to `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that
+  omits `edges` silently gets UCI's bands. *Filed 2026-10-27 by the review of PR #42.*
+  **Why deferred.** Every caller in the harness passes its frame's edges, and only one frame runs.
+  **What discharges it:** each takes the frame, or requires `edges`.
+  **Trigger:** the first non-UCI frame that runs `score` or `generate`
+  (`evaluate-synthea-downstream`).
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
@@ -65,3 +108,28 @@ links to where its blocker is tracked.
   `uci` as in `first-flag`, so it lies outside that change.
   **What discharges it:** `main` maps `BKBError` to a logged refusal with a documented exit code.
   **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
+
+## generate
+
+- **`cleanup:generate/system-prompt-uci-only`: the system prompt is UCI's for every frame.**
+  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units, ranges and decimals,
+  but its opening sentence is fixed text about heart-disease prediction and patients referred for
+  coronary angiography, which `FrameSpec` has no field to replace. Its closing sentence indexes the
+  frame's fractional fields, so a frame with none raises `IndexError` in
+  `_alternatives` (`items[0]` of an empty list). Evidence: `system(TOY)` in
+  `tests/test_datasets_frame.py` still opens with the heart-disease sentence. *Filed 2026-10-26 by
+  the `evaluate-frame-generic-pipeline` work.*
+  **Why deferred.** UCI is the only frame that generates records, and its prompt must stay
+  byte-identical through that unit.
+  **What discharges it:** the frame (or the caller) supplies the opening sentence, and a frame
+  with no fractional field renders a closing sentence without one; UCI's text stays unchanged.
+  **Trigger:** the first non-UCI frame that generates records (`evaluate-synthea-downstream`).
+
+- **`cleanup:generate/system-shim-for-pinned-test`: a shim serves one pinned test.**
+  `bko.generate.prompt._system()` and its `FRACTIONAL` import exist only because the pinned
+  `tests/test_generate_prompt.py` (lines 60-65) monkeypatches `FRACTIONAL` and calls `_system()`;
+  the real path is `system(frame)`. *Filed 2026-10-27 by the review of PR #42.*
+  **Why deferred.** The generate pin files stay unchanged through the frame refactor.
+  **What discharges it:** the test calls `system(replace(UCI_FRAME, fractional=...))`, and the
+  shim and the import are deleted.
+  **Trigger:** the next change that may edit the generate pin files.

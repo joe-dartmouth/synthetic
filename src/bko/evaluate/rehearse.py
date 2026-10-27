@@ -4,7 +4,8 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its spend is a wiring
+none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its records are
+UCI's, so it refuses a call for another frame. Its spend is a wiring
 check, not an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
 recomputed.
 """
@@ -19,8 +20,16 @@ from typing import Final
 
 import pandas as pd
 
+from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
-from bko.datasets.uci import CODEBOOK, FRACTION_DIGITS, FRACTIONAL, FRAME_COLUMNS, NUMERIC
+from bko.datasets.uci import (
+    CODEBOOK,
+    FRACTION_DIGITS,
+    FRACTIONAL,
+    FRAME_COLUMNS,
+    NUMERIC,
+    UCI_FRAME,
+)
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
@@ -87,26 +96,34 @@ class CannedSend:
 
     def __init__(
         self,
-        frame: pd.DataFrame,
+        records: pd.DataFrame,
         experiment: Experiment,
         settings: Settings,
         *,
         per_record: tuple[int, int] = (INPUT_PER_RECORD, OUTPUT_PER_RECORD),
+        frame: FrameSpec = UCI_FRAME,
     ) -> None:
-        """Read the safe ranges over `experiment`'s holdouts of `frame`.
+        """Read the safe ranges over `experiment`'s holdouts of `records`.
 
         Args:
-            frame: The records the run splits; no canned record equals one of them.
+            records: The records the run splits; no canned record equals one of them.
             experiment: The run; its holdout seeds bound the ranges.
             settings: The run's settings; each reply names their model.
             per_record: The input and output tokens billed per record asked.
+            frame: The run's frame; only `UCI_FRAME` is answered.
 
         Raises:
+            ValueError: If `frame` is not `UCI_FRAME`.
             EvaluationError: As `safe_ranges`, or if a field has no value on its precision there.
         """
-        ranges = safe_ranges(frame, experiment.holdout_seeds)
+        if frame is not UCI_FRAME:
+            msg = f"a rehearsal writes UCI records only, not frame {frame.name}"
+            raise ValueError(msg)
+        ranges = safe_ranges(records, experiment.holdout_seeds)
         self._grids = {name: _grid(*ranges[name], name) for name in NUMERIC}
-        self._real = frozenset(frame.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
+        self._real = frozenset(
+            records.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None)
+        )
         self._model = settings.model
         self._input, self._output = per_record
         self.calls = 0
@@ -116,11 +133,14 @@ class CannedSend:
         """Answer `call` with its records, billed at the tokens per record.
 
         Raises:
-            ValueError: If the user turn does not read as the prompt renders it or names another
-                cell than the call's.
+            ValueError: If the call is for another frame than UCI's, or its user turn does not
+                read as the prompt renders it or names another cell than the call's.
             EvaluationError: If no canned record of the cell's ages fits the safe ranges, or
                 `SKIPS` in a row equal real records.
         """
+        if call.frame is not UCI_FRAME:
+            msg = f"a rehearsal answers UCI calls only, not a call for frame {call.frame.name}"
+            raise ValueError(msg)
         found = PROMPT.match(call.user)
         if found is None:
             msg = f"the user turn does not read as the prompt renders it: {call.user[:200]!r}"

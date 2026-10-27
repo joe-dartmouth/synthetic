@@ -105,7 +105,8 @@ class Attempt:
     def take(self, batch: Batch) -> None:
         """Validate one call's candidates, drop what `check` would refuse, and keep the rest."""
         self.asked += batch.asked
-        checked = validate(batch.candidates)
+        frame = self.request.frame
+        checked = validate(batch.candidates, frame=frame)
         self.tally.generated += checked.generated
         self.tally.passed += checked.passed
         rows = checked.accepted
@@ -132,7 +133,7 @@ class Attempt:
             )
         # `.loc`: a plain `frame[[]]` would select no columns when nothing passed.
         kept = rows.loc[[reason is None for reason in reasons]]
-        keys = stratum_keys(kept, Strata.CELL)
+        keys = stratum_keys(kept, Strata.CELL, edges=frame.edges)
         for stratum in dict.fromkeys(keys):
             self.kept[stratum].append(kept.loc[[key == stratum for key in keys]])
 

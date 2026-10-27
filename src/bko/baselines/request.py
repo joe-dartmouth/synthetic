@@ -2,7 +2,8 @@
 
 A stratum is a cell (age band, sex and label, `bko.datasets.cells`) or a label alone. A method
 fills exactly the `Request` it is given, so methods given one request meet equal row counts stratum
-by stratum (ADR `research/baseline-augmentation-design`).
+by stratum. The request carries the frame its rows belong to, whose band edges name its cells (ADR
+`research/baseline-augmentation-design`).
 """
 
 from __future__ import annotations
@@ -10,14 +11,23 @@ from __future__ import annotations
 import enum
 import itertools
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Final
 
 import pandas as pd
 
-from bko.datasets.cells import CELL_COLUMNS, LABEL, SEXES, age_band_labels, cell_keys
+from bko.datasets.cells import (
+    AGE_BAND_EDGES,
+    CELL_COLUMNS,
+    LABEL,
+    SEXES,
+    age_band_labels,
+    cell_keys,
+)
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 
 
 BASELINE_SEED: Final = 0
@@ -57,20 +67,22 @@ class Strata(enum.StrEnum):
         """The `cell_keys` columns that name a stratum; each key ends with the label."""
         return CELL_COLUMNS if self is Strata.CELL else (LABEL,)
 
-    def grid(self) -> tuple[Stratum, ...]:
-        """Every stratum, in the grid order of `bko.datasets.cells.cell_counts`."""
+    def grid(self, edges: Sequence[int] = AGE_BAND_EDGES) -> tuple[Stratum, ...]:
+        """Every stratum under the band `edges`, in the grid order of `cell_counts`."""
         if self is Strata.LABEL:
             return ((0,), (1,))
-        return tuple(itertools.product(age_band_labels(), SEXES.values(), (0, 1)))
+        return tuple(itertools.product(age_band_labels(edges), SEXES.values(), (0, 1)))
 
 
-def stratum_keys(frame: pd.DataFrame, strata: Strata) -> list[Stratum]:
+def stratum_keys(
+    frame: pd.DataFrame, strata: Strata, *, edges: Sequence[int] = AGE_BAND_EDGES
+) -> list[Stratum]:
     """Return each row's stratum, in row order, computed from the row's own values.
 
     Raises:
         ContractError: If an age, sex or label is outside what `cell_keys` accepts.
     """
-    cells = cell_keys(frame)
+    cells = cell_keys(frame, edges=edges)
     return list(zip(*(cells[column].tolist() for column in strata.columns), strict=True))
 
 
@@ -82,11 +94,14 @@ class Request:
         quota: Rows to add per stratum, held read-only in grid order; only strata that gain rows.
         strata: What the quota is keyed by.
         seed: The seed every random choice in the method derives from.
+        frame: The frame the rows belong to: their columns, codes and precision, and the band
+            edges of its cells.
     """
 
     quota: Mapping[Stratum, int] = field(default_factory=dict)
     strata: Strata = Strata.CELL
     seed: int = BASELINE_SEED
+    frame: FrameSpec = UCI_FRAME
 
     def __post_init__(self) -> None:
         """Refuse a malformed quota or seed, and freeze the quota in grid order.
@@ -95,7 +110,7 @@ class Request:
             ValueError: If a quota key is not a stratum of `strata`, a row count is below 1, or the
                 seed is outside `[0, SEED_LIMIT)`.
         """
-        grid = self.strata.grid()
+        grid = self.strata.grid(self.frame.edges)
         for stratum, rows in self.quota.items():
             if stratum not in grid or not _is_int(rows) or rows < 1:
                 msg = (
@@ -145,9 +160,14 @@ def water_fill(counts: Mapping[Stratum, int], rows: int) -> dict[Stratum, int]:
 
 
 def plan(
-    train: pd.DataFrame, rows: int, *, strata: Strata = Strata.CELL, seed: int = BASELINE_SEED
+    train: pd.DataFrame,
+    rows: int,
+    *,
+    strata: Strata = Strata.CELL,
+    seed: int = BASELINE_SEED,
+    frame: FrameSpec = UCI_FRAME,
 ) -> Request:
-    """Water-fill `rows` over the strata of `train` into a `Request`."""
-    held = Counter(stratum_keys(train, strata))
-    counts = {stratum: held[stratum] for stratum in strata.grid()}
-    return Request(quota=water_fill(counts, rows), strata=strata, seed=seed)
+    """Water-fill `rows` over the strata of `train`, a split of `frame`, into a `Request`."""
+    held = Counter(stratum_keys(train, strata, edges=frame.edges))
+    counts = {stratum: held[stratum] for stratum in strata.grid(frame.edges)}
+    return Request(quota=water_fill(counts, rows), strata=strata, seed=seed, frame=frame)

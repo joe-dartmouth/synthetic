@@ -11,14 +11,13 @@ from bko.datasets.ablation import DEFAULT_ABLATION
 from bko.datasets.cells import LABEL
 from bko.datasets.sources import Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
-from bko.datasets.uci import CATEGORICAL, CODEBOOK, NUMERIC
+from bko.datasets.uci import CATEGORICAL, CODEBOOK, NUMERIC, RANGES
 from bko.ontology.mapping import (
     CODE_MAPPINGS,
     CONCEPT_ROWS,
     FIELD_MAPPINGS,
     MAPPED,
     OUT_OF_SCOPE,
-    RANGES,
     RELEASES,
     UNMAPPED,
 )

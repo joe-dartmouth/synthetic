@@ -8,14 +8,14 @@ precision a record called positive.
 from __future__ import annotations
 
 import math
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from typing import Final
 
 import pandas as pd
 from sklearn.metrics import average_precision_score, precision_score, recall_score
 
 from bko.baselines.request import Stratum
-from bko.datasets.cells import LABEL, cell_keys
+from bko.datasets.cells import AGE_BAND_EDGES, LABEL, cell_keys
 from bko.evaluate.scores import Measure, Scope
 
 
@@ -23,12 +23,18 @@ THRESHOLD: Final = 0.5
 """The probability at or above which a record is called positive."""
 
 
-def in_scope(test: pd.DataFrame, scope: Scope, flagged: Collection[Stratum]) -> pd.Series:
-    """Which test records `scope` covers, as booleans on the test index."""
+def in_scope(
+    test: pd.DataFrame,
+    scope: Scope,
+    flagged: Collection[Stratum],
+    *,
+    edges: Sequence[int] = AGE_BAND_EDGES,
+) -> pd.Series:
+    """Which test records `scope` covers, as booleans on the test index; `edges` band them."""
     if scope is Scope.ALL:
         return pd.Series(True, index=test.index)
     subgroups = {(band, sex) for band, sex, *_ in flagged}
-    cells = cell_keys(test)
+    cells = cell_keys(test, edges=edges)
     covered = [
         (band, sex) in subgroups for band, sex in zip(cells["age_band"], cells["sex"], strict=True)
     ]
@@ -36,13 +42,17 @@ def in_scope(test: pd.DataFrame, scope: Scope, flagged: Collection[Stratum]) -> 
 
 
 def utility(
-    test: pd.DataFrame, probability: pd.Series, flagged: Collection[Stratum]
+    test: pd.DataFrame,
+    probability: pd.Series,
+    flagged: Collection[Stratum],
+    *,
+    edges: Sequence[int] = AGE_BAND_EDGES,
 ) -> dict[tuple[Measure, Scope], float]:
     """Each measure in each scope, `probability` holding P(disease) per test record by index."""
     scores: dict[tuple[Measure, Scope], float] = {}
     matched = probability.loc[test.index].to_numpy()
     for scope in Scope:
-        mask = in_scope(test, scope, flagged).to_numpy()
+        mask = in_scope(test, scope, flagged, edges=edges).to_numpy()
         truth = test[LABEL].to_numpy()[mask]
         score = matched[mask]
         called = (score >= THRESHOLD).astype("int64")

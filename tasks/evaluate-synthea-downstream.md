@@ -2,7 +2,7 @@
 id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
 status: blocked
-depends_on: detect-synthea-mappings, evaluate-frame-generic-pipeline
+depends_on: detect-synthea-mappings
 blocks: --
 parallel_safe: true
 owner: Joe

@@ -3,6 +3,9 @@
 ADR `tooling/one-home-per-kind-of-statement`: every other document points here rather than
 copying a row. ADR `research/ontology-mapping-design` records how the rows are chosen.
 
+The numeric fields' range constraints belong to the frame, so `RANGES` is defined in
+`bko.datasets.uci` and re-exported here.
+
 **Sources.** A row's `source` is the `name` of a `Source` in `bko.datasets.sources` (`mondo`,
 `hpo`, or `uci-heart-disease`, which means `heart-disease.names` inside that archive), a key in
 `docs/literature.md`, or an ADR id under `docs/adr/`.
@@ -27,6 +30,7 @@ from typing import Final
 from bko.datasets.cells import LABEL
 from bko.datasets.sources import HPO, MONDO, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
+from bko.datasets.uci import RANGES  # ruff: ignore[unused-import]  (re-exported)
 from bko.ontology.schema import (
     AtLeast,
     CodeMapping,
@@ -34,7 +38,6 @@ from bko.ontology.schema import (
     ConceptRow,
     FieldMapping,
     OutOfScope,
-    RangeConstraint,
     Unmapped,
 )
 
@@ -242,68 +245,6 @@ UNMAPPED: Final[tuple[Unmapped, ...]] = (
     ),
 )
 """Categorical states no concept defensibly matches, with the reason for each."""
-
-RANGES: Final[tuple[RangeConstraint, ...]] = (
-    RangeConstraint(
-        field="age",
-        unit="a",
-        low=18,
-        high=120,
-        source="research/ontology-mapping-design",
-        limits=(
-            "team-specified: adults only; the team found no published plausibility bound; awaits "
-            "clinician review"
-        ),
-    ),
-    RangeConstraint(
-        field="trestbps",
-        unit="mm[Hg]",
-        low=10,
-        high=250,
-        source="blacketer-2021",
-        limits=(
-            'OHDSI DQD v1.4.1 plausible range for concept 4161413 "Systolic blood pressure on '
-            'admission" (`inst/csv/OMOP_CDMv5.3.1_Concept_Level.csv`); a tool setting, not a '
-            "clinical threshold"
-        ),
-    ),
-    RangeConstraint(
-        field="chol",
-        unit="mg/dL",
-        low=32,
-        high=600,
-        source="harutyunyan-2019",
-        limits=(
-            'MIMIC-III benchmark valid range for "Cholesterol" '
-            "(`mimic3benchmark/resources/variable_ranges.csv` at commit "
-            "ea0314c7cbd369f62e2237ace6f683740f867e3a); DQD's 50 to 500 rejects a real Cleveland "
-            "record"
-        ),
-    ),
-    RangeConstraint(
-        field="thalach",
-        unit="/min",
-        low=10,
-        high=500,
-        source="blacketer-2021",
-        limits=(
-            'OHDSI DQD v1.4.1 plausible range for concept 3027018 "Heart rate"; age-predicted '
-            "maxima are means, not bounds"
-        ),
-    ),
-    RangeConstraint(
-        field="oldpeak",
-        unit="mm",
-        low=-10,
-        high=10,
-        source="research/ontology-mapping-design",
-        limits=(
-            "team-specified: the team found no published bound; negative values are ST elevation, "
-            "which other UCI sites record; mm is the team's reading; awaits clinician review"
-        ),
-    ),
-)
-"""One inclusive plausibility range per numeric field, in UCUM units."""
 
 OUT_OF_SCOPE: Final[tuple[OutOfScope, ...]] = (
     OutOfScope(

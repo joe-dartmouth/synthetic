@@ -30,6 +30,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.records import Baseline, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
+from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import BKO_ARMS, Experiment
@@ -128,13 +129,13 @@ class GuidedArm:
         if request.strata is not Strata.CELL:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
-        guidance = self._guidance(train)
+        guidance = self._guidance(train, request.frame)
         attempt = Attempt(train, request, self._budget * request.rows)
         self._attempts += 1
         first = self._log.calls + 1
         outcome = "failed"
         try:
-            self._rounds(attempt, guidance)
+            self._rounds(attempt, guidance, request.frame)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -189,9 +190,9 @@ class GuidedArm:
         """
         logger.info("validity arm=%s %s", self.name, self.totals.line())
 
-    def _guidance(self, train: pd.DataFrame) -> dict[Cell, Guidance]:
+    def _guidance(self, train: pd.DataFrame, frame: FrameSpec) -> dict[Cell, Guidance]:
         known = self._knowledge
-        cells = record_cells(train, known.field_rows, name=known.name)
+        cells = record_cells(train, known.field_rows, name=known.name, edges=frame.edges)
         found = gaps(self._definition, known.fragments, cells)
         return guide(
             train,
@@ -201,9 +202,12 @@ class GuidedArm:
             fragments=known.fragments,
             ontologies=known.ontologies,
             rows=known.field_rows,
+            frame=frame,
         )
 
-    def _rounds(self, attempt: Attempt, guidance: Mapping[Cell, Guidance]) -> None:
+    def _rounds(
+        self, attempt: Attempt, guidance: Mapping[Cell, Guidance], frame: FrameSpec
+    ) -> None:
         while short := attempt.short():
             if attempt.asked + sum(short.values()) > attempt.limit:
                 msg = (
@@ -224,6 +228,7 @@ class GuidedArm:
                             send=self._send,
                             log=self._log,
                             on_batch=attempt.take,
+                            frame=frame,
                         )
 
     def _spendable(self) -> None:

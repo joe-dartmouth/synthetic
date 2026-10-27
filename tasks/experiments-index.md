@@ -17,14 +17,13 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`evaluate-second-classifier`](evaluate-second-classifier.md) | ready | -- | Joe | final-report |
-| [`evaluate-frame-generic-pipeline`](evaluate-frame-generic-pipeline.md) | ready | -- | Joe | final-report |
 
 ### Generation
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation, evaluate-frame-generic-pipeline | Shirley | final-report |
-| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation, evaluate-frame-generic-pipeline | Shirley | final-report |
+| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
+| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
 | [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
@@ -44,7 +43,7 @@ the ROADMAP heading it serves.
 | [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
-| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings, evaluate-frame-generic-pipeline | Joe | final-report |
+| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings | Joe | final-report |
 
 The diagram draws this set's edges and the edges out of `proposal-guidance-ablation`, whose own
 set is [`proposal-index.md`](proposal-index.md).
@@ -66,9 +65,6 @@ flowchart LR
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
     graded_grounding[detect-graded-grounding]
     synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
-    frame_generic[evaluate-frame-generic-pipeline] --> synthea_downstream[evaluate-synthea-downstream]
-    frame_generic[evaluate-frame-generic-pipeline] --> prompt_bounds[generate-prompt-training-bounds]
-    frame_generic[evaluate-frame-generic-pipeline] --> effort_sweep[generate-effort-sweep]
 ```
 
 ## Why the harness units come first

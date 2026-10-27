@@ -237,7 +237,7 @@ def test_a_valid_frame_drops_nothing():
 def test_check_and_drops_share_the_range_rule(monkeypatch):
     rows = _set_last(valid_rows(), "chol", int(TRAIN["chol"].max()) + 1)
 
-    def everything(frame: pd.DataFrame, train: pd.DataFrame) -> pd.DataFrame:
+    def everything(frame: pd.DataFrame, train: pd.DataFrame, _spec: object) -> pd.DataFrame:
         return pd.DataFrame(True, index=frame.index, columns=list(NUMERIC))
 
     monkeypatch.setattr("bko.baselines.records.within_split", everything)

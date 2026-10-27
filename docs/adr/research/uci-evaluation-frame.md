@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-16
+updated: 2026-10-26
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -47,7 +47,15 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
 - **Training records only before Evaluate**: the cell counts, the BKO dataset fragments, count-based
   gaps, baselines and generators read the training split; only `bko.evaluate` reads the test split.
 
-`bko.datasets.uci`, `bko.datasets.cells` and `bko.datasets.split` hold the values.
+- **One frame value**: `bko.datasets.frames.FrameSpec` holds what the stages read of a frame: its
+  name, its features, which of them are numeric, fractional and categorical, the fractional
+  fields' decimals, the codebook, each column's description, the numeric fields' ranges, the label
+  with its codes and meanings, and the age band edges. `bko.datasets.uci.UCI_FRAME` is UCI's,
+  built from the module's constants. Validation, generation, the baselines and evaluation take
+  the frame as a keyword defaulting to `UCI_FRAME`.
+
+`bko.datasets.uci`, `bko.datasets.cells`, `bko.datasets.frames` and `bko.datasets.split` hold the
+values.
 
 ## Rationale
 
@@ -91,6 +99,12 @@ split raises on a one-record class. Ranking by sha256 depends on no library's ra
 Test records that reach the gap list or the BKO's frequency weights would inflate any measured
 improvement.
 
+One frame value lets a second frame, such as a Synthea one, run through every stage without
+editing it; a stage that bound UCI's constants at import could read no other. The cell is always
+an age band, a sex and the label (`bko.datasets.cells`), so only the band edges vary between
+frames. The keyword default keeps every UCI caller, and so every UCI request and score,
+unchanged.
+
 ## Consequences
 
 **Gained**: a gap list that is the same for every seed; a frame with no missing values and no label
@@ -112,11 +126,15 @@ criteria, and no other frame from this archive adds records of women with heart 
 | Stratifying on the label only | A cell of 24 or 25 records lands on either side of 20 depending on the seed | 2026-10-14 |
 | scikit-learn `train_test_split` | Raises on a one-record stratum and brings the `eval` extra into the data stage | 2026-10-14 |
 | A numpy `Generator` permutation | numpy does not keep `Generator` method streams stable across releases | 2026-10-14 |
+| A `cell_columns` field on the frame | Every cell is an age band, a sex and the label, so only the band edges vary between frames; see Rationale | 2026-10-26 |
+| A frame field on `Settings` | Every call log's header records the settings, and a run is refused when they differ from its log's, so the field would change what a logged run reads as | 2026-10-26 |
+| The name `Frame` | The package calls a pandas DataFrame a frame throughout | 2026-10-26 |
 
 ## Enforcement
 
 - Owner: `src/bko/datasets/`
-- Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`
+- Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`,
+  `tests/test_datasets_frame.py`, `tests/test_evaluate_frame.py`
 
 ## Reversal Conditions
 

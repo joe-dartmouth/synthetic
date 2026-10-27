@@ -6,8 +6,8 @@ training split's mean and standard deviation for the neighbour search, then rest
 (`records.whole`). SMOTE runs as SMOTE-NC, which takes each coded predictor from the neighbours.
 ADASYN has no such variant: the coded predictors are one-hot encoded and each block decoded to its
 largest entry, the nearer parent's code. ADASYN rounds each record's share, so it is asked for
-ceil(records / 2) extra rows and the quota is kept by sha256 rank. ADR
-`research/baseline-augmentation-design` records the choices.
+ceil(records / 2) extra rows and the quota is kept by sha256 rank. The fields are the request's
+frame's. ADR `research/baseline-augmentation-design` records the choices.
 """
 
 from __future__ import annotations
@@ -24,8 +24,7 @@ from imblearn.over_sampling import ADASYN, SMOTENC
 from bko.baselines.errors import BaselineError
 from bko.baselines.records import Baseline, derived_seed, keep, number, unit_weights, whole
 from bko.baselines.request import Request, stratum_keys
-from bko.datasets.cells import LABEL
-from bko.datasets.uci import CATEGORICAL, CODEBOOK, FEATURES, NUMERIC
+from bko.datasets.frames import FrameSpec
 
 
 NEIGHBORS: Final = 5
@@ -43,7 +42,9 @@ class _Scaled:
     scale: pd.Series
 
 
-type _Sampler = Callable[[pd.DataFrame, _Scaled, np.ndarray, int, int, int], pd.DataFrame]
+type _Sampler = Callable[
+    [pd.DataFrame, _Scaled, np.ndarray, int, int, int, FrameSpec], pd.DataFrame
+]
 
 
 def smote(train: pd.DataFrame, request: Request) -> Baseline:
@@ -59,8 +60,9 @@ def adasyn(train: pd.DataFrame, request: Request) -> Baseline:
 def _oversample(
     train: pd.DataFrame, request: Request, sample: _Sampler, *, method: str
 ) -> Baseline:
-    keys = stratum_keys(train, request.strata)
-    scaled = _scale(train)
+    frame = request.frame
+    keys = stratum_keys(train, request.strata, edges=frame.edges)
+    scaled = _scale(train, frame)
     parts: list[pd.DataFrame] = []
     neighbors: dict[str, int] = {}
     for stratum, rows in request.quota.items():
@@ -71,18 +73,25 @@ def _oversample(
             raise BaselineError(msg)
         neighbors[str(stratum)] = k = min(NEIGHBORS, size - 1)
         seed = derived_seed(request.seed, method, *stratum)
-        values = sample(train, scaled, inside, rows, k, seed)
-        values[LABEL] = stratum[-1]
-        parts.append(whole(values))
+        values = sample(train, scaled, inside, rows, k, seed, frame)
+        values[frame.label] = stratum[-1]
+        parts.append(whole(values, frame))
     added = number(pd.concat(parts))
     return Baseline(added=added, weights=unit_weights(train), params={"neighbors": neighbors})
 
 
 def _smote_stratum(
-    train: pd.DataFrame, scaled: _Scaled, inside: np.ndarray, rows: int, k: int, seed: int
+    train: pd.DataFrame,
+    scaled: _Scaled,
+    inside: np.ndarray,
+    rows: int,
+    k: int,
+    seed: int,
+    frame: FrameSpec,
 ) -> pd.DataFrame:
-    x = np.column_stack([scaled.numeric, train[list(CATEGORICAL)].to_numpy(dtype="float64")])
-    coded = list(range(len(NUMERIC), len(NUMERIC) + len(CATEGORICAL)))
+    numeric, categorical = len(frame.numeric), list(frame.categorical)
+    x = np.column_stack([scaled.numeric, train[categorical].to_numpy(dtype="float64")])
+    coded = list(range(numeric, numeric + len(categorical)))
     sampler = SMOTENC(
         categorical_features=coded,
         sampling_strategy={1: int(inside.sum()) + rows},
@@ -95,14 +104,20 @@ def _smote_stratum(
         msg = f"smote cannot fill a stratum of {int(inside.sum())} records: {exc}"
         raise BaselineError(msg) from exc
     new = resampled[len(x) :]
-    return _restore(scaled, new[:, : len(NUMERIC)], new[:, len(NUMERIC) :])
+    return _restore(scaled, new[:, :numeric], new[:, numeric:], frame)
 
 
 def _adasyn_stratum(
-    train: pd.DataFrame, scaled: _Scaled, inside: np.ndarray, rows: int, k: int, seed: int
+    train: pd.DataFrame,
+    scaled: _Scaled,
+    inside: np.ndarray,
+    rows: int,
+    k: int,
+    seed: int,
+    frame: FrameSpec,
 ) -> pd.DataFrame:
-    codes = {name: sorted(CODEBOOK[name]) for name in CATEGORICAL}
-    blocks = [np.equal.outer(train[name].to_numpy(), codes[name]) for name in CATEGORICAL]
+    codes = {name: sorted(frame.codebook[name]) for name in frame.categorical}
+    blocks = [np.equal.outer(train[name].to_numpy(), codes[name]) for name in frame.categorical]
     x = np.column_stack([scaled.numeric, *(block * ONE_HOT_SCALE for block in blocks)])
     size = int(inside.sum())
     sampler = ADASYN(
@@ -115,24 +130,26 @@ def _adasyn_stratum(
         raise BaselineError(msg) from exc
     new = resampled[len(x) :]
     new = new[keep(rows, len(new), seed=seed, label="adasyn")]
-    decoded = np.empty((len(new), len(CATEGORICAL)))
-    start = len(NUMERIC)
-    for column, name in enumerate(CATEGORICAL):
+    decoded = np.empty((len(new), len(frame.categorical)))
+    start = len(frame.numeric)
+    for column, name in enumerate(frame.categorical):
         width = len(codes[name])
         picks = new[:, start : start + width].argmax(axis=1)
         decoded[:, column] = np.asarray(codes[name])[picks]
         start += width
-    return _restore(scaled, new[:, : len(NUMERIC)], decoded)
+    return _restore(scaled, new[:, : len(frame.numeric)], decoded, frame)
 
 
-def _scale(train: pd.DataFrame) -> _Scaled:
-    numeric = train[list(NUMERIC)].astype("float64")
+def _scale(train: pd.DataFrame, frame: FrameSpec) -> _Scaled:
+    numeric = train[list(frame.numeric)].astype("float64")
     mean = numeric.mean()
     scale = numeric.std(ddof=0).replace(0.0, 1.0)
     return _Scaled(numeric=((numeric - mean) / scale).to_numpy(), mean=mean, scale=scale)
 
 
-def _restore(scaled: _Scaled, numeric: np.ndarray, coded: np.ndarray) -> pd.DataFrame:
-    measured = pd.DataFrame(numeric, columns=list(NUMERIC)) * scaled.scale + scaled.mean
-    categorical = pd.DataFrame(coded, columns=list(CATEGORICAL))
-    return pd.concat([measured, categorical], axis=1).loc[:, list(FEATURES)]
+def _restore(
+    scaled: _Scaled, numeric: np.ndarray, coded: np.ndarray, frame: FrameSpec
+) -> pd.DataFrame:
+    measured = pd.DataFrame(numeric, columns=list(frame.numeric)) * scaled.scale + scaled.mean
+    categorical = pd.DataFrame(coded, columns=list(frame.categorical))
+    return pd.concat([measured, categorical], axis=1).loc[:, list(frame.features)]

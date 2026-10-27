@@ -5,12 +5,14 @@ age band is no column of the data. So each draws unconditioned batches and keeps
 values fall in a stratum still short, until every quota is met or `MAX_DRAWN_ROWS` rows are drawn.
 SDV seeds no fit, so the run's seed reaches the fit through numpy's and torch's global generators,
 restored afterwards; SDV seeds its own sampling after every fit. Training runs on the CPU with
-`TORCH_THREADS` threads, so a seed gives the same rows on one machine and lock. ADR
-`research/baseline-augmentation-design` records the choices.
+`TORCH_THREADS` threads, so a seed gives the same rows on one machine and lock. The metadata,
+columns and precision are the request's frame's. ADR `research/baseline-augmentation-design`
+records the choices.
 """
 
 from __future__ import annotations
 
+import functools
 import logging
 import time
 from collections.abc import Callable, Generator, Mapping
@@ -27,7 +29,8 @@ from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 from bko.baselines.errors import BaselineError
 from bko.baselines.records import Baseline, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
-from bko.datasets.uci import FRACTIONAL, FRAME_COLUMNS, NUMERIC
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 
 
 logger = logging.getLogger(__name__)
@@ -51,18 +54,25 @@ QUIET_LOGGERS: Final = ("sdv", "SingleTableSynthesizer")
 """SDV's loggers, held at WARNING so their INFO records stay off stderr."""
 
 
-def _sdtype(name: str) -> dict[str, str]:
-    if name not in NUMERIC:
+def _sdtype(name: str, frame: FrameSpec) -> dict[str, str]:
+    if name not in frame.numeric:
         return {"sdtype": "categorical"}
-    representation = "Float" if name in FRACTIONAL else "Int64"
+    representation = "Float" if name in frame.fractional else "Int64"
     return {"sdtype": "numerical", "computer_representation": representation}
 
 
-METADATA: Final[Mapping[str, object]] = MappingProxyType(
-    {"tables": {"uci": {"columns": {name: _sdtype(name) for name in FRAME_COLUMNS}}}}
-)
-"""The evaluation frame for SDV, in its column order: measured predictors numerical, coded ones and
-the label categorical."""
+@functools.cache
+def metadata(frame: FrameSpec) -> Mapping[str, object]:
+    """`frame` for SDV, as one table named for it, in its column order.
+
+    Measured predictors are numerical, coded ones and the label categorical.
+    """
+    columns = {name: _sdtype(name, frame) for name in frame.columns}
+    return MappingProxyType({"tables": {frame.name: {"columns": columns}}})
+
+
+METADATA: Final[Mapping[str, object]] = metadata(UCI_FRAME)
+"""The UCI evaluation frame for SDV."""
 
 type Draw = Callable[[int], pd.DataFrame]
 """Returns that many unconditioned rows from a fitted synthesizer."""
@@ -86,10 +96,11 @@ def tvae(
 
 
 def build_synthesizer(
-    factory: Factory, parameters: Mapping[str, object]
+    factory: Factory, parameters: Mapping[str, object], frame: FrameSpec = UCI_FRAME
 ) -> CTGANSynthesizer | TVAESynthesizer:
-    """An unfitted synthesizer on `METADATA`, on the CPU, with `parameters` over the defaults."""
-    return factory(Metadata.load_from_dict(dict(METADATA)), enable_gpu=False, **parameters)
+    """An unfitted synthesizer on `frame`'s metadata, on the CPU, `parameters` over the defaults."""
+    tables = Metadata.load_from_dict(dict(metadata(frame)))
+    return factory(tables, enable_gpu=False, **parameters)
 
 
 @contextmanager
@@ -137,9 +148,9 @@ def fill(
             )
             msg = f"{method} asked for {drawn} rows and still lacks {short}"
             raise BaselineError(msg)
-        rows = whole(draw(batch))
+        rows = whole(draw(batch), request.frame)
         drawn += batch
-        keys = stratum_keys(rows, request.strata)
+        keys = stratum_keys(rows, request.strata, edges=request.frame.edges)
         for stratum, need in needed.items():
             if need:
                 hits = rows.loc[[key == stratum for key in keys]].head(need)
@@ -157,10 +168,10 @@ def _synthesize(
     *,
     method: str,
 ) -> Baseline:
-    synthesizer = build_synthesizer(factory, parameters)
+    synthesizer = build_synthesizer(factory, parameters, request.frame)
     with seeded(request.seed):
         start = time.perf_counter()
-        synthesizer.fit(train.loc[:, list(FRAME_COLUMNS)])
+        synthesizer.fit(train.loc[:, list(request.frame.columns)])
         logger.info("fit method=%s seconds=%.1f", method, time.perf_counter() - start)
         added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)
     params = {**synthesizer.get_parameters(), "torch_threads": TORCH_THREADS}
