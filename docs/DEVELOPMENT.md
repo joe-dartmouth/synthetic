@@ -107,11 +107,27 @@ nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/
     mkdir -p runs/<run-id>
     test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
     mkdir -p runs/<run-id>-replay && test ! -e runs/<run-id>-replay/calls.jsonl && test ! -e runs/<run-id>-replay/scores.csv && test ! -e runs/<run-id>-replay/scores.log && uv run --no-sync python -m bko.evaluate score --replay runs/<run-id>/calls.jsonl --log runs/<run-id>-replay/calls.jsonl [--data-dir <dir>] > runs/<run-id>-replay/scores.csv 2> runs/<run-id>-replay/scores.log
-    uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv [--candidate <arm>]
+    uv run --no-sync python -m bko.evaluate compare [<run>] runs/<run-id>/scores.csv [--candidate <arm>] [--beside <scores> [--beside-arm <arm>]]
 
-Each command takes an optional run name before its other arguments, as in `score <run> --log ...`
-and `compare <run> runs/<run-id>/scores.csv`; the default is `e1`. A named run is a value of
-`bko.evaluate.experiment.RUNS`, and its folder under `runs/` is named for it, as `<run>-<n>`.
+`score` and `compare` take an optional run name before their other arguments, as in
+`score <run> --log ...` and `compare <run> runs/<run-id>/scores.csv`; the default is `e1`. `launch`
+takes it after the run id, and there it defaults to the run id's entry. A named run is a value of
+`bko.evaluate.experiment.RUNS`. A run's folder under `runs/` is named by any
+`bko.datasets.run_folders.RUN_ID`: `<entry>-<n>` with an optional suffix (ADR
+[`tooling/run-folders`](adr/tooling/run-folders.md)).
+
+`--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
+scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
+holds is not counted. A holdout pairs only when its held-out rows match and no arm in either file
+copied a test record there, since the test split loses every record any arm copied. Held-out rows
+match when both files record equal held-out summary scores on the holdout;
+`bko.evaluate.beside.pairable` is the one home of the exact rule. The other shared holdouts are
+counted as excluded, split into copied and mismatched. Fewer than two paired holdouts, or an arm
+either file lacks, is refused before the table is written, so a refusal leaves stdout empty. A
+series either arm lacks, or that fewer than two paired holdouts define, is skipped with a
+`beside skip` line. The flagged-subgroups scope is compared as each file scored it: two runs whose
+`fill_to` or cell edges differ flag different test records, and nothing checks it
+(`cleanup:evaluate/beside-flagged-scope-fingerprint`).
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log`. The stopped run
@@ -133,25 +149,27 @@ the `score --log` command above; a resume still runs the guarded `--resume` comm
 
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
 
-It refuses a run id that is not a run of record of `<run>` (`<run>-<n>`), a run with no BKO arm, a
-folder that already holds `calls.jsonl`, `scores.csv` or `scores.log`, and a machine that reports
-battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and
-records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a
-second launch into the folder refuses, records the power reading, the keep-awake and the command in
-`launch.log`, and starts `score <run> --log` in its own session, held awake by `caffeinate -i -s` on
-macOS, with stdout and stderr in those two files. It appends the process id to `launch.log`, or the
-error and removes the two files when the process cannot start, and prints the command that watches
-the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute). `--dry-run` writes
-`launch.log` and starts nothing, so the folder stays free to launch. The power is read once, at
-launch: a machine unplugged afterwards is not caught, and `caffeinate -s` holds it awake on mains
-power only. The run itself stops, exit 2 with the call log ending `failed`, on any of three rules,
-each logged as `stop rule=<name>` with the measure that fired: the spend ceiling
-(`E1.spend_ceiling`), the projection (the live spend after `projection_after` holdouts, scaled to
-every holdout, reaching the ceiling; a replay and a resume are not projected, and `stop rules
-projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call to get a
-reply, its retries included, timed while the call is in flight). `bko.evaluate.watch` holds the
-rules. A `scores.log` with no `run status=` line, which the call log writes as it closes, belongs to
-a process that is still running or was killed. Copy the call log off the runner before any replay.
+`<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
+into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a run of record
+(`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
+`scores.csv` or `scores.log`, and a machine that reports battery power or, on macOS, whose power
+`pmset -g batt` cannot read (elsewhere it cannot check and records `power=unchecked`). Otherwise it
+creates `scores.csv` and `scores.log` exclusively, so a second launch into the folder refuses,
+records the power reading, the keep-awake and the command in `launch.log`, and starts
+`score <run> --log` in its own session, held awake by `caffeinate -i -s` on macOS, with stdout and
+stderr in those two files. It appends the process id to `launch.log`, or the error and removes the
+two files when the process cannot start, and prints the command that watches the folder
+(`tail -f <runs>/<run-id>/scores.log`, its path absolute). `--dry-run` writes `launch.log` and
+starts nothing, so the folder stays free to launch. The power is read once, at launch: a machine
+unplugged afterwards is not caught, and `caffeinate -s` holds it awake on mains power only. The run
+itself stops, exit 2 with the call log ending `failed`, on any of three rules, each logged as
+`stop rule=<name>` with the measure that fired: the spend ceiling (`E1.spend_ceiling`), the
+projection (the live spend after `projection_after` holdouts, scaled to every holdout, reaching the
+ceiling; a replay and a resume are not projected, and `stop rules projecting=` says which applies),
+and the idle limit (`idle_limit` seconds for one call to get a reply, its retries included, timed
+while the call is in flight). `bko.evaluate.watch` holds the rules. A `scores.log` with no
+`run status=` line, which the call log writes as it closes, belongs to a process that is still
+running or was killed. Copy the call log off the runner before any replay.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -201,7 +219,13 @@ a process that is still running or was killed. Copy the call log off the runner 
   `criterion` line per criterion with its verdict, a `criterion=validity` line, a `validity` line
   per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`, `fill=replica`) with its
   counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, and a
-  `replica` line per replica arm, measure and scope. An experiment copies them into its Runs row in
+  `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
+  line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
+  `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
+  `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line
+  (`arm=`, `against=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
+  `defined=`); a refused reading logs the counts line alone. An experiment copies them into its
+  Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1`;
   no flag changes a value;
