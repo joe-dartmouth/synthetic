@@ -6,9 +6,10 @@ import math
 from datetime import date
 from fractions import Fraction
 
+import pandas as pd
 import pytest
 
-from bko.datasets.ablation import AblationSpec, ablate, cases, removal_order
+from bko.datasets.ablation import AblationSpec, ablate, cases, only, removal_order, without
 from bko.datasets.errors import DatasetError
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
 from tests._datasets_fixtures import SMALL_POPULATION, condition, patient, synthea_tables
@@ -181,3 +182,12 @@ def test_a_fraction_removes_exactly_its_share_where_floats_round_up(tmp_path, si
     many = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
     spec = AblationSpec(codes=IHD, age_band=None, sex=None, fraction=fraction)
     assert len(ablate(many, spec).removed) == 7
+
+
+def test_only_and_without_split_a_population_and_its_rows(population):
+    chosen = pd.Index(["p2", "p1"])
+    alone, rest = only(population, chosen), without(population, chosen)
+    assert list(alone.patients.index) == ["p2", "p1"]
+    assert set(alone.conditions["patient"]) == {"p1", "p2"}
+    assert not set(rest.patients.index) & set(chosen)
+    assert len(alone.conditions) + len(rest.conditions) == len(population.conditions)

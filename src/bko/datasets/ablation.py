@@ -163,6 +163,24 @@ def without(population: Population, removed: pd.Index) -> Population:
     )
 
 
+def only(population: Population, kept: pd.Index) -> Population:
+    """The `kept` patients of `population` alone, with their condition rows and no one else's.
+
+    Args:
+        population: The population; it is not modified.
+        kept: Patient ids of `population`, in the order the result holds them.
+
+    Returns:
+        Those patients.
+    """
+    conditions = population.conditions
+    return Population(
+        patients=population.patients.loc[kept],
+        conditions=conditions.loc[conditions["patient"].isin(kept)].reset_index(drop=True),
+        snapshot_date=population.snapshot_date,
+    )
+
+
 def ablate(population: Population, spec: AblationSpec) -> Ablation:
     """Remove every case `spec` selects from `population`, or its seeded fraction of them.
 

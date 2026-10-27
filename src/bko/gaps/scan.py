@@ -27,7 +27,7 @@ from typing import Final
 import pandas as pd
 
 from bko.bkb.structure import BKB
-from bko.datasets.ablation import AblationSpec, removal_order, without
+from bko.datasets.ablation import AblationSpec, only, removal_order, without
 from bko.datasets.cells import CELL_COLUMNS, cell_counts, cell_keys
 from bko.datasets.synthea import Population, subjects
 from bko.gaps.definitions import Definition, StatementGap, gaps
@@ -124,8 +124,8 @@ def scan(
     order = removal_order(full.ablation.removed, spec.seed)
     keys = cell_keys(subjects(population, codes=spec.codes), edges=spec.edges).loc[order]
     places: dict[Cell, list[int]] = {}
-    for removed, (band, sex) in enumerate(keys[["age_band", "sex"]].itertuples(index=False), 1):
-        places.setdefault((str(band), str(sex)), []).append(removed)
+    for nth, (band, sex) in enumerate(keys[["age_band", "sex"]].itertuples(index=False), 1):
+        places.setdefault((str(band), str(sex)), []).append(nth)
     listings = _listings(full, population, spec, fragments, rows, order)
     entered = _truth_from(full, population, spec, fragments, rows, order, places)
     detectors = [*(definition.value for definition in Definition), COUNT]
@@ -136,7 +136,7 @@ def scan(
             cell = _cell(item)
             listed = [item in listing[detector] for listing in listings]
             first = listed.index(True) if any(listed) else None
-            held = places.get(cell, [])
+            held = places[cell]
             flags.append(
                 FirstFlag(
                     detector=detector,
@@ -210,8 +210,8 @@ def _listings(
     first[COUNT] = {gap.cell for gap in full.count_before}
     last[COUNT] = {gap.cell for gap in full.count_after}
     listings = [first]
-    for removed in range(1, len(order)):
-        kept = without(population, order[:removed])
+    for nth in range(1, len(order)):
+        kept = without(population, order[:nth])
         cells = population_cells(kept, rows, name=SYNTHEA, edges=spec.edges)
         listing: dict[str, Collection[Item]] = {
             definition.value: set(gaps(definition, fragments, cells)) for definition in Definition
@@ -237,15 +237,14 @@ def _truth_from(
     for cell in dict.fromkeys(gap.cell for gap in full.truth):
         wanted = {gap for gap in full.truth if gap.cell == cell}
         held = places[cell]
-        for taken, removed in enumerate(held, 1):
+        for taken, nth in enumerate(held, 1):
             mine = order[[place - 1 for place in held[:taken]]]
-            alone = without(population, population.patients.index.difference(mine))
-            cells = population_cells(alone, rows, name=SYNTHEA, edges=spec.edges)
+            cells = population_cells(only(population, mine), rows, name=SYNTHEA, edges=spec.edges)
             for statement in grounded(fragments, dataset_fragment(cells.each[cell].observed)):
                 gap = StatementGap(cell, statement)
                 if gap in wanted:
                     wanted.discard(gap)
-                    entered[gap] = removed
+                    entered[gap] = nth
             if not wanted:
                 break
     return entered
