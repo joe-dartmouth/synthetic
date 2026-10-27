@@ -32,6 +32,7 @@ from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
+from bko.evaluate.holdout_candidates import read
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
 from bko.gaps.definitions import Definition
@@ -190,6 +191,8 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
         "scores.csv",
         "training.csv",
     ]
+    header = read((outcome.folder / "holdout-candidates.jsonl").read_bytes()).header
+    assert header["run"] == "app"
 
 
 def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):

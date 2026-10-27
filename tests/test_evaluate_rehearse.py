@@ -19,7 +19,10 @@ from bko.baselines.records import within_split
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, NUMERIC
+from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
+from bko.evaluate.errors import EvaluationError
+from bko.evaluate.holdout_candidates import read
 from bko.evaluate.rehearse import (
     INPUT_PER_RECORD,
     OUTPUT_PER_RECORD,
@@ -33,7 +36,7 @@ from bko.generate.prompt import render
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, SMALL
-from tests._generate_fixtures import GUIDANCE, ScriptedSend
+from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, ScriptedSend
 
 
 SEXES_BY_LABEL = {label: code for code, label in SEXES.items()}
@@ -181,3 +184,48 @@ def test_a_replay_of_a_rehearsal_keeps_the_mark(tmp_path):
     assert lines[0]["rehearsal"] is True
     assert lines[0]["replay"] is not None
     assert lines[-1]["rehearsal"] is True
+
+
+def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
+    # Holdout 2's training split lacks the lowest chol, holdout 3's the highest.
+    mins = [split(GRADED, seed=seed).train["chol"].min() for seed in (2, 3)]
+    maxes = [split(GRADED, seed=seed).train["chol"].max() for seed in (2, 3)]
+    assert len(set(mins)) == 2
+    assert len(set(maxes)) == 2
+    assert safe_ranges(GRADED, (2, 3))["chol"] == (max(mins), min(maxes))
+
+
+def _one(send: CannedSend) -> dict:
+    call = Call(SETTINGS, 1, 0, *render(OTHER_GUIDANCE, 1, SETTINGS.guidance))
+    (record,) = json.loads(send(call).text or "")["records"]
+    return record
+
+
+def _with(record: dict) -> pd.DataFrame:
+    """`GRADED` with `record` added as a real record under a new id."""
+    planted = pd.DataFrame(
+        [record], index=[int(GRADED.index.max()) + 1], columns=list(FRAME_COLUMNS)
+    )
+    planted.index.name = GRADED.index.name
+    return pd.concat([GRADED, planted.astype(GRADED.dtypes.to_dict())])
+
+
+def test_a_canned_record_equal_to_a_real_one_is_skipped(monkeypatch):
+    first = _one(CannedSend(GRADED, SMALL, SETTINGS))
+    frame = _with(first)
+    assert safe_ranges(frame, SMALL.holdout_seeds) == safe_ranges(GRADED, SMALL.holdout_seeds)
+    send = CannedSend(frame, SMALL, SETTINGS)
+    assert _one(send) != first
+    assert send.records == 2
+    monkeypatch.setattr(rehearse, "SKIPS", 1)
+    with pytest.raises(EvaluationError, match="equal real records"):
+        _one(CannedSend(frame, SMALL, SETTINGS))
+
+
+def test_every_candidate_of_a_rehearsal_is_kept(tmp_path):
+    ctx, _ = context(ScriptedSend())
+    log = tmp_path / "calls.jsonl"
+    assert main(score_argv(log, tmp_path, "--rehearse"), context=ctx, out=io.StringIO()) == 0
+    lines = read(candidates_for(log).read_bytes()).candidates
+    assert lines
+    assert {line.outcome for line in lines} == {"kept"}

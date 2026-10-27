@@ -287,6 +287,27 @@ def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
     assert start.commands == []
 
 
+def test_a_relative_resume_source_is_forwarded_absolute(tmp_path, monkeypatch):
+    _stopped(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    argv = ["launch", "g3-6", "g3-cell", "--resume", "g3-1/calls.jsonl"]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    (command,) = context.start.commands
+    assert command[command.index("--resume") + 1] == str(tmp_path / "g3-1" / "calls.jsonl")
+
+
+def test_a_resume_source_in_a_subfolder_of_the_target_folder_is_refused(tmp_path):
+    source = tmp_path / "g3-6" / "deep" / "old.jsonl"
+    source.parent.mkdir(parents=True)
+    source.write_text("{}\n", encoding="utf-8")
+    start = Starts()
+    with pytest.raises(EvaluationError, match="inside"):
+        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=start)
+    assert start.commands == []
+    assert not (tmp_path / "g3-6" / "scores.log").exists()
+
+
 def test_a_resume_source_that_is_not_a_file_is_refused(tmp_path):
     start = Starts()
     with pytest.raises(EvaluationError, match="not a file"):
@@ -338,6 +359,7 @@ def test_a_launch_that_loses_the_folder_to_another_starts_nothing(tmp_path, monk
 
 
 def test_the_roles_a_launch_guards_are_run_folder_roles():
+    assert set(TAKEN) == {"calls.jsonl", "scores.csv", "scores.log", "holdout-candidates.jsonl"}
     assert set(TAKEN) <= set(ROLES)
     assert "launch.log" in ROLES
     assert REHEARSAL in ROLES

@@ -531,6 +531,13 @@ def test_a_resumed_run_writes_the_uninterrupted_runs_bytes_and_pays_only_its_liv
     assert f"resume log={stopped} sha256={digest} answered=2" in caplog.text
 
 
+def test_a_resumed_runs_candidates_equal_the_uninterrupted_runs(tmp_path, caplog):
+    _, resumed, _ = resumed_run(tmp_path, caplog)
+    uninterrupted = candidates_for(tmp_path / "calls.jsonl")
+    assert uninterrupted.exists()
+    assert candidates_for(resumed).read_bytes() == uninterrupted.read_bytes()
+
+
 def test_a_resumed_runs_log_replays_to_the_same_bytes(tmp_path, caplog):
     _, resumed, text = resumed_run(tmp_path, caplog)
     ctx, _ = context(ScriptedSend())
