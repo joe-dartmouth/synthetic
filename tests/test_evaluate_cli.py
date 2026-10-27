@@ -297,6 +297,9 @@ def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_pa
     assert code == 0
     line = next(m for m in caplog.messages if m.startswith("versions "))
     assert re.match(r"versions commit=[0-9a-f]{40} dirty=(true|false) \{", line)
+    assert '"threadpoolctl": "' in line
+    experiment = next(m for m in caplog.messages if m.startswith("experiment "))
+    assert experiment.endswith(" models=lr,hgb")
 
 
 def test_the_commit_is_unknown_without_git(monkeypatch):

@@ -262,7 +262,8 @@ the runner before any replay.
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
-  the budget, the validity threshold and the spend ceiling, and a `versions` line (the checkout's
+  the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
+  and a `versions` line (the checkout's
   commit and whether its tree is dirty, `unknown` without git, then Python, the platform, the
   evaluation stack, the SDK and the ontology parser), with `--resume` a `resume` line (`log=`,
   `sha256=`, `answered=`) before any call, then per holdout the split line `cells` prints, one

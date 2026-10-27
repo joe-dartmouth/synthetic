@@ -288,7 +288,7 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
-    log_experiment(args.run, experiment)
+    log_experiment(args.run, experiment, context.models)
     if guided:
         scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
