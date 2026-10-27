@@ -7,7 +7,7 @@ each criterion is read. No command-line flag changes a value here.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
@@ -20,7 +20,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
-from bko.generate.messages import SETTINGS, Settings
+from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -149,6 +149,9 @@ HOLDOUTS: Final = 100
 METHOD_ARMS: Final = tuple(method.value for method in Method)
 """Every comparison method of `bko.baselines`, by name."""
 
+ADDS_ROWS: Final = tuple(method.value for method in Method if method.adds_rows)
+"""The comparison methods that add rows, by name; only they can fit a replica."""
+
 BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     {
         "bko": Definition.SUBGROUP,
@@ -163,7 +166,7 @@ E1: Final = Experiment(
     arms=(*METHOD_ARMS, *BKO_ARMS),
     candidate="bko",
     comparators=METHOD_ARMS,
-    replica_arms=(*(method.value for method in Method if method.adds_rows), *BKO_ARMS),
+    replica_arms=(*ADDS_ROWS, *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
 
@@ -184,10 +187,29 @@ class NamedRun:
 DEFAULT_RUN: Final = "e1"
 """The run `score` and `compare` take when none is named."""
 
-RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType({DEFAULT_RUN: NamedRun(E1)})
-"""Every named run, by name: `e1` is `E1` at `SETTINGS`. A variant adds its own entry in its own
-change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and
-criteria."""
+RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
+    {
+        DEFAULT_RUN: NamedRun(E1),
+        **{
+            f"g3-{level}": NamedRun(
+                replace(
+                    E1,
+                    arms=(*METHOD_ARMS, "bko"),
+                    replica_arms=(*ADDS_ROWS, "bko"),
+                    spend_ceiling=10.0,
+                    criteria=(),
+                ),
+                replace(SETTINGS, guidance=level),
+            )
+            for level in LEVELS
+            if level is not Level.ONTOLOGY
+        },
+    }
+)
+"""Every named run, by name: `e1` is `E1` at `SETTINGS`, and each `g3-<level>` is E1's methods and
+`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3). A variant adds its
+own entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
+ceiling and criteria."""
 
 
 def flagged(

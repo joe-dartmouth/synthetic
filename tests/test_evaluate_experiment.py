@@ -12,15 +12,21 @@ from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
+    ADDS_ROWS,
     BKO_ARMS,
+    CRITERION_NAMES,
     E1,
+    HOLDOUTS,
     METHOD_ARMS,
+    RUNS,
+    Experiment,
+    NamedRun,
     flagged,
     gap_request,
     replica_request,
 )
 from bko.gaps.definitions import Definition
-from bko.generate.messages import SETTINGS
+from bko.generate.messages import LEVELS, SETTINGS, Level
 from bko.generate.spend import price_of
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
@@ -42,6 +48,47 @@ def test_e1_judges_bko_against_every_method():
     }
     assert E1.replica_arms == (*(m.value for m in Method if m.adds_rows), *BKO_ARMS)
     assert len(set(E1.holdout_seeds)) == len(E1.holdout_seeds) >= 2
+
+
+def test_e1_is_its_stated_configuration():
+    stated = Experiment(
+        holdout_seeds=tuple(range(HOLDOUTS)),
+        arms=(*METHOD_ARMS, "bko", "bko-population", "bko-frequency"),
+        candidate="bko",
+        comparators=METHOD_ARMS,
+        replica_arms=("smote", "adasyn", "ctgan", "tvae", "bko", "bko-population", "bko-frequency"),
+        spend_ceiling=25.0,
+        criteria=CRITERION_NAMES,
+    )
+    assert stated == E1
+    assert ADDS_ROWS == ("smote", "adasyn", "ctgan", "tvae")
+    assert RUNS["e1"] == NamedRun(E1)
+
+
+def test_one_guidance_run_per_level_besides_ontology():
+    names = {f"g3-{level}" for level in LEVELS if level is not Level.ONTOLOGY}
+    assert set(RUNS) == {"e1", *names}
+    assert len(names) == len(LEVELS) - 1
+
+
+@pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])
+def test_a_guidance_run_differs_from_e1_only_in_its_arms_ceiling_criteria_and_level(level):
+    run = RUNS[f"g3-{level}"]
+    assert run.experiment.arms == (*METHOD_ARMS, "bko")
+    assert run.experiment.replica_arms == (*ADDS_ROWS, "bko")
+    assert run.experiment.spend_ceiling == pytest.approx(10.0)
+    assert run.experiment.criteria == ()
+    assert run.settings.guidance is level
+    same = dataclasses.replace(
+        run.experiment,
+        arms=E1.arms,
+        replica_arms=E1.replica_arms,
+        spend_ceiling=E1.spend_ceiling,
+        criteria=E1.criteria,
+    )
+    assert NamedRun(same, dataclasses.replace(run.settings, guidance=SETTINGS.guidance)) == (
+        NamedRun(E1)
+    )
 
 
 def test_an_ablation_arm_may_be_judged_as_a_dry_run():
