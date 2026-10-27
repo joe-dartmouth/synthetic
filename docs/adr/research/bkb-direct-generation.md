@@ -125,8 +125,8 @@ draw refuses the attempt.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/generate/direct.py`
+- Pinned by: `tests/test_generate_direct.py`
 
 ## Reversal Conditions
 
