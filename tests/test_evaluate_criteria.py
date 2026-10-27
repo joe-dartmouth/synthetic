@@ -9,13 +9,18 @@ import math
 import pandas as pd
 import pytest
 
+from bko.evaluate.classifier import Model
 from bko.evaluate.criteria import (
+    BOOSTED,
     CONTRAST_COLUMNS,
+    Absent,
     Interval,
+    Reported,
     Verdict,
     corrected_interval,
     judge,
     refuting_confidence,
+    reported_contrasts,
     table,
     verdict,
 )
@@ -284,3 +289,125 @@ def test_a_series_missing_a_holdout_on_both_sides_is_refused():
     rows = [score for score in scored([0.05] * 4) if kept(score)]
     with pytest.raises(EvaluationError, match="different holdouts"):
         judge(rows, EXPERIMENT)
+
+
+def scored_against(
+    gain, flagged, *, comparators=("none",), measures=(Measure.RECALL, Measure.AUC_PR)
+):
+    """Held-out rows, then each comparator and `bko`; `bko` gains `gain` over the whole split and
+    `flagged` over the flagged subgroups, comparator `k` reading 0.5 - 0.05 k."""
+    rows = series(HELD_OUT_ARM, Source.HELD_OUT, Measure.HELD_OUT_RATIO, Scope.ALL, [0.25] * 4)
+    rows += series(HELD_OUT_ARM, Source.HELD_OUT, Measure.DCR_P5, Scope.ALL, [0.1] * 4)
+    rows += series("bko", Source.ADDED, Measure.DCR_P5, Scope.ALL, [0.1] * 4)
+    for measure in measures:
+        for scope in Scope:
+            lift = gain if scope is Scope.ALL else flagged
+            for k, name in enumerate(comparators):
+                rows += series(name, Source.AUGMENTED, measure, scope, [0.5 - 0.05 * k] * 4)
+            rows += series("bko", Source.AUGMENTED, measure, scope, [0.5 + g for g in lift])
+    return rows
+
+
+def boosted(gain, boost, *, flagged=None, boost_flagged=None, comparators=("none",)):
+    """`scored_against` with the regression's measures, then the boosting model's."""
+    flagged = gain if flagged is None else flagged
+    boost_flagged = boost if boost_flagged is None else boost_flagged
+    rows = scored_against(gain, flagged, comparators=comparators)
+    return rows + [
+        s
+        for s in scored_against(boost, boost_flagged, comparators=comparators, measures=BOOSTED)
+        if s.measure in BOOSTED
+    ]
+
+
+def kept(found):
+    """The intervals of `reported_contrasts`, without its skipped pairs."""
+    return [f for f in found if isinstance(f, Reported)]
+
+
+GAIN = [0.05, 0.06, 0.05, 0.06]
+FLAGGED_GAIN = [0.0, 0.2, 0.1, 0.3]
+
+
+@pytest.mark.parametrize("boost", [[0.3] * 4, [-0.3] * 4, [0.0, 0.2, -0.2, 0.1]])
+def test_the_boosting_rows_leave_every_verdict_and_the_table_unchanged(boost):
+    gain = [0.0, 0.05, 0.0, 0.05]
+    alone = judge(scored_against(gain, FLAGGED_GAIN), EXPERIMENT)
+    both = judge(boosted(gain, boost, flagged=FLAGGED_GAIN), EXPERIMENT)
+    assert both == alone
+    assert table(both) == table(alone)
+
+
+def test_the_boosting_contrasts_are_read_as_the_criteria_read_the_regressions():
+    contrasts = judge(scored_against(GAIN, FLAGGED_GAIN), EXPERIMENT)
+    readings = kept(
+        reported_contrasts(
+            boosted(GAIN, GAIN, flagged=FLAGGED_GAIN, boost_flagged=FLAGGED_GAIN), EXPERIMENT
+        )
+    )
+    assert [(r.criterion, r.scope, r.measure) for r in readings] == [
+        ("primary", Scope.ALL, Measure.RECALL_HGB),
+        ("primary", Scope.ALL, Measure.AUC_PR_HGB),
+        ("secondary", Scope.FLAGGED, Measure.RECALL_HGB),
+        ("secondary", Scope.FLAGGED, Measure.AUC_PR_HGB),
+    ]
+    assert {(r.model, r.arm, r.against) for r in readings} == {(Model.HGB, "bko", "none")}
+    assert [r.interval for r in readings] == [c.interval for c in contrasts[:4]]
+    assert readings[0].interval != readings[2].interval
+    assert [r.differing for r in readings] == [4, 4, 3, 3]
+
+
+def test_the_boosting_contrasts_take_the_criterias_margin_and_family():
+    comparators = ("none", "smote")
+    experiment = dataclasses.replace(
+        EXPERIMENT, comparators=comparators, margin=0.03, criteria=("primary", "secondary")
+    )
+    contrasts = judge(scored_against(GAIN, FLAGGED_GAIN, comparators=comparators), experiment)
+    rows = boosted(
+        GAIN, GAIN, flagged=FLAGGED_GAIN, boost_flagged=FLAGGED_GAIN, comparators=comparators
+    )
+    readings = kept(reported_contrasts(rows, experiment))
+    assert len(readings) == len(contrasts) == 8
+    assert [(r.against, r.interval) for r in readings] == [
+        (c.against, c.interval) for c in contrasts
+    ]
+
+
+def test_a_comparator_without_boosting_rows_is_skipped_once():
+    comparators = ("none", "smote")
+    experiment = dataclasses.replace(EXPERIMENT, comparators=comparators)
+    rows = [
+        s
+        for s in boosted(GAIN, GAIN, comparators=comparators)
+        if not (s.arm == "smote" and s.measure in BOOSTED)
+    ]
+    found = reported_contrasts(rows, experiment)
+    assert [f for f in found if isinstance(f, Absent)] == [Absent(Model.HGB, "bko", "smote")]
+    readings = kept(found)
+    assert {r.against for r in readings} == {"none"}
+    full = kept(reported_contrasts(boosted(GAIN, GAIN, comparators=comparators), experiment))
+    assert [r.interval for r in readings] == [r.interval for r in full if r.against == "none"]
+
+
+def test_a_candidate_without_boosting_rows_is_skipped_against_each_comparator():
+    comparators = ("none", "smote")
+    experiment = dataclasses.replace(EXPERIMENT, comparators=comparators)
+    rows = [
+        s
+        for s in boosted(GAIN, GAIN, comparators=comparators)
+        if not (s.arm == "bko" and s.measure in BOOSTED)
+    ]
+    assert reported_contrasts(rows, experiment) == [
+        Absent(Model.HGB, "bko", "none"),
+        Absent(Model.HGB, "bko", "smote"),
+    ]
+
+
+def test_no_boosting_rows_give_no_boosting_contrasts():
+    assert reported_contrasts(scored_against(GAIN, FLAGGED_GAIN), EXPERIMENT) == []
+
+
+def test_the_boosting_contrasts_follow_the_criteria_the_experiment_holds():
+    primary = dataclasses.replace(EXPERIMENT, criteria=("primary",))
+    found = kept(reported_contrasts(boosted(GAIN, GAIN), primary))
+    assert {r.criterion for r in found} == {"primary"}

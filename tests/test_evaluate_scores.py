@@ -73,3 +73,18 @@ def test_a_fills_candidates_and_its_replica_candidates_are_distinct_rows():
     ]
     assert render(rows).splitlines()[2] == "0,bko,replica-candidates,generated,all,238.0"
     assert parse(render(rows)) == rows
+
+
+def test_the_boosting_models_measures_read_back_and_an_old_file_still_parses():
+    boosted = [
+        *SCORES,
+        Score(1, "smote", Source.AUGMENTED, Measure.RECALL_HGB, Scope.ALL, 0.5),
+        Score(1, "smote", Source.AUGMENTED, Measure.PRECISION_HGB, Scope.ALL, 0.25),
+        Score(1, "smote", Source.AUGMENTED, Measure.AUC_PR_HGB, Scope.FLAGGED, math.nan),
+    ]
+    text = render(boosted)
+    assert text.splitlines()[4] == "1,smote,augmented,recall-hgb,all,0.5"
+    assert parse(text)[3:5] == boosted[3:5]
+    old = "".join(line for line in text.splitlines(keepends=True) if "-hgb," not in line)
+    assert old == render(SCORES)
+    assert parse(old)[0] == SCORES[0]

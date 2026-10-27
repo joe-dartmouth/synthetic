@@ -2,7 +2,7 @@
 id: generate-prompt-training-bounds
 title: Bound each numeric field by the training split
 status: blocked
-depends_on: evaluate-second-classifier, proposal-guidance-ablation
+depends_on: proposal-guidance-ablation
 blocks: evaluate-e1-second-configuration
 parallel_safe: true
 owner: Shirley

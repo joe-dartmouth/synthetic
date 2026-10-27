@@ -102,6 +102,7 @@ eval = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "sdmetrics" },
+    { name = "threadpoolctl" },
 ]
 llm = [
     { name = "anthropic" },
@@ -134,6 +135,7 @@ requires-dist = [
     { name = "sdmetrics", marker = "extra == 'eval'", specifier = ">=0.32" },
     { name = "sdv", marker = "extra == 'synth'", specifier = ">=1.38" },
     { name = "streamlit", marker = "extra == 'app'", specifier = ">=1.65" },
+    { name = "threadpoolctl", marker = "extra == 'eval'", specifier = ">=3.5" },
     { name = "torch", marker = "extra == 'synth'", specifier = ">=2.14" },
     { name = "ty", marker = "extra == 'dev'", specifier = "==0.0.87" },
 ]

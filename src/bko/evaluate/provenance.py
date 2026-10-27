@@ -7,6 +7,7 @@ import json
 import logging
 import platform
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Final
 
@@ -20,6 +21,7 @@ VERSIONED: Final = (
     "pandas",
     "scipy",
     "scikit-learn",
+    "threadpoolctl",
     "imbalanced-learn",
     "sdv",
     "sdmetrics",
@@ -30,11 +32,11 @@ VERSIONED: Final = (
 """The distributions whose installed versions a `score` run logs."""
 
 
-def log_experiment(name: str, experiment: Experiment) -> None:
-    """Log the run's configuration, then the commit and library versions it ran with."""
+def log_experiment(name: str, experiment: Experiment, models: Iterable[str]) -> None:
+    """Log the run's configuration and models, then the commit and library versions it ran with."""
     logger.info(
         "experiment run=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
-        "spend_ceiling=%.2f criteria=%s",
+        "spend_ceiling=%.2f criteria=%s models=%s",
         name,
         len(experiment.holdout_seeds),
         ",".join(experiment.arms),
@@ -44,6 +46,7 @@ def log_experiment(name: str, experiment: Experiment) -> None:
         experiment.validity,
         experiment.spend_ceiling,
         ",".join(experiment.criteria) or "none",
+        ",".join(models),
     )
     head, dirty = commit()
     logger.info(

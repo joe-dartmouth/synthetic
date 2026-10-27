@@ -2,9 +2,9 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-26
+updated: 2026-10-27
 ---
-# E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals
+# E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
 ## Context
 
@@ -112,10 +112,18 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   rows alone train a classifier (train on synthetic, read against the no-augmentation arm, which
   trains on real) and are compared with the training split for fidelity. `compare` logs each
   replica arm's mean replica utility and fidelity, with no verdict.
-- **One classifier.** Logistic regression (lbfgs, L2, C = 1) on standardised measured predictors
-  and coded predictors one-hot encoded over their codebook. The weights reach the regression only.
-  A record is called positive at a probability of 0.5 or more. A fit that does not converge stops
-  the run.
+- **A judged classifier and a reported one.** The criteria read a logistic regression (lbfgs, L2,
+  C = 1) on standardised measured predictors and coded predictors one-hot encoded over their
+  codebook. The weights reach the regression only. A record is called positive at a probability of
+  0.5 or more. A fit that does not converge stops the run. Every arm's augmented training set also
+  fits a histogram gradient boosting classifier (`bko.evaluate.classifier.build_hgb`): the same
+  one-hot coded predictors, measured predictors unscaled, log loss, learning rate 0.1, 100
+  iterations, 31 leaves, no depth limit, a leaf of at least 1 record, no L2 penalty, every feature,
+  255 bins, no native categorical features, early stopping off and no class weight. It takes the
+  same weights, fits on one OpenMP thread, and is scored as the regression is, into
+  `recall-hgb`, `precision-hgb` and `auc-pr-hgb` rows; `compare` logs each primary and secondary
+  contrast of them as a `contrast model=hgb` line, with no verdict. Replica utility reads the
+  regression only.
 - **Measures.** Recall, precision and AUC-PR over the whole test split and over the flagged
   subgroups, the age-sex subgroups that hold an underrepresented cell; a measure a scope cannot
   define is empty, and a criterion that reads an empty value refuses to judge. Fidelity is
@@ -214,8 +222,32 @@ counts. The replica's spend dominates the run's, so `E1.spend_ceiling` is set ab
 recorded in E1's Configuration before the run.
 
 Logistic regression is deterministic, takes weights and has no seed of its own; a random forest
-scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. The
-test rows are real records no generator saw, the natural real-data baseline for distance to closest
+scored the same on the baselines while its own seed moved subgroup recall by one of 5 positives. A
+linear model may not exploit the 18 and 2 rows the gap fill adds to its two cells, so a null result
+on it alone does not show the rows carry nothing; the boosting model reads the same rows with no
+seed. Histogram gradient boosting with early stopping off and every feature draws no random number
+below 200000 training rows, and its scores were bit-identical at OpenMP threads 1 to 18 and at
+`random_state` 0, 1 and None. Under the gate's parallel workers unbounded OpenMP threads crawl: the
+median fit took 41749 ms against 78 ms on one thread under 12 processes. Both are planning
+measurements of 2026-10-26 whose script was not kept. At these settings it classifies every
+training row correctly where the regression does not (measured 2026-10-27 on holdouts 0 to 2 of the
+pinned archive, each training split scored by `bko.evaluate.classifier.probabilities` on itself), and
+its recall and AUC-PR read lower than the regression's on
+every arm in both scopes (EVIDENCE E1, `e1-3-replay-2`). It responds to added rows more often: SMOTE
+against no augmentation changes flagged-subgroup recall on 31 of `e1-3`'s 100 holdouts under it and
+on 10 under the regression, read from `e1-3-replay-2`'s scores with
+
+    uv run --no-sync python -c "import pandas as pd; s=pd.read_csv('runs/e1-3-replay-2/scores.csv'); f=s[(s.source=='augmented')&(s.scope=='flagged-subgroups')].pivot_table(index=['holdout','measure'],columns='arm',values='value'); [print(m, (f.xs(m,level='measure')['smote']!=f.xs(m,level='measure')['none']).sum(), 'of', len(f.xs(m,level='measure'))) for m in ('recall','recall-hgb')]"
+
+Judged, its intervals would move no verdict: read as each criterion reads the regression's, its
+primary and secondary contrasts in `e1-3-replay-2`'s `criteria.log` are inconclusive, as E1's are. A leaf size below the gap fill's smallest cell is read
+as below that cell's 2 rows, so a leaf holds 1 record; read as below the whole 20-row fill, a leaf of
+19 would pass, and it cannot hold the 2-row cell's rows apart, as scikit-learn's default of 20
+cannot. The criteria still read the regression: they were fixed on it before any run, and judging a
+second model adds a look at each criterion after `e1-3`'s results were in view. Replica utility
+stays on the regression, its only reading beside fidelity.
+
+The test rows are real records no generator saw, the natural real-data baseline for distance to closest
 record, and the 5th percentile is the reading that catches near-copies
 ([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). The gap cells are cells of women
 with heart disease, and a training row of the other label or sex already sits 1/14 (0.071) away
@@ -282,7 +314,9 @@ ever moves not met to inconclusive, which favours the candidate; a met verdict c
 gain, not a minimum size, and the zero margin, also fixed with baseline dry runs in view and no BKO
 result, makes met easier to reach; a configuration may be chosen with an earlier configuration's
 results in view, so each verdict is one look at its configuration, and every run stays in the
-register so how many configurations were tried is visible.
+register so how many configurations were tried is visible; the boosting model's measures are
+reported, never judged, so a gain only it shows moves no verdict, and it costs one more fit per arm
+and holdout.
 
 ## Ruled Out
 
@@ -325,6 +359,12 @@ register so how many configurations were tried is visible.
 | Validity over the gap fill's candidates only | One rule counts every candidate validation sees, replica candidates included | 2026-10-19 |
 | A validity verdict per fill | Two looks at one criterion | 2026-10-19 |
 | A control as a replica arm | It adds no rows, so its replica fit trains on nothing and score exits 1 | 2026-10-22 |
+| Judging the boosting model | A second look at each criterion, chosen after `e1-3`'s results were in view | 2026-10-26 |
+| A `model` column in the scores file | Changes every row and the columns `parse` reads; suffixed measures leave the regression's rows byte for byte | 2026-10-26 |
+| The boosting model's native categorical features | One-hot coding over the codebook gives both models the same columns whatever codes a fit's rows hold | 2026-10-26 |
+| Scaling the boosting model's measured predictors | Trees split on order, so scaling changes no split | 2026-10-26 |
+| Unbounded OpenMP threads for the boosting fit | 41749 ms against 78 ms median per fit under 12 processes, for bit-identical scores | 2026-10-26 |
+| A leaf size below the whole 20-row gap fill | Passes a leaf of 19, which cannot hold the 2-row cell's rows apart | 2026-10-26 |
 
 ## Enforcement
 

@@ -1,9 +1,9 @@
 # Experiments: work-unit index
 
 **What this set is.** The experiments that follow the first full evaluation
-([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), E1): the harness
-work that lets a variant run from a committed command, changes to how records are generated, to
-how gaps are detected, and to the power of the evaluation, each one pull request. The plan is
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), E1): changes to
+how records are generated, to how gaps are detected, and to the power of the evaluation, each one
+pull request. The plan is
 [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a criterion, a definition or a
 decision an ADR records edits that document in its own PR. The guidance-level ablation stays in
 [`proposal-index.md`](proposal-index.md). Owners follow the
@@ -12,18 +12,12 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
-### Harness
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`evaluate-second-classifier`](evaluate-second-classifier.md) | ready | -- | Joe | final-report |
-
 ### Generation
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
-| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | evaluate-second-classifier, proposal-guidance-ablation | Shirley | final-report |
+| [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
+| [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
 | [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
@@ -50,8 +44,6 @@ set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
-    second_classifier[evaluate-second-classifier] --> effort_sweep[generate-effort-sweep]
-    second_classifier[evaluate-second-classifier] --> prompt_bounds[generate-prompt-training-bounds]
     bkb_sampler[generate-bkb-sampler] --> skeleton_fill[generate-bkb-skeleton-fill]
     bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
@@ -67,7 +59,7 @@ flowchart LR
     synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
 ```
 
-## Why the harness units come first
+## What every unit relies on
 
 - **Replay pairs calls by order and refuses a differing request** (ADR
   [`research/call-log-replay`](../docs/adr/research/call-log-replay.md)), so a unit that changes

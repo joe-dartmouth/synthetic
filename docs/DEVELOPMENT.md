@@ -216,7 +216,10 @@ the runner before any replay.
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
   and the request that fills each underrepresented cell up to the threshold. A classifier fit on the
-  real rows, weighted as the arm says, and the added rows is scored on the test split. The replica
+  real rows, weighted as the arm says, and the added rows is scored on the test split, then a
+  gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
+  logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
+  `grep -v -- '-hgb,'` leaves the regression's rows alone. The replica
   arms also fill the training split's own cell counts; those rows alone train a classifier and are
   compared with the training split for fidelity. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
@@ -250,11 +253,17 @@ the runner before any replay.
   empty value. `--candidate` judges another row-adding arm, a dry run whose verdict is not E1's. It
   also judges validity from the `candidates` and `replica-candidates` rows, the gap and replica
   fills' counts: the candidate's `passed` summed over `generated` summed over both fills, met at
-  `E1.validity` or above. It logs each arm's mean recall and AUC-PR over the holdouts, and each
-  replica arm's mean replica recall, AUC-PR and fidelity, with no verdict. A scores file is compared
+  `E1.validity` or above. It logs each arm's mean recall and AUC-PR over the holdouts, both
+  models', and each replica arm's mean replica recall, AUC-PR and fidelity, with no verdict. When
+  the scores hold the boosting model's rows, it logs each primary and secondary contrast of its
+  recall and AUC-PR, read as the criterion reads the regression's, with no verdict, after the
+  table is written; a pair of arms either of which holds none of its rows is skipped, and the
+  criterion's family still counts it. The table reads the regression only, so it is the same with
+  or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
-  the budget, the validity threshold and the spend ceiling, and a `versions` line (the checkout's
+  the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
+  and a `versions` line (the checkout's
   commit and whether its tree is dirty, `unknown` without git, then Python, the platform, the
   evaluation stack, the SDK and the ontology parser), with `--resume` a `resume` line (`log=`,
   `sha256=`, `answered=`) before any call, then per holdout the split line `cells` prints, one
@@ -273,8 +282,12 @@ the runner before any replay.
   `compare` line with the candidate, whether it is a dry run and the scores file's sha256, then one
   `criterion` line per criterion with its verdict, a `criterion=validity` line, a `validity` line
   per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`, `fill=replica`) with its
-  counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, and a
-  `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
+  counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, a
+  `contrast model=hgb` line per contrast of the boosting model's measures when the scores hold them
+  (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`, `high=`,
+  `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which lacks
+  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), and a `replica` line per replica arm, measure and
+  scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
   `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
   `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line

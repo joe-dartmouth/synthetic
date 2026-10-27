@@ -6,8 +6,9 @@ generator sees a test record. A runner returns a checked
 `Baseline`; `augment` checks every method's.
 
 Each holdout fills every arm, then scores each on the test split without the records any arm's
-rows copy. A BKO arm is drained after the gap fills and again after the replica fills, so each
-fill's candidates enter the scores under their own source.
+rows copy, with every model; a model's rows follow the regression's, its measures suffixed with its
+name, and replica utility reads the regression only. A BKO arm is drained after the gap fills and
+again after the replica fills, so each fill's candidates enter the scores under their own source.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ from bko.datasets.cells import AGE_BAND_EDGES, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.classifier import Factory, build, probabilities
+from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
@@ -84,7 +85,7 @@ def run(
     experiment: Experiment,
     arms: Mapping[str, Runner] = ARMS,
     *,
-    factory: Factory = build,
+    models: Mapping[Model, Factory] = MODELS,
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec = UCI_FRAME,
@@ -92,6 +93,7 @@ def run(
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
     `on_holdout` is called after each holdout, so a caller can stop the run between holdouts.
+    `models` must hold `Model.LR`, which the criteria and replica utility read.
 
     Raises:
         EvaluationError: If an arm has no runner, no cell needs filling, or a fit does not
@@ -107,9 +109,7 @@ def run(
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
         parts = split(records, seed=seed, edges=frame.edges)
-        scores += score_holdout(
-            parts, experiment, arms, factory=factory, drains=drains, frame=frame
-        )
+        scores += score_holdout(parts, experiment, arms, models=models, drains=drains, frame=frame)
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
         if on_holdout is not None:
@@ -122,11 +122,17 @@ def score_holdout(
     experiment: Experiment,
     arms: Mapping[str, Runner],
     *,
-    factory: Factory = build,
+    models: Mapping[Model, Factory] = MODELS,
     drains: Mapping[str, Drain] = MappingProxyType({}),
     frame: FrameSpec = UCI_FRAME,
 ) -> list[Score]:
-    """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's."""
+    """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
+
+    Raises:
+        EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
+        BaselineError: If an arm cannot fill a request.
+    """
+    _require_regression(models)
     train, test, seed = parts.train, parts.test, parts.seed
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
@@ -170,11 +176,11 @@ def score_holdout(
     scores = _rows(seed, HELD_OUT_ARM, Source.HELD_OUT, held_out)
     for name in experiment.arms:
         fill = fills[name]
-        scores += _arm_scores(seed, name, fill, parts, clean, cells, factory=factory, frame=frame)
+        scores += _arm_scores(seed, name, fill, parts, clean, cells, models=models, frame=frame)
         if name in replicas:
             replica = replicas[name]
             scores += _replica_scores(
-                seed, name, replica, parts, clean, cells, factory=factory, frame=frame
+                seed, name, replica, parts, clean, cells, factory=models[Model.LR], frame=frame
             )
         if name in gap_counts:
             scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
@@ -246,10 +252,13 @@ def _arm_scores(
     clean: pd.DataFrame,
     cells: tuple[Stratum, ...],
     *,
-    factory: Factory,
+    models: Mapping[Model, Factory],
     frame: FrameSpec,
 ) -> list[Score]:
-    """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility."""
+    """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
+
+    The regression's utility comes first, then each other model's in `models`' order.
+    """
     train, added = parts.train, baseline.added
     counts = {
         Measure.ROWS: float(len(added)),
@@ -259,9 +268,12 @@ def _arm_scores(
     if len(added):
         scores += _rows(seed, name, Source.ADDED, distances(added, train, frame=frame))
     training = training_set(train, baseline, frame=frame)
-    fitted = probabilities(training, clean, factory=factory, frame=frame)
-    measured = utility(clean, fitted, cells, edges=frame.edges)
-    return scores + _scoped(seed, name, Source.AUGMENTED, measured)
+    ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
+    for model in ordered:
+        fitted = probabilities(training, clean, factory=models[model], frame=frame)
+        measured = utility(clean, fitted, cells, edges=frame.edges)
+        scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
+    return scores
 
 
 def _replica_scores(
@@ -283,6 +295,28 @@ def _replica_scores(
         *_rows(seed, name, Source.REPLICA, fidelity(parts.train, replica, frame=frame)),
         *_rows(seed, name, Source.REPLICA, copied),
     ]
+
+
+def _require_regression(models: Mapping[Model, Factory]) -> None:
+    """Refuse `models` without `Model.LR`, which the criteria and replica utility read.
+
+    Raises:
+        EvaluationError: If `models` lacks `Model.LR`.
+    """
+    if Model.LR not in models:
+        msg = f"the models {[str(model) for model in models]} lack the regression {Model.LR!s}"
+        raise EvaluationError(msg)
+
+
+def _suffixed(
+    values: Mapping[tuple[Measure, Scope], float], model: Model
+) -> Mapping[tuple[Measure, Scope], float]:
+    """`values` under `model`'s measure names: the regression's as they are, others suffixed."""
+    if model is Model.LR:
+        return values
+    return {
+        (Measure(f"{measure}-{model}"), scope): value for (measure, scope), value in values.items()
+    }
 
 
 def _rows(seed: int, arm: str, source: Source, values: Mapping[Measure, float]) -> list[Score]:

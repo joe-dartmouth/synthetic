@@ -65,20 +65,17 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Evaluation**
 
-9. A second downstream classifier (gradient boosting) beside logistic regression, to check whether
-   a linear model is what hides the added rows' effect
-   ([`evaluate-second-classifier`](tasks/evaluate-second-classifier.md)).
-10. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
-    ([`evaluate-e1-second-configuration`](tasks/evaluate-e1-second-configuration.md)).
-11. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+9. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
+   ([`evaluate-e1-second-configuration`](tasks/evaluate-e1-second-configuration.md)).
+10. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
     method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-12. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+11. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
     see whether augmentation pays when data is scarcer than UCI
     ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-13. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
+12. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
     Opus and Haiku runs differed in more than the model
     ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-14. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
+13. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
     population, remove a known share of women with the disease from training, and measure how much
     recall each method recovers; the large cells answer the power problem UCI cannot
     ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).

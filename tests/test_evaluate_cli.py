@@ -20,6 +20,7 @@ from bko.evaluate.__main__ import (
     configure_logging,
     main,
 )
+from bko.evaluate.classifier import MODELS
 from bko.evaluate.criteria import CONTRAST_COLUMNS
 from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
 from bko.evaluate.logs import log_copies, log_means
@@ -66,6 +67,12 @@ def test_score_writes_every_arm_on_every_holdout(scores_file):
     assert tuple(frame.columns) == SCORE_COLUMNS
     assert set(frame["holdout"]) == set(SMALL.holdout_seeds)
     assert set(frame["arm"]) == set(SMALL.arms)
+    augmented = frame[frame["source"] == "augmented"]
+    assert {"recall-hgb", "precision-hgb", "auc-pr-hgb"} <= set(augmented["measure"])
+
+
+def test_score_fits_every_model_by_default():
+    assert Context().models is MODELS
 
 
 def test_compare_judges_a_candidate_from_the_scores_file(scores_file):
@@ -92,6 +99,57 @@ def test_compare_refuses_scores_from_other_holdouts_than_e1s(scores_file):
     out = io.StringIO()
     assert main(["compare", str(scores_file), "--candidate", "tvae"], out=out) == 2
     assert out.getvalue() == ""
+
+
+CONTRAST_LINE = re.compile(
+    r"contrast model=hgb criterion=(primary|secondary) scope=(all|flagged-subgroups) arm=tvae "
+    r"against=\S+ measure=(recall-hgb|auc-pr-hgb) mean=-?\d+\.\d{6} low=-?\d+\.\d{6} "
+    r"high=-?\d+\.\d{6} refuting_high=-?\d+\.\d{6} holdouts=2 differing=\d+$"
+)
+
+
+def _compared(path, caplog):
+    out = io.StringIO()
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        argv = ["compare", str(path), "--candidate", "tvae"]
+        assert main(argv, context=Context(experiment=SMALL), out=out) == 0
+    return out.getvalue(), [record.getMessage() for record in caplog.records]
+
+
+def test_compare_logs_the_boosting_contrasts_only_when_the_scores_hold_them(
+    scores_file, tmp_path, caplog
+):
+    table, lines = _compared(scores_file, caplog)
+    contrasts = [line for line in lines if line.startswith("contrast ")]
+    assert len(contrasts) == 2 * 2 * (len(SMALL.comparators) - 1)
+    assert all(CONTRAST_LINE.match(line) for line in contrasts)
+    assert any(line.startswith("mean arm=tvae measure=auc-pr-hgb scope=all") for line in lines)
+    stripped = tmp_path / "stripped.csv"
+    text = scores_file.read_text(encoding="utf-8")
+    kept = [line for line in text.splitlines(keepends=True) if "-hgb," not in line]
+    stripped.write_text("".join(kept), encoding="utf-8")
+    alone, lines = _compared(stripped, caplog)
+    assert alone == table
+    assert not [line for line in lines if line.startswith("contrast ") or "-hgb" in line]
+
+
+def test_an_arm_without_boosting_rows_is_skipped_and_the_table_kept(scores_file, tmp_path, caplog):
+    table, _ = _compared(scores_file, caplog)
+    text = scores_file.read_text(encoding="utf-8")
+    kept = [
+        line
+        for line in text.splitlines(keepends=True)
+        if not (line.split(",")[1] == "smote" and "-hgb," in line)
+    ]
+    partial = tmp_path / "partial.csv"
+    partial.write_text("".join(kept), encoding="utf-8")
+    alone, lines = _compared(partial, caplog)
+    assert alone == table
+    assert "contrast skip model=hgb arm=tvae against=smote reason=absent" in lines
+    contrasts = [line for line in lines if line.startswith("contrast model=hgb")]
+    assert len(contrasts) == 2 * 2 * (len(SMALL.comparators) - 2)
+    assert not [line for line in contrasts if "against=smote" in line]
 
 
 def test_a_scores_file_that_is_not_utf8_exits_three(tmp_path):
@@ -239,6 +297,9 @@ def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_pa
     assert code == 0
     line = next(m for m in caplog.messages if m.startswith("versions "))
     assert re.match(r"versions commit=[0-9a-f]{40} dirty=(true|false) \{", line)
+    assert '"threadpoolctl": "' in line
+    experiment = next(m for m in caplog.messages if m.startswith("experiment "))
+    assert experiment.endswith(" models=lr,hgb")
 
 
 def test_the_commit_is_unknown_without_git(monkeypatch):

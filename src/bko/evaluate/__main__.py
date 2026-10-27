@@ -56,7 +56,7 @@ from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
-from bko.evaluate.classifier import Factory, build
+from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.compare import compare
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
@@ -91,7 +91,7 @@ class Context:
         runs: Every other named run, by name.
         arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
             the API.
-        factory: Builds the unfitted classifier.
+        models: Builds each unfitted classifier, by model; it holds `Model.LR`.
         releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
         field_rows: The field mappings the BKO arms observe cells by.
         send: Builds the send every BKO arm's call goes through.
@@ -107,7 +107,7 @@ class Context:
     settings: Settings = SETTINGS
     runs: Mapping[str, NamedRun] = RUNS
     arms: Mapping[str, Runner] = ARMS
-    factory: Factory = build
+    models: Mapping[Model, Factory] = MODELS
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     send: Callable[[], Send] = default_send
@@ -288,11 +288,11 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
-    log_experiment(args.run, experiment)
+    log_experiment(args.run, experiment, context.models)
     if guided:
         scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
-        scores = run(frame, experiment, context.arms, factory=context.factory)
+        scores = run(frame, experiment, context.arms, models=context.models)
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
@@ -353,7 +353,7 @@ def _guided(
             frame,
             experiment,
             {**context.arms, **paid.arms},
-            factory=context.factory,
+            models=context.models,
             drains={name: arm.drain for name, arm in paid.arms.items()},
             on_holdout=paid.watch.holdout_done,
         )

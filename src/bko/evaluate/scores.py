@@ -44,6 +44,11 @@ class Measure(enum.StrEnum):
     RECALL = "recall"
     PRECISION = "precision"
     AUC_PR = "auc-pr"
+    RECALL_HGB = "recall-hgb"
+    """`RECALL` of the boosting model (`bko.evaluate.classifier.Model.HGB`), which no criterion
+    reads; each model but the regression suffixes its measures with its name."""
+    PRECISION_HGB = "precision-hgb"
+    AUC_PR_HGB = "auc-pr-hgb"
     QUALITY = "quality"
     COLUMN_SHAPES = "column-shapes"
     COLUMN_PAIR_TRENDS = "column-pair-trends"

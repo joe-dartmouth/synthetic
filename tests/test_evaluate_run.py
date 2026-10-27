@@ -14,10 +14,11 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.records import derived_seed
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES
+from bko.evaluate.classifier import Model, build
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, gap_request
 from bko.evaluate.run import held_out_ratio, run, score_holdout
-from bko.evaluate.scores import HELD_OUT_ARM, Measure, Source, render
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source, render
 from tests._baselines_fixtures import EDGE, cell_list
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Spy
 
@@ -41,7 +42,7 @@ def test_every_arm_is_scored_on_every_holdout(scores):
     for seed in SMALL.holdout_seeds:
         assert counts[seed, HELD_OUT_ARM, Source.HELD_OUT] == 3
         for arm in SMALL.arms:
-            assert counts[seed, arm, Source.AUGMENTED] == 6
+            assert counts[seed, arm, Source.AUGMENTED] == 12
         for arm in SMALL.replica_arms:
             assert counts[seed, arm, Source.REPLICA] == 10
             assert counts[seed, arm, Source.ADDED] == 4
@@ -53,6 +54,56 @@ def test_every_row_adding_arm_adds_the_same_rows(scores):
     rows = {(s.holdout, s.arm): s.value for s in scores if s.measure is Measure.ROWS}
     assert {value for (_, arm), value in rows.items() if arm in SMALL.replica_arms} == {20.0}
     assert (rows[0, "none"], rows[0, "class-weight"]) == pytest.approx((0.0, 0.0))
+
+
+REGRESSION = [
+    (measure, scope)
+    for scope in Scope
+    for measure in (Measure.RECALL, Measure.PRECISION, Measure.AUC_PR)
+]
+BOOSTED = [
+    (measure, scope)
+    for scope in Scope
+    for measure in (Measure.RECALL_HGB, Measure.PRECISION_HGB, Measure.AUC_PR_HGB)
+]
+
+
+def test_each_arms_boosting_rows_follow_its_regression_rows(scores):
+    for seed in SMALL.holdout_seeds:
+        for arm in SMALL.arms:
+            at = [
+                position
+                for position, s in enumerate(scores)
+                if (s.holdout, s.arm, s.source) == (seed, arm, Source.AUGMENTED)
+            ]
+            assert at == list(range(at[0], at[0] + 12))
+            assert [(scores[i].measure, scores[i].scope) for i in at] == REGRESSION + BOOSTED
+
+
+def test_replica_utility_reads_the_regression_only(scores):
+    replica = {s.measure for s in scores if s.source is Source.REPLICA}
+    assert Measure.RECALL in replica
+    assert not replica & {measure for measure, _ in BOOSTED}
+
+
+def test_dropping_the_boosting_rows_leaves_the_regression_rows_byte_for_byte():
+    experiment = dataclasses.replace(
+        SMALL,
+        arms=("none", "smote"),
+        candidate="smote",
+        comparators=("none",),
+        replica_arms=("smote",),
+    )
+    both = render(run(GRADED, experiment, FAST_ARMS))
+    alone = render(run(GRADED, experiment, FAST_ARMS, models={Model.LR: build}))
+    assert "-hgb," in both
+    stripped = "".join(line for line in both.splitlines(keepends=True) if "-hgb," not in line)
+    assert stripped == alone
+
+
+def test_models_without_the_regression_are_refused():
+    with pytest.raises(EvaluationError, match="lack the regression"):
+        score_holdout(split(GRADED, seed=0), SMALL, FAST_ARMS, models={Model.HGB: build})
 
 
 def test_the_held_out_ratio_is_the_largest_cells():
@@ -68,7 +119,7 @@ def test_class_weights_reach_the_fit_through_the_harness():
         comparators=(),
         replica_arms=(),
     )
-    run(GRADED, experiment, FAST_ARMS, factory=spy)
+    run(GRADED, experiment, FAST_ARMS, models={Model.LR: spy})
     labels, weights = spy.models[0].seen
     total, positives = len(labels), int(labels.sum())
     expected = np.where(labels == 1, total / (2 * positives), total / (2 * (total - positives)))
