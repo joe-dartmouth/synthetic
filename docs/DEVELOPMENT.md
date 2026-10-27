@@ -479,6 +479,23 @@ commands, inside `.venv`:
   and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
   removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What the sweep logs**: `synthea` and `uci` also read each grounding count and level of
+  `bko.gaps.sweep` ([D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level)), to
+  stderr only, so stdout is the same bytes as without it. A setting is per-subgroup or
+  population-level at each count of `GROUNDING_COUNTS` and the default level, or frequency-aware
+  at each level of `CREDIBILITY_LEVELS` and count 1. After each ablation's `detection` lines,
+  `synthea` logs one `sweep ablation=<name> detector=<d> grounding=<k> credibility=<level>
+  sensitivity=<s> specificity=<s>` line per setting, read as the `detection` lines are. After the
+  last ablation it logs one `chosen level=<level> ablation=<name> floor=<s> sensitivity=<s>
+  specificity=<s> tied=<levels>` line, the outcome of the rule ADR
+  `research/frequency-aware-gap-score` states. `floor` is the count-based detector's sensitivity
+  on `cell-50`; `sensitivity` and `specificity` are the chosen level's; `tied` lists every
+  qualifying level sharing its specificity. `level=none` says no level was chosen, and the other
+  fields say why: `ablation=none` when the run has no `cell-50`; `ablation=cell-50 floor=n/a` when
+  the count-based detector has no eligible cell there; a floor with `level=none` when no level
+  reaches it. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name>
+  detector=<d> grounding=<k> credibility=<level> gaps=<n> cells=<c>` line per setting, `<n>`
+  being the setting's gap count and `<c>` the cells holding them.
 - **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
   `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
   partial ablation it passes over; for each whole ablation a header,

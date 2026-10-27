@@ -22,12 +22,6 @@ the ROADMAP heading it serves.
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
 
-### Detection
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`detect-graded-grounding`](detect-graded-grounding.md) | ready | -- | Partiban | final-report |
-
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
@@ -54,7 +48,6 @@ flowchart LR
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
-    graded_grounding[detect-graded-grounding]
     synthea_downstream[evaluate-synthea-downstream]
 ```
 

@@ -21,6 +21,7 @@ import bko.gaps.experiment
 from bko.datasets.synthea_run import SyntheaRun
 from bko.gaps.__main__ import Context, configure_logging, main
 from bko.gaps.experiment import Recovery
+from bko.gaps.sweep import SETTINGS
 from bko.ontology.schema import FieldMapping
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeSynthea, archive, cleveland_line, pin
@@ -151,6 +152,18 @@ def test_uci_lists_each_definitions_gaps_and_the_count_in_the_training_split(tmp
         "bko definition=per-subgroup dataset=uci-heart-disease gaps=20 cells=8",
         "bko definition=population-level dataset=uci-heart-disease gaps=16 cells=8",
         "bko definition=frequency-aware dataset=uci-heart-disease gaps=0 cells=0",
+        (
+            "sweep dataset=uci-heart-disease detector=per-subgroup grounding=1 credibility=0.95 "
+            "gaps=20 cells=8\n"
+        ),
+        (
+            "sweep dataset=uci-heart-disease detector=per-subgroup grounding=5 credibility=0.95 "
+            "gaps=24 cells=8\n"
+        ),
+        (
+            "sweep dataset=uci-heart-disease detector=frequency-aware grounding=1 "
+            "credibility=0.90 gaps=0 cells=0\n"
+        ),
         "count dataset=uci-heart-disease flagged=8 below=20",
         f"gaps rows=44 sha256={digest}",
     ):
@@ -392,9 +405,39 @@ def test_synthea_reads_each_ablation_with_every_detector(tmp_path, caplog):
             "specificity=0.0000"
         ),
         ("detection ablation=condition detector=count sensitivity=1.0000 specificity=1.0000"),
+        (
+            "sweep ablation=cell detector=population-level grounding=1 credibility=0.95 "
+            "sensitivity=0.0000 specificity=1.0000\n"
+        ),
+        (
+            "sweep ablation=cell detector=population-level grounding=2 credibility=0.95 "
+            "sensitivity=1.0000 specificity=0.0000\n"
+        ),
+        (
+            "sweep ablation=condition detector=frequency-aware grounding=1 credibility=0.99 "
+            "sensitivity=0.0000 specificity=1.0000\n"
+        ),
+        "chosen level=none ablation=none floor=n/a sensitivity=n/a specificity=n/a tied=none\n",
     ):
         assert line in caplog.text
     assert "invariant" not in caplog.text
+    sweeps = [m for m in caplog.messages if m.startswith("sweep ablation=")]
+    assert len(sweeps) == 2 * len(SETTINGS)
+    assert [m for m in caplog.messages if m.startswith("chosen ")] == [
+        "chosen level=none ablation=none floor=n/a sensitivity=n/a specificity=n/a tied=none"
+    ]
+
+
+def test_the_level_is_held_to_the_counts_sensitivity_on_cell_50(tmp_path, caplog):
+    half = dataclasses.replace(CELL, fraction=0.5)
+    context = make_context(ablations={"cell": CELL, "cell-50": half})
+    with caplog.at_level(logging.INFO, logger="bko"):
+        code, _ = run("synthea", tmp_path, context)
+    assert code == 0
+    # Ten of the cell's twenty men remain and show the condition, so no level flags the cell.
+    assert [m for m in caplog.messages if m.startswith("chosen ")] == [
+        "chosen level=none ablation=cell-50 floor=1.0000 sensitivity=n/a specificity=n/a tied=none"
+    ]
 
 
 def test_a_closed_detector_reading_new_gaps_outside_the_truth_is_warned(

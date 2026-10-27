@@ -180,12 +180,16 @@ class AblationRun:
 
     def detection(self, definition: Definition) -> Detection:
         """`definition`'s sensitivity and specificity, over every (cell, statement) pair."""
-        universe = (
+        return detection(self.before[definition], self.after[definition], self.truth, self.universe)
+
+    @property
+    def universe(self) -> tuple[StatementGap, ...]:
+        """Every (cell, statement) pair of the grid, the items a definition's reading counts."""
+        return tuple(
             StatementGap(cell, statement)
             for cell in self.before_cells.each
             for statement in self.statements
         )
-        return detection(self.before[definition], self.after[definition], self.truth, universe)
 
     def listed(self, definition: Definition) -> tuple[StatementGap, ...]:
         """`definition`'s gaps before or after the removal and the truth, in grid order.
@@ -225,6 +229,11 @@ class AblationRun:
             (gap.cell for gap in self.count_after),
             self.count_truth,
         )
+
+
+def share(value: float | None) -> str:
+    """A sensitivity or specificity as the log writes it: four decimals, or `n/a` for `None`."""
+    return "n/a" if value is None else f"{value:.4f}"
 
 
 def run_ablation(

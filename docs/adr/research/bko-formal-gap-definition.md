@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-19
+updated: 2026-10-27
 ---
 # A dataset gap is an ungrounded BKO statement
 
@@ -47,6 +47,17 @@ definitions:
 - **Population-level, an ablation**: one fragment of every record, its gaps holding in every cell.
 - **Frequency-aware, an ablation**: the statements a cell's under-represented concepts ground by
   themselves (ADR `research/frequency-aware-gap-score`).
+
+The two grounding definitions take a **grounding count** `k`, the `grounding` parameter of
+`bko.gaps.definitions.gaps`: a concept grounds statements only when at least `k` records of the
+fragment show it. A concept a cell assumes is held at every `k`, since no record shows it by
+construction. `k` of 1 is Proposition 5.1.1's rule and the one E1 and E2 ran, and it is the
+default. D1 ([EVIDENCE](../../EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level))
+reports every `k` of `bko.gaps.sweep`'s `GROUNDING_COUNTS` against E2's truth; E1's judged arm
+keeps `k` of 1, since a count above 1 departs from the ungrounded-statement definition. The
+frequency-aware definition ignores `k`; its level is a parameter too, and `bko-frequency` reads the
+level D1 chooses only once [`docs/RESEARCH.md`](../../RESEARCH.md#detect) says so (ADR
+`research/frequency-aware-gap-score`).
 
 All three read the same cells and are compared in the same places:
 
