@@ -385,3 +385,128 @@ def test_the_header_names_the_completeness_request_and_the_chosen_level(tmp_path
     header = json.loads(out.splitlines()[0])
     assert (header["request"], header["guidance"]) == ("completeness", "cell")
     assert header["calls"] == [["<55/female/0", 20], ["<55/female/1", 20]]
+
+
+@pytest.mark.parametrize(
+    ("argv", "parsed"),
+    [
+        (
+            ["per-subgroup", "--guidance", "ontology", "--log", "runs/x/calls.jsonl"],
+            {"command": "per-subgroup", "guidance": "ontology", "request": "e1"},
+        ),
+        (
+            ["per-subgroup", "--guidance", "ontology", "--request", "completeness", "--log", "a"],
+            {"command": "per-subgroup", "guidance": "ontology", "request": "completeness"},
+        ),
+        (
+            ["frequency-aware", "--log", "a", "--data-dir", "d"],
+            {"command": "frequency-aware", "guidance": "ontology", "data_dir": Path("d")},
+        ),
+        (
+            ["population-level", "--request", "e1", "--guidance", "cell", "--log", "a"],
+            {"command": "population-level", "guidance": "cell", "request": "e1"},
+        ),
+    ],
+    ids=["documented", "completeness", "data-dir", "options-reordered"],
+)
+def test_todays_command_lines_parse_as_they_always_did(argv, parsed):
+    from bko.generate.__main__ import _parser
+
+    args = vars(_parser(SETTINGS).parse_args(argv))
+    assert args["log"] == Path(argv[argv.index("--log") + 1])
+    assert {key: args[key] for key in parsed} == parsed
+
+
+def direct(
+    tmp_path: Path, *extra: str, seed: str = "0", log: str = "draws.jsonl"
+) -> tuple[int, str, Path]:
+    send = ScriptedSend()
+    out = io.StringIO()
+    argv = ["direct", "--request", "completeness", "--seed", seed, "--log", str(tmp_path / log)]
+    argv += ["--data-dir", str(tmp_path / "data"), *extra]
+    code = main(argv, context=completeness_context(send), out=out)
+    assert send.calls == []
+    return code, out.getvalue(), tmp_path / log
+
+
+def test_direct_writes_a_schema_2_file_naming_the_sampler_and_its_seed(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    code, out, log = direct(tmp_path)
+    assert code == 0
+    header, *lines = [json.loads(line) for line in out.splitlines()]
+    assert header["schema"] == 2
+    assert (header["generator"], header["seed"]) == ("direct", 0)
+    assert (header["definition"], header["guidance"]) == (None, None)
+    assert header["calls"] == [["<55/female/0", 20], ["<55/female/1", 20]]
+    assert [(line["call"], line["cell"]) for line in lines] == [(1, "<55/female/0")] * 20 + [
+        (2, "<55/female/1")
+    ] * 20
+    assert all(line["candidate"]["sex"] == 0 for line in lines)
+    draws = log_lines(log)
+    assert [(d["kind"], d["call"], d["position"]) for d in draws[:2]] == [
+        ("draw", 1, 0),
+        ("draw", 1, 1),
+    ]
+    assert len(draws) == 40
+    digest = hashlib.sha256(out.encode()).hexdigest()
+    assert caplog.messages[-1] == f"candidates rows=40 sha256={digest}"
+
+
+def test_direct_writes_the_same_bytes_on_a_second_run_with_the_same_seed(tmp_path):
+    first = direct(tmp_path, log="a.jsonl")
+    second = direct(tmp_path, log="b.jsonl")
+    assert first[1] == second[1]
+    assert first[2].read_bytes() == second[2].read_bytes()
+
+
+def test_direct_refuses_an_existing_draw_log_before_any_download(tmp_path):
+    (tmp_path / "draws.jsonl").write_text("kept\n", encoding="utf-8")
+    code, out, log = direct(tmp_path)
+    assert (code, out) == (2, "")
+    assert log.read_text(encoding="utf-8") == "kept\n"
+    assert not (tmp_path / "data").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["direct", "--log", "a"],
+        ["direct", "--seed", "-1", "--log", "a"],
+        ["direct", "--seed", "0", "--guidance", "cell", "--log", "a"],
+        ["per-subgroup", "--seed", "0", "--log", "a"],
+        ["direct", "--seed", "0"],
+    ],
+    ids=["no-seed", "negative-seed", "direct-guidance", "messages-seed", "no-log"],
+)
+def test_a_malformed_direct_command_exits_2(tmp_path, argv):
+    with pytest.raises(SystemExit) as raised:
+        main(argv, context=completeness_context(ScriptedSend()), out=io.StringIO())
+    assert raised.value.code == 2
+
+
+def test_direct_creates_its_draw_log_readable_by_its_owner_only(tmp_path):
+    code, _, log = direct(tmp_path)
+    assert code == 0
+    assert log.stat().st_mode & 0o777 == 0o600
+
+
+def test_direct_exits_2_writing_nothing_when_no_training_record_can_supply_a_draw(tmp_path, caplog):
+    no_young_sick = uci({}, "4.0", {**SIZES, (40, 1, 1): 0})
+    _, served = ladder_releases()
+    source = pin(no_young_sick)
+    send = ScriptedSend()
+    context = make_context(
+        send, open_url=RoutingOpener({**served, source.url: no_young_sick}), uci=source
+    )
+    log = tmp_path / "draws.jsonl"
+    argv = ["direct", "--request", "completeness", "--seed", "0", "--log", str(log)]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    out = io.StringIO()
+    assert main(argv, context=context, out=out) == 2
+    assert out.getvalue() == ""
+    assert not log.exists()
+    assert send.calls == []
+    assert any(
+        r.levelno == logging.ERROR and "<55/female/1 cannot draw age" in r.getMessage()
+        for r in caplog.records
+    )

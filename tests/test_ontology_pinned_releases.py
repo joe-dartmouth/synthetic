@@ -17,7 +17,7 @@ import pytest
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.sources import Source
 from bko.ontology.check import check
-from bko.ontology.mapping import CONCEPT_ROWS, RELEASES
+from bko.ontology.mapping import CHECKED_ROWS, RELEASES
 from bko.ontology.obo import load_ontology
 from bko.ontology.santos import PAPER_RELEASES, reproduce
 from bko.ontology.terms import Ontology
@@ -36,9 +36,13 @@ def _load(sources: Mapping[str, Source]) -> dict[str, Ontology]:
 
 
 def test_the_table_checks_clean_against_the_pinned_releases() -> None:
-    verdicts = check(CONCEPT_ROWS, _load(RELEASES))
-    assert len(verdicts) == len(CONCEPT_ROWS)
-    assert [f"{v.table} {v.concept}: {v.problem}" for v in verdicts if v.problem is not None] == []
+    verdicts = check(CHECKED_ROWS, _load(RELEASES))
+    assert len(verdicts) == len(CHECKED_ROWS)
+    assert [
+        f"{v.table} {v.concept or v.subject}: {v.problem}"
+        for v in verdicts
+        if v.problem is not None
+    ] == []
 
 
 def test_the_reproduction_differs_nowhere_against_the_pinned_releases() -> None:

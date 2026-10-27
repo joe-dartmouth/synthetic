@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -77,9 +81,19 @@ def dataset(each: Mapping[Cell, CellRecords]) -> Cells:
 
 
 def found(
-    definition: Definition, fragments: Sequence[BKB], each: Mapping[Cell, CellRecords]
+    definition: Definition,
+    fragments: Sequence[BKB],
+    each: Mapping[Cell, CellRecords],
+    *,
+    grounding: int = 1,
+    credibility: float = CREDIBILITY,
 ) -> list[tuple[Cell, Statement]]:
-    return [(gap.cell, gap.statement) for gap in gaps(definition, fragments, dataset(each))]
+    return [
+        (gap.cell, gap.statement)
+        for gap in gaps(
+            definition, fragments, dataset(each), grounding=grounding, credibility=credibility
+        )
+    ]
 
 
 @pytest.mark.parametrize(
@@ -223,7 +237,10 @@ def test_a_cells_under_represented_concepts_are_left_out_together(ladders):
     ]
 
 
-def test_a_training_frame_gives_each_definitions_gaps(ladders):
+@pytest.mark.parametrize(
+    "settings", [{}, {"grounding": 1, "credibility": 0.95}], ids=["defaults", "explicit"]
+)
+def test_a_training_frame_gives_each_definitions_gaps(ladders, settings):
     rows = (
         [(63, 0, 0, 1)]
         + [(63, 0, 0, 4)] * 19
@@ -237,7 +254,7 @@ def test_a_training_frame_gives_each_definitions_gaps(ladders):
     every = (H21, H32, M21, M42)
 
     def listed(definition: Definition) -> list[tuple[Cell, Statement]]:
-        return [(gap.cell, gap.statement) for gap in gaps(definition, fragments, cells)]
+        return [(gap.cell, gap.statement) for gap in gaps(definition, fragments, cells, **settings)]
 
     assert listed(Definition.SUBGROUP) == [
         *((("<55", "female", 0), s) for s in (H21, H32)),
@@ -258,11 +275,122 @@ def test_an_empty_cell_is_not_flagged_against_a_reference_that_shows_the_concept
     assert under_represented(dataset(each)) == ()
 
 
-def test_a_mass_exactly_at_the_credibility_level_is_flagged(monkeypatch):
-    each: dict[Cell, CellRecords] = {("p",): cell(30, {A: 0}), ("q",): cell(30, {A: 30})}
-    mass = posterior_below(0, 30, SHARE_RATIO)
-    monkeypatch.setattr(bko.gaps.definitions, "CREDIBILITY", mass)
-    assert [f.cell for f in under_represented(dataset(each))] == [("p",)]
+def test_a_mass_exactly_at_the_credibility_level_is_flagged():
+    each: dict[Cell, CellRecords] = {("p",): cell(2, {A: 0}), ("q",): cell(20, {A: 12})}
+    mass = posterior_below(0, 2, SHARE_RATIO * 12 / 20)
+    assert [f.cell for f in under_represented(dataset(each), credibility=mass)] == [("p",)]
+    assert under_represented(dataset(each), credibility=math.nextafter(mass, 1)) == ()
+
+
+def test_the_defaults_are_the_rules_e2_ran():
+    assert CREDIBILITY == 0.95  # ruff: ignore[float-equality-comparison]
+    assert inspect.signature(gaps).parameters["grounding"].default == 1
+
+
+def _passes_a_setting(node: ast.Call) -> bool:
+    named = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+    return any(
+        keyword.arg in {"grounding", "credibility"}
+        or (keyword.arg is None and named in {"gaps", "under_represented"})
+        for keyword in node.keywords
+    )
+
+
+def test_outside_the_definitions_only_the_sweep_passes_a_grounding_count_or_a_level():
+    package = Path(bko.gaps.definitions.__file__).parent.parent
+    passing = {
+        path.relative_to(package).as_posix()
+        for path in package.rglob("*.py")
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call) and _passes_a_setting(node)
+    }
+    assert passing == {"gaps/definitions.py", "gaps/sweep.py"}
+
+
+def test_the_guard_sees_a_splat_into_gaps():
+    splat, other = (ast.parse(code).body[0] for code in ("gaps(d, f, c, **s)", "dict(**s)"))
+    assert isinstance(splat, ast.Expr)
+    assert isinstance(other, ast.Expr)
+    assert isinstance(splat.value, ast.Call)
+    assert isinstance(other.value, ast.Call)
+    assert _passes_a_setting(splat.value)
+    assert not _passes_a_setting(other.value)
+
+
+def test_a_lower_level_flags_a_mass_a_higher_one_does_not(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {
+        ("x",): cell(2, {A: 0, B: 2}),
+        ("y",): cell(20, {A: 12, B: 20}),
+    }
+    mass = posterior_below(0, 2, SHARE_RATIO * 12 / 20)
+    assert 0.90 <= mass < 0.95
+    assert found(Definition.FREQUENCY, fragments, each) == []
+    assert found(Definition.FREQUENCY, fragments, each, credibility=0.90) == [
+        (("x",), H21),
+        (("x",), H32),
+    ]
+
+
+def test_a_grounding_count_of_two_drops_a_concept_one_record_shows(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {
+        ("x",): cell(3, {A: 1, B: 2}),
+        ("y",): cell(2, {B: 2}),
+        ("z",): cell(0, {}, assumed={B}),
+    }
+    assert found(Definition.SUBGROUP, fragments, each) == [
+        (key, statement) for key in (("y",), ("z",)) for statement in (H21, H32)
+    ]
+    assert found(Definition.SUBGROUP, fragments, each, grounding=2) == [
+        (key, statement) for key in each for statement in (H21, H32)
+    ]
+    assert found(Definition.POPULATION, fragments, each) == []
+    assert found(Definition.POPULATION, fragments, each, grounding=2) == [
+        (key, statement) for key in each for statement in (H21, H32)
+    ]
+
+
+def test_an_assumed_concept_is_held_at_every_grounding_count(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {("z",): cell(0, {}, assumed={B})}
+    assert found(Definition.SUBGROUP, fragments, each, grounding=5) == [
+        (("z",), H21),
+        (("z",), H32),
+    ]
+
+
+def test_the_frequency_aware_definition_ignores_the_grounding_count(ladders):
+    fragments = ontology_fragments(ladders, {A, B})
+    each: dict[Cell, CellRecords] = {
+        ("x",): cell(27, {A: 1, B: 27}),
+        ("y",): cell(20, {A: 20, B: 20}),
+    }
+    expected = [(("x",), H21), (("x",), H32)]
+    for grounding in (1, 2, 5):
+        assert found(Definition.FREQUENCY, fragments, each, grounding=grounding) == expected
+
+
+@pytest.mark.parametrize(
+    ("settings", "message"),
+    [
+        ({"grounding": 0}, "grounding count must be at least 1, not 0"),
+        ({"credibility": 0.0}, "level must lie strictly between 0 and 1, not 0.0"),
+        ({"credibility": 1.0}, "level must lie strictly between 0 and 1, not 1.0"),
+    ],
+)
+def test_a_setting_out_of_range_is_refused(ladders, settings, message):
+    fragments = ontology_fragments(ladders, {A, B})
+    cells = dataset({("x",): cell(2, {A: 1, B: 1})})
+    for definition in Definition:
+        with pytest.raises(ValueError, match=re.escape(message)):
+            gaps(definition, fragments, cells, **settings)
+
+
+def test_under_represented_refuses_a_level_out_of_range():
+    cells = dataset({("p",): cell(30, {A: 0}), ("q",): cell(30, {A: 30})})
+    with pytest.raises(ValueError, match=r"level must lie strictly between 0 and 1, not 1\.5"):
+        under_represented(cells, credibility=1.5)
 
 
 def test_a_cell_assuming_a_concept_no_fragment_holds_is_refused(ladders):

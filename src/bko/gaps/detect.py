@@ -12,7 +12,9 @@ flags. `bko.gaps.definitions` reads the BKO gaps per cell.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+import contextlib
+import logging
+from collections.abc import Collection, Generator, Mapping, Sequence
 from dataclasses import dataclass
 
 import pandas as pd
@@ -185,3 +187,18 @@ def _statement(snode: SNode) -> Statement:
     (state,) = (state for component, state in snode.tail if is_source(component))
     source = state if isinstance(state, str) else "+".join(sorted(state))
     return Statement(source=source, antecedent=antecedent, consequent=snode.head[0])
+
+
+@contextlib.contextmanager
+def quiet_fusion() -> Generator[None]:
+    """Hold `bko.bkb.fusion`'s logger at WARNING, so many fusions log no `fused` line.
+
+    The scan and `bko.gaps.sweep` fuse once per cell for every state or setting they read.
+    """
+    fusion = logging.getLogger("bko.bkb.fusion")
+    level = fusion.level
+    fusion.setLevel(logging.WARNING)
+    try:
+        yield
+    finally:
+        fusion.setLevel(level)

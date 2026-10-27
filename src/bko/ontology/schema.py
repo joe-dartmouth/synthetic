@@ -126,4 +126,26 @@ class OutOfScope:
     source: str
 
 
+@dataclass(frozen=True, slots=True)
+class UnmappedCode:
+    """A SNOMED-CT code, as Synthea writes it, that no MONDO concept is equated with.
+
+    Attributes:
+        snomed: The code.
+        label: The code's description, as Synthea writes it.
+        reason: Why no concept maps it.
+        source: What supports the reason.
+    """
+
+    snomed: str
+    label: str
+    reason: str
+    source: str
+
+
 type ConceptRow = FieldMapping | CodeMapping | OutOfScope
+
+type CheckedRow = ConceptRow | UnmappedCode
+
+type CodedRow = CodeMapping | UnmappedCode
+"""A row whose subject is a Synthea SNOMED-CT code."""

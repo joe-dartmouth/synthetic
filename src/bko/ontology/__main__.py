@@ -1,7 +1,7 @@
 """Command line for the ontology stage: `python -m bko.ontology check` and `reproduce`.
 
 `check` fetches the pinned MONDO and HPO releases into the data root if they are absent, verifies
-and parses them, and writes one CSV row per concept row of `bko.ontology.mapping` to stdout: `ok`,
+and parses them, and writes one CSV row per checked row of `bko.ontology.mapping` to stdout: `ok`,
 or how the release disagrees. `reproduce` does the same for the pinned MONDO and DO releases,
 rebuilds Santos et al.'s fusion example with `bko.ontology.santos`, and writes one CSV row per
 quantity of the example. The parser's version, each release's identity and a warning per
@@ -29,10 +29,10 @@ from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import Source
 from bko.ontology.check import check
-from bko.ontology.mapping import CONCEPT_ROWS, RELEASES
+from bko.ontology.mapping import CHECKED_ROWS, RELEASES
 from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
-from bko.ontology.schema import ConceptRow
+from bko.ontology.schema import CheckedRow
 
 
 logger = logging.getLogger("bko.ontology")
@@ -45,13 +45,13 @@ class Context:
     Attributes:
         open_url: The HTTPS opener.
         releases: The pinned release for each concept prefix.
-        rows: The concept rows to check.
+        rows: The rows to check: concept rows and excluded codes.
         paper_releases: The pinned release for each prefix `reproduce` reads.
     """
 
     open_url: UrlOpener = open_https
     releases: Mapping[str, Source] = RELEASES
-    rows: tuple[ConceptRow, ...] = CONCEPT_ROWS
+    rows: tuple[CheckedRow, ...] = CHECKED_ROWS
     paper_releases: Mapping[str, Source] = PAPER_RELEASES
 
 
@@ -123,7 +123,10 @@ def _check(data_dir: Path, context: Context, out: TextIO) -> int:
     for verdict in verdicts:
         if verdict.problem is not None:
             logger.warning(
-                "row %s %s disagrees: %s", verdict.table, verdict.concept, verdict.problem
+                "row %s %s disagrees: %s",
+                verdict.table,
+                verdict.concept or verdict.subject,
+                verdict.problem,
             )
     disagree = sum(v.problem is not None for v in verdicts)
     logger.info("checked %d rows: %d disagree", len(verdicts), disagree)

@@ -1,10 +1,10 @@
-"""The errors generation raises: a call with no readable response, and a malformed file."""
+"""The errors generation raises: a call with no response, a malformed file, a refused draw."""
 
 from __future__ import annotations
 
 from typing import ClassVar
 
-from bko.datasets.errors import ContractError
+from bko.datasets.errors import ContractError, DatasetError
 
 
 class GenerationError(Exception):
@@ -32,3 +32,7 @@ class ReplayError(ContractError):
 
     Exit 3.
     """
+
+
+class SamplingError(DatasetError):
+    """The direct sampler found no training record to read a drawn field from. Exit 2."""

@@ -42,7 +42,7 @@ flowchart LR
 |---|---|---|
 | Represent | MONDO, HPO and the dataset | A BKO per cell and one for every record: the ontology fragments fused with a dataset fragment, weighted by observed frequency |
 | Detect | The BKO | BKO-detected (cell, statement) gaps under three definitions, with count-based gaps alongside for comparison |
-| Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API |
+| Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API; or, from the fused BKB's concept shares and a seed, drawn records with no API call |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
 | Fuse | The validated records and the training split | The joined records, and each gap definition's pairs before and after the join |
 | Evaluate | Augmented training data, the baselines and the controls; its BKO arms run Detect, Generate and Validate on each holdout's training rows | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |

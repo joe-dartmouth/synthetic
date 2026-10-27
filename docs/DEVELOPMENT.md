@@ -104,7 +104,8 @@ its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra 
 credential, and every call goes to the call log at `--log`, which must not exist. Whenever a BKO arm
 runs, live, with `--replay`, with `--resume` or with `--rehearse`, `--candidates <path>` is required
 and must not exist either: the candidates file holds one line per candidate a BKO arm generated,
-with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome. `compare`
+with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome; a direct
+arm's lines (below) carry a null call. `compare`
 spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
 ([Runs](#runs)):
 
@@ -119,6 +120,21 @@ takes it after the run id, and there it defaults to the run id's entry. A named 
 `bko.evaluate.experiment.RUNS`. A run's folder under `runs/` is named by any
 `bko.datasets.run_folders.RUN_ID`: `<entry>-<n>` with an optional suffix (ADR
 [`tooling/run-folders`](adr/tooling/run-folders.md)).
+
+The run `g2` spends nothing: in place of the BKO arms it runs the direct arm `bko-direct`
+(`bko.evaluate.direct`), which draws each request's rows from the fused BKB, seeded by the
+request's seed (ADR [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)). It
+makes no call log, so it refuses `--log`, `--replay`, `--resume` and `--rehearse`, requires
+`--candidates`, whose lines carry a null `call`, and is judged by no criterion:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score g2 --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+
+Its stderr carries, from logger `bko.evaluate.direct`, a `direct arm=` line per attempt (`seed=`,
+`outcome=` and the attempt's counts) and the arm's `validity` sums at the end, as a BKO arm's;
+and from logger `bko.generate.direct`, for every fill, a `direct key=` line per cell (rows, the
+cell's records, its label group's records) and a `fallback` line per cell and field read from the
+label group. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
+logs every criterion's intervals as `unjudged` lines.
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
@@ -286,8 +302,10 @@ the runner before any replay.
   `contrast model=hgb` line per contrast of the boosting model's measures when the scores hold them
   (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`, `high=`,
   `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which lacks
-  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), and a `replica` line per replica arm, measure and
-  scope. With `--beside`, it then logs a `beside` counts
+  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
+  judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
+  holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
+  the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
   `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
   `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line
@@ -295,15 +313,16 @@ the runner before any replay.
   `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
   row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
-  each guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no
-  flag changes a value;
+  `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each guidance-level run as
+  `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes a value;
   `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
   candidates are recorded and where calls are answered from, never a value.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, `--log`,
-  `--candidates`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build, one path for
+  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a direct arm
+  with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
+  `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match
@@ -352,21 +371,24 @@ and the gate never runs pybkb.
 ## Ontologies
 
 `bko.ontology` ([README](../src/bko/ontology/README.md)) reads the MONDO and HPO releases
-`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields and to the
-Synthea condition the ablation removes (ADR
+`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields and to
+Synthea condition codes, with the codes it excludes (ADR
 [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). One command, inside
 `.venv`:
 
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
 - **What it does**: it fetches the two releases into the data root if absent, verifies each against
-  its pin, parses them with pronto, and checks every concept row: the concept exists and is not
-  obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
-  `skos:exactMatch` of its concept and of no other live concept, and an out-of-scope concept is
-  not an `is_a` ancestor of a mapped one. stdout gets a CSV with the columns `table` (`field`,
-  `code` or `out-of-scope`), `subject` (the dataset side, such as `cp in 1|2|3`), `concept`,
-  `label` and `status` (`ok`, or how the release disagrees), one row per concept row, the same
-  bytes on every run over the same releases.
+  its pin, parses them with pronto, and checks every row: a concept row's concept exists and is
+  not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
+  `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
+  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), and an
+  out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets a CSV with the
+  columns `table` (`field`, `code`, `out-of-scope` or `excluded-code`), `subject` (the dataset
+  side, such as `cp in 1|2|3` or `SCTID:<code>`), `concept` (empty for an excluded code), `label`
+  and `status` (`ok`, or how the release disagrees; for an `excluded-code` row, `ok` means the
+  code still has no live `skos:exactMatch`), one row per checked row, the same bytes on every run
+  over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.
@@ -442,10 +464,10 @@ commands, inside `.venv`:
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
-  ([Data](#data)), fetches the releases the code mappings name, and for each ablation in
-  `E2_ABLATIONS`, each removing all of a spec's cases or a seeded fraction of them (`cell-50` is
-  half of the cell's cases), lists every definition's gaps and the count-based ones before and
-  after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without
+  ([Data](#data)), fetches the releases the code mappings name, observes every mapped condition
+  code, and for each ablation in `E2_ABLATIONS`, each removing all of a spec's cases or a seeded
+  fraction of them (`cell-50` is half of the cell's cases), lists every definition's gaps and the
+  count-based ones before and after the removal. stdout gets a CSV with the column `ablation`, then `uci`'s columns without
   `count`, then `before`, `after` and `truth`: whether the row is a gap before the removal, after it, and
   among the gaps the removed patients account for. Every cell uses the ablation's age bands
   (`AblationSpec.edges`). A definition's cells carry no label, so its rows leave `target` blank,
@@ -477,6 +499,23 @@ commands, inside `.venv`:
   and specificity (`n/a` with no denominator), with a warning when
   per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
   removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What the sweep logs**: `synthea` and `uci` also read each grounding count and level of
+  `bko.gaps.sweep` ([D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level)), to
+  stderr only, so stdout is the same bytes as without it. A setting is per-subgroup or
+  population-level at each count of `GROUNDING_COUNTS` and the default level, or frequency-aware
+  at each level of `CREDIBILITY_LEVELS` and count 1. After each ablation's `detection` lines,
+  `synthea` logs one `sweep ablation=<name> detector=<d> grounding=<k> credibility=<level>
+  sensitivity=<s> specificity=<s>` line per setting, read as the `detection` lines are. After the
+  last ablation it logs one `chosen level=<level> ablation=<name> floor=<s> sensitivity=<s>
+  specificity=<s> tied=<levels>` line, the outcome of the rule ADR
+  `research/frequency-aware-gap-score` states. `floor` is the count-based detector's sensitivity
+  on `cell-50`; `sensitivity` and `specificity` are the chosen level's; `tied` lists every
+  qualifying level sharing its specificity. `level=none` says no level was chosen, and the other
+  fields say why: `ablation=none` when the run has no `cell-50`; `ablation=cell-50 floor=n/a` when
+  the count-based detector has no eligible cell there; a floor with `level=none` when no level
+  reaches it. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name>
+  detector=<d> grounding=<k> credibility=<level> gaps=<n> cells=<c>` line per setting, `<n>`
+  being the setting's gap count and `<c>` the cells holding them.
 - **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
   `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
   partial ablation it passes over; for each whole ablation a header,
@@ -500,8 +539,9 @@ commands, inside `.venv`:
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
 candidate records that fill a gap request, E1's count-based one or the completeness request (ADR
-[`research/record-generation-design`](adr/research/record-generation-design.md)). One command,
-inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
+[`research/record-generation-design`](adr/research/record-generation-design.md)), or draws them
+from the fused BKB with no call (the direct sampler, below). The paid command, inside `.venv`,
+with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate <definition> [--guidance <level>] [--request <e1|completeness>] --log runs/<run-id>/calls.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
 
@@ -512,9 +552,9 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   records than `UNDERREPRESENTED_BELOW` for its shortfall; with `--request completeness` it asks
   each cell holding a per-subgroup gap for `UNDERREPRESENTED_BELOW` rows, and exits 2 for any
   `<definition>` but `per-subgroup` ([Gap closure](#gap-closure)). It asks in calls of at most
-  `Settings.per_call` records and writes a header line to stdout first (the request, definition,
-  guidance level, the UCI archive's and releases' pinned sha256, the split's fingerprint and each
-  call's cell and records asked; ADR
+  `Settings.per_call` records and writes a header line to stdout first (schema 2: the request,
+  generator `messages` with a null seed, definition, guidance level, the UCI archive's and
+  releases' pinned sha256, the split's fingerprint and each call's cell and records asked; ADR
   [`research/gap-closure-design`](adr/research/gap-closure-design.md)), then one JSON line per
   asked record: `call`, `cell`, `position`, and the decoded `candidate` or the `undecoded` reason.
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
@@ -522,6 +562,8 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   `bko.validate` checks them.
 - **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
   cell and its training record count, and the guidance of the chosen level. Never a record.
+- **Option order**: the definition or `direct` comes first and its options follow it, as in
+  `per-subgroup --guidance ontology --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
   `summary`, each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and
@@ -551,7 +593,7 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
   completeness request no cell holds a gap for, `--request completeness` with another
   `<definition>`, and a `--log` path that exists (checked before any download or call); 3 the data
   or a release contradicts its pin or schema.
-- **Reproducibility**: none. Each call spends money and a rerun's candidates differ; the call log
+- **Reproducibility**: none for a `<definition>` run. Each call spends money and a rerun's candidates differ; the call log
   is the record, so the command never overwrites one.
 - **The gate does not run it.** `make check` drives it through a fake `Send` over an archive and
   releases built in `tmp_path` (`tests/test_generate_cli.py`); no gate test reaches the API.
@@ -563,6 +605,26 @@ inside `.venv`, with `make setup`'s `llm` extra and an Anthropic credential the 
 
       uv run --no-sync pytest tests/test_generate_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+- **The direct sampler**: `direct` makes no API call and needs no credential. It fills the same
+  request from the fused BKB's concept shares (ADR
+  [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)), seeded by the
+  required `--seed`, a non-negative integer; it takes no `--guidance`, and `--log` names its draw
+  log, which must not exist and is created readable by its owner only:
+
+      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/draws.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate direct [--request <e1|completeness>] --seed <n> --log runs/<run-id>/draws.jsonl [--data-dir <dir>] > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log </dev/null
+
+  Its stdout is a candidates file whose header names generator `direct` and the seed, with a null
+  definition and guidance, and whose call plan is the one a Messages run of the same request
+  writes, so `bko.validate` and `bko.fusion` read it unchanged; every line holds a `candidate`.
+  The draw log holds one `draw` line per record: `call`, `cell`, `position`, the `concepts` drawn
+  present, their `closed` closure under `is_a`, and the `fallback` fields read from the label
+  group's records. stderr gets the split line, each ontology fragment's size, the request and
+  `quota` lines, a `direct` line per cell (rows, the cell's records, its label group's records), a
+  `fallback` line per cell and field read from the label group, a `draws` line (seed, rows, the
+  draw log's path), and the stdout `candidates` line. It exits 2, writing no line, when no training
+  record matches a draw (a `cannot draw` message) or the draw log exists (checked before any
+  download). The same seed and inputs write the same stdout and draw log, byte for byte. The gate
+  drives it over an archive and releases built in `tmp_path` (`tests/test_generate_cli.py`).
 - **The live test**: `tests/test_generate_live.py` makes one paid call for 2 records and checks the
   reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
@@ -584,6 +646,10 @@ second spends nothing:
 The `test ! -e` guards matter: the shell empties `candidates.jsonl` before `bko.generate` can
 refuse an existing log, and `candidates.jsonl` is the only copy of the candidates the second
 command reads.
+
+The direct sampler's `--request completeness` file ([Generation](#generation)) replaces the first
+command for free; the second reads it unchanged, and its `header` line reads `definition=None
+guidance=None`.
 
 - **What it does**: it reads the candidates file, fetches UCI Heart Disease and the releases the
   field mappings name into the data root if absent, splits the records as [Data](#data) says,
@@ -652,6 +718,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `criteria.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
+| `draws.jsonl` | `python -m bko.generate direct`'s draw log |
 | `closure.csv` | `python -m bko.fusion`'s stdout |
 | `closure.log` | its stderr |
 | `gaps-uci.csv` | `python -m bko.gaps uci`'s stdout |

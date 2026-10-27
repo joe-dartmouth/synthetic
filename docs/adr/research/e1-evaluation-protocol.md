@@ -90,7 +90,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. That
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
-  (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call, cell and outcome when
+  (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct
+  arm of ADR `research/bkb-direct-generation`, which makes none), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
   single candidates needs no new run; a stopped run's file lacks the stopped holdout's undrained
   fills, whose candidates live only in its call log; `score` requires the file whenever a BKO arm

@@ -109,6 +109,66 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`, or an idle stop
   during G3.
 
+- **`cleanup:evaluate/idle-timer-interrupt-escapes`: the idle-timer test can crash its xdist
+  worker.** One `make check` run on 2026-10-27 (under `pytest -n auto`) failed
+  `test_the_idle_timer_interrupts_a_blocked_main_thread` in `tests/test_evaluate_watch.py` with
+  these lines of its report:
+
+  ```
+  worker 'gw13' crashed while running 'tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread'
+  FAILED tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread
+  ! xdist.dsession.Interrupted: <WorkerController gw13> received keyboard-interrupt !
+  ```
+
+  The file passed alone and the next two full runs passed. The test sets `idle_limit=0.05`.
+  `bko.evaluate.watch.Watch.call` starts its timer before entering the `try` that turns the
+  timer's interrupt into a `StopRuleError`. A likely cause, not yet confirmed: under load the
+  timer fires in that window, and the interrupt escapes as a bare `KeyboardInterrupt` that ends
+  the worker. *Filed 2026-10-27 by the `detect-synthea-mappings` work.*
+  **Why deferred.** It is unrelated to the change that met it, which touched no evaluate code.
+  **What discharges it:** `Watch.call` starts the timer inside its `try` (or otherwise catches an
+  interrupt that fires before the call is entered), and the cause is confirmed.
+  **Trigger:** the test's next failure, or the next change to `bko.evaluate.watch`.
+
+- **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
+  fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
+  `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
+  fallbacks comes only from `holdout-candidates.jsonl`. Evidence, the first lines of
+  `runs/g2-2/scores.log` (2026-10-27):
+
+  ```
+  INFO bko.evaluate.direct: direct arm=bko-direct seed=0 outcome=returned asked=20 generated=20 passed=20 dropped_range=0 dropped_cell=0 dropped_quota=0 kept=20
+  INFO bko.generate.direct: direct key=<55/female/1 rows=18 records=2 group_records=110
+  INFO bko.generate.direct: fallback key=<55/female/1 field=ca draws=11
+  ```
+
+  *Filed 2026-10-27 by the review of PR #47.*
+  **Why deferred.** Changing those lines moves the recorded digest of `runs/g2-2/scores.log`.
+  **What discharges it:** the attempt line and the sampler's `direct key=` and `fallback` lines
+  carry the holdout and the fill.
+  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
+
+- **`cleanup:evaluate/direct-training-copies-count`: no log counts added rows that equal a training
+  row.** The direct arm copies training values by design, and nothing counts a drawn row that
+  equals a training row in every column. Evidence: the smallest `bko-direct` `added` `dcr-p5` in
+  `runs/g2-2/scores.csv` is 0.011978916663589707, above 0 on every holdout, which bounds such rows
+  at 1 of 20 per holdout at most (inferred from the 5th percentile, not counted). *Filed 2026-10-27
+  by the review of PR #47.*
+  **Why deferred.** The bound needs no new run, and a count moves the recorded logs.
+  **What discharges it:** `score` logs a zero-distance count of each arm's added and replica rows.
+  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
+
+- **`cleanup:evaluate/holdout-candidates-schema-for-direct`: a direct run's candidates file reads
+  as a Messages run's.** `bko.evaluate.holdout_candidates` lines now allow `call: null` under
+  schema 1, and a run with no BKO arm still writes the Messages settings it never used into its
+  header. Evidence, the start of `runs/g2-2/holdout-candidates.jsonl`'s header: `{"kind":
+  "header", ..., "run": "g2", "schema": 1, "settings": {"effort": "medium", "guidance":
+  "ontology", "max_tokens": 16000, "model": ...`. *Filed 2026-10-27 by the review of PR #47.*
+  **Why deferred.** Bumping the schema moves the recorded bytes of `runs/g2-2`.
+  **What discharges it:** the schema is bumped for a null call, or a run with no BKO arm writes no
+  settings.
+  **Trigger:** the next change to `bko.evaluate.holdout_candidates`.
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a

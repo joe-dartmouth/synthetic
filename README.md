@@ -22,7 +22,8 @@ representation. The pipeline:
 2. **Detect.** Statements the ontology implies but the data does not support are the plan's formal
    definition of a dataset gap ([ADR](https://adr.github.io/) `research/bko-formal-gap-definition`).
 3. **Generate and validate.** Generate candidate records for each gap through the Anthropic
-   [Messages API](https://docs.anthropic.com/en/api/messages), guided by the ontology, and validate each before augmentation.
+   [Messages API](https://docs.anthropic.com/en/api/messages), guided by the ontology, or draw them from the fused BKB with
+   the direct sampler, and validate each before augmentation.
 4. **Evaluate.** On [UCI Heart Disease](https://archive.ics.uci.edu/dataset/45/heart+disease), compare rare-class recall and [AUC-PR](https://en.wikipedia.org/wiki/Precision_and_recall) (Area Under the Precision-Recall Curve) against no
    augmentation, class weighting, [SMOTE](https://arxiv.org/abs/1106.1813), [ADASYN](https://ieeexplore.ieee.org/document/4633969), [CTGAN](https://arxiv.org/abs/1907.00503) and [TVAE](https://arxiv.org/abs/1907.00503).
 
@@ -43,39 +44,26 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
    ([`generate-prompt-training-bounds`](tasks/generate-prompt-training-bounds.md)).
 3. Effort sweep: measure whether a lower model effort keeps validity and fidelity, since output
    tokens are most of the spend ([`generate-effort-sweep`](tasks/generate-effort-sweep.md)).
-4. BKO-direct generation with no LLM: draw each record's concepts from the fused BKB's shares,
-   close them under the ontology's `is_a` relations, and map them back to field values; a free,
-   seeded arm that isolates the knowledge from the model's prior
-   ([`generate-bkb-sampler`](tasks/generate-bkb-sampler.md)).
-5. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
+4. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
    the best; first measure whether the score separates records that match the real cell, then run
    it as an arm ([`generate-bkb-curation`](tasks/generate-bkb-curation.md)).
-6. BKB-drawn concepts filled by the LLM: the BKB chooses each record's concepts, and the LLM fills
+5. BKB-drawn concepts filled by the LLM: the BKB chooses each record's concepts, and the LLM fills
    the fields consistent with them (conditional generation)
    ([`generate-bkb-skeleton-fill`](tasks/generate-bkb-skeleton-fill.md)).
 
-**Detection**
-
-7. Graded grounding: vary the number of records needed to ground a statement (1, 2, 3, 5) and the
-   frequency-aware flag level (0.90, 0.95, 0.99) against E2's partial-removal truth
-   ([`detect-graded-grounding`](tasks/detect-graded-grounding.md)).
-8. More Synthea conditions mapped to MONDO (hypertension, type 2 diabetes, hyperlipidemia,
-   myocardial infarction, stroke), so the ablation has concepts to be wrong about
-   ([`detect-synthea-mappings`](tasks/detect-synthea-mappings.md)).
-
 **Evaluation**
 
-9. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
+6. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
    ([`evaluate-e1-second-configuration`](tasks/evaluate-e1-second-configuration.md)).
-10. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
-    method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-11. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
-    see whether augmentation pays when data is scarcer than UCI
-    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-12. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
-    Opus and Haiku runs differed in more than the model
-    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-13. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
+7. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+   method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
+8. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+   see whether augmentation pays when data is scarcer than UCI
+   ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
+9. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
+   Opus and Haiku runs differed in more than the model
+   ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
+10. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
     population, remove a known share of women with the disease from training, and measure how much
     recall each method recovers; the large cells answer the power problem UCI cannot
     ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).

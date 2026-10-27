@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-27
 ---
 # A dataset becomes a fragment of one prior per mapped concept its records show
 
@@ -60,8 +60,10 @@ cell's records, so per-subgroup grounding needs no second individual.
 **Gained**: a gap list that changes only with which concepts the records show; one encoding for
 UCI records and Synthea patients.
 **Accepted**: no co-occurrence is represented, so no statement about two concepts together can be a
-gap; a subgroup is represented only by its own cell's fragment; the weights change no gap list, and
-the shares are read only by the frequency-aware score (ADR `research/frequency-aware-gap-score`).
+gap; a subgroup is represented only by its own cell's fragment; the fusion weights change no gap
+list. Two stages read the shares: the frequency-aware score (ADR
+`research/frequency-aware-gap-score`), and the direct sampler, which weighs a cell's prior by its
+record count against its label group's (ADR `research/bkb-direct-generation`).
 
 ## Ruled Out
 
@@ -70,7 +72,7 @@ the shares are read only by the frequency-aware score (ADR `research/frequency-a
 | One fragment per record | Needs a second individual, which ADR `research/bko-fragment-encoding` defers, and grounds the same statements | 2026-10-17 |
 | Conditional S-nodes between concepts that occur together | Rows record presence only (ADR `research/ontology-mapping-design`), and every head already has a prior, so no grounding changes | 2026-10-17 |
 | A prior of 0 for a concept no record shows | Instantiation ignores probabilities, so it would ground the concept | 2026-10-17 |
-| A dataset weight from its record count | Changes no gap list and adds a parameter no stage reads | 2026-10-17 |
+| A dataset weight from its record count | Changes no gap list; the direct sampler weighs a cell's prior by its record count when it reads the shares (ADR `research/bkb-direct-generation`), outside the fusion, whose weights stay 1 | 2026-10-27 |
 | The converter in `bko.datasets` | `bko.ontology` imports `bko.datasets`, so a converter there that reads the mapping rows makes an import cycle | 2026-10-17 |
 
 ## Enforcement

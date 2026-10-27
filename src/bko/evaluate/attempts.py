@@ -1,6 +1,7 @@
 """One BKO attempt's bookkeeping: the records it asked for, its candidate counts and its kept rows.
 
-`bko.evaluate.guided` makes the calls; an `Attempt` takes each call's candidates as they return,
+`bko.evaluate.guided` makes the calls and `bko.evaluate.direct` draws records with none; an
+`Attempt` takes each call's or draw's candidates as they come,
 validates them (`bko.validate`), drops each accepted one that `check` would refuse
 (`bko.baselines.records.drops`) and keeps the rest under the cell their own values name, and it
 records each candidate's outcome for the per-holdout candidates file
@@ -11,7 +12,7 @@ names the measure each drop reason is counted under.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Final
@@ -22,7 +23,7 @@ from bko.baselines.records import Drop, drops, number
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
 from bko.evaluate.holdout_candidates import KEPT, REJECTED, Seen
 from bko.evaluate.scores import Measure
-from bko.gaps.observe import cell_key
+from bko.gaps.observe import Cell, cell_key
 from bko.generate.calls import Batch
 from bko.generate.decode import Undecoded
 from bko.validate.checks import validate
@@ -104,9 +105,20 @@ class Attempt:
 
     def take(self, batch: Batch) -> None:
         """Validate one call's candidates, drop what `check` would refuse, and keep the rest."""
-        self.asked += batch.asked
+        self.add(batch.index, batch.cell, batch.asked, batch.candidates)
+
+    def add(self, call: int | None, cell: Cell, asked: int, candidates: Sequence[object]) -> None:
+        """Validate candidates asked of `cell`, drop what `check` would refuse, keep the rest.
+
+        Args:
+            call: The call's index in the run, or None for records drawn with no call.
+            cell: The cell they were asked for.
+            asked: The records asked for.
+            candidates: The decoded items, then one `Undecoded` per asked record short.
+        """
+        self.asked += asked
         frame = self.request.frame
-        checked = validate(batch.candidates, frame=frame)
+        checked = validate(candidates, frame=frame)
         self.tally.generated += checked.generated
         self.tally.passed += checked.passed
         rows = checked.accepted
@@ -117,13 +129,13 @@ class Attempt:
             for position, reason in zip(rows.index, reasons, strict=True)
         }
         failed = {rejection.position: rejection.failed for rejection in checked.rejected}
-        cell = cell_key(batch.cell)
-        for position, candidate in enumerate(batch.candidates):
+        key = cell_key(cell)
+        for position, candidate in enumerate(candidates):
             undecoded = candidate.reason.value if isinstance(candidate, Undecoded) else None
             self.seen.append(
                 Seen(
-                    batch.index,
-                    cell,
+                    call,
+                    key,
                     position,
                     None if undecoded is not None else candidate,
                     undecoded,

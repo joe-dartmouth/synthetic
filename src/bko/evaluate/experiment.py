@@ -2,7 +2,8 @@
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level
-other than `ontology` (`docs/EVIDENCE.md`, G3). No command-line flag changes a value here.
+other than `ontology` (`docs/EVIDENCE.md`, G3), and `g2`, the direct arm's run (`G2`).
+No command-line flag changes a value here.
 """
 
 from __future__ import annotations
@@ -151,7 +152,7 @@ METHOD_ARMS: Final = tuple(method.value for method in Method)
 """Every comparison method of `bko.baselines`, by name."""
 
 ADDS_ROWS: Final = tuple(method.value for method in Method if method.adds_rows)
-"""The comparison methods that add rows, by name; only they can fit a replica."""
+"""The comparison methods that add rows, by name: each also fills a replica."""
 
 BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     {
@@ -162,6 +163,9 @@ BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
 )
 """The BKO arms, each with the gap definition that guides it; `bko` is E1's candidate."""
 
+DIRECT_ARM: Final = "bko-direct"
+"""The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
+
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),
     arms=(*METHOD_ARMS, *BKO_ARMS),
@@ -170,6 +174,17 @@ E1: Final = Experiment(
     replica_arms=(*ADDS_ROWS, *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
+
+G2: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, DIRECT_ARM),
+    candidate=DIRECT_ARM,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, DIRECT_ARM),
+    criteria=(),
+)
+"""E1 with the direct arm in place of the BKO arms, judged by no criterion; `docs/EVIDENCE.md`
+(G2) names it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,11 +220,13 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             for level in LEVELS
             if level is not Level.ONTOLOGY
         },
+        "g2": NamedRun(G2),
     }
 )
-"""Every named run, by name: `e1` is `E1` at `SETTINGS`, and each `g3-<level>` is E1's methods and
-`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3). A variant adds its
-own entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
+"""Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
+`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3), and `g2` is `G2`. A
+variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
+seeds, fill target,
 ceiling and criteria."""
 
 

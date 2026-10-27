@@ -79,7 +79,15 @@ def test_e1_is_its_stated_configuration():
 
 
 def test_one_guidance_run_per_level_besides_ontology():
-    assert set(RUNS) == {"e1", "g3-cell", "g3-coherent", "g3-findings", "g3-profile", "g3-summary"}
+    assert set(RUNS) == {
+        "e1",
+        "g2",
+        "g3-cell",
+        "g3-coherent",
+        "g3-findings",
+        "g3-profile",
+        "g3-summary",
+    }
 
 
 @pytest.mark.parametrize("level", [level for level in LEVELS if level is not Level.ONTOLOGY])

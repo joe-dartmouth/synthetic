@@ -18,16 +18,8 @@ the ROADMAP heading it serves.
 |---|---|---|---|---|
 | [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
 | [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
-| [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
-| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
-| [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
-
-### Detection
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`detect-graded-grounding`](detect-graded-grounding.md) | ready | -- | Partiban | final-report |
-| [`detect-synthea-mappings`](detect-synthea-mappings.md) | ready | -- | Partiban | final-report |
+| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | ready | -- | Shirley | final-report |
+| [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
 
 ### Evaluation power
 
@@ -37,15 +29,14 @@ the ROADMAP heading it serves.
 | [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
-| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | detect-synthea-mappings | Joe | final-report |
+| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | ready | -- | Joe | final-report |
 
 The diagram draws this set's edges and the edges out of `proposal-guidance-ablation`, whose own
 set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
-    bkb_sampler[generate-bkb-sampler] --> skeleton_fill[generate-bkb-skeleton-fill]
-    bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
+    skeleton_fill[generate-bkb-skeleton-fill]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
     guidance_ablation[proposal-guidance-ablation] --> e1_second[evaluate-e1-second-configuration]
     guidance_ablation[proposal-guidance-ablation] --> prompt_bounds[generate-prompt-training-bounds]
@@ -55,8 +46,7 @@ flowchart LR
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
-    graded_grounding[detect-graded-grounding]
-    synthea_mappings[detect-synthea-mappings] --> synthea_downstream[evaluate-synthea-downstream]
+    synthea_downstream[evaluate-synthea-downstream]
 ```
 
 ## What every unit relies on
