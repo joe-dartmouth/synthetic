@@ -11,7 +11,6 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Final
 
 import pandas as pd
 import pytest
@@ -20,51 +19,24 @@ import bko.evaluate.guided as guided_module
 from bko.bkb.errors import QueryError
 from bko.evaluate.__main__ import Context, main
 from bko.generate.errors import GenerationError
-from bko.generate.messages import SETTINGS, Reply
+from bko.generate.messages import SETTINGS
 from bko.generate.spend import cost
-from tests._datasets_fixtures import pin
-from tests._evaluate_fixtures import FAST_ARMS, SMALL
-from tests._fusion_fixtures import young
-from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
-from tests._generate_fixtures import SIZES, ScriptedSend, reply, uci
-from tests._ontology_fixtures import RoutingOpener
-from tests._validate_fixtures import PLANTED, planted
-
-
-NARROW: Final = dataclasses.replace(
-    SMALL, arms=("none", "bko"), candidate="bko", comparators=("none",), replica_arms=()
+from tests._evaluate_bko_fixtures import (
+    BAD,
+    NARROW,
+    REPLICA_QUOTA,
+    REPLICAS,
+    THREE,
+    candidates_for,
+    context,
+    replica_script,
+    score_argv,
+    scripted,
+    three_arm_script,
 )
-"""E1 on two holdouts with one baseline and the candidate."""
-
-UCI_E1: Final = uci({(40, 0): "4.0"}, "1.0", {**SIZES, (40, 0, 1): 5})
-"""`UCI_X` with five young women with the condition, so every holdout tests one of them.
-
-Each holdout's gap request is then 12 rows of `("<55", "female", 0)` and 16 of
-`("<55", "female", 1)`, from 8 and 4 training records."""
-
-PIN: Final = pin(UCI_E1)
-
-
-def scripted() -> ScriptedSend:
-    """Both holdouts' replies: each fills its two cells in one call apiece."""
-    holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
-    return ScriptedSend(*holdout, *holdout)
-
-
-def context(send: ScriptedSend, *, arms=None) -> tuple[Context, RoutingOpener]:
-    """A context over `UCI_E1` and the ladder releases, with `send` for every call."""
-    pins, served = ladder_releases()
-    opener = RoutingOpener({**served, PIN.url: UCI_E1})
-    built = Context(
-        open_url=opener,
-        uci=PIN,
-        experiment=NARROW,
-        arms=arms or {"none": FAST_ARMS["none"]},
-        releases=pins,
-        field_rows=(ANGINA, STENOSIS),
-        send=lambda: send,
-    )
-    return built, opener
+from tests._evaluate_fixtures import FAST_ARMS
+from tests._fusion_fixtures import young
+from tests._generate_fixtures import ScriptedSend, reply
 
 
 def test_score_runs_a_bko_arm_and_compare_judges_its_validity(tmp_path, caplog):
@@ -72,7 +44,7 @@ def test_score_runs_a_bko_arm_and_compare_judges_its_validity(tmp_path, caplog):
     ctx, _ = context(send)
     out = io.StringIO()
     log = tmp_path / "calls.jsonl"
-    argv = ["score", "--log", str(log), "--data-dir", str(tmp_path / "data")]
+    argv = score_argv(log, tmp_path)
     caplog.set_level(logging.INFO)
     assert main(argv, context=ctx, out=out) == 0
     send.assert_consumed()
@@ -104,7 +76,7 @@ def test_score_refuses_an_existing_log_before_any_download(tmp_path):
     ctx, opener = context(send)
     log = tmp_path / "calls.jsonl"
     log.write_text("", encoding="utf-8")
-    argv = ["score", "--log", str(log), "--data-dir", str(tmp_path / "data")]
+    argv = score_argv(log, tmp_path)
     assert main(argv, context=ctx, out=io.StringIO()) == 2
     assert opener.calls == []
     assert send.calls == []
@@ -115,7 +87,7 @@ def test_a_call_with_no_response_exits_two_and_logs_the_sums(tmp_path, caplog):
     ctx, _ = context(send)
     out = io.StringIO()
     log = tmp_path / "calls.jsonl"
-    argv = ["score", "--log", str(log), "--data-dir", str(tmp_path / "data")]
+    argv = score_argv(log, tmp_path)
     caplog.set_level(logging.INFO)
     assert main(argv, context=ctx, out=out) == 2
     assert out.getvalue() == ""
@@ -139,12 +111,8 @@ def paid_run(tmp_path, caplog) -> tuple[Context, Path, str]:
     out = io.StringIO()
     log = tmp_path / "calls.jsonl"
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 0
     return ctx, log, out.getvalue()
-
-
-def _score(log: Path, tmp_path: Path, *flag: str) -> list[str]:
-    return ["score", *flag, "--log", str(log), "--data-dir", str(tmp_path / "data")]
 
 
 def _validity(caplog) -> list[str]:
@@ -165,7 +133,7 @@ def test_a_replayed_run_writes_the_live_runs_bytes(tmp_path, caplog):
     caplog.clear()
     again = io.StringIO()
     replaying = dataclasses.replace(ctx, send=ScriptedSend)
-    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
+    argv = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
     assert main(argv, context=replaying, out=again) == 0
     assert again.getvalue() == text
     first = json.loads((tmp_path / "replay.jsonl").read_text(encoding="utf-8").splitlines()[0])
@@ -186,7 +154,7 @@ def test_a_replay_with_calls_left_is_refused(tmp_path, caplog):
 
     moved = _edited(log, tmp_path / "more.jsonl", extend)
     out = io.StringIO()
-    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
+    argv = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
     assert main(argv, context=ctx, out=out) == 3
     assert "1 logged calls were not replayed" in caplog.text
     assert out.getvalue() == ""
@@ -201,7 +169,7 @@ def test_a_replay_whose_request_moved_is_refused(tmp_path, caplog):
 
     moved = _edited(log, tmp_path / "moved.jsonl", move)
     out = io.StringIO()
-    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
+    argv = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
     assert main(argv, context=ctx, out=out) == 3
     assert "differs from logged call 1" in caplog.text
 
@@ -223,7 +191,7 @@ def test_log_needs_a_bko_arm_to_build(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 2
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 2
     assert "--log needs a BKO arm" in caplog.text
     assert out.getvalue() == ""
     assert not log.exists()
@@ -246,37 +214,6 @@ def test_an_unreadable_validity_keeps_the_criteria_table(tmp_path, caplog):
     assert list(dict.fromkeys(table["criterion"])) == ["primary", "secondary", "privacy"]
 
 
-THREE: Final = dataclasses.replace(NARROW, arms=("none", "bko", "bko-population", "bko-frequency"))
-"""`NARROW` with all three BKO arms on one call log."""
-
-BAD: Final = young(1, chol=234)
-"""A candidate that passes `bko.validate` and is dropped for range: no training record has it."""
-
-
-def holdout_replies(arm: str) -> tuple[Reply, Reply]:
-    """One holdout's two calls for `arm`, asking 12 rows of target 0 then 16 of target 1.
-
-    Each arm's replies differ, so each arm's counts show whose calls they came from:
-    `bko-population` gets one record dropped for range per holdout, `bko-frequency` two past the
-    quota.
-    """
-    well: list[object] = [young(0)] * 12
-    sick: list[object] = [young(1)] * 16
-    if arm == "bko-population":
-        sick = [*sick, BAD]
-    if arm == "bko-frequency":
-        well = [*well, young(0), young(0)]
-    return reply(well), reply(sick)
-
-
-def three_arm_script() -> ScriptedSend:
-    """Both holdouts' calls in the order the harness makes them: holdout, then arm, then cell."""
-    arms = THREE.arms[1:]
-    return ScriptedSend(
-        *(r for _ in THREE.holdout_seeds for arm in arms for r in holdout_replies(arm))
-    )
-
-
 def _end(log: Path) -> dict:
     return json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
 
@@ -288,7 +225,7 @@ def test_three_bko_arms_share_one_log_and_replay_byte_for_byte(tmp_path, caplog)
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 0
     send.assert_consumed()
     live = _validity(caplog)
     assert live == [
@@ -313,7 +250,7 @@ def test_three_bko_arms_share_one_log_and_replay_byte_for_byte(tmp_path, caplog)
     again = io.StringIO()
     replaying = dataclasses.replace(ctx, send=ScriptedSend)
     replayed = tmp_path / "replay.jsonl"
-    argv = _score(replayed, tmp_path, "--replay", str(log))
+    argv = score_argv(replayed, tmp_path, "--replay", str(log))
     assert main(argv, context=replaying, out=again) == 0
     assert again.getvalue() == out.getvalue()
     assert _validity(caplog) == live
@@ -366,7 +303,7 @@ def test_a_refusal_retry_and_top_up_replay_byte_for_byte(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 0
     send.assert_consumed()
     assert any(m.startswith("retry holdout=") and "arm=bko attempt=1" in m for m in caplog.messages)
     asked = [
@@ -382,7 +319,7 @@ def test_a_refusal_retry_and_top_up_replay_byte_for_byte(tmp_path, caplog):
     caplog.clear()
     again = io.StringIO()
     replaying = dataclasses.replace(ctx, send=ScriptedSend)
-    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
+    argv = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(log))
     assert main(argv, context=replaying, out=again) == 0
     assert again.getvalue() == out.getvalue()
     assert _validity(caplog) == live
@@ -397,7 +334,7 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 2
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(send.calls) == 3
     assert _end(log)["status"] == "failed"
@@ -421,7 +358,7 @@ def test_the_projection_stops_a_live_run_between_holdouts(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 2
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(send.calls) == 2
     assert _end(log)["status"] == "failed"
@@ -436,7 +373,7 @@ def test_a_failure_mid_run_keeps_the_calls_before_it_in_the_sums(tmp_path, caplo
     ctx, _ = context(send)
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(tmp_path / "calls.jsonl", tmp_path), context=ctx, out=out) == 2
+    assert main(score_argv(tmp_path / "calls.jsonl", tmp_path), context=ctx, out=out) == 2
     assert out.getvalue() == ""
     guided = [m for m in caplog.messages if m.startswith("guided arm=bko ")]
     assert "outcome=returned calls=1-2 " in guided[0]
@@ -458,7 +395,7 @@ def test_a_failed_gap_query_exits_two_unretried(tmp_path, caplog, monkeypatch):
     ctx, _ = context(send)
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(tmp_path / "calls.jsonl", tmp_path), context=ctx, out=out) == 2
+    assert main(score_argv(tmp_path / "calls.jsonl", tmp_path), context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(queried) == 1
     assert send.calls == []
@@ -477,63 +414,10 @@ def test_a_replay_whose_second_request_moved_is_refused(tmp_path, caplog):
 
     moved = _edited(log, tmp_path / "moved.jsonl", move)
     out = io.StringIO()
-    argv = _score(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
+    argv = score_argv(tmp_path / "replay.jsonl", tmp_path, "--replay", str(moved))
     assert main(argv, context=ctx, out=out) == 3
     assert "differs from logged call 2" in caplog.text
     assert out.getvalue() == ""
-
-
-REPLICAS: Final = dataclasses.replace(THREE, replica_arms=THREE.arms[1:])
-"""`THREE` with every BKO arm also filling a replica, as E1 asks of every row-adding arm."""
-
-REPLICA_QUOTA: Final = (
-    (40, 0, 0, 8),
-    (40, 0, 1, 4),
-    (40, 1, 0, 20),
-    (40, 1, 1, 20),
-    (63, 0, 0, 20),
-    (63, 0, 1, 20),
-    (63, 1, 0, 20),
-    (63, 1, 1, 20),
-)
-"""`UCI_E1`'s training cells in grid order, as age, sex, target and records: one in five of
-`SIZES` held out. Each is one replica call of that many rows."""
-
-
-def replica_replies(arm: str) -> tuple[Reply, ...]:
-    """One holdout's eight replica calls for `arm`, with cp 2 so no record copies a test record.
-
-    Each arm's replica replies differ from its gap replies, so a count under the wrong source
-    shows: `bko` gets one candidate that fails validation, `bko-population` three dropped for
-    range, and `bko-frequency` one past the quota and one copy of a test record.
-    """
-    calls: list[list[object]] = []
-    for age, sex, target, rows in REPLICA_QUOTA:
-        call: list[object] = [planted(age=age, sex=sex, target=target, cp=2)] * rows
-        calls.append(call)
-    if arm == "bko":
-        calls[0] = [*calls[0], PLANTED["code:cp"]]
-    if arm == "bko-population":
-        calls[0] = [*calls[0], BAD, BAD, BAD]
-    if arm == "bko-frequency":
-        calls[0] = [*calls[0], calls[0][0]]
-        calls[6] = [planted(age=63, sex=1, target=0), *calls[6][1:]]
-    return tuple(reply(call) for call in calls)
-
-
-def replica_script() -> ScriptedSend:
-    """Both holdouts' calls in harness order: each holdout's gap fills, then its replica fills."""
-    arms = REPLICAS.arms[1:]
-    return ScriptedSend(
-        *(
-            r
-            for _ in REPLICAS.holdout_seeds
-            for r in (
-                *(g for arm in arms for g in holdout_replies(arm)),
-                *(p for arm in REPLICAS.replica_arms for p in replica_replies(arm)),
-            )
-        )
-    )
 
 
 def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, caplog):
@@ -543,7 +427,7 @@ def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, capl
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(_score(log, tmp_path), context=ctx, out=out) == 0
+    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 0
     send.assert_consumed()
     lines = map(json.loads, log.read_text(encoding="utf-8").splitlines())
     asked = [line["asked"] for line in lines if line["kind"] == "request"]
@@ -565,7 +449,7 @@ def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, capl
     caplog.clear()
     again = io.StringIO()
     replayed = tmp_path / "replay.jsonl"
-    argv = _score(replayed, tmp_path, "--replay", str(log))
+    argv = score_argv(replayed, tmp_path, "--replay", str(log))
     assert main(argv, context=dataclasses.replace(ctx, send=ScriptedSend), out=again) == 0
     assert again.getvalue() == out.getvalue()
     assert _validity(caplog) == live
@@ -611,7 +495,7 @@ def stopped_run(tmp_path, caplog) -> tuple[Path, str]:
     lost = GenerationError("the API could not be reached: APIConnectionError")
     ctx, _ = context(ScriptedSend(*holdout, lost))
     stopped = tmp_path / "stopped.jsonl"
-    assert main(_score(stopped, tmp_path), context=ctx, out=io.StringIO()) == 2
+    assert main(score_argv(stopped, tmp_path), context=ctx, out=io.StringIO()) == 2
     return stopped, text
 
 
@@ -623,7 +507,7 @@ def resumed_run(tmp_path, caplog) -> tuple[Path, Path, str]:
     ctx, _ = context(send)
     out = io.StringIO()
     resumed = tmp_path / "resumed.jsonl"
-    assert main(_score(resumed, tmp_path, "--resume", str(stopped)), context=ctx, out=out) == 0
+    assert main(score_argv(resumed, tmp_path, "--resume", str(stopped)), context=ctx, out=out) == 0
     send.assert_consumed()
     assert out.getvalue() == text
     return stopped, resumed, text
@@ -647,14 +531,14 @@ def test_a_resumed_runs_log_replays_to_the_same_bytes(tmp_path, caplog):
     _, resumed, text = resumed_run(tmp_path, caplog)
     ctx, _ = context(ScriptedSend())
     out = io.StringIO()
-    argv = _score(tmp_path / "again.jsonl", tmp_path, "--replay", str(resumed))
+    argv = score_argv(tmp_path / "again.jsonl", tmp_path, "--replay", str(resumed))
     assert main(argv, context=ctx, out=out) == 0
     assert out.getvalue() == text
 
 
 def test_resume_and_replay_together_exit_two(tmp_path):
     ctx, _ = context(ScriptedSend())
-    argv = _score(tmp_path / "x.jsonl", tmp_path, "--resume", "a", "--replay", "b")
+    argv = score_argv(tmp_path / "x.jsonl", tmp_path, "--resume", "a", "--replay", "b")
     with pytest.raises(SystemExit) as raised:
         main(argv, context=ctx, out=io.StringIO())
     assert raised.value.code == 2
@@ -662,7 +546,7 @@ def test_resume_and_replay_together_exit_two(tmp_path):
 
 def test_resume_needs_a_bko_arm(tmp_path, caplog):
     ctx, _ = context(ScriptedSend(), arms={"none": FAST_ARMS["none"], "bko": FAST_ARMS["bko"]})
-    argv = _score(tmp_path / "x.jsonl", tmp_path, "--resume", str(tmp_path / "s.jsonl"))
+    argv = score_argv(tmp_path / "x.jsonl", tmp_path, "--resume", str(tmp_path / "s.jsonl"))
     assert main(argv, context=ctx, out=io.StringIO()) == 2
     assert "--resume needs a BKO arm" in caplog.text
 
@@ -680,6 +564,7 @@ def test_an_unresumable_log_exits_three_before_any_download_or_log(tmp_path, cap
     ctx, opener = context(send)
     resumed = tmp_path / "resumed.jsonl"
     argv = ["score", "--resume", str(broken), "--log", str(resumed)]
+    argv += ["--candidates", str(candidates_for(resumed))]
     argv += ["--data-dir", str(tmp_path / "fresh")]
     assert main(argv, context=ctx, out=io.StringIO()) == 3
     assert "failed before the run's last call" in caplog.text

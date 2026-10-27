@@ -5,8 +5,9 @@ ADR `research/e1-evaluation-protocol` records the run's spend rules and `docs/DE
 with a call in flight is what the checks here prevent: the command refuses to start when the machine
 reports battery power, starts `score` in its own session with `caffeinate` holding the machine awake
 (macOS; elsewhere it records that nothing holds it awake), sends its stdout and stderr to the run
-folder's `scores.csv` and `scores.log`, records what it checked and ran in `launch.log`, and prints
-the command that watches the folder. It creates the two output files exclusively before it starts
+folder's `scores.csv` and `scores.log`, with the call log and the candidates file beside them,
+records what it checked and ran in `launch.log`, and prints the command that watches the folder.
+It creates the two output files exclusively before it starts
 the process, so two launches into one folder cannot both start, and removes them if the process
 cannot start, so a failed launch leaves the folder free. A dry run writes `launch.log` and starts
 nothing.
@@ -30,7 +31,7 @@ from bko.evaluate.errors import EvaluationError
 
 logger = logging.getLogger(__name__)
 
-TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log")
+TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log", "holdout-candidates.jsonl")
 """The roles a run of record writes; a folder that holds any of them holds a run."""
 
 BATTERY: Final = "'Battery Power'"
@@ -126,7 +127,8 @@ def launch(
     Raises:
         EvaluationError: If `run_id` is not a run id of record of `run`'s entry, the machine
             reports battery power, or on macOS its power cannot be read, the folder already holds
-            the call log, the scores or their log, or the process cannot start.
+            the call log, the scores, their log or the candidates file, or the process cannot
+            start.
     """
     match = RUN_ID.fullmatch(run_id)
     if match is None or match["entry"] is None:
@@ -159,6 +161,8 @@ def launch(
         run,
         "--log",
         str(folder / "calls.jsonl"),
+        "--candidates",
+        str(folder / "holdout-candidates.jsonl"),
         *(["--data-dir", str(data_dir)] if data_dir is not None else []),
     )
     folder.mkdir(parents=True, exist_ok=True)

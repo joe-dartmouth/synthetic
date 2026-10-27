@@ -79,6 +79,8 @@ def test_it_starts_score_with_its_call_log_kept_awake_on_macos(tmp_path):
         "e1",
         "--log",
         str(tmp_path / "e1-4" / "calls.jsonl"),
+        "--candidates",
+        str(tmp_path / "e1-4" / "holdout-candidates.jsonl"),
         "--data-dir",
         str(tmp_path / "data"),
     )
@@ -90,7 +92,8 @@ def test_it_starts_score_with_its_call_log_kept_awake_on_macos(tmp_path):
         "awake=caffeinate",
         (
             f"command=caffeinate -i -s {sys.executable} -m bko.evaluate score e1 --log "
-            f"{tmp_path / 'e1-4' / 'calls.jsonl'} --data-dir {tmp_path / 'data'}"
+            f"{tmp_path / 'e1-4' / 'calls.jsonl'} --candidates "
+            f"{tmp_path / 'e1-4' / 'holdout-candidates.jsonl'} --data-dir {tmp_path / 'data'}"
         ),
         "pid=4242",
     ]
@@ -154,7 +157,7 @@ def test_elsewhere_nothing_holds_the_machine_awake_and_power_is_recorded_uncheck
     assert "power=unchecked" in log
 
 
-@pytest.mark.parametrize("name", ["calls.jsonl", "scores.csv", "scores.log"])
+@pytest.mark.parametrize("name", TAKEN)
 def test_it_refuses_a_folder_that_already_holds_a_run(tmp_path, name):
     (tmp_path / "e1-4").mkdir()
     (tmp_path / "e1-4" / name).write_text("x", encoding="utf-8")

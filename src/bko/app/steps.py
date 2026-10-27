@@ -24,6 +24,7 @@ from bko.datasets.split import Split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
 from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
+from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.run import Drain, score_holdout
 from bko.evaluate.scores import Score, render
 from bko.fusion.closure import Closure, closure
@@ -216,9 +217,9 @@ def fill_and_score(
 ) -> Outcome:
     """Fill E1's gap request on the default split with `name`, then score every method beside it.
 
-    The fill's run folder keeps its scores and training set, and a BKO arm's call log. A BKO arm is
-    built by `bko.evaluate.guided.guided_arms`; its calls go through `context.send()`, built only
-    here, or are answered from the call log at `replay`.
+    The fill's run folder keeps its scores and training set, and a BKO arm's call log and
+    candidates file. A BKO arm is built by `bko.evaluate.guided.guided_arms`; its calls go through
+    `context.send()`, built only here, or are answered from the call log at `replay`.
 
     Raises:
         BaselineError: If the arm refuses every attempt, as `score_holdout`.
@@ -249,6 +250,8 @@ def fill_and_score(
             analysis.knowledge,
             experiment,
             log=folder / "calls.jsonl",
+            candidates=folder / "holdout-candidates.jsonl",
+            origin=Origin("app", context.uci, context.releases),
             send=context.send,
             answers=answers,
             now=context.now,

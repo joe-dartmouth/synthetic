@@ -11,14 +11,17 @@ stderr.
 the run id's entry.
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
-`score --log PATH` spends money: the BKO arms call the Messages API, and every call goes to the
-call log at PATH, which must not exist. `score --replay LOG` answers every BKO call from the call
-log at LOG instead. `score --resume STOPPED --log NEW` finishes a stopped run: it answers the
-stopped log's answered calls from it and sends the rest live, all into NEW.
+`score --log PATH --candidates FILE` spends money: the BKO arms call the Messages API, every call
+goes to the call log at PATH, and every candidate they generate, with its outcome, goes to the
+candidates file FILE (`bko.evaluate.holdout_candidates`); neither may exist. `score --replay LOG`
+answers every BKO call from the call log at LOG instead. `score --resume STOPPED --log NEW`
+finishes a stopped run: it answers the stopped log's answered calls from it and sends the rest
+live, all into NEW.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log, BKO arms with no `--log`, `--log`, `--replay` or `--resume` with
-no BKO arm to build, `--resume` with `--replay`, a call with no response, a failed gap query, a
+including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`,
+`--log`, `--candidates`, `--replay` or `--resume` with no BKO arm to build, one path for both
+files, `--resume` with `--replay`, a call with no response, a failed gap query, a
 run whose spend reached the ceiling, projects to it or stalled, a `launch` on battery power
 or into a folder that holds a run, and scores whose validity cannot be read; 3 the data, a
 method's output, a scores file, a replay or a stopped log that cannot be resumed contradicts its
@@ -53,6 +56,7 @@ from bko.evaluate.compare import compare
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
 from bko.evaluate.guided import Knowledge, guided_arms
+from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import ARMS, run
@@ -225,11 +229,22 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     if args.resume is not None and not guided:
         msg = "--resume needs a BKO arm"
         raise EvaluationError(msg)
+    if guided and args.candidates is None:
+        msg = f"--candidates is required: the arms {guided} generate candidates"
+        raise EvaluationError(msg)
     if args.log is not None and not guided:
         msg = "--log needs a BKO arm"
         raise EvaluationError(msg)
+    if args.candidates is not None and not guided:
+        msg = "--candidates needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.log is not None and args.candidates.absolute() == args.log.absolute():
+        msg = f"--candidates and --log name one file, {args.log}"
+        raise EvaluationError(msg)
     if args.log is not None and args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
+    if args.candidates is not None and args.candidates.exists():
+        raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
     answers = _answers(args, context)
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
@@ -288,6 +303,8 @@ def _guided(
         experiment,
         settings=context.settings,
         log=args.log,
+        candidates=args.candidates,
+        origin=Origin(args.run, context.uci, context.releases),
         send=context.send,
         answers=answers,
     ) as paid:
@@ -317,6 +334,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="the call log to create for the BKO arms' calls; it must not exist",
+    )
+    scoring.add_argument(
+        "--candidates",
+        type=Path,
+        default=None,
+        help="the file to create for every candidate the BKO arms generate; it must not exist",
     )
     answering = scoring.add_mutually_exclusive_group()
     answering.add_argument(

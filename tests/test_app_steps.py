@@ -186,6 +186,7 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     assert outcome.replayed is False
     assert sorted(path.name for path in outcome.folder.iterdir()) == [
         "calls.jsonl",
+        "holdout-candidates.jsonl",
         "scores.csv",
         "training.csv",
     ]
@@ -200,7 +201,10 @@ def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):
         fill_and_score(analysis, "bko", context)
     assert len(send.calls) == 1
     (folder,) = (tmp_path / "runs").iterdir()
-    assert [path.name for path in folder.iterdir()] == ["calls.jsonl"]
+    assert sorted(path.name for path in folder.iterdir()) == [
+        "calls.jsonl",
+        "holdout-candidates.jsonl",
+    ]
     assert caught.value.__notes__ == [
         f"The fill's run folder is {folder}; it spent {ceiling:.6f} USD over 1 calls."
     ]

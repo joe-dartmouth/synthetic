@@ -1,7 +1,7 @@
 """Why `python -m bko.evaluate` stops; the exit codes follow `bko.datasets.errors`.
 
-2 means the command could not run and 3 that a scores file breaks its format. Exit 1 is left to
-Python, so a traceback still means a defect.
+2 means the command could not run and 3 that a scores or candidates file breaks its format. Exit 1
+is left to Python, so a traceback still means a defect.
 """
 
 from __future__ import annotations
@@ -17,5 +17,11 @@ class EvaluationError(Exception):
 
 class ScoresFormatError(EvaluationError):
     """A scores file is not the CSV `python -m bko.evaluate score` writes."""
+
+    exit_code: ClassVar[int] = 3
+
+
+class CandidatesFormatError(EvaluationError):
+    """A candidates file is not the JSONL `bko.evaluate.holdout_candidates` writes."""
 
     exit_code: ClassVar[int] = 3
