@@ -51,18 +51,3 @@ links to where its blocker is tracked.
   `ROLES` and the Runs table gain the role, and `tests/test_run_folders.py` holds them equal.
   **Trigger:** the first change that writes per-holdout candidates, at the latest
   `generate-bkb-curation`.
-
-## tests
-
-- **`cleanup:tests/proposal-index-witness`: two corpus witnesses name `tasks/proposal-index.md`,
-  which leaves when the proposal set's last unit lands.** `tests/test_docs_citations.py:91` and
-  `tests/test_adr_frontmatter.py:666` each hold `Path("tasks/proposal-index.md")` as the file
-  that proves the `tasks/` root is walked, and `tests/test_companion_guard.py:62` reads `A landed
-  set's index is deleted with its last unit`. The proposal set holds one unit,
-  `proposal-guidance-ablation`, so the commit that lands it deletes the index and fails both
-  witnesses. *Filed 2026-10-26 by the diff review of PR #32.*
-  **Why deferred.** The witnesses are not in the boundary of a change that adds a second task set.
-  **What discharges it:** each witness names an index that outlives the proposal set,
-  `tasks/experiments-index.md`, or `tasks/CLEANUP.md`, which no set's landing deletes.
-  **Trigger:** the landing of `proposal-guidance-ablation`, or the next change to either witness
-  list.

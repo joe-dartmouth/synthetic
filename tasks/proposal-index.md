@@ -12,8 +12,8 @@ section 6. Each unit's `milestone` names the ROADMAP heading it serves.
 |---|---|---|---|---|
 | [`proposal-guidance-ablation`](proposal-guidance-ablation.md) | ready | -- | Shirley | final-report |
 
-The unit's dependencies are harness units of the experiments set, and
-[`experiments-index.md`](experiments-index.md) draws their edges.
+The unit's edges are drawn in [`experiments-index.md`](experiments-index.md), beside the units
+it blocks.
 
 ```mermaid
 flowchart LR
