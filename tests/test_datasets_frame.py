@@ -178,7 +178,7 @@ def test_the_record_schema_names_the_toy_columns():
     }
 
 
-def test_a_call_sends_its_frames_schema():
+def test_a_calls_params_carry_its_frames_schema():
     call = Call(SETTINGS, 0, 1, "system", "user", frame=TOY)
     params: Any = call.params()
     schema = params["output_config"]["format"]["schema"]

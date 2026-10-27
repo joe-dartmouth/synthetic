@@ -21,7 +21,7 @@ from typing import Any, Final
 import anthropic
 
 from bko.generate.errors import GenerationError
-from bko.generate.messages import Call, Reply, Send, Usage, record_schema, text_of
+from bko.generate.messages import Call, Reply, Send, Usage, text_of
 
 
 HTTP_LOGGERS: Final = ("httpx2",)
@@ -113,19 +113,10 @@ def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) 
         if attempts is not None:
             attempts.count = 0
         try:
-            message = client.messages.create(
-                model=call.settings.model,
-                max_tokens=call.settings.max_tokens,
-                system=call.system,
-                messages=[{"role": "user", "content": call.user}],
-                output_config={
-                    "effort": call.settings.effort,
-                    "format": {
-                        "type": "json_schema",
-                        "schema": record_schema(call.sex, call.label),
-                    },
-                },
-            )
+            # Exactly the body the call log records, so the log is what was sent. `params` is
+            # typed loosely, and the SDK's overloads want each keyword's own type.
+            body: Any = call.params()
+            message = client.messages.create(**body)
         except anthropic.APIStatusError as exc:
             msg = (
                 f"the API refused the request: {type(exc).__name__} status={exc.status_code} "
