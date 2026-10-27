@@ -8,7 +8,7 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
-the run id's entry.
+the run id's entry, and `--rehearse` starts its rehearsal instead.
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH --candidates FILE` spends money: the BKO arms call the Messages API, every call
@@ -16,16 +16,17 @@ goes to the call log at PATH, and every candidate they generate, with its outcom
 candidates file FILE (`bko.evaluate.holdout_candidates`); neither may exist. `score --replay LOG`
 answers every BKO call from the call log at LOG instead. `score --resume STOPPED --log NEW`
 finishes a stopped run: it answers the stopped log's answered calls from it and sends the rest
-live, all into NEW.
+live, all into NEW. `score --rehearse` answers every BKO call with canned records
+(`bko.evaluate.rehearse`), so the stop rules and spend lines run for free.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`,
-`--log`, `--candidates`, `--replay` or `--resume` with no BKO arm to build, one path for both
-files, `--resume` with `--replay`, a call with no response, a failed gap query, a
-run whose spend reached the ceiling, projects to it or stalled, a `launch` on battery power
-or into a folder that holds a run, and scores whose validity cannot be read; 3 the data, a
-method's output, a scores file, a replay or a stopped log that cannot be resumed contradicts its
-contract.
+`--log`, `--candidates`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build, one
+path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a call with no
+response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
+`launch` on battery power or into a folder that holds a run, and scores whose validity cannot be
+read; 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be
+resumed contradicts its contract.
 """
 
 from __future__ import annotations
@@ -59,6 +60,7 @@ from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
 from bko.evaluate.provenance import log_experiment
+from bko.evaluate.rehearse import CannedSend, Rehearse
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
@@ -89,6 +91,7 @@ class Context:
         releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
         field_rows: The field mappings the BKO arms observe cells by.
         send: Builds the send every BKO arm's call goes through.
+        rehearse: Builds the send a rehearsal answers every BKO call with.
         power: Whether the machine runs on battery, for `launch`.
         start: Starts `launch`'s detached run.
         runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
@@ -104,6 +107,7 @@ class Context:
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     send: Callable[[], Send] = default_send
+    rehearse: Rehearse = CannedSend
     power: Power = on_battery
     start: Spawn = spawn
     runs_dir: Path | None = None
@@ -181,6 +185,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         root=context.runs_dir if context.runs_dir is not None else runs_root(),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
+        rehearse=args.rehearse,
         power=context.power,
         start=context.start,
     )
@@ -228,6 +233,9 @@ def _score(args: argparse.Namespace, context: Context) -> str:
         raise EvaluationError(msg)
     if args.resume is not None and not guided:
         msg = "--resume needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.rehearse and not guided:
+        msg = "--rehearse needs a BKO arm"
         raise EvaluationError(msg)
     if guided and args.candidates is None:
         msg = f"--candidates is required: the arms {guided} generate candidates"
@@ -297,6 +305,7 @@ def _guided(
     )
     knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
     experiment = context.experiment
+    canned = context.rehearse(frame, experiment, context.settings) if args.rehearse else None
     with guided_arms(
         names,
         knowledge,
@@ -305,8 +314,9 @@ def _guided(
         log=args.log,
         candidates=args.candidates,
         origin=Origin(args.run, context.uci, context.releases),
-        send=context.send,
+        send=context.send if canned is None else lambda: canned,
         answers=answers,
+        rehearsal=args.rehearse,
     ) as paid:
         return run(
             frame,
@@ -357,6 +367,11 @@ def _parser() -> argparse.ArgumentParser:
             "then send the rest live"
         ),
     )
+    answering.add_argument(
+        "--rehearse",
+        action="store_true",
+        help="answer every BKO call with canned records, so the stop rules run for free",
+    )
     launching = commands.add_parser(
         "launch", help="start a paid score run detached, kept awake and on mains power"
     )
@@ -369,6 +384,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     launching.add_argument(
         "--dry-run", action="store_true", help="write the folder's roles and start nothing"
+    )
+    launching.add_argument(
+        "--rehearse",
+        action="store_true",
+        help="rehearse the run on canned replies, into the rehearsal folder inside its folder",
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")

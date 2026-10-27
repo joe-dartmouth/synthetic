@@ -285,6 +285,15 @@ def test_resume_refuses_a_replays_log(tmp_path):
         Resume(path, ScriptedSend())
 
 
+def test_resume_refuses_a_rehearsals_log_and_replay_reads_it(tmp_path):
+    path = tmp_path / "rehearsal.jsonl"
+    with CallLog(path, SETTINGS, rehearsal=True) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+    with pytest.raises(ReplayError, match="rehearsal's log"):
+        Resume(path, ScriptedSend())
+    assert Replay(path).remaining == 1
+
+
 def test_resume_refuses_a_resume_that_stopped_while_it_replayed(tmp_path):
     path = tmp_path / "resumed.jsonl"
     earlier = Answered("resume", "ab" * 32, 3)

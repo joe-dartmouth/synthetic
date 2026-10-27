@@ -117,12 +117,15 @@ def test_discover_skips_links_and_entries_of_the_wrong_kind(tmp_path):
     (root / "r1-2" / "reproduction.log").symlink_to(root / "r1-2" / "reproduction.csv")
     (root / "g1-14" / "pytest").mkdir(parents=True)
     (root / "c1-2" / "pytest").write_text("not a directory", encoding="utf-8")
+    (root / "g1-14" / "rehearsal").mkdir()
+    (root / "c1-2" / "rehearsal").write_text("not a directory", encoding="utf-8")
     found = {run.name: list(run.roles) for run in discover(root)}
     assert "e1-4" not in found
     assert "gaps-uci.log" not in found["e2-5"]
     assert found["r1-2"] == ["reproduction.csv"]
-    assert found["g1-14"] == ["pytest"]
+    assert found["g1-14"] == ["rehearsal", "pytest"]
     assert "pytest" not in found["c1-2"]
+    assert "rehearsal" not in found["c1-2"]
 
 
 def test_discover_orders_run_numbers_as_numbers(tmp_path):

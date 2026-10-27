@@ -251,7 +251,7 @@ class GuidedRun:
 
 
 @contextmanager
-def guided_arms(
+def guided_arms(  # ruff: ignore[too-many-arguments]
     names: Sequence[str],
     knowledge: Knowledge,
     experiment: Experiment,
@@ -262,13 +262,15 @@ def guided_arms(
     origin: Origin,
     send: Callable[[], Send],
     answers: Replay | None = None,
+    rehearsal: bool = False,
     now: Callable[[], datetime] = utc_now,
 ) -> Generator[GuidedRun]:
     """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
 
     The candidates file at `candidates` is created before the call log, with a header naming
     `origin` and `settings`, and every arm writes its lines there. Every call goes through
-    `answers` when given, else through `send()`. Once the body returns, answers left over are
+    `answers` when given, else through `send()`; `rehearsal` marks the call log as a rehearsal's,
+    whose `send()` answers with canned replies. Once the body returns, answers left over are
     refused. Each arm logs its validity sums on the way out, a stopped run included.
 
     Raises:
@@ -283,7 +285,7 @@ def guided_arms(
     answered = None if answers is None else answers.answered
     kept = CandidateFile(candidates, origin, settings)
     try:
-        call_log = CallLog(log, settings, answered=answered, now=now)
+        call_log = CallLog(log, settings, answered=answered, rehearsal=rehearsal, now=now)
     except BaseException:
         kept.discard()
         raise

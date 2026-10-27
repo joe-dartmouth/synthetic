@@ -7,6 +7,8 @@ reports battery power, starts `score` in its own session with `caffeinate` holdi
 (macOS; elsewhere it records that nothing holds it awake), sends its stdout and stderr to the run
 folder's `scores.csv` and `scores.log`, with the call log and the candidates file beside them,
 records what it checked and ran in `launch.log`, and prints the command that watches the folder.
+A rehearsal (`score --rehearse`, `bko.evaluate.rehearse`) launches the same way into the
+`rehearsal` folder inside the run's folder, which leaves the run's own folder free for the run.
 It creates the two output files exclusively before it starts
 the process, so two launches into one folder cannot both start, and removes them if the process
 cannot start, so a failed launch leaves the folder free. A dry run writes `launch.log` and starts
@@ -33,6 +35,9 @@ logger = logging.getLogger(__name__)
 
 TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log", "holdout-candidates.jsonl")
 """The roles a run of record writes; a folder that holds any of them holds a run."""
+
+REHEARSAL: Final = "rehearsal"
+"""The folder inside a run's folder its rehearsal writes, so it never takes the run's own roles."""
 
 BATTERY: Final = "'Battery Power'"
 """What `pmset -g batt` prints between quotes when the machine runs on its battery."""
@@ -105,6 +110,7 @@ def launch(
     root: Path,
     data_dir: Path | None = None,
     dry_run: bool = False,
+    rehearse: bool = False,
     power: Power = on_battery,
     start: Spawn = spawn,
     platform: str = sys.platform,
@@ -119,6 +125,7 @@ def launch(
         root: The run folders' root.
         data_dir: The data root `score` reads, or its default.
         dry_run: Write the folder's roles and the log, and start nothing.
+        rehearse: Rehearse the run on canned replies, into `root/<run_id>/rehearsal`.
         power: Whether the machine runs on battery.
         start: Starts the command detached.
         platform: `sys.platform`; `caffeinate` holds the machine awake on `darwin` only.
@@ -146,7 +153,7 @@ def launch(
     if battery is None and platform == "darwin":
         msg = "pmset could not report the machine's power, so mains power cannot be confirmed"
         raise EvaluationError(msg)
-    folder = root / run_id
+    folder = root / run_id / REHEARSAL if rehearse else root / run_id
     taken = [name for name in TAKEN if (folder / name).exists()]
     if taken:
         msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
@@ -164,12 +171,16 @@ def launch(
         "--candidates",
         str(folder / "holdout-candidates.jsonl"),
         *(["--data-dir", str(data_dir)] if data_dir is not None else []),
+        *(["--rehearse"] if rehearse else []),
     )
     folder.mkdir(parents=True, exist_ok=True)
     out, err = folder / "scores.csv", folder / "scores.log"
     reading = "unchecked" if battery is None else "mains"
     lines = [
-        f"launched {now().strftime('%Y-%m-%dT%H:%M:%SZ')} run={run} dry_run={dry_run}",
+        (
+            f"launched {now().strftime('%Y-%m-%dT%H:%M:%SZ')} run={run} dry_run={dry_run} "
+            f"rehearse={str(rehearse).lower()}"
+        ),
         f"power={reading}",
         f"awake={'caffeinate' if awake else 'none'}",
         f"command={shlex.join(command)}",

@@ -8,7 +8,8 @@ because one request can be logged many times with different replies.
 `Resume` reads a stopped run's log the same way, then sends the calls past its answered ones live.
 It drops a final segment with no newline, which a killed process can leave, and a last call whose
 answer is not exactly one `reply` line. It refuses a log with a failed call before its last, a
-replay's log, and a resumed log that stopped before its replayed calls ran out. ADR
+replay's log, a rehearsal's log, whose replies are canned, and a resumed log that stopped before
+its replayed calls ran out. ADR
 `research/call-log-replay` records the design.
 """
 
@@ -114,14 +115,17 @@ class Resume(Replay):
 
         Raises:
             ReplayError: As `Replay`, past a dropped last call; or if a call before the last
-                failed, the log replays another, its `resume` field is malformed, or it resumed
-                more calls than it holds.
+                failed, the log replays another or is a rehearsal's, its `resume` field is
+                malformed, or it resumed more calls than it holds.
             OSError: If the log cannot be read.
         """
         log = _read(path, stopped=True)
         source = log.run.get("replay")
         if source is not None:
             msg = f"{path} replays the log with sha256 {source}; replay that log instead"
+            raise ReplayError(msg)
+        if log.run.get("rehearsal"):
+            msg = f"{path} is a rehearsal's log, whose replies are canned; a resume sends live"
             raise ReplayError(msg)
         prior = log.run.get("resume")
         if prior is not None:

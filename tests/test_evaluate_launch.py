@@ -17,7 +17,7 @@ from bko.evaluate import launch as launching
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, RUNS, NamedRun
-from bko.evaluate.launch import TAKEN, launch, on_battery, spawn
+from bko.evaluate.launch import REHEARSAL, TAKEN, launch, on_battery, spawn
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -136,6 +136,31 @@ def test_a_launch_that_loses_the_folder_to_another_starts_nothing(tmp_path, monk
 def test_the_roles_a_launch_guards_are_run_folder_roles():
     assert set(TAKEN) <= set(ROLES)
     assert "launch.log" in ROLES
+    assert REHEARSAL in ROLES
+
+
+def test_a_rehearsal_launches_into_its_folder_inside_the_runs_and_leaves_the_run_free(tmp_path):
+    start = Starts()
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
+    assert main(["launch", "e1-4", "--rehearse"], context=context, out=io.StringIO()) == 0
+    folder = tmp_path / "e1-4" / REHEARSAL
+    (command,) = start.commands
+    assert command[-1] == "--rehearse"
+    assert str(folder / "calls.jsonl") in command
+    assert str(folder / "holdout-candidates.jsonl") in command
+    assert "rehearse=true" in (folder / "launch.log").read_text(encoding="utf-8")
+    assert sorted(path.name for path in (tmp_path / "e1-4").iterdir()) == [REHEARSAL]
+    assert main(["launch", "e1-4"], context=context, out=io.StringIO()) == 0
+    assert "--rehearse" not in start.commands[-1]
+    assert str(tmp_path / "e1-4" / "calls.jsonl") in start.commands[-1]
+    assert "rehearse=false" in (tmp_path / "e1-4" / "launch.log").read_text(encoding="utf-8")
+
+
+def test_a_second_rehearsal_into_one_folder_is_refused(tmp_path):
+    launch("e1-4", "e1", root=tmp_path, rehearse=True, power=lambda: False, start=Starts())
+    (tmp_path / "e1-4" / REHEARSAL / "calls.jsonl").write_text("x", encoding="utf-8")
+    with pytest.raises(EvaluationError, match="already holds"):
+        launch("e1-4", "e1", root=tmp_path, rehearse=True, power=lambda: False, start=Starts())
 
 
 def test_spawn_starts_the_command_detached_with_its_output_in_the_files(tmp_path):

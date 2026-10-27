@@ -2,12 +2,12 @@
 
 A run writes one `run` line, then per call a `request` line before the call and a `reply` or
 `error` line after it, then one `end` line holding the run's status and totals. The `run` and
-`end` lines name the log a replay answers from under `replay`, and the stopped log a resume
-continues under `resume`; the totals split `live_usd`, what the run paid, from `usd`. Each line is
+`end` lines name the log a replay answers from under `replay` and the stopped log a resume
+continues under `resume`, and say under `rehearsal` whether canned replies answered every call;
+the totals split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is
 flushed as it is written, so the lines of every call made survive a failure, an interrupt or a
 killed process. The file is created exclusively, so a rerun never overwrites a paid log, with mode
-0o600, so only its owner reads it. ADR
-`research/record-generation-design` records the format.
+0o600, so only its owner reads it. ADR `research/record-generation-design` records the format.
 """
 
 from __future__ import annotations
@@ -68,6 +68,7 @@ class CallLog:
         answered: The call log the first calls are answered from, or None for a live run.
         replay: The sha256 of the call log a replay answers from, or None.
         resume: The sha256 and answered calls of the stopped log a resume continues, or None.
+        rehearsal: Whether canned replies answer every call (`bko.evaluate.rehearse`).
         settings: How each call is made; its model's price is the one every spend uses.
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
@@ -88,6 +89,7 @@ class CallLog:
         settings: Settings,
         *,
         answered: Answered | None = None,
+        rehearsal: bool = False,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
@@ -96,6 +98,7 @@ class CallLog:
             path: The log file; it must not exist. It is created readable by its owner only.
             settings: How each call is made.
             answered: The call log the first calls are answered from, or None for a live run.
+            rehearsal: Whether canned replies answer every call.
             now: The clock each line's time is read from.
 
         Raises:
@@ -117,6 +120,7 @@ class CallLog:
             if answered is not None and answered.kind == "resume"
             else None
         )
+        self.rehearsal = rehearsal
         self.settings = settings
         self._now = now
         self.calls = 0
@@ -143,6 +147,7 @@ class CallLog:
                     "anthropic": anthropic,
                     "replay": self.replay,
                     "resume": self.resume,
+                    "rehearsal": rehearsal,
                 }
             )
         except BaseException:
@@ -150,7 +155,7 @@ class CallLog:
             raise
         logger.info(
             "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d "
-            "replay=%s resume=%s",
+            "replay=%s resume=%s rehearsal=%s",
             path,
             SCHEMA,
             settings.model,
@@ -160,6 +165,7 @@ class CallLog:
             settings.max_tokens,
             self.replay or "none",
             "none" if self.resume is None else self.resume["sha256"],
+            str(rehearsal).lower(),
         )
 
     def __enter__(self) -> Self:
@@ -195,13 +201,14 @@ class CallLog:
                     "ended": self._at(),
                     "replay": self.replay,
                     "resume": self.resume,
+                    "rehearsal": self.rehearsal,
                     **self._totals(),
                 }
             )
             logger.info(
                 "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
                 "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
-                "log=%s",
+                "rehearsal=%s log=%s",
                 status,
                 self.calls,
                 self.failed,
@@ -215,6 +222,7 @@ class CallLog:
                 self.live_usd,
                 self.replay or "none",
                 "none" if self.resume is None else self.resume["sha256"],
+                str(self.rehearsal).lower(),
                 self.path,
             )
         finally:

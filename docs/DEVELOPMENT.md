@@ -567,6 +567,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `scores.log` | its stderr |
 | `holdout-candidates.jsonl` | every candidate a run's BKO arms generated, per holdout |
 | `launch.log` | `python -m bko.evaluate launch`'s record of the power reading and command |
+| `rehearsal` | `python -m bko.evaluate launch --rehearse`'s directory of the run's roles |
 | `criteria.csv` | `python -m bko.evaluate compare`'s stdout |
 | `criteria.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |

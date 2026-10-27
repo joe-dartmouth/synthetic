@@ -24,6 +24,7 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "scores.log": "its stderr",
         "holdout-candidates.jsonl": "every candidate a run's BKO arms generated, per holdout",
         "launch.log": "`python -m bko.evaluate launch`'s record of the power reading and command",
+        "rehearsal": "`python -m bko.evaluate launch --rehearse`'s directory of the run's roles",
         "criteria.csv": "`python -m bko.evaluate compare`'s stdout",
         "criteria.log": "its stderr",
         "candidates.jsonl": "`python -m bko.generate`'s stdout",
@@ -41,6 +42,9 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 """Each artifact's name in a run folder, in reading order, and what writes it."""
+
+DIRECTORIES: Final = frozenset({"rehearsal", "pytest"})
+"""The roles that are directories; every other role is a regular file."""
 
 TAIL: Final = 1 << 16
 """Bytes read from a call log's end to find its `end` line; paid logs run to hundreds of MB."""
@@ -95,10 +99,10 @@ def call_totals(path: Path) -> Mapping[str, object] | None:
 
 
 def _holds(path: Path, role: str) -> bool:
-    """Whether `path` is the role's kind of entry: a directory for `pytest`, else a regular file."""
+    """Whether `path` is the role's kind of entry: a directory for `DIRECTORIES`, else a file."""
     if path.is_symlink():
         return False
-    return path.is_dir() if role == "pytest" else path.is_file()
+    return path.is_dir() if role in DIRECTORIES else path.is_file()
 
 
 def _natural(path: Path) -> tuple[tuple[int, int | str], ...]:
