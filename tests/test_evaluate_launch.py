@@ -548,3 +548,15 @@ def test_an_id_that_is_not_a_run_of_record_exits_two(tmp_path, caplog, run_id):
 
 def test_every_named_run_is_an_entry_or_a_word_after_it():
     assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)?", name) for name in RUNS)
+
+
+@pytest.mark.parametrize("argv", [["launch", "g2-3"], ["launch", "g2-3", "--dry-run"]])
+def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder(
+    tmp_path, caplog, argv
+):
+    context = named(tmp_path, RUNS)
+    assert main(argv, context=context, out=io.StringIO()) == 2
+    assert "the run 'g2' has no BKO arm, so it spends nothing to launch" in caplog.text
+    assert isinstance(context.start, Starts)
+    assert context.start.commands == []
+    assert not (tmp_path / "g2-3").exists()

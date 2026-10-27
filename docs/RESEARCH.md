@@ -105,10 +105,14 @@ MONDO nor the DO fragment, nor in the whole MONDO release.
 ### Generate and validate
 
 Generation is guided by the ontology relationships relevant to each gap, and records are generated
-through the Anthropic Messages API (2-pager section 4). Each candidate record is validated before
-augmentation. The validity criterion counts the records that pass the model's consistency checks,
-and the completeness criterion counts the detected gaps that close after fusion
-([section 4](#4-success-criteria)). ADR
+through the Anthropic Messages API (2-pager section 4). A second generator draws records from the
+fused BKB alone, with no API call: each mapped concept present at its share, field values read
+from training records that show the drawn concepts (ADR
+[research/bkb-direct-generation](adr/research/bkb-direct-generation.md)); it isolates what the
+mapping table and the data's concept shares contribute, and no criterion reads it. Each candidate
+record is validated before augmentation. The validity criterion counts the records that pass the
+model's consistency checks, and the completeness criterion counts the detected gaps that close
+after fusion ([section 4](#4-success-criteria)). ADR
 [research/record-validation-design](adr/research/record-validation-design.md) sets what the
 consistency checks are and how a candidate is counted, and ADR
 [research/record-generation-design](adr/research/record-generation-design.md) sets what a

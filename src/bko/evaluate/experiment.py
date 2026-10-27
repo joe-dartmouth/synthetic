@@ -7,7 +7,7 @@ each criterion is read. No command-line flag changes a value here.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
@@ -149,6 +149,9 @@ HOLDOUTS: Final = 100
 METHOD_ARMS: Final = tuple(method.value for method in Method)
 """Every comparison method of `bko.baselines`, by name."""
 
+ADDS_ROWS: Final = tuple(method.value for method in Method if method.adds_rows)
+"""The comparison methods that add rows, by name: each also fills a replica."""
+
 BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     {
         "bko": Definition.SUBGROUP,
@@ -158,14 +161,28 @@ BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
 )
 """The BKO arms, each with the gap definition that guides it; `bko` is E1's candidate."""
 
+DIRECT_ARM: Final = "bko-direct"
+"""The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
+
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),
     arms=(*METHOD_ARMS, *BKO_ARMS),
     candidate="bko",
     comparators=METHOD_ARMS,
-    replica_arms=(*(method.value for method in Method if method.adds_rows), *BKO_ARMS),
+    replica_arms=(*ADDS_ROWS, *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
+
+G2: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, DIRECT_ARM),
+    candidate=DIRECT_ARM,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, DIRECT_ARM),
+    criteria=(),
+)
+"""E1 with the direct arm in place of the BKO arms, judged by no criterion; `docs/EVIDENCE.md`
+(G2) names it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,10 +201,12 @@ class NamedRun:
 DEFAULT_RUN: Final = "e1"
 """The run `score` and `compare` take when none is named."""
 
-RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType({DEFAULT_RUN: NamedRun(E1)})
-"""Every named run, by name: `e1` is `E1` at `SETTINGS`. A variant adds its own entry in its own
-change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and
-criteria."""
+RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
+    {DEFAULT_RUN: NamedRun(E1), "g2": NamedRun(G2)}
+)
+"""Every named run, by name: `e1` is `E1` at `SETTINGS`, `g2` is `G2`. A variant adds its own
+entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
+ceiling and criteria."""
 
 
 def flagged(

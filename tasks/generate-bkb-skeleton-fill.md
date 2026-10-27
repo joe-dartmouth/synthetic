@@ -1,8 +1,8 @@
 ---
 id: generate-bkb-skeleton-fill
 title: BKB-drawn concepts, LLM-filled fields
-status: blocked
-depends_on: generate-bkb-sampler
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley
@@ -22,8 +22,8 @@ which records show them, and E1's Result reads the drift that follows: trained o
 alone, `bko` scores the lowest fidelity quality of every arm
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)). Conditional
 generation puts the BKB in charge of each record's concepts and the model in charge of the fields
-consistent with them: the sampler of [`generate-bkb-sampler`](generate-bkb-sampler.md) draws each
-record's present concepts, and one call fills the records.
+consistent with them: the sampler `bko.generate.direct` (ADR `research/bkb-direct-generation`)
+draws each record's present concepts, and one call fills the records.
 
 ## Scope
 

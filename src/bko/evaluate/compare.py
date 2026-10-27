@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
@@ -26,7 +26,7 @@ from bko.evaluate.criteria import (
     table,
 )
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
-from bko.evaluate.experiment import BKO_ARMS, Experiment
+from bko.evaluate.experiment import BKO_ARMS, CRITERION_NAMES, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import Score, Source, parse
@@ -49,7 +49,9 @@ def compare(
 
     The boosting model's contrasts are read after the table and logged after the means when the
     scores hold its rows; they never change the table, and a pair of arms either of which lacks
-    them is logged as skipped.
+    them is logged as skipped. An experiment that judges no criterion, such as `g2`, has a table of
+    its header alone; every interval of `CRITERION_NAMES` is then logged after the boosting
+    model's contrasts as an `unjudged` line, with no verdict.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -94,6 +96,8 @@ def compare(
     log_copies(rows)
     log_means(rows, measures=(*JUDGED, *BOOSTED))
     _log_boosted(reported_contrasts(rows, experiment, candidate=candidate))
+    if not experiment.criteria:
+        _log_unjudged(rows, experiment, candidate)
     log_means(rows, source=Source.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
     if reading is not None:
         _log_beside(reading, rows, experiment)
@@ -192,6 +196,31 @@ def _log_beside(reading: _Reading, ours: Sequence[Score], experiment: Experiment
             series.interval.holdouts,
             series.differing,
             series.undefined,
+        )
+
+
+def _log_unjudged(rows: Sequence[Score], experiment: Experiment, candidate: str) -> None:
+    """Log each interval every criterion of `CRITERION_NAMES` reads, with no verdict.
+
+    Raises:
+        EvaluationError: As `judge`.
+    """
+    every = replace(experiment, criteria=CRITERION_NAMES)
+    for c in judge(rows, every, candidate=candidate):
+        logger.info(
+            "unjudged criterion=%s scope=%s arm=%s against=%s measure=%s mean=%.6f low=%.6f "
+            "high=%.6f refuting_high=%.6f holdouts=%d differing=%d",
+            c.criterion,
+            c.scope,
+            c.arm,
+            c.against,
+            c.measure,
+            c.interval.mean,
+            c.interval.low,
+            c.interval.high,
+            c.interval.refuting_high,
+            c.interval.holdouts,
+            c.differing,
         )
 
 

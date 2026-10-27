@@ -23,7 +23,9 @@ from tests._ontology_fixtures import RoutingOpener
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 
-def generated(tmp_path: Path, send: ScriptedSend) -> tuple[int, Path]:
+def generated(
+    tmp_path: Path, send: ScriptedSend, *, argv: list[str] | None = None
+) -> tuple[int, Path]:
     pins, served = ladder_releases()
     uci = pin(UCI_X)
     context = generate.Context(
@@ -35,8 +37,9 @@ def generated(tmp_path: Path, send: ScriptedSend) -> tuple[int, Path]:
         now=lambda: datetime(2026, 1, 1, tzinfo=UTC),
     )
     out = io.StringIO()
-    argv = ["per-subgroup", "--request", "completeness", "--log", str(tmp_path / "run.jsonl")]
-    argv += ["--data-dir", str(tmp_path / "data")]
+    if argv is None:
+        argv = ["per-subgroup", "--request", "completeness"]
+    argv = [*argv, "--log", str(tmp_path / "run.jsonl"), "--data-dir", str(tmp_path / "data")]
     code = generate.main(argv, context=context, out=out)
     path = tmp_path / "c.out"
     path.write_text(out.getvalue(), encoding="utf-8")
@@ -94,3 +97,23 @@ def test_a_failed_generation_leaves_a_file_the_closure_command_refuses(tmp_path,
         and "call 2 asked 20 records of '<55/female/1' and wrote 0 of them" in record.getMessage()
         for record in caplog.records
     )
+
+
+def test_the_closure_command_closes_a_direct_file_as_it_closes_a_messages_one(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    send = ScriptedSend()
+    argv = ["direct", "--request", "completeness", "--seed", "0"]
+    code, path = generated(tmp_path, send, argv=argv)
+    assert code == 0
+    assert send.calls == []
+    assert closed(tmp_path, path) == 0
+    found = [record.getMessage() for record in caplog.records]
+    assert any(
+        line.startswith("header request=completeness definition=None guidance=None fingerprint=")
+        for line in found
+    )
+    assert any(line.startswith("closure definition=per-subgroup before=6 ") for line in found)
+    assert any(line.startswith("join key=<55/female/1 lines=20 passed=20 ") for line in found)
+    written = digest(r"candidates rows=40 sha256=(\w+)", caplog)
+    read = digest(r"candidates path=\S+ lines=40 sha256=(\w+)", caplog)
+    assert read == written

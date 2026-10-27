@@ -379,7 +379,10 @@ def test_a_named_run_without_criteria_scores_and_compares_with_no_verdict(tmp_pa
     assert list(pd.read_csv(io.StringIO(compared.getvalue()))["criterion"]) == []
     assert "run=quiet" in caplog.text
     assert "criteria=none" in caplog.text
-    assert "criterion=" not in caplog.text
+    assert "verdict=" not in caplog.text
+    judged = [m for m in caplog.messages if "criterion=" in m]
+    assert judged
+    assert all(m.startswith("unjudged ") for m in judged)
 
 
 def test_an_unknown_run_name_exits_two_naming_the_runs(tmp_path, caplog):

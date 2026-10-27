@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-22
+updated: 2026-10-27
 ---
 # Validated records join the training records of their asked cell, and closure is read per gap definition
 
@@ -31,14 +31,20 @@ drawn again.
 
 - **Two commands.** `python -m bko.generate per-subgroup --request completeness` asks each cell
   of `bko.gaps.definitions.completeness_request` for its rows and writes the candidates file; the
-  request reads per-subgroup gaps, so another guidance definition is refused. `python -m
+  request reads per-subgroup gaps, so another guidance definition is refused; `python -m
+  bko.generate direct --request completeness --seed N` writes the same request's file from the
+  fused BKB for free (ADR `research/bkb-direct-generation`). `python -m
   bko.fusion <candidates>` reads that file, spends nothing, and writes the closure report. The
   file's format has one home, `bko.generate.candidates`, which writes and reads it.
-- **The header.** The candidates file opens with a header line: `kind` `header`, `schema` 1,
-  `request`, `definition`, `guidance`, `uci` (the archive's pinned sha256), `fingerprint` (the
-  split's), `releases` (each loaded prefix's pinned sha256) and `calls` (the plan: `[cell_key,
-  asked]` in call order from call 1). Every reader refuses a file whose first line is not a header
-  (`bko.generate.candidates.read`).
+- **The header.** The candidates file opens with a header line: `kind` `header`, `schema` 2,
+  `request`, `generator` (`messages`, or `direct` for the sampler of ADR
+  `research/bkb-direct-generation`), `seed` (null for `messages`), `definition` and `guidance`
+  (each null for `direct`), `uci` (the archive's pinned sha256), `fingerprint` (the split's),
+  `releases` (each loaded prefix's pinned sha256) and `calls` (the plan: `[cell_key, asked]` in
+  call order from call 1). A schema 1 header, which has no `generator` or `seed`, reads as
+  `messages`. Every reader refuses a file whose first line is not a header
+  (`bko.generate.candidates.read`). `bko.fusion` logs `definition` and `guidance`
+  and compares neither, so it closes a direct file as it closes a Messages one.
 - **A stage, `bko.fusion`**, downstream of `bko.validate`. It imports `bko.datasets`, `bko.gaps`,
   `bko.ontology`, `bko.validate`, `bko.generate.candidates` and the `BKB` type of
   `bko.bkb.structure`, and no SDK and no `fuse`. From `bko.generate` it imports only

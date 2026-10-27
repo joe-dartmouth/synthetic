@@ -18,9 +18,8 @@ the ROADMAP heading it serves.
 |---|---|---|---|---|
 | [`generate-prompt-training-bounds`](generate-prompt-training-bounds.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
 | [`generate-effort-sweep`](generate-effort-sweep.md) | blocked | proposal-guidance-ablation | Shirley | final-report |
-| [`generate-bkb-sampler`](generate-bkb-sampler.md) | ready | -- | Partiban | final-report |
-| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | blocked | generate-bkb-sampler | Shirley | final-report |
-| [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | generate-bkb-sampler, evaluate-e1-second-configuration | Shirley | final-report |
+| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | ready | -- | Shirley | final-report |
+| [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
 
 ### Evaluation power
 
@@ -37,8 +36,7 @@ set is [`proposal-index.md`](proposal-index.md).
 
 ```mermaid
 flowchart LR
-    bkb_sampler[generate-bkb-sampler] --> skeleton_fill[generate-bkb-skeleton-fill]
-    bkb_sampler[generate-bkb-sampler] --> bkb_curation[generate-bkb-curation]
+    skeleton_fill[generate-bkb-skeleton-fill]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
     guidance_ablation[proposal-guidance-ablation] --> e1_second[evaluate-e1-second-configuration]
     guidance_ablation[proposal-guidance-ablation] --> prompt_bounds[generate-prompt-training-bounds]

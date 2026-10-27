@@ -3,9 +3,10 @@
 The file is JSONL. Its first line is the header, `kind` `header`: the schema, the named run, the
 sha256 of the UCI archive and of each ontology release, and the generator settings. Every other line
 is one candidate, `kind` `candidate`: the holdout, the arm, the fill (`gap` or `replica`), the
-attempt within that fill counted from 1 and whether it `returned` or was refused, the call and the
-cell it asked for, the candidate's 0-based position among the call's, then either the decoded
-`candidate` or the reason it is `undecoded`, its `outcome` and the checks it `failed`. The outcome
+attempt within that fill counted from 1 and whether it `returned` or was refused, the call (null for
+a direct arm's record, drawn with no call) and the cell it asked for, the candidate's 0-based
+position among the call's, then either the decoded `candidate` or the reason it is `undecoded`, its
+`outcome` and the checks it `failed`. The outcome
 is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
 `dropped-cell` or `dropped-quota` (by `bko.baselines.records.drops`). Each (arm, holdout, fill)'s
 lines count what its candidate scores count.
@@ -90,7 +91,7 @@ class Seen:
     """One candidate as an attempt took it from a call.
 
     Attributes:
-        call: The call's index in the run, counted from 1.
+        call: The call's index in the run, counted from 1; None for a record drawn with no call.
         cell: The cell the call asked for, its parts joined by `/`.
         position: Its 0-based position among the call's candidates.
         candidate: The decoded item; None for an undecoded record.
@@ -99,7 +100,7 @@ class Seen:
         failed: The checks it failed, for a rejected candidate.
     """
 
-    call: int
+    call: int | None
     cell: str
     position: int
     candidate: object
@@ -129,8 +130,8 @@ class Candidate:
     seen: Seen
 
     @property
-    def call(self) -> int:
-        """The call's index in the run."""
+    def call(self) -> int | None:
+        """The call's index in the run, or None for a record drawn with no call."""
         return self.seen.call
 
     @property
@@ -310,7 +311,7 @@ def _candidate(number: int, line: object) -> Candidate:
         line["fill"] in FILLS.values(),
         _count(line["attempt"], 1),
         isinstance(line["returned"], bool),
-        _count(line["call"], 1),
+        line["call"] is None or _count(line["call"], 1),
         isinstance(line["cell"], str),
         _count(line["position"], 0),
         "undecoded" not in line or isinstance(undecoded, str),

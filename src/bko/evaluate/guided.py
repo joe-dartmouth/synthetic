@@ -249,11 +249,13 @@ class GuidedRun:
         log: The call log every arm writes.
         arms: Each BKO arm, by name.
         watch: The run's stop rules, which the harness calls after each holdout.
+        candidates: The candidates file every arm writes; a direct arm in the run shares it.
     """
 
     log: CallLog
     arms: Mapping[str, GuidedArm]
     watch: Watch
+    candidates: CandidateFile
 
 
 @contextmanager
@@ -322,7 +324,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         raise
     with kept, call_log:
         try:
-            yield GuidedRun(call_log, MappingProxyType(arms), watch)
+            yield GuidedRun(call_log, MappingProxyType(arms), watch, kept)
             if answers is not None and answers.remaining:
                 msg = f"{answers.remaining} logged calls were not replayed"
                 raise ReplayError(msg)
