@@ -23,6 +23,7 @@ import pandas as pd
 from bko.datasets.cells import LABEL, SEXES
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
+from bko.datasets.frames import RangeConstraint
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 
 
@@ -112,6 +113,71 @@ FRAME_DTYPES: Final[Mapping[str, str]] = {
 
 FRACTION_DIGITS: Final = 1
 """The decimal places `oldpeak` has in the archive, which added values keep."""
+
+RANGES: Final[tuple[RangeConstraint, ...]] = (
+    RangeConstraint(
+        field="age",
+        unit="a",
+        low=18,
+        high=120,
+        source="research/ontology-mapping-design",
+        limits=(
+            "team-specified: adults only; the team found no published plausibility bound; awaits "
+            "clinician review"
+        ),
+    ),
+    RangeConstraint(
+        field="trestbps",
+        unit="mm[Hg]",
+        low=10,
+        high=250,
+        source="blacketer-2021",
+        limits=(
+            'OHDSI DQD v1.4.1 plausible range for concept 4161413 "Systolic blood pressure on '
+            'admission" (`inst/csv/OMOP_CDMv5.3.1_Concept_Level.csv`); a tool setting, not a '
+            "clinical threshold"
+        ),
+    ),
+    RangeConstraint(
+        field="chol",
+        unit="mg/dL",
+        low=32,
+        high=600,
+        source="harutyunyan-2019",
+        limits=(
+            'MIMIC-III benchmark valid range for "Cholesterol" '
+            "(`mimic3benchmark/resources/variable_ranges.csv` at commit "
+            "ea0314c7cbd369f62e2237ace6f683740f867e3a); DQD's 50 to 500 rejects a real Cleveland "
+            "record"
+        ),
+    ),
+    RangeConstraint(
+        field="thalach",
+        unit="/min",
+        low=10,
+        high=500,
+        source="blacketer-2021",
+        limits=(
+            'OHDSI DQD v1.4.1 plausible range for concept 3027018 "Heart rate"; age-predicted '
+            "maxima are means, not bounds"
+        ),
+    ),
+    RangeConstraint(
+        field="oldpeak",
+        unit="mm",
+        low=-10,
+        high=10,
+        source="research/ontology-mapping-design",
+        limits=(
+            "team-specified: the team found no published bound; negative values are ST elevation, "
+            "which other UCI sites record; mm is the team's reading; awaits clinician review"
+        ),
+    ),
+)
+"""One inclusive plausibility range per numeric field, in UCUM units.
+
+`bko.ontology.mapping` re-exports it beside the mapping table.
+"""
 
 
 def parse_cleveland(text: str) -> pd.DataFrame:

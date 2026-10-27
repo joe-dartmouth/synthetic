@@ -59,3 +59,12 @@ def test_a_fit_that_does_not_converge_stops_the_run():
 
     with pytest.raises(EvaluationError, match="did not converge"):
         probabilities(TRAIN.assign(weight=1.0), TRAIN, factory=stingy)
+
+
+def test_probabilities_are_pinned():
+    probability = probabilities(TRAIN.assign(weight=1.0), GRADED)
+    np.testing.assert_allclose(
+        probability.to_numpy()[[0, 7, 23, 41]],
+        [0.2743870822873947, 0.3788422046931614, 0.3911697315854433, 0.38625833787281055],
+        rtol=1e-12,
+    )

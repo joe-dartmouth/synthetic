@@ -2,13 +2,16 @@
 
 A field mapping means one thing: when its clauses all hold for a record, the record shows its
 concept (SSSOM `skos:broadMatch`, with the dataset state as subject). No row says a concept is
-absent. Standard library only.
+absent. `RangeConstraint` is defined with the frame it bounds, in `bko.datasets.frames`, and
+re-exported here; nothing else is imported but the standard library.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+
+from bko.datasets.frames import RangeConstraint  # ruff: ignore[unused-import]  (re-exported)
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,27 +89,6 @@ class Unmapped:
     codes: frozenset[int]
     reason: str
     source: str
-
-
-@dataclass(frozen=True, slots=True)
-class RangeConstraint:
-    """The plausible values of a numeric field, both bounds inclusive.
-
-    Attributes:
-        field: A numeric UCI field.
-        unit: The UCUM unit.
-        low: The lowest plausible value.
-        high: The highest plausible value.
-        source: Where the bounds come from.
-        limits: What the bounds do not guarantee.
-    """
-
-    field: str
-    unit: str
-    low: float
-    high: float
-    source: str
-    limits: str
 
 
 @dataclass(frozen=True, slots=True)
