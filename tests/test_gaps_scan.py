@@ -19,7 +19,7 @@ from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.experiment import REMOVED_FRACTIONS, run_ablation
-from bko.gaps.scan import FirstFlag, scan
+from bko.gaps.scan import FirstFlag, log_first_flags, scan
 from bko.ontology.obo import parse_obo
 from tests._datasets_fixtures import synthea_tables
 from tests._gaps_fixtures import (
@@ -40,11 +40,12 @@ CHAIN = (
     Statement("mondo", "MONDO:9000002", "MONDO:9000001"),
     Statement("mondo", "MONDO:9000003", "MONDO:9000002"),
 )
+type Tables = tuple[list[dict[str, str]], list[dict[str, str]]]
 W01_AT = 16
 """Where the one woman with the condition falls in the condition's seed-0 draw of 21 cases."""
 
 
-def population(directory: Path, tables) -> Population:
+def population(directory: Path, tables: Tables) -> Population:
     synthea_tables(directory, *tables)
     return load_population(directory, snapshot_date=date(2026, 1, 1))
 
@@ -170,6 +171,8 @@ def test_frequency_aware_counts_each_time_it_unlists_an_item(tmp_path, fragments
         # unlisted once no reference patient holds the concept.
         assert flag.flagged_at_all
         assert flag.reversals == 1
+        # First listed at the 31st case, which leaves 5 of the cell's 9 patients holding.
+        assert (flag.first_flag, flag.cell_removed) == (31, 15)
         assert flag.item not in full.after[Definition.FREQUENCY]
     for detector in ("per-subgroup", "population-level", "count"):
         assert {flag.reversals for flag in flags if flag.detector == detector} == {0}
@@ -195,7 +198,7 @@ def test_a_partial_ablation_is_refused(people, fragments, fraction):
         scan("condition-50", people, spec, fragments, [ISCHEMIA])
 
 
-def test_a_spec_ablate_refuses_is_refused_by_the_scan(people, fragments):
+def test_scan_refuses_a_spec_that_ablate_refuses(people, fragments):
     spec = AblationSpec(codes=CELL.codes, age_band="65-70", sex=1, edges=(60,))
     with pytest.raises(DatasetError, match="age band"):
         scan("x", people, spec, fragments, [ISCHEMIA])
@@ -239,4 +242,38 @@ def test_the_scan_logs_a_header_even_for_an_ablation_with_no_truth(tmp_path, peo
     assert (
         "first-flag ablation=condition cases=21 truth per-subgroup=0 population-level=0 "
         "frequency-aware=0 count=2"
+    ) in caplog.text
+
+
+WOMAN = (">=60", "female")
+
+
+def test_reversals_and_first_flags_are_read_from_every_listing(
+    people, fragments, caplog, monkeypatch
+):
+    """A hand-built listing sequence: the real fixtures never relist an item, so this pins it."""
+    early, late = (StatementGap(WOMAN, statement) for statement in CHAIN)
+    on = {2, 5, 0}
+    states = [
+        {
+            "per-subgroup": set(),
+            "population-level": set(),
+            "frequency-aware": {*({early} if nth in on else ()), *({late} if nth >= 8 else ())},
+            "count": set(),
+        }
+        for nth in range(22)
+    ]
+    monkeypatch.setattr(bko.gaps.scan, "_listings", lambda *_: states)
+    with caplog.at_level(logging.INFO, logger="bko.gaps"):
+        flags = scan("condition", people, CONDITION, fragments, [ISCHEMIA])
+        log_first_flags("condition", flags)
+    frequency = by(flags, Definition.FREQUENCY.value)
+    # Listed at 0, off at 1, on at 2, off at 3, on at 5, off at 6: three reversals.
+    assert frequency[early].reversals == 3
+    assert (frequency[early].first_flag, frequency[early].cell_removed) == (0, 0)
+    assert (frequency[late].first_flag, frequency[late].reversals) == (8, 0)
+    assert frequency[late].cell_removed == 0
+    assert (
+        "first-flag ablation=condition detector=frequency-aware cell=>=60/female cases=1 "
+        "items=2 flagged=2 first=0 last=8"
     ) in caplog.text
