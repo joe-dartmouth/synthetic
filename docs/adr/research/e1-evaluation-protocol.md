@@ -75,13 +75,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   guidance from the holdout's training rows only, asks the Messages API for each requested cell's
   shortfall, cell by cell in the quota's order and round by round, and validates every reply with
   `bko.validate`. It drops each accepted candidate `bko.baselines.records.check` would refuse, by
-  `bko.baselines.records.drops`, which tests:
-  - a numeric value outside the training split's minimum and maximum, with the rule `check` uses;
-  - then a cell the request does not ask for;
-  - then a row past its cell's quota.
-
-  A candidate counts toward the cell its own values name, as `check` reads it. This differs from
-  fusion's join, which drops a record whose values name another cell (ADR
+  `bko.baselines.records.drops`, which tests: - a numeric value outside the training split's minimum
+  and maximum, with the rule `check` uses; - then a cell the request does not ask for; - then a row
+  past its cell's quota. A candidate counts toward the cell its own values name, as `check` reads
+  it. This differs from fusion's join, which drops a record whose values name another cell (ADR
   `research/gap-closure-design`), because E1's rows are bound by `check`. The arm returns the kept
   rows cell by cell in the quota's order and in generation order within a cell. It never clips,
   rounds or repairs one, and it calls `check` before it returns. An attempt asks for at most `E1`'s
@@ -93,9 +90,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. That
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
-  (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call, cell and outcome, so a
-  later reading of single candidates needs no new run; `score` requires the file whenever a BKO
-  arm runs, and a replay rewrites it byte for byte.
+  (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call, cell and outcome when
+  the harness drains the holdout's gap fills and then its replica fills, so a later reading of
+  single candidates needs no new run; a stopped run's file lacks the stopped holdout's undrained
+  fills, whose candidates live only in its call log; `score` requires the file whenever a BKO arm
+  runs, and a replay rewrites it byte for byte.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. It
   fills two requests on each holdout, the gap request and the replica request, and the rate reads

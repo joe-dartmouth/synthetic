@@ -23,7 +23,10 @@ class ScoresFormatError(EvaluationError):
 
 
 class CandidatesFormatError(EvaluationError):
-    """A candidates file is not the JSONL `bko.evaluate.holdout_candidates` writes."""
+    """A candidates file is not the JSONL `bko.evaluate.holdout_candidates` writes.
+
+    `bko.evaluate.holdout_candidates.read` raises it.
+    """
 
     exit_code: ClassVar[int] = 3
 

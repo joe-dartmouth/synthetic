@@ -43,11 +43,11 @@ import it (ADR `tooling/agent-config-single-home`).
   `--candidate` judges); `score --replay` rereads a paid run's call log for free, and
   `score --rehearse` runs every BKO call on canned replies for free. Each takes an optional run
   name first (default `e1`).
-- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run]`: start a new paid
-  `score` run detached, kept awake and refused on battery power, into `runs/<run-id>/`, `<run>`
-  defaulting to the run id's entry; it spends money. `--resume runs/<stopped-id>/calls.jsonl`
-  resumes a stopped run into the new folder under the same checks, and `--rehearse` rehearses the
-  run on canned replies into `runs/<run-id>/rehearsal/` for free
+- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--rehearse | --resume <calls.jsonl>]`:
+  start a new paid `score` run detached, kept awake and refused on battery power, into
+  `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money.
+  `--resume <calls.jsonl>` resumes a stopped run into the new folder under the same checks, and
+  `--rehearse` rehearses the run on canned replies into `runs/<run-id>/rehearsal/` for free
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paid-run protocol).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent

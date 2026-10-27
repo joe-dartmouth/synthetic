@@ -105,8 +105,8 @@ credential, and every call goes to the call log at `--log`, which must not exist
 runs, live, with `--replay`, with `--resume` or with `--rehearse`, `--candidates <path>` is required
 and must not exist either: the candidates file holds one line per candidate a BKO arm generated,
 with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome. `compare`
-spends nothing.
-Inside `.venv`, writing to the run's folder under the gitignored `runs/` ([Runs](#runs)):
+spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
+([Runs](#runs)):
 
     mkdir -p runs/<run-id>
     test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log
@@ -231,14 +231,16 @@ the runner before any replay.
   answered from it, then live calls. With `--rehearse`, `bko.evaluate.rehearse.CannedSend` answers
   every call, and the projection and the ceiling read its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
-  header line (`kind` `header`, `schema`, the run name, the UCI archive's and each release's
-  sha256, the generator settings), then one line per candidate (`kind` `candidate`): `holdout`,
-  `arm`, `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a
-  refused attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded
-  `candidate` or the `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`,
-  `dropped-cell` or `dropped-quota`) and the `failed` checks of a rejected one. An arm writes a
-  fill's lines after the fill, so a stopped run's file holds the fills before the stop. Each arm,
-  holdout and fill's lines count what its `candidates` or `replica-candidates` rows count;
+  header line (`kind` `header`, `schema`, the run name, the UCI archive's and each release's sha256,
+  the generator settings), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
+  `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
+  attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
+  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell` or
+  `dropped-quota`) and the `failed` checks of a rejected one. Lines are written when the harness
+  drains a holdout: after every arm's gap fill, then after every replica fill. A stopped run's file
+  holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
+  even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
+  fill's lines count what its `candidates` or `replica-candidates` rows count;
   `bko.evaluate.holdout_candidates.read` reads the file.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
   criterion, the scope, the criterion's verdict (`met`, `not met` or `inconclusive`), the arm, the
@@ -687,12 +689,12 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   [`research/call-log-replay`](adr/research/call-log-replay.md)), so a log replays only at the
   commit, data and releases it was recorded with.
 - **What it writes**: besides the data root, one run folder per fill ([Runs](#runs)),
-  `runs/app-<UTC time>-<arm>/`, holding `scores.csv` and `training.csv` and, for a BKO fill, live
-  or replayed, `calls.jsonl` in the format [Generation](#generation) describes and
+  `runs/app-<UTC time>-<arm>/`, holding `scores.csv` and `training.csv` and, for a BKO fill, live or
+  replayed, `calls.jsonl` in the format [Generation](#generation) describes and
   `holdout-candidates.jsonl` in the format [Evaluation](#evaluation) describes, its header's run
-  `app`. A stopped fill
-  keeps what it wrote, and its message names the folder and the spend its call log recorded. A closed tab or Ctrl-C does not interrupt a running action; the process
-  finishes it first.
+  `app`. A stopped fill keeps what it wrote, and its message names the folder and the spend its call
+  log recorded. A closed tab or Ctrl-C does not interrupt a running action; the process finishes it
+  first.
 - **The gate drives it** through `streamlit.testing.v1.AppTest` over `src/bko/app/streamlit_app.py`
   with fake openers, fast method arms and a `ScriptedSend` or a call log recorded from one in
   `tmp_path`; no gate test reaches the API.

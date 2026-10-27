@@ -14,7 +14,9 @@ stopped run into the new folder.
 
 `score --log PATH --candidates FILE` spends money: the BKO arms call the Messages API, every call
 goes to the call log at PATH, and every candidate they generate, with its outcome, goes to the
-candidates file FILE (`bko.evaluate.holdout_candidates`); neither may exist. `score --replay LOG`
+candidates file FILE (`bko.evaluate.holdout_candidates`) as each holdout's gap fills and then its
+replica fills are drained, so a stopped run's FILE lacks the stopped holdout's undrained fills;
+neither file may exist. `score --replay LOG`
 answers every BKO call from the call log at LOG instead. `score --resume STOPPED --log NEW`
 finishes a stopped run: it answers the stopped log's answered calls from it and sends the rest
 live, all into NEW. `score --rehearse` answers every BKO call with canned records
