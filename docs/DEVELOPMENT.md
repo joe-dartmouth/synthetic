@@ -174,23 +174,27 @@ the `score --log` command above; a resume and a rehearsal start with it too:
 
 `<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
 into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a run of record
-(`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a `--data-dir` that starts with `-`, a folder
-that already holds `calls.jsonl`, `scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a
-machine that reports battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere
-it cannot check and records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log`
-exclusively, so a second launch into the folder refuses, appends the launch line (`run=`,
-`dry_run=`, `rehearse=`, `resume=`), the power reading, the keep-awake and the command to
-`launch.log`, and starts
+(`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
+`scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports battery power
+or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
+`power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
+launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
+`resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
 `score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
-session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files. It
-appends the process id to `launch.log`, or the error and removes the two files when the process
-cannot start or `launch.log` cannot be written, and prints the command that watches the folder
-(`tail -f <runs>/<run-id>/scores.log`, its path absolute). `launch.log` is appended to, never
-truncated, so a failed launch's `error=` line survives a retry. `--resume <calls.jsonl>` resumes a
-stopped run into a new folder with the same power check and keep-awake: it starts
+session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files;
+`--data-dir` is forwarded as an absolute path. It appends the process id to `launch.log` and prints
+the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute; for
+`--rehearse`, `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it
+appends `error=<type>: <message>` and then removes the two files; it also removes them when
+`launch.log`'s first lines cannot be written, and a failed claim writes nothing, so a failed launch
+leaves the folder free. A started process whose `pid=` line cannot be written is still reported
+started, with a WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=`
+line survives a retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the
+same power check and keep-awake: it starts
 `score <run> --resume <calls.jsonl> --log ... --candidates ...` with the stopped log's path made
-absolute, and refuses a stopped log that is not a file or lies inside the new folder. `--rehearse`
-starts `score <run> --log ... --candidates ... --rehearse` with the same checks inside
+absolute, and refuses a stopped log that is not a file or lies inside the new folder, and the logs
+the resume guard above refuses. `--rehearse` starts
+`score <run> --log ... --candidates ... --rehearse` with the same checks inside
 `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
 and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
 folder stays free to launch. The power is read once, at launch: a machine unplugged afterwards is

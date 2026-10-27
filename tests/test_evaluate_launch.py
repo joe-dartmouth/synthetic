@@ -87,7 +87,7 @@ def test_it_starts_score_with_its_call_log_kept_awake_on_macos(tmp_path):
         "--candidates",
         str(tmp_path / "e1-4" / "holdout-candidates.jsonl"),
         "--data-dir",
-        str(tmp_path / "data"),
+        str((tmp_path / "data").absolute()),
     )
     assert found.started
     assert found.pid == 4242
@@ -123,7 +123,7 @@ def test_a_process_that_cannot_start_leaves_the_folder_free_and_records_why(tmp_
     assert "error=FileNotFoundError" in (folder / "launch.log").read_text(encoding="utf-8")
     assert launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=Starts()).started
     log = (folder / "launch.log").read_text(encoding="utf-8")
-    assert "error=FileNotFoundError\n" in log
+    assert "error=FileNotFoundError: [Errno 2] No such file or directory: 'caffeinate'\n" in log
     assert log.count("launched ") == 2
     assert log.endswith("pid=4242\n")
 
@@ -136,7 +136,48 @@ def test_a_start_that_fails_otherwise_also_leaves_the_folder_free(tmp_path):
         launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=broken)
     folder = tmp_path / "e1-4"
     assert sorted(path.name for path in folder.iterdir()) == ["launch.log"]
-    assert "error=RuntimeError" in (folder / "launch.log").read_text(encoding="utf-8")
+    assert "error=RuntimeError: \n" in (folder / "launch.log").read_text(encoding="utf-8")
+
+
+def _failing_on(prefix: str, monkeypatch) -> None:
+    """Make `_append` raise for the lines that start with `prefix`, and write the others."""
+    appending = launching._append
+
+    def failing(record, lines):
+        if lines and lines[0].startswith(prefix):
+            raise PermissionError(13, "Permission denied", str(record))
+        appending(record, lines)
+
+    monkeypatch.setattr(launching, "_append", failing)
+
+
+def test_a_started_process_whose_pid_line_fails_is_reported_started(tmp_path, monkeypatch, caplog):
+    _failing_on("pid=", monkeypatch)
+    with caplog.at_level(logging.WARNING):
+        found = launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=Starts())
+    assert found.started
+    assert found.pid == 4242
+    assert "launch pid=4242 unrecorded error=PermissionError" in caplog.text
+    folder = tmp_path / "e1-4"
+    assert sorted(path.name for path in folder.iterdir()) == [
+        "launch.log",
+        "scores.csv",
+        "scores.log",
+    ]
+
+
+def test_an_error_line_that_cannot_be_written_is_warned_and_the_folder_freed(
+    tmp_path, monkeypatch, caplog
+):
+    def missing(command, out, err):
+        raise FileNotFoundError(2, "No such file or directory", command[0])
+
+    _failing_on("error=", monkeypatch)
+    with caplog.at_level(logging.WARNING), pytest.raises(EvaluationError, match="could not start"):
+        launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=missing)
+    assert "launch error unrecorded error=PermissionError" in caplog.text
+    folder = tmp_path / "e1-4"
+    assert sorted(path.name for path in folder.iterdir()) == ["launch.log"]
 
 
 def test_a_launch_log_that_cannot_be_written_leaves_the_folder_free(tmp_path, monkeypatch):
@@ -167,16 +208,15 @@ def test_a_claim_that_fails_otherwise_removes_what_it_made(tmp_path, monkeypatch
     assert start.commands == []
 
 
-def test_a_data_root_that_reads_as_an_option_is_refused_before_the_folder(tmp_path, caplog):
-    with pytest.raises(EvaluationError, match="reads as an option"):
-        launch(
-            "e1-4", "e1", root=tmp_path, data_dir=Path("-x"), power=lambda: False, start=Starts()
-        )
-    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
-    with caplog.at_level(logging.ERROR):
-        assert main(["launch", "e1-4", "--data-dir=-x"], context=context) == 2
-    assert "reads as an option" in caplog.text
-    assert not (tmp_path / "e1-4").exists()
+def test_a_data_root_is_forwarded_absolute_so_a_leading_dash_never_reads_as_an_option(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    start = Starts()
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
+    assert main(["launch", "e1-4", "--data-dir=-x"], context=context, out=io.StringIO()) == 0
+    (command,) = start.commands
+    assert command[command.index("--data-dir") + 1] == str(tmp_path / "-x")
 
 
 def _stopped(

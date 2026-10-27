@@ -9,17 +9,18 @@ folder's `scores.csv` and `scores.log`, with the call log and the candidates fil
 records what it checked and ran in `launch.log`, and prints the command that watches the folder.
 A rehearsal (`score --rehearse`, `bko.evaluate.rehearse`) launches the same way into the
 `rehearsal` folder inside the run's folder, which leaves the run's own folder free for the run.
-It creates the two output files exclusively before it starts
-the process, so two launches into one folder cannot both start, and removes them if the process
-cannot start or `launch.log` cannot be written, so a failed launch leaves the folder free;
-`launch.log` is appended to, so a failed launch's `error=` line survives a retry. A dry run writes
-`launch.log` and starts nothing. A resume (`score --resume`) launches into a new folder with the
-same checks, and refuses a stopped log inside that folder.
+It creates the two output files exclusively before it starts the process, so two launches into one
+folder cannot both start, and removes them if the process cannot start or `launch.log` cannot be
+written, so a failed launch leaves the folder free. A failed claim writes nothing. A process that
+cannot start leaves an `error=<type>: <message>` line in `launch.log`, which is appended to, so the
+line survives a retry; a started process whose `pid=` line cannot be written is still reported
+started, with a WARNING. A dry run writes `launch.log` and starts nothing. A resume
+(`score --resume`) launches into a new folder with the same checks, and refuses a stopped log
+inside that folder. The data root and the stopped log are forwarded as absolute paths.
 """
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
@@ -127,7 +128,7 @@ def launch(  # ruff: ignore[too-many-arguments]
         run: The named run `score` takes: its entry, `<entry>` or `<entry>-<word>`, is the run
             id's.
         root: The run folders' root.
-        data_dir: The data root `score` reads, or its default.
+        data_dir: The data root `score` reads, forwarded as an absolute path, or its default.
         dry_run: Write the folder's roles and the log, and start nothing.
         rehearse: Rehearse the run on canned replies, into `root/<run_id>/rehearsal`.
         resume: The call log of a stopped run to resume, or None for a new run.
@@ -137,15 +138,17 @@ def launch(  # ruff: ignore[too-many-arguments]
         now: The clock the log's line reads.
 
     Raises:
-        EvaluationError: If `run_id` is not a run id of record of `run`'s entry, `data_dir`
-            reads as an option, `rehearse` is given with `resume`, `resume` is not a file or lies
-            inside the folder, the machine reports battery power, or on macOS its power cannot
-            be read, the folder already holds the call log, the scores, their log or the
-            candidates file, the output files cannot be claimed, or the process cannot start.
-        OSError: If `launch.log` cannot be written; the claimed files are removed first.
+        EvaluationError: If `run_id` is not a run id of record of `run`'s entry, `rehearse` is
+            given with `resume`, `resume` is not a file or lies inside the folder, the machine
+            reports battery power, or on macOS its power cannot be read, the folder already holds
+            the call log, the scores, their log or the candidates file, the output files cannot
+            be claimed, or the process cannot start.
+        OSError: If `launch.log`'s first lines cannot be written; the claimed files are removed
+            first. A failure to write the `pid=` line after the process started is logged as a
+            WARNING instead, and the launch is reported started.
     """
     folder = root / run_id / REHEARSAL if rehearse else root / run_id
-    _refuse_arguments(run_id, run, folder, data_dir=data_dir, rehearse=rehearse, resume=resume)
+    _refuse_arguments(run_id, run, folder, rehearse=rehearse, resume=resume)
     battery = _mains(power, platform)
     taken = [name for name in TAKEN if (folder / name).exists()]
     if taken:
@@ -164,7 +167,7 @@ def launch(  # ruff: ignore[too-many-arguments]
         str(folder / "calls.jsonl"),
         "--candidates",
         str(folder / "holdout-candidates.jsonl"),
-        *(["--data-dir", str(data_dir)] if data_dir is not None else []),
+        *(["--data-dir", str(data_dir.absolute())] if data_dir is not None else []),
         *(["--rehearse"] if rehearse else []),
     )
     folder.mkdir(parents=True, exist_ok=True)
@@ -173,7 +176,8 @@ def launch(  # ruff: ignore[too-many-arguments]
     lines = [
         (
             f"launched {now().strftime('%Y-%m-%dT%H:%M:%SZ')} run={run} dry_run={dry_run} "
-            f"rehearse={str(rehearse).lower()} resume={resume.absolute() if resume else 'none'}"
+            f"rehearse={str(rehearse).lower()} "
+            f"resume={resume.absolute() if resume is not None else 'none'}"
         ),
         f"power={reading}",
         f"awake={'caffeinate' if awake else 'none'}",
@@ -187,7 +191,10 @@ def launch(  # ruff: ignore[too-many-arguments]
         _release(claimed)
         raise
     pid = None if dry_run else _start(start, command, claimed, record)
-    _append(record, [f"pid={pid}"])
+    try:
+        _append(record, [f"pid={pid}"])
+    except OSError as exc:
+        logger.warning("launch pid=%s unrecorded error=%s: %s", pid, type(exc).__name__, exc)
     watch = f"tail -f {shlex.quote(str(err))}"
     logger.info("launch folder=%s power=%s dry_run=%s pid=%s", folder, reading, dry_run, pid)
     return Launch(folder, command, watch, started=not dry_run, pid=pid)
@@ -198,7 +205,6 @@ def _refuse_arguments(
     run: str,
     folder: Path,
     *,
-    data_dir: Path | None,
     rehearse: bool,
     resume: Path | None,
 ) -> None:
@@ -216,9 +222,6 @@ def _refuse_arguments(
         raise EvaluationError(msg)
     if rehearse and resume is not None:
         msg = "a rehearsal answers every call with canned replies, so it resumes nothing"
-        raise EvaluationError(msg)
-    if data_dir is not None and str(data_dir).startswith("-"):
-        msg = f"the data root {str(data_dir)!r} reads as an option; name it ./{data_dir}"
         raise EvaluationError(msg)
     if resume is not None and not resume.is_file():
         msg = f"the resume source {resume} is not a file"
@@ -249,17 +252,24 @@ def _mains(power: Power, platform: str) -> bool | None:
 def _start(start: Spawn, command: Sequence[str], claimed: Sequence[Path], record: Path) -> int:
     """Start `command` with its output in the claimed files; release them if it fails.
 
+    A failure writes `error=<type>: <message>` to the launch log first, then removes the claimed
+    files; a launch log that cannot take that line is logged as a WARNING.
+
     Raises:
         EvaluationError: If the process cannot start, an `OSError`; any other failure propagates.
-            Either way the launch log gets its `error=` line.
     """
     out, err = claimed
     try:
         return start(command, out, err)
     except BaseException as exc:
+        reason = " ".join(str(exc).split())
+        try:
+            _append(record, [f"error={type(exc).__name__}: {reason}"])
+        except OSError as unwritten:
+            logger.warning(
+                "launch error unrecorded error=%s: %s", type(unwritten).__name__, unwritten
+            )
         _release(claimed)
-        with contextlib.suppress(OSError):
-            _append(record, [f"error={type(exc).__name__}"])
         if not isinstance(exc, OSError):
             raise
         msg = f"{command[0]} could not start: {exc}"
