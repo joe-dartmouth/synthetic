@@ -4,6 +4,7 @@ boosting model that no seed or thread count moves."""
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.base import BaseEstimator, ClassifierMixin
 from threadpoolctl import threadpool_info, threadpool_limits
@@ -139,11 +140,18 @@ def test_weights_reach_the_boosting_model():
 
 
 def test_the_boosting_model_scores_the_same_on_four_threads_as_on_one():
+    """Determinism only: `test_probabilities_fits_and_predicts_on_one_openmp_thread` guards the
+    limit. The training rows are `TRAIN` 20 times, measured fields jittered, so each histogram
+    pass has thousands of rows to split among the threads."""
     features = list(UCI_FRAME.features)
+    numeric = list(UCI_FRAME.numeric)
+    rng = np.random.default_rng(0)
+    many = pd.concat([TRAIN] * 20, ignore_index=True)
+    many[numeric] += rng.normal(0.0, 0.5, size=(len(many), len(numeric)))
 
     def fitted(threads):
         with threadpool_limits(limits=threads, user_api="openmp"):
-            pipeline = build_hgb().fit(TRAIN.loc[:, features], TRAIN[UCI_FRAME.label])
+            pipeline = build_hgb().fit(many.loc[:, features], many[UCI_FRAME.label])
             return pipeline.predict_proba(GRADED.loc[:, features])
 
     np.testing.assert_array_equal(fitted(4), fitted(1))
@@ -178,3 +186,12 @@ def test_probabilities_fits_and_predicts_on_one_openmp_thread():
     assert spy.fit_threads_
     assert spy.fit_threads_ == [1] * len(spy.fit_threads_)
     assert spy.predict_threads_ == [1] * len(spy.predict_threads_)
+
+
+def test_boosting_probabilities_are_pinned():
+    probability = probabilities(TRAIN.assign(weight=1.0), GRADED, factory=build_hgb)
+    np.testing.assert_allclose(
+        probability.to_numpy()[[3, 21, 33, 45]],
+        [0.29854498130049056, 0.9832056845220146, 0.02037211227150123, 0.9018548910132792],
+        rtol=1e-12,
+    )

@@ -30,6 +30,8 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.evaluate.classifier import build
+from bko.evaluate.criteria import BOOSTED
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
@@ -145,6 +147,20 @@ def test_a_method_fill_calls_no_api_and_keeps_its_run_folder(tmp_path):
     training = (outcome.folder / "training.csv").read_text(encoding="utf-8")
     assert training == training_csv(analysis, outcome)
     assert {score.arm for score in outcome.scores} == {"none", "smote"}
+
+
+def test_the_app_scores_with_the_contexts_regression_only(tmp_path):
+    built = []
+
+    def factory(frame):
+        built.append(frame)
+        return build(frame)
+
+    context, _ = app_context(tmp_path, send=never, factory=factory)
+    outcome = fill_and_score(analyze(context), "smote", context)
+    assert built
+    assert not {s.measure for s in outcome.scores} & set(BOOSTED)
+    assert Measure.RECALL in {s.measure for s in outcome.scores}
 
 
 def test_a_context_missing_a_method_runner_is_refused_before_any_call(tmp_path):
