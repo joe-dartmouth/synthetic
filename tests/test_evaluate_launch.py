@@ -6,9 +6,11 @@ import dataclasses
 import io
 import logging
 import os
+import pathlib
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -117,6 +119,136 @@ def test_a_process_that_cannot_start_leaves_the_folder_free_and_records_why(tmp_
     assert sorted(path.name for path in folder.iterdir()) == ["launch.log"]
     assert "error=FileNotFoundError" in (folder / "launch.log").read_text(encoding="utf-8")
     assert launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=Starts()).started
+    log = (folder / "launch.log").read_text(encoding="utf-8")
+    assert "error=FileNotFoundError\n" in log
+    assert log.count("launched ") == 2
+    assert log.endswith("pid=4242\n")
+
+
+def test_a_start_that_fails_otherwise_also_leaves_the_folder_free(tmp_path):
+    def broken(command, out, err):
+        raise RuntimeError
+
+    with pytest.raises(RuntimeError):
+        launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=broken)
+    folder = tmp_path / "e1-4"
+    assert sorted(path.name for path in folder.iterdir()) == ["launch.log"]
+    assert "error=RuntimeError" in (folder / "launch.log").read_text(encoding="utf-8")
+
+
+def test_a_launch_log_that_cannot_be_written_leaves_the_folder_free(tmp_path, monkeypatch):
+    def unwritable(record, lines):
+        raise PermissionError(13, "Permission denied", str(record))
+
+    monkeypatch.setattr(launching, "_append", unwritable)
+    start = Starts()
+    with pytest.raises(PermissionError):
+        launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=start)
+    assert list((tmp_path / "e1-4").iterdir()) == []
+    assert start.commands == []
+
+
+def test_a_claim_that_fails_otherwise_removes_what_it_made(tmp_path, monkeypatch):
+    opening = pathlib.Path.open
+
+    def refusing(self, *args, **kwargs):
+        if self.name == "scores.log":
+            raise PermissionError(13, "Permission denied", str(self))
+        return opening(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "open", refusing)
+    start = Starts()
+    with pytest.raises(EvaluationError, match="could not claim"):
+        launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=start)
+    assert list((tmp_path / "e1-4").iterdir()) == []
+    assert start.commands == []
+
+
+def test_a_data_root_that_reads_as_an_option_is_refused_before_the_folder(tmp_path, caplog):
+    with pytest.raises(EvaluationError, match="reads as an option"):
+        launch(
+            "e1-4", "e1", root=tmp_path, data_dir=Path("-x"), power=lambda: False, start=Starts()
+        )
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
+    with caplog.at_level(logging.ERROR):
+        assert main(["launch", "e1-4", "--data-dir=-x"], context=context) == 2
+    assert "reads as an option" in caplog.text
+    assert not (tmp_path / "e1-4").exists()
+
+
+def _stopped(tmp_path: Path) -> Path:
+    source = tmp_path / "g3-1" / "calls.jsonl"
+    source.parent.mkdir()
+    source.write_text("{}\n", encoding="utf-8")
+    return source
+
+
+def test_a_resume_starts_score_on_the_stopped_log_into_a_new_folder(tmp_path):
+    source = _stopped(tmp_path)
+    context = named(tmp_path, {**RUNS, "g3-cell": NamedRun(E1)})
+    argv = ["launch", "g3-6", "g3-cell", "--resume", str(source)]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    folder = tmp_path / "g3-6"
+    (command,) = context.start.commands
+    assert command[-8:] == (
+        "score",
+        "g3-cell",
+        "--resume",
+        str(source.absolute()),
+        "--log",
+        str(folder / "calls.jsonl"),
+        "--candidates",
+        str(folder / "holdout-candidates.jsonl"),
+    )
+    log = (folder / "launch.log").read_text(encoding="utf-8")
+    assert f"resume={source.absolute()}" in log
+
+
+def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
+    source = tmp_path / "g3-6" / "old.jsonl"
+    source.parent.mkdir()
+    source.write_text("{}\n", encoding="utf-8")
+    start = Starts()
+    with pytest.raises(EvaluationError, match="inside"):
+        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=start)
+    assert sorted(path.name for path in source.parent.iterdir()) == ["old.jsonl"]
+    assert start.commands == []
+
+
+def test_a_resume_source_that_is_not_a_file_is_refused(tmp_path):
+    start = Starts()
+    with pytest.raises(EvaluationError, match="not a file"):
+        launch(
+            "g3-6",
+            "g3",
+            root=tmp_path,
+            resume=tmp_path / "missing.jsonl",
+            power=lambda: False,
+            start=start,
+        )
+    assert not (tmp_path / "g3-6").exists()
+
+
+def test_a_resume_keeps_the_power_and_folder_checks(tmp_path):
+    source = _stopped(tmp_path)
+    with pytest.raises(EvaluationError, match="battery power"):
+        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: True, start=Starts())
+    (tmp_path / "g3-6").mkdir()
+    (tmp_path / "g3-6" / "calls.jsonl").write_text("x", encoding="utf-8")
+    with pytest.raises(EvaluationError, match="already holds"):
+        launch("g3-6", "g3", root=tmp_path, resume=source, power=lambda: False, start=Starts())
+
+
+def test_rehearse_and_resume_are_exclusive(tmp_path):
+    source = _stopped(tmp_path)
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
+    with pytest.raises(SystemExit) as exited:
+        main(["launch", "e1-4", "--rehearse", "--resume", str(source)], context=context)
+    assert exited.value.code == 2
+    assert not (tmp_path / "e1-4").exists()
+    with pytest.raises(EvaluationError, match="resumes nothing"):
+        launch("e1-4", "e1", root=tmp_path, rehearse=True, resume=source, power=lambda: False)
+    assert not (tmp_path / "e1-4").exists()
 
 
 def test_a_launch_that_loses_the_folder_to_another_starts_nothing(tmp_path, monkeypatch):

@@ -8,7 +8,8 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
-the run id's entry, and `--rehearse` starts its rehearsal instead.
+the run id's entry; `--rehearse` starts its rehearsal instead, and `--resume STOPPED` resumes a
+stopped run into the new folder.
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH --candidates FILE` spends money: the BKO arms call the Messages API, every call
@@ -186,6 +187,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
+        resume=args.resume,
         power=context.power,
         start=context.start,
     )
@@ -385,10 +387,17 @@ def _parser() -> argparse.ArgumentParser:
     launching.add_argument(
         "--dry-run", action="store_true", help="write the folder's roles and start nothing"
     )
-    launching.add_argument(
+    instead = launching.add_mutually_exclusive_group()
+    instead.add_argument(
         "--rehearse",
         action="store_true",
         help="rehearse the run on canned replies, into the rehearsal folder inside its folder",
+    )
+    instead.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="resume the stopped run whose call log this is, into the run id's new folder",
     )
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
