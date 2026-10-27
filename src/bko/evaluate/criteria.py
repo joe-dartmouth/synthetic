@@ -4,7 +4,8 @@ Every contrast pairs the candidate's score with a reference score of the same ho
 is Nadeau and Bengio's corrected resampled t: the variance of the mean is (1/J + n2/n1) S^2, since
 the J holdouts overlap. A criterion is met when every interval it reads lies above zero, not met
 when one lies below zero at the family-wise level (each of its k intervals read at confidence
-1 - (1 - c)/k), and inconclusive otherwise (ADR `research/e1-evaluation-protocol`).
+1 - (1 - c)/k), and inconclusive otherwise (ADR `research/e1-evaluation-protocol`). The boosting
+model's contrasts are read the same way and reported with no verdict (`reported_contrasts`).
 """
 
 from __future__ import annotations
@@ -26,6 +27,9 @@ from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 
 JUDGED: Final = (Measure.RECALL, Measure.AUC_PR)
 """The measures the separation criteria judge."""
+
+BOOSTED: Final = (Measure.RECALL_HGB, Measure.AUC_PR_HGB)
+"""The boosting model's measures, read by `reported_contrasts` as the criteria read `JUDGED`."""
 
 CRITERIA: Final = (("primary", Scope.ALL), ("secondary", Scope.FLAGGED))
 """Each separation criterion and the test records it judges."""
@@ -102,6 +106,29 @@ class Contrast:
     criterion: str
     scope: Scope
     verdict: Verdict
+    arm: str
+    against: str
+    measure: Measure
+    interval: Interval
+    differing: int
+
+
+@dataclass(frozen=True, slots=True)
+class Reported:
+    """One interval read as a criterion reads it, for a measure no criterion judges.
+
+    Attributes:
+        criterion: The criterion whose reading it follows.
+        scope: The test records the contrast covers.
+        arm: The candidate.
+        against: The reference arm.
+        measure: The measure contrasted.
+        interval: The contrast's interval, its family the criterion's.
+        differing: The holdouts where the two scores differ.
+    """
+
+    criterion: str
+    scope: Scope
     arm: str
     against: str
     measure: Measure
@@ -194,18 +221,10 @@ def judge(
     for name, scope in CRITERIA:
         if name not in experiment.criteria:
             continue
-        pairs = [
-            (
-                Key(arm, Source.AUGMENTED, measure, scope),
-                Key(other, Source.AUGMENTED, measure, scope),
-            )
-            for measure in JUDGED
-            for other in others
-        ]
         contrasts += _criterion(
             name,
             scope,
-            pairs,
+            _separation(arm, others, JUDGED, scope),
             series,
             holdouts=set(holdouts),
             ratio=ratio,
@@ -235,6 +254,52 @@ def judge(
     return contrasts
 
 
+def reported_contrasts(
+    scores: Sequence[Score],
+    experiment: Experiment,
+    *,
+    candidate: str | None = None,
+    measures: Sequence[Measure] = BOOSTED,
+) -> list[Reported]:
+    """Each separation criterion's contrasts of `measures`, read as it reads `JUDGED`'s.
+
+    Each criterion the experiment holds gets its intervals of `measures` at its own family size,
+    margin and confidence, with no verdict. Scores that hold no augmented row of the candidate's
+    in `measures` give none.
+
+    Raises:
+        EvaluationError: As `judge`, for a series of `measures` it reads.
+    """
+    arm = experiment.candidate if candidate is None else candidate
+    if not any(
+        s.arm == arm and s.source is Source.AUGMENTED and s.measure in measures for s in scores
+    ):
+        return []
+    holdouts = set(experiment.holdout_seeds)
+    others = [name for name in experiment.comparators if name != arm]
+    series = series_of(scores)
+    ratio = held_out_ratio_of(series)
+    found: list[Reported] = []
+    for name, scope in CRITERIA:
+        if name not in experiment.criteria:
+            continue
+        pairs = _separation(arm, others, measures, scope)
+        paired, intervals = _intervals(
+            pairs,
+            series,
+            holdouts=holdouts,
+            ratio=ratio,
+            factor=1.0,
+            margin=experiment.margin,
+            confidence=experiment.confidence,
+        )
+        found += [
+            Reported(name, scope, left.arm, right.arm, left.measure, interval, _differing(*both))
+            for (left, right), interval, both in zip(pairs, intervals, paired, strict=True)
+        ]
+    return found
+
+
 def table(contrasts: Sequence[Contrast]) -> str:
     """Write `contrasts` as the contrasts CSV, in the order given."""
     rows = [
@@ -259,6 +324,17 @@ def table(contrasts: Sequence[Contrast]) -> str:
     )
 
 
+def _separation(
+    arm: str, others: Sequence[str], measures: Sequence[Measure], scope: Scope
+) -> list[tuple[Key, Key]]:
+    """The candidate's augmented series of each measure in `scope` against each comparator's."""
+    return [
+        (Key(arm, Source.AUGMENTED, measure, scope), Key(other, Source.AUGMENTED, measure, scope))
+        for measure in measures
+        for other in others
+    ]
+
+
 def _criterion(
     name: str,
     scope: Scope,
@@ -271,6 +347,35 @@ def _criterion(
     margin: float,
     confidence: float,
 ) -> list[Contrast]:
+    paired, intervals = _intervals(
+        pairs,
+        series,
+        holdouts=holdouts,
+        ratio=ratio,
+        factor=factor,
+        margin=margin,
+        confidence=confidence,
+    )
+    outcome = verdict(intervals)
+    return [
+        Contrast(
+            name, scope, outcome, left.arm, right.arm, left.measure, interval, _differing(*both)
+        )
+        for (left, right), interval, both in zip(pairs, intervals, paired, strict=True)
+    ]
+
+
+def _intervals(
+    pairs: Sequence[tuple[Key, Key]],
+    series: dict[Key, dict[int, float]],
+    *,
+    holdouts: set[int],
+    ratio: float,
+    factor: float,
+    margin: float,
+    confidence: float,
+) -> tuple[list[tuple[list[float], list[float]]], list[Interval]]:
+    """Each pair's scores by holdout and its interval, the family being every pair."""
     paired = [_paired(series, left, right, holdouts) for left, right in pairs]
     intervals = [
         corrected_interval(
@@ -281,20 +386,11 @@ def _criterion(
         )
         for ours, theirs in paired
     ]
-    outcome = verdict(intervals)
-    return [
-        Contrast(
-            name,
-            scope,
-            outcome,
-            left.arm,
-            right.arm,
-            left.measure,
-            interval,
-            sum(a != b for a, b in zip(ours, theirs, strict=True)),
-        )
-        for (left, right), interval, (ours, theirs) in zip(pairs, intervals, paired, strict=True)
-    ]
+    return paired, intervals
+
+
+def _differing(ours: Sequence[float], theirs: Sequence[float]) -> int:
+    return sum(a != b for a, b in zip(ours, theirs, strict=True))
 
 
 def _paired(

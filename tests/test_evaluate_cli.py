@@ -101,6 +101,39 @@ def test_compare_refuses_scores_from_other_holdouts_than_e1s(scores_file):
     assert out.getvalue() == ""
 
 
+CONTRAST_LINE = re.compile(
+    r"contrast model=hgb criterion=(primary|secondary) scope=(all|flagged-subgroups) arm=tvae "
+    r"against=\S+ measure=(recall-hgb|auc-pr-hgb) mean=-?\d+\.\d{6} low=-?\d+\.\d{6} "
+    r"high=-?\d+\.\d{6} refuting_high=-?\d+\.\d{6} holdouts=2 differing=\d+$"
+)
+
+
+def _compared(path, caplog):
+    out = io.StringIO()
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        argv = ["compare", str(path), "--candidate", "tvae"]
+        assert main(argv, context=Context(experiment=SMALL), out=out) == 0
+    return out.getvalue(), [record.getMessage() for record in caplog.records]
+
+
+def test_compare_logs_the_boosting_contrasts_only_when_the_scores_hold_them(
+    scores_file, tmp_path, caplog
+):
+    table, lines = _compared(scores_file, caplog)
+    contrasts = [line for line in lines if line.startswith("contrast ")]
+    assert len(contrasts) == 2 * 2 * (len(SMALL.comparators) - 1)
+    assert all(CONTRAST_LINE.match(line) for line in contrasts)
+    assert any(line.startswith("mean arm=tvae measure=auc-pr-hgb scope=all") for line in lines)
+    stripped = tmp_path / "stripped.csv"
+    text = scores_file.read_text(encoding="utf-8")
+    kept = [line for line in text.splitlines(keepends=True) if "-hgb," not in line]
+    stripped.write_text("".join(kept), encoding="utf-8")
+    alone, lines = _compared(stripped, caplog)
+    assert alone == table
+    assert not [line for line in lines if line.startswith("contrast ") or "-hgb" in line]
+
+
 def test_a_scores_file_that_is_not_utf8_exits_three(tmp_path):
     path = tmp_path / "scores.csv"
     path.write_bytes(b"\xff\xfe")

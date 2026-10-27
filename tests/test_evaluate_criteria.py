@@ -10,12 +10,14 @@ import pandas as pd
 import pytest
 
 from bko.evaluate.criteria import (
+    BOOSTED,
     CONTRAST_COLUMNS,
     Interval,
     Verdict,
     corrected_interval,
     judge,
     refuting_confidence,
+    reported_contrasts,
     table,
     verdict,
 )
@@ -284,3 +286,46 @@ def test_a_series_missing_a_holdout_on_both_sides_is_refused():
     rows = [score for score in scored([0.05] * 4) if kept(score)]
     with pytest.raises(EvaluationError, match="different holdouts"):
         judge(rows, EXPERIMENT)
+
+
+def boosted(gain, boost):
+    rows = scored(gain)
+    for measure in BOOSTED:
+        for scope in Scope:
+            rows += series("none", Source.AUGMENTED, measure, scope, [0.5] * 4)
+            rows += series("bko", Source.AUGMENTED, measure, scope, [0.5 + g for g in boost])
+    return rows
+
+
+@pytest.mark.parametrize("boost", [[0.3] * 4, [-0.3] * 4, [0.0, 0.2, -0.2, 0.1]])
+def test_the_boosting_rows_leave_every_verdict_and_the_table_unchanged(boost):
+    gain = [0.0, 0.05, 0.0, 0.05]
+    alone = judge(scored(gain), EXPERIMENT)
+    both = judge(boosted(gain, boost), EXPERIMENT)
+    assert both == alone
+    assert table(both) == table(alone)
+
+
+def test_the_boosting_contrasts_are_read_as_the_criteria_read_the_regressions():
+    gain = [0.05, 0.06, 0.05, 0.06]
+    contrasts = judge(scored(gain), EXPERIMENT)
+    readings = reported_contrasts(boosted(gain, gain), EXPERIMENT)
+    assert [(r.criterion, r.scope, r.measure) for r in readings] == [
+        ("primary", Scope.ALL, Measure.RECALL_HGB),
+        ("primary", Scope.ALL, Measure.AUC_PR_HGB),
+        ("secondary", Scope.FLAGGED, Measure.RECALL_HGB),
+        ("secondary", Scope.FLAGGED, Measure.AUC_PR_HGB),
+    ]
+    assert {(r.arm, r.against) for r in readings} == {("bko", "none")}
+    assert [r.interval for r in readings] == [c.interval for c in contrasts[:4]]
+    assert [r.differing for r in readings] == [4] * 4
+
+
+def test_no_boosting_rows_give_no_boosting_contrasts():
+    assert reported_contrasts(scored([0.05, 0.06, 0.05, 0.06]), EXPERIMENT) == []
+
+
+def test_the_boosting_contrasts_follow_the_criteria_the_experiment_holds():
+    gain = [0.05, 0.06, 0.05, 0.06]
+    primary = dataclasses.replace(EXPERIMENT, criteria=("primary",))
+    assert {r.criterion for r in reported_contrasts(boosted(gain, gain), primary)} == {"primary"}
