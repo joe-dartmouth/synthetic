@@ -95,10 +95,11 @@ record draw at the label group. Closure is recorded rather than read into fields
 ontology fragments carry no prior: forcing an ancestor's row would assert values no share
 supports.
 
-Planning measurements of 2026-10-26, from a planning script that was not kept: 100% validity and 0
-drops over E1 holdouts 0 to 29, with no attempt refused; 0 test copies; replica quality, column
-shapes and column pairs 0.931, 0.968 and 0.894 over 10 holdouts; privacy margin mean +0.041.
-[EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb) holds the runs of record.
+Run `g2-2` over E1's 100 holdouts
+([EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb), G2) measured validity
+1.0000 with 0 drops and no attempt refused; 0 test copies; replica quality, column shapes and
+column pair trends 0.9295, 0.9681 and 0.8910; and a privacy margin of +0.0375 [0.0154, 0.0597],
+added rows sitting closer to the training rows than `bko`'s.
 
 ## Consequences
 
