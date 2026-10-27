@@ -51,3 +51,17 @@ links to where its blocker is tracked.
   **What discharges it:** `score` records a per-holdout fingerprint of the flagged cells, and
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
+
+## gaps
+
+- **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
+  traceback.** `bko.gaps.__main__.main` catches `DatasetError` and `OSError` only, so a
+  `bko.bkb.errors.BKBError` (`QueryError`, `FusionError`) raised while grounding exits 1 with a
+  traceback instead of a logged refusal. Evidence: `main`'s only handlers are `except DatasetError`
+  and `except OSError`, and `QueryError` and `FusionError` subclass `BKBError`, which subclasses
+  `Exception` alone (`src/bko/bkb/errors.py`). Whether the current mappings can raise it is
+  unverified. *Filed 2026-10-26 by the review of PR #41.*
+  **Why deferred.** It predates the change that found it and takes the same path in `synthea` and
+  `uci` as in `first-flag`, so it lies outside that change.
+  **What discharges it:** `main` maps `BKBError` to a logged refusal with a documented exit code.
+  **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
