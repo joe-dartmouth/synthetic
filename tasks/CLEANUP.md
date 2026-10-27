@@ -95,6 +95,20 @@ links to where its blocker is tracked.
   **Trigger:** the first non-UCI frame that runs `score` or `generate`
   (`evaluate-synthea-downstream`).
 
+- **`cleanup:evaluate/concurrent-run-log-identity`: concurrent runs' logs name neither run nor
+  level, and a retry storm leaves no line until the run ends.** `bko.evaluate.compare`'s `beside arm=`
+  lines and `bko.generate.log`'s `run status=` line carry no `run=` or `level=` field (their
+  format strings in those modules), so the logs of G3's five concurrent runs are told apart only by their files.
+  `retried` (calls the SDK retried over HTTP) is written only when the run ends, in the call log's
+  `end` line and that closing `run status=` line, so a rate-limit storm that trips the idle rule
+  leaves no line saying why. *Filed 2026-10-27 by the review of PR #44.*
+  **Why deferred.** It changes log bytes in `bko.generate.log` and `bko.evaluate.compare`, outside
+  PR #44's named runs, and each G3 run writes its own folder.
+  **What discharges it:** `run=` and `level=` on the `run status=` and `compare` lines, and a
+  per-retry line or a per-call `retried=` count.
+  **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`, or an idle stop
+  during G3.
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
