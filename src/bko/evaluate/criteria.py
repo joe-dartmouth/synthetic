@@ -188,8 +188,8 @@ def judge(
     if not others:
         msg = f"the candidate {arm!r} has no comparator"
         raise EvaluationError(msg)
-    series = _series(scores)
-    ratio = _ratio(series)
+    series = series_of(scores)
+    ratio = held_out_ratio_of(series)
     contrasts: list[Contrast] = []
     for name, scope in CRITERIA:
         if name not in experiment.criteria:
@@ -313,7 +313,8 @@ def _paired(
     return [ours[holdout] for holdout in order], [theirs[holdout] for holdout in order]
 
 
-def _series(scores: Sequence[Score]) -> dict[Key, dict[int, float]]:
+def series_of(scores: Sequence[Score]) -> dict[Key, dict[int, float]]:
+    """Each key's score by holdout."""
     found: dict[Key, dict[int, float]] = {}
     for score in scores:
         key = Key(score.arm, score.source, score.measure, score.scope)
@@ -321,7 +322,12 @@ def _series(scores: Sequence[Score]) -> dict[Key, dict[int, float]]:
     return found
 
 
-def _ratio(series: dict[Key, dict[int, float]]) -> float:
+def held_out_ratio_of(series: dict[Key, dict[int, float]]) -> float:
+    """The largest held-out ratio of `series`.
+
+    Raises:
+        EvaluationError: If `series` holds no held-out ratio.
+    """
     ratios = series.get(Key(HELD_OUT_ARM, Source.HELD_OUT, Measure.HELD_OUT_RATIO, Scope.ALL))
     if not ratios:
         msg = "the scores hold no held-out ratio"

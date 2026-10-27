@@ -27,16 +27,12 @@ from __future__ import annotations
 import argparse
 import errno
 import hashlib
-import importlib.metadata
-import json
 import logging
-import platform
-import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Final, TextIO
+from typing import TextIO
 
 import pandas as pd
 
@@ -50,17 +46,14 @@ from bko.datasets.run_folders import runs_root
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.uci import load_uci
 from bko.evaluate.classifier import Factory, build
-from bko.evaluate.criteria import JUDGED, judge, table
-from bko.evaluate.errors import EvaluationError, ScoresFormatError
+from bko.evaluate.compare import compare
+from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN, E1, RUNS, Experiment, NamedRun
-from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
-from bko.evaluate.logs import log_copies, log_means
+from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import ARMS, run
-from bko.evaluate.scores import Score, parse, render
-from bko.evaluate.scores import Source as ScoreSource
-from bko.evaluate.validity import Validity, reported, validity, verdict
+from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS, default_send
 from bko.generate.errors import GenerationError
@@ -71,20 +64,6 @@ from bko.ontology.schema import FieldMapping
 
 
 logger = logging.getLogger("bko.evaluate")
-
-VERSIONED: Final = (
-    "numpy",
-    "pandas",
-    "scipy",
-    "scikit-learn",
-    "imbalanced-learn",
-    "sdv",
-    "sdmetrics",
-    "torch",
-    "anthropic",
-    "pronto",
-)
-"""The distributions whose installed versions a `score` run logs."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +129,7 @@ def main(
             sink.write(_launch(args, context))
             return 0
         if args.command == "compare":
-            _compare(args, _named(args.run, context), sink)
+            compare(_named(args.run, context).experiment, args.candidate, args.scores, sink)
             return 0
         text = _score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
@@ -238,7 +217,7 @@ def _score(args: argparse.Namespace, context: Context) -> str:
     data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
     ensure(context.uci, data_dir, open_url=context.open_url)
     frame = load_uci(data_dir, source=context.uci)
-    _log_experiment(args.run, experiment)
+    log_experiment(args.run, experiment)
     if guided:
         scores = _guided(args, data_dir, frame, guided, context, answers)
     else:
@@ -263,26 +242,6 @@ def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
         resume.answered.calls,
     )
     return resume
-
-
-def _log_experiment(name: str, experiment: Experiment) -> None:
-    logger.info(
-        "experiment run=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
-        "spend_ceiling=%.2f criteria=%s",
-        name,
-        len(experiment.holdout_seeds),
-        ",".join(experiment.arms),
-        ",".join(experiment.replica_arms),
-        experiment.fill_to,
-        experiment.budget,
-        experiment.validity,
-        experiment.spend_ceiling,
-        ",".join(experiment.criteria) or "none",
-    )
-    commit, dirty = _commit()
-    logger.info(
-        "versions commit=%s dirty=%s %s", commit, dirty, json.dumps(_versions(), sort_keys=True)
-    )
 
 
 def _guided(
@@ -323,97 +282,6 @@ def _guided(
             drains={name: arm.drain for name, arm in paid.arms.items()},
             on_holdout=paid.watch.holdout_done,
         )
-
-
-def _compare(args: argparse.Namespace, context: Context, out: TextIO) -> None:
-    """Write the criteria's table to `out`, then log validity, copies, means and replica means.
-
-    The table goes out first, so scores whose validity cannot be read keep it.
-    """
-    data = args.scores.read_bytes()
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        msg = f"the scores are not UTF-8: {exc}"
-        raise ScoresFormatError(msg) from exc
-    candidate = context.experiment.candidate if args.candidate is None else args.candidate
-    logger.info(
-        "compare candidate=%s dry_run=%s scores_sha256=%s",
-        candidate,
-        candidate != context.experiment.candidate,
-        hashlib.sha256(data).hexdigest(),
-    )
-    scores = parse(text)
-    contrasts = judge(scores, context.experiment, candidate=candidate)
-    for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
-        outcome = next(c.verdict for c in contrasts if c.criterion == criterion)
-        logger.info("criterion=%s verdict=%s", criterion, outcome)
-    out.write(table(contrasts))
-    _log_validity(scores, context.experiment, candidate)
-    log_copies(scores)
-    log_means(scores)
-    log_means(scores, source=ScoreSource.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
-
-
-def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
-    """Judge the candidate's validity if it is a BKO arm, and log every other arm's counts.
-
-    Each arm's line is followed by its counts and rate per fill, with no verdict.
-    """
-    arms = reported(scores)
-    if candidate in BKO_ARMS or candidate in arms:
-        found = validity(scores, experiment, candidate)
-        if "validity" in experiment.criteria:
-            logger.info(
-                "criterion=validity verdict=%s %s", verdict(found, experiment), found.line()
-            )
-        else:
-            logger.info("validity %s", found.line())
-        _log_fills(found)
-    for arm in arms:
-        if arm != candidate:
-            found = validity(scores, experiment, arm)
-            logger.info("validity %s", found.line())
-            _log_fills(found)
-
-
-def _log_fills(found: Validity) -> None:
-    for line in found.fill_lines():
-        logger.info("candidates %s", line)
-
-
-def _commit() -> tuple[str, str]:
-    """The checkout's HEAD and whether its tree differs from it, or `unknown` for each."""
-    here = Path(__file__).parent
-    found: list[str] = []
-    for command in (["git", "rev-parse", "HEAD"], ["git", "status", "--porcelain"]):
-        try:
-            result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-                command,
-                cwd=here,
-                capture_output=True,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                timeout=30,
-                check=False,
-            )
-        except OSError, subprocess.TimeoutExpired:
-            return "unknown", "unknown"
-        if result.returncode != 0:
-            return "unknown", "unknown"
-        found.append(result.stdout.strip())
-    head, status = found
-    return head, "true" if status else "false"
-
-
-def _versions() -> dict[str, str]:
-    found = {"python": platform.python_version(), "platform": platform.platform()}
-    for name in VERSIONED:
-        try:
-            found[name] = importlib.metadata.version(name)
-        except importlib.metadata.PackageNotFoundError:
-            found[name] = "absent"
-    return found
 
 
 def _parser() -> argparse.ArgumentParser:

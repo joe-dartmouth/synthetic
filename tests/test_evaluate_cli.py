@@ -17,13 +17,13 @@ import pytest
 
 from bko.evaluate.__main__ import (
     Context,
-    _commit,
     configure_logging,
     main,
 )
 from bko.evaluate.criteria import CONTRAST_COLUMNS
 from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
 from bko.evaluate.logs import log_copies, log_means
+from bko.evaluate.provenance import commit
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
@@ -246,7 +246,7 @@ def test_the_commit_is_unknown_without_git(monkeypatch):
         raise FileNotFoundError("git")
 
     monkeypatch.setattr(subprocess, "run", absent)
-    assert _commit() == ("unknown", "unknown")
+    assert commit() == ("unknown", "unknown")
 
 
 def test_stderr_lines_carry_their_time():
