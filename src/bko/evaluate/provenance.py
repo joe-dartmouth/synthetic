@@ -20,6 +20,7 @@ VERSIONED: Final = (
     "pandas",
     "scipy",
     "scikit-learn",
+    "threadpoolctl",
     "imbalanced-learn",
     "sdv",
     "sdmetrics",
