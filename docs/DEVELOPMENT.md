@@ -619,7 +619,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
   always writes null), `rehearsal` (false: generate never rehearses), `stop` (null: generate has no
-  stop rule) and totals, `live_usd` among them, each call's whole request and response and its USD
+  stop rule), `retryable` (whether the API caused a failure: a connection error, a timeout, a 429
+  or a status of 500 or above), `rate_limited` (whether any retry met a 429) and totals, `live_usd`
+  among them, each call's whole request and response and its USD
   spend included. An interrupt or any other failure between a `request` line and its `reply` line
   writes the `error` line. stderr gets the split line, each ontology fragment's size, the request's
   name, cells and rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort,

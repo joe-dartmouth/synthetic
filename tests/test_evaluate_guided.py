@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import json
 import logging
 from pathlib import Path
 from typing import Final
 
+import anthropic
 import pytest
 
 from bko.baselines.errors import BaselineError
@@ -20,16 +22,17 @@ from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.scores import Source
 from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
+from bko.generate.api import async_send_with
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS
+from bko.generate.messages import SETTINGS, AsyncSend
 from bko.generate.replay import Resume
 from bko.generate.spend import cost
 from bko.ontology.mapping import RELEASES
 from tests._evaluate_fixtures import SMALL
 from tests._fusion_fixtures import young
-from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
+from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply, request, response
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, guided, train
 from tests._validate_fixtures import planted
 
@@ -280,3 +283,73 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         answers=resume,
     ) as resumed:
         assert not resumed.watch.projecting
+
+
+def _sdk_send(monkeypatch: pytest.MonkeyPatch, exc: anthropic.APIError) -> AsyncSend:
+    """The async send over a real client whose `messages.create` raises `exc`."""
+    client = anthropic.AsyncAnthropic(api_key="not-a-credential", max_retries=0)
+
+    async def create(**_: object) -> anthropic.types.Message:
+        raise exc
+
+    monkeypatch.setattr(client.messages, "create", create)
+    return async_send_with(client)
+
+
+SDK_FAILURES: Final = {
+    "connection": (lambda: anthropic.APIConnectionError(request=request()), True),
+    "timeout": (lambda: anthropic.APITimeoutError(request=request()), True),
+    "rate-limit": (lambda: anthropic.RateLimitError("x", response=response(429), body=None), True),
+    "server": (
+        lambda: anthropic.InternalServerError("x", response=response(500), body=None),
+        True,
+    ),
+    "overloaded": (lambda: anthropic.APIStatusError("x", response=response(529), body=None), True),
+    "bad-request": (
+        lambda: anthropic.BadRequestError("x", response=response(400), body=None),
+        False,
+    ),
+    "unreadable": (lambda: anthropic.APIResponseValidationError(response(200), None), False),
+}
+"""Each SDK failure a call can meet, and whether the stop it causes is the API's to retry."""
+
+
+@pytest.mark.parametrize("name", SDK_FAILURES)
+def test_the_end_line_marks_api_failures_retryable(tmp_path, monkeypatch, name):
+    build, retryable = SDK_FAILURES[name]
+    arm, log = guided(tmp_path, _sdk_send(monkeypatch, build()))
+    with pytest.raises(GenerationError), log:
+        arm(train(tmp_path / "train"), REQUEST)
+    end = json.loads(log.path.read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["retryable"]) == ("failed", retryable)
+
+
+@pytest.mark.parametrize(
+    ("raised", "retryable"),
+    [
+        (StopRuleError("stalled", "idle"), True),
+        (StopRuleError("spent", "ceiling"), False),
+        (StopRuleError("projected", "projection"), False),
+        (GenerationError("no Anthropic credential"), False),
+        (BaselineError("refused"), False),
+        (ValueError("bug"), False),
+    ],
+    ids=["idle", "ceiling", "projection", "generation", "baseline", "other"],
+)
+def test_the_end_line_marks_only_an_idle_stop_retryable_beside_api_failures(
+    tmp_path, raised, retryable
+):
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS):
+        raise raised
+    end = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["retryable"]) == ("failed", retryable)
+
+
+@pytest.mark.parametrize("raised", [None, KeyboardInterrupt()])
+def test_a_complete_or_interrupted_run_is_not_retryable(tmp_path, raised):
+    path = tmp_path / "calls.jsonl"
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS):
+        if raised is not None:
+            raise raised
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["retryable"] is False

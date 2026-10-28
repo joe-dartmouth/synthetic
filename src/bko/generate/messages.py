@@ -111,6 +111,7 @@ class Reply:
         raw: The whole message as JSON values.
         attempts: The HTTP requests the SDK made for the call, retries included; None when
             nothing counted them.
+        rate_limited: Whether any retry of the call got status 429.
     """
 
     request_id: str | None
@@ -120,6 +121,7 @@ class Reply:
     usage: Usage
     raw: Mapping[str, object]
     attempts: int | None = None
+    rate_limited: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,9 +189,23 @@ CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
 `bko.generate.flight`'s call tasks set while the call is in flight, so its retry lines name it,
 and reset once it lands; 0 outside a call."""
 
-ATTEMPTS: Final[ContextVar[list[int] | None]] = ContextVar("attempts", default=None)
-"""The current async call's attempt count, in a one-item list: a holder rather than a value, so
-the count `bko.generate.api.Attempts.handle_async` writes reaches whoever set the holder, wherever
+
+@dataclass(slots=True)
+class Tries:
+    """One call's HTTP attempts, as `bko.generate.api.Attempts` counts them.
+
+    Attributes:
+        count: The attempts made, the first included; 0 before any.
+        rate_limited: Whether an attempt the SDK retries got status 429.
+    """
+
+    count: int = 0
+    rate_limited: bool = False
+
+
+ATTEMPTS: Final[ContextVar[Tries | None]] = ContextVar("attempts", default=None)
+"""The current async call's attempts, in a `Tries`: a holder rather than a value, so what
+`bko.generate.api.Attempts.handle_async` writes reaches whoever set the holder, wherever
 the SDK runs the attempt. `bko.generate.flight` sets one around each awaited send, so a call the
 idle rule stops still reports its attempts; a send that finds none sets its own."""
 

@@ -13,14 +13,25 @@ class GenerationError(Exception):
     Attributes:
         exit_code: The command line's exit status for this failure.
         attempts: The HTTP requests the SDK made for the call, or None when nothing counted them.
+        retryable: Whether the API caused it, so a resume may succeed: a connection error, a
+            timeout, a 429 or a status of 500 or above (`bko.generate.api`). False otherwise.
+        rate_limited: Whether any retry of the call got status 429, or the call failed on one.
     """
 
     exit_code: ClassVar[int] = 2
 
-    def __init__(self, *args: object, attempts: int | None = None) -> None:
-        """Keep the message and the attempt count."""
+    def __init__(
+        self,
+        *args: object,
+        attempts: int | None = None,
+        retryable: bool = False,
+        rate_limited: bool = False,
+    ) -> None:
+        """Keep the message, the attempt count and what the API caused."""
         super().__init__(*args)
         self.attempts = attempts
+        self.retryable = retryable
+        self.rate_limited = rate_limited
 
 
 class IdleError(GenerationError):

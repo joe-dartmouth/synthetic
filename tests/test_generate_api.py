@@ -423,3 +423,71 @@ def test_a_retry_line_follows_the_servers_should_retry_header(caplog, header, lo
     caplog.set_level(logging.INFO)
     asyncio.run(probe.handle_async(request, call_next))  # ty: ignore[invalid-argument-type]
     assert any(m.startswith("retry ") for m in caplog.messages) is logged
+
+
+def test_a_retried_429_marks_the_async_reply_rate_limited(monkeypatch):
+    client = _async_client()
+    statuses = {"a": [429, 200], "b": [503, 200], "c": [429, 500]}
+    _attempting(monkeypatch, client, statuses, fail=frozenset({"c"}))
+    send = async_send_with(client)
+
+    async def every() -> list[object]:
+        calls = [dataclasses.replace(CALL, user=name) for name in statuses]
+        return await asyncio.gather(*(send(call) for call in calls), return_exceptions=True)
+
+    a, b, c = asyncio.run(every())
+    assert [getattr(a, "rate_limited", a), getattr(b, "rate_limited", b)] == [True, False]
+    assert isinstance(c, GenerationError)
+    assert c.rate_limited
+
+
+def test_a_retried_429_marks_the_sync_reply_rate_limited_until_the_next_call(monkeypatch):
+    client = _client()
+    probe = Attempts()
+    retries = iter([[_status(429), _status(200)], [_status(200)]])
+
+    def create(**_: object) -> anthropic.types.Message:
+        for taken, sent in enumerate(next(retries)):
+            attempt = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=taken))
+            probe.handle(attempt, lambda _, sent=sent: sent)  # ty: ignore[invalid-argument-type]
+        return message(records_text([]))
+
+    monkeypatch.setattr(client.messages, "create", create)
+    send = send_with(client, attempts=probe)
+    assert send(CALL).rate_limited
+    assert not send(CALL).rate_limited
+
+
+@pytest.mark.parametrize(
+    ("build", "retryable", "limited"),
+    [
+        (lambda: anthropic.APIConnectionError(request=request()), True, False),
+        (lambda: anthropic.APITimeoutError(request=request()), True, False),
+        (lambda: anthropic.RateLimitError("x", response=response(429), body=None), True, True),
+        (
+            lambda: anthropic.InternalServerError("x", response=response(500), body=None),
+            True,
+            False,
+        ),
+        (lambda: anthropic.APIStatusError("x", response=response(529), body=None), True, False),
+        (lambda: anthropic.BadRequestError("x", response=response(400), body=None), False, False),
+        (lambda: anthropic.APIStatusError("x", response=response(409), body=None), False, False),
+        (lambda: anthropic.APIResponseValidationError(response(200), None), False, False),
+        (lambda: TypeError(CREDENTIAL_ERROR), False, False),
+    ],
+    ids=[
+        "connection",
+        "timeout",
+        "rate-limit",
+        "server",
+        "overloaded",
+        "bad-request",
+        "conflict",
+        "unreadable",
+        "credential",
+    ],
+)
+def test_a_failure_is_retryable_when_the_api_caused_it(monkeypatch, build, retryable, limited):
+    with pytest.raises(GenerationError) as caught:
+        send_with(_raising(monkeypatch, build()))(CALL)
+    assert (caught.value.retryable, caught.value.rate_limited) == (retryable, limited)

@@ -139,8 +139,10 @@ ladder.**
   what the stopped log itself carried), then per call a `request` line before it is sent and a `reply` or `error` line after, then one `end`
   line with the status (`complete`, `interrupted` for `KeyboardInterrupt`, `failed` otherwise), the
   `run` line's `replay`, `resume` and `rehearsal` again, `stop` (the stop rule that ended a failed
-  run: `ceiling`, `projection` or `idle`, read from the exception's `stop_rule`, else null), and the
-  run's totals, `live_usd` (the spend of calls past the answered ones, a rehearsal's billed spend
+  run: `ceiling`, `projection` or `idle`, read from the exception's `stop_rule`, else null),
+  `retryable` (true for an idle stop and for a `GenerationError` the API caused: a connection
+  error, a timeout, a 429 or a status of 500 or above; ADR `research/concurrent-call-waves`),
+  `rate_limited` (whether any call's retry met a 429), and the run's totals, `live_usd` (the spend of calls past the answered ones, a rehearsal's billed spend
   included) among them. The schema stays 2: a replay reads only the `run` line's `kind` and
   `schema`, and a resume reads `replay`, `resume`, `rehearsal`, `stop`, `in_flight` and
   `carried_usd` as absent when a log lacks them. A `reply` line holds the whole response and
