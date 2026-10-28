@@ -147,7 +147,7 @@ ladder.**
   lacks them. A `reply` line
   holds the whole response and `attempts`, the HTTP requests the SDK made for the call
   (`bko.generate.api.Attempts` counts them, per call, so concurrent calls count their own). Each
-  429 or retryable status logs `retry call=%d attempt=%d status=%s retry_after=%s`. An `error` line holds `attempts` too, null when
+  429 or retryable status with an attempt left logs `retry call=%d attempt=%d status=%s retry_after=%s`. An `error` line holds `attempts` too, null when
   nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
   attempt. Anything raised after a `request` line and before its `reply` line (no
   response, a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead,

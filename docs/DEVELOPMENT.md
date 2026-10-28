@@ -298,7 +298,7 @@ log off the runner before any replay.
   range, records asked, candidates generated and passed, dropped for each reason, kept, the run's
   spend), a `spend` line before each BKO call with the run's spend so far and the ceiling,
   `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a `retry call= attempt=
-  status= retry_after=` line for each 429 or retryable status, the `run status=` line (`run=`,
+  status= retry_after=` line for each 429 or retryable status with an attempt left, the `run status=` line (`run=`,
   `level=`, `in_flight=`) and the call log's totals line (with `live_usd=`,
   `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm copied, and
   at the end of the run, a stopped run included, one `validity` line per BKO arm, its counts over

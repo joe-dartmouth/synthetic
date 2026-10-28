@@ -71,10 +71,15 @@ def retryable(status: int, headers: Mapping[str, str]) -> bool:
 
 
 def _log_retry(
-    attempt: int, response: anthropic.APIResponse[Any] | anthropic.AsyncAPIResponse[Any]
+    attempt: int,
+    max_retries: int,
+    response: anthropic.APIResponse[Any] | anthropic.AsyncAPIResponse[Any],
 ) -> None:
-    """Log a `retry` line when the SDK will retry `response`'s status."""
-    if retryable(response.status_code, response.headers):
+    """Log a `retry` line when the SDK will retry `response`'s status.
+
+    It retries only while attempts remain: attempt `max_retries + 1`, the last, raises instead.
+    """
+    if attempt <= max_retries and retryable(response.status_code, response.headers):
         logger.warning(
             "retry call=%d attempt=%d status=%s retry_after=%s",
             CALL_NUMBER.get(),
@@ -85,11 +90,17 @@ def _log_retry(
 
 
 class Attempts(anthropic.Middleware):
-    """Counts the HTTP requests the SDK makes for one call: the first, then each retry."""
+    """Counts the HTTP requests the SDK makes for one call: the first, then each retry.
 
-    def __init__(self) -> None:
-        """Start at no request."""
+    Attributes:
+        count: The last synchronous call's attempts.
+        max_retries: The retries the client makes, so the last attempt logs no `retry` line.
+    """
+
+    def __init__(self, max_retries: int = MAX_RETRIES) -> None:
+        """Start at no request, for a client of `max_retries` retries, as every client here is."""
         self.count = 0
+        self.max_retries = max_retries
 
     def handle(
         self,
@@ -102,10 +113,10 @@ class Attempts(anthropic.Middleware):
         """
         self.count = request.retries_taken + 1
         response = call_next(request)
-        _log_retry(self.count, response)
+        _log_retry(self.count, self.max_retries, response)
         return response
 
-    async def handle_async(  # ruff: ignore[no-self-use]
+    async def handle_async(
         self,
         request: anthropic.APIRequest,
         call_next: Callable[[anthropic.APIRequest], Awaitable[anthropic.AsyncAPIResponse[Any]]],
@@ -113,15 +124,15 @@ class Attempts(anthropic.Middleware):
         """Record this attempt's number in the call's own holder, make it, and log a retry.
 
         The count goes to `ATTEMPTS`'s holder, not to the instance, since the async client's calls
-        overlap. A status the SDK retries logs `retry call=%d attempt=%d status=%s
-        retry_after=%s`.
+        overlap. A status the SDK retries, with an attempt left, logs `retry call=%d attempt=%d
+        status=%s retry_after=%s`.
         """
         attempt = request.retries_taken + 1
         holder = ATTEMPTS.get()
         if holder is not None:
             holder[0] = attempt
         response = await call_next(request)
-        _log_retry(attempt, response)
+        _log_retry(attempt, self.max_retries, response)
         return response
 
 

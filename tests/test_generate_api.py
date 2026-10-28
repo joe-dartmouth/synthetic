@@ -14,7 +14,7 @@ import anthropic
 import pytest
 
 import bko.generate.api as api_module
-from bko.generate.api import Attempts, async_send_with, reply_of, send_with
+from bko.generate.api import MAX_RETRIES, Attempts, async_send_with, reply_of, send_with
 from bko.generate.errors import GenerationError
 from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Send, Usage
 from tests._generate_fixtures import message, records_text, request, response
@@ -375,6 +375,40 @@ def test_a_retry_logs_its_call_attempt_and_status(caplog):
         "retry call=7 attempt=1 status=429 retry_after=2",
         "retry call=7 attempt=2 status=503 retry_after=none",
     ]
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_the_last_permitted_attempt_logs_no_retry_line(caplog, asynchronous):
+    probe = Attempts(max_retries=2)
+
+    def call_next(_: anthropic.APIRequest) -> SimpleNamespace:
+        return _status(429)
+
+    async def call_next_async(request: anthropic.APIRequest) -> SimpleNamespace:
+        return call_next(request)
+
+    async def attempts() -> None:
+        for retries in range(3):
+            request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=retries))
+            if asynchronous:
+                await probe.handle_async(request, call_next_async)  # ty: ignore[invalid-argument-type]
+            else:
+                probe.handle(request, call_next)  # ty: ignore[invalid-argument-type]
+
+    caplog.set_level(logging.INFO)
+    token = CALL_NUMBER.set(7)
+    try:
+        asyncio.run(attempts())
+    finally:
+        CALL_NUMBER.reset(token)
+    assert [m for m in caplog.messages if m.startswith("retry ")] == [
+        "retry call=7 attempt=1 status=429 retry_after=none",
+        "retry call=7 attempt=2 status=429 retry_after=none",
+    ]
+
+
+def test_every_client_counts_attempts_against_its_own_retries():
+    assert Attempts().max_retries == MAX_RETRIES
 
 
 @pytest.mark.parametrize(("header", "logged"), [("true", True), ("false", False)])

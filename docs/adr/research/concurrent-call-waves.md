@@ -63,7 +63,7 @@ ceiling stop lands elsewhere.
   dropped calls' `usd` into the new run's spend as `carried_usd`. Logs without the key keep the
   last-call rule (ADR `research/call-log-replay`).
 - **Log identity.** The `run status=` line names `run=`, `level=` and `in_flight=`; `compare`'s
-  `beside` lines name `run=` and `level=`; each 429 or retryable status logs
+  `beside` lines name `run=` and `level=`; each 429 or retryable status with an attempt left logs
   `retry call=%d attempt=%d status=%s retry_after=%s`. This
   answers a rate-limit storm that trips the idle rule with a line per retry.
 - **Callers.** `guided_arms` takes the run's name and its limits. The generate CLI records
