@@ -11,10 +11,11 @@ import pytest
 from bko.baselines.errors import OutputContractError
 from bko.baselines.methods import augment
 from bko.baselines.records import Baseline, Drop, check, drops, no_rows, training_set
-from bko.baselines.request import Method, Request, plan
+from bko.baselines.request import Method, Request, Strata, plan, stratum_keys
 from bko.baselines.synthesizers import METADATA, metadata
 from bko.datasets.cells import cell_counts
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import experiment as experiment_module
 from bko.evaluate import fidelity as fidelity_module
 from bko.evaluate.classifier import build, probabilities
 from bko.evaluate.copies import copies, decontaminated
@@ -214,3 +215,24 @@ def test_a_rehearsal_refuses_a_call_for_another_frame():
     send = CannedSend(GRADED, SMALL, SETTINGS)
     with pytest.raises(ValueError, match="toy"):
         send(Call(SETTINGS, 0, 1, "system", "user", frame=TOY))
+
+
+@pytest.mark.parametrize(
+    ("helper", "args"),
+    [
+        pytest.param(flagged, (TOY_TRAIN, TOY_EXPERIMENT), id="flagged"),
+        pytest.param(experiment_module._cells, (TOY_TRAIN,), id="_cells"),
+        pytest.param(held_out_ratio, (TOY_PARTS,), id="held_out_ratio"),
+        pytest.param(in_scope, (TOY_PARTS.test, Scope.ALL, SHORT), id="in_scope"),
+        pytest.param(
+            utility,
+            (TOY_PARTS.test, pd.Series(0.5, index=TOY_PARTS.test.index), SHORT),
+            id="utility",
+        ),
+        pytest.param(Strata.CELL.grid, (), id="grid"),
+        pytest.param(stratum_keys, (TOY_TRAIN, Strata.CELL), id="stratum_keys"),
+    ],
+)
+def test_named_helpers_require_edges(helper, args):
+    with pytest.raises(TypeError, match="edges"):
+        helper(*args)

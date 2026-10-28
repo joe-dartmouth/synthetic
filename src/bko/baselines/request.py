@@ -19,7 +19,6 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.cells import (
-    AGE_BAND_EDGES,
     CELL_COLUMNS,
     LABEL,
     SEXES,
@@ -67,16 +66,14 @@ class Strata(enum.StrEnum):
         """The `cell_keys` columns that name a stratum; each key ends with the label."""
         return CELL_COLUMNS if self is Strata.CELL else (LABEL,)
 
-    def grid(self, edges: Sequence[int] = AGE_BAND_EDGES) -> tuple[Stratum, ...]:
+    def grid(self, edges: Sequence[int]) -> tuple[Stratum, ...]:
         """Every stratum under the band `edges`, in the grid order of `cell_counts`."""
         if self is Strata.LABEL:
             return ((0,), (1,))
         return tuple(itertools.product(age_band_labels(edges), SEXES.values(), (0, 1)))
 
 
-def stratum_keys(
-    frame: pd.DataFrame, strata: Strata, *, edges: Sequence[int] = AGE_BAND_EDGES
-) -> list[Stratum]:
+def stratum_keys(frame: pd.DataFrame, strata: Strata, *, edges: Sequence[int]) -> list[Stratum]:
     """Return each row's stratum, in row order, computed from the row's own values.
 
     Raises:

@@ -1,10 +1,10 @@
 """The prompt: one system text every call shares, and a user turn built up the guidance ladder.
 
-The system text names every column with its meaning and its codes or its unit, with no range,
-and asks for new patients. The user turn states the cell, the record count and each numeric
-field's training-split bounds, then adds one component per level reached. Both read the frame
-given, UCI's by default. No prompt holds a record. ADR `research/record-generation-design`
-records what each level sends.
+The system text opens with the frame's study and cohort, names every column with its meaning and its
+codes or its unit, with no range, and asks for new patients. The user turn states the cell, the
+record count and each numeric field's training-split bounds, then adds one component per level
+reached. Both read the frame given, UCI's by default. No prompt holds a record. ADR
+`research/record-generation-design` records what each level sends.
 """
 
 from __future__ import annotations
@@ -166,23 +166,28 @@ def _decimals(digits: int) -> str:
     return "one decimal place" if digits == 1 else f"{digits} decimal places"
 
 
-def _system_text(frame: FrameSpec) -> str:
+def _precision(frame: FrameSpec) -> str:
     fractional = list(frame.fractional)
+    if not fractional:
+        return "Every field is a whole number."
+    return (
+        f"Whole numbers except {_alternatives(fractional)}, which "
+        f"{'has' if len(fractional) == 1 else 'have'} {_decimals(frame.fraction_digits)}."
+    )
+
+
+def _system_text(frame: FrameSpec) -> str:
     lines = [
         (
-            "You write synthetic patient records for a study of heart-disease prediction. Each "
-            "record is one adult patient referred for coronary angiography. Invent new patients; "
-            "do not reproduce records from any published dataset."
+            f"You write synthetic patient records for a study of {frame.study}. Each record is "
+            f"one {frame.cohort}. Invent new patients; do not reproduce records from any "
+            "published dataset."
         ),
         "",
         "Each record has these fields:",
         *(_column(name, frame) for name in frame.columns),
         "",
-        (
-            f"Whole numbers except {_alternatives(fractional)}, which "
-            f"{'has' if len(fractional) == 1 else 'have'} {_decimals(frame.fraction_digits)}. "
-            "Every value must be plausible for a real patient."
-        ),
+        f"{_precision(frame)} Every value must be plausible for a real patient.",
     ]
     return "\n".join(lines)
 

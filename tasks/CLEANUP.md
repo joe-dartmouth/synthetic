@@ -37,6 +37,20 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## datasets
+
+- **`cleanup:datasets/edges-default-to-uci`: the data stage's cell helpers fall back to UCI's
+  bands.** `bko.datasets.split.split`, `bko.datasets.cells.age_band_labels`, `cell_keys` and
+  `cell_counts`, `bko.gaps.observe.record_cells` and `bko.fusion.join.join` default `edges` to
+  `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that omits `edges` silently gets UCI's
+  bands. Evidence: each signature reads `edges: Sequence[int] = AGE_BAND_EDGES`. *Filed
+  2026-10-28 by the frame-selection work, which made the evaluate stage's helpers require
+  `edges`.*
+  **Why deferred.** They serve UCI-only commands (`bko.gaps uci`, `bko.fusion`, `cells`), and
+  many call sites in those commands and their tests omit `edges`.
+  **What discharges it:** each takes the frame or requires `edges`.
+  **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
+
 ## evaluate
 
 - **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
@@ -63,16 +77,6 @@ links to where its blocker is tracked.
   one frame runs.
   **What discharges it:** the run line, the candidates header and the `validated` line carry
   `frame=`, and `log.failure` keeps a refusal's message.
-  **Trigger:** the first non-UCI frame that runs `score` or `generate`
-  (`evaluate-synthea-downstream`).
-
-- **`cleanup:evaluate/edges-default-to-uci`: helpers taking `edges` fall back to UCI's bands.**
-  `bko.evaluate.experiment.flagged`, `bko.evaluate.run.held_out_ratio`,
-  `bko.evaluate.utility.in_scope` and `utility`, and `bko.baselines.request.Strata.grid` and
-  `stratum_keys` default `edges` to `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that
-  omits `edges` silently gets UCI's bands. *Filed 2026-10-27 by the review of PR #42.*
-  **Why deferred.** Every caller in the harness passes its frame's edges, and only one frame runs.
-  **What discharges it:** each takes the frame, or requires `edges`.
   **Trigger:** the first non-UCI frame that runs `score` or `generate`
   (`evaluate-synthea-downstream`).
 
@@ -152,20 +156,6 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
 
 ## generate
-
-- **`cleanup:generate/system-prompt-uci-only`: the system prompt is UCI's for every frame.**
-  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units and decimals, but
-  its opening sentence is fixed text about heart-disease prediction and patients referred for
-  coronary angiography, which `FrameSpec` has no field to replace. Its closing sentence indexes the
-  frame's fractional fields, so a frame with none raises `IndexError` in
-  `_alternatives` (`items[0]` of an empty list). Evidence: `system(TOY)` in
-  `tests/test_datasets_frame.py` still opens with the heart-disease sentence. *Filed 2026-10-26 by
-  the `evaluate-frame-generic-pipeline` work.*
-  **Why deferred.** UCI is the only frame that generates records, and its prompt must stay
-  byte-identical through that unit.
-  **What discharges it:** the frame (or the caller) supplies the opening sentence, and a frame
-  with no fractional field renders a closing sentence without one; UCI's text stays unchanged.
-  **Trigger:** the first non-UCI frame that generates records (`evaluate-synthea-downstream`).
 
 - **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
   `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s

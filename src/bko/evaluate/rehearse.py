@@ -58,15 +58,19 @@ type Rehearse = Callable[[pd.DataFrame, Experiment, Settings], Send]
 """Build the send a rehearsal answers every call with, from the frame, the run and its settings."""
 
 
-def safe_ranges(frame: pd.DataFrame, seeds: Sequence[int]) -> dict[str, tuple[float, float]]:
-    """Each measured field's range inside the training split of every one of `seeds`.
+def safe_ranges(
+    records: pd.DataFrame, seeds: Sequence[int], *, frame: FrameSpec
+) -> dict[str, tuple[float, float]]:
+    """Each of `frame`'s measured fields' range inside the training split of every one of `seeds`.
+
+    Each split bands its cells by `frame`'s edges.
 
     Raises:
         EvaluationError: If no value of a field lies inside every split's range.
     """
-    trains = [split(frame, seed=seed).train for seed in seeds]
+    trains = [split(records, seed=seed, edges=frame.edges).train for seed in seeds]
     ranges: dict[str, tuple[float, float]] = {}
-    for name in NUMERIC:
+    for name in frame.numeric:
         low = max(float(train[name].min()) for train in trains)
         high = min(float(train[name].max()) for train in trains)
         if low > high:
@@ -119,7 +123,7 @@ class CannedSend:
         if frame is not UCI_FRAME:
             msg = f"a rehearsal writes UCI records only, not frame {frame.name}"
             raise ValueError(msg)
-        ranges = safe_ranges(records, experiment.holdout_seeds)
+        ranges = safe_ranges(records, experiment.holdout_seeds, frame=frame)
         self._grids = {name: _grid(*ranges[name], name) for name in NUMERIC}
         self._real = frozenset(
             records.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None)

@@ -29,7 +29,7 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, training_set
 from bko.baselines.request import Method, Request, Stratum
-from bko.datasets.cells import AGE_BAND_EDGES, cell_counts
+from bko.datasets.cells import cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
@@ -70,7 +70,7 @@ The harness drains each arm after the gap fills and, for a replica arm, after th
 and writes them per holdout as `Source.CANDIDATES` and `Source.REPLICA_CANDIDATES` scores."""
 
 
-def held_out_ratio(parts: Split, *, edges: Sequence[int] = AGE_BAND_EDGES) -> float:
+def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     """Nadeau and Bengio's n2/n1: the largest ratio of held-out to training records in a cell.
 
     Taking the largest keeps every scope's interval at least as wide as its own cells need.

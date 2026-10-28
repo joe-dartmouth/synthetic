@@ -33,6 +33,8 @@ TOY = FrameSpec(
     label_codes=(0, 1),
     label_meanings={0: "toy condition absent", 1: "toy condition present"},
     edges=(45, 70),
+    study="toy-condition prediction",
+    cohort="adult seen at a toy clinic",
 )
 """The toy frame."""
 

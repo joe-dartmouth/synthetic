@@ -18,7 +18,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
-from bko.datasets.cells import AGE_BAND_EDGES, UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
@@ -252,7 +252,7 @@ ceiling and criteria."""
 
 
 def flagged(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int] = AGE_BAND_EDGES
+    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
 ) -> tuple[Stratum, ...]:
     """The cells under `edges` holding fewer than `experiment.fill_to` records, in grid order."""
     return tuple(_short(train, experiment, edges))
@@ -291,7 +291,7 @@ def _cells(
     train: pd.DataFrame,
     below: int = UNDERREPRESENTED_BELOW,
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> list[tuple[Stratum, int, bool]]:
     counts = cell_counts(train, edges=edges, below=below)
     return [

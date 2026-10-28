@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from bko.baselines.request import Method, Request, Strata, Stratum, plan, stratum_keys, water_fill
+from bko.datasets.uci import UCI_FRAME
 from tests._datasets_fixtures import records
 
 
@@ -33,7 +34,7 @@ def test_twenty_rows_fill_both_flagged_cells_to_twenty():
 
 
 def test_ties_go_to_the_earlier_stratum_in_grid_order():
-    grid = Strata.CELL.grid()
+    grid = Strata.CELL.grid(UCI_FRAME.edges)
     assert water_fill(dict.fromkeys(grid, 6), 5) == dict.fromkeys(grid[:5], 1)
 
 
@@ -41,7 +42,7 @@ def test_ties_go_to_the_earlier_stratum_in_grid_order():
 def test_water_fill_levels_the_smallest_strata(seed):
     """Independent of the loop: totals match, and no gainer ends above the lowest level plus one."""
     rng = np.random.default_rng(seed)
-    grid = Strata.CELL.grid()
+    grid = Strata.CELL.grid(UCI_FRAME.edges)
     counts = {stratum: int(rng.integers(0, 30)) for stratum in grid}
     counts[grid[0]] = max(counts[grid[0]], 1)
     rows = int(rng.integers(1, 80))
@@ -53,13 +54,16 @@ def test_water_fill_levels_the_smallest_strata(seed):
 
 
 def test_an_empty_stratum_never_gains_rows():
-    counts = dict.fromkeys(Strata.CELL.grid(), 5) | {("<55", "female", 0): 0}
+    counts = dict.fromkeys(Strata.CELL.grid(UCI_FRAME.edges), 5) | {("<55", "female", 0): 0}
     assert ("<55", "female", 0) not in water_fill(counts, 40)
 
 
 @pytest.mark.parametrize(
     ("counts", "rows"),
-    [(dict.fromkeys(Strata.LABEL.grid(), 0), 1), (dict.fromkeys(Strata.LABEL.grid(), 3), -1)],
+    [
+        (dict.fromkeys(Strata.LABEL.grid(UCI_FRAME.edges), 0), 1),
+        (dict.fromkeys(Strata.LABEL.grid(UCI_FRAME.edges), 3), -1),
+    ],
     ids=["no records", "negative rows"],
 )
 def test_impossible_rows_are_refused(counts, rows):
@@ -73,8 +77,11 @@ def test_label_strata_key_by_the_label_alone():
 
 def test_stratum_keys_follow_the_cell_columns():
     frame = records({(54, 0, 1): 1, (55, 1, 0): 1})
-    assert stratum_keys(frame, Strata.CELL) == [("<55", "female", 1), (">=55", "male", 0)]
-    assert stratum_keys(frame, Strata.LABEL) == [(1,), (0,)]
+    assert stratum_keys(frame, Strata.CELL, edges=UCI_FRAME.edges) == [
+        ("<55", "female", 1),
+        (">=55", "male", 0),
+    ]
+    assert stratum_keys(frame, Strata.LABEL, edges=UCI_FRAME.edges) == [(1,), (0,)]
 
 
 @pytest.mark.parametrize(

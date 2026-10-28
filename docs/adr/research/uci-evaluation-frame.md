@@ -50,9 +50,10 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
 - **One frame value**: `bko.datasets.frames.FrameSpec` holds what the stages read of a frame: its
   name, its features, which of them are numeric, fractional and categorical, the fractional
   fields' decimals, the codebook, each column's description, the numeric fields' ranges, the label
-  with its codes and meanings, and the age band edges. `bko.datasets.uci.UCI_FRAME` is UCI's,
-  built from the module's constants. Validation, generation, the baselines and evaluation take
-  the frame as a keyword defaulting to `UCI_FRAME`.
+  with its codes and meanings, the age band edges, and the study and cohort the system prompt
+  opens with. `bko.datasets.uci.UCI_FRAME` is UCI's, built from the module's constants.
+  Validation, generation, the baselines and evaluation take the frame as a keyword defaulting to
+  `UCI_FRAME`; the evaluate stage's cell helpers require the band edges instead.
 - **One frame value per named run**: `bko.evaluate.experiment.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name and the sha256 of its records), and every stage of `score` reads its frame from

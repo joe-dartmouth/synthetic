@@ -37,6 +37,7 @@ from bko.generate.prompt import COHERENCE, render
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, SMALL
+from tests._frame_fixtures import TOY, toy_records
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, ScriptedSend
 
 
@@ -72,7 +73,7 @@ def test_the_prompt_regex_reads_the_bounded_first_sentence():
 
 
 def test_the_safe_ranges_lie_inside_every_holdouts_training_range():
-    ranges = safe_ranges(GRADED, SMALL.holdout_seeds)
+    ranges = safe_ranges(GRADED, SMALL.holdout_seeds, frame=UCI_FRAME)
     assert set(ranges) == set(NUMERIC)
     for seed in SMALL.holdout_seeds:
         train = split(GRADED, seed=seed).train
@@ -224,7 +225,7 @@ def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
     maxes = [split(GRADED, seed=seed).train["chol"].max() for seed in (2, 3)]
     assert len(set(mins)) == 2
     assert len(set(maxes)) == 2
-    assert safe_ranges(GRADED, (2, 3))["chol"] == (max(mins), min(maxes))
+    assert safe_ranges(GRADED, (2, 3), frame=UCI_FRAME)["chol"] == (max(mins), min(maxes))
 
 
 def _one(send: CannedSend) -> dict:
@@ -245,7 +246,9 @@ def _with(record: dict) -> pd.DataFrame:
 def test_a_canned_record_equal_to_a_real_one_is_skipped(monkeypatch):
     first = _one(CannedSend(GRADED, SMALL, SETTINGS))
     frame = _with(first)
-    assert safe_ranges(frame, SMALL.holdout_seeds) == safe_ranges(GRADED, SMALL.holdout_seeds)
+    assert safe_ranges(frame, SMALL.holdout_seeds, frame=UCI_FRAME) == safe_ranges(
+        GRADED, SMALL.holdout_seeds, frame=UCI_FRAME
+    )
     send = CannedSend(frame, SMALL, SETTINGS)
     assert _one(send) != first
     assert send.records == 2
@@ -261,3 +264,15 @@ def test_every_candidate_of_a_rehearsal_is_kept(tmp_path):
     lines = read(candidates_for(log).read_bytes()).candidates
     assert lines
     assert {line.outcome for line in lines} == {"kept"}
+
+
+def test_rehearsal_safe_ranges_use_the_frames_edges():
+    records = toy_records()
+    seeds = (0, 1)
+    found = safe_ranges(records, seeds, frame=TOY)
+    trains = [split(records, seed=seed, edges=TOY.edges).train for seed in seeds]
+    assert set(found) == set(TOY.numeric)
+    for name in TOY.numeric:
+        low = max(float(train[name].min()) for train in trains)
+        high = min(float(train[name].max()) for train in trains)
+        assert found[name] == (low, high)
