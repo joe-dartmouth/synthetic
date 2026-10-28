@@ -37,7 +37,7 @@ def _digest(records) -> str:
 
 def _toy_data() -> Data:
     records = toy_records()
-    return Data(records, TOY, (), "toy", _digest(records))
+    return Data(records, TOY, (), "toy")
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -75,16 +75,32 @@ def _lines(path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
-def test_uci_data_carries_frame_rows_name_and_digest(tmp_path):
+def test_uci_data_carries_frame_rows_name_and_digest(tmp_path, caplog):
     ctx, _ = context(ScriptedSend())
-    data = load(Dataset.UCI, tmp_path, ctx)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        data = load(Dataset.UCI, tmp_path, ctx)
     records = load_uci(tmp_path, source=ctx.uci)
     assert data.frame is UCI_FRAME
     assert data.field_rows == ctx.field_rows
     assert data.name == ctx.uci.name
     assert data.records.equals(records)
     assert data.digest == _digest(records)
+    line = f"data dataset=uci frame=uci records={len(records)} digest={_digest(records)}"
+    assert line in [record.getMessage() for record in caplog.records]
     ensure(ctx.uci, tmp_path, open_url=_refusing_opener)
+
+
+def test_a_datas_digest_is_computed_from_its_records():
+    records = toy_records()
+    assert Data(records, TOY, (), "toy").digest == _digest(records)
+    with pytest.raises(TypeError):
+        Data(records, TOY, (), "toy", "ab" * 32)  # ty: ignore[too-many-positional-arguments]
+
+
+def test_load_refuses_a_dataset_it_does_not_know(tmp_path):
+    ctx, _ = context(ScriptedSend())
+    with pytest.raises(AssertionError):
+        load(cast("Dataset", "toy"), tmp_path, ctx)
 
 
 def test_a_toy_rehearsal_reads_the_toy_frame_at_every_stage(tmp_path, caplog):

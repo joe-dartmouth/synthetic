@@ -14,7 +14,6 @@ again after the replica fills, so each fill's candidates enter the scores under 
 from __future__ import annotations
 
 import dataclasses
-import hashlib
 import json
 import logging
 import time
@@ -35,6 +34,7 @@ from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
+from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
@@ -228,7 +228,7 @@ def _fill(
             )
             request = dataclasses.replace(request, seed=derived_seed(first, "attempt", attempt))
             continue
-        digest = hashlib.sha256(baseline.added.to_csv(lineterminator="\n").encode()).hexdigest()
+        added_digest = digest(baseline.added)
         logger.info(
             "arm holdout=%d arm=%s attempt=%d seed=%d added=%d sha256=%s params=%s",
             holdout,
@@ -236,7 +236,7 @@ def _fill(
             attempt,
             request.seed,
             len(baseline.added),
-            digest,
+            added_digest,
             json.dumps(baseline.params, sort_keys=True, default=str),
         )
         return baseline

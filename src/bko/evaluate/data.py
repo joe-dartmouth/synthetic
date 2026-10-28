@@ -9,10 +9,11 @@ it.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, assert_never
 
 import pandas as pd
 
@@ -21,6 +22,9 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import Source
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.ontology.schema import FieldMapping
+
+
+logger = logging.getLogger("bko.evaluate")
 
 
 class Dataset(StrEnum):
@@ -38,15 +42,19 @@ class Data:
         frame: Their frame.
         field_rows: The field mappings the BKO arms observe cells by.
         name: The dataset's source name; each cell's ontology fragment takes it.
-        digest: The sha256 of `records` as `digest` renders them, which the candidates file's
-            header names.
+        digest: The sha256 of `records` as `digest` renders them, computed from them when the
+            value is made, which the candidates file's header names.
     """
 
     records: pd.DataFrame
     frame: FrameSpec
     field_rows: tuple[FieldMapping, ...]
     name: str
-    digest: str
+    digest: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Compute `digest` from `records`, so the two never disagree."""
+        object.__setattr__(self, "digest", digest(self.records))
 
 
 class Reach(Protocol):
@@ -69,12 +77,17 @@ class Reach(Protocol):
 
 
 def digest(records: pd.DataFrame) -> str:
-    """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`)."""
+    """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
+
+    `Data.digest` and each arm's `arm` log line (`bko.evaluate.run`) hash a frame this way.
+    """
     return hashlib.sha256(records.to_csv(lineterminator="\n").encode()).hexdigest()
 
 
 def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     """Load `dataset` from `data_dir`, fetching UCI Heart Disease if the data root lacks it.
+
+    Logs one `data` line naming the dataset, its frame, its record count and its digest.
 
     Raises:
         DatasetError: As `bko.datasets.fetch.ensure` and `bko.datasets.uci.load_uci`.
@@ -84,4 +97,14 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
         case Dataset.UCI:
             ensure(context.uci, data_dir, open_url=context.open_url)
             records = load_uci(data_dir, source=context.uci)
-            return Data(records, UCI_FRAME, context.field_rows, context.uci.name, digest(records))
+            data = Data(records, UCI_FRAME, context.field_rows, context.uci.name)
+        case _:
+            assert_never(dataset)
+    logger.info(
+        "data dataset=%s frame=%s records=%d digest=%s",
+        dataset,
+        data.frame.name,
+        len(data.records),
+        data.digest,
+    )
+    return data

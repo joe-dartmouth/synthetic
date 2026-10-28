@@ -20,7 +20,7 @@ from bko.evaluate import experiment as experiment_module
 from bko.evaluate import fidelity as fidelity_module
 from bko.evaluate.classifier import build, probabilities
 from bko.evaluate.copies import copies, decontaminated
-from bko.evaluate.data import Data, digest
+from bko.evaluate.data import Data
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
 from bko.evaluate.privacy import distances
@@ -214,7 +214,7 @@ def test_a_toy_experiment_runs_end_to_end():
 
 def test_a_rehearsal_answers_in_its_own_frame():
     records = toy_records()
-    send = CannedSend(Data(records, TOY, (), "toy", digest(records)), TOY_EXPERIMENT, SETTINGS)
+    send = CannedSend(Data(records, TOY, (), "toy"), TOY_EXPERIMENT, SETTINGS)
     cell = SHORT[0]
     interval = intervals(cell, TOY_TRAIN, frame=TOY)
     guidance = Guidance(cell=cell, sex=0, label=1, records=3, interval=interval)
