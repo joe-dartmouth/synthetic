@@ -172,3 +172,35 @@ links to where its blocker is tracked.
   **What discharges it:** the test calls `system(replace(UCI_FRAME, fractional=...))`, and the
   shim and the import are deleted.
   **Trigger:** the next change that may edit the generate pin files.
+
+- **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
+  `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s
+  retry_after=%s` only when a response with a retryable status reaches the middleware. A
+  connection error or client timeout that the SDK retries produces only the SDK's own log record,
+  which carries no call number, so with several calls in flight a reader cannot tie it to a call.
+  Evidence: the middleware has no exception path that logs (`api.py`, `_log_retry` is called after
+  `call_next` returns). *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** It needs a `logging.Filter` that tags SDK records with
+  `bko.generate.messages.CALL_NUMBER`, outside the review's fixes.
+  **What discharges it:** every SDK retry record carries the call number, pinned by a test.
+  **Trigger:** the next change to `bko.generate.api`, or a paid run whose stderr shows untagged
+  retries.
+
+- **`cleanup:generate/landed-line-latency`: the landed line gives no latency.**
+  `bko.generate.calls` logs `send call=` at dispatch and `generate call=` on landing with no
+  elapsed seconds or calls in flight, so a stalled call shows only as a `send` line with no later
+  `generate` line. *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** No stop rule or test depends on it.
+  **What discharges it:** the landed line carries `elapsed_s=` and `in_flight=`, documented in
+  `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the next change to the `generate call=` line.
+
+- **`cleanup:generate/sigint-error-text`: a real Ctrl-C logs calls as `CancelledError`.**
+  Under `bko.generate.flight`, `asyncio.Runner`'s SIGINT handler cancels the run, so each call in
+  flight gets an `error` line reading `CancelledError` where a run at in-flight 1 wrote
+  `KeyboardInterrupt`; the `end` line still reads `interrupted`. Evidence: a SIGINT probe over a
+  three-call wave wrote `error 1 CancelledError`, `error 2 CancelledError`, `error 3
+  CancelledError`, `end None interrupted`. *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** Nothing in `src/` reads the error text, and the end status is right.
+  **What discharges it:** calls cancelled by an operator's interrupt record `KeyboardInterrupt`.
+  **Trigger:** the next change to `bko.generate.flight`'s interrupt path.
