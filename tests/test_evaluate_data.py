@@ -15,7 +15,7 @@ from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.__main__ import _parser
 from bko.evaluate.context import Context
 from bko.evaluate.data import Data, Dataset, load
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import CandidatesFormatError, EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, RUNS, NamedRun
 from bko.evaluate.holdout_candidates import SCHEMA, CandidateFile, Origin, read
 from bko.evaluate.rehearse import CannedSend
@@ -191,12 +191,16 @@ def test_the_candidates_header_names_frame_and_data_and_is_schema_2(tmp_path):
     with CandidateFile(direct, origin, None):
         pass
     assert "settings" not in read(direct.read_bytes()).header
-    old = {**header, "schema": 1}
-    with pytest.raises(Exception, match="schema is 1"):
-        read((json.dumps(old) + "\n").encode())
     older = {key: value for key, value in header.items() if key not in {"frame", "data"}}
-    with pytest.raises(Exception, match="header"):
+    schema_1 = {**older, "schema": 1, "uci": "ab" * 32}
+    with pytest.raises(CandidatesFormatError, match="schema is 1, not 2"):
+        read((json.dumps(schema_1) + "\n").encode())
+    with pytest.raises(CandidatesFormatError, match="header"):
         read((json.dumps({**older, "uci": "ab" * 32}) + "\n").encode())
+    for missing in ("frame", "data"):
+        partial = {key: value for key, value in header.items() if key != missing}
+        with pytest.raises(CandidatesFormatError, match="header"):
+            read((json.dumps(partial) + "\n").encode())
 
 
 def test_a_canned_send_refusal_keeps_its_message(tmp_path):

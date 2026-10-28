@@ -293,19 +293,19 @@ def read(data: bytes) -> HoldoutCandidates:
         msg = "a candidates file starts with its header line; this one is empty"
         raise CandidatesFormatError(msg)
     first, *rest = lines
-    if (
-        not isinstance(first, dict)
-        or set(first) - {_SETTINGS} != _HEADER
-        or first["kind"] != "header"
-    ):
-        msg = (
-            f"a candidates file's first line is its header, with the keys {sorted(_HEADER)} "
-            f"and, for a run with a Messages arm, {_SETTINGS!r}"
-        )
+    header_msg = (
+        f"a candidates file's first line is its header, with the keys {sorted(_HEADER)} "
+        f"and, for a run with a Messages arm, {_SETTINGS!r}"
+    )
+    if not isinstance(first, dict) or first.get("kind") != "header":
+        raise CandidatesFormatError(header_msg)
+    # The schema first, so an older file says its schema rather than its keys.
+    schema = first.get("schema")
+    if isinstance(schema, bool) or schema != SCHEMA:
+        msg = f"the candidates file's schema is {schema!r}, not {SCHEMA}"
         raise CandidatesFormatError(msg)
-    if isinstance(first["schema"], bool) or first["schema"] != SCHEMA:
-        msg = f"the candidates file's schema is {first['schema']!r}, not {SCHEMA}"
-        raise CandidatesFormatError(msg)
+    if set(first) - {_SETTINGS} != _HEADER:
+        raise CandidatesFormatError(header_msg)
     return HoldoutCandidates(
         MappingProxyType(first),
         tuple(starmap(_candidate, enumerate(rest, start=2))),
