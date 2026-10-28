@@ -281,12 +281,12 @@ def test_beside_leaves_stdout_and_logs_after_compares_lines(tmp_path, caplog):
     assert messages[first].startswith("beside scores_sha256=")
     assert messages[first].endswith(
         " shared=4 paired=4 excluded=0 copied=0 mismatched=0 arm=smote against=smote "
-        "run=e1 level=ontology"
+        "run=e1 level=summary"
     )
     lines = messages[first + 1 :]
     assert len(lines) == len(PAIRED)
     assert lines[0] == (
-        "beside arm=smote against=smote run=e1 level=ontology source=augmented "
+        "beside arm=smote against=smote run=e1 level=summary source=augmented "
         "measure=recall scope=all mean=0.200000 low=0.200000 high=0.200000 holdouts=4 "
         "differing=4 undefined=0"
     )
@@ -318,7 +318,7 @@ def test_beside_arm_reads_that_arm_of_the_other_file(tmp_path, caplog):
         assert run([ours, "--beside", theirs, "--beside-arm", "adasyn"])[0] == 0
     line = beside_lines(caplog)[1]
     assert line.startswith(
-        "beside arm=smote against=adasyn run=e1 level=ontology source=augmented measure=recall "
+        "beside arm=smote against=adasyn run=e1 level=summary source=augmented measure=recall "
     )
     assert " mean=0.100000 " in line
 
@@ -329,9 +329,9 @@ def test_candidate_is_the_arm_read_beside(tmp_path, caplog):
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         assert run([ours, "--candidate", "adasyn", "--beside", theirs])[0] == 0
     lines = beside_lines(caplog)
-    assert lines[0].endswith(" arm=adasyn against=adasyn run=e1 level=ontology")
+    assert lines[0].endswith(" arm=adasyn against=adasyn run=e1 level=summary")
     assert lines[1].startswith(
-        "beside arm=adasyn against=adasyn run=e1 level=ontology source=augmented measure=recall "
+        "beside arm=adasyn against=adasyn run=e1 level=summary source=augmented measure=recall "
     )
     assert " mean=0.300000 " in lines[1]
 
@@ -364,7 +364,7 @@ def test_the_counts_line_splits_copied_from_mismatched_holdouts(tmp_path, caplog
     lines = beside_lines(caplog)
     assert lines[0].endswith(
         " shared=4 paired=2 excluded=2 copied=1 mismatched=1 arm=smote against=smote "
-        "run=e1 level=ontology"
+        "run=e1 level=summary"
     )
     assert " holdouts=2 " in lines[1]
 
@@ -376,7 +376,7 @@ def test_a_skipped_series_is_logged(tmp_path, caplog):
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         assert run([ours, "--beside", theirs])[0] == 0
     assert (
-        "beside skip arm=smote against=smote run=e1 level=ontology source=replica "
+        "beside skip arm=smote against=smote run=e1 level=summary source=replica "
         "measure=quality scope=all reason=absent defined=0"
     ) in beside_lines(caplog)
 

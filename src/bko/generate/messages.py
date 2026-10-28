@@ -78,7 +78,7 @@ class Settings:
                 raise ValueError(msg)
 
 
-SETTINGS: Final = Settings("claude-haiku-5-5", "medium", 16000, 20, Level.ONTOLOGY)
+SETTINGS: Final = Settings("claude-haiku-5-5", "medium", 16000, 20, Level.SUMMARY)
 """The settings every run uses."""
 
 

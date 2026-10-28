@@ -62,7 +62,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
             "effort": "medium",
             "max_tokens": 16000,
             "per_call": 20,
-            "guidance": "ontology",
+            "guidance": "summary",
         },
         "price": {"input": 0.1, "output": 0.5, "cache_write": 0.125, "cache_read": 0.01},
         "anthropic": importlib.metadata.version("anthropic"),
@@ -247,7 +247,7 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now) as log:
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
-        "run status=complete run=none level=ontology in_flight=1 calls=1 failed=0 retried=0 "
+        "run status=complete run=none level=summary in_flight=1 calls=1 failed=0 retried=0 "
         "asked=2 decoded=2 undecoded=0 "
         f"input_tokens=1000 output_tokens=500 usd=0.000350 live_usd=0.000350 replay=none "
         f"resume=none rehearsal=false log={path}"

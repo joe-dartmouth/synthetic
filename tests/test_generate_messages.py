@@ -10,7 +10,16 @@ import pytest
 
 from bko.datasets.cells import LABEL
 from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS
-from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches, record_schema, text_of
+from bko.generate.messages import (
+    LEVELS,
+    SETTINGS,
+    Call,
+    Level,
+    Settings,
+    reaches,
+    record_schema,
+    text_of,
+)
 
 
 BOUNDS = frozenset(
@@ -92,6 +101,10 @@ def test_whole_fields_are_integers_and_oldpeak_a_number():
 def test_the_schema_has_no_numeric_bound():
     for node in _objects(record_schema(1, 1)):
         assert not BOUNDS & node.keys(), node
+
+
+def test_settings_are_summary_at_g4s_effort():
+    assert Settings("claude-haiku-5-5", "medium", 16000, 20, Level.SUMMARY) == SETTINGS
 
 
 def test_call_params_carry_model_tokens_system_user_effort_and_the_cells_schema():

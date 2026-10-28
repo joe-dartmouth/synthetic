@@ -200,9 +200,9 @@ def test_a_completeness_request_with_nothing_to_ask_exits_two_before_any_call(tm
 
 
 @pytest.mark.parametrize(
-    ("extra", "level"), [((), Level.ONTOLOGY), (("--guidance", "cell"), Level.CELL)]
+    ("extra", "level"), [((), Level.SUMMARY), (("--guidance", "cell"), Level.CELL)]
 )
-def test_the_guidance_flag_sets_the_level_and_defaults_to_ontology(tmp_path, extra, level):
+def test_the_guidance_flag_sets_the_level_and_defaults_to_summary(tmp_path, extra, level):
     send = two_replies()
     code, _, log = run(tmp_path, make_context(send), *extra)
     assert code == 0
@@ -271,7 +271,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
     digest = hashlib.sha256(out.encode()).hexdigest()
     assert f"candidates rows=12 sha256={digest}" in [r.getMessage() for r in caplog.records]
     [summary] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("run ")]
-    assert "status=failed run=generate level=ontology in_flight=1 calls=2 failed=1" in summary
+    assert "status=failed run=generate level=summary in_flight=1 calls=2 failed=1" in summary
     assert "usd=0.000350" in summary
     assert log_lines(log)[-1]["status"] == "failed"
     assert any(
@@ -335,7 +335,7 @@ def test_the_summary_line_names_calls_tokens_usd_log_and_stdout_sha256(tmp_path,
     _, out, log = run(tmp_path, make_context(two_replies()))
     messages = [record.getMessage() for record in caplog.records]
     assert (
-        "run status=complete run=generate level=ontology in_flight=1 calls=2 failed=0 retried=0 "
+        "run status=complete run=generate level=summary in_flight=1 calls=2 failed=0 retried=0 "
         "asked=32 decoded=31 undecoded=1 "
         f"input_tokens=2000 output_tokens=1000 usd=0.000700 live_usd=0.000700 replay=none "
         f"resume=none rehearsal=false log={log}"
@@ -388,7 +388,7 @@ def test_the_header_is_the_first_line_and_names_the_run_and_its_plan(tmp_path, c
     train = split(load_uci(tmp_path / "data", source=pin(UCI)))
     assert header["request"] == "e1"
     assert header["definition"] == "per-subgroup"
-    assert header["guidance"] == "ontology"
+    assert header["guidance"] == "summary"
     assert header["uci"] == pin(UCI).sha256
     assert header["fingerprint"] == train.fingerprint
     assert f"fingerprint={train.fingerprint}" in caplog.text
@@ -428,7 +428,7 @@ def test_the_header_names_the_completeness_request_and_the_chosen_level(tmp_path
         ),
         (
             ["frequency-aware", "--log", "a", "--data-dir", "d"],
-            {"command": "frequency-aware", "guidance": "ontology", "data_dir": Path("d")},
+            {"command": "frequency-aware", "guidance": "summary", "data_dir": Path("d")},
         ),
         (
             ["population-level", "--request", "e1", "--guidance", "cell", "--log", "a"],
