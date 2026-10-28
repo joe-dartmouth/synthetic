@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import logging
@@ -16,7 +17,7 @@ from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Call, Level, Reply, Usage
+from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Level, Reply, Usage
 from bko.generate.prompt import render
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import (
@@ -54,6 +55,28 @@ def test_ask_renders_at_the_log_settings_level_and_returns_candidates_and_spend(
     assert batch.candidates == ({"age": 40}, Undecoded(Reason.SHORT))
     assert batch.undecoded == 1
     assert batch.usd == pytest.approx(0.10)
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_ask_names_its_call_while_it_sends_and_resets_the_name_after(tmp_path, fails):
+    seen: list[int] = []
+
+    def send(call: Call) -> Reply:
+        seen.append(CALL_NUMBER.get())
+        if fails:
+            raise GenerationError("no response")
+        return reply([{"age": 40}] * _asked(call))
+
+    token = CALL_NUMBER.set(0)
+    try:
+        with _log(tmp_path) as log:
+            for _ in range(2):
+                with contextlib.suppress(GenerationError):
+                    ask(GUIDANCE, 1, send=send, log=log)
+                assert CALL_NUMBER.get() == 0
+    finally:
+        CALL_NUMBER.reset(token)
+    assert seen == [1, 2]
 
 
 def test_generate_makes_ceil_rows_over_per_call_calls_per_cell_in_quota_order(tmp_path, caplog):

@@ -183,9 +183,9 @@ type AnySend = Callable[[Call], Reply | Awaitable[Reply]]
 """A `Send` or an `AsyncSend`: `bko.generate.flight` awaits the reply when it is awaitable."""
 
 CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
-"""The number of the call being sent, which `bko.generate.calls.request` sets and
-`bko.generate.flight` sets again in each call's own task, so its retry lines name it; 0 before any
-call is requested."""
+"""The number of the call being sent, which `bko.generate.calls.ask` and each of
+`bko.generate.flight`'s call tasks set while the call is in flight, so its retry lines name it,
+and reset once it lands; 0 outside a call."""
 
 ATTEMPTS: Final[ContextVar[list[int] | None]] = ContextVar("attempts", default=None)
 """The current async call's attempt count, in a one-item list: a holder rather than a value, so

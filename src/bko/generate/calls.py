@@ -144,7 +144,6 @@ def request(
     system, user = render(guidance, rows, settings.guidance, frame=frame)
     call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
-    CALL_NUMBER.set(index)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
     logger.info("send call=%d cell=%s asked=%d", index, cell_key(guidance.cell), rows)
     return Pending(index, guidance.cell, rows, call)
@@ -244,11 +243,15 @@ def ask(
             and the `reply` line, a `KeyboardInterrupt` included, which propagates unchanged.
     """
     pending = request(guidance, rows, log=log, settings=settings, frame=frame)
+    # The send's retry lines name the call; the name is the caller's again once it lands.
+    token = CALL_NUMBER.set(pending.index)
     try:
         return answer(pending, send(pending.call), log=log)
     except BaseException as exc:
         fail(pending, exc, log=log)
         raise
+    finally:
+        CALL_NUMBER.reset(token)
 
 
 def generate(

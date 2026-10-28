@@ -499,9 +499,14 @@ def test_each_send_sees_its_call_number(tmp_path):
 
         return land()
 
-    with (
-        _log(tmp_path) as log,
-        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
-    ):
-        flight.wave(PLAN)
+    token = CALL_NUMBER.set(0)
+    try:
+        with (
+            _log(tmp_path) as log,
+            Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+        ):
+            flight.wave(PLAN)
+            assert CALL_NUMBER.get() == 0
+    finally:
+        CALL_NUMBER.reset(token)
     assert sorted(seen) == [1, 2, 3]

@@ -328,7 +328,7 @@ class Flight:
             await asyncio.wait([wave.flying[index] for index in wave.reserved])
 
     async def _fly(self, pending: Pending, wave: _Wave) -> Batch:
-        CALL_NUMBER.set(pending.index)
+        token = CALL_NUMBER.set(pending.index)
         try:
             try:
                 batch = answer(pending, await self._reply(pending), log=self.log)
@@ -345,6 +345,7 @@ class Flight:
         finally:
             wave.reserved.pop(pending.index, None)
             wave.slots.release()
+            CALL_NUMBER.reset(token)
 
     async def _reply(self, pending: Pending) -> Reply:
         """`pending`'s reply, awaited under the idle limit when the send returns an awaitable.
