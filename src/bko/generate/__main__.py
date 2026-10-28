@@ -50,6 +50,7 @@ from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
 from bko.gaps.observe import Cell, Cells, cell_key
@@ -262,7 +263,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
         rows=context.field_rows,
     )
     settings = dataclasses.replace(context.settings, guidance=Level(args.guidance))
-    log = CallLog(args.log, settings, run="generate", now=context.now)
+    log = CallLog(args.log, settings, run="generate", frame=UCI_FRAME.name, now=context.now)
     try:
         with log:
             send = context.send()

@@ -14,7 +14,7 @@ import pytest
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.fusion.closure import closure
 from bko.fusion.join import join
 from bko.gaps.definitions import Definition, completeness_request
@@ -61,7 +61,7 @@ def test_records_showing_every_mapped_concept_close_every_per_subgroup_gap() -> 
             ca=1,
             thal=7,
         )
-        result = validate([record] * rows)
+        result = validate([record] * rows, frame=UCI_FRAME)
         assert result.passed == rows
         accepted[cell] = result.accepted
     joined = join(train, accepted, request)

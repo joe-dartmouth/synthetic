@@ -203,7 +203,7 @@ def test_the_summary_logs_the_runs_sums(tmp_path, caplog):
 
 def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_path, caplog):
     stopped = tmp_path / "stopped.jsonl"
-    with CallLog(stopped, SETTINGS) as log:
+    with CallLog(stopped, SETTINGS, frame="uci") as log:
         ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
     resume = Resume(stopped, ScriptedSend())
     knowledge = Knowledge("x", {}, (), ())
@@ -232,7 +232,7 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
 def test_an_arm_needs_the_runs_flight(tmp_path):
     """An arm building its own `Flight` would give each wave a fresh event loop, which an
     async client's connections, bound to the first, cannot use."""
-    log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
     with pytest.raises(TypeError, match="flight"):
         GuidedArm(  # ty: ignore[missing-argument]
             "bko", Definition.SUBGROUP, Knowledge("x", {}, (), ()), log=log, budget=3
@@ -285,7 +285,7 @@ def test_guided_arms_projects_a_live_run_and_a_resumed_one_but_not_a_replay(tmp_
     ) as live:
         assert live.watch.projecting
     stopped = tmp_path / "stopped.jsonl"
-    with CallLog(stopped, SETTINGS):
+    with CallLog(stopped, SETTINGS, frame="uci"):
         pass
     resume = Resume(stopped, ScriptedSend())
     with guided_arms(
@@ -320,7 +320,7 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
     """A segment stopped before `projection_after` holdouts leaves its resume projecting: the
     whole run's spend, the replayed calls' included, over every holdout done."""
     stopped = tmp_path / "stopped.jsonl"
-    with contextlib.suppress(StopRuleError), CallLog(stopped, SETTINGS) as log:
+    with contextlib.suppress(StopRuleError), CallLog(stopped, SETTINGS, frame="uci") as log:
         ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
         raise StopRuleError("stalled", "idle", retryable=True)
     one = json.loads(stopped.read_text(encoding="utf-8").splitlines()[-1])["usd"]
@@ -423,7 +423,7 @@ def test_the_end_line_marks_api_failures_retryable(tmp_path, monkeypatch, name):
 )
 def test_the_end_line_reads_retryable_from_the_error_it_ended_on(tmp_path, raised, retryable):
     path = tmp_path / "calls.jsonl"
-    with pytest.raises(type(raised)), CallLog(path, SETTINGS):
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS, frame="uci"):
         raise raised
     end = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
     assert (end["status"], end["retryable"]) == ("failed", retryable)
@@ -432,7 +432,7 @@ def test_the_end_line_reads_retryable_from_the_error_it_ended_on(tmp_path, raise
 @pytest.mark.parametrize("raised", [None, KeyboardInterrupt()])
 def test_a_complete_or_interrupted_run_is_not_retryable(tmp_path, raised):
     path = tmp_path / "calls.jsonl"
-    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS):
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, frame="uci"):
         if raised is not None:
             raise raised
     assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["retryable"] is False

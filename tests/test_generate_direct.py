@@ -217,7 +217,7 @@ def test_every_drawn_record_passes_validation_and_lies_inside_the_training_range
     quota = {cell: 40 for cell, records in cells.each.items() if records.observed.records}
     drawn = draw(train, quota)
     records = [dict(d.record) for draws in drawn.values() for d in draws]
-    assert len(validate(records).accepted) == len(records) == 40 * len(quota)
+    assert len(validate(records, frame=UCI_FRAME).accepted) == len(records) == 40 * len(quota)
     for field in UCI_FRAME.numeric:
         values = [record[field] for record in records]
         assert train[field].min() <= min(values)

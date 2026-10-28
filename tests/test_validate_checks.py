@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from bko.datasets.cells import LABEL
-from bko.datasets.uci import CATEGORICAL, FRAME_COLUMNS
+from bko.datasets.uci import CATEGORICAL, FRAME_COLUMNS, UCI_FRAME
 from bko.ontology.mapping import RANGES
 from bko.validate.checks import CHECKS, failures
 from tests._baselines_fixtures import EVALUATION
@@ -54,7 +54,7 @@ def test_base_is_the_first_real_record():
 
 
 def test_the_base_record_passes():
-    assert failures(BASE) == ()
+    assert failures(BASE, frame=UCI_FRAME) == ()
 
 
 def test_the_checks_are_the_field_set_then_each_fields_number_bound_and_decimals():
@@ -79,7 +79,7 @@ def test_the_codebook_and_the_ranges_bound_every_frame_field_once():
 
 @pytest.mark.parametrize("check", list(PLANTED), ids=list(PLANTED))
 def test_each_planted_record_fails_its_check_alone(check):
-    assert failures(PLANTED[check]) == (check,)
+    assert failures(PLANTED[check], frame=UCI_FRAME) == (check,)
 
 
 def test_every_check_has_a_planted_record():
@@ -88,19 +88,21 @@ def test_every_check_has_a_planted_record():
 
 @pytest.mark.parametrize("row", RANGES, ids=[row.field for row in RANGES])
 def test_a_range_admits_both_bounds(row):
-    assert failures(planted(**{row.field: row.low})) == ()
-    assert failures(planted(**{row.field: row.high})) == ()
+    assert failures(planted(**{row.field: row.low}), frame=UCI_FRAME) == ()
+    assert failures(planted(**{row.field: row.high}), frame=UCI_FRAME) == ()
 
 
 @pytest.mark.parametrize("row", RANGES, ids=[row.field for row in RANGES])
 def test_one_step_past_either_bound_fails_the_range_alone(row):
     step = 0.1 if row.field == "oldpeak" else 1
     for value in (row.low - step, row.high + step):
-        assert failures(planted(**{row.field: value})) == (f"range:{row.field}",)
+        assert failures(planted(**{row.field: value}), frame=UCI_FRAME) == (f"range:{row.field}",)
 
 
 def test_a_hair_past_a_bound_fails_the_range():
-    assert failures(planted(oldpeak=math.nextafter(10.0, math.inf))) == ("range:oldpeak",)
+    assert failures(planted(oldpeak=math.nextafter(10.0, math.inf)), frame=UCI_FRAME) == (
+        "range:oldpeak",
+    )
 
 
 @pytest.mark.parametrize(
@@ -108,8 +110,8 @@ def test_a_hair_past_a_bound_fails_the_range():
     [(field, code) for field, codes in CODEBOOK.items() for code in codes],
 )
 def test_every_code_passes_as_an_int_or_a_whole_float(field, code):
-    assert failures(planted(**{field: code})) == ()
-    assert failures(planted(**{field: float(code)})) == ()
+    assert failures(planted(**{field: code}), frame=UCI_FRAME) == ()
+    assert failures(planted(**{field: float(code)}), frame=UCI_FRAME) == ()
 
 
 @pytest.mark.parametrize(
@@ -127,37 +129,42 @@ def test_every_code_passes_as_an_int_or_a_whole_float(field, code):
     ],
 )
 def test_a_value_outside_its_codebook_fails_the_code_alone(field, value):
-    assert failures(planted(**{field: value})) == (f"code:{field}",)
+    assert failures(planted(**{field: value}), frame=UCI_FRAME) == (f"code:{field}",)
 
 
 @pytest.mark.parametrize("value", list(HOSTILE.values()), ids=list(HOSTILE))
 def test_a_value_that_is_not_a_finite_number_fails_its_number_check_alone(value):
     for name in BASE:
-        assert failures(planted(**{name: value})) == (f"number:{name}",)
+        assert failures(planted(**{name: value}), frame=UCI_FRAME) == (f"number:{name}",)
 
 
 def test_a_missing_field_fails_its_number_check_alone():
     for name in BASE:
         candidate = {key: value for key, value in BASE.items() if key != name}
-        assert failures(candidate) == (f"number:{name}",)
+        assert failures(candidate, frame=UCI_FRAME) == (f"number:{name}",)
 
 
 @pytest.mark.parametrize("value", [10**400, -(10**400)], ids=["huge", "negative-huge"])
 def test_an_integer_too_large_for_a_float_fails_its_bound_and_never_raises(value):
-    assert failures(planted(chol=value)) == ("range:chol",)
-    assert failures(planted(ca=value)) == ("code:ca",)
+    assert failures(planted(chol=value), frame=UCI_FRAME) == ("range:chol",)
+    assert failures(planted(ca=value), frame=UCI_FRAME) == ("code:ca",)
 
 
 def test_numpy_numbers_pass():
-    assert failures(planted(age=np.int32(63), thal=np.int64(6), oldpeak=np.float64(2.3))) == ()
+    assert (
+        failures(
+            planted(age=np.int32(63), thal=np.int64(6), oldpeak=np.float64(2.3)), frame=UCI_FRAME
+        )
+        == ()
+    )
 
 
 def test_whole_floats_pass_whole_fields():
-    assert failures(planted(age=63.0, chol=233.0, ca=0.0, target=0.0)) == ()
+    assert failures(planted(age=63.0, chol=233.0, ca=0.0, target=0.0), frame=UCI_FRAME) == ()
 
 
 def test_a_bound_failure_stops_the_fields_chain():
-    assert failures(planted(chol=5.2)) == ("range:chol",)
+    assert failures(planted(chol=5.2), frame=UCI_FRAME) == ("range:chol",)
 
 
 @pytest.mark.parametrize(
@@ -166,19 +173,19 @@ def test_a_bound_failure_stops_the_fields_chain():
     ids=["none", "int", "str", "list", "pair", "items"],
 )
 def test_a_candidate_that_is_not_a_mapping_fails_the_field_set_alone(candidate):
-    assert failures(candidate) == ("fields",)
+    assert failures(candidate, frame=UCI_FRAME) == ("fields",)
 
 
 def test_an_extra_key_fails_the_field_set_and_the_fields_are_still_checked():
-    assert failures(planted(num=0, chol=601)) == ("fields", "range:chol")
-    assert failures({**BASE, 0: 1}) == ("fields",)
+    assert failures(planted(num=0, chol=601), frame=UCI_FRAME) == ("fields", "range:chol")
+    assert failures({**BASE, 0: 1}, frame=UCI_FRAME) == ("fields",)
 
 
 def test_a_misspelt_key_fails_the_field_set_and_its_fields_number_check():
     candidate = {("Age" if key == "age" else key): value for key, value in BASE.items()}
-    assert failures(candidate) == ("fields", "number:age")
+    assert failures(candidate, frame=UCI_FRAME) == ("fields", "number:age")
 
 
 def test_several_defects_are_reported_once_each_in_check_order():
-    got = failures(planted(age=200, cp=9, trestbps="high", num=2))
+    got = failures(planted(age=200, cp=9, trestbps="high", num=2), frame=UCI_FRAME)
     assert got == ("fields", "number:trestbps", "range:age", "code:cp")

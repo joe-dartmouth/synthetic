@@ -226,7 +226,7 @@ def _stopped(
     """A stopped call log under `g9-1`, its end line naming `stop`."""
     source = tmp_path / "g9-1" / "calls.jsonl"
     source.parent.mkdir(exist_ok=True)
-    with CallLog(source, settings, rehearsal=rehearsal):
+    with CallLog(source, settings, rehearsal=rehearsal, frame="uci"):
         pass
     lines = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
     lines[-1].update(status="failed", stop=stop)

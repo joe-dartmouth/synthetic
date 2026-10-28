@@ -23,7 +23,7 @@ from bko.evaluate.scoring import _prepare, _score, score
 from bko.generate.errors import GenerationError
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend, Call
-from bko.validate.checks import validate
+from bko.validate.checks import failures, validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context
 from tests._evaluate_fixtures import FAST_ARMS
 from tests._frame_fixtures import SHORT, TOY, toy_records
@@ -176,19 +176,29 @@ def test_the_direct_arm_is_refused_on_a_non_uci_dataset_before_any_load(tmp_path
 def test_the_call_log_run_line_names_the_frame(tmp_path):
     with CallLog(tmp_path / "toy.jsonl", SETTINGS, frame="toy"):
         pass
-    with CallLog(tmp_path / "uci.jsonl", SETTINGS):
-        pass
     assert _lines(tmp_path / "toy.jsonl")[0]["frame"] == "toy"
-    assert _lines(tmp_path / "uci.jsonl")[0]["frame"] == "uci"
+    with pytest.raises(TypeError, match="frame"):
+        CallLog(tmp_path / "unnamed.jsonl", SETTINGS)  # ty: ignore[missing-argument]
+    assert not (tmp_path / "unnamed.jsonl").exists()
 
 
 def test_the_validated_line_names_the_frame(caplog):
     with caplog.at_level(logging.INFO):
         validate([{"age": 50, "sex": 0, "level": 1.25, "target": 1}], frame=TOY)
-        validate([planted()])
+        validate([planted()], frame=UCI_FRAME)
+        validate([], frame=TOY)
     lines = [record.getMessage() for record in caplog.records if "validated" in record.message]
-    assert lines[0] == "validated generated=1 passed=1 rejected=0 none frame=toy"
-    assert lines[1] == "validated generated=1 passed=1 rejected=0 none frame=uci"
+    assert lines == [
+        "validated generated=1 passed=1 rejected=0 none frame=toy",
+        "validated generated=1 passed=1 rejected=0 none frame=uci",
+        "validated no candidates frame=toy, so validity is undefined",
+    ]
+
+
+@pytest.mark.parametrize("check", [validate, failures])
+def test_the_validate_entry_points_require_the_frame(check):
+    with pytest.raises(TypeError, match="frame"):
+        check([planted()])
 
 
 def test_the_candidates_header_names_frame_and_data_and_is_schema_2(tmp_path):

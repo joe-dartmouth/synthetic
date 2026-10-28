@@ -23,7 +23,7 @@ from bko.baselines.records import (
 )
 from bko.baselines.request import Request
 from bko.datasets.cells import LABEL
-from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, NUMERIC
+from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, NUMERIC, UCI_FRAME
 from bko.validate.checks import validate
 from tests._baselines_fixtures import EDGE, QUOTA, cell_list, full_records
 
@@ -275,7 +275,7 @@ def test_validated_candidates_leave_check_nothing_to_refuse(name, value):
         extra["sex"] = 1 - int(str(extra["sex"]))
     elif value is not None:
         extra[name] = value
-    accepted = validate([*candidates_of(rows), extra]).accepted
+    accepted = validate([*candidates_of(rows), extra], frame=UCI_FRAME).accepted
     reasons = drops(accepted, TRAIN, REQUEST)
     assert reasons[-1] is not None
     assert set(reasons[:-1]) == {None}

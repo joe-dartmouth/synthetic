@@ -28,7 +28,6 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Literal, Self, TextIO
 
-from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import undecoded_in
 from bko.generate.errors import GenerationError
@@ -107,7 +106,7 @@ class CallLog:
         rehearsal: bool = False,
         run: str | None = None,
         in_flight: int = 1,
-        frame: str = UCI_FRAME.name,
+        frame: str,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.

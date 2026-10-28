@@ -102,7 +102,7 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
         assert answer.usage.output_tokens == OUTPUT_PER_RECORD * 20
         records = json.loads(answer.text or "")["records"]
         assert len(records) == 20
-        checked = validate(records)
+        checked = validate(records, frame=UCI_FRAME)
         assert checked.passed == 20
         frame = pd.DataFrame(records, columns=list(FRAME_COLUMNS))
         assert _cells(frame) == {cell}

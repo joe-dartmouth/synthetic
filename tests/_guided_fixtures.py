@@ -55,7 +55,7 @@ def guided(
     The arm sends through a `Flight` of one call at a time over `send`, under `ceiling` and the
     idle limit `idle`, None for none.
     """
-    log = CallLog(directory / "calls.jsonl", SETTINGS)
+    log = CallLog(directory / "calls.jsonl", SETTINGS, frame="uci")
     limits = Limits(1, idle)
     flight = Flight(send, log, limits, spendable=partial(spendable, log, ceiling), ceiling=ceiling)
     arm = GuidedArm(
