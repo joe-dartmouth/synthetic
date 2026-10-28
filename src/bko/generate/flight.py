@@ -4,8 +4,8 @@ A `Flight` sends one wave of planned calls at a time, with at most `Limits.in_fl
 It numbers and logs each call's request in plan order (`bko.generate.calls.request`), so call
 numbers, and a replay's answers, follow the plan whatever order replies land in. Each reply or
 failure is written as it lands, on the event loop's thread. The wave returns its batches in call
-order, or raises the failure of the lowest failing call once every call already sent has landed;
-no call is sent after one fails. Which calls form a wave is the caller's rule (ADR
+order, or raises the failure of the lowest failing call once every call already sent has landed,
+unless a stop rule's error outranks it; no call is sent after one fails. Which calls form a wave is the caller's rule (ADR
 `research/concurrent-call-waves`). A `Flight` used in a `with` block runs every wave on one event
 loop, which an async client's connections need; outside one, each wave gets its own loop.
 
@@ -184,7 +184,8 @@ class Flight:
             IdleError: If a call got no reply within `limits.idle` seconds, once the calls beside
                 it are cancelled.
             GenerationError: The lowest failing call's failure, once every call sent has landed.
-            Exception: Anything `spendable` or `on_batch` raises, once every call sent has landed.
+            Exception: Anything `spendable` or `on_batch` raises, once every call sent has landed;
+                what `spendable` raises outranks a call's failure when it carries a `stop_rule`.
             KeyboardInterrupt: Propagated unchanged; each call still in flight is cancelled first
                 and writes its `error` line.
         """
@@ -237,7 +238,8 @@ class Flight:
                 continue
             if not isinstance(outcome, Exception):
                 raise outcome
-            return tuple(landed), outcome
+            # A stop rule outranks a call's failure, so the log's `end` line still names it.
+            return tuple(landed), stopped if _rule(stopped) else outcome
         return tuple(landed), stopped
 
     async def _dispatch(self, planned: Sequence[Planned], frame: FrameSpec, wave: _Wave) -> None:
@@ -326,6 +328,11 @@ async def _cancel_beside(index: int, wave: _Wave) -> None:
         if other != index and not task.done():
             task.cancel()
             await asyncio.wait([task])
+
+
+def _rule(error: BaseException | None) -> bool:
+    """Whether `error` is a stop rule's: it carries a `stop_rule`, as the call log reads it."""
+    return getattr(error, "stop_rule", None) is not None
 
 
 def _outcome(task: asyncio.Task[Batch], wave: _Wave) -> Batch | BaseException:

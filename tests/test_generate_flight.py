@@ -257,6 +257,25 @@ def test_a_call_that_fails_while_the_ceiling_waits_stops_the_wave(tmp_path):
     assert len(send.calls) == 1
 
 
+def test_a_ceiling_stop_outranks_a_call_in_flight_that_fails(tmp_path):
+    send = Delayed(fail={1: GenerationError("no response")})
+    log = _log(tmp_path)
+
+    def refuse_the_third() -> None:
+        if log.calls == 2:
+            msg = "the run's spend reached its ceiling"
+            raise StopRuleError(msg, "ceiling")
+
+    flight = Flight(send, log, Limits(in_flight=3, idle=None), spendable=refuse_the_third)
+    with pytest.raises(StopRuleError) as raised, log:
+        flight.wave(PLAN)
+    assert raised.value.stop_rule == "ceiling"
+    lines = _lines(log)
+    assert [line["call"] for line in lines if line["kind"] == "error"] == [1]
+    assert [line["call"] for line in lines if line["kind"] == "reply"] == [2]
+    assert lines[-1]["stop"] == "ceiling"
+
+
 class Stalled(Delayed):
     """`Delayed`, except that calls 1 and 3 never land."""
 
