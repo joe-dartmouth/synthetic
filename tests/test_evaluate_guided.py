@@ -304,7 +304,7 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
     """A segment stopped before `projection_after` holdouts leaves its resume projecting: the
     whole run's spend, the replayed calls' included, over every holdout done."""
     stopped = tmp_path / "stopped.jsonl"
-    with pytest.raises(StopRuleError), CallLog(stopped, SETTINGS) as log:
+    with contextlib.suppress(StopRuleError), CallLog(stopped, SETTINGS) as log:
         ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
         raise StopRuleError("stalled", "idle", retryable=True)
     one = json.loads(stopped.read_text(encoding="utf-8").splitlines()[-1])["usd"]
@@ -317,10 +317,8 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
         assert isinstance(answer, Reply)
         return answer
 
-    caplog.set_level(logging.INFO)
-    with (
-        pytest.raises(StopRuleError, match="projects to") as raised,
-        guided_arms(
+    def run() -> None:
+        with guided_arms(
             ("bko",),
             Knowledge("x", {}, (), ()),
             early,
@@ -331,11 +329,14 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
             run="e1",
             limits=SEQUENTIAL,
             answers=resume,
-        ) as resumed,
-    ):
-        ask(GUIDANCE, 2, send=send, log=resumed.log)
-        assert resumed.log.live_usd == 0
-        resumed.watch.holdout_done()
+        ) as resumed:
+            ask(GUIDANCE, 2, send=send, log=resumed.log)
+            assert resumed.log.live_usd == 0
+            resumed.watch.holdout_done()
+
+    caplog.set_level(logging.INFO)
+    with pytest.raises(StopRuleError, match="projects to") as raised:
+        run()
     assert raised.value.stop_rule == "projection"
     assert f"projection holdouts=1 of=2 usd={one:.4f} projected_usd={2 * one:.4f}" in caplog.text
     end = json.loads((tmp_path / "resumed.jsonl").read_text(encoding="utf-8").splitlines()[-1])
