@@ -38,95 +38,32 @@ resumed contradicts its contract.
 from __future__ import annotations
 
 import argparse
-import errno
-import hashlib
 import json
 import logging
 import sys
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, replace
+from collections.abc import Sequence
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TextIO
 
-import pandas as pd
-
 from bko.baselines.errors import BaselineError
-from bko.baselines.methods import Runner
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.run_folders import RUN_ID, runs_root
-from bko.datasets.sources import UCI_HEART_DISEASE, Source
-from bko.datasets.uci import load_uci
-from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.compare import compare
-from bko.evaluate.direct import run_direct
+from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import (
-    BKO_ARMS,
-    DEFAULT_RUN,
-    DIRECT_ARM,
-    E1,
-    RUNS,
-    Experiment,
-    NamedRun,
-)
-from bko.evaluate.guided import Knowledge, guided_arms
-from bko.evaluate.holdout_candidates import CandidateFile, Origin
-from bko.evaluate.launch import Power, Spawn, launch, on_battery, spawn
-from bko.evaluate.provenance import log_experiment
-from bko.evaluate.rehearse import CannedSend, Rehearse
-from bko.evaluate.run import ARMS, run
-from bko.evaluate.scores import Score, render
-from bko.gaps.scope import load_scope
-from bko.generate.api import HTTP_LOGGERS, default_send
+from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
+from bko.evaluate.launch import launch
+from bko.evaluate.scoring import score
+from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError, ReplayError
-from bko.generate.messages import SETTINGS, Send, Settings
-from bko.generate.replay import Replay, Resume, log_ends, refuse_unresumable
-from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
-from bko.ontology.schema import FieldMapping
+from bko.generate.messages import Settings
+from bko.generate.replay import log_ends, refuse_unresumable
 
 
 logger = logging.getLogger("bko.evaluate")
-
-
-@dataclass(frozen=True, slots=True)
-class Context:
-    """What the command reaches outside the process; tests replace each field.
-
-    Attributes:
-        open_url: The HTTPS opener.
-        uci: The pinned UCI archive.
-        experiment: The configuration the run named `e1` is; every other name reads `runs`.
-        settings: The generator settings of the run named `e1`.
-        runs: Every other named run, by name.
-        arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
-            the API.
-        models: Builds each unfitted classifier, by model; it holds `Model.LR`.
-        releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
-        field_rows: The field mappings the BKO arms observe cells by.
-        send: Builds the send every BKO arm's call goes through.
-        rehearse: Builds the send a rehearsal answers every BKO call with.
-        power: Whether the machine runs on battery, for `launch`.
-        start: Starts `launch`'s detached run.
-        runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
-    """
-
-    open_url: UrlOpener = open_https
-    uci: Source = UCI_HEART_DISEASE
-    experiment: Experiment = E1
-    settings: Settings = SETTINGS
-    runs: Mapping[str, NamedRun] = RUNS
-    arms: Mapping[str, Runner] = ARMS
-    models: Mapping[Model, Factory] = MODELS
-    releases: Mapping[str, Source] = RELEASES
-    field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
-    send: Callable[[], Send] = default_send
-    rehearse: Rehearse = CannedSend
-    power: Power = on_battery
-    start: Spawn = spawn
-    runs_dir: Path | None = None
 
 
 def main(
@@ -165,7 +102,7 @@ def main(
                 beside_arm=args.beside_arm,
             )
             return 0
-        text = _score(args, _named(args.run, context))
+        text = score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -257,153 +194,6 @@ def configure_logging() -> None:
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
-
-
-def _score(args: argparse.Namespace, context: Context) -> str:
-    experiment = context.experiment
-    guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
-    direct = DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
-    _refuse_flags(args, guided, direct=direct)
-    if args.rehearse:
-        # scores.csv carries no marker, so its log says what the run was before anything else.
-        logger.warning(
-            "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
-            "not paid figures"
-        )
-    answers = _answers(args, context)
-    data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    frame = load_uci(data_dir, source=context.uci)
-    log_experiment(args.run, experiment, context.models)
-    if guided or direct:
-        scores = _guided(args, data_dir, frame, guided, context, answers, direct=direct)
-    else:
-        scores = run(frame, experiment, context.arms, models=context.models)
-    text = render(scores)
-    digest = hashlib.sha256(text.encode()).hexdigest()
-    logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
-    return text
-
-
-def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bool) -> None:
-    """Refuse flags the run's arms cannot use, before any download or file is made.
-
-    Raises:
-        EvaluationError: As the module's exit code 2 lists.
-        FileExistsError: If the call log or candidates file exists.
-    """
-    if guided and args.log is None:
-        msg = f"--log is required: the arms {guided} call the Messages API"
-        raise EvaluationError(msg)
-    if args.replay is not None and not guided:
-        msg = "--replay needs a BKO arm"
-        raise EvaluationError(msg)
-    if args.resume is not None and not guided:
-        msg = "--resume needs a BKO arm"
-        raise EvaluationError(msg)
-    if args.rehearse and not guided:
-        msg = "--rehearse needs a BKO arm"
-        raise EvaluationError(msg)
-    generating = [*guided, *([DIRECT_ARM] if direct else [])]
-    if generating and args.candidates is None:
-        msg = f"--candidates is required: the arms {generating} generate candidates"
-        raise EvaluationError(msg)
-    if args.log is not None and not guided:
-        msg = "--log needs a BKO arm that calls the Messages API"
-        raise EvaluationError(msg)
-    if args.candidates is not None and not generating:
-        msg = "--candidates needs a BKO arm or the direct arm"
-        raise EvaluationError(msg)
-    if args.log is not None and args.candidates.resolve() == args.log.resolve():
-        msg = f"--candidates and --log name one file, {args.log}"
-        raise EvaluationError(msg)
-    if args.log is not None and args.log.exists():
-        raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
-    if args.candidates is not None and args.candidates.exists():
-        raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
-
-
-def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
-    """The source that answers the BKO calls, read before any download or log is made."""
-    if args.replay is not None:
-        return Replay(args.replay)
-    if args.resume is None:
-        return None
-    resume = Resume(args.resume, context.send())
-    logger.info(
-        "resume log=%s sha256=%s answered=%d",
-        args.resume,
-        resume.digest,
-        resume.answered.calls,
-    )
-    return resume
-
-
-def _guided(
-    args: argparse.Namespace,
-    data_dir: Path,
-    frame: pd.DataFrame,
-    names: Sequence[str],
-    context: Context,
-    answers: Replay | None,
-    *,
-    direct: bool,
-) -> list[Score]:
-    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
-
-    With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
-    writes that file alone and no call log is made. Each BKO or direct arm logs its run's validity
-    sums on the way out, a stopped run included.
-    """
-    rows = context.field_rows
-    ontologies, fragments = load_scope(
-        {row.concept for row in rows},
-        data_dir,
-        releases=context.releases,
-        open_url=context.open_url,
-    )
-    knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
-    experiment = context.experiment
-    origin = Origin(args.run, context.uci, context.releases)
-    if not names:
-        with CandidateFile(args.candidates, origin, context.settings) as kept:
-            return run_direct(
-                frame, experiment, context.arms, knowledge, sink=kept, models=context.models
-            )
-    canned = context.rehearse(frame, experiment, context.settings) if args.rehearse else None
-    with guided_arms(
-        names,
-        knowledge,
-        experiment,
-        settings=context.settings,
-        log=args.log,
-        candidates=args.candidates,
-        origin=origin,
-        send=context.send if canned is None else lambda: canned,
-        answers=answers,
-        rehearsal=args.rehearse,
-    ) as paid:
-        arms = {**context.arms, **paid.arms}
-        drains = {name: arm.drain for name, arm in paid.arms.items()}
-        if direct:
-            return run_direct(
-                frame,
-                experiment,
-                arms,
-                knowledge,
-                sink=paid.candidates,
-                models=context.models,
-                drains=drains,
-                on_holdout=paid.watch.holdout_done,
-            )
-        return run(
-            frame,
-            experiment,
-            arms,
-            models=context.models,
-            drains=drains,
-            on_holdout=paid.watch.holdout_done,
-        )
 
 
 def _parser() -> argparse.ArgumentParser:
