@@ -252,3 +252,16 @@ def test_a_rehearsal_refuses_a_call_for_another_frame():
 def test_named_helpers_require_edges(helper, args):
     with pytest.raises(TypeError, match="edges"):
         helper(*args)
+
+
+@pytest.mark.parametrize(
+    ("helper", "args"),
+    [
+        pytest.param(Strata.CELL.grid, (), id="grid"),
+        pytest.param(experiment_module._short, (TOY_TRAIN, TOY_EXPERIMENT), id="_short"),
+    ],
+)
+def test_edges_are_keyword_only(helper, args):
+    with pytest.raises(TypeError, match="positional"):
+        helper(*args, TOY.edges)
+    assert helper(*args, edges=TOY.edges)

@@ -66,7 +66,7 @@ class Strata(enum.StrEnum):
         """The `cell_keys` columns that name a stratum; each key ends with the label."""
         return CELL_COLUMNS if self is Strata.CELL else (LABEL,)
 
-    def grid(self, edges: Sequence[int]) -> tuple[Stratum, ...]:
+    def grid(self, *, edges: Sequence[int]) -> tuple[Stratum, ...]:
         """Every stratum under the band `edges`, in the grid order of `cell_counts`."""
         if self is Strata.LABEL:
             return ((0,), (1,))
@@ -107,7 +107,7 @@ class Request:
             ValueError: If a quota key is not a stratum of `strata`, a row count is below 1, or the
                 seed is outside `[0, SEED_LIMIT)`.
         """
-        grid = self.strata.grid(self.frame.edges)
+        grid = self.strata.grid(edges=self.frame.edges)
         for stratum, rows in self.quota.items():
             if stratum not in grid or not _is_int(rows) or rows < 1:
                 msg = (
@@ -166,5 +166,5 @@ def plan(
 ) -> Request:
     """Water-fill `rows` over the strata of `train`, a split of `frame`, into a `Request`."""
     held = Counter(stratum_keys(train, strata, edges=frame.edges))
-    counts = {stratum: held[stratum] for stratum in strata.grid(frame.edges)}
+    counts = {stratum: held[stratum] for stratum in strata.grid(edges=frame.edges)}
     return Request(quota=water_fill(counts, rows), strata=strata, seed=seed, frame=frame)

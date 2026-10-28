@@ -259,7 +259,7 @@ def flagged(
     train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
 ) -> tuple[Stratum, ...]:
     """The cells under `edges` holding fewer than `experiment.fill_to` records, in grid order."""
-    return tuple(_short(train, experiment, edges))
+    return tuple(_short(train, experiment, edges=edges))
 
 
 def gap_request(
@@ -270,7 +270,7 @@ def gap_request(
     Raises:
         EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
     """
-    quota = _short(train, experiment, frame.edges)
+    quota = _short(train, experiment, edges=frame.edges)
     if not quota:
         msg = f"no cell holds fewer than {experiment.fill_to} training records; nothing to fill"
         raise EvaluationError(msg)
@@ -283,7 +283,9 @@ def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec = UCI_FR
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def _short(train: pd.DataFrame, experiment: Experiment, edges: Sequence[int]) -> dict[Stratum, int]:
+def _short(
+    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
+) -> dict[Stratum, int]:
     return {
         cell: experiment.fill_to - count
         for cell, count, short in _cells(train, experiment.fill_to, edges=edges)
