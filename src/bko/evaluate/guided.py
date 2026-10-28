@@ -36,7 +36,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
-from bko.baselines.records import Baseline, check, unit_weights
+from bko.baselines.records import Baseline, Drop, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
@@ -90,6 +90,8 @@ class GuidedArm:
     Attributes:
         name: The arm's name.
         totals: Every attempt's counts over the run.
+        spent: The run's spend on the arm's attempts, in USD, summed from each attempt's change in
+            the call log's spend.
     """
 
     def __init__(
@@ -122,6 +124,7 @@ class GuidedArm:
         self.name = name
         self._prescribe = prescribe
         self.totals = self._tally()
+        self.spent = 0.0
         self._definition = definition
         self._knowledge = knowledge
         self._log = log
@@ -150,7 +153,9 @@ class GuidedArm:
         attempt = Attempt(train, request, self._budget * request.rows, prescribing=prescribing)
         self._attempts += 1
         first = self._log.calls + 1
+        before = self._log.usd
         outcome = "failed"
+        queues: Queues | None = None
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
             self._rounds(attempt, guidance, request.frame, queues)
@@ -161,16 +166,19 @@ class GuidedArm:
         finally:
             self._pending.add(attempt.tally)
             self.totals.add(attempt.tally)
+            self.spent += self._log.usd - before
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
+            last = self._log.calls
+            requeued = "" if self._prescribe is None else f" requeued={_requeued(queues)}"
             logger.info(
-                "guided arm=%s seed=%d outcome=%s calls=%d-%d %s usd=%.4f",
+                "guided arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
                 self.name,
                 request.seed,
                 outcome,
-                first,
-                self._log.calls,
+                f"{first}-{last}" if last >= first else "none",
                 attempt.line(),
+                requeued,
                 self._log.usd,
             )
         params = {
@@ -204,9 +212,9 @@ class GuidedArm:
     def summary(self) -> None:
         """Log the run's sums over every fill.
 
-        They are the validity rate's numerator and denominator, and every drop.
+        They are the validity rate's numerator and denominator, every drop, and the arm's spend.
         """
-        logger.info("validity arm=%s %s", self.name, self.totals.line())
+        logger.info("validity arm=%s %s usd=%.4f", self.name, self.totals.line(), self.spent)
 
     def _tally(self) -> Tally:
         return Attempt.tally_for(prescribing=self._prescribe is not None)
@@ -234,6 +242,7 @@ class GuidedArm:
         queues: Queues | None,
     ) -> None:
         per_call = self._log.settings.per_call
+        waves = 0
         while short := attempt.short():
             if attempt.asked + sum(short.values()) > attempt.limit:
                 msg = (
@@ -256,10 +265,25 @@ class GuidedArm:
                 if not planned:
                     continue
                 commit = _committer(attempt, planned, queues)
+                waves += 1
+                kept, concepts = sum(attempt.held().values()), attempt.tally.dropped[Drop.CONCEPTS]
+                requeued = _requeued(queues)
                 try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
                     raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
+                if queues is not None:
+                    logger.info(
+                        "prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d "
+                        "requeued=%d",
+                        self.name,
+                        attempt.request.seed,
+                        waves,
+                        sum(item.rows for item in planned),
+                        sum(attempt.held().values()) - kept,
+                        attempt.tally.dropped[Drop.CONCEPTS] - concepts,
+                        queues.requeued - requeued,
+                    )
 
     def _planned(
         self, guidance: Guidance, rows: int, frame: FrameSpec, queues: Queues | None
@@ -268,6 +292,11 @@ class GuidedArm:
             return Planned(guidance, rows)
         lines = queues.take(guidance.cell, rows)
         return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
+
+
+def _requeued(queues: Queues | None) -> int:
+    """The lines `queues` has given back, 0 for none."""
+    return 0 if queues is None else queues.requeued
 
 
 def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:

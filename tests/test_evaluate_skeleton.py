@@ -191,7 +191,8 @@ PER_TWO: Final = dataclasses.replace(SETTINGS, per_call=2)
 """Two records per call, so one cell's ask spans more than one call of a wave."""
 
 
-def test_a_wave_assigns_lines_in_plan_order_and_re_queues_them_in_call_order(tmp_path):
+def test_a_wave_assigns_lines_in_plan_order_and_re_queues_them_in_call_order(tmp_path, caplog):
+    caplog.set_level("INFO", logger="bko.evaluate.guided")
     send = FollowSend(spoil={1: frozenset({0, 1}), 2: frozenset({0})})
     arm, log = _arm(tmp_path, send, settings=PER_TWO)
     with log:
@@ -201,6 +202,14 @@ def test_a_wave_assigns_lines_in_plan_order_and_re_queues_them_in_call_order(tmp
     # records' lines return in call order, then line order, and the top-up asks them so.
     assert [_lines(call) for call in send.calls] == [[a, a], [n, a], [a], [a, a], [n]]
     assert arm.drain(0, Source.CANDIDATES)[Measure.DROPPED_RANGE] == 3
+    guided_line = next(r.message for r in caplog.records if r.message.startswith("guided "))
+    assert " kept=5 requeued=3 usd=" in guided_line
+    waves = [r.message for r in caplog.records if r.message.startswith("prescribed ")]
+    assert waves == [
+        "prescribed arm=bko-skeleton seed=6 wave=1 asked=4 kept=1 dropped_concepts=0 requeued=3",
+        "prescribed arm=bko-skeleton seed=6 wave=2 asked=1 kept=1 dropped_concepts=0 requeued=0",
+        "prescribed arm=bko-skeleton seed=6 wave=3 asked=3 kept=3 dropped_concepts=0 requeued=0",
+    ]
 
 
 def test_lines_are_drawn_once_per_request_and_equal_bko_directs_draw(tmp_path, monkeypatch):
@@ -387,6 +396,28 @@ def test_a_starved_arm_refuses_every_attempt_and_the_run_exits_2(tmp_path, caplo
     assert outcomes == ["outcome=refused"] * 5
     end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
     assert (end["kind"], end["status"], end["retryable"]) == ("end", "failed", False)
+
+
+def test_a_refusal_before_any_call_names_no_call_range(tmp_path, caplog):
+    caplog.set_level("INFO", logger="bko.evaluate.guided")
+    arm, log = guided(tmp_path, ScriptedSend(), budget=0)
+    with log, pytest.raises(BaselineError, match="budget of 0 records"):
+        arm(train(tmp_path / "train"), REQUEST)
+    line = next(r.message for r in caplog.records if r.message.startswith("guided "))
+    assert " outcome=refused calls=none asked=0 " in line
+
+
+def test_the_validity_line_carries_the_arms_own_spend(tmp_path, caplog):
+    caplog.set_level("INFO", logger="bko.evaluate.guided")
+    send = FollowSend({1: frozenset({0})})
+    arm, log = _arm(tmp_path, send)
+    with log:
+        arm(train(tmp_path / "train"), REQUEST)
+        spent = log.usd
+        arm.summary()
+    assert spent > 0
+    line = next(r.message for r in caplog.records if r.message.startswith("validity "))
+    assert line.endswith(f" dropped_quota=0 usd={spent:.4f}")
 
 
 def test_a_batch_answering_another_cell_than_its_planned_call_is_refused(tmp_path):
