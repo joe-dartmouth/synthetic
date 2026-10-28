@@ -205,7 +205,7 @@ launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `re
 `resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
 `score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
 session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files;
-`--data-dir` is forwarded as an absolute path. It appends the process id to `launch.log` and prints
+`--data-dir` is forwarded as an absolute path, and `--in-flight` when given. It appends the process id to `launch.log` and prints
 the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute; for
 `--rehearse`, `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it
 appends `error=<type>: <message>` and then removes the two files; it also removes them when
@@ -228,13 +228,14 @@ run's spend before the call it refuses), the projection (the live spend after `p
 holdouts, scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, a
 rehearsal is, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
 seconds for one call to get a reply, its retries included, timed by `asyncio.timeout` around the
-awaited send; on expiry the calls beside it are cancelled and get error lines). `bko.evaluate.watch`
-holds the projection and `bko.generate.flight` the ceiling and the idle limit. `--in-flight N`
-sets the calls in flight, `bko.generate.flight.IN_FLIGHT` by default (ADR
+awaited send; on expiry no later call is sent, and the calls beside it land under their own idle
+limits, so their replies and spend are recorded). `bko.evaluate.watch` holds the projection and
+`bko.generate.flight` the ceiling and the idle limit. `--in-flight N` sets the calls in flight,
+`bko.generate.flight.IN_FLIGHT` by default (ADR
 [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the
-call it lands at with one call in flight. `launch` forwards `--in-flight` when given. A `scores.log` with no `run status=` line, which the call log
-writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
-the runner before any replay.
+call it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call
+log writes as it closes, belongs to a process that is still running or was killed. Copy the call
+log off the runner before any replay.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows

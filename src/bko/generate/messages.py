@@ -1,7 +1,7 @@
 """The generation request and reply, as repo-owned values: no SDK type crosses this module.
 
-A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one, and
-`CALL_NUMBER` names the call a send is making;
+A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one;
+`CALL_NUMBER` names the call a send is making, and `ATTEMPTS` holds its attempt count;
 `bko.generate.api` holds the only ones that reach the Anthropic API, so every other module and test
 runs on a fake. The structured-output schema fixes
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
@@ -186,6 +186,12 @@ CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
 """The number of the call being sent, which `bko.generate.calls.request` sets and
 `bko.generate.flight` sets again in each call's own task, so its retry lines name it; 0 before any
 call is requested."""
+
+ATTEMPTS: Final[ContextVar[list[int] | None]] = ContextVar("attempts", default=None)
+"""The current async call's attempt count, in a one-item list: a holder rather than a value, so
+the count `bko.generate.api.Attempts.handle_async` writes reaches whoever set the holder, wherever
+the SDK runs the attempt. `bko.generate.flight` sets one around each awaited send, so a call the
+idle rule stops still reports its attempts; a send that finds none sets its own."""
 
 
 def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:

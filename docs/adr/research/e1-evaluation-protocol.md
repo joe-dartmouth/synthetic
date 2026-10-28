@@ -48,9 +48,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   stops on two rules beside the spend ceiling, each value held by its `Experiment`: its spend after
   `projection_after` holdouts, scaled to every holdout, reaching the ceiling, and a call with no
   reply within `idle_limit` seconds, timed by `asyncio.timeout` around each awaited send, retries
-  included, so that on expiry the run cancels the calls in flight beside it, writes their error
-  lines in call order and raises `StopRuleError("idle")` (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake
-  and refused on battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
+  included, so that on expiry the run sends no later call, lets the calls in flight beside it land
+  under their own idle limits, records their replies and spend, and raises `StopRuleError("idle")`
+  (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake and refused on
+  battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
   resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
   or the ceiling stopped is reported, not resumed, since resuming would spend past the rule that
   stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's

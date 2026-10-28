@@ -15,7 +15,8 @@ the whole run's spend. It refuses a log with a failed call before its last, a re
 rehearsal's log, whose replies are canned, a run the projection or the ceiling stopped, which is
 reported rather than resumed, and a resumed log that stopped before its replayed calls ran out.
 `refuse_unresumable` holds the checks on the `run` and `end` lines, and `log_ends` reads those two
-lines alone, so `launch --resume` refuses before it claims a folder. ADR `research/call-log-replay` records the design.
+lines alone, so `launch --resume` refuses before it claims a folder. ADR `research/call-log-replay`
+records the design.
 """
 
 from __future__ import annotations

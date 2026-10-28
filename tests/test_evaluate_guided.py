@@ -227,7 +227,7 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
     def stalled(call):
         return asyncio.Event().wait()
 
-    arm, log = guided(tmp_path, stalled, idle=0.05)
+    arm, log = guided(tmp_path, stalled, idle=0.5)
     caplog.set_level(logging.WARNING)
     with pytest.raises(StopRuleError, match="idle limit") as raised, log:
         arm(train(tmp_path / "train"), REQUEST)
@@ -235,7 +235,7 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
     assert json.loads(lines[-1])["stop"] == "idle"
-    assert "stop rule=idle call=1 limit_seconds=0.1" in caplog.text
+    assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.text
 
 
 def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):

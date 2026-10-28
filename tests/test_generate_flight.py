@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import signal
+import time
 from functools import partial
 from typing import Final
 
@@ -17,7 +18,7 @@ from bko.generate.calls import request
 from bko.generate.errors import GenerationError, IdleError
 from bko.generate.flight import OVERHEAD_TOKENS, Flight, Limits, Planned, _reservation
 from bko.generate.log import CallLog
-from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Reply
+from bko.generate.messages import ATTEMPTS, CALL_NUMBER, SETTINGS, Call, Reply
 from bko.generate.spend import PRICES, cost
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
@@ -302,17 +303,181 @@ def test_an_idle_send_stops_with_idle_and_no_signal(tmp_path, monkeypatch, caplo
     with (
         pytest.raises(IdleError, match="call 1 got no reply within the idle limit") as raised,
         log,
-        Flight(Stalled(), log, Limits(in_flight=3, idle=0.05), spendable=lambda: None) as f,
+        Flight(Stalled(), log, Limits(in_flight=3, idle=0.5), spendable=lambda: None) as f,
     ):
         f.wave(PLAN)
     assert raised.value.stop_rule == "idle"
     lines = _lines(log)
     errors = [(line["call"], line["error"]) for line in lines if line["kind"] == "error"]
-    assert errors == [(1, str(raised.value)), (3, "CancelledError")]
+    # Call 3 was in flight beside call 1: it lands under its own idle limit, not cancelled.
+    assert errors == [
+        (1, str(raised.value)),
+        (3, "call 3 got no reply within the idle limit of 0.5 s"),
+    ]
     assert [line["call"] for line in lines if line["kind"] == "reply"] == [2]
     assert lines[-1]["status"] == "failed"
     assert lines[-1]["stop"] == "idle"
-    assert "stop rule=idle call=1 limit_seconds=0.1" in caplog.messages
+    assert [m for m in caplog.messages if m.startswith("stop rule=")] == [
+        "stop rule=idle call=1 limit_seconds=0.5"
+    ]
+
+
+def _answered_lines(log: CallLog) -> dict[object, list[str]]:
+    """Each requested call's answer line kinds, by call number."""
+    lines = _lines(log)
+    answers: dict[object, list[str]] = {
+        line["call"]: [] for line in lines if line["kind"] == "request"
+    }
+    for line in lines:
+        if line["kind"] in {"reply", "error"}:
+            answers[line["call"]].append(str(line["kind"]))
+    return answers
+
+
+def test_a_call_beside_an_idle_stop_lands_and_its_spend_is_counted(tmp_path):
+    log = _log(tmp_path)
+
+    def send(call: Call):
+        number = _asked(call)
+
+        async def land() -> Reply:
+            if number == 1:
+                await asyncio.Event().wait()
+            if number == 2:
+                await asyncio.sleep(0.2)
+            # Call 3 replies once call 1's idle stop is written, inside its own idle limit.
+            while number == 3 and log.failed == 0:
+                await asyncio.sleep(0.01)
+            return reply([{"age": 40}] * number)
+
+        return land()
+
+    with (
+        pytest.raises(IdleError, match="call 1 got no reply"),
+        log,
+        Flight(send, log, Limits(in_flight=2, idle=0.5), spendable=lambda: None) as f,
+    ):
+        f.wave(PLAN)
+    assert _answered_lines(log) == {1: ["error"], 2: ["reply"], 3: ["reply"]}
+    assert log.usd == pytest.approx(2 * SPENT)
+
+
+def test_an_idle_calls_error_line_counts_its_attempts(tmp_path):
+    def send(call: Call):
+        async def stall() -> Reply:
+            holder = ATTEMPTS.get()
+            assert holder is not None
+            holder[0] = 3
+            await asyncio.Event().wait()
+            raise AssertionError(call)
+
+        return stall()
+
+    log = _log(tmp_path)
+    with (
+        pytest.raises(IdleError) as raised,
+        log,
+        Flight(send, log, Limits(in_flight=1, idle=0.5), spendable=lambda: None) as f,
+    ):
+        f.wave(PLAN[:1])
+    assert raised.value.attempts == 3
+    lines = _lines(log)
+    assert [line["attempts"] for line in lines if line["kind"] == "error"] == [3]
+    assert lines[-1]["retried"] == 1
+
+
+def test_a_loop_blocked_past_an_idle_deadline_still_answers_every_call(tmp_path):
+    """The reviewer's probe: call 2 lands and blocks the loop past call 1's idle deadline."""
+    idle = 0.2
+    numbers: list[int] = []
+
+    def send(call: Call):
+        numbers.append(len(numbers) + 1)
+        me = numbers[-1]
+
+        async def land() -> Reply:
+            if me == 2:
+                loop = asyncio.get_running_loop()
+                landed = loop.create_future()
+
+                def fire() -> None:
+                    landed.set_result(None)
+                    time.sleep(idle)
+
+                loop.call_later(idle / 2, fire)
+                await landed
+                return reply([{"age": 40}] * 2)
+            await asyncio.Event().wait()
+            raise AssertionError(call)
+
+        return land()
+
+    log = _log(tmp_path)
+    with (
+        pytest.raises(IdleError),
+        log,
+        Flight(send, log, Limits(in_flight=2, idle=idle), spendable=lambda: None) as f,
+    ):
+        f.wave(PLAN)
+    answers = _answered_lines(log)
+    assert all(len(kinds) == 1 for kinds in answers.values()), answers
+    assert _lines(log)[-1]["failed"] == sum(kinds == ["error"] for kinds in answers.values())
+
+
+def test_an_interrupt_before_the_calls_beside_it_start_still_logs_them(tmp_path):
+    sent: list[Call] = []
+
+    def send(call: Call):
+        sent.append(call)
+        if len(sent) == 1:
+            raise KeyboardInterrupt
+        return Delayed()(call)
+
+    log = _log(tmp_path)
+    with (
+        pytest.raises(KeyboardInterrupt),
+        log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    lines = _lines(log)
+    assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
+        1: "KeyboardInterrupt",
+        2: "CancelledError",
+        3: "CancelledError",
+    }
+    assert lines[-1]["status"] == "interrupted"
+    assert lines[-1]["failed"] == 3
+
+
+def test_a_further_interrupt_while_calls_land_still_logs_every_call(tmp_path):
+    """Further interrupts raised while the first one's cancelled calls land, as a repeated Ctrl-C
+    raises once the loop's own handler is gone, still leave every call an answer line."""
+
+    def send(call: Call):
+        number = _asked(call)
+
+        async def land() -> Reply:
+            if number == 1:
+                await asyncio.sleep(0.05)
+                raise KeyboardInterrupt
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                raise KeyboardInterrupt from None
+            raise AssertionError(call)
+
+        return land()
+
+    log = _log(tmp_path)
+    with (
+        pytest.raises(KeyboardInterrupt),
+        log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    assert _answered_lines(log) == {1: ["error"], 2: ["error"], 3: ["error"]}
+    assert _lines(log)[-1]["status"] == "interrupted"
 
 
 def test_a_send_that_replies_within_the_idle_limit_is_answered(tmp_path):
