@@ -4,6 +4,7 @@ A run writes one `run` line, then per call a `request` line before the call and 
 `error` line after it, then one `end` line holding the run's status and totals. The `run` and
 `end` lines name the log a replay answers from under `replay` and the stopped log a resume
 continues under `resume`, and say under `rehearsal` whether canned replies answered every call;
+the `run` line records under `in_flight` the most calls the run keeps in flight at once, and
 the `end` line names under `stop` the stop rule that ended a failed run, or null, and its totals
 split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is flushed as it
 is written, so the lines of every call made survive a failure, an interrupt or a killed process.
@@ -74,6 +75,8 @@ class CallLog:
         resume: The sha256 and answered calls of the stopped log a resume continues, or None.
         rehearsal: Whether canned replies answer every call (`bko.evaluate.rehearse`).
         settings: How each call is made; its model's price is the one every spend uses.
+        run: The named run whose calls the log holds, or None outside a named run.
+        in_flight: The most calls the run keeps in flight at once (`bko.generate.flight`).
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
         retried: Calls that took more than one HTTP attempt.
@@ -94,6 +97,8 @@ class CallLog:
         *,
         answered: Answered | None = None,
         rehearsal: bool = False,
+        run: str | None = None,
+        in_flight: int = 1,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
@@ -103,6 +108,8 @@ class CallLog:
             settings: How each call is made.
             answered: The call log the first calls are answered from, or None for a live run.
             rehearsal: Whether canned replies answer every call.
+            run: The named run whose calls the log holds, or None outside a named run.
+            in_flight: The most calls the run keeps in flight at once; the `run` line records it.
             now: The clock each line's time is read from.
 
         Raises:
@@ -128,6 +135,8 @@ class CallLog:
         )
         self.rehearsal = rehearsal
         self.settings = settings
+        self.run = run
+        self.in_flight = in_flight
         self._now = now
         self.calls = 0
         self.failed = 0
@@ -156,6 +165,7 @@ class CallLog:
                     "replay": self.replay,
                     "resume": self.resume,
                     "rehearsal": rehearsal,
+                    "in_flight": in_flight,
                 }
             )
         except BaseException:
@@ -168,7 +178,7 @@ class CallLog:
             raise
         logger.info(
             "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d "
-            "replay=%s resume=%s rehearsal=%s",
+            "replay=%s resume=%s rehearsal=%s in_flight=%d",
             path,
             SCHEMA,
             settings.model,
@@ -179,6 +189,7 @@ class CallLog:
             self.replay or "none",
             "none" if self.resume is None else self.resume["sha256"],
             str(rehearsal).lower(),
+            in_flight,
         )
 
     def __enter__(self) -> Self:

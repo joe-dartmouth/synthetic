@@ -262,7 +262,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
         rows=context.field_rows,
     )
     settings = dataclasses.replace(context.settings, guidance=Level(args.guidance))
-    log = CallLog(args.log, settings, now=context.now)
+    log = CallLog(args.log, settings, run="generate", now=context.now)
     try:
         with log:
             send = context.send()

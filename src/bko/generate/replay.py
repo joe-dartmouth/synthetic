@@ -22,14 +22,14 @@ import hashlib
 import json
 import logging
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Final, NamedTuple
 
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import SCHEMA, Answered
-from bko.generate.messages import Call, Reply, Send, Usage, text_of
+from bko.generate.messages import AnySend, Call, Reply, Usage, text_of
 
 
 logger = logging.getLogger(__name__)
@@ -175,7 +175,7 @@ class Resume(Replay):
         digest: The stopped log's sha256, which the resumed run's log records under `resume`.
     """
 
-    def __init__(self, path: Path, send: Send) -> None:
+    def __init__(self, path: Path, send: AnySend) -> None:
         """Read the stopped log at `path`; calls past its answered ones go through `send`.
 
         Raises:
@@ -205,8 +205,8 @@ class Resume(Replay):
         """What the resumed run's own log records about this source."""
         return Answered("resume", self.digest, self._total)
 
-    def __call__(self, call: Call) -> Reply:
-        """Answer from the stopped log while it holds calls, then send live."""
+    def __call__(self, call: Call) -> Reply | Awaitable[Reply]:  # ty: ignore[invalid-method-override]
+        """Answer from the stopped log while it holds calls, then send live, awaitably or not."""
         if self._calls:
             return super().__call__(call)
         if not self._sent:

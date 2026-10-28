@@ -26,6 +26,7 @@ from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, Name
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.provenance import commit
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
+from bko.generate.api import default_async_send
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, archive, pin
@@ -73,6 +74,10 @@ def test_score_writes_every_arm_on_every_holdout(scores_file):
 
 def test_score_fits_every_model_by_default():
     assert Context().models is MODELS
+
+
+def test_context_send_is_the_async_send():
+    assert Context().send is default_async_send
 
 
 def test_compare_judges_a_candidate_from_the_scores_file(scores_file):

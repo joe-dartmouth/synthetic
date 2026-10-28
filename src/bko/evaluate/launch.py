@@ -116,6 +116,7 @@ def launch(  # ruff: ignore[too-many-arguments]
     dry_run: bool = False,
     rehearse: bool = False,
     resume: Path | None = None,
+    in_flight: int | None = None,
     power: Power = on_battery,
     start: Spawn = spawn,
     platform: str = sys.platform,
@@ -132,6 +133,8 @@ def launch(  # ruff: ignore[too-many-arguments]
         dry_run: Write the folder's roles and the log, and start nothing.
         rehearse: Rehearse the run on canned replies, into `root/<run_id>/rehearsal`.
         resume: The call log of a stopped run to resume, or None for a new run.
+        in_flight: The calls `score` keeps in flight, forwarded as `--in-flight`; None forwards
+            nothing, so `score`'s default holds.
         power: Whether the machine runs on battery.
         start: Starts the command detached.
         platform: `sys.platform`; `caffeinate` holds the machine awake on `darwin` only.
@@ -169,6 +172,7 @@ def launch(  # ruff: ignore[too-many-arguments]
         str(folder / "holdout-candidates.jsonl"),
         *(["--data-dir", str(data_dir.absolute())] if data_dir is not None else []),
         *(["--rehearse"] if rehearse else []),
+        *(["--in-flight", str(in_flight)] if in_flight is not None else []),
     )
     folder.mkdir(parents=True, exist_ok=True)
     out, err = folder / "scores.csv", folder / "scores.log"

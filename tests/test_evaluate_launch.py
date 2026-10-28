@@ -382,6 +382,23 @@ def test_a_rehearsal_launches_into_its_folder_inside_the_runs_and_leaves_the_run
     assert "rehearse=false" in (tmp_path / "e1-4" / "launch.log").read_text(encoding="utf-8")
 
 
+def test_launch_forwards_in_flight_when_given(tmp_path):
+    start = Starts()
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
+    assert main(["launch", "e1-4", "--in-flight", "16"], context=context, out=io.StringIO()) == 0
+    (command,) = start.commands
+    assert command[-2:] == ("--in-flight", "16")
+    assert main(["launch", "e1-5"], context=context, out=io.StringIO()) == 0
+    assert "--in-flight" not in start.commands[-1]
+
+
+@pytest.mark.parametrize("value", ["0", "-2", "two"])
+def test_launch_refuses_an_in_flight_below_one(tmp_path, value):
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
+    with pytest.raises(SystemExit):
+        main(["launch", "e1-4", "--in-flight", value], context=context, out=io.StringIO())
+
+
 def test_a_second_rehearsal_into_one_folder_is_refused(tmp_path):
     launch("e1-4", "e1", root=tmp_path, rehearse=True, power=lambda: False, start=Starts())
     (tmp_path / "e1-4" / REHEARSAL / "calls.jsonl").write_text("x", encoding="utf-8")

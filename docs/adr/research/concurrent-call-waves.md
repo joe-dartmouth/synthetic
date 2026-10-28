@@ -98,8 +98,8 @@ stopped wave's calls again.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/guided.py`
-- Pinned by: `tests/test_evaluate_waves.py`
+- Owner: `src/bko/generate/flight.py`
+- Pinned by: `tests/test_generate_flight.py`
 
 ## Reversal Conditions
 

@@ -8,8 +8,9 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
-the run id's entry; `--rehearse` starts its rehearsal instead, and `--resume STOPPED` resumes a
-stopped run into the new folder.
+the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED` resumes a
+stopped run into the new folder, and `--in-flight N` is forwarded to `score` only when given.
+`score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
 `score --log PATH --candidates FILE` spends money: the BKO arms call the Messages API, every call
@@ -59,6 +60,7 @@ from bko.evaluate.launch import launch
 from bko.evaluate.scoring import score
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.flight import IN_FLIGHT
 from bko.generate.messages import Settings
 from bko.generate.replay import log_ends, refuse_unresumable
 
@@ -142,6 +144,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         dry_run=args.dry_run,
         rehearse=args.rehearse,
         resume=args.resume,
+        in_flight=args.in_flight,
         power=context.power,
         start=context.start,
     )
@@ -184,6 +187,18 @@ def _named(name: str, context: Context) -> Context:
     return replace(context, experiment=run.experiment, settings=run.settings)
 
 
+def _in_flight(text: str) -> int:
+    """`--in-flight`'s value: a whole number of calls, at least 1."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        msg = f"the calls in flight must be a whole number of at least 1, not {text!r}"
+        raise argparse.ArgumentTypeError(msg)
+    return value
+
+
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
     logging.basicConfig(
@@ -219,6 +234,12 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="the file to create for every candidate the BKO arms generate; it must not exist",
     )
+    scoring.add_argument(
+        "--in-flight",
+        type=_in_flight,
+        default=IN_FLIGHT,
+        help=f"the most BKO calls in flight at once; default: {IN_FLIGHT}",
+    )
     answering = scoring.add_mutually_exclusive_group()
     answering.add_argument(
         "--replay",
@@ -252,6 +273,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     launching.add_argument(
         "--dry-run", action="store_true", help="write the folder's roles and start nothing"
+    )
+    launching.add_argument(
+        "--in-flight",
+        type=_in_flight,
+        default=None,
+        help="the most BKO calls in flight at once, forwarded to score; default: score's",
     )
     instead = launching.add_mutually_exclusive_group()
     instead.add_argument(

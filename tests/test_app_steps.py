@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from bko.app import steps as steps_module
 from bko.app.context import SPEND_CEILING, Context, configure_logging
 from bko.app.steps import (
     Analysis,
@@ -40,6 +41,7 @@ from bko.evaluate.scores import Measure, Source
 from bko.gaps.definitions import Definition
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.flight import Limits
 from bko.generate.messages import SETTINGS
 from bko.generate.spend import cost
 from tests._app_fixtures import app_context, never, one_fill
@@ -209,6 +211,27 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     ]
     header = read((outcome.folder / "holdout-candidates.jsonl").read_bytes()).header
     assert header["run"] == "app"
+
+
+def test_a_bko_fill_sends_one_call_at_a_time_as_the_app_run(tmp_path, monkeypatch):
+    seen: list[dict[str, object]] = []
+    real = steps_module.guided_arms
+
+    def recording(*args, **kwargs):
+        seen.append(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(steps_module, "guided_arms", recording)
+    send = one_fill()
+    context, _ = app_context(tmp_path, send=lambda: send)
+    analysis = analyze(context)
+    fill_and_score(analysis, "bko", context)
+    [kwargs] = seen
+    assert kwargs["run"] == "app"
+    idle = experiment_for("bko", context).idle_limit
+    assert kwargs["limits"] == Limits(in_flight=1, idle=idle)
+    lines = (tmp_path / "runs").glob("*/calls.jsonl")
+    assert [json.loads(path.read_text().splitlines()[0])["in_flight"] for path in lines] == [1]
 
 
 def test_the_ceiling_stops_a_bko_fill_before_the_next_call(tmp_path):

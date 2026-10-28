@@ -334,7 +334,8 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 2
+    argv = score_argv(log, tmp_path, "--in-flight", "1")
+    assert main(argv, context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(send.calls) == 3
     assert _end(log)["status"] == "failed"
@@ -499,7 +500,8 @@ def stopped_run(tmp_path, caplog) -> tuple[Path, str]:
     lost = GenerationError("the API could not be reached: APIConnectionError")
     ctx, _ = context(ScriptedSend(*holdout, lost))
     stopped = tmp_path / "stopped.jsonl"
-    assert main(score_argv(stopped, tmp_path), context=ctx, out=io.StringIO()) == 2
+    argv = score_argv(stopped, tmp_path, "--in-flight", "1")
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
     return stopped, text
 
 

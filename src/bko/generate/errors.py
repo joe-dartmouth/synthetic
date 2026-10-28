@@ -1,4 +1,4 @@
-"""The errors generation raises: a call with no response, a malformed file, a refused draw."""
+"""The errors generation raises: no response, a malformed file, a crossed wave, a refused draw."""
 
 from __future__ import annotations
 
@@ -31,6 +31,15 @@ class ReplayError(ContractError):
     """A rerun's calls do not match the call log it replays, or a call log a resume cannot continue.
 
     Exit 3.
+    """
+
+
+class WaveError(ContractError):
+    """A reply kept a record in a cell a later call of its wave already asked for. Exit 3.
+
+    Structured outputs pin each record's sex and label, so this means a reply crossed them, and
+    the wave no longer asks what a one-call-at-a-time run asks (ADR
+    `research/concurrent-call-waves`).
     """
 
 

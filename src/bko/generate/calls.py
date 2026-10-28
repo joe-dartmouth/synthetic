@@ -1,8 +1,11 @@
 """Generation calls: `ask` makes one logged call; `generate` fills a quota in a fixed call count.
 
 `ask` renders the prompt at the settings' guidance level, sends it, decodes the reply into
-candidates and placeholders, prices it and logs it. `generate` checks the whole quota, then asks
-each cell's rows in chunks of `Settings.per_call`, cells in quota order, so a run makes
+candidates and placeholders, prices it and logs it. It is built from `request`, which numbers and
+logs the call, `answer`, which reads and logs its reply, and `fail`, which logs a call with no
+reply, so `bko.generate.flight` can keep several calls in flight between them. `generate` checks
+the whole quota, then asks each cell's rows in chunks of `Settings.per_call`, cells in quota
+order, so a run makes
 `sum(ceil(rows / per_call))` calls. Neither retries or tops up; a call with no response raises
 `GenerationError` after its `error` line is written, and so does anything else raised before its
 `reply` line. ADR `research/record-generation-design` records the design.
@@ -91,52 +94,78 @@ def _settings(log: CallLog, settings: Settings | None) -> Settings:
     raise ValueError(msg)
 
 
-def ask(
+@dataclass(frozen=True, slots=True)
+class Pending:
+    """A call whose `request` line is written and whose `reply` or `error` line is not.
+
+    Attributes:
+        index: The call's index in the run, counted from 1.
+        cell: The cell it asks for.
+        asked: The records it asks for.
+        call: The request to send.
+    """
+
+    index: int
+    cell: Cell
+    asked: int
+    call: Call
+
+
+def request(
     guidance: Guidance,
     rows: int,
     *,
-    send: Send,
     log: CallLog,
     settings: Settings | None = None,
     frame: FrameSpec = UCI_FRAME,
-) -> Batch:
-    """Make one call for `rows` records of `guidance`'s cell, and log it.
+    skeleton: object | None = None,
+) -> Pending:
+    """Render one call for `rows` records of `guidance`'s cell and write its `request` line.
 
     Args:
         guidance: What the request says about the cell.
         rows: The records the call asks for.
-        send: Makes the call.
-        log: The run's call log.
+        log: The run's call log, which numbers the call.
         settings: How the call is made, its guidance level included; the log's when None.
         frame: The frame whose records the call asks for.
+        skeleton: Reserved for a record skeleton; it must be None.
 
     Returns:
-        The call's outcome.
+        The call, numbered and logged, to send.
 
     Raises:
-        ValueError: Before the `request` line, if `settings` differ from the log's.
-        GenerationError: If no response arrives. Its `error` line and an ERROR log line are
-            written first, as they are for anything else raised between the `request` line
-            and the `reply` line, a `KeyboardInterrupt` included, which propagates unchanged.
+        ValueError: Before the `request` line, if `settings` differ from the log's or a skeleton
+            is given.
     """
+    if skeleton is not None:
+        msg = f"a skeleton is not taken yet, not {skeleton!r}"
+        raise ValueError(msg)
     settings = _settings(log, settings)
     system, user = render(guidance, rows, settings.guidance, frame=frame)
     call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
-    key = cell_key(guidance.cell)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
-    logger.info("send call=%d cell=%s asked=%d", index, key, rows)
-    try:
-        reply = send(call)
-        candidates = decode(reply, rows)
-        usd = cost(reply.usage, settings.model)
-        log.reply(index, reply, candidates, usd)
-    except BaseException as exc:
-        text = log.failure(index, exc)
-        # No traceback: an exception's text may hold the credential, and the caller re-raises.
-        logger.error("failed call=%d cell=%s error=%s", index, key, text)  # ruff: ignore[error-instead-of-exception]
-        raise
-    batch = Batch(index, guidance.cell, rows, candidates, reply, usd)
+    logger.info("send call=%d cell=%s asked=%d", index, cell_key(guidance.cell), rows)
+    return Pending(index, guidance.cell, rows, call)
+
+
+def answer(pending: Pending, reply: Reply, *, log: CallLog) -> Batch:
+    """Decode and price `pending`'s reply, and write its `reply` line.
+
+    Args:
+        pending: The call, as `request` returned it.
+        reply: Its reply.
+        log: The run's call log.
+
+    Returns:
+        The call's outcome.
+    """
+    settings = log.settings
+    index, key, rows = pending.index, cell_key(pending.cell), pending.asked
+    candidates = decode(reply, rows)
+    usd = cost(reply.usage, settings.model)
+    log.reply(index, reply, candidates, usd)
+    batch = Batch(index, pending.cell, rows, candidates, reply, usd)
     if reply.model != settings.model:
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(
@@ -165,6 +194,60 @@ def ask(
             reason,
         )
     return batch
+
+
+def fail(pending: Pending, error: BaseException, *, log: CallLog) -> str:
+    """Write `pending`'s `error` line and an ERROR log line, for a call with no `reply` line.
+
+    Args:
+        pending: The call, as `request` returned it.
+        error: Why it has no reply: no response, an interrupt, or a failure reading the reply.
+        log: The run's call log.
+
+    Returns:
+        The text the `error` line holds.
+    """
+    text = log.failure(pending.index, error)
+    # No traceback: an exception's text may hold the credential, and the caller re-raises.
+    key = cell_key(pending.cell)
+    logger.error("failed call=%d cell=%s error=%s", pending.index, key, text)
+    return text
+
+
+def ask(
+    guidance: Guidance,
+    rows: int,
+    *,
+    send: Send,
+    log: CallLog,
+    settings: Settings | None = None,
+    frame: FrameSpec = UCI_FRAME,
+) -> Batch:
+    """Make one call for `rows` records of `guidance`'s cell, and log it.
+
+    Args:
+        guidance: What the request says about the cell.
+        rows: The records the call asks for.
+        send: Makes the call.
+        log: The run's call log.
+        settings: How the call is made, its guidance level included; the log's when None.
+        frame: The frame whose records the call asks for.
+
+    Returns:
+        The call's outcome.
+
+    Raises:
+        ValueError: Before the `request` line, if `settings` differ from the log's.
+        GenerationError: If no response arrives. Its `error` line and an ERROR log line are
+            written first, as they are for anything else raised between the `request` line
+            and the `reply` line, a `KeyboardInterrupt` included, which propagates unchanged.
+    """
+    pending = request(guidance, rows, log=log, settings=settings, frame=frame)
+    try:
+        return answer(pending, send(pending.call), log=log)
+    except BaseException as exc:
+        fail(pending, exc, log=log)
+        raise
 
 
 def generate(

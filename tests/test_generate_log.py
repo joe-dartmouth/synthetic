@@ -54,6 +54,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "replay": None,
         "resume": None,
         "rehearsal": False,
+        "in_flight": 1,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -319,8 +320,16 @@ def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
     assert (
         f"log path={path} schema=2 model={SETTINGS.model} effort={SETTINGS.effort} "
         f"level={SETTINGS.guidance} per_call={SETTINGS.per_call} "
-        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none rehearsal=false"
+        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none rehearsal=false in_flight=1"
     ) in caplog.messages
+
+
+def test_the_log_records_the_calls_in_flight(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, in_flight=8, now=_now):
+        pass
+    assert _lines(path)[0]["in_flight"] == 8
+    assert any(m.startswith("log path=") and m.endswith(" in_flight=8") for m in caplog.messages)
 
 
 def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):

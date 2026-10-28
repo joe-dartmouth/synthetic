@@ -22,8 +22,8 @@ from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS
-from bko.generate.api import HTTP_LOGGERS, default_send
-from bko.generate.messages import Send
+from bko.generate.api import HTTP_LOGGERS, default_async_send
+from bko.generate.messages import AnySend
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -75,7 +75,7 @@ class Context:
     arms: Mapping[str, Runner] = ARMS
     factory: Factory = build
     experiment: Experiment = E1
-    send: Callable[[], Send] = default_send
+    send: Callable[[], AnySend] = default_async_send
     ceiling: float = SPEND_CEILING
     data_dir: Path | None = None
     runs_dir: Path | None = None

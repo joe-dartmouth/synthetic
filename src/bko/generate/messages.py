@@ -1,7 +1,8 @@
 """The generation request and reply, as repo-owned values: no SDK type crosses this module.
 
-A `Send` turns one `Call` into one `Reply`; `bko.generate.api` holds the only one that reaches the
-Anthropic API, so every other module and test runs on a fake. The structured-output schema fixes
+A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one;
+`bko.generate.api` holds the only ones that reach the Anthropic API, so every other module and test
+runs on a fake. The structured-output schema fixes
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
 and `target` are pinned to one value each, and the whole-number fields are `integer`. Structured
 outputs cannot bound a number, so plausibility ranges and `oldpeak`'s one decimal stay in the
@@ -11,7 +12,7 @@ prompt. Each call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by 
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final, Literal
@@ -172,6 +173,12 @@ def text_of(raw: Mapping[str, object]) -> str | None:
 
 type Send = Callable[[Call], Reply]
 """Makes one call and returns its reply, or raises `GenerationError` when none arrives."""
+
+type AsyncSend = Callable[[Call], Awaitable[Reply]]
+"""A `Send` whose reply is awaited, so several calls can be in flight on one event loop."""
+
+type AnySend = Callable[[Call], Reply | Awaitable[Reply]]
+"""A `Send` or an `AsyncSend`: `bko.generate.flight` awaits the reply when it is awaitable."""
 
 
 def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:

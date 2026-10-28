@@ -27,6 +27,7 @@ from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
+from bko.generate.flight import Limits
 from bko.generate.replay import Replay, Resume
 
 
@@ -160,6 +161,8 @@ def _guided(
         candidates=args.candidates,
         origin=origin,
         send=context.send if canned is None else lambda: canned,
+        run=args.run,
+        limits=Limits(in_flight=args.in_flight, idle=experiment.idle_limit),
         answers=answers,
         rehearsal=args.rehearse,
     ) as paid:

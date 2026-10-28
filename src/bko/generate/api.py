@@ -10,18 +10,22 @@ carries the body's `error.message`, with the client's API key and auth token rep
 `Attempts` is SDK middleware that counts the HTTP requests behind one call (the first, then each
 retry); `send_with` reads it into `Reply.attempts` and `GenerationError.attempts`, and
 `default_send` registers it.
+
+`async_send_with` and `default_async_send` are the same over `AsyncAnthropic`, whose calls
+`bko.generate.flight` keeps in flight together; they count no attempts, so their replies and
+failures carry none.
 """
 
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, Final
 
 import anthropic
 
 from bko.generate.errors import GenerationError
-from bko.generate.messages import Call, Reply, Send, Usage, text_of
+from bko.generate.messages import AsyncSend, Call, Reply, Send, Usage, text_of
 
 
 HTTP_LOGGERS: Final = ("httpx2",)
@@ -54,6 +58,14 @@ class Attempts(anthropic.Middleware):
         """Record this attempt's number, then make it."""
         self.count = request.retries_taken + 1
         return call_next(request)
+
+    async def handle_async(  # ruff: ignore[no-self-use]
+        self,
+        request: anthropic.APIRequest,
+        call_next: Callable[[anthropic.APIRequest], Awaitable[anthropic.AsyncAPIResponse[Any]]],
+    ) -> anthropic.AsyncAPIResponse[Any]:
+        """Make this attempt; the async client counts nothing yet, since its calls overlap."""
+        return await call_next(request)
 
 
 def reply_of(message: anthropic.types.Message) -> Reply:
@@ -95,6 +107,39 @@ def _reason(exc: anthropic.BadRequestError, secrets: tuple[str | None, ...]) -> 
     return f": {detail}"
 
 
+def _failure(
+    exc: anthropic.APIError | TypeError,
+    client: anthropic.Anthropic | anthropic.AsyncAnthropic,
+    attempts: int | None,
+) -> GenerationError:
+    """The `GenerationError` a failed call raises, built from `exc`'s type, status and request id.
+
+    Raises:
+        TypeError: `exc` itself, when it is not SDK 1.13.0's refusal of a missing credential.
+    """
+    if isinstance(exc, anthropic.APIStatusError):
+        msg = (
+            f"the API refused the request: {type(exc).__name__} status={exc.status_code} "
+            f"request_id={exc.request_id}"
+        )
+        if isinstance(exc, anthropic.BadRequestError):
+            msg += _reason(exc, (client.api_key, client.auth_token))
+        return GenerationError(msg, attempts=attempts)
+    if isinstance(exc, anthropic.APIConnectionError):
+        msg = f"the API could not be reached: {type(exc).__name__}"
+        return GenerationError(msg, attempts=attempts)
+    if isinstance(exc, anthropic.APIError):
+        msg = f"the API's response could not be read: {type(exc).__name__}"
+        return GenerationError(msg, attempts=attempts)
+    # SDK 1.13.0 builds a client with no credential and raises this from `_validate_headers` at
+    # request time; its text holds no secret. Any other `TypeError` is a bug here, not a missing
+    # credential.
+    if "Could not resolve authentication method" not in str(exc):
+        raise exc
+    msg = f"no Anthropic credential: set ANTHROPIC_API_KEY or run ant auth login ({exc})"
+    return GenerationError(msg, attempts=attempts)
+
+
 def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) -> Send:
     """Return a `Send` that makes each call through `client`.
 
@@ -117,28 +162,8 @@ def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) 
             # typed loosely, and the SDK's overloads want each keyword's own type.
             body: Any = call.params()
             message = client.messages.create(**body)
-        except anthropic.APIStatusError as exc:
-            msg = (
-                f"the API refused the request: {type(exc).__name__} status={exc.status_code} "
-                f"request_id={exc.request_id}"
-            )
-            if isinstance(exc, anthropic.BadRequestError):
-                msg += _reason(exc, (client.api_key, client.auth_token))
-            raise GenerationError(msg, attempts=counted()) from None
-        except anthropic.APIConnectionError as exc:
-            msg = f"the API could not be reached: {type(exc).__name__}"
-            raise GenerationError(msg, attempts=counted()) from None
-        except anthropic.APIError as exc:
-            msg = f"the API's response could not be read: {type(exc).__name__}"
-            raise GenerationError(msg, attempts=counted()) from None
-        except TypeError as exc:
-            # SDK 1.13.0 builds a client with no credential and raises this from
-            # `_validate_headers` at request time; its text holds no secret. Any other
-            # `TypeError` is a bug here, not a missing credential.
-            if "Could not resolve authentication method" not in str(exc):
-                raise
-            msg = f"no Anthropic credential: set ANTHROPIC_API_KEY or run ant auth login ({exc})"
-            raise GenerationError(msg, attempts=counted()) from None
+        except (anthropic.APIError, TypeError) as exc:
+            raise _failure(exc, client, counted()) from None
         return dataclasses.replace(reply_of(message), attempts=counted())
 
     return send
@@ -153,3 +178,37 @@ def default_send() -> Send:
     probe = Attempts()
     client = anthropic.Anthropic(middleware=[probe], max_retries=MAX_RETRIES, timeout=TIMEOUT)
     return send_with(client, attempts=probe)
+
+
+def async_send_with(client: anthropic.AsyncAnthropic) -> AsyncSend:
+    """Return an `AsyncSend` that makes each call through `client`, as `send_with` does.
+
+    Args:
+        client: The async SDK client; its credential comes from the SDK's own resolution.
+
+    Returns:
+        The send, whose awaited reply carries no attempt count; it raises `GenerationError` when
+        no response arrives.
+    """
+
+    async def send(call: Call) -> Reply:
+        try:
+            body: Any = call.params()
+            message = await client.messages.create(**body)
+        except (anthropic.APIError, TypeError) as exc:
+            raise _failure(exc, client, None) from None
+        return reply_of(message)
+
+    return send
+
+
+def default_async_send() -> AsyncSend:
+    """Return an `AsyncSend` through a client built with the SDK's own credential resolution.
+
+    The client retries `MAX_RETRIES` times within `TIMEOUT`, as `default_send`'s does, and
+    registers `Attempts`.
+    """
+    client = anthropic.AsyncAnthropic(
+        middleware=[Attempts()], max_retries=MAX_RETRIES, timeout=TIMEOUT
+    )
+    return async_send_with(client)
