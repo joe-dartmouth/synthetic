@@ -52,23 +52,13 @@ def guided(
 ) -> tuple[GuidedArm, CallLog]:
     """A BKO arm and its call log under `directory`; use the log in a `with` block.
 
-    `idle` sends through a `Flight` of one call at a time with that idle limit; None lets the arm
-    build its own, with none.
+    The arm sends through a `Flight` of one call at a time over `send`, under `ceiling` and the
+    idle limit `idle`, None for none.
     """
     log = CallLog(directory / "calls.jsonl", SETTINGS)
-    flight = (
-        None
-        if idle is None
-        else Flight(send, log, Limits(1, idle), spendable=partial(spendable, log, ceiling))
-    )
+    limits = Limits(1, idle)
+    flight = Flight(send, log, limits, spendable=partial(spendable, log, ceiling), ceiling=ceiling)
     arm = GuidedArm(
-        "bko",
-        definition,
-        knowledge(directory / "data"),
-        send=send,
-        log=log,
-        budget=budget,
-        ceiling=ceiling,
-        flight=flight,
+        "bko", definition, knowledge(directory / "data"), log=log, budget=budget, flight=flight
     )
     return arm, log

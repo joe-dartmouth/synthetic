@@ -210,6 +210,16 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
     assert "validity arm=bko" in caplog.text
 
 
+def test_an_arm_needs_the_runs_flight(tmp_path):
+    """An arm building its own `Flight` would give each wave a fresh event loop, which an
+    async client's connections, bound to the first, cannot use."""
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    with pytest.raises(TypeError, match="flight"):
+        GuidedArm(  # ty: ignore[missing-argument]
+            "bko", Definition.SUBGROUP, Knowledge("x", {}, (), ()), log=log, budget=3
+        )
+
+
 def test_each_call_of_an_arm_runs_under_the_idle_rule(tmp_path):
     def answered(call):
         async def land():

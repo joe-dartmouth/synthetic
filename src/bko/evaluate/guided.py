@@ -59,7 +59,7 @@ from bko.ontology.terms import Ontology
 logger = logging.getLogger(__name__)
 
 SEQUENTIAL: Final = Limits(in_flight=1, idle=None)
-"""The pace of an arm built without a run's `Flight`: one call at a time."""
+"""One call at a time with no idle limit."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -93,12 +93,10 @@ class GuidedArm:
         definition: Definition,
         knowledge: Knowledge,
         *,
-        send: AnySend,
         log: CallLog,
         budget: int,
-        ceiling: float,
+        flight: Flight,
         candidates: CandidateFile | None = None,
-        flight: Flight | None = None,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
 
@@ -106,27 +104,21 @@ class GuidedArm:
             name: The arm's name.
             definition: The gap definition that guides it.
             knowledge: The run's releases and field mappings.
-            send: Makes each call.
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
-            ceiling: The run's spend in USD at which no further call is made.
+            flight: The run's `Flight` over its send and `log`, which makes each call and holds
+                it to the run's ceiling and idle limit, shared by every BKO arm, so an async
+                client's calls stay on the one event loop its connections are bound to.
             candidates: The run's candidates file, shared by every BKO arm; None keeps no lines.
-            flight: The run's `Flight` over `send` and `log`, which holds each call to the run's
-                ceiling and idle limit, shared by every BKO arm; None sends each wave through
-                `send` one call at a time, on its own event loop, with no idle limit.
         """
         self.name = name
         self.totals = Tally()
         self._definition = definition
         self._knowledge = knowledge
-        self._send = send
         self._log = log
         self._budget = budget
-        self._ceiling = ceiling
         self._candidates = candidates
-        self._flight = flight or Flight(
-            send, log, SEQUENTIAL, spendable=self._spendable, ceiling=ceiling
-        )
+        self._flight = flight
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -249,10 +241,6 @@ class GuidedArm:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
                     raise StopRuleError(str(exc), "idle") from None
-
-    def _spendable(self) -> None:
-        """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
-        spendable(self._log, self._ceiling)
 
 
 def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:
@@ -403,12 +391,10 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
                 name,
                 BKO_ARMS[name],
                 knowledge,
-                send=sender,
                 log=call_log,
                 budget=experiment.budget,
-                ceiling=ceiling,
-                candidates=kept,
                 flight=flight,
+                candidates=kept,
             )
             for name in names
         }
