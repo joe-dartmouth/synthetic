@@ -19,13 +19,14 @@ segment's exit code, or 2 when a resume cannot be claimed.
 from __future__ import annotations
 
 import logging
+import os
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
-import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -42,6 +43,7 @@ from bko.evaluate.launch import (
     score_command,
     utc_now,
 )
+from bko.evaluate.stopping import STOP_FILE, OperatorStop
 from bko.generate.errors import ReplayError
 from bko.generate.flight import IN_FLIGHT
 from bko.generate.replay import UNRESUMABLE, log_ends
@@ -60,21 +62,42 @@ LINE: Final = (
 )
 """The line each segment's outcome appends to `launch.log` and logs."""
 
-type Segment = Callable[[Sequence[str], Path, Path], int]
-"""Run a command to its exit, its stdout and stderr appended to two files; return its exit code."""
+type Segment = Callable[[Sequence[str], Path, Path, Callable[[int], None]], int]
+"""Run a command to its exit, its stdout and stderr appended to two files, telling the callback its
+process id once it starts; return its exit code."""
 
 
-def run_segment(command: Sequence[str], out: Path, err: Path) -> int:
-    """Run `command` with stdin closed and stdout and stderr appended to `out` and `err`.
+def run_segment(
+    command: Sequence[str], out: Path, err: Path, started: Callable[[int], None]
+) -> int:
+    """Run `command` in its own process group, stdin closed, stdout and stderr appended to files.
+
+    It waits for the child with no timeout, so a stopped child finishes its call log's `end`
+    line; a signal to the caller's process group does not reach it.
+
+    Args:
+        command: The command.
+        out: The file its stdout is appended to.
+        err: The file its stderr is appended to.
+        started: Told the child's process id once it starts.
 
     Returns:
         Its exit code, negative for a signal that killed it.
+
+    Raises:
+        OSError: If the command cannot start.
     """
     with out.open("ab") as stdout, err.open("ab") as stderr:
-        done = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-            list(command), stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, check=False
+        process = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true]
+            list(command), stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, process_group=0
         )
-    return done.returncode
+    started(process.pid)
+    return process.wait()
+
+
+def exit_code(code: int) -> int:
+    """A child's exit `code` as a process exit status: a signal's negative code becomes 128 + it."""
+    return 128 - code if code < 0 else code
 
 
 def backoff(resume: int) -> float:
@@ -138,7 +161,7 @@ def supervise(  # ruff: ignore[too-many-arguments]
     in_flight: int | None = None,
     retries: int,
     segment: Segment = run_segment,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], object] | None = None,
     power: Power = on_battery,
     platform: str = sys.platform,
     now: Callable[[], datetime] = utc_now,
@@ -159,17 +182,58 @@ def supervise(  # ruff: ignore[too-many-arguments]
         in_flight: The calls `score` keeps in flight, or None for its default.
         retries: The resumes made at most; 0 runs one segment.
         segment: Runs one segment's command to its exit.
-        sleep: Waits the backoff before each resume.
+        sleep: Waits the backoff before each resume; None waits until the backoff ends or the
+            operator stops the run.
         power: Whether the machine runs on battery, read before each resume.
         platform: `sys.platform`, as `launch` reads it; each segment runs under `caffeinate`
             on `darwin`.
         now: The clock each resume folder's `launch.log` line reads.
 
     Returns:
-        The last segment's exit code, or 2 when a resume's folder cannot be claimed.
+        The last segment's exit code, 128 plus the signal's number for a child a signal killed,
+        or 2 when a resume's folder cannot be claimed.
     """
+    operator = OperatorStop(root / run_id / STOP_FILE)
+    with operator.installed():
+        return _supervise(
+            run_id,
+            run,
+            root=root,
+            data_dir=data_dir,
+            rehearse=rehearse,
+            resume=resume,
+            in_flight=in_flight,
+            retries=retries,
+            segment=segment,
+            wait=operator.wait if sleep is None else sleep,
+            power=power,
+            platform=platform,
+            now=now,
+            operator=operator,
+        )
+
+
+def _supervise(  # ruff: ignore[too-many-arguments, too-many-locals]
+    run_id: str,
+    run: str,
+    *,
+    root: Path,
+    data_dir: Path | None,
+    rehearse: bool,
+    resume: Path | None,
+    in_flight: int | None,
+    retries: int,
+    segment: Segment,
+    wait: Callable[[float], object],
+    power: Power,
+    platform: str,
+    now: Callable[[], datetime],
+    operator: OperatorStop,
+) -> int:
+    """Run the segments as `supervise`, under the operator's stop `operator`."""
     folder = root / run_id / REHEARSAL if rehearse else root / run_id
     record = folder / "launch.log"
+    append(record, [f"supervise pid={os.getpid()}"])
     source, flight, k, reading = resume, in_flight, 0, "unchecked"
     while True:
         command = (
@@ -189,19 +253,31 @@ def supervise(  # ruff: ignore[too-many-arguments]
                     f"command={shlex.join(command)}",
                 ],
             )
-        code = segment(command, folder / "scores.csv", folder / "scores.log")
+        started = partial(_started, record, operator, k)
+        code = segment(command, folder / "scores.csv", folder / "scores.log", started)
+        operator.ended()
         found = outcome(folder / "calls.jsonl", code)
+        stopped = operator.stopping and found.status != "complete"
         name = f"{run_id}-resume-{k + 1}"
         resumes = (
-            found.retryable and not rehearse and k < retries and RUN_ID.fullmatch(name) is not None
+            not stopped
+            and found.retryable
+            and not rehearse
+            and k < retries
+            and RUN_ID.fullmatch(name) is not None
         )
+        if stopped:
+            _stopped(record, operator)
         _note(record, k, folder, found, name if resumes else "none")
         if not resumes:
-            return code
+            return exit_code(code)
         k += 1
         if found.rate_limited:
             flight = max(1, (flight or IN_FLIGHT) // 2)
-        sleep(backoff(k))
+        wait(backoff(k))
+        if operator.stopping:
+            _stopped(record, operator)
+            return exit_code(code)
         source, folder = folder / "calls.jsonl", root / name
         try:
             battery = check_folder(
@@ -215,6 +291,19 @@ def supervise(  # ruff: ignore[too-many-arguments]
             logger.error("supervise resume=%s refused=%s", name, reason)  # ruff: ignore[error-instead-of-exception]
             append(record, [f"supervise resume={name} refused={reason}"])
             return EvaluationError.exit_code
+
+
+def _started(record: Path, operator: OperatorStop, k: int, pid: int) -> None:
+    """Tell `operator` segment `k`'s child `pid` and append its `child_pid=` line to `record`."""
+    operator.started(pid)
+    append(record, [f"supervise segment={k} child_pid={pid}"])
+
+
+def _stopped(record: Path, operator: OperatorStop) -> None:
+    """Log the operator's stop and append its `stop=operator` line to `record`."""
+    line = f"supervise stop=operator by={operator.by}"
+    logger.warning("%s", line)
+    append(record, [line])
 
 
 def _note(record: Path, k: int, folder: Path, found: Outcome, following: str) -> None:

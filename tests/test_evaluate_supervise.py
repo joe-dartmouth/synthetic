@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shlex
+import signal
+import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
@@ -62,9 +66,16 @@ class Segments:
         self.commands: list[tuple[str, ...]] = []
         self._ends = list(ends)
 
-    def __call__(self, command: Sequence[str], out: Path, err: Path) -> int:
-        """Write the next end into the call log, beside `out` and `err`; return its exit code."""
+    def __call__(
+        self, command: Sequence[str], out: Path, err: Path, started: Callable[[int], None]
+    ) -> int:
+        """Write the next end into the call log, beside `out` and `err`; return its exit code.
+
+        It reports this process as the child, so a forwarded signal reaches the supervisor's own
+        handler.
+        """
         self.commands.append(tuple(command))
+        started(os.getpid())
         assert out.parent == err.parent
         end = self._ends.pop(0)
         if end == ABSENT:
@@ -125,10 +136,15 @@ def _supervise(
     return code, waits
 
 
-def _lines(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
+def _record(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
     """The run's `supervise` lines in its `launch.log`."""
     text = (tmp_path / run_id / "launch.log").read_text(encoding="utf-8")
     return [line for line in text.splitlines() if line.startswith("supervise ")]
+
+
+def _lines(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
+    """The run's `supervise` lines that hold a segment's outcome."""
+    return [line for line in _record(tmp_path, run_id) if " folder=" in line]
 
 
 def test_supervise_resumes_an_idle_stop_into_resume_1(tmp_path):
@@ -248,7 +264,7 @@ def test_supervise_does_not_resume_a_deterministic_failure(tmp_path, end, code, 
 def test_supervise_stops_after_retries_exhausted(tmp_path):
     segments = Segments(IDLE, API, KILLED)
     code, waits = _supervise(tmp_path, segments, retries=2)
-    assert code == -9
+    assert code == 128 + 9
     assert segments.folders == ["e1-4", "e1-4-resume-1", "e1-4-resume-2"]
     assert len(waits) == 2
     assert _lines(tmp_path)[-1].endswith("retryable=true rate_limited=false next=none")
@@ -307,9 +323,13 @@ def test_outcome_reads_an_unreadable_log_as_final(tmp_path):
 def test_run_segment_runs_the_command_to_its_exit_with_its_output_appended(tmp_path):
     out, err = tmp_path / "out", tmp_path / "err"
     out.write_text("kept\n", encoding="utf-8")
-    code = "import sys; print('o'); print('e', file=sys.stderr); sys.exit(3)"
-    assert run_segment([sys.executable, "-c", code], out, err) == 3
-    assert out.read_text(encoding="utf-8") == "kept\no\n"
+    code = (
+        "import os, sys; print(os.getpid(), os.getpgid(0) == os.getpid()); "
+        "print('e', file=sys.stderr); sys.exit(3)"
+    )
+    pids: list[int] = []
+    assert run_segment([sys.executable, "-c", code], out, err, pids.append) == 3
+    assert out.read_text(encoding="utf-8") == f"kept\n{pids[0]} True\n"
     assert err.read_text(encoding="utf-8") == "e\n"
 
 
@@ -347,3 +367,148 @@ def test_a_resumed_log_holds_every_call(tmp_path):
     assert [line["call"] for line in lines if line["kind"] == "request"] == [1, 2, 3]
     assert [line["call"] for line in lines if line["kind"] == "reply"] == [1, 2, 3]
     assert lines[0]["resume"]["calls"] == 2
+
+
+def test_a_signal_killed_last_segment_exits_128_plus_its_signal(tmp_path):
+    assert _supervise(tmp_path, Segments(KILLED), retries=0) == (128 + 9, [])
+
+
+def test_the_supervisor_and_each_child_record_their_pids(tmp_path):
+    _supervise(tmp_path, Segments(IDLE, COMPLETE))
+    lines = _record(tmp_path)
+    assert lines[0] == f"supervise pid={os.getpid()}"
+    assert lines[1] == f"supervise segment=0 child_pid={os.getpid()}"
+    assert f"supervise segment=1 child_pid={os.getpid()}" in lines
+
+
+@pytest.mark.parametrize("by", ["SIGTERM", "SIGINT", "SIGHUP", "STOP"])
+def test_a_stop_during_backoff_claims_no_folder(tmp_path, by):
+    segments = Segments(IDLE, COMPLETE)
+    waits: list[float] = []
+
+    def stopped(seconds: float) -> None:
+        waits.append(seconds)
+        if by == "STOP":
+            (tmp_path / "e1-4" / "STOP").touch()
+        else:
+            os.kill(os.getpid(), getattr(signal, by))
+
+    (tmp_path / "e1-4").mkdir()
+    before = signal.getsignal(signal.SIGTERM)
+    code = supervise(
+        "e1-4",
+        "e1",
+        root=tmp_path,
+        retries=5,
+        segment=segments,
+        sleep=stopped,
+        power=lambda: False,
+        platform="linux",
+    )
+    assert (code, waits, len(segments.commands)) == (2, [60.0], 1)
+    assert not (tmp_path / "e1-4-resume-1").exists()
+    assert _record(tmp_path)[-1] == f"supervise stop=operator by={by}"
+    assert signal.getsignal(signal.SIGTERM) is before
+
+
+def test_a_stop_file_keeps_a_killed_segment_from_resuming(tmp_path):
+    (tmp_path / "e1-4").mkdir()
+    (tmp_path / "e1-4" / "STOP").touch()
+    segments = Segments(KILLED)
+    code = supervise(
+        "e1-4",
+        "e1",
+        root=tmp_path,
+        retries=5,
+        segment=segments,
+        sleep=pytest.fail,
+        power=lambda: False,
+        platform="linux",
+    )
+    assert (code, len(segments.commands)) == (128 + 9, 1)
+    assert _record(tmp_path)[-2:] == [
+        "supervise stop=operator by=STOP",
+        (
+            f"supervise segment=0 folder={tmp_path / 'e1-4'} status=none stop=none "
+            "retryable=true rate_limited=false next=none"
+        ),
+    ]
+
+
+SLOW_CHILD: Final = """
+import sys, time
+from pathlib import Path
+from bko.generate.log import CallLog
+from bko.generate.messages import SETTINGS
+log = Path(sys.argv[1])
+with CallLog(log, SETTINGS):
+    try:
+        (log.parent / "ready").touch()
+        time.sleep(60)
+    except KeyboardInterrupt:
+        time.sleep(0.5)
+        raise
+"""
+"""A stand-in for `score`: on `SIGINT` it waits longer than `subprocess.run`'s 0.25 s kill grace
+before its call log writes the `interrupted` end line, and a second `SIGINT` would cut that off."""
+
+SUPERVISOR: Final = """
+import sys
+from pathlib import Path
+from bko.evaluate.supervise import run_segment, supervise
+root, child = Path(sys.argv[1]), sys.argv[2]
+def slow(command, out, err, started):
+    log = command[command.index("--log") + 1]
+    return run_segment([sys.executable, "-c", child, log], out, err, started)
+code = supervise(
+    "e1-4", "e1", root=root, retries=5, segment=slow, power=lambda: False, platform="linux"
+)
+sys.exit(code)
+"""
+"""The supervisor in its own process, its segment `SLOW_CHILD` rather than a paid `score`."""
+
+
+def _appears(path: Path, *, timeout: float = 30.0) -> bool:
+    """Whether `path` exists within `timeout` seconds."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+@pytest.mark.parametrize("how", ["group-sigint", "sigterm"])
+def test_an_operator_signal_stops_the_run_at_the_childs_interrupted_end_line(tmp_path, how):
+    folder = tmp_path / "e1-4"
+    folder.mkdir()
+    with (tmp_path / "out").open("wb") as out, (tmp_path / "err").open("wb") as err:
+        process = subprocess.Popen(  # ruff: ignore[subprocess-without-shell-equals-true]
+            [sys.executable, "-c", SUPERVISOR, str(tmp_path), SLOW_CHILD],
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=err,
+            start_new_session=True,
+        )
+    try:
+        assert _appears(folder / "ready"), (tmp_path / "err").read_text(encoding="utf-8")
+        if how == "group-sigint":
+            os.killpg(process.pid, signal.SIGINT)
+        else:
+            os.kill(process.pid, signal.SIGTERM)
+        code = process.wait(timeout=30)
+    finally:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGKILL)
+    assert code == 128 + signal.SIGINT, (tmp_path / "err").read_text(encoding="utf-8")
+    end = json.loads((folder / "calls.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["kind"], end["status"]) == ("end", "interrupted")
+    assert not (tmp_path / "e1-4-resume-1").exists()
+    by = "SIGINT" if how == "group-sigint" else "SIGTERM"
+    assert _record(tmp_path)[-2:] == [
+        f"supervise stop=operator by={by}",
+        (
+            f"supervise segment=0 folder={folder} status=interrupted stop=none "
+            "retryable=false rate_limited=false next=none"
+        ),
+    ]

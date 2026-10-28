@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,7 +42,8 @@ class Context:
         start: Starts `launch`'s detached run.
         runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
         segment: Runs one of `supervise`'s `score` segments to its exit.
-        sleep: Waits `supervise`'s backoff before a resume.
+        sleep: Waits `supervise`'s backoff before a resume; None waits until it ends or the
+            operator stops the run.
     """
 
     open_url: UrlOpener = open_https
@@ -61,4 +61,4 @@ class Context:
     start: Spawn = spawn
     runs_dir: Path | None = None
     segment: Segment = run_segment
-    sleep: Callable[[float], None] = time.sleep
+    sleep: Callable[[float], object] | None = None

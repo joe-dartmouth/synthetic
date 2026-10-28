@@ -10,6 +10,9 @@ import hashlib
 import io
 import json
 import logging
+import os
+import signal
+import threading
 from pathlib import Path
 
 import pandas as pd
@@ -18,8 +21,9 @@ import pytest
 import bko.evaluate.guided as guided_module
 from bko.bkb.errors import QueryError
 from bko.evaluate.__main__ import Context, main
+from bko.evaluate.scoring import interrupted_by_termination
 from bko.generate.errors import GenerationError
-from bko.generate.messages import SETTINGS
+from bko.generate.messages import SETTINGS, Call, Reply
 from bko.generate.spend import cost
 from tests._evaluate_bko_fixtures import (
     BAD,
@@ -588,3 +592,42 @@ def test_an_unresumable_log_exits_three_before_any_download_or_log(tmp_path, cap
     assert "failed before the run's last call" in caplog.text
     assert opener.calls == []
     assert not resumed.exists()
+
+
+class _UnconvertedError(Exception):
+    """What the test's own SIGTERM handler raises, so a signal `score` did not convert is seen."""
+
+
+@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGHUP], ids=["sigterm", "sighup"])
+def test_a_termination_signal_interrupts_score_so_its_log_ends_interrupted(tmp_path, signum):
+    def unconverted(number: int, frame: object) -> None:
+        raise _UnconvertedError(number)
+
+    def terminated(call: Call) -> Reply:
+        os.kill(os.getpid(), signum)
+        return reply([young(0)] * 12)
+
+    ctx, _ = context(terminated)
+    log = tmp_path / "calls.jsonl"
+    previous = signal.signal(signum, unconverted)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            main(score_argv(log, tmp_path), context=ctx, out=io.StringIO())
+        assert signal.getsignal(signum) is unconverted
+    finally:
+        signal.signal(signum, previous)
+    assert json.loads(log.read_text(encoding="utf-8").splitlines()[-1])["status"] == "interrupted"
+
+
+def test_off_the_main_thread_score_leaves_the_signal_handlers_alone():
+    seen: list[object] = []
+
+    def body() -> None:
+        with interrupted_by_termination():
+            seen.append(signal.getsignal(signal.SIGTERM))
+
+    before = signal.getsignal(signal.SIGTERM)
+    thread = threading.Thread(target=body)
+    thread.start()
+    thread.join()
+    assert seen == [before]
