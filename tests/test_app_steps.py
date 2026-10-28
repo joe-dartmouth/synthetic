@@ -24,6 +24,7 @@ from bko.app.steps import (
     experiment_for,
     fill_and_score,
     fillers,
+    is_paid,
     run_folder,
     training_csv,
 )
@@ -36,7 +37,7 @@ from bko.evaluate.classifier import build
 from bko.evaluate.criteria import BOOSTED
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, METHOD_ARMS
+from bko.evaluate.experiment import E1, METHOD_ARMS, RUNS
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
@@ -120,6 +121,9 @@ def test_fillers_are_e1s_row_adding_arms_in_order():
         "bko-population",
         "bko-frequency",
     )
+    assert fillers(RUNS["g5"].experiment)[-2:] == ("bko", "bko-skeleton")
+    assert is_paid("bko-skeleton")
+    assert not is_paid("bko-direct")
 
 
 def test_experiment_for_puts_a_paid_fill_first_beside_every_method():

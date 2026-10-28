@@ -171,8 +171,9 @@ DIRECT_ARM: Final = "bko-direct"
 """The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
 
 SKELETON_ARM: Final = "bko-skeleton"
-"""The prescribing arm: a BKO arm guided by per-subgroup gaps whose every request carries each
-record's concepts drawn from the fused BKB (`bko.evaluate.skeleton`)."""
+"""The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every
+request carries each record's concepts drawn from the fused BKB (`bko.evaluate.skeleton`). It is
+not in `BKO_ARMS`, the three gap definitions' arms."""
 
 MESSAGES_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     {**BKO_ARMS, SKELETON_ARM: Definition.SUBGROUP}
