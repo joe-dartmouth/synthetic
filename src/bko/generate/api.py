@@ -8,12 +8,15 @@ carries the body's `error.message`, with the client's API key and auth token rep
 `[redacted]`, so a rejected schema or parameter names its reason.
 
 `Attempts` is SDK middleware that counts the HTTP requests behind one call (the first, then each
-retry); `send_with` reads it into `Reply.attempts` and `GenerationError.attempts`, and
-`default_send` registers it.
+retry) and notes a retried 429; `send_with` reads it into `Reply.attempts` and
+`GenerationError.attempts`, and into each one's `rate_limited`, and `default_send` registers it.
+A `GenerationError` is `retryable` when the API caused it: a connection error, a timeout, a status
+the SDK retries below 500 (`RETRIED`: 408, 409, 429) or a status of 500 or above
+(`RETRYABLE_STATUS`), so a supervised run resumes it.
 
 `async_send_with` and `default_async_send` are the same over `AsyncAnthropic`, whose calls
 `bko.generate.flight` keeps in flight together. Each such call counts its own attempts in the
-holder `bko.generate.messages.ATTEMPTS` holds, a `ContextVar` the flight or the send sets, so calls
+`Tries` `bko.generate.messages.ATTEMPTS` holds, a `ContextVar` the flight or the send sets, so calls
 in flight together never share a count, and
 `Attempts.handle` and `Attempts.handle_async` log each retryable status as a `retry` line naming
 the call (`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's
@@ -37,6 +40,7 @@ from bko.generate.messages import (
     Call,
     Reply,
     Send,
+    Tries,
     Usage,
     text_of,
 )
@@ -61,6 +65,12 @@ Any timeout other than the SDK's default skips its refusal of a non-streaming ca
 RETRIED: Final = frozenset({408, 409, 429})
 """The statuses below 500 the SDK retries, as its `_should_retry` does."""
 
+RATE_LIMITED: Final = 429
+"""The status of a rate-limited request."""
+
+RETRYABLE_STATUS: Final = 500
+"""The lowest status of a failure the API caused rather than the request, beside `RETRIED`."""
+
 
 def retryable(status: int, headers: Mapping[str, str]) -> bool:
     """Whether the SDK retries a `status` response: per `x-should-retry`, else per its rule."""
@@ -74,10 +84,13 @@ def _log_retry(
     attempt: int,
     max_retries: int,
     response: anthropic.APIResponse[Any] | anthropic.AsyncAPIResponse[Any],
-) -> None:
+) -> bool:
     """Log a `retry` line when the SDK will retry `response`'s status.
 
     It retries only while attempts remain: attempt `max_retries + 1`, the last, raises instead.
+
+    Returns:
+        Whether the SDK retries a 429: the attempt was rate limited.
     """
     if attempt <= max_retries and retryable(response.status_code, response.headers):
         logger.warning(
@@ -87,6 +100,8 @@ def _log_retry(
             response.status_code,
             response.headers.get("retry-after") or "none",
         )
+        return response.status_code == RATE_LIMITED
+    return False
 
 
 class Attempts(anthropic.Middleware):
@@ -94,12 +109,14 @@ class Attempts(anthropic.Middleware):
 
     Attributes:
         count: The last synchronous call's attempts.
+        rate_limited: Whether the last synchronous call retried a 429.
         max_retries: The retries the client makes, so the last attempt logs no `retry` line.
     """
 
     def __init__(self, max_retries: int = MAX_RETRIES) -> None:
         """Start at no request, for a client of `max_retries` retries, as every client here is."""
         self.count = 0
+        self.rate_limited = False
         self.max_retries = max_retries
 
     def handle(
@@ -109,11 +126,13 @@ class Attempts(anthropic.Middleware):
     ) -> anthropic.APIResponse[Any]:
         """Record this attempt's number, make it, and log a retry.
 
-        A status the SDK retries logs the same `retry` line as `handle_async`.
+        A status the SDK retries logs the same `retry` line as `handle_async`, and a retried 429
+        marks the call rate limited.
         """
         self.count = request.retries_taken + 1
         response = call_next(request)
-        _log_retry(self.count, self.max_retries, response)
+        if _log_retry(self.count, self.max_retries, response):
+            self.rate_limited = True
         return response
 
     async def handle_async(
@@ -125,14 +144,15 @@ class Attempts(anthropic.Middleware):
 
         The count goes to `ATTEMPTS`'s holder, not to the instance, since the async client's calls
         overlap. A status the SDK retries, with an attempt left, logs `retry call=%d attempt=%d
-        status=%s retry_after=%s`.
+        status=%s retry_after=%s`, and a retried 429 marks the holder rate limited.
         """
         attempt = request.retries_taken + 1
         holder = ATTEMPTS.get()
         if holder is not None:
-            holder[0] = attempt
+            holder.count = attempt
         response = await call_next(request)
-        _log_retry(attempt, self.max_retries, response)
+        if _log_retry(attempt, self.max_retries, response) and holder is not None:
+            holder.rate_limited = True
         return response
 
 
@@ -179,8 +199,14 @@ def _failure(
     exc: anthropic.APIError | TypeError,
     client: anthropic.Anthropic | anthropic.AsyncAnthropic,
     attempts: int | None,
+    *,
+    rate_limited: bool = False,
 ) -> GenerationError:
     """The `GenerationError` a failed call raises, built from `exc`'s type, status and request id.
+
+    It is `retryable` for a connection error (a timeout included), a status in `RETRIED` and a
+    status of `RETRYABLE_STATUS` or above, and `rate_limited` when a retry was (`rate_limited`)
+    or `exc` is a 429.
 
     Raises:
         TypeError: `exc` itself, when it is not SDK 1.13.0's refusal of a missing credential.
@@ -192,13 +218,19 @@ def _failure(
         )
         if isinstance(exc, anthropic.BadRequestError):
             msg += _reason(exc, (client.api_key, client.auth_token))
-        return GenerationError(msg, attempts=attempts)
+        limited = exc.status_code == RATE_LIMITED
+        return GenerationError(
+            msg,
+            attempts=attempts,
+            retryable=exc.status_code in RETRIED or exc.status_code >= RETRYABLE_STATUS,
+            rate_limited=rate_limited or limited,
+        )
     if isinstance(exc, anthropic.APIConnectionError):
         msg = f"the API could not be reached: {type(exc).__name__}"
-        return GenerationError(msg, attempts=attempts)
+        return GenerationError(msg, attempts=attempts, retryable=True, rate_limited=rate_limited)
     if isinstance(exc, anthropic.APIError):
         msg = f"the API's response could not be read: {type(exc).__name__}"
-        return GenerationError(msg, attempts=attempts)
+        return GenerationError(msg, attempts=attempts, rate_limited=rate_limited)
     # SDK 1.13.0 builds a client with no credential and raises this from `_validate_headers` at
     # request time; its text holds no secret. Any other `TypeError` is a bug here, not a missing
     # credential.
@@ -222,17 +254,21 @@ def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) 
     def counted() -> int | None:
         return (attempts.count or None) if attempts is not None else None
 
+    def limited() -> bool:
+        return attempts is not None and attempts.rate_limited
+
     def send(call: Call) -> Reply:
         if attempts is not None:
             attempts.count = 0
+            attempts.rate_limited = False
         try:
             # Exactly the body the call log records, so the log is what was sent. `params` is
             # typed loosely, and the SDK's overloads want each keyword's own type.
             body: Any = call.params()
             message = client.messages.create(**body)
         except (anthropic.APIError, TypeError) as exc:
-            raise _failure(exc, client, counted()) from None
-        return dataclasses.replace(reply_of(message), attempts=counted())
+            raise _failure(exc, client, counted(), rate_limited=limited()) from None
+        return dataclasses.replace(reply_of(message), attempts=counted(), rate_limited=limited())
 
     return send
 
@@ -255,9 +291,9 @@ def async_send_with(client: anthropic.AsyncAnthropic) -> AsyncSend:
         client: The async SDK client; its credential comes from the SDK's own resolution.
 
     Returns:
-        The send, whose awaited reply and failure carry the call's own attempt count, read from
-        the `ATTEMPTS` holder, its caller's or its own (None when nothing counted); it raises
-        `GenerationError` when no response arrives.
+        The send, whose awaited reply and failure carry the call's own attempt count and
+        `rate_limited`, read from the `ATTEMPTS` holder, its caller's or its own (the count None
+        when nothing counted); it raises `GenerationError` when no response arrives.
     """
 
     async def send(call: Call) -> Reply:
@@ -265,18 +301,23 @@ def async_send_with(client: anthropic.AsyncAnthropic) -> AsyncSend:
         holder = ATTEMPTS.get()
         token = None
         if holder is None:
-            holder = [0]
+            holder = Tries()
             token = ATTEMPTS.set(holder)
-        holder[0] = 0
+        holder.count = 0
+        holder.rate_limited = False
         try:
             body: Any = call.params()
             message = await client.messages.create(**body)
         except (anthropic.APIError, TypeError) as exc:
-            raise _failure(exc, client, holder[0] or None) from None
+            raise _failure(
+                exc, client, holder.count or None, rate_limited=holder.rate_limited
+            ) from None
         finally:
             if token is not None:
                 ATTEMPTS.reset(token)
-        return dataclasses.replace(reply_of(message), attempts=holder[0] or None)
+        return dataclasses.replace(
+            reply_of(message), attempts=holder.count or None, rate_limited=holder.rate_limited
+        )
 
     return send
 

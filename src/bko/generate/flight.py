@@ -17,11 +17,12 @@ input, at the model's `bko.generate.spend.PRICES`; the input is priced at the hi
 reservations reach the ceiling, the call waits for them to land, and the caller's exact check then
 reads the spend a one-call-at-a-time run reads there. Each awaited send runs under
 `asyncio.timeout` at the idle limit, its retries included: on expiry the call raises `IdleError`
-carrying its attempt count, no later call is sent, and the calls beside it land under their own
-idle limits, so their replies and spend are recorded, before the lowest idle call's `IdleError` is
-raised. An interrupt cancels the calls in flight; each requested call still gets its `error` line
-before the call log can close, a further interrupt notwithstanding. Each call's task sets
-`bko.generate.messages.CALL_NUMBER`, so its retry lines name it.
+carrying its attempt count and whether a retry met a 429, no later call is sent, and the calls
+beside it land under their own idle limits, so their replies and spend are recorded, before the
+lowest idle call's `IdleError` is raised. An interrupt cancels the calls in flight; each requested
+call still gets its `error` line before the call log can close, a further interrupt
+notwithstanding. Each call's task sets `bko.generate.messages.CALL_NUMBER`, so its retry lines name
+it.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from bko.generate.calls import Batch, Pending, answer, fail, request
 from bko.generate.errors import IdleError
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
-from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply
+from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply, Tries
 from bko.generate.spend import price_of
 
 
@@ -376,7 +377,7 @@ class Flight:
         idle = self.limits.idle
         scope = asyncio.timeout(idle)
         # The send counts its attempts here, so a call the idle rule stops still reports them.
-        holder = [0]
+        holder = Tries()
         token = ATTEMPTS.set(holder)
         try:
             async with scope:
@@ -385,7 +386,9 @@ class Flight:
             if not scope.expired() or idle is None:
                 raise
             msg = f"call {pending.index} got no reply within the idle limit of {idle:g} s"
-            raise IdleError(msg, attempts=holder[0] or None) from None
+            raise IdleError(
+                msg, attempts=holder.count or None, rate_limited=holder.rate_limited
+            ) from None
         finally:
             ATTEMPTS.reset(token)
 

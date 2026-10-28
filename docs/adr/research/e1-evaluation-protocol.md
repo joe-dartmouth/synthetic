@@ -45,25 +45,35 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
   setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
   reporting every measure beside them; a run with none is reported with no verdict. A paid run also
-  stops on two rules beside the spend ceiling, each value held by its `Experiment`: its spend after
-  `projection_after` holdouts, scaled to every holdout, reaching the ceiling, and a call with no
-  reply within `idle_limit` seconds, timed by `asyncio.timeout` around each awaited send, retries
-  included, so that on expiry the run sends no later call, lets the calls in flight beside it land
-  under their own idle limits, records their replies and spend, and raises `StopRuleError("idle")`
-  (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake and refused on
-  battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
-  resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
-  or the ceiling stopped is reported, not resumed, since resuming would spend past the rule that
-  stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's
-  `end` line records it under `stop`, and a resume refuses a `projection` or `ceiling` stop (ADR
-  `research/call-log-replay`); `launch --resume` also refuses a log whose settings differ from
-  the named run's, before it claims a folder. `launch --rehearse` first runs the whole run on
-  canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal` directory, so the stop
-  rules, the spend lines and the folder roles are checked for free before any spend. A rehearsal
-  bills each record asked at the judged run's tokens per record (its Runs row's input and output
-  tokens over its records asked), so its spend and projection read on the scale of a real run; its
-  spend is a wiring check, not an estimate. Those tokens per record are recomputed from the judged
-  run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
+  stops on two rules beside the spend ceiling, each value held by its `Experiment`: its whole spend
+  after `projection_after` holdouts, scaled to every holdout, reaching the ceiling (a resume counts
+  the holdouts it replays and the spend it carries and replays, so every automatic resume projects
+  as the fresh run would), and a call with no reply within `idle_limit` seconds, timed by
+  `asyncio.timeout` around each awaited send, retries included, so that on expiry the run sends no
+  later call, lets the calls in flight beside it land under their own idle limits, records their
+  replies and spend, and raises `StopRuleError("idle")` (ADR `research/concurrent-call-waves`);
+  `launch` starts it detached, kept awake and refused on battery power (`docs/DEVELOPMENT.md`,
+  Evaluation). `launch` supervises the run: when a segment ends on an idle stop (F3), on a failure
+  the API caused (F4: its call log's `end` line says `retryable`) or is killed by a signal with no
+  `end` line (F6), it resumes the run into `<id>-resume-<k>` after a backoff, at most `--retries`
+  times, under launch's own folder checks and resume guard; it never resumes a projection or
+  ceiling stop, a deterministic failure, a crash with no `end` line, an interrupt or a run the
+  operator stopped. A call abandoned by the idle rule or by a client timeout may still be billed,
+  and its spend is not in the call log, so the ceiling does not count it; each automatic resume can
+  repeat that exposure, bounded by the calls in flight per segment and by `--retries`.
+  `launch --resume STOPPED` resumes a run the idle rule stopped into a new folder under the same
+  checks; a run the projection or the ceiling stopped is reported, not resumed, since resuming would
+  spend past the rule that stopped it. A guard holds this: each rule raises a `StopRuleError` naming
+  it, the call log's `end` line records it under `stop`, and a resume refuses a `projection` or
+  `ceiling` stop (ADR `research/call-log-replay`); `launch --resume` also refuses a log whose
+  settings differ from the named run's, before it claims a folder. `launch --rehearse` first runs
+  the whole run on canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal`
+  directory, so the stop rules, the spend lines and the folder roles are checked for free before any
+  spend. A rehearsal bills each record asked at the judged run's tokens per record (its Runs row's
+  input and output tokens over its records asked), so its spend and projection read on the scale of
+  a real run; its spend is a wiring check, not an estimate. Those tokens per record are recomputed
+  from the judged run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row
+  changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same

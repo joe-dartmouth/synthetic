@@ -72,6 +72,19 @@ ceiling stop lands elsewhere.
   `beside` lines name `run=` and `level=`; each 429 or retryable status with an attempt left logs
   `retry call=%d attempt=%d status=%s retry_after=%s`. This answers a rate-limit storm that trips
   the idle rule with a line per retry.
+- **Supervised launch.** `launch` supervises its run and resumes API-caused stops. It starts
+  `python -m bko.evaluate supervise`, which runs `score` as a child process, one segment at a time.
+  The call log's `end` line says under `retryable` whether the API caused the stop: true for an idle
+  stop and for a failure from a connection error, a timeout, a 408, 409 or 429 (the statuses below
+  500 the SDK retries), or a status of 500 or above; false otherwise, ceiling and projection stops
+  included. It says under `rate_limited` whether any retry in the segment saw a 429 (both keys
+  additive; the schema stays 2). A `retryable` stop, or a child a signal killed with no `end` line,
+  is resumed into `<id>-resume-<k>` after `min(60 x 2^(k-1), 900)` seconds, at most `--retries`
+  times, at half the in-flight (at least 1) when the segment was rate limited; a child that exits on
+  its own with no `end` line crashed and is not resumed. Each resume continues the last segment's
+  call log, which holds every call, so the last segment's log replays the whole run. An operator's
+  signal to the supervisor, forwarded once to the child as `SIGINT`, or a `STOP` file in the run's
+  folder stops the run with no resume (`bko.evaluate.stopping`).
 - **Callers.** `guided_arms` takes the run's name and its limits. The generate CLI records
   `run=generate` at in-flight 1 and stays sequential. The app sends through the async client at
   in-flight 1 with the experiment's idle limit and `run=app`, since a synchronous send cannot be
@@ -106,11 +119,14 @@ stopped wave's calls again.
 | Arms concurrently | An arm's first call number depends on the arms before it | 2026-10-27 |
 | Message Batches | They cost many sequential waves, or a lockstep rewrite | 2026-10-27 |
 | Parallel local fits | They seed process-wide generators and save little time | 2026-10-27 |
+| A resume loop inside `score` | One process would hold the call log across segments, so a killed or slept process loses every segment | 2026-10-27 |
 
 ## Enforcement
 
-- Owner: `src/bko/generate/flight.py`
-- Pinned by: `tests/test_generate_flight.py`, `tests/test_evaluate_waves.py`
+- Owner: `src/bko/generate/flight.py`; supervision: `src/bko/evaluate/supervise.py` and
+  `src/bko/evaluate/stopping.py`
+- Pinned by: `tests/test_generate_flight.py`, `tests/test_evaluate_waves.py`,
+  `tests/test_evaluate_supervise.py`, `tests/test_evaluate_stopping.py`
 
 ## Reversal Conditions
 

@@ -191,7 +191,7 @@ judged run keeps `compare`'s stdout and stderr in its folder:
 **The paid-run protocol.** A new paid run starts with `launch`, which a Runs row cites instead of
 the `score --log` command above; a resume and a rehearsal start with it too:
 
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
     uv run --no-sync python -m bko.evaluate launch <run-id>-resume [<run>] --resume runs/<run-id>/calls.jsonl [--data-dir <dir>]
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--data-dir <dir>]
 
@@ -203,10 +203,12 @@ or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check
 `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
 launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
 `resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
-`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
-session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files;
-`--data-dir` is forwarded as an absolute path, and `--in-flight` when given. It appends the process
-id to `launch.log` and prints the command that watches the folder
+`supervise <run-id> <run> --retries R --runs-dir <runs>` in its own session, held awake by
+`caffeinate -i -s` on macOS, with stdout and stderr in those two files; `--data-dir` is forwarded
+as an absolute path, and `--in-flight` when given. `supervise` is internal to `launch`: it runs
+`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its
+child, with the same stdout and stderr (supervision, below). It appends the process id to
+`launch.log` as `pid=` and prints the command that watches the folder
 (`tail -f <runs>/<run-id>/scores.log`, its path absolute; for `--rehearse`,
 `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it appends
 `error=<type>: <message>` and then removes the two files; it also removes them when `launch.log`'s
@@ -214,28 +216,115 @@ first lines cannot be written, and a failed claim writes nothing, so a failed la
 folder free. A started process whose `pid=` line cannot be written is still reported started, with a
 WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
 retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
-and keep-awake: it starts `score <run> --resume <calls.jsonl> --log ... --candidates ...` with the
-stopped log's path made absolute, and refuses a stopped log that is not a file or lies inside the
-new folder, and the logs the resume guard above refuses. `--rehearse` starts
+and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ... --candidates ...`
+with the stopped log's path made absolute, and refuses a stopped log that is not a file or lies
+inside the new folder, and the logs the resume guard above refuses. The manual resume's run id
+`<run-id>-resume` is not supervised further: its resume folder name, `<run-id>-resume-resume-1`, is
+not a `RUN_ID`, so `launch` logs the WARNING
+`launch run_id=<run-id>-resume resumes=none reason=name: <run-id>-resume-resume-1 is not a run id, so the supervisor resumes no stop`
+and its segment's line says `reason=name`. `--rehearse` supervises
 `score <run> --log ... --candidates ... --rehearse` with the same checks inside
 `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
 and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
-folder stays free to launch. The power is read once, at launch: a machine unplugged afterwards is
-not caught, and `caffeinate -s` holds it awake on mains power only. The run itself stops, exit 2
-with the call log ending `failed`, on any of three rules, each logged as `stop rule=<name>` with the
-measure that fired: the spend ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the
-run's spend before the call it refuses), the projection (the live spend after `projection_after`
-holdouts, scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, a
-rehearsal is, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
-seconds for one call to get a reply, its retries included, timed by `asyncio.timeout` around the
-awaited send; on expiry no later call is sent, and the calls beside it land under their own idle
-limits, so their replies and spend are recorded). `bko.evaluate.watch` holds the projection and
-`bko.generate.flight` the ceiling and the idle limit. `--in-flight N` sets the calls in flight,
+folder stays free to launch. The power is read at launch and again before each resume, which
+refuses on battery; between those reads a machine unplugged is not caught, and `caffeinate -s`
+holds it awake on mains power only. The run itself stops, exit 2 with the call log ending `failed`,
+on any of three rules, each logged as `stop rule=<name>` with the measure that fired: the spend
+ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend before the call it
+refuses), the projection (the run's whole spend after `projection_after` holdouts, scaled to every
+holdout, reaching the ceiling; a resume counts the holdouts it replays and the spend it carries and
+replays, so it projects as the fresh run would; a rehearsal is projected, a replay is not, and
+`stop rules projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call
+to get a reply, its retries included, timed by `asyncio.timeout` around the awaited send; on expiry
+no later call is sent, and the calls beside it land under their own idle limits, so their replies
+and spend are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the
+ceiling and the idle limit. `--in-flight N` sets the calls in flight,
 `bko.generate.flight.IN_FLIGHT` by default (ADR
 [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the call
 it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call log
 writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
 the runner before any replay.
+
+**Supervision.** `launch` supervises its run (ADR
+[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)): `supervise` runs each
+segment's `score` as a child process in its own process group, under its own `caffeinate -i -s` on
+macOS so the machine stays awake while the segment runs even if the supervisor dies, and, when the
+child exits, reads the call log's `end` line and the child's exit code. The line says under
+`retryable` whether the API caused the stop, and under `rate_limited` whether any retry in the
+segment saw a 429. Each stop branch is handled as follows:
+
+| Branch | Signal | Supervisor |
+|---|---|---|
+| F1 projection | `stop` `projection` | no resume |
+| F2 ceiling | `stop` `ceiling` | no resume |
+| F3 idle | `stop` `idle`, `retryable` true | resume |
+| F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 408, 409 or 429, or a status of 500 or above) | resume |
+| F5 deterministic | `status` `failed`, `retryable` false (`retryable` must be the JSON `true`) | no resume |
+| F5 crash | no `end` line, the child exited on its own (exit code 0 or above) | no resume |
+| F5 no log | no call log (`absent`), or one whose first line is not a call log's (`unreadable`) | no resume |
+| F6 killed or slept | no `end` line, a signal killed the child (a negative exit code: `SIGKILL`, an out-of-memory kill, a sleep) | resume |
+| F7 operator | `status` `interrupted`, or the operator's signal or `STOP` file (below) | no resume |
+
+Resume `k` (from 1) waits `min(60 x 2^(k-1), 900)` seconds, then checks the folder
+`<run-id>-resume-<k>` with `launch`'s own argument, power and folder checks and the previous
+segment's call log with the resume guard above (`launch --resume`'s), claims the folder only once
+every check passed, and runs `score <run> --resume <the previous segment's calls.jsonl>` there,
+with that folder's `scores.csv` and `scores.log`, at half the previous segment's in-flight (at
+least 1) when that segment was rate limited, else at the same. `--retries R` caps the resumes, at
+most 20; `--retries 0` runs one segment, and `launch --help` holds its default. A rehearsal is
+never resumed, and neither is a run id whose `-resume-<k>` folder name is not a `RUN_ID`. The last
+segment's call log holds every call, the replayed ones included, so it replays the whole run, and
+a Runs row lists every segment's folder.
+
+**Stopping a supervised run.** Three commands stop it, each with its own effect:
+
+- `kill -TERM <pid>`, the `pid=` line of `<run-id>/launch.log` (`supervise pid=` repeats it):
+  `caffeinate -i -s` runs the supervisor under the pid it was started with, so the signal reaches
+  the supervisor itself. `SIGINT` and `SIGHUP` do the same. The supervisor forwards one `SIGINT` to
+  the running segment's child, waits for it with no kill timeout, so the call log ends
+  `interrupted`, and resumes nothing; during a backoff it claims nothing. It exits 130 when the
+  child ends on the interrupt.
+- `touch <runs>/<run-id>/STOP`: the running segment goes on to its own end, and the supervisor
+  resumes nothing after it; a backoff in progress ends within 0.2 s. This covers `kill -9` of the
+  child alone, which leaves no `end` line and reads as an out-of-memory kill, so it would otherwise
+  be resumed.
+- `kill -TERM <child_pid>`, a segment's `child_pid=` line: `score` turns `SIGTERM` and `SIGHUP`
+  into an interrupt, as `SIGINT` is, so the call log ends `interrupted` (F7) and the supervisor
+  resumes nothing.
+
+**What the supervisor writes.** Every line goes to `<run-id>/launch.log` (for a rehearsal,
+`<run-id>/rehearsal/launch.log`) behind a UTC time, `%Y-%m-%dT%H:%M:%SZ` and a space, and to the
+supervisor's stderr, which is segment 0's `scores.log`. Each resume's own `score` writes to its
+folder's `scores.log`, which the `next=` line's `watch=` names. The lines, in order:
+
+- `supervise pid=%d`: the supervisor's process id, once.
+- `supervise segment=%d child_pid=%d`: each segment's child, once it starts.
+- `supervise stop=operator by=%s`: the operator's stop, a WARNING; `by` is `SIGTERM`, `SIGINT`,
+  `SIGHUP` or `STOP` for the file.
+- `supervise segment=%d folder=%s code=%d status=%s stop=%s retryable=%s rate_limited=%s reason=%s`:
+  each segment's outcome. `folder` is the segment's absolute folder; `code` the child's exit code,
+  negative for a signal's; `status` the `end` line's (`complete`, `failed`, `interrupted`), or
+  `none` for no `end` line, `absent` for no call log, `unreadable` for a log whose first line is not
+  a call log's; `stop` the `end` line's (`projection`, `ceiling`, `idle`) or `none`; `retryable`
+  and `rate_limited` `true` or `false`, as the supervisor reads them. When a resume is scheduled the
+  line ends `reason=retryable backoff_s=%d`.
+- `supervise next=%s in_flight=%s watch=tail -f <runs>/<next>/scores.log`: the resume folder, once
+  claimed (no line names a resume that was not claimed); `in_flight` is a number or `default`.
+- `supervise resume=%s refused=%s`: a resume a check refused, an ERROR, with the refusal's message.
+- `supervise error=%s: %s`: a segment that could not start, an ERROR, with the error's type and
+  message; a resume folder's claimed files are removed first.
+- `supervise done segments=%d last=%s outcome=%s exit=%d`: the last line: the segments run, the
+  last one's folder name, the reason and the exit code.
+
+`reason` and `outcome` are one of `bko.evaluate.supervise.REASONS`: `complete`; `stop` (F1, F2);
+`retryable` (a resume is scheduled); `exhausted` (the resumes ran out); `unresumable` (F5 and no
+log); `crash` (F5 crash); `rehearsal`; `name` (the run id's resume folder name is not a `RUN_ID`);
+`operator` (F7); and, on the `done` line alone, `refused` and `error`. A resume folder's own
+`launch.log` gets `launched <time> run=<run> segment=<k> of=<run-id> resume=<previous calls.jsonl>`,
+`power=mains` (or `power=unchecked` off macOS), `awake=caffeinate` (or `awake=none`) and
+`command=<the segment's command>`. `supervise` exits with the last segment's exit code, 128 plus
+the signal's number for a child a signal killed, or 2 when a resume is refused, a segment cannot
+start or the supervisor cannot run.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
@@ -587,24 +676,26 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
   always writes null), `rehearsal` (false: generate never rehearses), `stop` (null: generate has no
-  stop rule) and totals, `live_usd` among them, each call's whole request and response and its USD
-  spend included. An interrupt or any other failure between a `request` line and its `reply` line
-  writes the `error` line. stderr gets the split line, each ontology fragment's size, the request's
-  name, cells and rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort,
-  level, records per call, token limit, the replayed log's sha256 or `none`, `resume=none` and
-  `rehearsal=false`), the plan (calls, level, and the most the output tokens can cost), a `send`
-  line before each call and a `generate` line after it (or an ERROR `failed` line naming the call
-  and cell), the run's totals and spend (`usd` and `live_usd`) with the replayed and resumed logs'
-  sha256 or `none`, `rehearsal=false` and the log's path, and last the count of stdout's record
-  lines (the header excluded) and the sha256 of stdout, its header included. Its WARNING lines:
-  `served`, a call served by a model other than the settings name; `short`, a call that wrote
-  placeholders, with their reason; `unreached`, a gap statement no label-compatible mapping row
-  reaches, left out of the prompt; `noreference`, a cell with no reference record, so no profile or
-  summary; and the UCI loader's line naming the records it dropped for a missing value. The SDK
-  client retries a failed attempt up to `bko.generate.api.MAX_RETRIES` times, backing off between
-  tries, and logs each retry at INFO between the call's `send` line and its result; each `reply` and
-  `error` line records the call's `attempts`, and the `end` line counts the calls `retried`. A
-  retried attempt can be billed, so logged spend is a lower bound when `retried` is above 0.
+  stop rule), `retryable` (whether the API caused a failure: a connection error, a timeout, a 408,
+  409 or 429, or a status of 500 or above), `rate_limited` (whether any retry met a 429) and totals,
+  `live_usd` among them, each call's whole request and response and its USD spend included. An
+  interrupt or any other failure between a `request` line and its `reply` line writes the `error`
+  line. stderr gets the split line, each ontology fragment's size, the request's name, cells and
+  rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort, level, records per
+  call, token limit, the replayed log's sha256 or `none`, `resume=none` and `rehearsal=false`), the
+  plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a
+  `generate` line after it (or an ERROR `failed` line naming the call and cell), the run's totals
+  and spend (`usd` and `live_usd`) with the replayed and resumed logs' sha256 or `none`,
+  `rehearsal=false` and the log's path, and last the count of stdout's record lines (the header
+  excluded) and the sha256 of stdout, its header included. Its WARNING lines: `served`, a call
+  served by a model other than the settings name; `short`, a call that wrote placeholders, with
+  their reason; `unreached`, a gap statement no label-compatible mapping row reaches, left out of
+  the prompt; `noreference`, a cell with no reference record, so no profile or summary; and the UCI
+  loader's line naming the records it dropped for a missing value. The SDK client retries a failed
+  attempt up to `bko.generate.api.MAX_RETRIES` times, backing off between tries, and logs each retry
+  at INFO between the call's `send` line and its result; each `reply` and `error` line records the
+  call's `attempts`, and the `end` line counts the calls `retried`. A retried attempt can be billed,
+  so logged spend is a lower bound when `retried` is above 0.
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing credential, a call that got no response, a
   completeness request no cell holds a gap for, `--request completeness` with another

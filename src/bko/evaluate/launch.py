@@ -3,7 +3,8 @@
 ADR `research/e1-evaluation-protocol` records the run's spend rules and `docs/DEVELOPMENT.md`
 (Evaluation) the protocol this command carries out. A paid run lost to a laptop sleeping on battery
 with a call in flight is what the checks here prevent: the command refuses to start when the machine
-reports battery power, starts `score` in its own session with `caffeinate` holding the machine awake
+reports battery power, starts `supervise` (`bko.evaluate.supervise`), which runs `score` and
+resumes its API-caused stops, in its own session with `caffeinate` holding the machine awake
 (macOS; elsewhere it records that nothing holds it awake), sends its stdout and stderr to the run
 folder's `scores.csv` and `scores.log`, with the call log and the candidates file beside them,
 records what it checked and ran in `launch.log`, and prints the command that watches the folder.
@@ -16,23 +17,29 @@ cannot start leaves an `error=<type>: <message>` line in `launch.log`, which is 
 line survives a retry; a started process whose `pid=` line cannot be written is still reported
 started, with a WARNING. A dry run writes `launch.log` and starts nothing. A resume
 (`score --resume`) launches into a new folder with the same checks, and refuses a stopped log
-inside that folder. The data root and the stopped log are forwarded as absolute paths.
+inside that folder. The data root, the runs root and the stopped log are forwarded as absolute
+paths. `check_folder`, `resumable`, `claim`, `release`, `append`, `awake` and `score_command` are
+the checks, claim, keep-awake and command a supervisor's resume reuses.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
 from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.errors import EvaluationError
+from bko.generate.errors import ReplayError
+from bko.generate.messages import Settings
+from bko.generate.replay import log_ends, refuse_unresumable
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +49,15 @@ TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log", "holdout-candidates.j
 
 REHEARSAL: Final = "rehearsal"
 """The folder inside a run's folder its rehearsal writes, so it never takes the run's own roles."""
+
+AWAKE: Final = ("caffeinate", "-i", "-s")
+"""The prefix that holds a macOS machine awake while the command after it runs."""
+
+RETRIES: Final = 5
+"""The resumes a launched run's supervisor makes at most unless told otherwise."""
+
+MAX_RETRIES: Final = 20
+"""The most resumes `--retries` accepts: each resume can repay its stopped calls."""
 
 BATTERY: Final = "'Battery Power'"
 """What `pmset -g batt` prints between quotes when the machine runs on its battery."""
@@ -73,6 +89,16 @@ def on_battery() -> bool | None:
         logger.warning("pmset unreadable returncode=%d", result.returncode)
         return None
     return BATTERY in result.stdout
+
+
+def awake(platform: str) -> tuple[str, ...]:
+    """The prefix that holds the machine awake while a command runs: `AWAKE` on macOS, else none."""
+    return AWAKE if platform == "darwin" else ()
+
+
+def utc_now() -> datetime:
+    """The current time in UTC, the launch log's default clock."""
+    return datetime.now(UTC)
 
 
 def spawn(command: Sequence[str], out: Path, err: Path) -> int:
@@ -117,12 +143,15 @@ def launch(  # ruff: ignore[too-many-arguments]
     rehearse: bool = False,
     resume: Path | None = None,
     in_flight: int | None = None,
+    retries: int = RETRIES,
     power: Power = on_battery,
     start: Spawn = spawn,
     platform: str = sys.platform,
-    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+    now: Callable[[], datetime] = utc_now,
 ) -> Launch:
-    """Start `score` for the named `run` into `root/<run_id>`, or only write the folder's roles.
+    """Start `supervise` for the named `run` into `root/<run_id>`, or only write the folder's roles.
+
+    The supervisor runs `score` there and resumes its API-caused stops (`bko.evaluate.supervise`).
 
     Args:
         run_id: The run's id, such as `e1-4`.
@@ -135,6 +164,8 @@ def launch(  # ruff: ignore[too-many-arguments]
         resume: The call log of a stopped run to resume, or None for a new run.
         in_flight: The calls `score` keeps in flight, forwarded as `--in-flight`; None forwards
             nothing, so `score`'s default holds.
+        retries: The resumes the supervisor makes at most, forwarded as `--retries`. A run id
+            whose `<run_id>-resume-1` is not a `RUN_ID` gets none, with a WARNING.
         power: Whether the machine runs on battery.
         start: Starts the command detached.
         platform: `sys.platform`; `caffeinate` holds the machine awake on `darwin` only.
@@ -151,25 +182,30 @@ def launch(  # ruff: ignore[too-many-arguments]
             WARNING instead, and the launch is reported started.
     """
     folder = root / run_id / REHEARSAL if rehearse else root / run_id
-    _refuse_arguments(run_id, run, folder, rehearse=rehearse, resume=resume)
-    battery = _mains(power, platform)
-    taken = [name for name in TAKEN if (folder / name).exists()]
-    if taken:
-        msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
-        raise EvaluationError(msg)
-    awake = ["caffeinate", "-i", "-s"] if platform == "darwin" else []
+    battery = check_folder(
+        run_id, run, folder, rehearse=rehearse, resume=resume, power=power, platform=platform
+    )
+    if retries > 0 and not rehearse and RUN_ID.fullmatch(f"{run_id}-resume-1") is None:
+        logger.warning(
+            "launch run_id=%s resumes=none reason=name: %s-resume-1 is not a run id, so the "
+            "supervisor resumes no stop",
+            run_id,
+            run_id,
+        )
+    held = awake(platform)
     command = (
-        *awake,
+        *held,
         sys.executable,
         "-m",
         "bko.evaluate",
-        "score",
+        "supervise",
+        run_id,
         run,
+        "--retries",
+        str(retries),
+        "--runs-dir",
+        str(root.absolute()),
         *(["--resume", str(resume.absolute())] if resume is not None else []),
-        "--log",
-        str(folder / "calls.jsonl"),
-        "--candidates",
-        str(folder / "holdout-candidates.jsonl"),
         *(["--data-dir", str(data_dir.absolute())] if data_dir is not None else []),
         *(["--rehearse"] if rehearse else []),
         *(["--in-flight", str(in_flight)] if in_flight is not None else []),
@@ -184,24 +220,121 @@ def launch(  # ruff: ignore[too-many-arguments]
             f"resume={resume.absolute() if resume is not None else 'none'}"
         ),
         f"power={reading}",
-        f"awake={'caffeinate' if awake else 'none'}",
+        f"awake={'caffeinate' if held else 'none'}",
         f"command={shlex.join(command)}",
     ]
     claimed = () if dry_run else _claim(out, err)
     record = folder / "launch.log"
     try:
-        _append(record, lines)
+        append(record, lines)
     except BaseException:
-        _release(claimed)
+        release(claimed)
         raise
     pid = None if dry_run else _start(start, command, claimed, record)
     try:
-        _append(record, [f"pid={pid}"])
+        append(record, [f"pid={pid}"])
     except OSError as exc:
         logger.warning("launch pid=%s unrecorded error=%s: %s", pid, type(exc).__name__, exc)
     watch = f"tail -f {shlex.quote(str(err))}"
     logger.info("launch folder=%s power=%s dry_run=%s pid=%s", folder, reading, dry_run, pid)
     return Launch(folder, command, watch, started=not dry_run, pid=pid)
+
+
+def score_command(
+    run: str,
+    folder: Path,
+    *,
+    data_dir: Path | None = None,
+    rehearse: bool = False,
+    resume: Path | None = None,
+    in_flight: int | None = None,
+) -> tuple[str, ...]:
+    """The `score` command that runs `run` into `folder`, its paths absolute where given.
+
+    Args:
+        run: The named run.
+        folder: The folder its call log and candidates file go to.
+        data_dir: The data root, or None for `score`'s default.
+        rehearse: Rehearse the run on canned replies.
+        resume: The call log of a stopped run to resume, or None.
+        in_flight: The calls in flight, or None for `score`'s default.
+
+    Returns:
+        The command, starting with the interpreter.
+    """
+    return (
+        sys.executable,
+        "-m",
+        "bko.evaluate",
+        "score",
+        run,
+        *(["--resume", str(resume.absolute())] if resume is not None else []),
+        "--log",
+        str(folder / "calls.jsonl"),
+        "--candidates",
+        str(folder / "holdout-candidates.jsonl"),
+        *(["--data-dir", str(data_dir.absolute())] if data_dir is not None else []),
+        *(["--rehearse"] if rehearse else []),
+        *(["--in-flight", str(in_flight)] if in_flight is not None else []),
+    )
+
+
+def check_folder(
+    run_id: str,
+    run: str,
+    folder: Path,
+    *,
+    rehearse: bool,
+    resume: Path | None,
+    power: Power,
+    platform: str,
+) -> bool | None:
+    """Refuse the arguments, then the power, then a folder that already holds a run.
+
+    Returns:
+        The power reading: False on mains, None when it cannot be read off macOS.
+
+    Raises:
+        EvaluationError: As `launch`, for each check on its arguments, the power and the folder.
+    """
+    _refuse_arguments(run_id, run, folder, rehearse=rehearse, resume=resume)
+    battery = _mains(power, platform)
+    taken = [name for name in TAKEN if (folder / name).exists()]
+    if taken:
+        msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
+        raise EvaluationError(msg)
+    return battery
+
+
+def resumable(path: Path, settings: Settings) -> None:
+    """Refuse a stopped log a resume cannot resume, before any folder is claimed.
+
+    Raises:
+        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
+            differ from `settings`, the named run's, so its first replayed call would differ.
+    """
+    try:
+        run_line, end = log_ends(path)
+        refuse_unresumable(path, run_line, end)
+    except ReplayError as exc:
+        raise EvaluationError(str(exc)) from exc
+    expected = json.loads(json.dumps(asdict(settings)))
+    if run_line.get("settings") != expected:
+        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
+        raise EvaluationError(msg)
+
+
+def claim(folder: Path) -> tuple[Path, Path]:
+    """Make `folder` and claim its `scores.csv` and `scores.log` exclusively.
+
+    Returns:
+        The two files, for `release`.
+
+    Raises:
+        EvaluationError: As `_claim`.
+    """
+    folder.mkdir(parents=True, exist_ok=True)
+    return _claim(folder / "scores.csv", folder / "scores.log")
 
 
 def _refuse_arguments(
@@ -268,25 +401,25 @@ def _start(start: Spawn, command: Sequence[str], claimed: Sequence[Path], record
     except BaseException as exc:
         reason = " ".join(str(exc).split())
         try:
-            _append(record, [f"error={type(exc).__name__}: {reason}"])
+            append(record, [f"error={type(exc).__name__}: {reason}"])
         except OSError as unwritten:
             logger.warning(
                 "launch error unrecorded error=%s: %s", type(unwritten).__name__, unwritten
             )
-        _release(claimed)
+        release(claimed)
         if not isinstance(exc, OSError):
             raise
         msg = f"{command[0]} could not start: {exc}"
         raise EvaluationError(msg) from exc
 
 
-def _append(record: Path, lines: Sequence[str]) -> None:
+def append(record: Path, lines: Sequence[str]) -> None:
     """Append `lines` to the launch log at `record`, so earlier launches' lines survive."""
     with record.open("a", encoding="utf-8") as appending:
         appending.write("".join(f"{line}\n" for line in lines))
 
 
-def _release(claimed: Sequence[Path]) -> None:
+def release(claimed: Sequence[Path]) -> None:
     """Remove the files a launch claimed, so the folder is free again."""
     for path in claimed:
         path.unlink(missing_ok=True)
@@ -296,7 +429,7 @@ def _claim(out: Path, err: Path) -> tuple[Path, Path]:
     """Create `out` and `err` exclusively, so one launch alone owns the folder.
 
     Returns:
-        The two files, for `_release`.
+        The two files, for `release`.
 
     Raises:
         EvaluationError: If another launch created either file first, or either cannot be
@@ -308,11 +441,11 @@ def _claim(out: Path, err: Path) -> tuple[Path, Path]:
             path.open("x").close()
             made.append(path)
     except FileExistsError:
-        _release(made)
+        release(made)
         msg = f"{out.parent} already holds a run's output; another launch started first"
         raise EvaluationError(msg) from None
     except OSError as exc:
-        _release(made)
+        release(made)
         msg = f"{out.parent} could not claim a run's output: {exc}"
         raise EvaluationError(msg) from exc
     return out, err

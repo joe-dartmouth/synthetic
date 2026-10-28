@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import dataclasses
 import json
 import logging
 from pathlib import Path
 from typing import Final
 
+import anthropic
 import pytest
 
 from bko.baselines.errors import BaselineError
@@ -20,16 +22,17 @@ from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.scores import Source
 from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
+from bko.generate.api import async_send_with
 from bko.generate.calls import ask
-from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.errors import GenerationError, IdleError, ReplayError
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS
-from bko.generate.replay import Resume
+from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply
+from bko.generate.replay import Replay, Resume
 from bko.generate.spend import cost
 from bko.ontology.mapping import RELEASES
 from tests._evaluate_fixtures import SMALL
 from tests._fusion_fixtures import young
-from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
+from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply, request, response
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, guided, train
 from tests._validate_fixtures import planted
 
@@ -242,13 +245,15 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
     with pytest.raises(StopRuleError, match="idle limit") as raised, log:
         arm(train(tmp_path / "train"), REQUEST)
     assert raised.value.stop_rule == "idle"
+    assert raised.value.retryable is True
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
     assert json.loads(lines[-1])["stop"] == "idle"
+    assert json.loads(lines[-1])["retryable"] is True
     assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.text
 
 
-def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
+def test_guided_arms_projects_a_live_run_and_a_resumed_one_but_not_a_replay(tmp_path):
     knowledge = Knowledge("x", {}, (), ())
     early = dataclasses.replace(SMALL, projection_after=1)
     with guided_arms(
@@ -279,4 +284,139 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         limits=SEQUENTIAL,
         answers=resume,
     ) as resumed:
-        assert not resumed.watch.projecting
+        assert resumed.watch.projecting
+    with guided_arms(
+        ("bko",),
+        knowledge,
+        early,
+        log=tmp_path / "replayed.jsonl",
+        candidates=tmp_path / "replayed-candidates.jsonl",
+        origin=ORIGIN,
+        send=ScriptedSend,
+        run="e1",
+        limits=SEQUENTIAL,
+        answers=Replay(stopped),
+    ) as replayed:
+        assert not replayed.watch.projecting
+
+
+def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, caplog):
+    """A segment stopped before `projection_after` holdouts leaves its resume projecting: the
+    whole run's spend, the replayed calls' included, over every holdout done."""
+    stopped = tmp_path / "stopped.jsonl"
+    with contextlib.suppress(StopRuleError), CallLog(stopped, SETTINGS) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+        raise StopRuleError("stalled", "idle", retryable=True)
+    one = json.loads(stopped.read_text(encoding="utf-8").splitlines()[-1])["usd"]
+    assert one > 0
+    resume = Resume(stopped, ScriptedSend())
+    early = dataclasses.replace(SMALL, projection_after=1, spend_ceiling=one * 1.5)
+
+    def send(call: Call) -> Reply:
+        answer = resume(call)
+        assert isinstance(answer, Reply)
+        return answer
+
+    def run() -> None:
+        with guided_arms(
+            ("bko",),
+            Knowledge("x", {}, (), ()),
+            early,
+            log=tmp_path / "resumed.jsonl",
+            candidates=tmp_path / "resumed-candidates.jsonl",
+            origin=ORIGIN,
+            send=ScriptedSend,
+            run="e1",
+            limits=SEQUENTIAL,
+            answers=resume,
+        ) as resumed:
+            ask(GUIDANCE, 2, send=send, log=resumed.log)
+            assert resumed.log.live_usd == 0
+            resumed.watch.holdout_done()
+
+    caplog.set_level(logging.INFO)
+    with pytest.raises(StopRuleError, match="projects to") as raised:
+        run()
+    assert raised.value.stop_rule == "projection"
+    assert f"projection holdouts=1 of=2 usd={one:.4f} projected_usd={2 * one:.4f}" in caplog.text
+    end = json.loads((tmp_path / "resumed.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["stop"]) == ("failed", "projection")
+
+
+def _sdk_send(monkeypatch: pytest.MonkeyPatch, exc: anthropic.APIError) -> AsyncSend:
+    """The async send over a real client whose `messages.create` raises `exc`."""
+    client = anthropic.AsyncAnthropic(api_key="not-a-credential", max_retries=0)
+
+    async def create(**_: object) -> anthropic.types.Message:
+        raise exc
+
+    monkeypatch.setattr(client.messages, "create", create)
+    return async_send_with(client)
+
+
+SDK_FAILURES: Final = {
+    "connection": (lambda: anthropic.APIConnectionError(request=request()), True),
+    "timeout": (lambda: anthropic.APITimeoutError(request=request()), True),
+    "rate-limit": (lambda: anthropic.RateLimitError("x", response=response(429), body=None), True),
+    "server": (
+        lambda: anthropic.InternalServerError("x", response=response(500), body=None),
+        True,
+    ),
+    "overloaded": (lambda: anthropic.APIStatusError("x", response=response(529), body=None), True),
+    "bad-request": (
+        lambda: anthropic.BadRequestError("x", response=response(400), body=None),
+        False,
+    ),
+    "unreadable": (lambda: anthropic.APIResponseValidationError(response(200), None), False),
+}
+"""Each SDK failure a call can meet, and whether the stop it causes is the API's to retry."""
+
+
+@pytest.mark.parametrize("name", SDK_FAILURES)
+def test_the_end_line_marks_api_failures_retryable(tmp_path, monkeypatch, name):
+    build, retryable = SDK_FAILURES[name]
+    arm, log = guided(tmp_path, _sdk_send(monkeypatch, build()))
+    with pytest.raises(GenerationError), log:
+        arm(train(tmp_path / "train"), REQUEST)
+    end = json.loads(log.path.read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["retryable"]) == ("failed", retryable)
+
+
+@pytest.mark.parametrize(
+    ("raised", "retryable"),
+    [
+        (StopRuleError("stalled", "idle", retryable=True), True),
+        (StopRuleError("stalled", "idle"), False),
+        (IdleError("call 1 got no reply"), True),
+        (StopRuleError("spent", "ceiling"), False),
+        (StopRuleError("projected", "projection"), False),
+        (GenerationError("no Anthropic credential"), False),
+        (BaselineError("refused"), False),
+        (ValueError("bug"), False),
+    ],
+    ids=[
+        "idle",
+        "idle-unmarked",
+        "idle-error",
+        "ceiling",
+        "projection",
+        "generation",
+        "baseline",
+        "other",
+    ],
+)
+def test_the_end_line_reads_retryable_from_the_error_it_ended_on(tmp_path, raised, retryable):
+    path = tmp_path / "calls.jsonl"
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS):
+        raise raised
+    end = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["retryable"]) == ("failed", retryable)
+
+
+@pytest.mark.parametrize("raised", [None, KeyboardInterrupt()])
+def test_a_complete_or_interrupted_run_is_not_retryable(tmp_path, raised):
+    path = tmp_path / "calls.jsonl"
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS):
+        if raised is not None:
+            raise raised
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[-1])["retryable"] is False

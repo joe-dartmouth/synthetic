@@ -6,7 +6,9 @@ name the log a replay answers from under `replay` and the stopped log a resume c
 `resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line
 records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
 `carried_usd` the spend of the stopped log's calls it dropped, and the `end` line names under `stop`
-the stop rule that ended a failed run, or null, and its totals split `live_usd`, what the run paid
+the stop rule that ended a failed run, or null, under `retryable` whether the API caused the stop
+(the exception's `retryable` attribute), so a supervised run resumes it, and under
+`rate_limited` whether any call's retry met a 429; its totals split `live_usd`, what the run paid
 or a rehearsal billed, from `usd`. Each line is flushed as it is written, so the lines of every call
 made survive a failure, an interrupt or a killed process. The file is created exclusively, so a
 rerun never overwrites a paid log, with mode 0o600, so only its owner reads it. ADR
@@ -92,6 +94,7 @@ class CallLog:
         usd: Spend, priced at the settings model's rates; a resumed log's counts its replayed
             calls and starts at the spend it carried.
         live_usd: The spend of calls past the answered ones: what the run paid.
+        rate_limited: Whether any call's retry met a 429, from its reply or its failure.
     """
 
     def __init__(
@@ -152,6 +155,7 @@ class CallLog:
         self.output_tokens = 0
         self.usd = 0.0 if answered is None else answered.carried_usd
         self.live_usd = 0.0
+        self.rate_limited = False
         run_line: dict[str, object] = {
             "kind": "run",
             "schema": SCHEMA,
@@ -216,7 +220,10 @@ class CallLog:
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other. `stop` names the stop rule that ended a failed run, read from the
         exception's `stop_rule` attribute when it is one of `STOP_RULES` (`bko.evaluate` raises
-        it), and is null otherwise.
+        it), and is null otherwise. `retryable` is the failed run's exception's `retryable`
+        attribute when it is True (an `IdleError`, a `GenerationError` the API caused, or the
+        `StopRuleError` an idle stop raises), and false otherwise, the ceiling and projection
+        stops included. `rate_limited` is true when any call's retry met a 429.
         """
         if kind is None:
             status = "complete"
@@ -226,6 +233,7 @@ class CallLog:
             status = "failed"
         rule = getattr(error, "stop_rule", None) if status == "failed" else None
         stop = rule if rule in STOP_RULES else None
+        retryable = status == "failed" and getattr(error, "retryable", False) is True
         try:
             self._write(
                 {
@@ -236,6 +244,8 @@ class CallLog:
                     "resume": self.resume,
                     "rehearsal": self.rehearsal,
                     "stop": stop,
+                    "retryable": retryable,
+                    "rate_limited": self.rate_limited,
                     **self._totals(),
                 }
             )
@@ -314,6 +324,7 @@ class CallLog:
         if self.answered is None or index > self.answered.calls:
             self.live_usd += usd
         self.retried += (reply.attempts or 0) > 1
+        self.rate_limited |= reply.rate_limited
         self._write(
             {
                 "kind": "reply",
@@ -348,6 +359,7 @@ class CallLog:
         self.failed += 1
         attempts = error.attempts if isinstance(error, GenerationError) else None
         self.retried += (attempts or 0) > 1
+        self.rate_limited |= isinstance(error, GenerationError) and error.rate_limited
         text = str(error) if isinstance(error, GenerationError) else type(error).__name__
         self._write(
             {"kind": "error", "call": index, "at": self._at(), "error": text, "attempts": attempts}

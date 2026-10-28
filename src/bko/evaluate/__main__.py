@@ -1,4 +1,4 @@
-"""Command line for the evaluation: `python -m bko.evaluate score`, `compare` and `launch`.
+"""The evaluation's command line: `python -m bko.evaluate score`, `compare`, `launch`, `supervise`.
 
 `score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
@@ -7,9 +7,13 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 `--candidate` judges another arm, a dry run whose verdict is not E1's; `--beside SCORES` logs the
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
-`launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
-the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED` resumes a
-stopped run into the new folder, and `--in-flight N` is forwarded to `score` only when given.
+`launch RUN_ID [RUN]` starts a paid `score` detached under `supervise` (`bko.evaluate.launch`);
+RUN defaults to the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED`
+resumes a stopped run into the new folder, `--in-flight N` is forwarded to `score` only when given,
+and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is internal to `launch`,
+which starts it: it runs `score` into the claimed folder and resumes API-caused stops
+(`bko.evaluate.supervise`), and exits with the last segment's code, 128 plus the signal's number
+for a child a signal killed, or 2 when it or a resume cannot run.
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
@@ -39,11 +43,10 @@ resumed contradicts its contract.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
@@ -56,13 +59,12 @@ from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
-from bko.evaluate.launch import launch
+from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
 from bko.evaluate.scoring import score
+from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
-from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.errors import GenerationError
 from bko.generate.flight import IN_FLIGHT
-from bko.generate.messages import Settings
-from bko.generate.replay import log_ends, refuse_unresumable
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -84,19 +86,17 @@ def main(
             cannot read still leaves the interval criteria's table.
 
     Returns:
-        0 done, 2 the command could not run, 3 an input contradicts its contract. Any other
-        exception propagates, so the process exits 1 with its traceback.
+        0 done, 2 the command could not run, 3 an input contradicts its contract; `supervise`
+        returns its last segment's exit code, 128 plus the signal's number for a child a signal
+        killed, or 2 when it cannot run or a resume cannot. Any other exception propagates, so the
+        process exits 1 with its traceback.
     """
     context = context or Context()
     args = _parser().parse_args(argv)
     sink = out or sys.stdout
     try:
-        if args.command == "launch":
-            sink.write(_launch(args, context))
-            return 0
-        if args.command == "compare":
-            _compare(args, context, sink)
-            return 0
+        if args.command != "score":
+            return _other(args, context, sink)
         text = score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
@@ -106,6 +106,17 @@ def main(
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
     sink.write(text)
+    return 0
+
+
+def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
+    """Run `supervise`, `launch` or `compare`, writing what it prints to `sink`; return its code."""
+    if args.command == "supervise":
+        return _supervise(args, context)
+    if args.command == "launch":
+        sink.write(_launch(args, context))
+    else:
+        _compare(args, context, sink)
     return 0
 
 
@@ -128,7 +139,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.resume is not None and args.resume.is_file():
-        _resumable(args.resume, context.settings)
+        resumable(args.resume, context.settings)
     found = launch(
         args.run_id,
         name,
@@ -138,6 +149,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         rehearse=args.rehearse,
         resume=args.resume,
         in_flight=args.in_flight,
+        retries=args.retries,
         power=context.power,
         start=context.start,
     )
@@ -145,22 +157,22 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     return f"{found.watch}\n"
 
 
-def _resumable(path: Path, settings: Settings) -> None:
-    """Refuse a stopped log `launch --resume` cannot resume, before any folder is claimed.
-
-    Raises:
-        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
-            differ from the named run's, so its first replayed call would differ.
-    """
-    try:
-        run_line, end = log_ends(path)
-        refuse_unresumable(path, run_line, end)
-    except ReplayError as exc:
-        raise EvaluationError(str(exc)) from exc
-    expected = json.loads(json.dumps(asdict(settings)))
-    if run_line.get("settings") != expected:
-        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
-        raise EvaluationError(msg)
+def _supervise(args: argparse.Namespace, context: Context) -> int:
+    """Run the launched run's segments; return the last one's exit code."""
+    return supervise(
+        args.run_id,
+        args.run,
+        settings=_named(args.run, context).settings,
+        root=args.runs_dir,
+        data_dir=args.data_dir,
+        rehearse=args.rehearse,
+        resume=args.resume,
+        in_flight=args.in_flight,
+        retries=args.retries,
+        segment=context.segment,
+        sleep=context.sleep,
+        power=context.power,
+    )
 
 
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
@@ -203,6 +215,21 @@ def _in_flight(text: str) -> int:
         value = 0
     if value < 1:
         msg = f"the calls in flight must be a whole number of at least 1, not {text!r}"
+        raise argparse.ArgumentTypeError(msg)
+    return value
+
+
+def _retries(text: str) -> int:
+    """`--retries`' value: a whole number of resumes, from 0 to `MAX_RETRIES`."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = -1
+    if not 0 <= value <= MAX_RETRIES:
+        msg = (
+            f"the retries must be a whole number of at least 0 and at most {MAX_RETRIES}, "
+            f"not {text!r}"
+        )
         raise argparse.ArgumentTypeError(msg)
     return value
 
@@ -288,6 +315,15 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="the most BKO calls in flight at once, forwarded to score; default: score's",
     )
+    launching.add_argument(
+        "--retries",
+        type=_retries,
+        default=RETRIES,
+        help=(
+            f"the most resumes of API-caused stops, at most {MAX_RETRIES}; 0 runs one segment; "
+            f"ignored with --rehearse or --dry-run; default: {RETRIES}"
+        ),
+    )
     instead = launching.add_mutually_exclusive_group()
     instead.add_argument(
         "--rehearse",
@@ -300,6 +336,7 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="resume the stopped run whose call log this is, into the run id's new folder",
     )
+    _supervising(commands)
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
@@ -316,6 +353,25 @@ def _parser() -> argparse.ArgumentParser:
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
     return parser
+
+
+def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    supervising = commands.add_parser(
+        "supervise",
+        help=(
+            "internal to launch, which starts it: run a launched run's score segments, resuming "
+            "API-caused stops"
+        ),
+    )
+    supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
+    supervising.add_argument("run", help="the named run")
+    supervising.add_argument("--runs-dir", type=Path, required=True, help="the run folders' root")
+    supervising.add_argument("--data-dir", type=Path, default=None, help="the data root")
+    supervising.add_argument("--in-flight", type=_in_flight, default=None, help="as score's")
+    supervising.add_argument("--retries", type=_retries, default=RETRIES, help="as launch's")
+    instead = supervising.add_mutually_exclusive_group()
+    instead.add_argument("--rehearse", action="store_true", help="as launch's; never resumed")
+    instead.add_argument("--resume", type=Path, default=None, help="as launch's")
 
 
 if __name__ == "__main__":

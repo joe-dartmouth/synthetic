@@ -1,7 +1,9 @@
 """`python -m bko.evaluate score`: refuse the flags a run cannot use, then score every arm.
 
 `bko.evaluate.__main__` parses the command and maps its errors to exit codes; its docstring holds
-the command's contract.
+the command's contract. While it runs, `SIGTERM` and `SIGHUP` raise `KeyboardInterrupt` as `SIGINT`
+does, so a `score` an operator or a supervisor stops ends its call log `interrupted`
+(`bko.evaluate.supervise`).
 """
 
 from __future__ import annotations
@@ -10,8 +12,12 @@ import argparse
 import errno
 import hashlib
 import logging
-from collections.abc import Sequence
+import signal
+import threading
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Final
 
 import pandas as pd
 
@@ -33,14 +39,43 @@ from bko.generate.replay import Answers, Replay, Resume
 
 logger = logging.getLogger("bko.evaluate")
 
+TERMINATING: Final = (signal.SIGTERM, signal.SIGHUP)
+"""The signals `score` turns into `KeyboardInterrupt`, beside `SIGINT`, which already is one."""
+
+
+@contextmanager
+def interrupted_by_termination() -> Generator[None]:
+    """Raise `KeyboardInterrupt` on `TERMINATING` while the body runs, then restore the handlers.
+
+    Off the main thread, where no handler can be set, it changes nothing.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = {number: signal.signal(number, signal.default_int_handler) for number in TERMINATING}
+    try:
+        yield
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, signal.SIG_DFL if handler is None else handler)
+
 
 def score(args: argparse.Namespace, context: Context) -> str:
     """Run every arm of `context`'s experiment and return the scores as CSV.
 
+    `SIGTERM` and `SIGHUP` interrupt it as `SIGINT` does (`interrupted_by_termination`).
+
     Raises:
         EvaluationError: As `_refuse_flags`, or as the run.
         FileExistsError: If the call log or candidates file exists.
+        KeyboardInterrupt: On `SIGINT`, `SIGTERM` or `SIGHUP`.
     """
+    with interrupted_by_termination():
+        return _score(args, context)
+
+
+def _score(args: argparse.Namespace, context: Context) -> str:
+    """Run every arm of `context`'s experiment and return the scores as CSV, as `score`."""
     experiment = context.experiment
     guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
     direct = DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms

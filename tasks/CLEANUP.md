@@ -52,25 +52,6 @@ links to where its blocker is tracked.
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
 
-- **`cleanup:evaluate/spawn-child-reaped-early`: the spawn test can fail with no child to wait
-  for.** One `make test` run on 2026-10-26 (under `pytest -n auto`) failed
-  `test_spawn_starts_the_command_detached_with_its_output_in_the_files` in
-  `tests/test_evaluate_launch.py` with these lines of its report:
-
-  ```
-  E       ChildProcessError: [Errno 10] No child processes
-  tests/test_evaluate_launch.py:396: ChildProcessError
-  ```
-
-  The test passed alone and in the next full run. `bko.evaluate.launch.spawn` returns the pid of a
-  `subprocess.Popen` it drops, and the test then calls `os.waitpid` on that pid. A likely cause,
-  not yet confirmed: when the child has already exited, `Popen.__del__` polls and reaps it, so
-  `os.waitpid` finds no child. *Filed 2026-10-26 by the `evaluate-frame-generic-pipeline` work.*
-  **Why deferred.** It is unrelated to the change that met it, which touched no launch code.
-  **What discharges it:** `spawn` keeps or returns the `Popen` (or the test waits through it), so
-  nothing reaps the child before the waiter does, and the cause is confirmed.
-  **Trigger:** the test's next failure, or the next change to `bko.evaluate.launch.spawn`.
-
 - **`cleanup:evaluate/frame-unnamed-in-run-logs`: no log says which frame a run read.** No run
   log line, call log line, candidates header or `validated` summary names the frame, so two runs
   over different frames read alike. A refusal that is not a `GenerationError`, such as

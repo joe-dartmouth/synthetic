@@ -5,8 +5,9 @@ the protocol these rules belong to. A `Watch` reads a spend that, scaled from th
 every holdout, passes the ceiling, before the ceiling is reached. Its values are the run's
 `Experiment`'s; when it fires it logs the measure that fired and refuses with a `StopRuleError`, so
 the command exits 2 and the call log ends `failed` (`bko.generate.log`). It logs the run's idle
-limit too, which `bko.generate.flight` holds each call to. A replay spends nothing live, so its
-projection never fires.
+limit too, which `bko.generate.flight` holds each call to. The spend is the run's whole spend, so a
+resume, which replays the stopped run's holdouts and counts their spend again, projects as the
+fresh run would; a replay, which spends nothing, is not projected.
 """
 
 from __future__ import annotations
@@ -39,9 +40,9 @@ class Watch:
 
         Args:
             experiment: The run's configuration: its holdouts, ceiling and rule values.
-            spend: The run's live spend in USD.
-            projecting: Whether the projection rule applies; a run that resumes another counts the
-                holdouts it replays, so its live spend cannot be scaled by them.
+            spend: The run's whole spend in USD: carried, replayed and live, so a resume scales
+                the spend of every holdout it has done, replayed ones included.
+            projecting: Whether the projection rule applies; a replay's does not.
         """
         self._holdouts = len(experiment.holdout_seeds)
         self._after = experiment.projection_after
@@ -60,9 +61,9 @@ class Watch:
     def holdout_done(self) -> None:
         """Count a finished holdout; refuse the run if its spend projects to the ceiling.
 
-        The projection is read once, after `projection_after` holdouts: the live spend over those
-        holdouts, scaled to every holdout. A projection that reaches the ceiling refuses, as the
-        ceiling itself stops a run that reaches it.
+        The projection is read once, after `projection_after` holdouts: the run's whole spend over
+        those holdouts, scaled to every holdout. A projection that reaches the ceiling refuses, as
+        the ceiling itself stops a run that reaches it.
 
         Raises:
             StopRuleError: If the projection reaches the spend ceiling.

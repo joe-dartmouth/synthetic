@@ -13,26 +13,49 @@ class GenerationError(Exception):
     Attributes:
         exit_code: The command line's exit status for this failure.
         attempts: The HTTP requests the SDK made for the call, or None when nothing counted them.
+        retryable: Whether the API caused it, so a resume may succeed: a connection error, a
+            timeout, a 408, 409 or 429, or a status of 500 or above (`bko.generate.api`). False
+            otherwise.
+        rate_limited: Whether any retry of the call got status 429, or the call failed on one.
     """
 
     exit_code: ClassVar[int] = 2
 
-    def __init__(self, *args: object, attempts: int | None = None) -> None:
-        """Keep the message and the attempt count."""
+    def __init__(
+        self,
+        *args: object,
+        attempts: int | None = None,
+        retryable: bool = False,
+        rate_limited: bool = False,
+    ) -> None:
+        """Keep the message, the attempt count and what the API caused."""
         super().__init__(*args)
         self.attempts = attempts
+        self.retryable = retryable
+        self.rate_limited = rate_limited
 
 
 class IdleError(GenerationError):
     """A call got no reply within the run's idle limit, its retries included. Exit 2.
 
-    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`.
+    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`. It
+    is `retryable` unless told otherwise: a stalled call is the API's to retry.
 
     Attributes:
         stop_rule: The stop rule that fired, `idle`.
     """
 
     stop_rule: ClassVar[str] = "idle"
+
+    def __init__(
+        self,
+        *args: object,
+        attempts: int | None = None,
+        retryable: bool = True,
+        rate_limited: bool = False,
+    ) -> None:
+        """Keep the message, the attempt count and what the API caused; `retryable` by default."""
+        super().__init__(*args, attempts=attempts, retryable=retryable, rate_limited=rate_limited)
 
 
 class CandidatesFormatError(ContractError):

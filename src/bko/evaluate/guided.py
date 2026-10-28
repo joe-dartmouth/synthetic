@@ -51,7 +51,7 @@ from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, AnySend, Settings
-from bko.generate.replay import Answers
+from bko.generate.replay import Answers, Replay
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -240,7 +240,7 @@ class GuidedArm:
                 try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
-                    raise StopRuleError(str(exc), "idle") from None
+                    raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
 
 
 def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:
@@ -377,7 +377,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         raise
     try:
         sender = answers if answers is not None else send()
-        watch = Watch(experiment, lambda: call_log.live_usd, projecting=answers is None)
+        watch = Watch(experiment, lambda: call_log.usd, projecting=not isinstance(answers, Replay))
         ceiling = experiment.spend_ceiling
         flight = Flight(
             sender,

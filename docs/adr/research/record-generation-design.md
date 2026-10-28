@@ -136,12 +136,15 @@ ladder.**
   of the stopped log a resume continues, or null, and `rehearsal`: true when canned replies answer
   every call, as `score --rehearse` makes them, else false; a concurrent run adds `in_flight`, its
   calls in flight, and a resume adds `carried_usd`, the spend of the stopped calls it dropped plus
-  what the stopped log itself carried), then per call a `request` line before it is sent and a `reply` or `error` line after, then one `end`
-  line with the status (`complete`, `interrupted` for `KeyboardInterrupt`, `failed` otherwise), the
-  `run` line's `replay`, `resume` and `rehearsal` again, `stop` (the stop rule that ended a failed
-  run: `ceiling`, `projection` or `idle`, read from the exception's `stop_rule`, else null), and the
-  run's totals, `live_usd` (the spend of calls past the answered ones, a rehearsal's billed spend
-  included) among them. The schema stays 2: a replay reads only the `run` line's `kind` and
+  what the stopped log itself carried), then per call a `request` line before it is sent and a
+  `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
+  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay`, `resume` and
+  `rehearsal` again, `stop` (the stop rule that ended a failed run: `ceiling`, `projection` or
+  `idle`, read from the exception's `stop_rule`, else null), `retryable` (true for an idle stop
+  and for a `GenerationError` the API caused: a connection error, a timeout, a 408, 409 or 429,
+  or a status of 500 or above; ADR `research/concurrent-call-waves`), `rate_limited` (whether any
+  call's retry met a 429), and the run's totals, `live_usd` (the spend of calls past the answered
+  ones, a rehearsal's billed spend included) among them. The schema stays 2: a replay reads only the `run` line's `kind` and
   `schema`, and a resume reads `replay`, `resume`, `rehearsal`, `stop`, `in_flight` and
   `carried_usd` as absent when a log lacks them. A `reply` line holds the whole response and
   `attempts`, the HTTP requests the SDK made for the call (`bko.generate.api.Attempts` counts them,

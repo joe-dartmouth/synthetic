@@ -35,13 +35,16 @@ class StopRuleError(EvaluationError):
     """A paid run's stop rule fired: `ceiling`, `projection` or `idle`.
 
     The call log's `end` line records `stop_rule` under `stop` (`bko.generate.log`), so a resume
-    can refuse a run the projection or the ceiling stopped.
+    can refuse a run the projection or the ceiling stopped, and `retryable` under `retryable`.
 
     Attributes:
         stop_rule: The rule that fired.
+        retryable: Whether the API caused the stop, so a supervised run resumes it: an idle stop
+            carries its `IdleError`'s; False otherwise.
     """
 
-    def __init__(self, message: str, stop_rule: str) -> None:
-        """Hold the message and the rule."""
+    def __init__(self, message: str, stop_rule: str, *, retryable: bool = False) -> None:
+        """Hold the message, the rule and whether the API caused it."""
         super().__init__(message)
         self.stop_rule = stop_rule
+        self.retryable = retryable

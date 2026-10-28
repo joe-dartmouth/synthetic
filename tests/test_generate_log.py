@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib.metadata
 import json
@@ -203,6 +204,8 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         "resume": None,
         "rehearsal": False,
         "stop": None,
+        "retryable": False,
+        "rate_limited": False,
         "calls": 2,
         "failed": 1,
         "retried": 0,
@@ -407,3 +410,23 @@ def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
     assert lines[0]["replay"] is None
     assert lines[-1]["usd"] == pytest.approx(2 * one)
     assert lines[-1]["live_usd"] == pytest.approx(one)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "limited"),
+    [
+        (reply([{}, {}]), False),
+        (dataclasses.replace(reply([{}, {}]), rate_limited=True), True),
+        (GenerationError("the API refused the request", rate_limited=True), True),
+        (GenerationError("the API refused the request"), False),
+    ],
+    ids=["reply", "rate-limited-reply", "rate-limited-failure", "failure"],
+)
+def test_the_end_line_marks_rate_limited_segments(tmp_path, outcome, limited):
+    path = tmp_path / "calls.jsonl"
+    send = ScriptedSend(reply([{}, {}]), outcome)
+    with contextlib.suppress(GenerationError), CallLog(path, SETTINGS, now=_now) as log:
+        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log)
+    send.assert_consumed()
+    assert _lines(path)[-1]["rate_limited"] is limited

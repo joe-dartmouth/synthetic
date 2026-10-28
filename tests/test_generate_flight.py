@@ -387,12 +387,13 @@ def test_a_call_beside_an_idle_stop_lands_and_its_spend_is_counted(tmp_path):
     assert log.usd == pytest.approx(2 * SPENT)
 
 
-def test_an_idle_calls_error_line_counts_its_attempts(tmp_path):
+def test_an_idle_calls_error_line_counts_its_attempts_and_rate_limits(tmp_path):
     def send(call: Call):
         async def stall() -> Reply:
             holder = ATTEMPTS.get()
             assert holder is not None
-            holder[0] = 3
+            holder.count = 3
+            holder.rate_limited = True
             await asyncio.Event().wait()
             raise AssertionError(call)
 
@@ -406,9 +407,15 @@ def test_an_idle_calls_error_line_counts_its_attempts(tmp_path):
     ):
         f.wave(PLAN[:1])
     assert raised.value.attempts == 3
+    assert raised.value.rate_limited
     lines = _lines(log)
     assert [line["attempts"] for line in lines if line["kind"] == "error"] == [3]
     assert lines[-1]["retried"] == 1
+    assert (lines[-1]["stop"], lines[-1]["retryable"], lines[-1]["rate_limited"]) == (
+        "idle",
+        True,
+        True,
+    )
 
 
 def test_a_loop_blocked_past_an_idle_deadline_still_answers_every_call(tmp_path):
