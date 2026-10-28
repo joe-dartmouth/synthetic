@@ -623,3 +623,26 @@ def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder
     assert isinstance(context.start, Starts)
     assert context.start.commands == []
     assert not (tmp_path / "g2-3").exists()
+
+
+@pytest.mark.parametrize(
+    ("run_id", "flags", "warned"),
+    [
+        ("e1-4-resume", {}, True),
+        ("e1-4-resume", {"retries": 0}, False),
+        ("e1-4-resume", {"rehearse": True}, False),
+        ("e1-4", {}, False),
+    ],
+)
+def test_a_run_id_whose_resume_folder_name_is_no_run_id_warns(
+    tmp_path, caplog, run_id, flags, warned
+):
+    with caplog.at_level(logging.WARNING):
+        assert launch(
+            run_id, "e1", root=tmp_path, power=lambda: False, start=Starts(), **flags
+        ).started
+    expected = (
+        f"launch run_id={run_id} resumes=none reason=name: {run_id}-resume-1 is not a run id, "
+        "so the supervisor resumes no stop"
+    )
+    assert (expected in caplog.text) is warned

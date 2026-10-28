@@ -5,12 +5,14 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shlex
 import signal
 import subprocess
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
@@ -132,14 +134,22 @@ def _supervise(
         sleep=waits.append,
         power=lambda: power,
         platform=platform,
+        now=lambda: NOW,
     )
     return code, waits
 
 
+NOW: Final = datetime(2026, 10, 27, 12, 0, tzinfo=UTC)
+"""The clock the scripted supervisor reads."""
+
+STAMPED: Final = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ (supervise .*)")
+"""A supervisor's `launch.log` line: a UTC time, then the line."""
+
+
 def _record(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
-    """The run's `supervise` lines in its `launch.log`."""
+    """The run's `supervise` lines in its `launch.log`, each without its time."""
     text = (tmp_path / run_id / "launch.log").read_text(encoding="utf-8")
-    return [line for line in text.splitlines() if line.startswith("supervise ")]
+    return [found[1] for line in text.splitlines() if (found := STAMPED.fullmatch(line))]
 
 
 def _lines(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
@@ -161,14 +171,39 @@ def test_supervise_resumes_an_idle_stop_into_resume_1(tmp_path):
     assert "segment=1 of=e1-4" in (resumed / "launch.log").read_text(encoding="utf-8")
     assert _lines(tmp_path) == [
         (
-            f"supervise segment=0 folder={tmp_path / 'e1-4'} status=failed stop=idle "
-            "retryable=true rate_limited=false next=e1-4-resume-1"
+            f"supervise segment=0 folder={tmp_path / 'e1-4'} code=2 status=failed stop=idle "
+            "retryable=true rate_limited=false reason=retryable backoff_s=60"
         ),
         (
-            f"supervise segment=1 folder={resumed} status=complete stop=none "
-            "retryable=false rate_limited=false next=none"
+            f"supervise segment=1 folder={resumed} code=0 status=complete stop=none "
+            "retryable=false rate_limited=false reason=complete"
         ),
     ]
+
+
+def test_every_supervise_line_is_timed_and_pinned(tmp_path):
+    _supervise(tmp_path, Segments(LIMITED, COMPLETE), in_flight=4, platform="linux")
+    pid, first, resumed = os.getpid(), tmp_path / "e1-4", tmp_path / "e1-4-resume-1"
+    stamp = "2026-10-27T12:00:00Z"
+    lines = (first / "launch.log").read_text(encoding="utf-8").splitlines()
+    assert lines == [
+        f"{stamp} supervise pid={pid}",
+        f"{stamp} supervise segment=0 child_pid={pid}",
+        (
+            f"{stamp} supervise segment=0 folder={first} code=2 status=failed stop=idle "
+            "retryable=true rate_limited=true reason=retryable backoff_s=60"
+        ),
+        f"{stamp} supervise next=e1-4-resume-1 in_flight=2 watch=tail -f {resumed}/scores.log",
+        f"{stamp} supervise segment=1 child_pid={pid}",
+        (
+            f"{stamp} supervise segment=1 folder={resumed} code=0 status=complete stop=none "
+            "retryable=false rate_limited=false reason=complete"
+        ),
+        f"{stamp} supervise done segments=2 last=e1-4-resume-1 outcome=complete exit=0",
+    ]
+    assert (resumed / "launch.log").read_text(encoding="utf-8").splitlines()[0] == (
+        f"launched {stamp} run=e1 segment=1 of=e1-4 resume={first / 'calls.jsonl'}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -235,7 +270,8 @@ def test_supervise_does_not_resume_a_crash_with_no_end_line(tmp_path):
     segments = Segments(CRASHED)
     assert _supervise(tmp_path, segments) == (1, [])
     assert len(segments.commands) == 1
-    assert "status=none stop=none retryable=false" in _lines(tmp_path)[0]
+    assert "code=1 status=none stop=none retryable=false" in _lines(tmp_path)[0]
+    assert _lines(tmp_path)[0].endswith(" reason=crash")
 
 
 @pytest.mark.parametrize("end", [PROJECTION, CEILING], ids=["projection", "ceiling"])
@@ -244,21 +280,28 @@ def test_supervise_does_not_resume_a_projection_or_ceiling_stop(tmp_path, end, m
     segments = Segments({**end, "retryable": marked})
     code, waits = _supervise(tmp_path, segments)
     assert (code, waits, len(segments.commands)) == (2, [], 1)
-    assert _lines(tmp_path)[0].endswith("retryable=false rate_limited=false next=none")
+    assert _lines(tmp_path)[0].endswith("retryable=false rate_limited=false reason=stop")
     assert not (tmp_path / "e1-4-resume-1").exists()
 
 
 @pytest.mark.parametrize(
-    ("end", "code", "status"),
-    [(DETERMINISTIC, 2, "failed"), (INTERRUPTED, 130, "interrupted"), (ABSENT, 2, "absent")],
+    ("end", "code", "status", "reason"),
+    [
+        (DETERMINISTIC, 2, "failed", "unresumable"),
+        (INTERRUPTED, 130, "interrupted", "operator"),
+        (ABSENT, 2, "absent", "unresumable"),
+    ],
     ids=["deterministic", "interrupted", "no-log"],
 )
-def test_supervise_does_not_resume_a_deterministic_failure(tmp_path, end, code, status):
+def test_supervise_does_not_resume_a_deterministic_failure(tmp_path, end, code, status, reason):
     segments = Segments(end)
     assert _supervise(tmp_path, segments) == (code, [])
     assert len(segments.commands) == 1
     assert f"status={status} " in _lines(tmp_path)[0]
-    assert _lines(tmp_path)[0].endswith("next=none")
+    assert _lines(tmp_path)[0].endswith(f" reason={reason}")
+    assert _record(tmp_path)[-1] == (
+        f"supervise done segments=1 last=e1-4 outcome={reason} exit={code}"
+    )
 
 
 def test_supervise_stops_after_retries_exhausted(tmp_path):
@@ -267,7 +310,10 @@ def test_supervise_stops_after_retries_exhausted(tmp_path):
     assert code == 128 + 9
     assert segments.folders == ["e1-4", "e1-4-resume-1", "e1-4-resume-2"]
     assert len(waits) == 2
-    assert _lines(tmp_path)[-1].endswith("retryable=true rate_limited=false next=none")
+    assert _lines(tmp_path)[-1].endswith("retryable=true rate_limited=false reason=exhausted")
+    assert _record(tmp_path)[-1] == (
+        "supervise done segments=3 last=e1-4-resume-2 outcome=exhausted exit=137"
+    )
 
 
 def test_no_retries_runs_one_segment(tmp_path):
@@ -294,7 +340,7 @@ def test_a_rehearsal_is_never_resumed(tmp_path):
 def test_a_run_id_with_no_resume_folder_name_is_not_resumed(tmp_path):
     segments = Segments(IDLE)
     assert _supervise(tmp_path, segments, run_id="e1-4-resume") == (2, [])
-    assert _lines(tmp_path, "e1-4-resume")[0].endswith("next=none")
+    assert _lines(tmp_path, "e1-4-resume")[0].endswith(" reason=name")
 
 
 @pytest.mark.parametrize(
@@ -309,9 +355,11 @@ def test_a_resume_launch_refuses_stops_the_run_with_two(tmp_path, power, taken, 
     segments = Segments(IDLE)
     code, waits = _supervise(tmp_path, segments, power=power)
     assert (code, waits, len(segments.commands)) == (2, [60.0], 1)
-    refused = (tmp_path / "e1-4" / "launch.log").read_text(encoding="utf-8").splitlines()[-1]
+    *_, refused, done = _record(tmp_path)
     assert refused.startswith("supervise resume=e1-4-resume-1 refused=")
     assert reason in refused
+    assert done == "supervise done segments=1 last=e1-4 outcome=refused exit=2"
+    assert "next=" not in "".join(_record(tmp_path))
 
 
 def test_outcome_reads_an_unreadable_log_as_final(tmp_path):
@@ -407,7 +455,10 @@ def test_a_stop_during_backoff_claims_no_folder(tmp_path, by):
     )
     assert (code, waits, len(segments.commands)) == (2, [60.0], 1)
     assert not (tmp_path / "e1-4-resume-1").exists()
-    assert _record(tmp_path)[-1] == f"supervise stop=operator by={by}"
+    assert _record(tmp_path)[-2:] == [
+        f"supervise stop=operator by={by}",
+        "supervise done segments=1 last=e1-4 outcome=operator exit=2",
+    ]
     assert signal.getsignal(signal.SIGTERM) is before
 
 
@@ -426,12 +477,13 @@ def test_a_stop_file_keeps_a_killed_segment_from_resuming(tmp_path):
         platform="linux",
     )
     assert (code, len(segments.commands)) == (128 + 9, 1)
-    assert _record(tmp_path)[-2:] == [
+    assert _record(tmp_path)[-3:] == [
         "supervise stop=operator by=STOP",
         (
-            f"supervise segment=0 folder={tmp_path / 'e1-4'} status=none stop=none "
-            "retryable=true rate_limited=false next=none"
+            f"supervise segment=0 folder={tmp_path / 'e1-4'} code=-9 status=none stop=none "
+            "retryable=true rate_limited=false reason=operator"
         ),
+        "supervise done segments=1 last=e1-4 outcome=operator exit=137",
     ]
 
 
@@ -505,10 +557,11 @@ def test_an_operator_signal_stops_the_run_at_the_childs_interrupted_end_line(tmp
     assert (end["kind"], end["status"]) == ("end", "interrupted")
     assert not (tmp_path / "e1-4-resume-1").exists()
     by = "SIGINT" if how == "group-sigint" else "SIGTERM"
-    assert _record(tmp_path)[-2:] == [
+    assert _record(tmp_path)[-3:] == [
         f"supervise stop=operator by={by}",
         (
-            f"supervise segment=0 folder={folder} status=interrupted stop=none "
-            "retryable=false rate_limited=false next=none"
+            f"supervise segment=0 folder={folder} code=-2 status=interrupted stop=none "
+            "retryable=false rate_limited=false reason=operator"
         ),
+        "supervise done segments=1 last=e1-4 outcome=operator exit=130",
     ]

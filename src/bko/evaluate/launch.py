@@ -157,7 +157,8 @@ def launch(  # ruff: ignore[too-many-arguments]
         resume: The call log of a stopped run to resume, or None for a new run.
         in_flight: The calls `score` keeps in flight, forwarded as `--in-flight`; None forwards
             nothing, so `score`'s default holds.
-        retries: The resumes the supervisor makes at most, forwarded as `--retries`.
+        retries: The resumes the supervisor makes at most, forwarded as `--retries`. A run id
+            whose `<run_id>-resume-1` is not a `RUN_ID` gets none, with a WARNING.
         power: Whether the machine runs on battery.
         start: Starts the command detached.
         platform: `sys.platform`; `caffeinate` holds the machine awake on `darwin` only.
@@ -177,6 +178,13 @@ def launch(  # ruff: ignore[too-many-arguments]
     battery = check_folder(
         run_id, run, folder, rehearse=rehearse, resume=resume, power=power, platform=platform
     )
+    if retries > 0 and not rehearse and RUN_ID.fullmatch(f"{run_id}-resume-1") is None:
+        logger.warning(
+            "launch run_id=%s resumes=none reason=name: %s-resume-1 is not a run id, so the "
+            "supervisor resumes no stop",
+            run_id,
+            run_id,
+        )
     held = awake(platform)
     command = (
         *held,

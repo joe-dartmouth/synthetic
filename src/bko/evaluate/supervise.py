@@ -1,19 +1,24 @@
 """`python -m bko.evaluate supervise`: run a launched run's segments and resume API-caused stops.
 
-`launch` starts this command detached (`bko.evaluate.launch`); `docs/DEVELOPMENT.md` (Evaluation,
-Supervision) holds the stop branches it reads and ADR `research/concurrent-call-waves` the decision.
-Each segment runs `score` as a child process, under its own `caffeinate -i -s` on macOS so the
-machine stays awake while the segment runs even if the supervisor dies, and waits for it. When the
-child exits, the segment's call log's `end` line decides: a failed run whose line reads `retryable`,
-its stop not a projection or ceiling stop, or a log with no `end` line whose child a signal killed
-(a negative exit code: `SIGKILL`, an out-of-memory kill or a sleep), is resumed while resumes
-remain; a complete run, any other failure, an interrupt, a log with no `end` line whose child exited
-on its own (a crash) and a missing or unreadable log are not. Resume `k` waits `backoff(k)` seconds,
-takes the folder `<run_id>-resume-<k>` under launch's own argument, power and folder checks and
-claim, and runs `score --resume` on the previous segment's call log there, at half the previous
-in-flight (at least 1) when that segment was rate limited. A rehearsal is never resumed. Each
-segment's outcome is appended to the run folder's `launch.log`, and the command exits with the last
-segment's exit code, or 2 when a resume cannot be claimed.
+`launch` starts this command detached (`bko.evaluate.launch`); it is internal to `launch`.
+`docs/DEVELOPMENT.md` (Evaluation, Supervision) holds the stop branches it reads, every line it
+writes and the operator's stop, and ADR `research/concurrent-call-waves` the decision. Each segment
+runs `score` as a child process in its own process group, under its own `caffeinate -i -s` on macOS
+so the machine stays awake while the segment runs even if the supervisor dies, and waits for it.
+When the child exits, the segment's call log's `end` line and the child's exit code decide, and the
+segment's line in `launch.log` names the decision under `reason`, one of `REASONS`: a failed run
+whose line reads `retryable`, its stop not a projection or ceiling stop, or a log with no `end` line
+whose child a signal killed (a negative exit code: `SIGKILL`, an out-of-memory kill or a sleep), is
+resumed while resumes remain; a complete run, any other failure, an interrupt, a log with no `end`
+line whose child exited on its own (a crash), a missing or unreadable log and an operator's stop
+(`bko.evaluate.stopping`) are not. Resume `k` waits `backoff(k)` seconds, takes the folder
+`<run_id>-resume-<k>` under launch's own argument, power and folder checks and claim, and runs
+`score --resume` on the previous segment's call log there, at half the previous in-flight (at
+least 1) when that segment was rate limited. A rehearsal is never resumed, and neither is a run id
+whose `-resume-<k>` folder name is not a `RUN_ID`. Every line goes to the run folder's `launch.log`
+behind a UTC time, and to the log; the last is `supervise done`, with the command's exit code: the
+last segment's, 128 plus the signal's number for a child a signal killed, or 2 when a resume
+cannot be claimed.
 """
 
 from __future__ import annotations
@@ -57,10 +62,41 @@ BACKOFF_SECONDS: Final = 60.0
 BACKOFF_CAP_SECONDS: Final = 900.0
 """The longest wait before a resume."""
 
+STAMP: Final = "%Y-%m-%dT%H:%M:%SZ"
+"""The UTC time format that starts every `launch.log` line the supervisor writes."""
+
+REASONS: Final = (
+    "complete",
+    "stop",
+    "retryable",
+    "exhausted",
+    "unresumable",
+    "crash",
+    "rehearsal",
+    "name",
+    "operator",
+    "refused",
+)
+"""Why a segment's line or the `done` line ends as it does: the run completed; the projection or
+the ceiling stopped it; a resume is scheduled; the resumes ran out; the failure is not the API's,
+or the log is missing or unreadable; the child exited on its own with no `end` line; a rehearsal is
+never resumed; the run id's resume folder name is not a `RUN_ID`; the operator stopped the run; a
+resume's checks refused it (the `done` line alone)."""
+
 LINE: Final = (
-    "supervise segment=%d folder=%s status=%s stop=%s retryable=%s rate_limited=%s next=%s"
+    "supervise segment=%d folder=%s code=%d status=%s stop=%s retryable=%s rate_limited=%s "
+    "reason=%s"
 )
 """The line each segment's outcome appends to `launch.log` and logs."""
+
+SCHEDULED: Final = " backoff_s=%d"
+"""What a segment's line adds when a resume is scheduled: the backoff before it."""
+
+NEXT: Final = "supervise next=%s in_flight=%s watch=%s"
+"""The line a claimed resume appends: its folder, its in-flight and the command that watches it."""
+
+DONE: Final = "supervise done segments=%d last=%s outcome=%s exit=%d"
+"""The supervisor's last line: segments run, the last one's folder, the reason, the exit code."""
 
 type Segment = Callable[[Sequence[str], Path, Path, Callable[[int], None]], int]
 """Run a command to its exit, its stdout and stderr appended to two files, telling the callback its
@@ -187,135 +223,193 @@ def supervise(  # ruff: ignore[too-many-arguments]
         power: Whether the machine runs on battery, read before each resume.
         platform: `sys.platform`, as `launch` reads it; each segment runs under `caffeinate`
             on `darwin`.
-        now: The clock each resume folder's `launch.log` line reads.
+        now: The clock every `launch.log` line reads.
 
     Returns:
         The last segment's exit code, 128 plus the signal's number for a child a signal killed,
         or 2 when a resume's folder cannot be claimed.
     """
     operator = OperatorStop(root / run_id / STOP_FILE)
+    plan = _Plan(
+        run_id,
+        run,
+        root,
+        data_dir,
+        rehearse=rehearse,
+        retries=retries,
+        segment=segment,
+        wait=operator.wait if sleep is None else sleep,
+        power=power,
+        platform=platform,
+        now=now,
+        operator=operator,
+    )
     with operator.installed():
-        return _supervise(
-            run_id,
-            run,
-            root=root,
-            data_dir=data_dir,
-            rehearse=rehearse,
-            resume=resume,
-            in_flight=in_flight,
-            retries=retries,
-            segment=segment,
-            wait=operator.wait if sleep is None else sleep,
-            power=power,
-            platform=platform,
-            now=now,
-            operator=operator,
-        )
+        return _supervise(plan, resume, in_flight)
 
 
-def _supervise(  # ruff: ignore[too-many-arguments, too-many-locals]
-    run_id: str,
-    run: str,
-    *,
-    root: Path,
-    data_dir: Path | None,
-    rehearse: bool,
-    resume: Path | None,
-    in_flight: int | None,
-    retries: int,
-    segment: Segment,
-    wait: Callable[[float], object],
-    power: Power,
-    platform: str,
-    now: Callable[[], datetime],
-    operator: OperatorStop,
-) -> int:
-    """Run the segments as `supervise`, under the operator's stop `operator`."""
-    folder = root / run_id / REHEARSAL if rehearse else root / run_id
-    record = folder / "launch.log"
-    append(record, [f"supervise pid={os.getpid()}"])
-    source, flight, k, reading = resume, in_flight, 0, "unchecked"
-    while True:
-        command = (
-            *awake(platform),
+@dataclass(frozen=True, slots=True)
+class _Plan:
+    """What every segment of one supervised run shares: `supervise`'s arguments.
+
+    Attributes:
+        run_id: The run's id.
+        run: The named run.
+        root: The run folders' root.
+        data_dir: The data root, or None.
+        rehearse: Whether the run is a rehearsal.
+        retries: The resumes made at most.
+        segment: Runs one segment.
+        wait: Waits a backoff.
+        power: Reads the power.
+        platform: `sys.platform`.
+        now: The clock.
+        operator: The operator's stop.
+    """
+
+    run_id: str
+    run: str
+    root: Path
+    data_dir: Path | None
+    rehearse: bool
+    retries: int
+    segment: Segment
+    wait: Callable[[float], object]
+    power: Power
+    platform: str
+    now: Callable[[], datetime]
+    operator: OperatorStop
+
+    @property
+    def first(self) -> Path:
+        """The first segment's folder, which `launch` claimed; its `launch.log` is the record."""
+        return self.root / self.run_id / REHEARSAL if self.rehearse else self.root / self.run_id
+
+    def write(self, line: str, *, level: int = logging.INFO, record: Path | None = None) -> None:
+        """Log `line` at `level` and append it, behind the time, to `record` or the run's log."""
+        logger.log(level, "%s", line)
+        append(record or self.first / "launch.log", [f"{self.now().strftime(STAMP)} {line}"])
+
+    def command(self, folder: Path, source: Path | None, flight: int | None) -> tuple[str, ...]:
+        """The segment's command into `folder`, resuming `source` at `flight`, kept awake."""
+        return (
+            *awake(self.platform),
             *score_command(
-                run, folder, data_dir=data_dir, rehearse=rehearse, resume=source, in_flight=flight
+                self.run,
+                folder,
+                data_dir=self.data_dir,
+                rehearse=self.rehearse,
+                resume=source,
+                in_flight=flight,
             ),
         )
-        if k > 0:
-            stamp = now().strftime("%Y-%m-%dT%H:%M:%SZ")
-            append(
-                folder / "launch.log",
-                [
-                    f"launched {stamp} run={run} segment={k} of={run_id} resume={source}",
-                    f"power={reading}",
-                    f"awake={'caffeinate' if awake(platform) else 'none'}",
-                    f"command={shlex.join(command)}",
-                ],
-            )
-        started = partial(_started, record, operator, k)
-        code = segment(command, folder / "scores.csv", folder / "scores.log", started)
-        operator.ended()
-        found = outcome(folder / "calls.jsonl", code)
-        stopped = operator.stopping and found.status != "complete"
-        name = f"{run_id}-resume-{k + 1}"
-        resumes = (
-            not stopped
-            and found.retryable
-            and not rehearse
-            and k < retries
-            and RUN_ID.fullmatch(name) is not None
+
+    def reason(self, k: int, found: Outcome) -> str:
+        """Why segment `k`, which ended as `found`, is resumed or not: one of `REASONS`."""
+        checks = (
+            (found.status == "complete", "complete"),
+            (self.operator.stopping or found.status == "interrupted", "operator"),
+            (found.stop in UNRESUMABLE, "stop"),
+            (found.status == "none" and not found.retryable, "crash"),
+            (not found.retryable, "unresumable"),
+            (self.rehearse, "rehearsal"),
+            (RUN_ID.fullmatch(f"{self.run_id}-resume-{k + 1}") is None, "name"),
+            (k >= self.retries, "exhausted"),
         )
-        if stopped:
-            _stopped(record, operator)
-        _note(record, k, folder, found, name if resumes else "none")
-        if not resumes:
-            return exit_code(code)
-        k += 1
+        return next((why for hit, why in checks if hit), "retryable")
+
+    def done(self, k: int, folder: Path, why: str, code: int) -> int:
+        """Write the `done` line after segment `k` in `folder`, and return the exit `code`."""
+        self.write(DONE % (k + 1, folder.name, why, code))
+        return code
+
+    def stopped(self) -> None:
+        """Write the operator's `stop=operator` line, a WARNING."""
+        self.write(f"supervise stop=operator by={self.operator.by}", level=logging.WARNING)
+
+
+def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
+    """Run `plan`'s segments, the first resuming `resume` at `in_flight`, as `supervise`."""
+    folder, source, flight, k, reading = plan.first, resume, in_flight, 0, "unchecked"
+    plan.write(f"supervise pid={os.getpid()}")
+    while True:
+        command = plan.command(folder, source, flight)
+        if k > 0:
+            _opened(plan, folder, command, f"segment={k} of={plan.run_id} resume={source}", reading)
+        started = partial(_started, plan, k)
+        code = plan.segment(command, folder / "scores.csv", folder / "scores.log", started)
+        plan.operator.ended()
+        found = outcome(folder / "calls.jsonl", code)
+        why = plan.reason(k, found)
+        if plan.operator.stopping and found.status != "complete":
+            plan.stopped()
+        line = LINE % (k, folder, code, *_fields(found), why)
+        plan.write(line + (SCHEDULED % backoff(k + 1) if why == "retryable" else ""))
+        if why != "retryable":
+            return plan.done(k, folder, why, exit_code(code))
         if found.rate_limited:
             flight = max(1, (flight or IN_FLIGHT) // 2)
-        wait(backoff(k))
-        if operator.stopping:
-            _stopped(record, operator)
-            return exit_code(code)
-        source, folder = folder / "calls.jsonl", root / name
+        plan.wait(backoff(k + 1))
+        if plan.operator.stopping:
+            plan.stopped()
+            return plan.done(k, folder, "operator", exit_code(code))
+        name = f"{plan.run_id}-resume-{k + 1}"
         try:
-            battery = check_folder(
-                name, run, folder, rehearse=False, resume=source, power=power, platform=platform
-            )
-            claim(folder)
-            reading = "unchecked" if battery is None else "mains"
+            reading = _claim(plan, name, folder / "calls.jsonl")
         except EvaluationError as exc:
             reason = " ".join(str(exc).split())
-            # The message is the diagnosis; a traceback would read as a crash.
-            logger.error("supervise resume=%s refused=%s", name, reason)  # ruff: ignore[error-instead-of-exception]
-            append(record, [f"supervise resume={name} refused={reason}"])
-            return EvaluationError.exit_code
+            plan.write(f"supervise resume={name} refused={reason}", level=logging.ERROR)
+            return plan.done(k, folder, "refused", EvaluationError.exit_code)
+        source, folder, k = folder / "calls.jsonl", plan.root / name, k + 1
+        watch = f"tail -f {shlex.quote(str(folder / 'scores.log'))}"
+        plan.write(NEXT % (name, flight or "default", watch))
 
 
-def _started(record: Path, operator: OperatorStop, k: int, pid: int) -> None:
-    """Tell `operator` segment `k`'s child `pid` and append its `child_pid=` line to `record`."""
-    operator.started(pid)
-    append(record, [f"supervise segment={k} child_pid={pid}"])
+def _claim(plan: _Plan, name: str, source: Path) -> str:
+    """Check and claim the resume folder `name` for `source`; return its power reading.
 
-
-def _stopped(record: Path, operator: OperatorStop) -> None:
-    """Log the operator's stop and append its `stop=operator` line to `record`."""
-    line = f"supervise stop=operator by={operator.by}"
-    logger.warning("%s", line)
-    append(record, [line])
-
-
-def _note(record: Path, k: int, folder: Path, found: Outcome, following: str) -> None:
-    """Log segment `k`'s outcome and append it to the run's `launch.log` at `record`."""
-    values = (
-        k,
+    Raises:
+        EvaluationError: As `bko.evaluate.launch.check_folder` and `claim`.
+    """
+    folder = plan.root / name
+    battery = check_folder(
+        name,
+        plan.run,
         folder,
+        rehearse=False,
+        resume=source,
+        power=plan.power,
+        platform=plan.platform,
+    )
+    claim(folder)
+    return "unchecked" if battery is None else "mains"
+
+
+def _opened(plan: _Plan, folder: Path, command: Sequence[str], what: str, reading: str) -> None:
+    """Append a resume's `launched`, `power=`, `awake=` and `command=` lines to its `launch.log`."""
+    stamp = plan.now().strftime(STAMP)
+    append(
+        folder / "launch.log",
+        [
+            f"launched {stamp} run={plan.run} {what}",
+            f"power={reading}",
+            f"awake={'caffeinate' if awake(plan.platform) else 'none'}",
+            f"command={shlex.join(command)}",
+        ],
+    )
+
+
+def _started(plan: _Plan, k: int, pid: int) -> None:
+    """Tell the operator's stop segment `k`'s child `pid` and write its `child_pid=` line."""
+    plan.operator.started(pid)
+    plan.write(f"supervise segment={k} child_pid={pid}")
+
+
+def _fields(found: Outcome) -> tuple[str, str, str, str]:
+    """`found`'s status, stop, `retryable` and `rate_limited` as a segment's line writes them."""
+    return (
         found.status,
         found.stop or "none",
         str(found.retryable).lower(),
         str(found.rate_limited).lower(),
-        following,
     )
-    logger.info(LINE, *values)
-    append(record, [LINE % values])
