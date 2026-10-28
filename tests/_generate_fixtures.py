@@ -12,23 +12,56 @@ from typing import Final
 
 import anthropic
 import httpx2
+import pandas as pd
 
+from bko.datasets.uci import UCI_FRAME
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import SETTINGS, Call, Reply, Usage
 from tests._datasets_fixtures import archive, cleveland_line
+from tests._validate_fixtures import BASE
 
+
+def _train(chol_high: int) -> pd.DataFrame:
+    """Ten UCI-shaped training records aged 35 to 70, the last one's `chol` set to `chol_high`."""
+    ages = (35, 40, 44, 48, 52, 55, 58, 62, 66, 70)
+    records = [
+        {
+            **BASE,
+            "age": age,
+            "sex": i % 2,
+            "target": (i // 2) % 2,
+            "trestbps": 110 + 5 * i,
+            "chol": 180 + 10 * i,
+            "thalach": 120 + 6 * i,
+            "oldpeak": round(0.3 * i, 1),
+        }
+        for i, age in enumerate(ages)
+    ]
+    records[-1]["chol"] = chol_high
+    return pd.DataFrame(records).astype(dict(UCI_FRAME.dtypes))
+
+
+TRAIN_A: Final = _train(300)
+"""A hand-built training split: ages 35 to 70, `chol` 180 to 300."""
+
+TRAIN_B: Final = _train(400)
+"""`TRAIN_A` with its `chol` maximum at 400 instead of 300."""
 
 CELL: Final = ("<55", "female", 1)
 """A UCI cell: young women with the condition."""
 
-GUIDANCE: Final = Guidance(cell=CELL, sex=0, label=1, records=2, interval=intervals(CELL))
+GUIDANCE: Final = Guidance(
+    cell=CELL, sex=0, label=1, records=2, interval=intervals(CELL, TRAIN_A, frame=UCI_FRAME)
+)
 """The bare guidance of `CELL`, with two training records."""
 
 OTHER: Final = ("<55", "male", 0)
 """A second UCI cell: young men without the condition."""
 
-OTHER_GUIDANCE: Final = Guidance(cell=OTHER, sex=1, label=0, records=30, interval=intervals(OTHER))
+OTHER_GUIDANCE: Final = Guidance(
+    cell=OTHER, sex=1, label=0, records=30, interval=intervals(OTHER, TRAIN_A, frame=UCI_FRAME)
+)
 """The bare guidance of `OTHER`, with thirty training records."""
 
 SIZES: Final = {

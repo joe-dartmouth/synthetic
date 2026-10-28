@@ -18,7 +18,7 @@ import pytest
 from bko.baselines.records import within_split
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.split import split
-from bko.datasets.uci import FRAME_COLUMNS, NUMERIC
+from bko.datasets.uci import FRAME_COLUMNS, NUMERIC, UCI_FRAME
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
 from bko.evaluate.errors import EvaluationError
@@ -57,6 +57,20 @@ def test_the_pattern_reads_the_user_turn_at_every_level(level):
     assert (float(found["low"]), float(found["high"])) == (low, high)
 
 
+def test_the_prompt_regex_reads_the_bounded_first_sentence():
+    train = split(GRADED, seed=SMALL.holdout_seeds[0]).train
+    for cell in sorted(_cells(GRADED)):
+        interval = intervals(cell, train, frame=UCI_FRAME)
+        sex = SEXES_BY_LABEL[cell[1]]
+        guidance = Guidance(cell=cell, sex=sex, label=cell[2], records=3, interval=interval)
+        _, user = render(guidance, 4, SETTINGS.guidance)
+        found = PROMPT.match(user)
+        assert found is not None, cell
+        assert (float(found["low"]), float(found["high"])) == interval["age"]
+        assert interval["age"][0] >= train["age"].min()
+        assert interval["age"][1] <= train["age"].max()
+
+
 def test_the_safe_ranges_lie_inside_every_holdouts_training_range():
     ranges = safe_ranges(GRADED, SMALL.holdout_seeds)
     assert set(ranges) == set(NUMERIC)
@@ -77,7 +91,8 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
     real = set(GRADED.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
     for cell in sorted(_cells(GRADED)):
         sex, label = SEXES_BY_LABEL[cell[1]], cell[2]
-        guidance = Guidance(cell=cell, sex=sex, label=label, records=3, interval=intervals(cell))
+        interval = intervals(cell, trains[0], frame=UCI_FRAME)
+        guidance = Guidance(cell=cell, sex=sex, label=label, records=3, interval=interval)
         call = Call(SETTINGS, sex, label, *render(guidance, 20, SETTINGS.guidance))
         answer = send(call)
         assert answer.model == SETTINGS.model

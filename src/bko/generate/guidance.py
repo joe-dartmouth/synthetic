@@ -1,9 +1,10 @@
 """What a request tells the model about one cell, as values the prompt renders.
 
-Every level carries the cell, its training record count and each numeric field's plausible
-interval, with age clipped to the cell's band. Higher levels add ontology findings, a profile of
-concept shares and numeric spreads. The numeric fields, their ranges and the band edges are the
-frame's, UCI's by default. ADR `research/record-generation-design` records the ladder.
+Every level carries the cell, its training record count and each numeric field's interval: its
+training-split minimum and maximum, age intersected with the cell's band. Higher levels add
+ontology findings, a profile of concept shares and numeric spreads. The numeric fields and the
+band edges are the frame's, UCI's by default. ADR `research/record-generation-design` records
+the ladder.
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ import pandas as pd
 
 from bko.bkb.structure import BKB
 from bko.datasets.cells import LABEL, SEXES, age_band_labels, cell_keys
+from bko.datasets.errors import ContractError
 from bko.datasets.frames import FrameSpec
+from bko.datasets.split import ranges
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, grounded
@@ -121,7 +124,8 @@ class Guidance:
         sex: The cell's `sex` code.
         label: The cell's `LABEL` code.
         records: The training records the cell holds.
-        interval: Each numeric field's plausible interval, age clipped to the cell's band.
+        interval: Each numeric field's training-split minimum and maximum, age intersected
+            with the cell's band.
         basis: Why the findings were chosen.
         findings: The ontology findings.
         profile: The reference group's concept shares.
@@ -140,42 +144,44 @@ class Guidance:
 
 
 def intervals(
-    cell: Cell, edges: Sequence[int] | None = None, *, frame: FrameSpec | None = None
+    cell: Cell, train: pd.DataFrame, *, frame: FrameSpec
 ) -> dict[str, tuple[float, float]]:
-    """Return each numeric field's plausible interval for `cell`, age clipped to its band.
+    """Return each numeric field's training-split interval for `cell`, age within its band.
+
+    The drop rule keeps only rows inside the split's range and on their cell
+    (`bko.baselines.records.drops`), so each interval is what it enforces.
 
     Args:
         cell: The cell's key; its first item is its age band's label.
-        edges: Age band starts; band i covers `edges[i-1]` to `edges[i] - 1`. The frame's when
-            None.
-        frame: The frame whose numeric fields, ranges and band edges are read; `UCI_FRAME`
-            when None.
+        train: The training split.
+        frame: The frame whose numeric fields and band edges are read.
 
     Returns:
-        Each of the frame's numeric fields' range bounds, both inclusive.
+        Each of the frame's numeric fields' minimum and maximum over `train`, both inclusive, age
+        intersected with the cell's band.
 
     Raises:
-        ValueError: If both `edges` and `frame` are given and the edges differ from the frame's,
-            or the cell's band is not one of `edges`' bands.
+        ValueError: If the cell's band is not one of the frame's.
+        ContractError: As `bko.datasets.split.ranges`, or if the band and the split's ages do not
+            overlap.
     """
-    if edges is not None and frame is not None and tuple(edges) != frame.edges:
-        msg = f"edges {tuple(edges)} differ from frame {frame.name}'s {frame.edges}"
-        raise ValueError(msg)
-    frame = UCI_FRAME if frame is None else frame
-    edges = frame.edges if edges is None else edges
-    labels = age_band_labels(edges)
+    labels = age_band_labels(frame.edges)
     if cell[0] not in labels:
         msg = f"age band {cell[0]!r} is not one of {labels}"
         raise ValueError(msg)
     band = labels.index(str(cell[0]))
-    bounds = {bound.field: (bound.low, bound.high) for bound in frame.ranges}
+    bounds = ranges(train, frame)
     low, high = bounds["age"]
     if band > 0:
-        low = max(low, edges[band - 1])
-    if band < len(edges):
-        high = min(high, edges[band] - 1)
+        low = max(low, float(frame.edges[band - 1]))
+    if band < len(frame.edges):
+        high = min(high, float(frame.edges[band] - 1))
+    if low > high:
+        found = bounds["age"]
+        msg = f"age band {cell[0]!r} does not overlap the split's ages {found[0]:g} to {found[1]:g}"
+        raise ContractError(msg)
     bounds["age"] = (low, high)
-    return {name: bounds[name] for name in frame.numeric}
+    return bounds
 
 
 def guide(
@@ -210,7 +216,7 @@ def guide(
         fragments: The ontology fragments the gaps were read against.
         ontologies: The loaded release for each concept prefix.
         rows: The field mappings.
-        frame: The frame whose numeric fields, ranges and band edges are read.
+        frame: The frame whose numeric fields and band edges are read.
 
     Returns:
         One guidance per cell, in grid order.
@@ -219,7 +225,9 @@ def guide(
         ValueError: If a gap's cell is not in `cells`, a cell carries no label, a row's prefix
             has no release, or `train` holds a cell's reference group with another record count
             than `cells` does, so it is not the frame `cells` was observed from.
-        ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes.
+        ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes;
+            as `intervals`, for a split with no finite range or a cell's age band that does not
+            overlap the split's ages.
     """
     by_cell: dict[Cell, list[Statement]] = {}
     for gap in found:
@@ -248,7 +256,7 @@ def guide(
             sex=sexes[str(cell[1])],
             label=records.label,
             records=records.observed.records,
-            interval=intervals(cell, frame=frame),
+            interval=intervals(cell, train, frame=frame),
             basis=why,
             findings=_findings(cell, records.label, chosen, rows, reach, ontologies),
             profile=profile,

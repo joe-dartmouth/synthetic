@@ -117,6 +117,33 @@ def test_the_request_equals_e1s_gap_request(tmp_path):
     assert dict(expected) == REQUEST
 
 
+def test_generate_cli_prompts_with_the_training_split_bounds(tmp_path):
+    from bko.datasets.uci import UCI_FRAME
+    from bko.generate.guidance import intervals
+
+    code, _, log = run(tmp_path, make_context(two_replies()), "--guidance", "summary")
+    assert code == 0
+    parts = split(load_uci(tmp_path / "data", source=pin(UCI)))
+    youngest = parts.train["age"].min()
+    users = {
+        line["cell"]: line["params"]["messages"][0]["content"]
+        for line in log_lines(log)
+        if line["kind"] == "request"
+    }
+    assert set(users) == {cell_key(cell) for cell in REQUEST}
+    for cell in REQUEST:
+        user = users[cell_key(cell)]
+        assert f"age {youngest:g} to 54 years." in user
+        bounds = intervals(cell, parts.train, frame=UCI_FRAME)
+        within = "; ".join(
+            f"{name} {low:g} to {high:g} {unit}"
+            for (name, (low, high)), unit in zip(
+                bounds.items(), ("years", "mm Hg", "mg/dL", "beats per minute", "mm"), strict=True
+            )
+        )
+        assert f"Keep each numeric field within: {within}." in user
+
+
 def test_the_completeness_request_asks_twenty_of_each_per_subgroup_gap_cell(tmp_path):
     send = ScriptedSend(reply([young(0, cp=4)] * 20), reply([young(1, cp=1)] * 20))
     code, out, log = run(tmp_path, completeness_context(send), "--request", "completeness")
@@ -511,3 +538,20 @@ def test_direct_exits_2_writing_nothing_when_no_training_record_can_supply_a_dra
         r.levelno == logging.ERROR and "<55/female/1 cannot draw age" in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_split_without_a_cells_ages_exits_3_with_one_line(tmp_path, caplog):
+    young_only = uci({}, "4.0", sizes={(40, 0, 0): 25, (40, 0, 1): 25, (40, 1, 0): 25})
+    _, served = ladder_releases()
+    pinned = pin(young_only)
+    send = ScriptedSend()
+    context = make_context(
+        send, open_url=RoutingOpener({**served, pinned.url: young_only}), uci=pinned
+    )
+    code, out, log = run(tmp_path, context)
+    assert (code, out) == (3, "")
+    assert send.calls == []
+    assert not log.exists()
+    assert [record.getMessage() for record in caplog.records if record.levelno >= 40] == [
+        "age band '>=55' does not overlap the split's ages 40 to 40"
+    ]

@@ -666,8 +666,13 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
-- **What leaves the machine**: each field's meaning, codes and unit, the plausibility ranges, the
-  cell and its training record count, and the guidance of the chosen level. Never a record.
+- **What leaves the machine**: each field's meaning, codes and unit, each numeric field's
+  training-split minimum and maximum (age within the cell's band), the cell and its training
+  record count, and the guidance of the chosen level; at `summary`, also the quartiles of each
+  numeric field over the same-label records of the other cells. No record is sent, but every bound
+  and quartile is a real training value, and a small split or reference group exposes them
+  together as a record. Check a DUA's terms for them
+  ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance ontology --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and

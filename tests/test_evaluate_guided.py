@@ -67,6 +67,23 @@ def test_a_request_is_filled_from_valid_candidates(tmp_path, definition):
     assert counted(arm) == pytest.approx((0, 0, 0, 0, 0))
 
 
+def test_guided_arms_render_each_holdouts_bounds(tmp_path):
+    first = train(tmp_path / "train")
+    second = first.copy()
+    second.loc[second.index[-1], "chol"] = 400
+    low = first["chol"].min()
+    assert first["chol"].max() == low < 400
+    send = ScriptedSend(reply([young(1)] * 3), reply([young(1)] * 3))
+    arm, log = guided(tmp_path, send)
+    with log:
+        arm(first, REQUEST)
+        arm(second, REQUEST)
+    users = [call.user for call in send.calls]
+    assert len(users) == 2
+    assert f"chol {low:g} to {low:g} mg/dL" in users[0]
+    assert f"chol {low:g} to 400 mg/dL" in users[1]
+
+
 def test_each_reason_is_dropped_and_the_shortfall_asked_again(tmp_path):
     first = reply([young(1, chol=234), OLD, young(1), young(1)])
     arm, log = guided(tmp_path, ScriptedSend(first, reply([young(1), young(1)])))

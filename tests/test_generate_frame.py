@@ -65,7 +65,7 @@ def test_a_guided_arm_fills_a_toy_request_through_the_sdk_adapter(monkeypatch, t
         "Write exactly 2 records of patients in this group: sex 0 (female), target 1 (toy "
         "condition present), age 45 to 69 years."
     )
-    assert "level 0.5 to 4.5 mg/dL" in user
+    assert "level 0.51 to 4.44 mg/dL" in user
     logged = [
         line for line in log.path.read_text(encoding="utf-8").splitlines() if '"params"' in line
     ]

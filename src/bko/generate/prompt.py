@@ -1,21 +1,21 @@
 """The prompt: one system text every call shares, and a user turn built up the guidance ladder.
 
-The system text names every column with its meaning, its codes or its unit and plausible range,
-and asks for new patients. The user turn states the cell and the record count, then adds one
-component per level reached. Both read the frame given, UCI's by default. No prompt holds a
-record. ADR `research/record-generation-design` records what each level sends.
+The system text names every column with its meaning and its codes or its unit, with no range,
+and asks for new patients. The user turn states the cell, the record count and each numeric
+field's training-split bounds, then adds one component per level reached. Both read the frame
+given, UCI's by default. No prompt holds a record. ADR `research/record-generation-design`
+records what each level sends.
 """
 
 from __future__ import annotations
 
-import dataclasses
 import functools
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import FRACTIONAL, UCI_FRAME
+from bko.datasets.uci import UCI_FRAME
 from bko.generate.guidance import Basis, Finding, Guidance, Profile, Relationship, Spread
 from bko.generate.messages import Level, reaches
 from bko.ontology.schema import Clause, Codes, FieldMapping
@@ -73,11 +73,9 @@ def _column(name: str, frame: FrameSpec) -> str:
     if codes:
         details = "".join(f"; {code} = {meaning}" for code, meaning in codes.items())
     else:
-        bound = next(bound for bound in frame.ranges if bound.field == name)
-        unit = UNITS[bound.unit]
+        unit = field_units(frame)[name]
         # A description that already names its unit, in any case, does not get it twice.
-        shown = "" if unit.lower() in description.lower() else f"{unit}, "
-        details = f"; {shown}plausible from {bound.low:g} to {bound.high:g}"
+        details = "" if unit.lower() in description.lower() else f"; {unit}"
     return f"- {name}: {description}{details}"
 
 
@@ -195,14 +193,6 @@ def system(frame: FrameSpec) -> str:
     return _system_text(frame)
 
 
-def _system() -> str:
-    """UCI's system prompt with this module's `FRACTIONAL` as its fractional fields.
-
-    A test replaces `FRACTIONAL` to show the closing sentence follows the fractional fields.
-    """
-    return _system_text(dataclasses.replace(UCI_FRAME, fractional=FRACTIONAL))
-
-
 SYSTEM: Final = system(UCI_FRAME)
 """The system prompt of every call for UCI records."""
 
@@ -219,7 +209,8 @@ def render(
         frame: The frame whose fields, codes, units and decimals the prompt states.
 
     Returns:
-        The system prompt and the user turn.
+        The system prompt and the user turn. Each bound is written with `:g`, six significant
+        digits, so a bound needing more would state a value the drop rule does not enforce.
     """
     units = field_units(frame)
     low, high = guidance.interval["age"]

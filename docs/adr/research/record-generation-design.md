@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -69,7 +69,7 @@ ladder.**
   - the whole-number fields are `integer`, and `oldpeak` is `number`;
   - every object is closed and requires all of its properties.
 
-  Plausibility ranges and `oldpeak`'s one decimal stay as prompt instructions.
+  Each numeric field's bounds and `oldpeak`'s one decimal stay as prompt instructions.
 - **The call.** Model `claude-haiku-5-5`; effort `medium`, set explicitly; `max_tokens` 16000;
   non-streaming; the SDK client's retries and timeout from `bko.generate.api` (`MAX_RETRIES`,
   `TIMEOUT`), which enter no logged request. The live client is `AsyncAnthropic`
@@ -107,8 +107,9 @@ ladder.**
   record gets neither, with a WARNING.
 - **What every level sends:**
   - each field's meaning, codes and unit;
-  - each numeric field's plausible range from the frame's ranges (UCI's `RANGES`), with age
-    clipped to the cell's band;
+  - each numeric field's training-split minimum and maximum, age intersected with the cell's
+    band (`bko.datasets.split.ranges`); the user turn states them, and the system prompt names
+    each field and its unit with no range, so a call carries one range per field;
   - the cell and its training record count;
   - an instruction to invent new patients.
 
@@ -195,8 +196,14 @@ Six levels separate what the ontology adds from what any careful prompt adds: `c
 for a plain request for clinical sense, and `findings` and `ontology` differ by exactly the `is_a`
 chains. A single fixed prompt gives no ablation axis.
 
-The ranges come from the frame's ranges rather than a training split's minimum and maximum,
-because the prompt states what is possible for a patient, not what one split happens to hold.
+The prompt states the range the drop rule enforces. E1's runner keeps only records inside the
+training split's minimum and maximum (ADR
+[`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
+calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, and `g3-5`'s
+(`summary` level) dropped 3805 of 29617 (the `validity` lines in
+[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) and
+[G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
+see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
 or a short array lowers validity rather than vanishing. `None` cannot be the placeholder, since a
@@ -230,6 +237,10 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
   distance. The spreads are per-field marginals, never a joint row. No floor applies to the
   reference group's size, so a reference group of one record makes them equal that record's
   values; on the UCI split the reference group is the rest of the cell's label group.
+- Two training values per numeric field leave on every call (the split's minimum and maximum), and
+  `summary` adds three more. No record is sent, but their exposure grows as the split or a
+  reference group shrinks, to a whole record for identical records. A dataset under a DUA needs its
+  terms checked for them.
 - A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
   record and scores every arm on the test split without them (ADR
   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
@@ -246,7 +257,6 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | A model flag | One model keeps runs comparable; `Settings` holds it | 2026-10-18 |
 | One fixed prompt | No ablation axis | 2026-10-18 |
 | Four guidance levels | Cannot separate the `is_a` chains from the findings, or coherence from the cell | 2026-10-18 |
-| The training split's minimum and maximum as the ranges | The prompt states what is possible, not what the data holds | 2026-10-18 |
 | Findings from the `is_a` edges of a cell's shown concepts only | A gap's statement names what the records lack, which the shown concepts' edges never reach | 2026-10-18 |
 | Findings from the whole dataset's concepts | They describe other groups, not the cell asked for | 2026-10-18 |
 | The reference group of the same label and sex | Too few records in the smallest cells, such as older women with the condition | 2026-10-18 |
@@ -263,6 +273,9 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | A `--rows` water-fill as the command's request | Needs `bko.baselines`, a downstream stage | 2026-10-18 |
 | `claude-opus-5-5` as the generator | Its input and output rates are 40 times Haiku 5.5's, and E1's replica configuration multiplies the records a run asks for | 2026-10-19 |
 | The SDK's default 2 retries | About 1.5 s of backoff, so one brief outage stops a run whose resume repays its stopped call | 2026-10-19 |
+| The frame's plausible ranges as the prompt's bounds | The drop rule keeps only rows inside the split's range, so wider bounds cost top-ups: `e1-3` 5840 of 31643, `g3-5` 3805 of 29617 | 2026-10-27 |
+| The split's range in the system prompt | One system text per holdout, age carrying two ranges, and a frame-keyed cache serving stale text | 2026-10-27 |
+| Each cell's own minimum and maximum | Narrower than the drop rule enforces, and more training values leave the machine | 2026-10-27 |
 
 ## Enforcement
 
@@ -270,7 +283,8 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 - Pinned by: `tests/test_generate_messages.py`, `tests/test_generate_api.py`,
   `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
-  `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
+  `tests/test_generate_guidance.py`, `tests/test_generate_training_bounds.py`,
+  `tests/test_datasets_frame.py`, `tests/test_generate_spend.py`,
   `tests/test_generate_log.py`, `tests/test_generate_calls.py`, `tests/test_generate_cli.py`,
   `tests/test_generate_candidates.py`, and `tests/test_generate_pinned_releases.py` with
   `--releases`
