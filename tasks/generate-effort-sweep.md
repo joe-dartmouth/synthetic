@@ -30,21 +30,18 @@ lower effort keeps validity and replica fidelity is unmeasured, and the answer s
 **In.**
 
 - Two named runs (`bko.evaluate.experiment.RUNS`), `g4-low` and `g4-medium`, over the first 100
-  holdout seeds with the baselines and the `bko` arm, one per effort, at
-  `Settings("claude-haiku-5-5", "<effort>", 16000, 20, Level.SUMMARY)`, the level G3 chose and the
-  one [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) judges at; both run
-  live, since a call log replays only whole. Spend estimate: `g3-5`'s input and output tokens per
-  record asked (G3's Runs, [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level)) at
-  `bko.generate.spend.PRICES`, `low`'s below it.
+  holdout seeds with the baselines and the `bko` arm, one per effort, at `summary`, the level G3
+  chose and the one [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md)
+  judges at; both run live, since a call log replays only whole. Their settings, launch commands
+  and spend estimate are G4's Configuration
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g4-effort-at-summary)).
 - Per effort, paired over the same 100 holdouts: validity, candidates dropped as outside the
   range, replica fidelity (quality, column shapes, column pair trends), replica utility, tokens per
   record asked, seconds per call, and spend.
-- The decision, stated in G4's Configuration before the run: `low` is chosen when its validity
-  rate meets `E1.validity` and, on each of the three replica fidelity measures, the lower bound of
-  its paired interval against `medium`'s exceeds minus half of G3's `summary` gain over
-  `ontology`; otherwise the effort stays `medium`. The move changes what every call sends, so it is
-  a new configuration of E1 that
-  [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) runs.
+- The decision, by the rule in G4's Configuration
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g4-effort-at-summary)), fixed before the runs: `low`
+  or `medium`. A move to `low` changes what every call sends, so it is a new configuration of E1
+  that [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) runs.
 - A new `docs/EVIDENCE.md` entry for the sweep ([G4](../docs/EVIDENCE.md#g4-effort-at-summary)),
   with each run's spend and folder in its Runs field and the measure that decided the effort in
   its Result.
