@@ -80,9 +80,9 @@ ladder.**
   - `cell`: the bare cell description;
   - `coherent`: a sentence asking for clinically coherent records;
   - `findings`: the ontology gap findings for the cell;
-  - `ontology`: their `is_a` chains, the default;
+  - `ontology`: their `is_a` chains;
   - `profile`: the reference group's concept shares;
-  - `summary`: the reference group's numeric spreads.
+  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses.
 - **The findings.** `bko.generate.guidance.guide` reads a cell's findings from its gaps under the
   run's definition (ADR [`research/bko-formal-gap-definition`](bko-formal-gap-definition.md)).
   A cell with no gap is guided by the statements its own records ground, and a cell with neither

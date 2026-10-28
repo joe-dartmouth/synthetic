@@ -64,7 +64,7 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.gaps first-flag`: remove each whole E2 ablation's cases one at a
   time in its seed's draw order and list, per detector and truth item, the removed count at which
   the item is first flagged ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
-- `uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --log runs/<run-id>/calls.jsonl`:
+- `uv run --no-sync python -m bko.generate per-subgroup --guidance summary --log runs/<run-id>/calls.jsonl`:
   generate candidate records for E1's count-based gap request through the Anthropic Messages API,
   or for the completeness request with `--request completeness`. It spends money and needs an
   Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).

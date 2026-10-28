@@ -676,9 +676,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   together as a record. Check a DUA's terms for them
   ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
-  `per-subgroup --guidance ontology --log ...`; an option before it is refused, exit 2.
-- **Guidance levels**: `cell`, `coherent`, `findings`, `ontology` (the default), `profile` and
-  `summary`, each adding one component to the one before it; the ADR defines each.
+  `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
+- **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and
+  `summary` (the default), each adding one component to the one before it; the ADR defines each.
 - **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
@@ -755,7 +755,7 @@ completeness criterion's reading of "after fusion" (ADR
 Two commands, inside `.venv`; the first spends money and needs an Anthropic credential, the
 second spends nothing:
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate per-subgroup --guidance ontology --request completeness --log runs/<run-id>/calls.jsonl > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/calls.jsonl && test ! -e runs/<run-id>/candidates.jsonl && test ! -e runs/<run-id>/candidates.log && uv run --no-sync python -m bko.generate per-subgroup --guidance summary --request completeness --log runs/<run-id>/calls.jsonl > runs/<run-id>/candidates.jsonl 2> runs/<run-id>/candidates.log
     mkdir -p runs/<run-id>-closure && test ! -e runs/<run-id>-closure/closure.csv && test ! -e runs/<run-id>-closure/closure.log && uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl [--data-dir <dir>] > runs/<run-id>-closure/closure.csv 2> runs/<run-id>-closure/closure.log
 
 The `test ! -e` guards matter: the shell empties `candidates.jsonl` before `bko.generate` can
