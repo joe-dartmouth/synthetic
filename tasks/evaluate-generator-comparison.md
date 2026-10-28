@@ -34,7 +34,8 @@ against the judged run's level, bounds and effort, which
 - Two named runs (`bko.evaluate.experiment.RUNS`) with the baselines and the `bko` arm at the judged
   configuration's level, bounds and effort, `SETTINGS.model` at Sonnet 5.5 and then at Opus 5.5,
   each run's spend estimated before it from the judged run's tokens per record asked at the
-  model's rates. The Opus estimate at `e1-3`'s tokens passes `E1.spend_ceiling` many times over,
+  model's rates. The Opus estimate at `e1-4`'s tokens per record asked (300.535 input, 211.162 output) passes
+  `E1.spend_ceiling` many times over,
   so the Opus run has its own ceiling in its `Experiment`, and the commit that sets it is the
   sign-off; until that commit the unit records Sonnet alone. Each run under the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - Per model, beside the judged Haiku figures at the same holdouts: validity, drops, tokens and

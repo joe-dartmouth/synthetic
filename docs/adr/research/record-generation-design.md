@@ -200,10 +200,11 @@ chains. A single fixed prompt gives no ablation axis.
 The prompt states the range the drop rule enforces. E1's runner keeps only records inside the
 training split's minimum and maximum (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
-calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, and `g3-5`'s
-(`summary` level) dropped 3805 of 29617 (the `validity` lines in
-[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) and
-[G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
+calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, `g3-5`'s
+(`summary` level) dropped 3805 of 29617, and `e1-4`'s, with the training split's bounds in the
+prompt, dropped 0 of 25825 (the `validity` lines: `e1-3`'s in
+[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Read against, `e1-4`'s in its Result,
+and `g3-5`'s in [G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
 see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
@@ -298,7 +299,9 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 search of `tasks/` and `src/bko/generate/`.
 
 **The schema loosens if a judged run reports no `range:` failure and the team wants validity to
-measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`.
+measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`. `e1-4`'s `scores.log`
+holds no `range:` rejection in its `validated` lines, and `docs/EVIDENCE.md` does not hold its
+per-check counts.
 
 ## Related
 

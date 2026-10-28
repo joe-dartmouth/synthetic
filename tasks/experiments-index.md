@@ -41,9 +41,12 @@ flowchart LR
 
 - **Replay pairs calls by order and refuses a differing request** (ADR
   [`research/call-log-replay`](../docs/adr/research/call-log-replay.md)), so a unit that changes
-  what a call sends makes the judged run's log unreplayable until the next judged run. The graph
-  orders every unit that reads the judged log by replay before every unit that changes a call, and
-  a unit's acceptance that names a replay holds at a commit where the judged log replays.
+  what an existing arm's call sends makes that run's log unreplayable until the run is repeated.
+  No unit here reads the judged log by replay: each paid unit's calls are live in its own named
+  run or arm, and the replay in its acceptance is of its own log, so the graph has no edge. A unit
+  that came to replay the judged log while another changed what the judged configuration's calls
+  send would take an ordering edge, the replaying unit first, and a unit's acceptance that names a
+  replay holds at a commit where that log replays.
 - **No flag changes a value of `E1`** (`bko.evaluate.experiment`; ADR
   [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) rules out
   flags for the readings or the holdout count), so a variant is a configuration fixed in code and
