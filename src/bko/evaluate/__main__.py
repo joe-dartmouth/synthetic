@@ -58,7 +58,7 @@ from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
-from bko.evaluate.launch import RETRIES, launch, resumable
+from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
@@ -219,13 +219,16 @@ def _in_flight(text: str) -> int:
 
 
 def _retries(text: str) -> int:
-    """`--retries`' value: a whole number of resumes, at least 0."""
+    """`--retries`' value: a whole number of resumes, from 0 to `MAX_RETRIES`."""
     try:
         value = int(text)
     except ValueError:
         value = -1
-    if value < 0:
-        msg = f"the retries must be a whole number of at least 0, not {text!r}"
+    if not 0 <= value <= MAX_RETRIES:
+        msg = (
+            f"the retries must be a whole number of at least 0 and at most {MAX_RETRIES}, "
+            f"not {text!r}"
+        )
         raise argparse.ArgumentTypeError(msg)
     return value
 
@@ -315,7 +318,10 @@ def _parser() -> argparse.ArgumentParser:
         "--retries",
         type=_retries,
         default=RETRIES,
-        help=f"the most resumes of API-caused stops; 0 runs one segment; default: {RETRIES}",
+        help=(
+            f"the most resumes of API-caused stops, at most {MAX_RETRIES}; 0 runs one segment; "
+            f"ignored with --rehearse or --dry-run; default: {RETRIES}"
+        ),
     )
     instead = launching.add_mutually_exclusive_group()
     instead.add_argument(
@@ -350,7 +356,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     supervising = commands.add_parser(
-        "supervise", help="run a launched run's score segments, resuming API-caused stops"
+        "supervise",
+        help=(
+            "internal to launch, which starts it: run a launched run's score segments, resuming "
+            "API-caused stops"
+        ),
     )
     supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
     supervising.add_argument("run", help="the named run")

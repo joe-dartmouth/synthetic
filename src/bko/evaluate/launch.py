@@ -56,6 +56,9 @@ AWAKE: Final = ("caffeinate", "-i", "-s")
 RETRIES: Final = 5
 """The resumes a launched run's supervisor makes at most unless told otherwise."""
 
+MAX_RETRIES: Final = 20
+"""The most resumes `--retries` accepts: each resume can repay its stopped calls."""
+
 BATTERY: Final = "'Battery Power'"
 """What `pmset -g batt` prints between quotes when the machine runs on its battery."""
 

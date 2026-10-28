@@ -461,6 +461,16 @@ def test_launch_passes_retries(tmp_path):
         main(["launch", "e1-6", "--retries", "many"], context=context, out=io.StringIO())
 
 
+@pytest.mark.parametrize("command", ["launch", "supervise"])
+def test_retries_are_bounded_at_twenty(tmp_path, capsys, command):
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
+    tail = ["e1", "--runs-dir", str(tmp_path)] if command == "supervise" else []
+    with pytest.raises(SystemExit):
+        main([command, "e1-6", *tail, "--retries", "21"], context=context, out=io.StringIO())
+    assert "at most 20, not '21'" in capsys.readouterr().err
+    assert main(["launch", "e1-6", "--retries", "20"], context=context, out=io.StringIO()) == 0
+
+
 def test_elsewhere_nothing_holds_the_machine_awake_and_power_is_recorded_unchecked(tmp_path):
     start = Starts()
     launch("e1-4", "e1", root=tmp_path, power=lambda: None, start=start, platform="linux")
