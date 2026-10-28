@@ -6,8 +6,8 @@ A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable
 runs on a fake. The structured-output schema fixes
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
 and `target` are pinned to one value each, and the whole-number fields are `integer`. Structured
-outputs cannot bound a number, so the bounds and `oldpeak`'s one decimal stay in the prompt: no
-plausibility range stays in the system prompt, and the user turn carries the split's bounds. Each
+outputs cannot bound a number, so the bounds (the user turn's, taken from the training split) and
+`oldpeak`'s one decimal are stated in the prompt; the system prompt holds no range. Each
 call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by default. ADR
 `research/record-generation-design` records why.
 """

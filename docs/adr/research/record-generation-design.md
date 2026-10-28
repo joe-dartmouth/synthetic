@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -199,11 +199,11 @@ chains. A single fixed prompt gives no ablation axis.
 The prompt states the range the drop rule enforces. E1's runner keeps only records inside the
 training split's minimum and maximum (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
-calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, and `g3-5`'s dropped
-3805 of 29617 (the `validity` lines in
+calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, and `g3-5`'s
+(`summary` level) dropped 3805 of 29617 (the `validity` lines in
 [E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) and
-[G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field,
-and no record.
+[G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
+see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
 or a short array lowers validity rather than vanishing. `None` cannot be the placeholder, since a
@@ -237,6 +237,10 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
   distance. The spreads are per-field marginals, never a joint row. No floor applies to the
   reference group's size, so a reference group of one record makes them equal that record's
   values; on the UCI split the reference group is the rest of the cell's label group.
+- Two training values per numeric field leave on every call (the split's minimum and maximum), and
+  `summary` adds three more. No record is sent, but their exposure grows as the split or a
+  reference group shrinks, to a whole record for identical records. A dataset under a DUA needs its
+  terms checked for them.
 - A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
   record and scores every arm on the test split without them (ADR
   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
@@ -279,7 +283,8 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 - Pinned by: `tests/test_generate_messages.py`, `tests/test_generate_api.py`,
   `tests/test_generate_prompt.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_decode.py`, `tests/test_generate_contract.py`,
-  `tests/test_generate_guidance.py`, `tests/test_generate_spend.py`,
+  `tests/test_generate_guidance.py`, `tests/test_generate_training_bounds.py`,
+  `tests/test_datasets_frame.py`, `tests/test_generate_spend.py`,
   `tests/test_generate_log.py`, `tests/test_generate_calls.py`, `tests/test_generate_cli.py`,
   `tests/test_generate_candidates.py`, and `tests/test_generate_pinned_releases.py` with
   `--releases`

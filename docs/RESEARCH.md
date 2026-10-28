@@ -239,10 +239,14 @@ project never blocks on credentialing, and to start credentialing on day one as 
 non-blocking track.
 
 **Credentialed data stays local.** The pipeline sends each cell's description, each numeric
-field's training-split minimum and maximum (age within the cell's band), two training values per
-field, and ontology guidance to the Anthropic Messages API, never a record. Data held under a DUA must
-not reach that API or any other third-party service unless the DUA permits it; check its current
-terms before any such run.
+field's training-split minimum and maximum (age within the cell's band), the 25th, 50th and 75th
+percentiles of each numeric field over the same-label records of the other cells (the `summary`
+level), and ontology guidance to the Anthropic Messages API. No call carries a record, but every
+bound and percentile is a real training value: two per numeric field leave on each call, three
+more per field at `summary`. Their exposure grows as the split or a reference group shrinks, since
+a group of one record sends that record's values and a split of identical records sends a whole
+record. Data held under a DUA must not reach that API or any other third-party service unless the
+DUA permits it, bounds and percentiles included; check its current terms before any such run.
 
 ## 7. Augmentation versus resampling
 
