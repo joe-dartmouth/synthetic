@@ -30,6 +30,13 @@ this unit adds a dataset and E3's rules, and `evaluate-synthea-downstream` spend
   snapshot date and aged 40 and over, with age, sex, the conditions
   `bko.ontology.mapping.CODE_MAPPINGS` maps as indicators, and the label ischemic heart disease by
   the snapshot; no feature stands in for the label.
+- A `Synthea` member of `bko.evaluate.data.Dataset`, with its branch in `bko.evaluate.data.load`
+  building the `Data`: the records, a Synthea `FrameSpec` (its `study`, `cohort`, `codebook` and
+  `edges` among its fields) and the Synthea field rows, sourced from the dataset branch rather
+  than from the context.
+- The new frame's egress checked before any paid run: the bounds, percentiles, profile shares and
+  study and cohort text its prompts send. Once a frame's source is not code, `study` and `cohort`
+  are each validated as one bounded line.
 - The training-only removal: `bko.datasets.ablation`'s fraction draw applied to the training rows
   only, so the test split keeps every case.
 - The un-ablated held-out ratio, so the removed cell's ratio does not widen every interval.

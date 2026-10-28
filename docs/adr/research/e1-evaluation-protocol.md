@@ -40,8 +40,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
   rows match and no arm in either file copied a test record. A variant is a named run:
   `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment`, generator `Settings` and
-  dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take the name as a positional.
-  A named run is a value fixed in code and committed, so it replays at its commit as E1 does, and
+  dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take
+  the name as a positional. A named run is a value fixed in code and committed, so it replays at its
+  commit as E1 does, and
   the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
   setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
   reporting every measure beside them; a run with none is reported with no verdict. A paid run also
@@ -71,8 +72,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   directory, so the stop rules, the spend lines and the folder roles are checked for free before any
   spend. A rehearsal bills each record asked at the judged run `e1-4`'s tokens per record
   (`INPUT_PER_RECORD` 301 and `OUTPUT_PER_RECORD` 211 in `bko.evaluate.rehearse`: `e1-4`'s Runs
-  row's input and output tokens over its records asked), so its spend and projection read on the scale of a real run; its
-  spend is a wiring check, not an estimate. Those tokens per record are recomputed from a judged
+  row's input and output tokens over its records asked), so its spend and projection read on the
+  scale of a real run; its spend is a wiring check, not an estimate. Those tokens per record are
+  recomputed from a judged
   run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
@@ -110,8 +112,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   arm of ADR `research/bkb-direct-generation`, which makes none), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
   single candidates needs no new run; its header, schema 2, names the frame and the sha256 of the
-  run's data, and a run with no Messages arm writes no settings; a stopped run's file lacks the stopped holdout's undrained
-  fills, whose candidates live only in its call log; `score` requires the file whenever a BKO arm
+  run's data, and a run with no Messages arm writes no settings; a stopped run's file lacks the
+  stopped holdout's undrained fills, whose candidates live only in its call log; `score` requires
+  the file whenever a BKO arm
   runs, and a replay rewrites it byte for byte.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
   `bko.validate` call it makes in the run: every holdout, and every refused and retried attempt. It

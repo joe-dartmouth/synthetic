@@ -135,8 +135,9 @@ ladder.**
   its prompts and responses; the SDK version it records is read before the file is created too. Its
   lines, each flushed as written: one `run` line (schema 2, settings, price, SDK version, `replay`:
   the sha256 of the call log a replay answers from, or null, `resume`: the sha256 and answered calls
-  of the stopped log a resume continues, or null, and `rehearsal`: true when canned replies answer
-  every call, as `score --rehearse` makes them, else false; a concurrent run adds `in_flight`, its
+  of the stopped log a resume continues, or null, `rehearsal`: true when canned replies answer
+  every call, as `score --rehearse` makes them, else false, and `frame`: the name of the frame whose
+  records the calls ask for; a concurrent run adds `in_flight`, its
   calls in flight, and a resume adds `carried_usd`, the spend of the stopped calls it dropped plus
   what the stopped log itself carried), then per call a `request` line before it is sent and a
   `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
@@ -146,10 +147,12 @@ ladder.**
   and for a `GenerationError` the API caused: a connection error, a timeout, a 408, 409 or 429,
   or a status of 500 or above; ADR `research/concurrent-call-waves`), `rate_limited` (whether any
   call's retry met a 429), and the run's totals, `live_usd` (the spend of calls past the answered
-  ones, a rehearsal's billed spend included) among them. The schema stays 2: a replay reads only the `run` line's `kind` and
-  `schema`, and a resume reads `replay`, `resume`, `rehearsal`, `stop`, `in_flight` and
-  `carried_usd` as absent when a log lacks them. A `reply` line holds the whole response and
-  `attempts`, the HTTP requests the SDK made for the call (`bko.generate.api.Attempts` counts them,
+  ones, a rehearsal's billed spend included) among them. The schema stays 2: a replay reads only
+  the `run` line's `kind` and `schema`, and a resume reads `replay`, `resume`, `rehearsal`, `stop`,
+  `in_flight` and `carried_usd` as absent when a log lacks them. A log whose `run` line lacks
+  `frame` predates the key and reads as `uci`: every call it holds asked for UCI records. A `reply`
+  line holds the whole response and `attempts`, the HTTP requests the SDK made for the call
+  (`bko.generate.api.Attempts` counts them,
   per call, so concurrent calls count their own). Each 429 or retryable status with an attempt left
   logs `retry call=%d attempt=%d status=%s retry_after=%s`. An `error` line holds `attempts` too,
   null when nothing counted them. The `end` line's totals add `retried`, the calls that took more

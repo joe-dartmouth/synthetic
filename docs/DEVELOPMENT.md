@@ -101,9 +101,10 @@ command per method, inside `.venv`:
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
 its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
-credential, and every call goes to the call log at `--log`, which must not exist. Whenever a BKO arm
-runs, live, with `--replay`, with `--resume` or with `--rehearse`, `--candidates <path>` is required
-and must not exist either: the candidates file holds one line per candidate a BKO arm generated,
+credential, and every call goes to the call log at `--log`, which must not exist; its `run` line
+names the run's frame under `frame`. Whenever a BKO arm runs, live, with `--replay`, with `--resume`
+or with `--rehearse`, `--candidates <path>` is required and must not exist either: the candidates
+file holds one line per candidate a BKO arm generated,
 with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome; a direct
 arm's lines (below) carry a null call. `compare`
 spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
@@ -173,8 +174,9 @@ differ from the named run's, exit 2 before it claims a folder
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at the judged run e1-4's tokens per record, so the stop rules and spend lines run
 for free; its spend is a wiring check, not an estimate; the call log's `run` line holds
-`"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the tokens per record. A replay
-of a rehearsal's log works, and the replay's own `run` line keeps `"rehearsal": true`. A rehearsal
+`"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
+tokens per record. A replay of a rehearsal's log works, and the replay's own `run` line keeps
+`"rehearsal": true`. A rehearsal
 starts with `launch <run-id> [<run>] --rehearse`, which writes into the `rehearsal` folder inside
 the run's folder, so the run's own folder stays free to launch. A rehearsal's `scores.csv` carries
 no marker: its folder (`rehearsal/`), its call log and the WARNING line `score` writes to stderr
@@ -377,9 +379,12 @@ start or the supervisor cannot run.
   criterion's family still counts it. The table reads the regression only, so it is the same with
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
-- **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
-  the frame (`frame=`), the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
-  and a `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
+- **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
+  loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
+  frame, its record count, and the sha256 of its records that the candidates file's header names
+  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d arms=%s
+  replica=%s fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s`, and a
+  `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
   per holdout the split line `cells` prints, one `quota` line per stratum, one `arm` line per fill
@@ -394,7 +399,10 @@ start or the supervisor cannot run.
   line when a wave sends no more calls after a failure, naming the first call not sent and the
   planned calls left, a `stop rule=idle call=%d limit_seconds=%.1f` WARNING naming the lowest call
   the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines,
-  `bko.validate`'s `validated` line per batch it checks (its counts, then `frame=`), a
+  `bko.validate`'s line per batch it checks, `validated generated=%d passed=%d rejected=%d %s
+  frame=%s` (the `%s` before `frame=` is each failed check's `<check>=<count>`, space-separated,
+  or `none`), or for a batch with no candidates the WARNING `validated no candidates frame=%s, so
+  validity is undefined`, a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
@@ -694,8 +702,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `live_usd` among them, each call's whole request and response and its USD spend included. An
   interrupt or any other failure between a `request` line and its `reply` line writes the `error`
   line. stderr gets the split line, each ontology fragment's size, the request's name, cells and
-  rows, a `quota` line per asked cell, a `log` line (path, schema, model, effort, level, records per
-  call, token limit, the replayed log's sha256 or `none`, `resume=none` and `rehearsal=false`), the
+  rows, a `quota` line per asked cell, a `log` line (`log path=%s schema=%d model=%s effort=%s
+  level=%s per_call=%d max_tokens=%d replay=%s resume=%s rehearsal=%s in_flight=%d`: the replayed
+  log's sha256 or `none`, `resume=none`, `rehearsal=false` and `in_flight=1`), the
   plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a
   `generate` line after it (or an ERROR `failed` line naming the call and cell), the run's totals
   and spend (`usd` and `live_usd`) with the replayed and resumed logs' sha256 or `none`,
