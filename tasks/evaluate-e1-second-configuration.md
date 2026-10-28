@@ -30,10 +30,11 @@ configuration that will be judged.
 
 - `SETTINGS.guidance` set to `summary`, the level the decision rule of
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level) G3 chooses.
+- `SETTINGS.effort` set to the effort G4 chose
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g4-effort-at-summary)).
 - E1's Configuration in `docs/EVIDENCE.md` restated for the new settings, with the spend and
   duration estimate derived as [`experiments-index.md`](experiments-index.md#spend) says, from
-  `g3-5`'s tokens per record asked (the `bko` arm at `summary`, G3's Runs) and the effort sweep's
-  rate.
+  G4's chosen-effort run's tokens per record asked.
 - The `live` generation test, then a paid completeness request and its closure as a C1 Runs row
   (C1's configuration rules that a change to what a call sends supersedes the judged run), stopping
   to report if validity falls below `E1.validity`.
