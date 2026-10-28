@@ -95,13 +95,21 @@ TWO_YOUNG_SICK = [record(age=50, sex=0, target=1, cp=4)] * 2
 OLD_WELL_ANGINA = [record()]
 """One older man without the condition, with typical angina: `OLD_WELL` has no gap."""
 
-BLANK_OLD = record(cp=4)
-"""An older man without the condition who shows no concept, so the split's ages reach the older
-band: each cell's age interval intersects its band with the split's ages."""
+BLANKS = {"older": record(cp=4), "young": record(age=50, cp=4)}
+"""A man without the condition who shows no concept, one per age band."""
 
-BLANK_YOUNG = record(age=50, cp=4)
-"""A young man without the condition who shows no concept, so the split's ages reach the young
-band."""
+
+def with_both_bands(
+    records: Sequence[Mapping[str, int | float]],
+) -> list[Mapping[str, int | float]]:
+    """`records` plus a blank record (no concept, label 0) in each age band they lack.
+
+    Each cell's age interval intersects its band with the split's ages, so the split needs
+    an age in every band.
+    """
+    older = any(one["age"] >= 55 for one in records)
+    young = any(one["age"] < 55 for one in records)
+    return [*records, *([] if older else [BLANKS["older"]]), *([] if young else [BLANKS["young"]])]
 
 
 def observed(
@@ -202,7 +210,7 @@ NO_ANGINA = [record(cp=4), record(age=50, sex=0, target=1, cp=4)]
     ],
 )
 def test_each_definition_gets_its_basis(ladders, definition, records, basis):
-    train, cells = observed([*records, BLANK_YOUNG])
+    train, cells = observed(with_both_bands(records))
     found = gaps(definition, ontology_fragments(ladders, {A, B}), cells)
     assert found
     guidance = guided(train, cells, found, ladders, definition=definition)
@@ -217,7 +225,7 @@ def test_each_definition_gets_its_basis(ladders, definition, records, basis):
 
 
 def test_statements_reached_by_the_same_rows_group_into_one_finding(ladders):
-    train, cells = observed([*TWO_YOUNG_SICK, BLANK_OLD], rows=(ANGINA, EXERTION, STENOSIS))
+    train, cells = observed(with_both_bands(TWO_YOUNG_SICK), rows=(ANGINA, EXERTION, STENOSIS))
     found = [StatementGap(YOUNG_SICK, H21), StatementGap(YOUNG_SICK, H32)]
     rows = (ANGINA, EXERTION, STENOSIS)
     assert guided(train, cells, found, ladders, rows=rows)[YOUNG_SICK].findings == (
@@ -244,7 +252,7 @@ def test_a_row_needing_another_label_is_not_offered_in_this_cell(ladders, caplog
 
 
 def test_a_statement_no_compatible_row_reaches_is_dropped_with_a_warning(ladders, caplog):
-    train, cells = observed([*TWO_YOUNG_SICK, BLANK_OLD])
+    train, cells = observed(with_both_bands(TWO_YOUNG_SICK))
     found = [StatementGap(YOUNG_SICK, M32), StatementGap(YOUNG_SICK, H32)]
     with caplog.at_level(logging.WARNING, logger="bko"):
         guidance = guided(train, cells, found, ladders)[YOUNG_SICK]
@@ -271,7 +279,7 @@ def test_a_cell_with_no_gap_is_guided_by_what_its_records_ground(ladders):
 
 
 def test_a_statement_a_label_only_row_reaches_is_met_by_every_record_and_skipped(ladders, caplog):
-    train, cells = observed([*[record(age=50, sex=0, target=1, cp=1)] * 2, BLANK_OLD])
+    train, cells = observed(with_both_bands([record(age=50, sex=0, target=1, cp=1)] * 2))
     assert YOUNG_SICK not in {gap.cell for gap in subgroup(cells, ladders)}
     with caplog.at_level(logging.DEBUG, logger="bko"):
         guidance = guided(train, cells, subgroup(cells, ladders), ladders)[YOUNG_SICK]
@@ -326,7 +334,7 @@ def test_a_row_whose_prefix_has_no_release_is_refused(ladders):
 def test_a_curie_with_no_name_is_labelled_by_its_curie(tmp_path, ladders):
     nameless = LADDER_HPO.replace("name: Chest pain\n", "")
     ontologies = {**ladders, "HP": parse_obo(write_obo(tmp_path, nameless, "bare.obo"), name="hpo")}
-    train, cells = observed([*TWO_YOUNG_SICK, BLANK_OLD])
+    train, cells = observed(with_both_bands(TWO_YOUNG_SICK))
     found = [StatementGap(YOUNG_SICK, H21), StatementGap(YOUNG_SICK, H32)]
     assert guided(train, cells, found, ontologies)[YOUNG_SICK].findings == (
         Finding(
@@ -345,7 +353,7 @@ def test_a_curie_with_no_name_is_labelled_by_its_curie(tmp_path, ladders):
 
 
 def test_gap_order_does_not_change_the_guidance(ladders):
-    train, cells = observed([*FREQUENCY_RECORDS, BLANK_YOUNG])
+    train, cells = observed(with_both_bands(FREQUENCY_RECORDS))
     found = subgroup(cells, ladders)
     assert len(found) > 1
 
