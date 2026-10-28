@@ -21,7 +21,7 @@ from typing import Final
 import pytest
 
 from bko.evaluate.__main__ import Context, main
-from bko.evaluate.launch import REHEARSAL
+from bko.evaluate.launch import REHEARSAL, score_command
 from bko.evaluate.supervise import Outcome, backoff, outcome, run_segment, supervise
 from bko.generate.calls import ask
 from bko.generate.flight import IN_FLIGHT
@@ -240,9 +240,19 @@ def test_supervise_resumes_an_api_failure(tmp_path):
 
 
 def test_supervise_halves_in_flight_after_rate_limits(tmp_path):
-    segments = Segments(LIMITED, {**API, "rate_limited": True}, IDLE, LIMITED, LIMITED, COMPLETE)
-    assert _supervise(tmp_path, segments, in_flight=16)[0] == 0
-    assert segments.in_flight == ["16", "8", "4", "4", "2", "1"]
+    segments = Segments(
+        LIMITED, {**API, "rate_limited": True}, IDLE, LIMITED, LIMITED, LIMITED, COMPLETE
+    )
+    assert _supervise(tmp_path, segments, in_flight=16, retries=6)[0] == 0
+    assert segments.in_flight == ["16", "8", "4", "4", "2", "1", "1"]
+
+
+def test_each_resume_continues_the_segment_before_it(tmp_path):
+    segments = Segments(IDLE, API, KILLED, COMPLETE)
+    assert _supervise(tmp_path, segments)[0] == 0
+    sources = [_arg(command, "--resume") for command in segments.commands]
+    folders = ["e1-4", "e1-4-resume-1", "e1-4-resume-2"]
+    assert sources == [None, *(str(tmp_path / folder / "calls.jsonl") for folder in folders)]
 
 
 def test_supervise_halves_the_default_in_flight_when_none_was_given(tmp_path):
@@ -276,6 +286,24 @@ def test_supervise_does_not_resume_a_crash_with_no_end_line(tmp_path):
     assert len(segments.commands) == 1
     assert "code=1 status=none stop=none retryable=false" in _lines(tmp_path)[0]
     assert _lines(tmp_path)[0].endswith(" reason=crash")
+
+
+@pytest.mark.parametrize(
+    ("end", "reason"),
+    [
+        ({**INTERRUPTED, "retryable": True}, "operator"),
+        ({**COMPLETE, "retryable": True}, "complete"),
+        ({**API, "retryable": "true"}, "unresumable"),
+        ({**API, "retryable": 1}, "unresumable"),
+    ],
+    ids=["interrupted", "complete", "string", "number"],
+)
+def test_only_a_failed_end_line_whose_retryable_is_true_is_resumed(tmp_path, end, reason):
+    segments = Segments(end)
+    _, waits = _supervise(tmp_path, segments)
+    assert (waits, len(segments.commands)) == ([], 1)
+    assert _lines(tmp_path)[0].endswith(f" retryable=false rate_limited=false reason={reason}")
+    assert not (tmp_path / "e1-4-resume-1").exists()
 
 
 @pytest.mark.parametrize("end", [PROJECTION, CEILING], ids=["projection", "ceiling"])
@@ -406,6 +434,43 @@ def test_the_command_supervises_with_the_contexts_runner_and_sleep(tmp_path):
     assert segments.folders == ["e1-4", "e1-4-resume-1"]
     assert segments.in_flight == ["4", "4"]
     assert waits == [60.0]
+
+
+def test_the_command_forwards_the_data_root_the_stopped_log_and_the_rehearsal(tmp_path):
+    data, stopped = tmp_path / "data", tmp_path / "e1-3" / "calls.jsonl"
+    stopped.parent.mkdir()
+    stopped.write_text("x\n", encoding="utf-8")
+    context = Context(power=lambda: False, segment=Segments(COMPLETE, COMPLETE), sleep=pytest.fail)
+    root = ["--runs-dir", str(tmp_path), "--data-dir", str(data)]
+    (tmp_path / "e1-4" / REHEARSAL).mkdir(parents=True)
+    assert main(["supervise", "e1-4", "e1", *root, "--resume", str(stopped)], context=context) == 0
+    assert main(["supervise", "e1-4", "e1", *root, "--rehearse"], context=context) == 0
+    resumed, rehearsed = context.segment.commands
+    assert _arg(resumed, "--resume") == str(stopped)
+    assert _arg(resumed, "--data-dir") == str(data)
+    assert "--rehearse" not in resumed
+    assert _arg(rehearsed, "--data-dir") == str(data)
+    assert _arg(rehearsed, "--resume") is None
+    assert rehearsed[-1] == "--rehearse"
+    assert _arg(rehearsed, "--log") == str(tmp_path / "e1-4" / REHEARSAL / "calls.jsonl")
+
+
+@pytest.mark.parametrize("rehearse", [False, True])
+def test_the_score_command_writes_its_log_and_candidates_into_the_folder(tmp_path, rehearse):
+    folder = tmp_path / "e1-4" / REHEARSAL if rehearse else tmp_path / "e1-4"
+    command = score_command("e1", folder, rehearse=rehearse)
+    assert command == (
+        sys.executable,
+        "-m",
+        "bko.evaluate",
+        "score",
+        "e1",
+        "--log",
+        str(folder / "calls.jsonl"),
+        "--candidates",
+        str(folder / "holdout-candidates.jsonl"),
+        *(["--rehearse"] if rehearse else []),
+    )
 
 
 def test_a_resumed_log_holds_every_call(tmp_path):
