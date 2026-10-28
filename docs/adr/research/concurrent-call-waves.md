@@ -75,8 +75,8 @@ ceiling stop lands elsewhere.
 - **Supervised launch.** `launch` supervises its run and resumes API-caused stops. It starts
   `python -m bko.evaluate supervise`, which runs `score` as a child process, one segment at a time.
   The call log's `end` line says under `retryable` whether the API caused the stop: true for an
-  idle stop and for a failure from a connection error, a timeout, a 429 or a status of 500 or
-  above; false otherwise, ceiling and projection stops included. It says under `rate_limited`
+  idle stop and for a failure from a connection error, a timeout, a 408, 409 or 429 (the
+  statuses below 500 the SDK retries), or a status of 500 or above; false otherwise, ceiling and projection stops included. It says under `rate_limited`
   whether any retry in the segment saw a 429 (both keys additive; the schema stays 2). A
   `retryable` stop, or a child gone with no `end` line, is resumed into `<id>-resume-<k>` after
   `min(60 x 2^(k-1), 900)` seconds, at most `--retries` times, at half the in-flight (at least 1)

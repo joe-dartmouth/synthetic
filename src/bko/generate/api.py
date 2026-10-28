@@ -10,8 +10,9 @@ carries the body's `error.message`, with the client's API key and auth token rep
 `Attempts` is SDK middleware that counts the HTTP requests behind one call (the first, then each
 retry) and notes a retried 429; `send_with` reads it into `Reply.attempts` and
 `GenerationError.attempts`, and into each one's `rate_limited`, and `default_send` registers it.
-A `GenerationError` is `retryable` when the API caused it: a connection error, a timeout, a 429 or
-a status of 500 or above (`RETRYABLE_STATUS`), so a supervised run resumes it.
+A `GenerationError` is `retryable` when the API caused it: a connection error, a timeout, a status
+the SDK retries below 500 (`RETRIED`: 408, 409, 429) or a status of 500 or above
+(`RETRYABLE_STATUS`), so a supervised run resumes it.
 
 `async_send_with` and `default_async_send` are the same over `AsyncAnthropic`, whose calls
 `bko.generate.flight` keeps in flight together. Each such call counts its own attempts in the
@@ -68,7 +69,7 @@ RATE_LIMITED: Final = 429
 """The status of a rate-limited request."""
 
 RETRYABLE_STATUS: Final = 500
-"""The lowest status of a failure the API caused rather than the request, beside a 429."""
+"""The lowest status of a failure the API caused rather than the request, beside `RETRIED`."""
 
 
 def retryable(status: int, headers: Mapping[str, str]) -> bool:
@@ -203,9 +204,9 @@ def _failure(
 ) -> GenerationError:
     """The `GenerationError` a failed call raises, built from `exc`'s type, status and request id.
 
-    It is `retryable` for a connection error (a timeout included), a 429 and a status of
-    `RETRYABLE_STATUS` or above, and `rate_limited` when a retry was (`rate_limited`) or `exc` is
-    a 429.
+    It is `retryable` for a connection error (a timeout included), a status in `RETRIED` and a
+    status of `RETRYABLE_STATUS` or above, and `rate_limited` when a retry was (`rate_limited`)
+    or `exc` is a 429.
 
     Raises:
         TypeError: `exc` itself, when it is not SDK 1.13.0's refusal of a missing credential.
@@ -221,7 +222,7 @@ def _failure(
         return GenerationError(
             msg,
             attempts=attempts,
-            retryable=limited or exc.status_code >= RETRYABLE_STATUS,
+            retryable=exc.status_code in RETRIED or exc.status_code >= RETRYABLE_STATUS,
             rate_limited=rate_limited or limited,
         )
     if isinstance(exc, anthropic.APIConnectionError):

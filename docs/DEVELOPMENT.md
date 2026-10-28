@@ -251,7 +251,7 @@ in the segment saw a 429. Each stop branch is handled as follows:
 | F1 projection | `stop` `projection` | no resume |
 | F2 ceiling | `stop` `ceiling` | no resume |
 | F3 idle | `stop` `idle`, `retryable` true | resume |
-| F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 429 or a status of 500 or above) | resume |
+| F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 408, 409 or 429, or a status of 500 or above) | resume |
 | F5 deterministic | `status` `failed`, `retryable` false | no resume |
 | F6 killed or slept | no `end` line, the child gone | resume |
 | F7 operator | `status` `interrupted` | no resume |
@@ -621,8 +621,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
   always writes null), `rehearsal` (false: generate never rehearses), `stop` (null: generate has no
-  stop rule), `retryable` (whether the API caused a failure: a connection error, a timeout, a 429
-  or a status of 500 or above), `rate_limited` (whether any retry met a 429) and totals, `live_usd`
+  stop rule), `retryable` (whether the API caused a failure: a connection error, a timeout, a 408,
+  409 or 429, or a status of 500 or above), `rate_limited` (whether any retry met a 429) and
+  totals, `live_usd`
   among them, each call's whole request and response and its USD
   spend included. An interrupt or any other failure between a `request` line and its `reply` line
   writes the `error` line. stderr gets the split line, each ontology fragment's size, the request's
