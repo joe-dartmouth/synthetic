@@ -78,7 +78,7 @@ def test_e1_is_its_stated_configuration():
     assert RUNS["e1"] == NamedRun(E1)
 
 
-def test_one_guidance_run_per_level():
+def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "e1",
         "g2",
@@ -117,7 +117,15 @@ def test_a_guidance_run_differs_from_e1_only_in_its_arms_ceiling_criteria_and_le
 def test_a_sweep_run_is_g3_summarys_experiment_with_literal_settings(effort):
     run = RUNS[f"g4-{effort}"]
     assert run.experiment == RUNS["g3-summary"].experiment
-    assert run.settings == Settings("claude-haiku-5-5", effort, 16000, 20, Level.SUMMARY)
+    assert run.experiment.spend_ceiling == pytest.approx(10.0)
+    assert run.experiment.criteria == ()
+    assert run.settings == Settings(
+        model="claude-haiku-5-5",
+        effort=effort,
+        max_tokens=16000,
+        per_call=20,
+        guidance=Level.SUMMARY,
+    )
 
 
 def test_an_ablation_arm_may_be_judged_as_a_dry_run():

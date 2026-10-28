@@ -2,8 +2,8 @@
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
-`g3-ontology` being the replicate of E1's level (`docs/EVIDENCE.md`, G3), and `g2`, the direct
-arm's run (`G2`).
+`g3-ontology` being the replicate of E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
+`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`).
 No command-line flag changes a value here.
 """
 
@@ -188,6 +188,18 @@ G2: Final = replace(
 (G2) names it."""
 
 
+SETTINGS_SWEEP: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, "bko"),
+    replica_arms=(*ADDS_ROWS, "bko"),
+    spend_ceiling=10.0,
+    criteria=(),
+)
+"""E1 with its methods and `bko` alone, a $10.00 ceiling and no criterion: the experiment shared by
+the runs that vary only the settings, every guidance-level run (`docs/EVIDENCE.md`, G3) and every
+effort-sweep run (G4)."""
+
+
 @dataclass(frozen=True, slots=True)
 class NamedRun:
     """One run of the harness, fixed in code and selected by name.
@@ -209,27 +221,21 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         DEFAULT_RUN: NamedRun(E1),
         **{
             f"g3-{level}": NamedRun(
-                replace(
-                    E1,
-                    arms=(*METHOD_ARMS, "bko"),
-                    replica_arms=(*ADDS_ROWS, "bko"),
-                    spend_ceiling=10.0,
-                    criteria=(),
-                ),
+                SETTINGS_SWEEP,
                 replace(SETTINGS, guidance=level),
             )
             for level in LEVELS
         },
         **{
             f"g4-{effort}": NamedRun(
-                replace(
-                    E1,
-                    arms=(*METHOD_ARMS, "bko"),
-                    replica_arms=(*ADDS_ROWS, "bko"),
-                    spend_ceiling=10.0,
-                    criteria=(),
+                SETTINGS_SWEEP,
+                Settings(
+                    model="claude-haiku-5-5",
+                    effort=effort,
+                    max_tokens=16000,
+                    per_call=20,
+                    guidance=Level.SUMMARY,
                 ),
-                Settings("claude-haiku-5-5", effort, 16000, 20, Level.SUMMARY),
             )
             for effort in ("low", "medium")
         },
@@ -238,7 +244,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 )
 """Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
 `bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-ontology`
-replicates E1's level as the null control), and `g2` is `G2`. A
+replicates E1's level as the null control), `g4-low` and `g4-medium` are the same experiment at
+`summary` with effort `low` and `medium` (G4), and `g2` is `G2`. A
 variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
 seeds, fill target,
 ceiling and criteria."""
