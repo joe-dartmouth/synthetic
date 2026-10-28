@@ -2,7 +2,7 @@
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
-`g3-ontology` being the replicate of E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
+`g3-summary` being E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
 `g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`).
 No command-line flag changes a value here.
 """
@@ -243,9 +243,9 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
     }
 )
 """Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
-`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-ontology`
-replicates E1's level as the null control), `g4-low` and `g4-medium` are the same experiment at
-`summary` with effort `low` and `medium` (G4), and `g2` is `G2`. A
+`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-summary` is
+E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
+`medium` (G4; `g4-medium`'s settings equal `e1`'s), and `g2` is `G2`. A
 variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
 seeds, fill target,
 ceiling and criteria."""

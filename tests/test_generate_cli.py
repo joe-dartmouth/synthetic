@@ -200,7 +200,11 @@ def test_a_completeness_request_with_nothing_to_ask_exits_two_before_any_call(tm
 
 
 @pytest.mark.parametrize(
-    ("extra", "level"), [((), Level.SUMMARY), (("--guidance", "cell"), Level.CELL)]
+    ("extra", "level"),
+    [
+        pytest.param((), Level.SUMMARY, id="default"),
+        pytest.param(("--guidance", "cell"), Level.CELL, id="cell"),
+    ],
 )
 def test_the_guidance_flag_sets_the_level_and_defaults_to_summary(tmp_path, extra, level):
     send = two_replies()
