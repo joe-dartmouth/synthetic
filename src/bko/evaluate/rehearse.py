@@ -4,10 +4,10 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its records are in
-the run's frame (`bko.evaluate.data.Data`), so it refuses a call for another frame, raising
-`GenerationError` so the call log's `error` line keeps the reason. Its spend is a wiring check, not
-an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
+none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked. Its
+records are in the run's frame (`bko.evaluate.data.Data`), so it refuses a call for another frame,
+raising `GenerationError` so the call log's `error` line keeps the reason. Its spend is a wiring
+check, not an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
 recomputed.
 """
 
@@ -30,11 +30,11 @@ from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
 
 
-INPUT_PER_RECORD: Final = 368  # e1-3 Runs row: 34843870 / 94727
-"""Billed input tokens per record asked: `e1-3`'s input tokens over its records asked, rounded."""
+INPUT_PER_RECORD: Final = 301  # e1-4 Runs row: 23287576 / 77487
+"""Billed input tokens per record asked: `e1-4`'s input tokens over its records asked, rounded."""
 
-OUTPUT_PER_RECORD: Final = 197  # 18665554 / 94727
-"""Billed output tokens per record asked: `e1-3`'s output tokens over its records asked, rounded."""
+OUTPUT_PER_RECORD: Final = 211  # 16362315 / 77487
+"""Billed output tokens per record asked: `e1-4`'s output tokens over its records asked, rounded."""
 
 PROMPT: Final = re.compile(
     r"Write exactly (?P<rows>\d+) records of patients in this group: "

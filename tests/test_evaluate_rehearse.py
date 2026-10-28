@@ -87,6 +87,14 @@ def _cells(frame: pd.DataFrame) -> set[tuple[str, str, int]]:
     return {(str(a), str(s), int(t)) for a, s, t in keys.itertuples(index=False)}
 
 
+def test_the_tokens_per_record_are_the_judged_runs():
+    # e1-4's call log end line: input and output tokens over records asked (docs/EVIDENCE.md, E1).
+    assert (
+        round(23287576 / 77487),
+        round(16362315 / 77487),
+    ) == (INPUT_PER_RECORD, OUTPUT_PER_RECORD)
+
+
 def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
     send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
     trains = [split(GRADED, seed=seed).train for seed in SMALL.holdout_seeds]

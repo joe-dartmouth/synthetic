@@ -105,17 +105,6 @@ links to where its blocker is tracked.
   **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
   **Trigger:** the next change to `bko.evaluate.compare`.
 
-- **`cleanup:evaluate/rehearsal-tokens-from-judged-run`: the rehearsal bills `e1-3`'s tokens per
-  record, not the judged run's.** `INPUT_PER_RECORD` 368 and `OUTPUT_PER_RECORD` 197 in
-  `bko.evaluate.rehearse` come from `e1-3`'s Runs row (34843870 and 18665554 over 94727 records
-  asked); the judged run `e1-4` bills 300.535 input and 211.162 output tokens per record asked
-  (`docs/EVIDENCE.md`, E1's Runs row). *Filed 2026-10-28 by the evidence review of PR #53.*
-  **Why deferred.** The constants only scale a wiring check's spend and projection, and
-  `bko.evaluate.rehearse` is code outside the evidence review's documents.
-  **What discharges it:** the two constants come from the judged run `e1-4`, and the rehearsal's
-  comments and ADR `research/e1-evaluation-protocol` name that run.
-  **Trigger:** the next change to `bko.evaluate.rehearse`.
-
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
