@@ -13,7 +13,7 @@ record: the call, the cell, the record's position in the call, and its decoded `
 keeps the earlier ones.
 Every call's request and response go to the call log at `--log`, which must not exist; the plan,
 each call, the run's totals and the output's digest go to stderr through logging. Calls spend
-money and a rerun's candidates differ. `--guidance` sets the level, default `ontology`.
+money and a rerun's candidates differ. `--guidance` sets the level, default `summary`.
 
 `python -m bko.generate direct --seed N --log PATH` makes no call: it fills the same request
 from the fused BKB's concept shares through `bko.generate.direct`, writes a schema 2 header naming

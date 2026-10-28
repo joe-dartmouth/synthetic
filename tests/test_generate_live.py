@@ -13,7 +13,7 @@ import pytest
 
 from bko.datasets.uci import CODEBOOK, FRACTIONAL, FRAME_COLUMNS
 from bko.generate.api import default_send
-from bko.generate.messages import SETTINGS, Call, Level
+from bko.generate.messages import SETTINGS, Call
 from bko.generate.prompt import render
 from tests._generate_fixtures import GUIDANCE
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def test_one_real_call_returns_schema_shaped_records(tmp_path):
-    call = Call(SETTINGS, 0, 1, *render(GUIDANCE, 2, Level.ONTOLOGY))
+    call = Call(SETTINGS, 0, 1, *render(GUIDANCE, 2, SETTINGS.guidance))
     reply = default_send()(call)
     (tmp_path / "call.json").write_text(
         json.dumps({"params": call.params(), "raw": reply.raw}, indent=2), encoding="utf-8"

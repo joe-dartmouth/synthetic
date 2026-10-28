@@ -1,8 +1,8 @@
 ---
 id: evaluate-dose-response
 title: Fill above the threshold
-status: blocked
-depends_on: evaluate-e1-second-configuration
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe

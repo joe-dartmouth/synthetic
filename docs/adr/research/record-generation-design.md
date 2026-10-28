@@ -80,9 +80,10 @@ ladder.**
   - `cell`: the bare cell description;
   - `coherent`: a sentence asking for clinically coherent records;
   - `findings`: the ontology gap findings for the cell;
-  - `ontology`: their `is_a` chains, the default;
+  - `ontology`: their `is_a` chains;
   - `profile`: the reference group's concept shares;
-  - `summary`: the reference group's numeric spreads.
+  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses because G3 found
+    its replica fidelity gain ([G3](../../EVIDENCE.md#g3-guidance-level)).
 - **The findings.** `bko.generate.guidance.guide` reads a cell's findings from its gaps under the
   run's definition (ADR [`research/bko-formal-gap-definition`](bko-formal-gap-definition.md)).
   A cell with no gap is guided by the statements its own records ground, and a cell with neither
@@ -199,10 +200,11 @@ chains. A single fixed prompt gives no ablation axis.
 The prompt states the range the drop rule enforces. E1's runner keeps only records inside the
 training split's minimum and maximum (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
-calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, and `g3-5`'s
-(`summary` level) dropped 3805 of 29617 (the `validity` lines in
-[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) and
-[G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
+calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, `g3-5`'s
+(`summary` level) dropped 3805 of 29617, and `e1-4`'s, with the training split's bounds in the
+prompt, dropped 0 of 25825 (the `validity` lines: `e1-3`'s in
+[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Read against, `e1-4`'s in its Result,
+and `g3-5`'s in [G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
 see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
@@ -238,7 +240,8 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
   reference group's size, so a reference group of one record makes them equal that record's
   values; on the UCI split the reference group is the rest of the cell's label group.
 - Two training values per numeric field leave on every call (the split's minimum and maximum), and
-  `summary` adds three more. No record is sent, but their exposure grows as the split or a
+  `summary` adds three more, plus the reference group's record count and each concept's share of it
+  in percent (the `profile` block); every `SETTINGS` run sends them. No record is sent, but their exposure grows as the split or a
   reference group shrinks, to a whole record for identical records. A dataset under a DUA needs its
   terms checked for them.
 - A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
@@ -276,6 +279,7 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | The frame's plausible ranges as the prompt's bounds | The drop rule keeps only rows inside the split's range, so wider bounds cost top-ups: `e1-3` 5840 of 31643, `g3-5` 3805 of 29617 | 2026-10-27 |
 | The split's range in the system prompt | One system text per holdout, age carrying two ranges, and a frame-keyed cache serving stale text | 2026-10-27 |
 | Each cell's own minimum and maximum | Narrower than the drop rule enforces, and more training values leave the machine | 2026-10-27 |
+| `ontology` as SETTINGS' level | G3 found `summary`'s replica fidelity gain ([G3](../../EVIDENCE.md#g3-guidance-level)) | 2026-10-28 |
 
 ## Enforcement
 
@@ -295,7 +299,9 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 search of `tasks/` and `src/bko/generate/`.
 
 **The schema loosens if a judged run reports no `range:` failure and the team wants validity to
-measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`.
+measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`. `e1-4`'s `scores.log`
+holds no `range:` rejection in its `validated` lines, and `docs/EVIDENCE.md` does not hold its
+per-check counts.
 
 ## Related
 

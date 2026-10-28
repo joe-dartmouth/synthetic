@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -69,11 +69,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   settings differ from the named run's, before it claims a folder. `launch --rehearse` first runs
   the whole run on canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal`
   directory, so the stop rules, the spend lines and the folder roles are checked for free before any
-  spend. A rehearsal bills each record asked at the judged run's tokens per record (its Runs row's
-  input and output tokens over its records asked), so its spend and projection read on the scale of
-  a real run; its spend is a wiring check, not an estimate. Those tokens per record are recomputed
-  from the judged run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row
-  changes.
+  spend. A rehearsal bills each record asked at `e1-3`'s tokens per record (`INPUT_PER_RECORD` 368
+  and `OUTPUT_PER_RECORD` 197 in `bko.evaluate.rehearse`: `e1-3`'s Runs row's input and output
+  tokens over its records asked), so its spend and projection read on the scale of a real run; its
+  spend is a wiring check, not an estimate. Those tokens per record are recomputed from a judged
+  run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same

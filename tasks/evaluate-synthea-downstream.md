@@ -41,8 +41,8 @@ recovers on the held-out cases is the measure of the augmentation itself.
 - A named run (`bko.evaluate.experiment.RUNS`) with every arm of E1 on the frame, the BKO arms with a
   Synthea prompt rendered from the frame and guidance from the Synthea BKO; the measures E1
   reports, with recall on the removed cell's held-out cases as the headline, read against the
-  un-ablated training set. Spend estimated before the run from `e1-3`'s tokens per record asked
-  and the frame's quotas, stated in the Runs row, under the run's ceiling and the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
+  un-ablated training set. Spend estimated before the run from the judged run's (`e1-4`'s) tokens per record asked,
+  300.535 input and 211.162 output, and the frame's quotas, stated in the Runs row, under the run's ceiling and the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - ADRs [`research/record-generation-design`](../docs/adr/research/record-generation-design.md)
   and [`research/record-validation-design`](../docs/adr/research/record-validation-design.md)
   edited as their reversal conditions for a Synthea request say.

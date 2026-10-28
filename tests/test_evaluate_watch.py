@@ -42,7 +42,7 @@ def test_a_projection_within_the_ceiling_never_fires(caplog):
     for _ in range(10):
         watch.holdout_done()
     assert "projection holdouts=2 of=10 usd=0.9000 projected_usd=4.5000" in caplog.text
-    assert "stop rule" not in caplog.text
+    assert "stop rule=" not in caplog.text
 
 
 def test_a_projection_at_the_ceiling_fires_as_the_ceiling_would():

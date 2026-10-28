@@ -1,8 +1,8 @@
 ---
 id: generate-bkb-curation
 title: Curate LLM candidates by their likelihood under the BKO
-status: blocked
-depends_on: evaluate-e1-second-configuration
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley

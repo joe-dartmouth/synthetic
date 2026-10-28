@@ -18,11 +18,16 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 ## Why this unit exists
 
 At level `ontology` the prompt lists the findings a gap rests on and leaves the model to decide
-which records show them, and E1's Result reads the drift that follows: trained on its replica
-alone, `bko` scores the lowest fidelity quality of every arm
-([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)). Conditional
-generation puts the BKB in charge of each record's concepts and the model in charge of the fields
-consistent with them: the sampler `bko.generate.direct` (ADR `research/bkb-direct-generation`)
+which records show them, and at `e1-3` (at `ontology`) trained on its replica alone, `bko` scored
+the lowest fidelity quality of every arm, 0.7766 against `tvae`'s 0.8039
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), Read against).
+At `e1-4` (`summary`, with the training split's bounds in the prompt) that premise no longer holds:
+`bko`'s replica quality 0.8194, column shapes 0.8918 and column pair trends 0.7470 are above
+`tvae`'s 0.8039, 0.8654 and 0.7423, though its replica quality stays below `smote`'s, `adasyn`'s and
+`ctgan`'s and its replica recall, 0.6884, below every baseline's but `ctgan`'s. The unit's question
+is whether concepts drawn from the BKB beat the in-run `bko` on replica fidelity and utility.
+Conditional generation puts the BKB in charge of each record's concepts and the model in charge of
+the fields consistent with them: the sampler `bko.generate.direct` (ADR `research/bkb-direct-generation`)
 draws each record's present concepts, and one call fills the records.
 
 ## Scope

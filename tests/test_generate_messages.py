@@ -10,7 +10,15 @@ import pytest
 
 from bko.datasets.cells import LABEL
 from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS
-from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches, record_schema, text_of
+from bko.generate.messages import (
+    LEVELS,
+    SETTINGS,
+    Call,
+    Level,
+    reaches,
+    record_schema,
+    text_of,
+)
 
 
 BOUNDS = frozenset(

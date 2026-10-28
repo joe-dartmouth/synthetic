@@ -78,7 +78,13 @@ class Settings:
                 raise ValueError(msg)
 
 
-SETTINGS: Final = Settings("claude-haiku-5-5", "medium", 16000, 20, Level.ONTOLOGY)
+SETTINGS: Final = Settings(
+    model="claude-haiku-5-5",
+    effort="medium",
+    max_tokens=16000,
+    per_call=20,
+    guidance=Level.SUMMARY,
+)
 """The settings every run uses."""
 
 
