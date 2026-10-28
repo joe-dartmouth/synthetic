@@ -9,12 +9,13 @@ because one request can be logged many times with different replies.
 It drops a final segment with no newline, which a killed process can leave, and a last call whose
 answer is not exactly one `reply` line. A log whose `run` line holds `in_flight` above 1 had calls
 in flight together, so it drops every call from the first one not answered by exactly one `reply`
-line, and carries the dropped calls' spend into the resumed run's (`Answered.carried_usd`). It
-refuses a log with a failed call before its last, a replay's log, a rehearsal's log, whose replies
-are canned, a run the projection or the ceiling stopped, which is reported rather than resumed, and
-a resumed log that stopped before its replayed calls ran out. `refuse_unresumable` holds the checks
-on the `run` and `end` lines, and `log_ends` reads those two lines alone, so `launch --resume`
-refuses before it claims a folder. ADR `research/call-log-replay` records the design.
+line, and carries the dropped calls' spend into the resumed run's (`Answered.carried_usd`). At
+any in-flight, what the stopped log itself carried is carried too, so a resume of a resume keeps
+the whole run's spend. It refuses a log with a failed call before its last, a replay's log, a
+rehearsal's log, whose replies are canned, a run the projection or the ceiling stopped, which is
+reported rather than resumed, and a resumed log that stopped before its replayed calls ran out.
+`refuse_unresumable` holds the checks on the `run` and `end` lines, and `log_ends` reads those two
+lines alone, so `launch --resume` refuses before it claims a folder. ADR `research/call-log-replay` records the design.
 """
 
 from __future__ import annotations
@@ -240,8 +241,14 @@ def _read(path: Path, *, stopped: bool) -> _Log:
         msg = f"{path} is not a schema {SCHEMA} call log"
         raise ReplayError(msg)
     carried = 0.0
+    if stopped:
+        # A resume of a resume keeps the whole run's spend: what its log carried, at any in-flight.
+        prior = lines[0].get("carried_usd", 0.0)
+        if isinstance(prior, int | float) and not isinstance(prior, bool):
+            carried = float(prior)
     if stopped and _concurrent(lines[0]):
-        lines, carried = _from_first_unanswered(lines, path)
+        lines, dropped = _from_first_unanswered(lines, path)
+        carried += dropped
     elif stopped:
         lines = _without_unanswered_last(lines, path)
     requests = _by_call(lines, {"request"}, path)
@@ -285,8 +292,7 @@ def _from_first_unanswered(
 ) -> tuple[list[dict[str, Any]], float]:
     """`lines` without every call from the first not answered by one reply, and their spend.
 
-    Each dropped call gets one warning. The spend is the dropped calls' `reply` lines' `usd`,
-    plus what the log itself carried, so a resume of a resume keeps the whole run's spend.
+    Each dropped call gets one warning. The spend is the dropped calls' `reply` lines' `usd`.
     """
     answers: dict[int, list[dict[str, Any]]] = {}
     for line in lines:
@@ -305,10 +311,7 @@ def _from_first_unanswered(
         ),
         None,
     )
-    prior = lines[0].get("carried_usd", 0.0)
-    carried = (
-        float(prior) if isinstance(prior, int | float) and not isinstance(prior, bool) else 0.0
-    )
+    carried = 0.0
     if first is None:
         return lines, carried
     dropped = [index for index in sorted(answers) if index >= first]

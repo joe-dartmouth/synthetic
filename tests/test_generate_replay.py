@@ -461,6 +461,13 @@ def test_a_resume_of_a_resume_keeps_the_spend_its_log_carried(tmp_path):
     assert resume.answered.carried_usd == pytest.approx(0.5 + _replied(path, 3))
 
 
+def test_a_resume_of_a_resume_at_in_flight_1_keeps_the_spend_its_log_carried(tmp_path):
+    path = stopped(tmp_path, answer(), LOST)
+    rewritten(path, lambda lines: lines[0].update(carried_usd=0.5))
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[0])["in_flight"] == 1
+    assert Resume(path, ScriptedSend()).answered.carried_usd == pytest.approx(0.5)
+
+
 def test_an_old_log_with_an_error_before_its_last_call_is_still_refused(tmp_path):
     path = concurrent(tmp_path, LOST, answer())
     rewritten(path, lambda lines: lines[0].pop("in_flight"))
