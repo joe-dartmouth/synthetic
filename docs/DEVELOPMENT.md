@@ -227,9 +227,10 @@ folder stays free to launch. The power is read once, at launch: a machine unplug
 not caught, and `caffeinate -s` holds it awake on mains power only. The run itself stops, exit 2
 with the call log ending `failed`, on any of three rules, each logged as `stop rule=<name>` with the
 measure that fired: the spend ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the
-run's spend before the call it refuses), the projection (the live spend after `projection_after`
-holdouts, scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, a
-rehearsal is, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
+run's spend before the call it refuses), the projection (the run's whole spend after
+`projection_after` holdouts, scaled to every holdout, reaching the ceiling; a resume counts the
+holdouts it replays and the spend it carries and replays, so it projects as the fresh run would; a
+rehearsal is projected, a replay is not, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
 seconds for one call to get a reply, its retries included, timed by `asyncio.timeout` around the
 awaited send; on expiry no later call is sent, and the calls beside it land under their own idle
 limits, so their replies and spend are recorded). `bko.evaluate.watch` holds the projection and

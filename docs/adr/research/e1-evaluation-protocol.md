@@ -45,12 +45,14 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
   setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
   reporting every measure beside them; a run with none is reported with no verdict. A paid run also
-  stops on two rules beside the spend ceiling, each value held by its `Experiment`: its spend after
-  `projection_after` holdouts, scaled to every holdout, reaching the ceiling, and a call with no
-  reply within `idle_limit` seconds, timed by `asyncio.timeout` around each awaited send, retries
-  included, so that on expiry the run sends no later call, lets the calls in flight beside it land
-  under their own idle limits, records their replies and spend, and raises `StopRuleError("idle")`
-  (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake and refused on
+  stops on two rules beside the spend ceiling, each value held by its `Experiment`: its whole spend
+  after `projection_after` holdouts, scaled to every holdout, reaching the ceiling (a resume counts
+  the holdouts it replays and the spend it carries and replays, so every automatic resume projects
+  as the fresh run would), and a call with no reply within `idle_limit` seconds, timed by
+  `asyncio.timeout` around each awaited send, retries included, so that on expiry the run sends no
+  later call, lets the calls in flight beside it land under their own idle limits, records their
+  replies and spend, and raises `StopRuleError("idle")` (ADR `research/concurrent-call-waves`);
+  `launch` starts it detached, kept awake and refused on
   battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch` supervises the run: when a segment
   ends on an idle stop (F3), on a failure the API caused (F4: its call log's `end` line says
   `retryable`) or is killed with no `end` line (F6), it resumes the run into `<id>-resume-<k>`

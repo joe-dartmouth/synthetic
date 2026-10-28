@@ -26,8 +26,8 @@ from bko.generate.api import async_send_with
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, IdleError, ReplayError
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, AsyncSend
-from bko.generate.replay import Resume
+from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply
+from bko.generate.replay import Replay, Resume
 from bko.generate.spend import cost
 from bko.ontology.mapping import RELEASES
 from tests._evaluate_fixtures import SMALL
@@ -253,7 +253,7 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
     assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.text
 
 
-def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
+def test_guided_arms_projects_a_live_run_and_a_resumed_one_but_not_a_replay(tmp_path):
     knowledge = Knowledge("x", {}, (), ())
     early = dataclasses.replace(SMALL, projection_after=1)
     with guided_arms(
@@ -284,7 +284,62 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         limits=SEQUENTIAL,
         answers=resume,
     ) as resumed:
-        assert not resumed.watch.projecting
+        assert resumed.watch.projecting
+    with guided_arms(
+        ("bko",),
+        knowledge,
+        early,
+        log=tmp_path / "replayed.jsonl",
+        candidates=tmp_path / "replayed-candidates.jsonl",
+        origin=ORIGIN,
+        send=ScriptedSend,
+        run="e1",
+        limits=SEQUENTIAL,
+        answers=Replay(stopped),
+    ) as replayed:
+        assert not replayed.watch.projecting
+
+
+def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, caplog):
+    """A segment stopped before `projection_after` holdouts leaves its resume projecting: the
+    whole run's spend, the replayed calls' included, over every holdout done."""
+    stopped = tmp_path / "stopped.jsonl"
+    with pytest.raises(StopRuleError), CallLog(stopped, SETTINGS) as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+        raise StopRuleError("stalled", "idle", retryable=True)
+    one = json.loads(stopped.read_text(encoding="utf-8").splitlines()[-1])["usd"]
+    assert one > 0
+    resume = Resume(stopped, ScriptedSend())
+    early = dataclasses.replace(SMALL, projection_after=1, spend_ceiling=one * 1.5)
+
+    def send(call: Call) -> Reply:
+        answer = resume(call)
+        assert isinstance(answer, Reply)
+        return answer
+
+    caplog.set_level(logging.INFO)
+    with (
+        pytest.raises(StopRuleError, match="projects to") as raised,
+        guided_arms(
+            ("bko",),
+            Knowledge("x", {}, (), ()),
+            early,
+            log=tmp_path / "resumed.jsonl",
+            candidates=tmp_path / "resumed-candidates.jsonl",
+            origin=ORIGIN,
+            send=ScriptedSend,
+            run="e1",
+            limits=SEQUENTIAL,
+            answers=resume,
+        ) as resumed,
+    ):
+        ask(GUIDANCE, 2, send=send, log=resumed.log)
+        assert resumed.log.live_usd == 0
+        resumed.watch.holdout_done()
+    assert raised.value.stop_rule == "projection"
+    assert f"projection holdouts=1 of=2 usd={one:.4f} projected_usd={2 * one:.4f}" in caplog.text
+    end = json.loads((tmp_path / "resumed.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert (end["status"], end["stop"]) == ("failed", "projection")
 
 
 def _sdk_send(monkeypatch: pytest.MonkeyPatch, exc: anthropic.APIError) -> AsyncSend:
