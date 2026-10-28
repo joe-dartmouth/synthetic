@@ -356,8 +356,9 @@ start or the supervisor cannot run.
   no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
   attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
-  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell` or
-  `dropped-quota`) and the `failed` checks of a rejected one. Lines are written when the harness
+  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell`,
+  `dropped-concepts`, a prescribing arm's alone, or `dropped-quota`) and the `failed` checks of a
+  rejected one. Lines are written when the harness
   drains a holdout: after every arm's gap fill, then after every replica fill. A stopped run's file
   holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
   even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
@@ -392,7 +393,8 @@ start or the supervisor cannot run.
   the method's parameters, a `retry` warning for each refused attempt before the last, and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
   per BKO attempt a `guided` line (outcome, seed, call range, records asked, candidates generated
-  and passed, dropped for each reason, kept, the run's spend), a `spend` line before each BKO call
+  and passed, dropped for each reason, `dropped_concepts` for a prescribing arm alone, kept, the
+  run's spend), a `spend` line before each BKO call
   with the run's spend so far and the ceiling, a
   `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call waits
   for the calls in flight because their reservations reach the ceiling, a `halt call=%d unsent=%d`
@@ -433,7 +435,9 @@ start or the supervisor cannot run.
   `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each
   guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)) and each
   effort-sweep run as `g4-low` and `g4-medium`
-  ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)); no flag changes
+  ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)) and the skeleton run as `g5`, whose
+  `bko-skeleton` arm prescribes each record's concepts beside an in-run `bko`
+  ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)); no flag changes
   a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
   candidates are recorded and where calls are answered from, and `--in-flight` how many calls
   overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.
@@ -684,8 +688,8 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   training-split minimum and maximum (age within the cell's band), the cell and its training
   record count, and the guidance of the chosen level; at `summary`, also the quartiles of each
   numeric field over the same-label records of the other cells, that reference group's record count
-  and each mapped concept's share of it in percent (the `profile` block). Every `SETTINGS` run
-  sends them. No record is sent, but every bound and quartile is a real training value, and a
+  and each mapped concept's share of it in percent (the `profile` block); for `bko-skeleton`, each
+  asked record's drawn concept names. Every `SETTINGS` run sends them. No record is sent, but every bound and quartile is a real training value, and a
   small split or reference group exposes them together as a record. Check a DUA's terms for them
   ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
 - **Option order**: the definition or `direct` comes first and its options follow it, as in

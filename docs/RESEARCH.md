@@ -242,7 +242,8 @@ non-blocking track.
 field's training-split minimum and maximum (age within the cell's band), the 25th, 50th and 75th
 percentiles of each numeric field over the same-label records of the other cells (the `summary`
 level), that reference group's record count and each mapped concept's share of it in percent (the
-`profile` block, which `summary` includes), and ontology guidance to the Anthropic Messages API.
+`profile` block, which `summary` includes), ontology guidance and, for `bko-skeleton`, each asked
+record's drawn concept names to the Anthropic Messages API.
 Every run at `SETTINGS`' level, `summary`, sends them. No call carries a record, but every bound
 and percentile is a real training value: two per numeric field leave on each call, three more per
 field at `summary`. Their exposure grows as the split or a reference group shrinks, since

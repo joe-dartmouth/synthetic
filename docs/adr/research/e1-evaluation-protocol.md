@@ -91,9 +91,14 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   shortfall, cell by cell in the quota's order and round by round, and validates every reply with
   `bko.validate`. It drops each accepted candidate `bko.baselines.records.check` would refuse, by
   `bko.baselines.records.drops`, which tests: - a numeric value outside the training split's minimum
-  and maximum, with the rule `check` uses; - then a cell the request does not ask for; - then a row
+  and maximum, with the rule `check` uses; - then a cell the request does not ask for; - then, for
+  an arm that carries prescriptions, a record whose concepts differ from its line; - then a row
   past its cell's quota. A candidate counts toward the cell its own values name, as `check` reads
-  it. This differs from fusion's join, which drops a record whose values name another cell (ADR
+  it. The prescribing arm `bko-skeleton` draws each attempt's lines once, with
+  `bko.generate.direct.sample` at the request's seed, keeps them in a queue per cell and assigns
+  them at wave planning, in plan order; a line is consumed only by a record kept in the line's own
+  cell, and every other line asked returns to its cell's queue for the next top-up, never
+  redrawn. This differs from fusion's join, which drops a record whose values name another cell (ADR
   `research/gap-closure-design`), because E1's rows are bound by `check`. The arm returns the kept
   rows cell by cell in the quota's order and in generation order within a cell. It never clips,
   rounds or repairs one, and it calls `check` before it returns. An attempt asks for at most `E1`'s
@@ -122,7 +127,7 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   both. A refused attempt returns no `Baseline`, so the arm keeps its counts itself; the harness
   drains them after the gap fills and again after the replica fills, and writes them per holdout as
   `candidates` and `replica-candidates` scores (`generated`, `passed`, and one count per drop
-  reason). `compare` sums both over the holdouts for the rate, refuses a replica arm's scores
+  reason; `dropped-concepts` only for a prescribing arm). `compare` sums both over the holdouts for the rate, refuses a replica arm's scores
   without its replica counts, and logs each fill's counts and rate apart, with no verdict on a fill.
   The criterion reads `bko`'s rate: it is met when the rate reaches `E1`'s validity threshold, read
   as a point with no interval, and not met below it. A candidate dropped after validation stays in
