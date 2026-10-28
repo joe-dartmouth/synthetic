@@ -51,7 +51,12 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   included, so that on expiry the run sends no later call, lets the calls in flight beside it land
   under their own idle limits, records their replies and spend, and raises `StopRuleError("idle")`
   (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake and refused on
-  battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
+  battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch` supervises the run: when a segment
+  ends on an idle stop (F3), on a failure the API caused (F4: its call log's `end` line says
+  `retryable`) or is killed with no `end` line (F6), it resumes the run into `<id>-resume-<k>`
+  after a backoff, at most `--retries` times, under launch's own folder checks; it never resumes
+  a projection or ceiling stop, a deterministic failure or an interrupt.
+  `launch --resume STOPPED`
   resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
   or the ceiling stopped is reported, not resumed, since resuming would spend past the rule that
   stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's

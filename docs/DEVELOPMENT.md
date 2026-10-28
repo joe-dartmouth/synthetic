@@ -191,7 +191,7 @@ judged run keeps `compare`'s stdout and stderr in its folder:
 **The paid-run protocol.** A new paid run starts with `launch`, which a Runs row cites instead of
 the `score --log` command above; a resume and a rehearsal start with it too:
 
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--dry-run]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
     uv run --no-sync python -m bko.evaluate launch <run-id>-resume [<run>] --resume runs/<run-id>/calls.jsonl [--data-dir <dir>]
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--data-dir <dir>]
 
@@ -203,9 +203,11 @@ or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check
 `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
 launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
 `resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
-`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
-session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files;
-`--data-dir` is forwarded as an absolute path, and `--in-flight` when given. It appends the process
+`supervise <run-id> <run> --retries R --runs-dir <runs>` in its own session, held awake by
+`caffeinate -i -s` on macOS, with stdout and stderr in those two files; `--data-dir` is forwarded
+as an absolute path, and `--in-flight` when given. `supervise` runs
+`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its
+child, with the same stdout and stderr (supervision, below). It appends the process
 id to `launch.log` and prints the command that watches the folder
 (`tail -f <runs>/<run-id>/scores.log`, its path absolute; for `--rehearse`,
 `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it appends
@@ -214,9 +216,10 @@ first lines cannot be written, and a failed claim writes nothing, so a failed la
 folder free. A started process whose `pid=` line cannot be written is still reported started, with a
 WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
 retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
-and keep-awake: it starts `score <run> --resume <calls.jsonl> --log ... --candidates ...` with the
+and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ... --candidates ...`
+with the
 stopped log's path made absolute, and refuses a stopped log that is not a file or lies inside the
-new folder, and the logs the resume guard above refuses. `--rehearse` starts
+new folder, and the logs the resume guard above refuses. `--rehearse` supervises
 `score <run> --log ... --candidates ... --rehearse` with the same checks inside
 `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
 and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
@@ -236,6 +239,35 @@ limits, so their replies and spend are recorded). `bko.evaluate.watch` holds the
 it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call log
 writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
 the runner before any replay.
+
+**Supervision.** `launch` supervises its run (ADR
+[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)): `supervise` runs each
+segment's `score` as a child process and, when it exits, reads the call log's `end` line. The line
+says under `retryable` whether the API caused the stop, and under `rate_limited` whether any retry
+in the segment saw a 429. Each stop branch is handled as follows:
+
+| Branch | Signal | Supervisor |
+|---|---|---|
+| F1 projection | `stop` `projection` | no resume |
+| F2 ceiling | `stop` `ceiling` | no resume |
+| F3 idle | `stop` `idle`, `retryable` true | resume |
+| F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 429 or a status of 500 or above) | resume |
+| F5 deterministic | `status` `failed`, `retryable` false | no resume |
+| F6 killed or slept | no `end` line, the child gone | resume |
+| F7 operator | `status` `interrupted` | no resume |
+
+Resume `k` (from 1) waits `min(60 x 2^(k-1), 900)` seconds, claims the folder
+`<run-id>-resume-<k>` with `launch`'s own folder and power checks, and runs
+`score <run> --resume <the previous segment's calls.jsonl>` there, with that folder's
+`scores.csv` and `scores.log`, at half the previous segment's in-flight (at least 1) when that
+segment was rate limited, else at the same. `--retries R` caps the resumes, 5 by default;
+`--retries 0` runs one segment. A rehearsal is never resumed, and neither is a run id whose
+`-resume-<k>` folder name is not a `RUN_ID`. Each segment's outcome is appended to
+`<run-id>/launch.log` as
+`supervise segment=%d folder=%s status=%s stop=%s retryable=%s rate_limited=%s next=%s`, and
+`supervise` exits with the last segment's exit code. The last segment's call log holds every
+call, the replayed ones included, so it replays the whole run, and a Runs row lists every segment's
+folder.
 
 - **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
   `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
