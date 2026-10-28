@@ -7,7 +7,7 @@ name the log a replay answers from under `replay` and the stopped log a resume c
 records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
 `carried_usd` the spend of the stopped log's calls it dropped, and the `end` line names under `stop`
 the stop rule that ended a failed run, or null, under `retryable` whether the API caused the stop
-(an idle stop, or a `GenerationError` marked `retryable`), so a supervised run resumes it, and under
+(the exception's `retryable` attribute), so a supervised run resumes it, and under
 `rate_limited` whether any call's retry met a 429; its totals split `live_usd`, what the run paid
 or a rehearsal billed, from `usd`. Each line is flushed as it is written, so the lines of every call
 made survive a failure, an interrupt or a killed process. The file is created exclusively, so a
@@ -220,9 +220,10 @@ class CallLog:
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other. `stop` names the stop rule that ended a failed run, read from the
         exception's `stop_rule` attribute when it is one of `STOP_RULES` (`bko.evaluate` raises
-        it), and is null otherwise. `retryable` is true for a failed run stopped by the idle rule
-        or by a `GenerationError` marked `retryable`, and false otherwise, other stop rules
-        included. `rate_limited` is true when any call's retry met a 429.
+        it), and is null otherwise. `retryable` is the failed run's exception's `retryable`
+        attribute when it is True (an `IdleError`, a `GenerationError` the API caused, or the
+        `StopRuleError` an idle stop raises), and false otherwise, the ceiling and projection
+        stops included. `rate_limited` is true when any call's retry met a 429.
         """
         if kind is None:
             status = "complete"
@@ -232,10 +233,7 @@ class CallLog:
             status = "failed"
         rule = getattr(error, "stop_rule", None) if status == "failed" else None
         stop = rule if rule in STOP_RULES else None
-        retryable = status == "failed" and (
-            stop == "idle"
-            or (stop is None and isinstance(error, GenerationError) and error.retryable)
-        )
+        retryable = status == "failed" and getattr(error, "retryable", False) is True
         try:
             self._write(
                 {

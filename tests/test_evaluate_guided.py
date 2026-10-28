@@ -24,7 +24,7 @@ from bko.evaluate.validity import COUNTS
 from bko.gaps.definitions import Definition
 from bko.generate.api import async_send_with
 from bko.generate.calls import ask
-from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.errors import GenerationError, IdleError, ReplayError
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AsyncSend
 from bko.generate.replay import Resume
@@ -245,9 +245,11 @@ def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
     with pytest.raises(StopRuleError, match="idle limit") as raised, log:
         arm(train(tmp_path / "train"), REQUEST)
     assert raised.value.stop_rule == "idle"
+    assert raised.value.retryable is True
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
     assert json.loads(lines[-1])["stop"] == "idle"
+    assert json.loads(lines[-1])["retryable"] is True
     assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.text
 
 
@@ -327,18 +329,27 @@ def test_the_end_line_marks_api_failures_retryable(tmp_path, monkeypatch, name):
 @pytest.mark.parametrize(
     ("raised", "retryable"),
     [
-        (StopRuleError("stalled", "idle"), True),
+        (StopRuleError("stalled", "idle", retryable=True), True),
+        (StopRuleError("stalled", "idle"), False),
+        (IdleError("call 1 got no reply"), True),
         (StopRuleError("spent", "ceiling"), False),
         (StopRuleError("projected", "projection"), False),
         (GenerationError("no Anthropic credential"), False),
         (BaselineError("refused"), False),
         (ValueError("bug"), False),
     ],
-    ids=["idle", "ceiling", "projection", "generation", "baseline", "other"],
+    ids=[
+        "idle",
+        "idle-unmarked",
+        "idle-error",
+        "ceiling",
+        "projection",
+        "generation",
+        "baseline",
+        "other",
+    ],
 )
-def test_the_end_line_marks_only_an_idle_stop_retryable_beside_api_failures(
-    tmp_path, raised, retryable
-):
+def test_the_end_line_reads_retryable_from_the_error_it_ended_on(tmp_path, raised, retryable):
     path = tmp_path / "calls.jsonl"
     with pytest.raises(type(raised)), CallLog(path, SETTINGS):
         raise raised

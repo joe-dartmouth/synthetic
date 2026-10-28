@@ -240,7 +240,7 @@ class GuidedArm:
                 try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
-                    raise StopRuleError(str(exc), "idle") from None
+                    raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
 
 
 def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:

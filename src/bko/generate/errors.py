@@ -37,13 +37,24 @@ class GenerationError(Exception):
 class IdleError(GenerationError):
     """A call got no reply within the run's idle limit, its retries included. Exit 2.
 
-    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`.
+    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`. It
+    is `retryable` unless told otherwise: a stalled call is the API's to retry.
 
     Attributes:
         stop_rule: The stop rule that fired, `idle`.
     """
 
     stop_rule: ClassVar[str] = "idle"
+
+    def __init__(
+        self,
+        *args: object,
+        attempts: int | None = None,
+        retryable: bool = True,
+        rate_limited: bool = False,
+    ) -> None:
+        """Keep the message, the attempt count and what the API caused; `retryable` by default."""
+        super().__init__(*args, attempts=attempts, retryable=retryable, rate_limited=rate_limited)
 
 
 class CandidatesFormatError(ContractError):
