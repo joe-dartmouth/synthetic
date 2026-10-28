@@ -3,7 +3,8 @@
 `bko.evaluate.guided` makes the calls and `bko.evaluate.direct` draws records with none; an
 `Attempt` takes each call's or draw's candidates as they come,
 validates them (`bko.validate`), drops each accepted one that `check` would refuse
-(`bko.baselines.records.drops`) and keeps the rest under the cell their own values name, and it
+(`bko.baselines.records.drops`), and for a prescribing arm each one whose concepts differ from its
+line (`bko.generate.skeleton`), keeps the rest under the cell their own values name, and it
 records each candidate's outcome for the per-holdout candidates file
 (`bko.evaluate.holdout_candidates`). `Tally` counts candidates over some calls, and `DROPPED`
 names the measure each drop reason is counted under.
@@ -26,6 +27,7 @@ from bko.evaluate.scores import Measure
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.calls import Batch
 from bko.generate.decode import Undecoded
+from bko.generate.skeleton import Skeleton
 from bko.validate.checks import validate
 
 
@@ -33,6 +35,7 @@ DROPPED: Final[Mapping[Drop, Measure]] = MappingProxyType(
     {
         Drop.RANGE: Measure.DROPPED_RANGE,
         Drop.CELL: Measure.DROPPED_CELL,
+        Drop.CONCEPTS: Measure.DROPPED_CONCEPTS,
         Drop.QUOTA: Measure.DROPPED_QUOTA,
     }
 )
@@ -85,15 +88,26 @@ class Attempt:
         seen: Every candidate the attempt took, in call order, with its outcome.
     """
 
-    def __init__(self, train: pd.DataFrame, request: Request, limit: int) -> None:
-        """Start an attempt at `request` over `train` that may ask for `limit` records."""
+    def __init__(
+        self, train: pd.DataFrame, request: Request, limit: int, *, prescribing: bool = False
+    ) -> None:
+        """Start an attempt at `request` over `train` that may ask for `limit` records.
+
+        A `prescribing` attempt's calls carry each record's concepts, so its counts report every
+        drop reason; any other's report `COMMON`.
+        """
         self.train = train
         self.request = request
         self.limit = limit
         self.asked = 0
-        self.tally = Tally()
+        self.tally = self.tally_for(prescribing=prescribing)
         self.kept: dict[Stratum, list[pd.DataFrame]] = defaultdict(list)
         self.seen: list[Seen] = []
+
+    @staticmethod
+    def tally_for(*, prescribing: bool) -> Tally:
+        """An empty tally reporting a `prescribing` attempt's drop reasons, or `COMMON`."""
+        return Tally(reasons=tuple(Drop) if prescribing else COMMON)
 
     def held(self) -> dict[Stratum, int]:
         """Each cell's rows kept so far."""
@@ -108,11 +122,23 @@ class Attempt:
             if rows > held.get(cell, 0)
         }
 
-    def take(self, batch: Batch) -> None:
-        """Validate one call's candidates, drop what `check` would refuse, and keep the rest."""
-        self.add(batch.index, batch.cell, batch.asked, batch.candidates)
+    def take(self, batch: Batch, *, skeleton: Skeleton | None = None) -> dict[int, Stratum]:
+        """Validate one call's candidates, drop what `add` drops, and keep the rest.
 
-    def add(self, call: int | None, cell: Cell, asked: int, candidates: Sequence[object]) -> None:
+        Returns:
+            As `add`.
+        """
+        return self.add(batch.index, batch.cell, batch.asked, batch.candidates, skeleton=skeleton)
+
+    def add(
+        self,
+        call: int | None,
+        cell: Cell,
+        asked: int,
+        candidates: Sequence[object],
+        *,
+        skeleton: Skeleton | None = None,
+    ) -> dict[int, Stratum]:
         """Validate candidates asked of `cell`, drop what `check` would refuse, keep the rest.
 
         Args:
@@ -120,6 +146,12 @@ class Attempt:
             cell: The cell they were asked for.
             asked: The records asked for.
             candidates: The decoded items, then one `Undecoded` per asked record short.
+            skeleton: The call's prescriptions; a record whose concepts differ from its line, or
+                past the lines, is dropped after its cell and before the quota. None prescribes
+                nothing.
+
+        Returns:
+            Each kept candidate's position among `candidates`, with the cell it counts toward.
         """
         self.asked += asked
         frame = self.request.frame
@@ -127,7 +159,15 @@ class Attempt:
         self.tally.generated += checked.generated
         self.tally.passed += checked.passed
         rows = checked.accepted
-        reasons = drops(rows, self.train, self.request, held=self.held())
+        differs = (
+            None
+            if skeleton is None
+            else [
+                skeleton.differs(position, {str(name): float(value) for name, value in row.items()})
+                for position, row in zip(rows.index.tolist(), rows.to_dict("records"), strict=True)
+            ]
+        )
+        reasons = drops(rows, self.train, self.request, held=self.held(), differs=differs)
         self.tally.dropped.update(reason for reason in reasons if reason is not None)
         outcomes = {
             int(position): KEPT if reason is None else DROPPED[reason].value
@@ -153,6 +193,7 @@ class Attempt:
         keys = stratum_keys(kept, Strata.CELL, edges=frame.edges)
         for stratum in dict.fromkeys(keys):
             self.kept[stratum].append(kept.loc[[key == stratum for key in keys]])
+        return {int(position): key for position, key in zip(kept.index, keys, strict=True)}
 
     def rows(self) -> pd.DataFrame:
         """The kept rows, cell by cell in the quota's order, in generation order within one."""

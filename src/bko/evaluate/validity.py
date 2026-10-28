@@ -2,7 +2,8 @@
 
 Each BKO arm writes per holdout and fill the candidates `bko.validate` saw and passed, and those
 it then dropped, as `Source.CANDIDATES` (the gap fill) and `Source.REPLICA_CANDIDATES` (the replica
-fill) scores. The rate is `passed` summed over `generated` summed over both fills; each fill is
+fill) scores; a prescribing arm also writes `OPTIONAL`'s counts, summed only for an arm that holds
+them. The rate is `passed` summed over `generated` summed over both fills; each fill is
 reported apart with no verdict. The criterion is met when the rate reaches `Experiment.validity`,
 read as a point with no interval (ADR `research/e1-evaluation-protocol`).
 """
@@ -30,6 +31,9 @@ COUNTS: Final = (
 )
 """The `candidates` measures, each summed over the holdouts."""
 
+OPTIONAL: Final = (Measure.DROPPED_CONCEPTS,)
+"""The `candidates` measures only a prescribing arm writes, each summed when the arm holds it."""
+
 
 FILLS: Final = MappingProxyType({Source.CANDIDATES: "gap", Source.REPLICA_CANDIDATES: "replica"})
 """Each fill's candidates source, by the name a log line gives the fill."""
@@ -41,8 +45,8 @@ class Validity:
 
     Attributes:
         arm: The arm.
-        fills: Each fill's `COUNTS`, summed over the holdouts, by its source in `FILLS`; the
-            replica fill's only for an arm that fills one.
+        fills: Each fill's `COUNTS`, and each of `OPTIONAL` the arm holds, summed over the
+            holdouts, by its source in `FILLS`; the replica fill's only for an arm that fills one.
     """
 
     arm: str
@@ -50,8 +54,12 @@ class Validity:
 
     @property
     def counts(self) -> dict[Measure, int]:
-        """Each of `COUNTS`, summed over the holdouts and the fills."""
-        return {m: sum(found[m] for found in self.fills.values()) for m in COUNTS}
+        """Each of `COUNTS`, then each of `OPTIONAL` the arm holds, summed.
+
+        Each is summed over the holdouts and the fills.
+        """
+        held = [m for m in OPTIONAL if any(m in found for found in self.fills.values())]
+        return {m: sum(found.get(m, 0) for found in self.fills.values()) for m in (*COUNTS, *held)}
 
     @property
     def rate(self) -> Fraction:
@@ -75,7 +83,7 @@ def _rate(counts: Mapping[Measure, int]) -> Fraction:
 
 
 def _pairs(counts: Mapping[Measure, int]) -> str:
-    pairs = " ".join(f"{m.value.replace('-', '_')}={counts[m]}" for m in COUNTS)
+    pairs = " ".join(f"{m.value.replace('-', '_')}={count}" for m, count in counts.items())
     return f"{pairs} rate={float(_rate(counts)):.4f}"
 
 
@@ -120,11 +128,16 @@ def validity(scores: Sequence[Score], experiment: Experiment, arm: str) -> Valid
 def _summed(
     scores: Sequence[Score], experiment: Experiment, arm: str, source: Source
 ) -> dict[Measure, int]:
-    """`arm`'s counts under `source`, each summed over the experiment's holdouts."""
+    """`arm`'s counts under `source`, each summed over the experiment's holdouts.
+
+    Each of `OPTIONAL` is read when `arm` holds it under `source`, and then must cover every
+    holdout as `COUNTS` do.
+    """
     fill = FILLS[source]
     holdouts = sorted(experiment.holdout_seeds)
+    held = {s.measure for s in scores if s.arm == arm and s.source is source}
     counts: dict[Measure, int] = {}
-    for measure in COUNTS:
+    for measure in (*COUNTS, *(m for m in OPTIONAL if m in held)):
         values = {
             s.holdout: s.value
             for s in scores

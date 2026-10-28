@@ -1,11 +1,13 @@
 """`python -m bko.evaluate score`'s output, pinned byte for byte against `tests/golden/waves/`.
 
-The harness runs every BKO arm, with gap and replica fills, on three holdouts, over a send whose
-replies are keyed by call number. Its script covers what makes one call's ask depend on another's
-reply: a record kept in another age band of its sex and label, out-of-range values, short replies,
-quota overflow, an attempt that exhausts its budget, and a replica round whose short cells run
-A1, A2, B1 (two cells of one sex and label, then another). `tests/golden/waves/regenerate.py`
-rewrites the golden files.
+The harness runs every BKO arm and the prescribing arm `bko-skeleton`, last, with gap and replica
+fills, on three holdouts, over a send whose replies are keyed by call number, the prescribing arm's
+calls numbered apart. Its script covers what makes one call's ask depend on another's reply: a
+record kept in another age band of its sex and label, out-of-range values, short replies, quota
+overflow, an attempt that exhausts its budget, a replica round whose short cells run A1, A2, B1
+(two cells of one sex and label, then another), and records whose concepts differ from their
+lines, so a top-up re-asks those lines. `tests/golden/waves/regenerate.py` rewrites the golden
+files.
 """
 
 from __future__ import annotations
@@ -24,10 +26,14 @@ from typing import Final
 
 import pytest
 
+from bko.baselines.request import Stratum
 from bko.evaluate.__main__ import main
 from bko.evaluate.attempts import Attempt
+from bko.evaluate.experiment import SKELETON_ARM
+from bko.evaluate.rehearse import RECORD_LINE
 from bko.generate.calls import Batch
 from bko.generate.messages import Call, Reply
+from bko.generate.skeleton import Skeleton
 from tests._evaluate_bko_fixtures import REPLICAS, candidates_for, context, score_argv
 from tests._generate_fixtures import reply
 from tests._validate_fixtures import PLANTED, planted
@@ -39,6 +45,13 @@ FILES: Final = ("scores.csv", "candidates.jsonl", "calls.jsonl")
 
 WAVES: Final = dataclasses.replace(REPLICAS, holdout_seeds=(0, 1, 2))
 """Every BKO arm filling its gap and a replica, on three holdouts."""
+
+PRESCRIBED: Final = dataclasses.replace(
+    WAVES,
+    arms=(*WAVES.arms, SKELETON_ARM),
+    replica_arms=(*WAVES.replica_arms, SKELETON_ARM),
+)
+"""`WAVES` with the prescribing arm last, so the other arms' calls keep their order: the golden."""
 
 ASK: Final = re.compile(r"Write exactly (\d+) records .*?, age (\d+) to (\d+) years")
 
@@ -107,7 +120,17 @@ SCRIPT: Final[Mapping[int, Edit]] = {
     19: _short,
     22: _short,
 }
-"""Each scripted call's edit of the records its ask would be answered with in full."""
+"""Each scripted call's edit of the records its ask would be answered with in full, by its number
+among the calls that prescribe nothing."""
+
+AGAINST: Final[Mapping[int, frozenset[int]]] = {
+    # Holdout 0, `bko-skeleton`'s gap fill: two records against their lines, so both are re-asked.
+    1: frozenset({0, 3}),
+    # Its replica fill's first call: one record against its line.
+    3: frozenset({1}),
+}
+"""Per prescribing call, by its number among them, the record positions answered against their
+lines."""
 
 
 class WaveSend:
@@ -120,13 +143,38 @@ class WaveSend:
     def __init__(self) -> None:
         """Start with no call made."""
         self.calls: list[Call] = []
+        self._plain = 0
+        self._prescribing = 0
 
     def __call__(self, call: Call) -> Reply:
-        """Record `call` and return its reply."""
+        """Record `call` and return its reply.
+
+        A prescribing call is answered one record per line, cp 1 where the line names angina and
+        cp 2 elsewhere, except at the positions `AGAINST` names, with thal 3 so no record copies a
+        test record and moves the other arms' scores.
+        """
         self.calls.append(call)
+        lines = [found["labels"] for found in RECORD_LINE.finditer(call.user)]
+        if lines:
+            self._prescribing += 1
+            against = AGAINST.get(self._prescribing, frozenset())
+            _, age = _asked(call)
+            return reply(
+                [
+                    planted(
+                        age=age,
+                        sex=call.sex,
+                        target=call.label,
+                        cp=1 if (text == "Angina pectoris") != (at in against) else 2,
+                        thal=3,
+                    )
+                    for at, text in enumerate(lines)
+                ]
+            )
+        self._plain += 1
         rows, _ = _asked(call)
         records = _records(call, rows)
-        edit = SCRIPT.get(len(self.calls))
+        edit = SCRIPT.get(self._plain)
         return reply(records if edit is None else edit(call, records))
 
 
@@ -204,7 +252,7 @@ def _run(
     None, or is answered from the call log `replay`.
     """
     built, _ = context(send or WaveSend())
-    built = dataclasses.replace(built, experiment=WAVES)
+    built = dataclasses.replace(built, experiment=PRESCRIBED)
     log = tmp_path / "calls.jsonl"
     flag = [] if in_flight is None else ["--in-flight", str(in_flight)]
     if replay is not None:
@@ -266,9 +314,11 @@ def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog, monkey
     taken: list[int] = []
     take = Attempt.take
 
-    def spied(attempt: Attempt, batch: Batch) -> None:
+    def spied(
+        attempt: Attempt, batch: Batch, *, skeleton: Skeleton | None = None
+    ) -> dict[int, Stratum]:
         taken.append(batch.index)
-        take(attempt, batch)
+        return take(attempt, batch, skeleton=skeleton)
 
     monkeypatch.setattr(Attempt, "take", spied)
     built, _ = context(CrossingSend())

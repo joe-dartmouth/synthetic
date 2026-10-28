@@ -3,7 +3,8 @@
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
 `g3-summary` being E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
-`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`). Each named run also fixes
+`g4-low` and `g4-medium` (G4), `g2`, the direct arm's run (`G2`), and `g5`, the prescribing arm's
+run (`G5`). Each named run also fixes
 the dataset it scores, UCI for every one here.
 No command-line flag changes a value here.
 """
@@ -169,6 +170,15 @@ BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
 DIRECT_ARM: Final = "bko-direct"
 """The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
 
+SKELETON_ARM: Final = "bko-skeleton"
+"""The prescribing arm: a BKO arm guided by per-subgroup gaps whose every request carries each
+record's concepts drawn from the fused BKB (`bko.evaluate.skeleton`)."""
+
+MESSAGES_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
+    {**BKO_ARMS, SKELETON_ARM: Definition.SUBGROUP}
+)
+"""Every arm that calls the Messages API, each with the gap definition that guides it."""
+
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),
     arms=(*METHOD_ARMS, *BKO_ARMS),
@@ -188,6 +198,18 @@ G2: Final = replace(
 )
 """E1 with the direct arm in place of the BKO arms, judged by no criterion; `docs/EVIDENCE.md`
 (G2) names it."""
+
+G5: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, "bko", SKELETON_ARM),
+    candidate=SKELETON_ARM,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, "bko", SKELETON_ARM),
+    spend_ceiling=25.0,
+    criteria=(),
+)
+"""E1 with the prescribing arm beside an in-run `bko`, a $25.00 ceiling and no criterion;
+`docs/EVIDENCE.md` (G5) names it."""
 
 
 SETTINGS_SWEEP: Final = replace(
@@ -244,12 +266,23 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             for effort in ("low", "medium")
         },
         "g2": NamedRun(G2),
+        "g5": NamedRun(
+            G5,
+            Settings(
+                model="claude-haiku-5-5",
+                effort="medium",
+                max_tokens=16000,
+                per_call=20,
+                guidance=Level.SUMMARY,
+            ),
+        ),
     }
 )
 """Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
 `bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-summary` is
 E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
-`medium` (G4; `g4-medium`'s settings equal `e1`'s), and `g2` is `G2`. A
+`medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
+G4's effort, `medium` (G5). A
 variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
 seeds, fill target,
 ceiling and criteria."""

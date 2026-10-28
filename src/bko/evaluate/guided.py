@@ -13,8 +13,11 @@ rest count toward the cell their own values name. An attempt asks for at most `b
 request's rows, and refuses with a plain `BaselineError` as soon as the rest of its budget cannot
 cover the rows still short. The arm keeps its validity counts itself, since a refused attempt
 returns no `Baseline`, and writes every candidate it saw, with its outcome, to the run's candidates
-file when the harness drains it (`bko.evaluate.holdout_candidates`). ADR
-`research/e1-evaluation-protocol` records the rule. `guided_arms` builds a run's BKO arms over one
+file when the harness drains it (`bko.evaluate.holdout_candidates`). An arm given a prescribe step
+(`bko.evaluate.skeleton`) draws each attempt's lines once, hands each planned call its cell's next
+lines at wave planning, drops a record whose concepts differ from its line, and returns every line
+no record kept in its cell consumed to that cell's queue. ADR `research/e1-evaluation-protocol`
+records the rule. `guided_arms` builds a run's BKO arms over one
 call log and one candidates file, for the evaluate command and the app alike.
 """
 
@@ -39,9 +42,10 @@ from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.errors import EvaluationError, StopRuleError
-from bko.evaluate.experiment import BKO_ARMS, Experiment
+from bko.evaluate.experiment import MESSAGES_ARMS, SKELETON_ARM, Experiment
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Origin, Seen
 from bko.evaluate.scores import Measure, Source
+from bko.evaluate.skeleton import Prescribe, Queues, prescriber
 from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
@@ -52,6 +56,7 @@ from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.generate.replay import Answers, Replay
+from bko.generate.skeleton import Skeleton, skeleton
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -97,6 +102,7 @@ class GuidedArm:
         budget: int,
         flight: Flight,
         candidates: CandidateFile | None = None,
+        prescribe: Prescribe | None = None,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
 
@@ -110,16 +116,19 @@ class GuidedArm:
                 it to the run's ceiling and idle limit, shared by every BKO arm, so an async
                 client's calls stay on the one event loop its connections are bound to.
             candidates: The run's candidates file, shared by every BKO arm; None keeps no lines.
+            prescribe: Draws each attempt's lines, one per requested record, which its calls
+                carry; None for an arm that prescribes nothing.
         """
         self.name = name
-        self.totals = Tally()
+        self._prescribe = prescribe
+        self.totals = self._tally()
         self._definition = definition
         self._knowledge = knowledge
         self._log = log
         self._budget = budget
         self._candidates = candidates
         self._flight = flight
-        self._pending = Tally()
+        self._pending = self._tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
 
@@ -137,12 +146,14 @@ class GuidedArm:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
         guidance = self._guidance(train, request.frame)
-        attempt = Attempt(train, request, self._budget * request.rows)
+        prescribing = self._prescribe is not None
+        attempt = Attempt(train, request, self._budget * request.rows, prescribing=prescribing)
         self._attempts += 1
         first = self._log.calls + 1
         outcome = "failed"
         try:
-            self._rounds(attempt, guidance, request.frame)
+            queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
+            self._rounds(attempt, guidance, request.frame, queues)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -185,7 +196,7 @@ class GuidedArm:
                 for attempt, returned, seen in self._seen
             )
         measures = self._pending.measures()
-        self._pending = Tally()
+        self._pending = self._tally()
         self._attempts = 0
         self._seen = []
         return measures
@@ -196,6 +207,9 @@ class GuidedArm:
         They are the validity rate's numerator and denominator, and every drop.
         """
         logger.info("validity arm=%s %s", self.name, self.totals.line())
+
+    def _tally(self) -> Tally:
+        return Attempt.tally_for(prescribing=self._prescribe is not None)
 
     def _guidance(self, train: pd.DataFrame, frame: FrameSpec) -> dict[Cell, Guidance]:
         known = self._knowledge
@@ -213,7 +227,11 @@ class GuidedArm:
         )
 
     def _rounds(
-        self, attempt: Attempt, guidance: Mapping[Cell, Guidance], frame: FrameSpec
+        self,
+        attempt: Attempt,
+        guidance: Mapping[Cell, Guidance],
+        frame: FrameSpec,
+        queues: Queues | None,
     ) -> None:
         per_call = self._log.settings.per_call
         while short := attempt.short():
@@ -229,18 +247,27 @@ class GuidedArm:
                 cells = cells[len(wave) :]
                 # Read from committed state: the cells of one wave cannot change each other's.
                 rows = {cell: attempt.short().get(cell, 0) for cell in wave}
+                # Lines are taken in plan order, so every in-flight count asks the same calls.
                 planned = [
-                    Planned(guidance[cell], min(per_call, count - start))
+                    self._planned(guidance[cell], min(per_call, count - start), frame, queues)
                     for cell, count in rows.items()
                     for start in range(0, count, per_call)
                 ]
                 if not planned:
                     continue
-                commit = _committer(attempt, [item.guidance.cell for item in planned])
+                commit = _committer(attempt, planned, queues)
                 try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
                     raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
+
+    def _planned(
+        self, guidance: Guidance, rows: int, frame: FrameSpec, queues: Queues | None
+    ) -> Planned:
+        if queues is None:
+            return Planned(guidance, rows)
+        lines = queues.take(guidance.cell, rows)
+        return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
 
 
 def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:
@@ -256,26 +283,37 @@ def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell
     return wave
 
 
-def _committer(attempt: Attempt, plan: Sequence[Cell]) -> Callable[[Batch], None]:
+def _committer(
+    attempt: Attempt, planned: Sequence[Planned], queues: Queues | None
+) -> Callable[[Batch], None]:
     """Take a wave's batches, given in call order, refusing a row kept in a later group's cell.
 
     Args:
         attempt: The attempt the wave fills.
-        plan: Each planned call's cell, in plan order; a group is one cell's calls.
+        planned: Each planned call, in plan order; a group is one cell's calls.
+        queues: The attempt's lines not yet consumed, None for an arm that prescribes nothing;
+            each call's lines no record kept in its cell consumed go back to its cell's queue.
 
     Returns:
         The callable that takes each batch. It raises `WaveError` if a batch keeps a row in a
         cell a later group of the wave asked for, so a one-call-at-a-time run would have asked
         that group differently.
     """
+    plan = [item.guidance.cell for item in planned]
     groups = list(dict.fromkeys(plan))
     taken: list[Batch] = []
 
     def commit(batch: Batch) -> None:
         first = batch.index - len(taken)
+        lines: Skeleton | None = planned[len(taken)].skeleton
         taken.append(batch)
         before = attempt.held()
-        attempt.take(batch)
+        kept = attempt.take(batch, skeleton=lines)
+        if queues is not None and lines is not None:
+            queues.give_back(
+                batch.cell,
+                (line for at, line in enumerate(lines.lines) if kept.get(at) != batch.cell),
+            )
         after = attempt.held()
         for cell in groups[groups.index(batch.cell) + 1 :]:
             if after.get(cell, 0) > before.get(cell, 0):
@@ -389,12 +427,13 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         arms = {
             name: GuidedArm(
                 name,
-                BKO_ARMS[name],
+                MESSAGES_ARMS[name],
                 knowledge,
                 log=call_log,
                 budget=experiment.budget,
                 flight=flight,
                 candidates=kept,
+                prescribe=prescriber(knowledge) if name == SKELETON_ARM else None,
             )
             for name in names
         }

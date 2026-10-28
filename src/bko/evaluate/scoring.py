@@ -24,7 +24,7 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import BKO_ARMS, DIRECT_ARM, NamedRun
+from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS, NamedRun
 from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.provenance import log_experiment
@@ -81,7 +81,9 @@ def score(args: argparse.Namespace, context: Context) -> str:
 def _arms(named: NamedRun, context: Context) -> tuple[list[str], bool]:
     """The BKO arms the run builds, and whether it builds the direct arm."""
     experiment = named.experiment
-    guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
+    guided = [
+        name for name in experiment.arms if name in MESSAGES_ARMS and name not in context.arms
+    ]
     return guided, DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
 
 

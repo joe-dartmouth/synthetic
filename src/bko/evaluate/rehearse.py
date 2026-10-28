@@ -4,7 +4,9 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked. Its
+none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked. A
+prescribing call's records each show exactly the concepts its record line names, by the run's field
+rows (`bko.generate.skeleton`), so a rehearsal drops none for concepts. Its
 records are in the run's frame (`bko.evaluate.data.Data`), so it refuses a call for another frame,
 raising `GenerationError` so the call log's `error` line keeps the reason. Its spend is a wiring
 check, not an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
@@ -13,6 +15,7 @@ recomputed.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -28,6 +31,9 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
+from bko.generate.prompt import NO_FINDING
+from bko.generate.skeleton import Named, skeleton
+from bko.ontology.schema import AtLeast, FieldMapping, shown
 
 
 INPUT_PER_RECORD: Final = 301  # e1-4 Runs row: 23287576 / 77487
@@ -42,6 +48,9 @@ PROMPT: Final = re.compile(
     r"age (?P<low>\d+(?:\.\d+)?) to (?P<high>\d+(?:\.\d+)?) years\."
 )
 """The first sentence of every user turn `bko.generate.prompt.render` writes, at every level."""
+
+RECORD_LINE: Final = re.compile(r"^Record (?P<number>\d+): (?P<labels>.*)$", re.MULTILINE)
+"""A prescribing user turn's line for one record: its number from 1, then its concepts' labels."""
 
 STEPS: Final = {"age": 11, "trestbps": 7, "chol": 13, "thalach": 11, "oldpeak": 7}
 """Each of UCI's measured fields' stride through its safe values, so successive records differ."""
@@ -137,6 +146,7 @@ class CannedSend:
         self._real = frozenset(
             data.records.loc[:, list(frame.columns)].itertuples(index=False, name=None)
         )
+        self._named = {one.label: one for one in skeleton((), data.field_rows, frame=frame).named}
         self._model = settings.model
         self._input, self._output = per_record
         self.calls = 0
@@ -173,7 +183,11 @@ class CannedSend:
         if ages[0] > ages[1]:
             msg = f"no age of {found['low']} to {found['high']} lies inside every training range"
             raise EvaluationError(msg)
-        batch = [self._next(call.sex, call.label, ages) for _ in range(rows)]
+        lines = self._lines(call.user, rows)
+        batch = [
+            self._next(call.sex, call.label, ages, None if lines is None else lines[position])
+            for position in range(rows)
+        ]
         self.calls += 1
         text = json.dumps({"records": batch})
         return Reply(
@@ -195,15 +209,94 @@ class CannedSend:
             attempts=1,
         )
 
-    def _next(self, sex: int, label: int, ages: tuple[int, int]) -> dict[str, int | float]:
+    def _lines(self, user: str, rows: int) -> list[tuple[Named, ...]] | None:
+        """Each record line's named concepts, or None for a call that prescribes none.
+
+        Raises:
+            GenerationError: If the lines are not numbered 1 to `rows` or name an unknown label.
+        """
+        found = list(RECORD_LINE.finditer(user))
+        if not found:
+            return None
+        if [int(line["number"]) for line in found] != list(range(1, rows + 1)):
+            msg = f"the user turn's record lines are not numbered 1 to {rows}"
+            raise GenerationError(msg)
+        lines: list[tuple[Named, ...]] = []
+        for line in found:
+            labels = [] if line["labels"] == NO_FINDING else line["labels"].split("; ")
+            if stray := sorted(set(labels) - self._named.keys()):
+                msg = f"record {line['number']} names {stray}, which no field row of the run maps"
+                raise GenerationError(msg)
+            lines.append(tuple(self._named[text] for text in labels))
+        return lines
+
+    def _next(
+        self,
+        sex: int,
+        label: int,
+        ages: tuple[int, int],
+        line: tuple[Named, ...] | None = None,
+    ) -> dict[str, int | float]:
         columns = self._frame.columns
         for _ in range(SKIPS):
             item = self._record(self.records, sex, label, ages)
+            if line is not None:
+                item = self._shaped(item, line)
             self.records += 1
             if tuple(item[name] for name in columns) not in self._real:
                 return item
         msg = f"{SKIPS} canned records in a row equal real records"
         raise EvaluationError(msg)
+
+    def _shaped(
+        self, record: dict[str, int | float], line: tuple[Named, ...]
+    ) -> dict[str, int | float]:
+        """`record` with each named concept's fields set so it shows exactly `line`'s concepts.
+
+        Each group of fields the named concepts' rows join is searched apart, the record's own
+        values first, so a field changes only when its concepts need it to.
+
+        Raises:
+            GenerationError: If no values on the safe ranges and codebooks show `line` exactly.
+        """
+        out = dict(record)
+        wanted = frozenset(one.concept for one in line)
+        for fields, rows in _groups(tuple(self._named.values())):
+            choices = [self._choices(name, rows, out[name]) for name in fields]
+            target = wanted & {row.concept for row in rows}
+            for values in itertools.product(*choices):
+                trial = {**out, **dict(zip(fields, values, strict=True))}
+                if shown(trial, rows) == target:
+                    out = trial
+                    break
+            else:
+                msg = f"no canned value of {', '.join(fields)} shows exactly {sorted(target)}"
+                raise GenerationError(msg)
+        return out
+
+    def _choices(self, name: str, rows: Sequence[FieldMapping], value: float) -> list[int | float]:
+        """`value` first, then each value of `name` a row's clause can tell apart.
+
+        The cell's fields, age, sex and the label, keep `value`, so the record stays in its cell.
+        """
+        frame = self._frame
+        if name in {"age", "sex", frame.label}:
+            return [value]
+        if name in frame.categorical:
+            return [value, *(code for code in sorted(frame.codebook[name]) if code != value)]
+        first, last, scale = self._grids[name]
+        limits = {
+            clause.value
+            for row in rows
+            for clause in row.when
+            if isinstance(clause, AtLeast) and clause.field == name
+        }
+        values = [first, last]
+        for limit in sorted(limits):
+            at = min(max(math.ceil(limit * scale - 1e-9), first), last)
+            values += [at, max(at - 1, first)]
+        scaled = [step / scale if scale > 1 else step for step in values]
+        return [value, *dict.fromkeys(item for item in scaled if item != value)]
 
     def _record(
         self, n: int, sex: int, label: int, ages: tuple[int, int]
@@ -220,3 +313,21 @@ class CannedSend:
             values[name] = codes[n // pace % len(codes)]
         values["sex"], values[frame.label] = sex, label
         return {name: values[name] for name in frame.columns}
+
+
+def _groups(named: Sequence[Named]) -> list[tuple[tuple[str, ...], tuple[FieldMapping, ...]]]:
+    """The fields the named concepts' rows join, each with every row reading one of them.
+
+    Two fields join when one concept's rows read both; each group's fields are sorted by name,
+    and its rows follow the concepts' order.
+    """
+    groups: list[tuple[set[str], list[FieldMapping]]] = []
+    for one in named:
+        fields = {clause.field for row in one.states for clause in row.when}
+        joined = [group for group in groups if group[0] & fields]
+        merged = (
+            set().union(fields, *(group[0] for group in joined)),
+            [row for group in joined for row in group[1]] + list(one.states),
+        )
+        groups = [group for group in groups if group not in joined] + [merged]
+    return [(tuple(sorted(fields)), tuple(rows)) for fields, rows in groups]
