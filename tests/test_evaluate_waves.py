@@ -27,6 +27,8 @@ from tests._validate_fixtures import PLANTED, planted
 
 
 GOLDEN: Final = Path(__file__).parent / "golden" / "waves"
+FILES: Final = ("scores.csv", "candidates.jsonl", "calls.jsonl")
+"""The golden files, in the order `_run` returns their bytes."""
 
 WAVES: Final = dataclasses.replace(REPLICAS, holdout_seeds=(0, 1, 2))
 """Every BKO arm filling its gap and a replica, on three holdouts."""
@@ -36,8 +38,8 @@ ASK: Final = re.compile(r"Write exactly (\d+) records .*?, age (\d+) to (\d+) ye
 type Records = list[object]
 type Edit = Callable[[Call, Records], Records]
 
-VOLATILE: Final = frozenset({"at", "started", "ended", "in_flight"})
-"""Call log keys that vary from run to run, or with how many calls are in flight."""
+VOLATILE: Final = frozenset({"at", "started", "ended", "in_flight", "anthropic"})
+"""Call log keys that vary from run to run, with how many calls are in flight, or with the SDK."""
 
 KINDS: Final = ("run", "request", "reply", "error", "end")
 
@@ -109,7 +111,7 @@ class WaveSend:
     """
 
     def __init__(self) -> None:
-        """Start at call 1."""
+        """Start with no call made."""
         self.calls: list[Call] = []
 
     def __call__(self, call: Call) -> Reply:
@@ -121,12 +123,13 @@ class WaveSend:
         return reply(records if edit is None else edit(call, records))
 
 
-def _sort_key(line: Mapping[str, object]) -> tuple[float, int]:
+def _sort_key(line: Mapping[str, object]) -> tuple[int, int, str]:
+    """Call, then kind, then the line itself, so no tie falls back to file order."""
     kind = str(line["kind"])
     default = -1 if kind == "run" else sys.maxsize
     call = line.get("call", default)
     assert isinstance(call, int)
-    return call, KINDS.index(kind)
+    return call, KINDS.index(kind), json.dumps(line, sort_keys=True)
 
 
 def _normalised(log: Path) -> bytes:
@@ -154,7 +157,6 @@ def _run(tmp_path: Path, *, in_flight: int | None) -> tuple[bytes, bytes, bytes]
 
 
 def test_the_harness_matches_its_golden(tmp_path: Path) -> None:
-    scores, candidates, calls = _run(tmp_path, in_flight=1)
-    assert scores == (GOLDEN / "scores.csv").read_bytes()
-    assert candidates == (GOLDEN / "candidates.jsonl").read_bytes()
-    assert calls == (GOLDEN / "calls.jsonl").read_bytes()
+    made = dict(zip(FILES, _run(tmp_path, in_flight=1), strict=True))
+    differ = [name for name, data in made.items() if data != (GOLDEN / name).read_bytes()]
+    assert differ == []

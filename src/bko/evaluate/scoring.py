@@ -69,7 +69,7 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
     """Refuse flags the run's arms cannot use, before any download or file is made.
 
     Raises:
-        EvaluationError: As the module's exit code 2 lists.
+        EvaluationError: As `bko.evaluate.__main__`'s exit code 2 lists.
         FileExistsError: If the call log or candidates file exists.
     """
     if guided and args.log is None:

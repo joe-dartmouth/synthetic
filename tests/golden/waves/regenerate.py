@@ -9,13 +9,18 @@ from pathlib import Path
 
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parents[2]))
-
-from tests.test_evaluate_waves import _run  # ruff: ignore[module-import-not-at-top-of-file]
 
 
-with tempfile.TemporaryDirectory() as tmp:
-    scores, candidates, calls = _run(Path(tmp), in_flight=1)
-(HERE / "scores.csv").write_bytes(scores)
-(HERE / "candidates.jsonl").write_bytes(candidates)
-(HERE / "calls.jsonl").write_bytes(calls)
+def main() -> None:
+    """Run the harness at in-flight 1 and write each golden file beside this script."""
+    sys.path.insert(0, str(HERE.parents[2]))
+    from tests.test_evaluate_waves import FILES, _run
+
+    with tempfile.TemporaryDirectory() as tmp:
+        made = _run(Path(tmp), in_flight=1)
+    for name, data in zip(FILES, made, strict=True):
+        (HERE / name).write_bytes(data)
+
+
+if __name__ == "__main__":
+    main()

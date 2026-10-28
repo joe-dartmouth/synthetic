@@ -9,7 +9,7 @@ import dataclasses
 from pathlib import Path
 from typing import Final
 
-from bko.evaluate.__main__ import Context
+from bko.evaluate.context import Context
 from bko.generate.messages import Reply, Send
 from tests._datasets_fixtures import pin
 from tests._evaluate_fixtures import FAST_ARMS, SMALL
