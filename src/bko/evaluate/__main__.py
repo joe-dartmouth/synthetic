@@ -86,21 +86,16 @@ def main(
 
     Returns:
         0 done, 2 the command could not run, 3 an input contradicts its contract; `supervise`
-        returns its last segment's exit code. Any other exception propagates, so the process
-        exits 1 with its traceback.
+        returns its last segment's exit code, 128 plus the signal's number for a child a signal
+        killed, or 2 when it cannot run or a resume cannot. Any other exception propagates, so the
+        process exits 1 with its traceback.
     """
     context = context or Context()
     args = _parser().parse_args(argv)
     sink = out or sys.stdout
-    if args.command == "supervise":
-        return _supervise(args, context)
     try:
-        if args.command == "launch":
-            sink.write(_launch(args, context))
-            return 0
-        if args.command == "compare":
-            _compare(args, context, sink)
-            return 0
+        if args.command != "score":
+            return _other(args, context, sink)
         text = score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
@@ -110,6 +105,17 @@ def main(
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
     sink.write(text)
+    return 0
+
+
+def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
+    """Run `supervise`, `launch` or `compare`, writing what it prints to `sink`; return its code."""
+    if args.command == "supervise":
+        return _supervise(args, context)
+    if args.command == "launch":
+        sink.write(_launch(args, context))
+    else:
+        _compare(args, context, sink)
     return 0
 
 

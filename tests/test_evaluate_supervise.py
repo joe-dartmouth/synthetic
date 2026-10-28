@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+import logging
 import os
 import re
 import shlex
@@ -589,3 +590,50 @@ def test_an_operator_signal_stops_the_run_at_the_childs_interrupted_end_line(tmp
         ),
         "supervise done segments=1 last=e1-4 outcome=operator exit=130",
     ]
+
+
+def test_a_resume_that_cannot_start_releases_its_folder_and_exits_two(tmp_path):
+    scripted = Segments(IDLE)
+
+    def missing(
+        command: Sequence[str], out: Path, err: Path, started: Callable[[int], None]
+    ) -> int:
+        if not scripted._ends:
+            raise FileNotFoundError(2, "No such file or directory", command[0])
+        return scripted(command, out, err, started)
+
+    (tmp_path / "e1-4").mkdir()
+    code = supervise(
+        "e1-4",
+        "e1",
+        root=tmp_path,
+        retries=5,
+        segment=missing,
+        sleep=lambda seconds: None,
+        power=lambda: False,
+        platform="darwin",
+        now=lambda: NOW,
+        settings=SETTINGS,
+    )
+    assert code == 2
+    assert sorted(path.name for path in (tmp_path / "e1-4-resume-1").iterdir()) == ["launch.log"]
+    assert _record(tmp_path)[-2:] == [
+        ("supervise error=FileNotFoundError: [Errno 2] No such file or directory: 'caffeinate'"),
+        "supervise done segments=2 last=e1-4-resume-1 outcome=error exit=2",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["supervise", "e1-4", "e1"], "launch.log"),
+        (["supervise", "e1-4", "e9"], "no run named 'e9'"),
+    ],
+    ids=["no-folder", "unknown-run"],
+)
+def test_the_command_maps_a_supervisor_that_cannot_run_to_two(tmp_path, caplog, argv, message):
+    context = Context(power=lambda: False, segment=Segments(), sleep=pytest.fail)
+    with caplog.at_level(logging.ERROR):
+        code = main([*argv, "--runs-dir", str(tmp_path)], context=context, out=io.StringIO())
+    assert code == 2
+    assert message in caplog.text

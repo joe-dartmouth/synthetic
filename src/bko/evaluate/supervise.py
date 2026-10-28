@@ -45,6 +45,7 @@ from bko.evaluate.launch import (
     check_folder,
     claim,
     on_battery,
+    release,
     resumable,
     score_command,
     utc_now,
@@ -78,12 +79,13 @@ REASONS: Final = (
     "name",
     "operator",
     "refused",
+    "error",
 )
 """Why a segment's line or the `done` line ends as it does: the run completed; the projection or
 the ceiling stopped it; a resume is scheduled; the resumes ran out; the failure is not the API's,
 or the log is missing or unreadable; the child exited on its own with no `end` line; a rehearsal is
 never resumed; the run id's resume folder name is not a `RUN_ID`; the operator stopped the run; a
-resume's checks refused it (the `done` line alone)."""
+resume's checks refused it, or a segment could not start (these two on the `done` line alone)."""
 
 LINE: Final = (
     "supervise segment=%d folder=%s code=%d status=%s stop=%s retryable=%s rate_limited=%s "
@@ -339,13 +341,18 @@ class _Plan:
 def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
     """Run `plan`'s segments, the first resuming `resume` at `in_flight`, as `supervise`."""
     folder, source, flight, k, reading = plan.first, resume, in_flight, 0, "unchecked"
+    claimed: tuple[Path, ...] = ()
     plan.write(f"supervise pid={os.getpid()}")
     while True:
         command = plan.command(folder, source, flight)
-        if k > 0:
-            _opened(plan, folder, command, f"segment={k} of={plan.run_id} resume={source}", reading)
-        started = partial(_started, plan, k)
-        code = plan.segment(command, folder / "scores.csv", folder / "scores.log", started)
+        try:
+            if k > 0:
+                _opened(plan, folder, command, f"segment={k} resume={source}", reading)
+            code = plan.segment(
+                command, folder / "scores.csv", folder / "scores.log", partial(_started, plan, k)
+            )
+        except OSError as exc:
+            return _failed(plan, k, folder, exc, claimed)
         plan.operator.ended()
         found = outcome(folder / "calls.jsonl", code)
         why = plan.reason(k, found)
@@ -363,7 +370,7 @@ def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
             return plan.done(k, folder, "operator", exit_code(code))
         name = f"{plan.run_id}-resume-{k + 1}"
         try:
-            reading = _claim(plan, name, folder / "calls.jsonl")
+            reading, claimed = _claim(plan, name, folder / "calls.jsonl")
         except EvaluationError as exc:
             reason = " ".join(str(exc).split())
             plan.write(f"supervise resume={name} refused={reason}", level=logging.ERROR)
@@ -373,8 +380,11 @@ def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
         plan.write(NEXT % (name, flight or "default", watch))
 
 
-def _claim(plan: _Plan, name: str, source: Path) -> str:
-    """Check `source` and the resume folder `name`, then claim it; return its power reading.
+def _claim(plan: _Plan, name: str, source: Path) -> tuple[str, tuple[Path, Path]]:
+    """Check `source` and the resume folder `name`, then claim it.
+
+    Returns:
+        Its power reading, and the files claimed, for `release`.
 
     Nothing is claimed until every check passed, so a refused resume leaves no folder claimed.
 
@@ -392,17 +402,37 @@ def _claim(plan: _Plan, name: str, source: Path) -> str:
         platform=plan.platform,
     )
     resumable(source, plan.settings)
-    claim(folder)
-    return "unchecked" if battery is None else "mains"
+    return "unchecked" if battery is None else "mains", claim(folder)
+
+
+def _failed(plan: _Plan, k: int, folder: Path, exc: OSError, claimed: Sequence[Path]) -> int:
+    """Release segment `k`'s `claimed` files, which it never wrote, and write why it failed.
+
+    A `launch.log` that cannot take the lines is logged instead.
+
+    Returns:
+        2, the exit code of a command that could not run.
+    """
+    release(claimed)
+    reason = " ".join(f"{type(exc).__name__}: {exc}".split())
+    try:
+        plan.write(f"supervise error={reason}", level=logging.ERROR)
+        return plan.done(k, folder, "error", EvaluationError.exit_code)
+    except OSError as unwritten:
+        logger.warning(
+            "supervise error unrecorded error=%s: %s", type(unwritten).__name__, unwritten
+        )
+    return EvaluationError.exit_code
 
 
 def _opened(plan: _Plan, folder: Path, command: Sequence[str], what: str, reading: str) -> None:
     """Append a resume's `launched`, `power=`, `awake=` and `command=` lines to its `launch.log`."""
+    segment, resume = what.split(" ", 1)
     stamp = plan.now().strftime(STAMP)
     append(
         folder / "launch.log",
         [
-            f"launched {stamp} run={plan.run} {what}",
+            f"launched {stamp} run={plan.run} {segment} of={plan.run_id} {resume}",
             f"power={reading}",
             f"awake={'caffeinate' if awake(plan.platform) else 'none'}",
             f"command={shlex.join(command)}",
@@ -411,9 +441,17 @@ def _opened(plan: _Plan, folder: Path, command: Sequence[str], what: str, readin
 
 
 def _started(plan: _Plan, k: int, pid: int) -> None:
-    """Tell the operator's stop segment `k`'s child `pid` and write its `child_pid=` line."""
+    """Tell the operator's stop segment `k`'s child `pid` and write its `child_pid=` line.
+
+    The child runs already, so a line that cannot be written is logged as a WARNING instead.
+    """
     plan.operator.started(pid)
-    plan.write(f"supervise segment={k} child_pid={pid}")
+    try:
+        plan.write(f"supervise segment={k} child_pid={pid}")
+    except OSError as exc:
+        logger.warning(
+            "supervise child_pid=%d unrecorded error=%s: %s", pid, type(exc).__name__, exc
+        )
 
 
 def _fields(found: Outcome) -> tuple[str, str, str, str]:
