@@ -41,6 +41,11 @@ PLAN = (Planned(GUIDANCE, 1), Planned(OTHER_GUIDANCE, 2), Planned(GUIDANCE, 3))
 """Three calls asking 1, 2 and 3 records, so each reply and request line names its call."""
 
 
+STEP: Final = 0.3
+"""The first call's delay in seconds under `Delayed`; call n's is `STEP / n`, so the replies of
+calls 1 to 3 land at least 50 ms apart, last first."""
+
+
 class Delayed:
     """An async send answering each call in full after a delay that shrinks with its number.
 
@@ -62,7 +67,7 @@ class Delayed:
         number = len(self.calls)
 
         async def land() -> Reply:
-            await asyncio.sleep(0.03 / number)
+            await asyncio.sleep(STEP / number)
             self.landed.append(number)
             if number in self._fail:
                 raise self._fail[number]

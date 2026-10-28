@@ -25,6 +25,8 @@ from typing import Final
 import pytest
 
 from bko.evaluate.__main__ import main
+from bko.evaluate.attempts import Attempt
+from bko.generate.calls import Batch
 from bko.generate.messages import Call, Reply
 from tests._evaluate_bko_fixtures import REPLICAS, candidates_for, context, score_argv
 from tests._generate_fixtures import reply
@@ -136,20 +138,24 @@ class LateSend:
 
     Attributes:
         calls: Every call made, in dispatch order.
+        landed: Each call's number, counted from 1 at dispatch, in the order its reply landed.
     """
 
     def __init__(self, inner: WaveSend | None = None) -> None:
         """Answer through `inner`, a fresh `WaveSend` when None."""
         self._inner = inner or WaveSend()
         self.calls = self._inner.calls
+        self.landed: list[int] = []
 
     def __call__(self, call: Call) -> Awaitable[Reply]:
         """Number `call` and build its reply now; return them after its delay."""
         answer = self._inner(call)
-        delay = random.Random(len(self.calls)).uniform(0, 0.02)  # ruff: ignore[suspicious-non-cryptographic-random-usage]
+        number = len(self.calls)
+        delay = random.Random(number).uniform(0, 0.02)  # ruff: ignore[suspicious-non-cryptographic-random-usage]
 
         async def land() -> Reply:
             await asyncio.sleep(delay)
+            self.landed.append(number)
             return answer
 
         return land()
@@ -223,6 +229,9 @@ def test_the_harness_matches_its_golden(tmp_path: Path) -> None:
 def test_any_in_flight_matches_the_golden(tmp_path: Path, in_flight: int) -> None:
     send = LateSend()
     assert _differ(_run(tmp_path, in_flight=in_flight, send=send)) == []
+    if in_flight > 2:
+        # Replies landed out of call order, so the golden pins a concurrent run, not a serial one.
+        assert send.landed != sorted(send.landed)
 
 
 ANSWERED: Final = frozenset({"replay", "live_usd"})
@@ -253,7 +262,15 @@ def _never(call: Call) -> Reply:
     raise AssertionError(call)
 
 
-def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog) -> None:
+def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog, monkeypatch) -> None:
+    taken: list[int] = []
+    take = Attempt.take
+
+    def spied(attempt: Attempt, batch: Batch) -> None:
+        taken.append(batch.index)
+        take(attempt, batch)
+
+    monkeypatch.setattr(Attempt, "take", spied)
     built, _ = context(CrossingSend())
     built = dataclasses.replace(built, experiment=WAVES)
     log = tmp_path / "calls.jsonl"
@@ -263,3 +280,25 @@ def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog) -> Non
     assert "call 15 " in caplog.text
     end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
     assert end["status"] == "failed"
+    # Call 15's batch is the last taken: the wave's later batches are never committed.
+    assert taken[-1] == 15
+    assert sorted(taken) == list(range(1, 16))
+
+
+def test_score_holds_each_call_to_the_experiments_idle_limit(tmp_path: Path, caplog) -> None:
+    def stalled(call: Call) -> Awaitable[Reply]:
+        async def never() -> Reply:
+            await asyncio.Event().wait()
+            raise AssertionError(call)
+
+        return never()
+
+    built, _ = context(stalled)
+    built = dataclasses.replace(built, experiment=dataclasses.replace(WAVES, idle_limit=0.5))
+    log = tmp_path / "calls.jsonl"
+    caplog.set_level(logging.WARNING)
+    code = main(score_argv(log, tmp_path, "--in-flight", "2"), context=built, out=io.StringIO())
+    assert code == 2
+    end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+    assert end["stop"] == "idle"
+    assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.messages
