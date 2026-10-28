@@ -37,19 +37,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## docs
-
-- **`cleanup:docs/evidence-absolute-paths`: E1's Runs publishes absolute local paths.**
-  `docs/EVIDENCE.md`'s E1 Runs row (line 40) names `/Users/jlaws/Workspace/synthetic-replay`,
-  `/Users/jlaws/Workspace/synthetic/.venv/bin/python` and `/Users/jlaws/Workspace/synthetic/data`,
-  where later entries write `<repo>` and `<worktree>`. Evidence: `grep -n 'Users/jlaws'
-  docs/EVIDENCE.md` matches that row. *Filed 2026-10-28 by the review of PR #52.*
-  **Why deferred.** It is an E1 record outside the change that found it, which edits G4 and a task
-  unit.
-  **What discharges it:** E1's Runs row writes `<repo>` and `<worktree>` for those paths, and
-  `grep -n 'Users/jlaws' docs/EVIDENCE.md` matches nothing.
-  **Trigger:** the next edit of E1's Runs row.
-
 ## evaluate
 
 - **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
@@ -134,10 +121,21 @@ links to where its blocker is tracked.
   name a run. Evidence: `bko.evaluate.compare` logs the header as `"compare candidate=%s dry_run=%s
   scores_sha256=%s"`, with the candidate arm, the dry-run flag and the scores' sha256 only. *Filed
   2026-10-28 by the diff review of PR #53.*
-  **Why deferred.** The unit that set `SETTINGS` to `summary` changed `SETTINGS` and its pins only,
-  and `bko.evaluate.compare` was outside its scope.
+  **Why deferred.** `bko.evaluate.compare` lies outside the change that set `SETTINGS` to
+  `summary`, which touches `SETTINGS` and its pins only.
   **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
   **Trigger:** the next change to `bko.evaluate.compare`.
+
+- **`cleanup:evaluate/rehearsal-tokens-from-judged-run`: the rehearsal bills `e1-3`'s tokens per
+  record, not the judged run's.** `INPUT_PER_RECORD` 368 and `OUTPUT_PER_RECORD` 197 in
+  `bko.evaluate.rehearse` come from `e1-3`'s Runs row (34843870 and 18665554 over 94727 records
+  asked); the judged run `e1-4` bills 300.535 input and 211.162 output tokens per record asked
+  (`docs/EVIDENCE.md`, E1's Runs row). *Filed 2026-10-28 by the evidence review of PR #53.*
+  **Why deferred.** The constants only scale a wiring check's spend and projection, and
+  `bko.evaluate.rehearse` is code outside the evidence review's documents.
+  **What discharges it:** the two constants come from the judged run `e1-4`, and the rehearsal's
+  comments and ADR `research/e1-evaluation-protocol` name that run.
+  **Trigger:** the next change to `bko.evaluate.rehearse`.
 
 ## gaps
 
