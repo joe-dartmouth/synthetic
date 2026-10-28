@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import signal
 import time
 from functools import partial
@@ -18,7 +19,7 @@ from bko.generate.calls import request
 from bko.generate.errors import GenerationError, IdleError
 from bko.generate.flight import OVERHEAD_TOKENS, Flight, Limits, Planned, _reservation
 from bko.generate.log import CallLog
-from bko.generate.messages import ATTEMPTS, CALL_NUMBER, SETTINGS, Call, Reply
+from bko.generate.messages import ATTEMPTS, CALL_NUMBER, SETTINGS, Call, Reply, Usage
 from bko.generate.spend import PRICES, cost
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
@@ -48,10 +49,13 @@ class Delayed:
         landed: The call numbers in the order their replies landed.
     """
 
-    def __init__(self, *, fail: dict[int, BaseException] | None = None) -> None:
+    def __init__(
+        self, *, fail: dict[int, BaseException] | None = None, usage: Usage | None = None
+    ) -> None:
         self.calls: list[Call] = []
         self.landed: list[int] = []
         self._fail = fail or {}
+        self._usage = usage
 
     def __call__(self, call: Call):
         self.calls.append(call)
@@ -62,7 +66,7 @@ class Delayed:
             self.landed.append(number)
             if number in self._fail:
                 raise self._fail[number]
-            return reply([{"age": 40}] * _asked(call))
+            return reply([{"age": 40}] * _asked(call), usage=self._usage)
 
         return land()
 
@@ -115,13 +119,15 @@ def test_a_failure_raises_the_lowest_failing_index(tmp_path):
     assert [line["call"] for line in lines if line["kind"] == "reply"] == [1]
 
 
-def test_a_failure_at_in_flight_1_sends_no_later_call(tmp_path):
+def test_a_failure_at_in_flight_1_sends_no_later_call(tmp_path, caplog):
     send = Delayed(fail={1: GenerationError("no response")})
     log = _log(tmp_path)
+    caplog.set_level(logging.INFO)
     with pytest.raises(GenerationError), log:
         Flight(send, log, Limits(in_flight=1, idle=None), spendable=lambda: None).wave(PLAN)
     assert len(send.calls) == 1
     assert [line["kind"] for line in _lines(log)] == ["run", "request", "error", "end"]
+    assert [m for m in caplog.messages if m.startswith("halt ")] == ["halt call=2 unsent=2"]
 
 
 def test_a_keyboard_interrupt_mid_wave_ends_interrupted(tmp_path):
@@ -191,10 +197,15 @@ def test_a_skeleton_is_refused_until_it_is_typed(tmp_path):
 SPENT: Final = cost(reply([]).usage, SETTINGS.model)
 """What each of `Delayed`'s replies costs."""
 
+FULL: Final = Usage(1000, SETTINGS.max_tokens, 0, 0)
+"""A reply's usage at its whole output budget, which its call's reservation still covers."""
+
+FULL_USD: Final = cost(FULL, SETTINGS.model)
+
 
 def _ceiling_run(tmp_path, in_flight: int, ceiling: float, caplog) -> tuple[Delayed, list[str]]:
     """Send `PLAN` under `ceiling` at `in_flight`; return the send and the stop rule lines."""
-    send = Delayed()
+    send = Delayed(usage=FULL)
     log = CallLog(tmp_path / f"calls-{in_flight}.jsonl", SETTINGS, now=lambda: FIXED_NOW)
     caplog.clear()
     limits = Limits(in_flight=in_flight, idle=None)
@@ -210,10 +221,19 @@ def _ceiling_run(tmp_path, in_flight: int, ceiling: float, caplog) -> tuple[Dela
 
 def test_a_mid_wave_ceiling_stops_at_the_in_flight_1_call(tmp_path, caplog):
     caplog.set_level(logging.INFO)
-    one, stop_one = _ceiling_run(tmp_path, 1, 2 * SPENT, caplog)
-    many, stop_many = _ceiling_run(tmp_path, 3, 2 * SPENT, caplog)
+    ceiling = 2 * FULL_USD
+    assert f"{ceiling:.2f}" != "0.00"
+    one, stop_one = _ceiling_run(tmp_path, 1, ceiling, caplog)
+    many, stop_many = _ceiling_run(tmp_path, 3, ceiling, caplog)
     assert len(one.calls) == len(many.calls) == 2
-    assert stop_many == stop_one == [f"stop rule=ceiling usd={2 * SPENT:.4f} ceiling=0.00"]
+    assert stop_many == stop_one == [f"stop rule=ceiling usd={ceiling:.4f} ceiling={ceiling:.2f}"]
+    waits = [m for m in caplog.messages if m.startswith("ceiling wait ")]
+    assert len(waits) == 1
+    assert re.fullmatch(
+        rf"ceiling wait call=3 reserved_usd=\d+\.\d{{4}} in_flight=2 usd=0\.0000 "
+        rf"ceiling={ceiling:.2f}",
+        waits[0],
+    ), waits
     lines = [json.loads(line) for line in (tmp_path / "calls-3.jsonl").read_text().splitlines()]
     assert lines[-1]["calls"] == 2
     assert lines[-1]["stop"] == "ceiling"

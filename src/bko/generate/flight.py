@@ -296,7 +296,7 @@ class Flight:
 
     async def _dispatch(self, planned: Sequence[Planned], frame: FrameSpec, wave: _Wave) -> None:
         """Request each planned call in order as a slot frees, until one fails; await them all."""
-        for item in planned:
+        for sent, item in enumerate(planned):
             await wave.slots.acquire()
             try:
                 pending = await self._request(item, frame, wave)
@@ -305,6 +305,7 @@ class Flight:
                 raise
             if pending is None:
                 wave.slots.release()
+                logger.info("halt call=%d unsent=%d", self.log.calls + 1, len(planned) - sent)
                 break
             wave.reserved[pending.index] = _reservation(pending)
             wave.pending[pending.index] = pending
@@ -325,6 +326,14 @@ class Flight:
         """Wait for the calls in flight if the spend plus their reservations reaches the ceiling."""
         reserved = sum(wave.reserved.values())
         if reserved and self.log.usd + reserved >= self._ceiling:
+            logger.info(
+                "ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f",
+                self.log.calls + 1,
+                reserved,
+                len(wave.reserved),
+                self.log.usd,
+                self._ceiling,
+            )
             await asyncio.wait([wave.flying[index] for index in wave.reserved])
 
     async def _fly(self, pending: Pending, wave: _Wave) -> Batch:

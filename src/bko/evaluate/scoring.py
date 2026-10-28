@@ -112,10 +112,12 @@ def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
         return None
     resume = Resume(args.resume, context.send())
     logger.info(
-        "resume log=%s sha256=%s answered=%d",
+        "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
         resume.digest,
         resume.answered.calls,
+        resume.dropped,
+        resume.answered.carried_usd,
     )
     return resume
 

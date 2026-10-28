@@ -290,14 +290,18 @@ log off the runner before any replay.
   and a `versions` line (the checkout's
   commit and whether its tree is dirty, `unknown` without git, then Python, the platform, the
   evaluation stack, the SDK and the ontology parser), with `--resume` a `resume` line (`log=`,
-  `sha256=`, `answered=`) before any call, then per holdout the split line `cells` prints, one
+  `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then per holdout the split line `cells` prints, one
   `quota` line per stratum, one `arm` line per fill (a replica fill is named `<arm>-replica`) with
   the attempt, the seed, the added rows' sha256 and the method's parameters, a `retry` warning for
   each refused attempt before the last, and a `holdout` line with the progress and seconds, then the
   CSV's row count and sha256. It also logs per BKO attempt a `guided` line (outcome, seed, call
   range, records asked, candidates generated and passed, dropped for each reason, kept, the run's
-  spend), a `spend` line before each BKO call with the run's spend so far and the ceiling,
-  `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a `retry call= attempt=
+  spend), a `spend` line before each BKO call with the run's spend so far and the ceiling, a
+  `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call
+  waits for the calls in flight because their reservations reach the ceiling, a
+  `halt call=%d unsent=%d` line when a wave sends no more calls after a failure, naming the first
+  call not sent and the planned calls left, a `stop rule=idle call=%d limit_seconds=%.1f` WARNING
+  naming the lowest call the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a `retry call= attempt=
   status= retry_after=` line for each 429 or retryable status with an attempt left, the `run status=` line (`run=`,
   `level=`, `in_flight=`) and the call log's totals line (with `live_usd=`,
   `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm copied, and

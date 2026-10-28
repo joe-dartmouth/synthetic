@@ -530,7 +530,10 @@ def test_a_resumed_run_writes_the_uninterrupted_runs_bytes_and_pays_only_its_liv
     live = sum(line["usd"] for line in lines if line["kind"] == "reply" and line["call"] > 2)
     assert lines[-1]["live_usd"] == pytest.approx(live)
     assert lines[-1]["usd"] > lines[-1]["live_usd"] > 0
-    assert f"resume log={stopped} sha256={digest} answered=2" in caplog.text
+    assert (
+        f"resume log={stopped} sha256={digest} answered=2 dropped=2 carried_usd=0.0000"
+        in caplog.messages
+    )
 
 
 def test_a_resumed_runs_candidates_equal_the_uninterrupted_runs(tmp_path, caplog):

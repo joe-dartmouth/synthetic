@@ -40,13 +40,14 @@ logger = logging.getLogger(__name__)
 
 
 class _Log(NamedTuple):
-    """A call log as read: its sha256, `run` line, calls in order, `end` line and dropped spend."""
+    """A call log as read: sha256, `run` line, calls, `end` line, carried spend, dropped calls."""
 
     digest: str
     run: dict[str, Any]
     calls: tuple[tuple[dict[str, Any], dict[str, Any]], ...]
     end: dict[str, Any] | None
     carried_usd: float = 0.0
+    dropped: int = 0
 
 
 UNRESUMABLE: Final = frozenset({"projection", "ceiling"})
@@ -178,6 +179,7 @@ class Resume(Replay):
 
     Attributes:
         digest: The stopped log's sha256, which the resumed run's log records under `resume`.
+        dropped: The logged calls it dropped, to send again.
     """
 
     def __init__(self, path: Path, send: AnySend) -> None:
@@ -203,6 +205,7 @@ class Resume(Replay):
                 raise ReplayError(msg)
         self._load(log)
         self._carried = log.carried_usd
+        self.dropped = log.dropped
         self._live = send
         self._sent = False
 
@@ -241,17 +244,9 @@ def _read(path: Path, *, stopped: bool) -> _Log:
     if not lines or lines[0].get("kind") != "run" or lines[0].get("schema") != SCHEMA:
         msg = f"{path} is not a schema {SCHEMA} call log"
         raise ReplayError(msg)
-    carried = 0.0
+    carried, dropped = 0.0, 0
     if stopped:
-        # A resume of a resume keeps the whole run's spend: what its log carried, at any in-flight.
-        prior = lines[0].get("carried_usd", 0.0)
-        if isinstance(prior, int | float) and not isinstance(prior, bool):
-            carried = float(prior)
-    if stopped and _concurrent(lines[0]):
-        lines, dropped = _from_first_unanswered(lines, path)
-        carried += dropped
-    elif stopped:
-        lines = _without_unanswered_last(lines, path)
+        lines, carried, dropped = _resumable(lines, path)
     requests = _by_call(lines, {"request"}, path)
     outcomes = _by_call(lines, {"reply", "error"}, path)
     if sorted(requests) != list(range(1, len(requests) + 1)):
@@ -276,10 +271,27 @@ def _read(path: Path, *, stopped: bool) -> _Log:
         raise ReplayError(msg)
     calls = tuple((requests[index], outcomes[index]) for index in sorted(requests))
     end = lines[-1] if lines[-1].get("kind") == "end" else None
-    return _Log(digest, lines[0], calls, end, carried)
+    return _Log(digest, lines[0], calls, end, carried, dropped)
 
 
 _CALL_KINDS: Final = frozenset({"request", "reply", "error"})
+
+
+def _resumable(lines: list[dict[str, Any]], path: Path) -> tuple[list[dict[str, Any]], float, int]:
+    """A stopped log's `lines` without the calls a resume sends again, its spend and their count.
+
+    The spend is what the log itself carried, at any in-flight, so a resume of a resume keeps the
+    whole run's spend, plus the dropped calls' spend for a concurrent log.
+    """
+    prior = lines[0].get("carried_usd", 0.0)
+    carried = (
+        float(prior) if isinstance(prior, int | float) and not isinstance(prior, bool) else 0.0
+    )
+    if _concurrent(lines[0]):
+        kept, spend, dropped = _from_first_unanswered(lines, path)
+        return kept, carried + spend, dropped
+    kept, dropped = _without_unanswered_last(lines, path)
+    return kept, carried, dropped
 
 
 def _concurrent(run: Mapping[str, Any]) -> bool:
@@ -290,8 +302,8 @@ def _concurrent(run: Mapping[str, Any]) -> bool:
 
 def _from_first_unanswered(
     lines: list[dict[str, Any]], path: Path
-) -> tuple[list[dict[str, Any]], float]:
-    """`lines` without every call from the first not answered by one reply, and their spend.
+) -> tuple[list[dict[str, Any]], float, int]:
+    """`lines` without every call from the first not answered by one reply, their spend and count.
 
     Each dropped call gets one warning. The spend is the dropped calls' `reply` lines' `usd`.
     """
@@ -314,7 +326,7 @@ def _from_first_unanswered(
     )
     carried = 0.0
     if first is None:
-        return lines, carried
+        return lines, carried, 0
     dropped = [index for index in sorted(answers) if index >= first]
     for index in dropped:
         kinds = [line["kind"] for line in answers[index]]
@@ -335,11 +347,13 @@ def _from_first_unanswered(
         for line in lines
         if line.get("kind") not in _CALL_KINDS or line.get("call") not in gone
     ]
-    return kept, carried
+    return kept, carried, len(dropped)
 
 
-def _without_unanswered_last(lines: list[dict[str, Any]], path: Path) -> list[dict[str, Any]]:
-    """`lines` without the last call when its answer is not exactly one reply line."""
+def _without_unanswered_last(
+    lines: list[dict[str, Any]], path: Path
+) -> tuple[list[dict[str, Any]], int]:
+    """`lines` without the last call when its answer is not exactly one reply, and calls dropped."""
     last = max(
         (
             line["call"]
@@ -351,23 +365,24 @@ def _without_unanswered_last(lines: list[dict[str, Any]], path: Path) -> list[di
         default=None,
     )
     if last is None:
-        return lines
+        return lines, 0
     answers = [
         line["kind"]
         for line in lines
         if line.get("kind") in {"reply", "error"} and line.get("call") == last
     ]
     if answers == ["reply"]:
-        return lines
+        return lines, 0
     logger.warning(
         "resume dropped call %d of %s, whose answer lines are %s; it is sent again",
         last,
         path,
         answers or "none",
     )
-    return [
+    kept = [
         line for line in lines if line.get("kind") not in _CALL_KINDS or line.get("call") != last
     ]
+    return kept, 1
 
 
 def _lines(data: bytes, path: Path) -> list[dict[str, Any]]:
