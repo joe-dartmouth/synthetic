@@ -20,6 +20,7 @@ from bko.generate.errors import GenerationError, IdleError
 from bko.generate.flight import OVERHEAD_TOKENS, Flight, Limits, Planned, _reservation
 from bko.generate.log import CallLog
 from bko.generate.messages import ATTEMPTS, CALL_NUMBER, SETTINGS, Call, Reply, Usage
+from bko.generate.skeleton import Skeleton
 from bko.generate.spend import PRICES, cost
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
@@ -192,11 +193,13 @@ def test_limits_refuse_fewer_than_one_call_in_flight(in_flight):
         Limits(in_flight=in_flight, idle=None)
 
 
-def test_a_skeleton_is_refused_until_it_is_typed(tmp_path):
-    with pytest.raises(ValueError, match="skeleton"), _log(tmp_path) as log:
-        Flight(Delayed(), log, Limits(1, None), spendable=lambda: None).wave(
-            (Planned(GUIDANCE, 1, skeleton=object()),)
-        )
+def test_a_skeleton_that_does_not_hold_a_line_per_record_is_refused(tmp_path):
+    lines = Skeleton((), (frozenset(), frozenset()))
+    with _log(tmp_path) as log:
+        flight = Flight(Delayed(), log, Limits(1, None), spendable=lambda: None)
+        with pytest.raises(ValueError, match="2 lines for 1 records"):
+            flight.wave((Planned(GUIDANCE, 1, skeleton=lines),))
+        assert log.calls == 0
 
 
 SPENT: Final = cost(reply([]).usage, SETTINGS.model)

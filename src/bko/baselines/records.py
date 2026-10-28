@@ -12,7 +12,7 @@ from __future__ import annotations
 import enum
 import hashlib
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -30,12 +30,18 @@ INDEX_NAME: Final = "record_id"
 
 
 class Drop(enum.StrEnum):
-    """Why `check` would refuse an added row, in the order `drops` tests each reason."""
+    """Why an added row is dropped, in the order `drops` tests each reason.
+
+    `check` refuses a row for every reason but `CONCEPTS`, which holds only for a request that
+    prescribes each row's concepts (`bko.generate.skeleton`).
+    """
 
     RANGE = "range"
     """A measured value lies outside the training split's minimum and maximum."""
     CELL = "cell"
     """The row's own cell is not one the request asks for."""
+    CONCEPTS = "concepts"
+    """The row shows other concepts than the ones prescribed for its position."""
     QUOTA = "quota"
     """Its cell already holds every row the request asks of it."""
 
@@ -136,23 +142,35 @@ def drops(
     request: Request,
     *,
     held: Mapping[Stratum, int] | None = None,
+    differs: Sequence[bool] | None = None,
 ) -> tuple[Drop | None, ...]:
-    """The first reason `check` would refuse each row for, or None for a row it would keep.
+    """The first reason each row is dropped for, or None for a row kept.
 
     Rows are read in order, and a row's cell is the one its own values name under the request's
     frame. A row past its cell's quota counts the rows kept before it, `held` included. A row
-    dropped for an earlier reason uses none of the quota.
+    dropped for an earlier reason uses none of the quota. `differs` holds, per row, whether it
+    shows other concepts than its prescribed ones, tested after its cell and before the quota;
+    None prescribes nothing.
+
+    Raises:
+        ValueError: If `differs` does not hold one value per row.
     """
+    if differs is not None and len(differs) != len(rows):
+        msg = f"differs holds {len(differs)} values for {len(rows)} rows"
+        raise ValueError(msg)
     frame = request.frame
     inside = within_split(rows, train, frame).all(axis="columns").tolist()
     keys = stratum_keys(rows, request.strata, edges=frame.edges)
     taken = Counter(held or {})
+    unlike = [False] * len(rows) if differs is None else list(differs)
     reasons: list[Drop | None] = []
-    for fits, key in zip(inside, keys, strict=True):
+    for fits, key, other in zip(inside, keys, unlike, strict=True):
         if not fits:
             reasons.append(Drop.RANGE)
         elif key not in request.quota:
             reasons.append(Drop.CELL)
+        elif other:
+            reasons.append(Drop.CONCEPTS)
         elif taken[key] >= request.quota[key]:
             reasons.append(Drop.QUOTA)
         else:

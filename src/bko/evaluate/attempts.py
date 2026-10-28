@@ -38,6 +38,9 @@ DROPPED: Final[Mapping[Drop, Measure]] = MappingProxyType(
 )
 """The measure each drop reason is counted under."""
 
+COMMON: Final = (Drop.RANGE, Drop.CELL, Drop.QUOTA)
+"""The drop reasons every arm counts; a prescribing arm also counts `Drop.CONCEPTS`."""
+
 
 @dataclass(slots=True)
 class Tally:
@@ -47,11 +50,13 @@ class Tally:
         generated: Candidates validated, undecoded placeholders included.
         passed: Those that passed every check.
         dropped: Those passed then dropped, by reason.
+        reasons: The drop reasons the counts report, `COMMON` unless the arm prescribes.
     """
 
     generated: int = 0
     passed: int = 0
     dropped: Counter[Drop] = field(default_factory=Counter)
+    reasons: tuple[Drop, ...] = COMMON
 
     def add(self, other: Tally) -> None:
         """Add `other`'s counts to these."""
@@ -60,16 +65,16 @@ class Tally:
         self.dropped.update(other.dropped)
 
     def measures(self) -> dict[Measure, float]:
-        """The counts as candidate measures, every drop reason included."""
+        """The counts as candidate measures, every one of `reasons` included."""
         return {
             Measure.GENERATED: float(self.generated),
             Measure.PASSED: float(self.passed),
-            **{measure: float(self.dropped[drop]) for drop, measure in DROPPED.items()},
+            **{DROPPED[drop]: float(self.dropped[drop]) for drop in self.reasons},
         }
 
     def line(self) -> str:
         """The counts as `key=value` pairs for a log line."""
-        dropped = " ".join(f"dropped_{drop}={self.dropped[drop]}" for drop in Drop)
+        dropped = " ".join(f"dropped_{drop}={self.dropped[drop]}" for drop in self.reasons)
         return f"generated={self.generated} passed={self.passed} {dropped}"
 
 

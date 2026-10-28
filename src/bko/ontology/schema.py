@@ -9,7 +9,7 @@ but the standard library.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from bko.datasets.frames import RangeConstraint  # ruff: ignore[unused-import]  (re-exported)
@@ -73,6 +73,11 @@ class FieldMapping:
     def applies(self, record: Mapping[str, float]) -> bool:
         """Return whether every clause holds for `record`, a value per field name."""
         return all(clause.holds(record[clause.field]) for clause in self.when)
+
+
+def shown(record: Mapping[str, float], rows: Iterable[FieldMapping]) -> frozenset[str]:
+    """The concepts `record` shows: each one some row of `rows` mapping it applies to."""
+    return frozenset(row.concept for row in rows if row.applies(record))
 
 
 @dataclass(frozen=True, slots=True)

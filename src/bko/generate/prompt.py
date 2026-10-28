@@ -3,8 +3,9 @@
 The system text opens with the frame's study and cohort, names every column with its meaning and its
 codes or its unit, with no range, and asks for new patients. The user turn states the cell, the
 record count and each numeric field's training-split bounds, then adds one component per level
-reached. Both read the frame given, UCI's by default. No prompt holds a record. ADR
-`research/record-generation-design` records what each level sends.
+reached, and for a prescribing request (`bko.generate.skeleton`) one line per asked record naming
+the concepts it must show. Both read the frame given, UCI's by default. No prompt holds a record.
+ADR `research/record-generation-design` records what each level sends.
 """
 
 from __future__ import annotations
@@ -12,13 +13,17 @@ from __future__ import annotations
 import functools
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.generate.guidance import Basis, Finding, Guidance, Profile, Relationship, Spread
 from bko.generate.messages import Level, reaches
 from bko.ontology.schema import Clause, Codes, FieldMapping
+
+
+if TYPE_CHECKING:
+    from bko.generate.skeleton import Skeleton
 
 
 UNITS: Final = {
@@ -53,6 +58,15 @@ BASES: Final = {
     ),
 }
 """The sentence opening the `findings` block, by why the findings were chosen."""
+
+PRESCRIBED: Final = (
+    "Each record below must show exactly the listed findings and no other finding from this list; "
+    "these lines take precedence over any finding named above."
+)
+"""The sentence opening a prescribing request's block of record lines."""
+
+NO_FINDING: Final = "none of these findings"
+"""A record line's text for a record that must show no named finding."""
 
 
 @functools.cache
@@ -162,6 +176,23 @@ def _summary(summary: Mapping[str, Spread], frame: FrameSpec) -> str:
     return "\n".join(lines)
 
 
+def _prescribed(skeleton: Skeleton, frame: FrameSpec) -> str:
+    labels = {one.concept: one.label for one in skeleton.named}
+    lines = [
+        PRESCRIBED,
+        *(
+            f"- {one.label} ({' or '.join(_state(row, frame) for row in one.states)})"
+            for one in skeleton.named
+        ),
+        *(
+            f"Record {number}: "
+            + ("; ".join(labels[concept] for concept in sorted(line)) or NO_FINDING)
+            for number, line in enumerate(skeleton.lines, start=1)
+        ),
+    ]
+    return "\n".join(lines)
+
+
 def _decimals(digits: int) -> str:
     return "one decimal place" if digits == 1 else f"{digits} decimal places"
 
@@ -203,7 +234,12 @@ SYSTEM: Final = system(UCI_FRAME)
 
 
 def render(
-    guidance: Guidance, rows: int, level: Level, *, frame: FrameSpec = UCI_FRAME
+    guidance: Guidance,
+    rows: int,
+    level: Level,
+    *,
+    frame: FrameSpec = UCI_FRAME,
+    skeleton: Skeleton | None = None,
 ) -> tuple[str, str]:
     """Render one call's prompt.
 
@@ -212,6 +248,9 @@ def render(
         rows: The records the call asks for.
         level: The guidance level; each component up to it is rendered, in ladder order.
         frame: The frame whose fields, codes, units and decimals the prompt states.
+        skeleton: A prescribing request's lines, one per asked record, rendered after every
+            level's component: the named concepts with their field states, then each record's
+            labels sorted by curie; None renders none.
 
     Returns:
         The system prompt and the user turn. Each bound is written with `:g`, six significant
@@ -242,4 +281,6 @@ def render(
         parts.append(_profile(guidance.profile, frame))
     if reaches(level, Level.SUMMARY) and guidance.summary is not None:
         parts.append(_summary(guidance.summary, frame))
+    if skeleton is not None:
+        parts.append(_prescribed(skeleton, frame))
     return system(frame), "\n\n".join(parts)
