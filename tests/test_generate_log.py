@@ -54,6 +54,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "replay": None,
         "resume": None,
         "rehearsal": False,
+        "in_flight": 1,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -243,10 +244,23 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now) as log:
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
-        "run status=complete calls=1 failed=0 retried=0 asked=2 decoded=2 undecoded=0 "
+        "run status=complete run=none level=ontology in_flight=1 calls=1 failed=0 retried=0 "
+        "asked=2 decoded=2 undecoded=0 "
         f"input_tokens=1000 output_tokens=500 usd=0.000350 live_usd=0.000350 replay=none "
         f"resume=none rehearsal=false log={path}"
     ) in caplog.text
+
+
+def test_the_run_status_line_names_run_level_and_in_flight(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, run="g3-cell", in_flight=4):
+        pass
+    assert any(
+        m.startswith(
+            f"run status=complete run=g3-cell level={SETTINGS.guidance} in_flight=4 calls=0 "
+        )
+        for m in caplog.messages
+    )
 
 
 def test_a_failed_header_write_closes_the_file(tmp_path, monkeypatch):
@@ -319,8 +333,16 @@ def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
     assert (
         f"log path={path} schema=2 model={SETTINGS.model} effort={SETTINGS.effort} "
         f"level={SETTINGS.guidance} per_call={SETTINGS.per_call} "
-        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none rehearsal=false"
+        f"max_tokens={SETTINGS.max_tokens} replay=ab12 resume=none rehearsal=false in_flight=1"
     ) in caplog.messages
+
+
+def test_the_log_records_the_calls_in_flight(tmp_path, caplog):
+    path = tmp_path / "calls.jsonl"
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, in_flight=8, now=_now):
+        pass
+    assert _lines(path)[0]["in_flight"] == 8
+    assert any(m.startswith("log path=") and m.endswith(" in_flight=8") for m in caplog.messages)
 
 
 def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):

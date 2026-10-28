@@ -10,16 +10,23 @@ rewrites the golden files.
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import io
 import json
+import logging
+import random
 import re
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Final
 
+import pytest
+
 from bko.evaluate.__main__ import main
+from bko.evaluate.attempts import Attempt
+from bko.generate.calls import Batch
 from bko.generate.messages import Call, Reply
 from tests._evaluate_bko_fixtures import REPLICAS, candidates_for, context, score_argv
 from tests._generate_fixtures import reply
@@ -123,6 +130,50 @@ class WaveSend:
         return reply(records if edit is None else edit(call, records))
 
 
+class LateSend:
+    """`WaveSend`, numbering each call at dispatch, whose replies land after a random delay.
+
+    Each call's delay is `random.Random(call).uniform(0, 0.02)` seconds, so replies land out of
+    order.
+
+    Attributes:
+        calls: Every call made, in dispatch order.
+        landed: Each call's number, counted from 1 at dispatch, in the order its reply landed.
+    """
+
+    def __init__(self, inner: WaveSend | None = None) -> None:
+        """Answer through `inner`, a fresh `WaveSend` when None."""
+        self._inner = inner or WaveSend()
+        self.calls = self._inner.calls
+        self.landed: list[int] = []
+
+    def __call__(self, call: Call) -> Awaitable[Reply]:
+        """Number `call` and build its reply now; return them after its delay."""
+        answer = self._inner(call)
+        number = len(self.calls)
+        delay = random.Random(number).uniform(0, 0.02)  # ruff: ignore[suspicious-non-cryptographic-random-usage]
+
+        async def land() -> Reply:
+            await asyncio.sleep(delay)
+            self.landed.append(number)
+            return answer
+
+        return land()
+
+
+class CrossingSend(WaveSend):
+    """`WaveSend` whose call 15 answers with men's records: call 17 of its wave asks men's cell."""
+
+    def __call__(self, call: Call) -> Reply:
+        """Record `call`; answer call 15 with records of sex 1, the others as `WaveSend` does."""
+        answer = super().__call__(call)
+        if len(self.calls) != 15:
+            return answer
+        rows, age = _asked(call)
+        crossed = planted(age=age, sex=1, target=call.label, cp=2)
+        return reply([crossed] * rows)
+
+
 def _sort_key(line: Mapping[str, object]) -> tuple[int, int, str]:
     """Call, then kind, then the line itself, so no tie falls back to file order."""
     kind = str(line["kind"])
@@ -140,23 +191,114 @@ def _normalised(log: Path) -> bytes:
     return "".join(json.dumps(line, sort_keys=True) + "\n" for line in kept).encode()
 
 
-def _run(tmp_path: Path, *, in_flight: int | None) -> tuple[bytes, bytes, bytes]:
+def _run(
+    tmp_path: Path,
+    *,
+    in_flight: int | None,
+    send: Callable[[Call], Reply | Awaitable[Reply]] | None = None,
+    replay: Path | None = None,
+) -> tuple[bytes, bytes, bytes]:
     """Score `WAVES` in-process; return the scores, the candidates file and the normalised log.
 
-    `in_flight` 1 or None passes no `--in-flight`.
+    `in_flight` None passes no `--in-flight`. Every call goes to `send`, a fresh `WaveSend` when
+    None, or is answered from the call log `replay`.
     """
-    send = WaveSend()
-    built, _ = context(send)
+    built, _ = context(send or WaveSend())
     built = dataclasses.replace(built, experiment=WAVES)
     log = tmp_path / "calls.jsonl"
-    flag = [] if in_flight is None or in_flight == 1 else ["--in-flight", str(in_flight)]
+    flag = [] if in_flight is None else ["--in-flight", str(in_flight)]
+    if replay is not None:
+        flag += ["--replay", str(replay)]
     out = io.StringIO()
     code = main(score_argv(log, tmp_path, *flag), context=built, out=out)
     assert code == 0
     return out.getvalue().encode(), candidates_for(log).read_bytes(), _normalised(log)
 
 
+def _differ(made: tuple[bytes, bytes, bytes]) -> list[str]:
+    """The golden files `made` differs from."""
+    pairs = zip(FILES, made, strict=True)
+    return [name for name, data in pairs if data != (GOLDEN / name).read_bytes()]
+
+
 def test_the_harness_matches_its_golden(tmp_path: Path) -> None:
-    made = dict(zip(FILES, _run(tmp_path, in_flight=1), strict=True))
-    differ = [name for name, data in made.items() if data != (GOLDEN / name).read_bytes()]
-    assert differ == []
+    assert _differ(_run(tmp_path, in_flight=1)) == []
+
+
+@pytest.mark.parametrize("in_flight", [1, 2, 5, 32])
+def test_any_in_flight_matches_the_golden(tmp_path: Path, in_flight: int) -> None:
+    send = LateSend()
+    assert _differ(_run(tmp_path, in_flight=in_flight, send=send)) == []
+    if in_flight > 2:
+        # Replies landed out of call order, so the golden pins a concurrent run, not a serial one.
+        assert send.landed != sorted(send.landed)
+
+
+ANSWERED: Final = frozenset({"replay", "live_usd"})
+"""Call log keys saying where calls were answered from: a replay names its log and pays nothing."""
+
+
+def _unmarked(log: bytes) -> bytes:
+    """A normalised call log without the keys that say where its calls were answered from."""
+    lines = (json.loads(line) for line in log.splitlines())
+    kept = ({key: value for key, value in line.items() if key not in ANSWERED} for line in lines)
+    return "".join(json.dumps(line, sort_keys=True) + "\n" for line in kept).encode()
+
+
+def test_a_replay_at_32_in_flight_matches_the_golden(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    _run(source, in_flight=1)
+    replayed = tmp_path / "replayed"
+    replayed.mkdir()
+    scores, candidates, log = _run(
+        replayed, in_flight=32, send=_never, replay=source / "calls.jsonl"
+    )
+    assert _differ((scores, candidates, (GOLDEN / "calls.jsonl").read_bytes())) == []
+    assert _unmarked(log) == _unmarked((GOLDEN / "calls.jsonl").read_bytes())
+
+
+def _never(call: Call) -> Reply:
+    raise AssertionError(call)
+
+
+def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog, monkeypatch) -> None:
+    taken: list[int] = []
+    take = Attempt.take
+
+    def spied(attempt: Attempt, batch: Batch) -> None:
+        taken.append(batch.index)
+        take(attempt, batch)
+
+    monkeypatch.setattr(Attempt, "take", spied)
+    built, _ = context(CrossingSend())
+    built = dataclasses.replace(built, experiment=WAVES)
+    log = tmp_path / "calls.jsonl"
+    caplog.set_level(logging.ERROR)
+    code = main(score_argv(log, tmp_path, "--in-flight", "8"), context=built, out=io.StringIO())
+    assert code == 3
+    assert "call 15 " in caplog.text
+    end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+    assert end["status"] == "failed"
+    # Call 15's batch is the last taken: the wave's later batches are never committed.
+    assert taken[-1] == 15
+    assert sorted(taken) == list(range(1, 16))
+
+
+def test_score_holds_each_call_to_the_experiments_idle_limit(tmp_path: Path, caplog) -> None:
+    def stalled(call: Call) -> Awaitable[Reply]:
+        async def never() -> Reply:
+            await asyncio.Event().wait()
+            raise AssertionError(call)
+
+        return never()
+
+    built, _ = context(stalled)
+    built = dataclasses.replace(built, experiment=dataclasses.replace(WAVES, idle_limit=0.5))
+    log = tmp_path / "calls.jsonl"
+    caplog.set_level(logging.WARNING)
+    code = main(score_argv(log, tmp_path, "--in-flight", "2"), context=built, out=io.StringIO())
+    assert code == 2
+    end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
+    assert end["stop"] == "idle"
+    assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.messages

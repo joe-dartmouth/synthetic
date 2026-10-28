@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import threading
-import time
 
 import pytest
 
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.run import run
 from bko.evaluate.watch import Watch
-from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Timers, interrupt
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -77,47 +75,6 @@ def test_a_projection_after_every_holdout_has_nothing_to_scale():
     assert not watch.projecting
     for _ in range(10):
         watch.holdout_done()
-
-
-def test_each_call_runs_under_its_own_idle_timer():
-    timers = Timers()
-    watch = Watch(RULES, lambda: 0.0, timers=timers, interrupt=interrupt)
-    for _ in range(3):
-        with watch.call():
-            assert timers.made[-1].started
-            assert not timers.made[-1].cancelled
-    assert [(t.seconds, t.daemon, t.cancelled) for t in timers.made] == [(60.0, True, True)] * 3
-
-
-def test_a_call_with_no_reply_within_the_idle_limit_stops_the_run_with_its_measure(caplog):
-    timers = Timers()
-    watch = Watch(RULES, lambda: 0.0, timers=timers, interrupt=interrupt)
-    caplog.set_level(logging.INFO)
-    with (
-        pytest.raises(StopRuleError, match="no reply within the idle limit of 60 s") as raised,
-        watch.call(),
-    ):
-        timers.made[-1].action()
-    assert raised.value.stop_rule == "idle"
-    assert watch.fired
-    assert timers.made[-1].cancelled
-    assert "stop rule=idle limit_seconds=60.0" in caplog.text
-
-
-def test_an_interrupt_the_rule_did_not_send_stays_an_interrupt():
-    watch = Watch(RULES, lambda: 0.0, timers=Timers(), interrupt=interrupt)
-    with pytest.raises(KeyboardInterrupt), watch.call():
-        raise KeyboardInterrupt
-
-
-def test_the_idle_timer_interrupts_a_blocked_main_thread():
-    assert threading.current_thread() is threading.main_thread()
-    quick = dataclasses.replace(RULES, idle_limit=0.05)
-    watch = Watch(quick, lambda: 0.0)
-    started = time.monotonic()
-    with pytest.raises(EvaluationError, match="idle limit"), watch.call():
-        time.sleep(30)
-    assert time.monotonic() - started < 10
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,11 @@
 A `GuidedArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it observes the rows' cells, finds their gaps under
 its definition and guides each requested cell by them. It then asks the Messages API for each cell's
-shortfall, round by round in quota order. Every reply's candidates are validated (`bko.validate`).
+shortfall, round by round in quota order. Each round goes out in waves: a wave is the longest run of
+the round's short cells whose (sex, label) chains are distinct, its calls are in flight together
+(`bko.generate.flight`), and its batches are taken in call order before the next wave is read, so
+the calls are those a one-call-at-a-time run makes (ADR `research/concurrent-call-waves`). Every
+reply's candidates are validated (`bko.validate`).
 Each accepted one that `check` would refuse is dropped by `bko.baselines.records.drops`, and the
 rest count toward the cell their own values name. An attempt asks for at most `budget` times the
 request's rows, and refuses with a plain `BaselineError` as soon as the rest of its budget cannot
@@ -18,11 +22,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator, Mapping, Sequence
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
 from types import MappingProxyType
+from typing import Final
 
 import pandas as pd
 
@@ -38,18 +44,22 @@ from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Ori
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition, gaps
-from bko.gaps.observe import Cell, record_cells
-from bko.generate.calls import generate
-from bko.generate.errors import ReplayError
+from bko.gaps.observe import Cell, cell_key, record_cells
+from bko.generate.calls import Batch
+from bko.generate.errors import IdleError, ReplayError, WaveError
+from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
-from bko.generate.messages import SETTINGS, Send, Settings
-from bko.generate.replay import Replay
+from bko.generate.messages import SETTINGS, AnySend, Settings
+from bko.generate.replay import Answers
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
 
 logger = logging.getLogger(__name__)
+
+SEQUENTIAL: Final = Limits(in_flight=1, idle=None)
+"""One call at a time with no idle limit."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -83,11 +93,9 @@ class GuidedArm:
         definition: Definition,
         knowledge: Knowledge,
         *,
-        send: Send,
         log: CallLog,
         budget: int,
-        ceiling: float,
-        watch: Watch | None = None,
+        flight: Flight,
         candidates: CandidateFile | None = None,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
@@ -96,23 +104,21 @@ class GuidedArm:
             name: The arm's name.
             definition: The gap definition that guides it.
             knowledge: The run's releases and field mappings.
-            send: Makes each call.
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
-            ceiling: The run's spend in USD at which no further call is made.
-            watch: The run's other stop rules; each call runs under its idle limit.
+            flight: The run's `Flight` over its send and `log`, which makes each call and holds
+                it to the run's ceiling and idle limit, shared by every BKO arm, so an async
+                client's calls stay on the one event loop its connections are bound to.
             candidates: The run's candidates file, shared by every BKO arm; None keeps no lines.
         """
         self.name = name
         self.totals = Tally()
         self._definition = definition
         self._knowledge = knowledge
-        self._send = send
         self._log = log
         self._budget = budget
-        self._ceiling = ceiling
-        self._watch = watch
         self._candidates = candidates
+        self._flight = flight
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -123,8 +129,9 @@ class GuidedArm:
         Raises:
             BaselineError: Plain, when the rest of the budget cannot cover the rows still short.
             EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
-                reached the ceiling.
-            GenerationError: As `bko.generate.calls.generate`: a call with no response.
+                reached the ceiling, or if a call got no reply within the idle limit.
+            GenerationError: As `bko.generate.flight.Flight.wave`: a call with no response.
+            WaveError: If a reply kept a record in a cell a later call of its wave asked for.
         """
         if request.strata is not Strata.CELL:
             msg = f"{self.name} fills cells only, not {request.strata}"
@@ -208,6 +215,7 @@ class GuidedArm:
     def _rounds(
         self, attempt: Attempt, guidance: Mapping[Cell, Guidance], frame: FrameSpec
     ) -> None:
+        per_call = self._log.settings.per_call
         while short := attempt.short():
             if attempt.asked + sum(short.values()) > attempt.limit:
                 msg = (
@@ -215,30 +223,84 @@ class GuidedArm:
                     f"{attempt.limit} records: {attempt.line()}"
                 )
                 raise BaselineError(msg)
-            for cell in short:
-                rows = attempt.short().get(cell, 0)
-                per_call = self._log.settings.per_call
-                # `generate`'s own chunks, one call each, so the ceiling is read before every call.
-                for start in range(0, rows, per_call):
-                    self._spendable()
-                    with self._watch.call() if self._watch is not None else nullcontext():
-                        generate(
-                            {cell: min(per_call, rows - start)},
-                            guidance,
-                            send=self._send,
-                            log=self._log,
-                            on_batch=attempt.take,
-                            frame=frame,
-                        )
+            cells = list(short)
+            while cells:
+                wave = _wave(cells, guidance)
+                cells = cells[len(wave) :]
+                # Read from committed state: the cells of one wave cannot change each other's.
+                rows = {cell: attempt.short().get(cell, 0) for cell in wave}
+                planned = [
+                    Planned(guidance[cell], min(per_call, count - start))
+                    for cell, count in rows.items()
+                    for start in range(0, count, per_call)
+                ]
+                if not planned:
+                    continue
+                commit = _committer(attempt, [item.guidance.cell for item in planned])
+                try:
+                    self._flight.wave(planned, frame=frame, on_batch=commit)
+                except IdleError as exc:
+                    raise StopRuleError(str(exc), "idle") from None
 
-    def _spendable(self) -> None:
-        """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
-        spent = self._log.usd
-        logger.info("spend usd=%.4f ceiling=%.2f", spent, self._ceiling)
-        if spent >= self._ceiling:
-            logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, self._ceiling)
-            msg = f"the run's spend {spent:.4f} USD reached its ceiling of {self._ceiling} USD"
-            raise StopRuleError(msg, "ceiling")
+
+def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:
+    """The longest run of `cells` from the first whose (sex, label) chains are distinct."""
+    chains: set[tuple[int, int]] = set()
+    wave: list[Cell] = []
+    for cell in cells:
+        chain = (guidance[cell].sex, guidance[cell].label)
+        if chain in chains:
+            break
+        chains.add(chain)
+        wave.append(cell)
+    return wave
+
+
+def _committer(attempt: Attempt, plan: Sequence[Cell]) -> Callable[[Batch], None]:
+    """Take a wave's batches, given in call order, refusing a row kept in a later group's cell.
+
+    Args:
+        attempt: The attempt the wave fills.
+        plan: Each planned call's cell, in plan order; a group is one cell's calls.
+
+    Returns:
+        The callable that takes each batch. It raises `WaveError` if a batch keeps a row in a
+        cell a later group of the wave asked for, so a one-call-at-a-time run would have asked
+        that group differently.
+    """
+    groups = list(dict.fromkeys(plan))
+    taken: list[Batch] = []
+
+    def commit(batch: Batch) -> None:
+        first = batch.index - len(taken)
+        taken.append(batch)
+        before = attempt.held()
+        attempt.take(batch)
+        after = attempt.held()
+        for cell in groups[groups.index(batch.cell) + 1 :]:
+            if after.get(cell, 0) > before.get(cell, 0):
+                msg = (
+                    f"call {batch.index} kept a record in cell {cell_key(cell)}, which call "
+                    f"{first + plan.index(cell)} of the same wave already asked for: a reply "
+                    "crossed sex or label, so the wave changed the call plan"
+                )
+                raise WaveError(msg)
+
+    return commit
+
+
+def spendable(log: CallLog, ceiling: float) -> None:
+    """Log `log`'s spend against `ceiling`, and refuse the next call once it is reached.
+
+    Raises:
+        StopRuleError: If the spend reached the ceiling.
+    """
+    spent = log.usd
+    logger.info("spend usd=%.4f ceiling=%.2f", spent, ceiling)
+    if spent >= ceiling:
+        logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, ceiling)
+        msg = f"the run's spend {spent:.4f} USD reached its ceiling of {ceiling} USD"
+        raise StopRuleError(msg, "ceiling")
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,15 +330,19 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     log: Path,
     candidates: Path,
     origin: Origin,
-    send: Callable[[], Send],
-    answers: Replay | None = None,
+    send: Callable[[], AnySend],
+    run: str,
+    limits: Limits,
+    answers: Answers | None = None,
     rehearsal: bool = False,
     now: Callable[[], datetime] = utc_now,
 ) -> Generator[GuidedRun]:
     """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
 
     The candidates file at `candidates` is created before the call log, with a header naming
-    `origin` and `settings`, and every arm writes its lines there. Every call goes through
+    `origin` and `settings`, and every arm writes its lines there. The call log names the run
+    `run` and records `limits.in_flight`, and every arm's calls go through one `Flight` at
+    `limits`. Every call goes through
     `answers` when given, else through `send()`; `rehearsal` marks the call log as a rehearsal's,
     whose `send()` answers with canned replies, and a replay of a rehearsal's log keeps the mark.
     Once the body returns, answers left over are refused. Each arm logs its validity sums on the
@@ -297,23 +363,37 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     rehearsal = rehearsal or (answers is not None and answers.rehearsal)
     kept = CandidateFile(candidates, origin, settings)
     try:
-        call_log = CallLog(log, settings, answered=answered, rehearsal=rehearsal, now=now)
+        call_log = CallLog(
+            log,
+            settings,
+            answered=answered,
+            rehearsal=rehearsal,
+            run=run,
+            in_flight=limits.in_flight,
+            now=now,
+        )
     except BaseException:
         kept.discard()
         raise
     try:
         sender = answers if answers is not None else send()
         watch = Watch(experiment, lambda: call_log.live_usd, projecting=answers is None)
+        ceiling = experiment.spend_ceiling
+        flight = Flight(
+            sender,
+            call_log,
+            limits,
+            spendable=partial(spendable, call_log, ceiling),
+            ceiling=ceiling,
+        )
         arms = {
             name: GuidedArm(
                 name,
                 BKO_ARMS[name],
                 knowledge,
-                send=sender,
                 log=call_log,
                 budget=experiment.budget,
-                ceiling=experiment.spend_ceiling,
-                watch=watch,
+                flight=flight,
                 candidates=kept,
             )
             for name in names
@@ -322,7 +402,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         call_log.discard()
         kept.discard()
         raise
-    with kept, call_log:
+    with kept, call_log, flight:
         try:
             yield GuidedRun(call_log, MappingProxyType(arms), watch, kept)
             if answers is not None and answers.remaining:

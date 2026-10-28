@@ -95,40 +95,6 @@ links to where its blocker is tracked.
   **Trigger:** the first non-UCI frame that runs `score` or `generate`
   (`evaluate-synthea-downstream`).
 
-- **`cleanup:evaluate/concurrent-run-log-identity`: concurrent runs' logs name neither run nor
-  level, and a retry storm leaves no line until the run ends.** `bko.evaluate.compare`'s `beside arm=`
-  lines and `bko.generate.log`'s `run status=` line carry no `run=` or `level=` field (their
-  format strings in those modules), so the logs of G3's six concurrent runs are told apart only by their files.
-  `retried` (calls the SDK retried over HTTP) is written only when the run ends, in the call log's
-  `end` line and that closing `run status=` line, so a rate-limit storm that trips the idle rule
-  leaves no line saying why. *Filed 2026-10-27 by the review of PR #44.*
-  **Why deferred.** It changes log bytes in `bko.generate.log` and `bko.evaluate.compare`, outside
-  PR #44's named runs, and each G3 run writes its own folder.
-  **What discharges it:** `run=` and `level=` on the `run status=` and `compare` lines, and a
-  per-retry line or a per-call `retried=` count.
-  **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`.
-
-- **`cleanup:evaluate/idle-timer-interrupt-escapes`: the idle-timer test can crash its xdist
-  worker.** One `make check` run on 2026-10-27 (under `pytest -n auto`) failed
-  `test_the_idle_timer_interrupts_a_blocked_main_thread` in `tests/test_evaluate_watch.py` with
-  these lines of its report:
-
-  ```
-  worker 'gw13' crashed while running 'tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread'
-  FAILED tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread
-  ! xdist.dsession.Interrupted: <WorkerController gw13> received keyboard-interrupt !
-  ```
-
-  The file passed alone and the next two full runs passed. The test sets `idle_limit=0.05`.
-  `bko.evaluate.watch.Watch.call` starts its timer before entering the `try` that turns the
-  timer's interrupt into a `StopRuleError`. A likely cause, not yet confirmed: under load the
-  timer fires in that window, and the interrupt escapes as a bare `KeyboardInterrupt` that ends
-  the worker. *Filed 2026-10-27 by the `detect-synthea-mappings` work.*
-  **Why deferred.** It is unrelated to the change that met it, which touched no evaluate code.
-  **What discharges it:** `Watch.call` starts the timer inside its `try` (or otherwise catches an
-  interrupt that fires before the call is entered), and the cause is confirmed.
-  **Trigger:** the test's next failure, or the next change to `bko.evaluate.watch`.
-
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
   `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
@@ -206,3 +172,35 @@ links to where its blocker is tracked.
   **What discharges it:** the test calls `system(replace(UCI_FRAME, fractional=...))`, and the
   shim and the import are deleted.
   **Trigger:** the next change that may edit the generate pin files.
+
+- **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
+  `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s
+  retry_after=%s` only when a response with a retryable status reaches the middleware. A
+  connection error or client timeout that the SDK retries produces only the SDK's own log record,
+  which carries no call number, so with several calls in flight a reader cannot tie it to a call.
+  Evidence: the middleware has no exception path that logs (`api.py`, `_log_retry` is called after
+  `call_next` returns). *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** It needs a `logging.Filter` that tags SDK records with
+  `bko.generate.messages.CALL_NUMBER`, outside the review's fixes.
+  **What discharges it:** every SDK retry record carries the call number, pinned by a test.
+  **Trigger:** the next change to `bko.generate.api`, or a paid run whose stderr shows untagged
+  retries.
+
+- **`cleanup:generate/landed-line-latency`: the landed line gives no latency.**
+  `bko.generate.calls` logs `send call=` at dispatch and `generate call=` on landing with no
+  elapsed seconds or calls in flight, so a stalled call shows only as a `send` line with no later
+  `generate` line. *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** No stop rule or test depends on it.
+  **What discharges it:** the landed line carries `elapsed_s=` and `in_flight=`, documented in
+  `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the next change to the `generate call=` line.
+
+- **`cleanup:generate/sigint-error-text`: a real Ctrl-C logs calls as `CancelledError`.**
+  Under `bko.generate.flight`, `asyncio.Runner`'s SIGINT handler cancels the run, so each call in
+  flight gets an `error` line reading `CancelledError` where a run at in-flight 1 wrote
+  `KeyboardInterrupt`; the `end` line still reads `interrupted`. Evidence: a SIGINT probe over a
+  three-call wave wrote `error 1 CancelledError`, `error 2 CancelledError`, `error 3
+  CancelledError`, `end None interrupted`. *Filed 2026-10-27 by the review of PR #49.*
+  **Why deferred.** Nothing in `src/` reads the error text, and the end status is right.
+  **What discharges it:** calls cancelled by an operator's interrupt record `KeyboardInterrupt`.
+  **Trigger:** the next change to `bko.generate.flight`'s interrupt path.

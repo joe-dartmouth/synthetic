@@ -19,7 +19,7 @@ import pytest
 from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import CandidatesFormatError
-from bko.evaluate.guided import Knowledge, guided_arms
+from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import SCHEMA, Candidate, CandidateFile, Origin, read
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (
@@ -310,6 +310,8 @@ def test_a_call_log_that_cannot_be_made_leaves_no_candidates_file(tmp_path):
             candidates=candidates,
             origin=origin,
             send=ScriptedSend,
+            run="e1",
+            limits=SEQUENTIAL,
         ),
     ):
         pass
@@ -327,6 +329,8 @@ def _arms(tmp_path: Path, send) -> tuple[Path, Path]:
         candidates=candidates,
         origin=Origin("e1", PIN, {}),
         send=send,
+        run="e1",
+        limits=SEQUENTIAL,
     ):
         pass
     return log, candidates

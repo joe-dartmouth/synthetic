@@ -1,14 +1,16 @@
 """The call log: an append-only JSONL record of a run's every request and response, with its spend.
 
-A run writes one `run` line, then per call a `request` line before the call and a `reply` or
-`error` line after it, then one `end` line holding the run's status and totals. The `run` and
-`end` lines name the log a replay answers from under `replay` and the stopped log a resume
-continues under `resume`, and say under `rehearsal` whether canned replies answered every call;
-the `end` line names under `stop` the stop rule that ended a failed run, or null, and its totals
-split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is flushed as it
-is written, so the lines of every call made survive a failure, an interrupt or a killed process.
-The file is created exclusively, so a rerun never overwrites a paid log, with mode
-0o600, so only its owner reads it. ADR `research/record-generation-design` records the format.
+A run writes one `run` line, then per call a `request` line before the call and a `reply` or `error`
+line after it, then one `end` line holding the run's status and totals. The `run` and `end` lines
+name the log a replay answers from under `replay` and the stopped log a resume continues under
+`resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line
+records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
+`carried_usd` the spend of the stopped log's calls it dropped, and the `end` line names under `stop`
+the stop rule that ended a failed run, or null, and its totals split `live_usd`, what the run paid
+or a rehearsal billed, from `usd`. Each line is flushed as it is written, so the lines of every call
+made survive a failure, an interrupt or a killed process. The file is created exclusively, so a
+rerun never overwrites a paid log, with mode 0o600, so only its owner reads it. ADR
+`research/record-generation-design` records the format.
 """
 
 from __future__ import annotations
@@ -54,11 +56,14 @@ class Answered:
             and leaves the rest to the API.
         sha256: That log's sha256.
         calls: The calls it answers.
+        carried_usd: For a resume, the spend of the logged calls it dropped and sends again, so
+            the run's spend still counts them; 0 for a replay.
     """
 
     kind: Literal["replay", "resume"]
     sha256: str
     calls: int
+    carried_usd: float = 0.0
 
 
 class CallLog:
@@ -74,6 +79,8 @@ class CallLog:
         resume: The sha256 and answered calls of the stopped log a resume continues, or None.
         rehearsal: Whether canned replies answer every call (`bko.evaluate.rehearse`).
         settings: How each call is made; its model's price is the one every spend uses.
+        run: The named run whose calls the log holds, or None outside a named run.
+        in_flight: The most calls the run keeps in flight at once (`bko.generate.flight`).
         calls: Calls requested.
         failed: Calls that wrote an `error` line rather than a `reply` line.
         retried: Calls that took more than one HTTP attempt.
@@ -83,7 +90,7 @@ class CallLog:
         input_tokens: Uncached input tokens billed.
         output_tokens: Output tokens billed.
         usd: Spend, priced at the settings model's rates; a resumed log's counts its replayed
-            calls.
+            calls and starts at the spend it carried.
         live_usd: The spend of calls past the answered ones: what the run paid.
     """
 
@@ -94,6 +101,8 @@ class CallLog:
         *,
         answered: Answered | None = None,
         rehearsal: bool = False,
+        run: str | None = None,
+        in_flight: int = 1,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
@@ -103,6 +112,8 @@ class CallLog:
             settings: How each call is made.
             answered: The call log the first calls are answered from, or None for a live run.
             rehearsal: Whether canned replies answer every call.
+            run: The named run whose calls the log holds, or None outside a named run.
+            in_flight: The most calls the run keeps in flight at once; the `run` line records it.
             now: The clock each line's time is read from.
 
         Raises:
@@ -128,6 +139,8 @@ class CallLog:
         )
         self.rehearsal = rehearsal
         self.settings = settings
+        self.run = run
+        self.in_flight = in_flight
         self._now = now
         self.calls = 0
         self.failed = 0
@@ -137,27 +150,29 @@ class CallLog:
         self.undecoded = 0
         self.input_tokens = 0
         self.output_tokens = 0
-        self.usd = 0.0
+        self.usd = 0.0 if answered is None else answered.carried_usd
         self.live_usd = 0.0
+        run_line: dict[str, object] = {
+            "kind": "run",
+            "schema": SCHEMA,
+            "started": self._at(),
+            "settings": dataclasses.asdict(settings),
+            "price": dataclasses.asdict(price),
+            "anthropic": anthropic,
+            "replay": self.replay,
+            "resume": self.resume,
+            "rehearsal": rehearsal,
+            "in_flight": in_flight,
+        }
+        if self.resume is not None:
+            run_line["carried_usd"] = self.usd
         # Exclusive, and owner-only whatever the umask: the log holds every prompt and response.
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         opened: TextIO | None = None
         try:
             opened = os.fdopen(descriptor, "w", encoding="utf-8")
             self._file: TextIO = opened
-            self._write(
-                {
-                    "kind": "run",
-                    "schema": SCHEMA,
-                    "started": self._at(),
-                    "settings": dataclasses.asdict(settings),
-                    "price": dataclasses.asdict(price),
-                    "anthropic": anthropic,
-                    "replay": self.replay,
-                    "resume": self.resume,
-                    "rehearsal": rehearsal,
-                }
-            )
+            self._write(run_line)
         except BaseException:
             # No log of a run that never started, so nothing blocks a rerun.
             if opened is None:
@@ -168,7 +183,7 @@ class CallLog:
             raise
         logger.info(
             "log path=%s schema=%d model=%s effort=%s level=%s per_call=%d max_tokens=%d "
-            "replay=%s resume=%s rehearsal=%s",
+            "replay=%s resume=%s rehearsal=%s in_flight=%d",
             path,
             SCHEMA,
             settings.model,
@@ -179,6 +194,7 @@ class CallLog:
             self.replay or "none",
             "none" if self.resume is None else self.resume["sha256"],
             str(rehearsal).lower(),
+            in_flight,
         )
 
     def __enter__(self) -> Self:
@@ -224,10 +240,13 @@ class CallLog:
                 }
             )
             logger.info(
-                "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
-                "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
-                "rehearsal=%s log=%s",
+                "run status=%s run=%s level=%s in_flight=%d calls=%d failed=%d retried=%d asked=%d "
+                "decoded=%d undecoded=%d input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f "
+                "replay=%s resume=%s rehearsal=%s log=%s",
                 status,
+                self.run or "none",
+                self.settings.guidance,
+                self.in_flight,
                 self.calls,
                 self.failed,
                 self.retried,

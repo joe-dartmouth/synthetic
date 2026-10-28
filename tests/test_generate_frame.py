@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 from typing import Any
 
 import anthropic
 import pytest
 
 from bko.baselines.request import Request
-from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, spendable
 from bko.gaps.definitions import Definition
 from bko.generate.api import send_with
+from bko.generate.flight import Flight
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, record_schema
 from bko.generate.prompt import system
@@ -48,14 +50,9 @@ TOY_ROW = {"age": 50, "sex": 0, "level": 1.5, "target": 1}
 def test_a_guided_arm_fills_a_toy_request_through_the_sdk_adapter(monkeypatch, tmp_path):
     client, sent = fake_client(monkeypatch, [TOY_ROW, TOY_ROW | {"level": 1.25}])
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    flight = Flight(send_with(client), log, SEQUENTIAL, spendable=partial(spendable, log, 50.0))
     arm = GuidedArm(
-        "bko",
-        Definition.SUBGROUP,
-        Knowledge("toy", {}, (), ()),
-        send=send_with(client),
-        log=log,
-        budget=3,
-        ceiling=50.0,
+        "bko", Definition.SUBGROUP, Knowledge("toy", {}, (), ()), log=log, budget=3, flight=flight
     )
     with log:
         baseline = arm(TOY_TRAIN, Request(quota={SHORT[0]: 2}, frame=TOY, seed=0))

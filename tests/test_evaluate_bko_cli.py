@@ -334,7 +334,8 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    assert main(score_argv(log, tmp_path), context=ctx, out=out) == 2
+    argv = score_argv(log, tmp_path)
+    assert main(argv, context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(send.calls) == 3
     assert _end(log)["status"] == "failed"
@@ -499,7 +500,8 @@ def stopped_run(tmp_path, caplog) -> tuple[Path, str]:
     lost = GenerationError("the API could not be reached: APIConnectionError")
     ctx, _ = context(ScriptedSend(*holdout, lost))
     stopped = tmp_path / "stopped.jsonl"
-    assert main(score_argv(stopped, tmp_path), context=ctx, out=io.StringIO()) == 2
+    argv = score_argv(stopped, tmp_path)
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
     return stopped, text
 
 
@@ -528,7 +530,10 @@ def test_a_resumed_run_writes_the_uninterrupted_runs_bytes_and_pays_only_its_liv
     live = sum(line["usd"] for line in lines if line["kind"] == "reply" and line["call"] > 2)
     assert lines[-1]["live_usd"] == pytest.approx(live)
     assert lines[-1]["usd"] > lines[-1]["live_usd"] > 0
-    assert f"resume log={stopped} sha256={digest} answered=2" in caplog.text
+    assert (
+        f"resume log={stopped} sha256={digest} answered=2 dropped=2 carried_usd=0.0000"
+        in caplog.messages
+    )
 
 
 def test_a_resumed_runs_candidates_equal_the_uninterrupted_runs(tmp_path, caplog):
@@ -566,6 +571,8 @@ def test_an_unresumable_log_exits_three_before_any_download_or_log(tmp_path, cap
     _, log, _ = paid_run(tmp_path, caplog)
 
     def fail_first(lines: list[dict]) -> None:
+        # A log without `in_flight` keeps the last-call rule, which refuses an early failure.
+        del lines[0]["in_flight"]
         index = next(i for i, line in enumerate(lines) if line["kind"] == "reply")
         call = lines[index]["call"]
         lines[index] = {"kind": "error", "call": call, "error": "lost", "attempts": None}

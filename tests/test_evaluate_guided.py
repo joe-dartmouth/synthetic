@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import logging
@@ -13,12 +14,11 @@ import pytest
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.datasets.sources import UCI_HEART_DISEASE
-from bko.evaluate.errors import EvaluationError
-from bko.evaluate.guided import GuidedArm, Knowledge, guided_arms
+from bko.evaluate.errors import EvaluationError, StopRuleError
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.scores import Source
 from bko.evaluate.validity import COUNTS
-from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
@@ -27,10 +27,10 @@ from bko.generate.messages import SETTINGS
 from bko.generate.replay import Resume
 from bko.generate.spend import cost
 from bko.ontology.mapping import RELEASES
-from tests._evaluate_fixtures import SMALL, Timers, interrupt
+from tests._evaluate_fixtures import SMALL
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
-from tests._guided_fixtures import REQUEST, YOUNG_SICK, YOUNG_WELL, guided, train
+from tests._guided_fixtures import REQUEST, YOUNG_SICK, guided, train
 from tests._validate_fixtures import planted
 
 
@@ -137,25 +137,33 @@ def test_the_ceiling_is_read_before_every_call_of_a_cell(tmp_path, caplog):
     ]
 
 
+OLD_SICK: Final = (">=55", "female", 1)
+"""`YOUNG_SICK`'s older band: the same sex and label, so a reply may keep a record in either."""
+
+
+def _old_sick() -> dict[str, object]:
+    return planted(age=63, sex=0, target=1)
+
+
 def test_rows_come_out_cell_by_cell_in_the_quotas_order(tmp_path):
-    request = Request(quota={YOUNG_WELL: 1, YOUNG_SICK: 2}, strata=Strata.CELL, seed=0)
-    send = ScriptedSend(reply([young(1), young(0)]), reply([young(1)]))
+    request = Request(quota={YOUNG_SICK: 1, OLD_SICK: 2}, strata=Strata.CELL, seed=0)
+    send = ScriptedSend(reply([_old_sick(), young(1)]), reply([_old_sick()]))
     arm, log = guided(tmp_path, send)
     with log:
         baseline = arm(train(tmp_path / "train"), request)
     assert asked(log.path) == [1, 1]
-    assert baseline.added["target"].tolist() == [0, 1, 1]
+    assert baseline.added["age"].tolist() == [40, 63, 63]
 
 
 def test_a_cell_filled_by_another_cells_call_gets_no_call(tmp_path):
-    request = Request(quota={YOUNG_WELL: 1, YOUNG_SICK: 1}, strata=Strata.CELL, seed=0)
-    send = ScriptedSend(reply([young(0), young(1)]))
+    request = Request(quota={YOUNG_SICK: 1, OLD_SICK: 1}, strata=Strata.CELL, seed=0)
+    send = ScriptedSend(reply([young(1), _old_sick()]))
     arm, log = guided(tmp_path, send)
     with log:
         baseline = arm(train(tmp_path / "train"), request)
     send.assert_consumed()
     assert asked(log.path) == [1]
-    assert baseline.added["target"].tolist() == [0, 1]
+    assert baseline.added["age"].tolist() == [40, 63]
 
 
 def test_a_label_request_is_refused(tmp_path):
@@ -192,6 +200,8 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
             candidates=tmp_path / "candidates.jsonl",
             origin=ORIGIN,
             send=ScriptedSend,
+            run="e1",
+            limits=SEQUENTIAL,
             answers=resume,
         ),
     ):
@@ -200,31 +210,42 @@ def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_pa
     assert "validity arm=bko" in caplog.text
 
 
+def test_an_arm_needs_the_runs_flight(tmp_path):
+    """An arm building its own `Flight` would give each wave a fresh event loop, which an
+    async client's connections, bound to the first, cannot use."""
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    with pytest.raises(TypeError, match="flight"):
+        GuidedArm(  # ty: ignore[missing-argument]
+            "bko", Definition.SUBGROUP, Knowledge("x", {}, (), ()), log=log, budget=3
+        )
+
+
 def test_each_call_of_an_arm_runs_under_the_idle_rule(tmp_path):
-    timers = Timers()
-    watch = Watch(SMALL, lambda: 0.0, timers=timers, interrupt=interrupt)
-    arm, log = guided(tmp_path, ScriptedSend(reply([young(1)] * 3)), watch=watch)
+    def answered(call):
+        async def land():
+            return reply([young(1)] * 3)
+
+        return land()
+
+    arm, log = guided(tmp_path, answered, idle=5.0)
     with log:
         arm(train(tmp_path / "train"), REQUEST)
     assert asked(log.path) == [3]
-    assert [(t.started, t.cancelled) for t in timers.made] == [(True, True)]
 
 
 def test_a_stalled_call_stops_the_run_and_the_log_ends_failed(tmp_path, caplog):
-    timers = Timers()
-    watch = Watch(SMALL, lambda: 0.0, timers=timers, interrupt=interrupt)
-
     def stalled(call):
-        timers.made[-1].action()
+        return asyncio.Event().wait()
 
-    arm, log = guided(tmp_path, stalled, watch=watch)
+    arm, log = guided(tmp_path, stalled, idle=0.5)
     caplog.set_level(logging.WARNING)
-    with pytest.raises(EvaluationError, match="idle limit"), log:
+    with pytest.raises(StopRuleError, match="idle limit") as raised, log:
         arm(train(tmp_path / "train"), REQUEST)
+    assert raised.value.stop_rule == "idle"
     lines = log.path.read_text(encoding="utf-8").splitlines()
     assert json.loads(lines[-1])["status"] == "failed"
     assert json.loads(lines[-1])["stop"] == "idle"
-    assert "stop rule=idle" in caplog.text
+    assert "stop rule=idle call=1 limit_seconds=0.5" in caplog.text
 
 
 def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
@@ -238,6 +259,8 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         candidates=tmp_path / "live-candidates.jsonl",
         origin=ORIGIN,
         send=ScriptedSend,
+        run="e1",
+        limits=SEQUENTIAL,
     ) as live:
         assert live.watch.projecting
     stopped = tmp_path / "stopped.jsonl"
@@ -252,6 +275,8 @@ def test_guided_arms_projects_a_live_run_and_not_a_resumed_one(tmp_path):
         candidates=tmp_path / "resumed-candidates.jsonl",
         origin=ORIGIN,
         send=ScriptedSend,
+        run="e1",
+        limits=SEQUENTIAL,
         answers=resume,
     ) as resumed:
         assert not resumed.watch.projecting

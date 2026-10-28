@@ -12,6 +12,8 @@ from typing import Final
 
 import pytest
 
+from bko.evaluate.errors import StopRuleError
+from bko.evaluate.guided import spendable
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.guidance import Guidance
@@ -399,3 +401,75 @@ def test_resume_warns_of_what_it_drops(tmp_path, caplog):
     assert resume.digest == hashlib.sha256(path.read_bytes()).hexdigest()
     assert f"resume dropped a cut final line of 13 bytes from {path}" in caplog.text
     assert f"resume dropped call 2 of {path}, whose answer lines are ['error']" in caplog.text
+
+
+def concurrent(tmp_path: Path, *script: Reply | GenerationError) -> Path:
+    """`stopped`'s log of `script`, written by a run that kept 8 calls in flight."""
+    path = tmp_path / "concurrent.jsonl"
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, in_flight=8) as log:
+        for outcome in script:
+            with contextlib.suppress(GenerationError):
+                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
+        raise KeyboardInterrupt
+    return path
+
+
+def _replied(path: Path, index: int) -> float:
+    """The `usd` of call `index`'s reply line in the log at `path`."""
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    return next(line["usd"] for line in lines if line["kind"] == "reply" and line["call"] == index)
+
+
+def test_resume_drops_calls_after_the_first_unanswered_one(tmp_path, caplog):
+    path = concurrent(tmp_path, *[answer()] * 41, LOST, answer())
+    live = ScriptedSend(answer(), answer())
+    with caplog.at_level(logging.WARNING):
+        resume = Resume(path, live)
+    assert resume.answered.calls == 41
+    drops = [m for m in caplog.messages if m.startswith("resume dropped call")]
+    assert drops == [
+        f"resume dropped call 42 of {path}, whose answer lines are ['error']; it is sent again",
+        f"resume dropped call 43 of {path}, whose answer lines are ['reply']; it is sent again",
+    ]
+    call = call_for(GUIDANCE, 2)
+    for _ in range(41):
+        resume(call)
+    assert live.calls == []
+    resume(call)
+    resume(call)
+    live.assert_consumed()
+
+
+def test_resume_carries_the_spend_of_dropped_calls(tmp_path):
+    path = concurrent(tmp_path, *[answer()] * 41, LOST, answer())
+    resume = Resume(path, ScriptedSend())
+    carried = _replied(path, 43)
+    assert resume.answered.carried_usd == pytest.approx(carried)
+    resumed = tmp_path / "resumed.jsonl"
+    with CallLog(resumed, SETTINGS, answered=resume.answered) as log:
+        assert log.usd == pytest.approx(carried)
+        with pytest.raises(StopRuleError, match="reached its ceiling"):
+            spendable(log, carried)
+    run = json.loads(resumed.read_text(encoding="utf-8").splitlines()[0])
+    assert run["carried_usd"] == pytest.approx(carried)
+
+
+def test_a_resume_of_a_resume_keeps_the_spend_its_log_carried(tmp_path):
+    path = concurrent(tmp_path, answer(), LOST, answer())
+    rewritten(path, lambda lines: lines[0].update(carried_usd=0.5))
+    resume = Resume(path, ScriptedSend())
+    assert resume.answered.carried_usd == pytest.approx(0.5 + _replied(path, 3))
+
+
+def test_a_resume_of_a_resume_at_in_flight_1_keeps_the_spend_its_log_carried(tmp_path):
+    path = stopped(tmp_path, answer(), LOST)
+    rewritten(path, lambda lines: lines[0].update(carried_usd=0.5))
+    assert json.loads(path.read_text(encoding="utf-8").splitlines()[0])["in_flight"] == 1
+    assert Resume(path, ScriptedSend()).answered.carried_usd == pytest.approx(0.5)
+
+
+def test_an_old_log_with_an_error_before_its_last_call_is_still_refused(tmp_path):
+    path = concurrent(tmp_path, LOST, answer())
+    rewritten(path, lambda lines: lines[0].pop("in_flight"))
+    with pytest.raises(ReplayError, match="failed before the run's last call"):
+        Resume(path, ScriptedSend())

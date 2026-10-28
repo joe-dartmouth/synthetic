@@ -1,4 +1,4 @@
-"""The errors generation raises: a call with no response, a malformed file, a refused draw."""
+"""The errors generation raises: no reply, a malformed file, a crossed wave, a refused draw."""
 
 from __future__ import annotations
 
@@ -23,6 +23,18 @@ class GenerationError(Exception):
         self.attempts = attempts
 
 
+class IdleError(GenerationError):
+    """A call got no reply within the run's idle limit, its retries included. Exit 2.
+
+    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`.
+
+    Attributes:
+        stop_rule: The stop rule that fired, `idle`.
+    """
+
+    stop_rule: ClassVar[str] = "idle"
+
+
 class CandidatesFormatError(ContractError):
     """A candidates file is not the JSON lines `python -m bko.generate` writes. Exit 3."""
 
@@ -31,6 +43,15 @@ class ReplayError(ContractError):
     """A rerun's calls do not match the call log it replays, or a call log a resume cannot continue.
 
     Exit 3.
+    """
+
+
+class WaveError(ContractError):
+    """A reply kept a record in a cell a later call of its wave already asked for. Exit 3.
+
+    Structured outputs pin each record's sex and label, so this means a reply crossed them, and
+    the wave no longer asks what a one-call-at-a-time run asks (ADR
+    `research/concurrent-call-waves`).
     """
 
 

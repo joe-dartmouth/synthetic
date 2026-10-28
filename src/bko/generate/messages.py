@@ -1,7 +1,9 @@
 """The generation request and reply, as repo-owned values: no SDK type crosses this module.
 
-A `Send` turns one `Call` into one `Reply`; `bko.generate.api` holds the only one that reaches the
-Anthropic API, so every other module and test runs on a fake. The structured-output schema fixes
+A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one;
+`CALL_NUMBER` names the call a send is making, and `ATTEMPTS` holds its attempt count;
+`bko.generate.api` holds the only ones that reach the Anthropic API, so every other module and test
+runs on a fake. The structured-output schema fixes
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
 and `target` are pinned to one value each, and the whole-number fields are `integer`. Structured
 outputs cannot bound a number, so plausibility ranges and `oldpeak`'s one decimal stay in the
@@ -11,7 +13,8 @@ prompt. Each call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by 
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final, Literal
@@ -172,6 +175,23 @@ def text_of(raw: Mapping[str, object]) -> str | None:
 
 type Send = Callable[[Call], Reply]
 """Makes one call and returns its reply, or raises `GenerationError` when none arrives."""
+
+type AsyncSend = Callable[[Call], Awaitable[Reply]]
+"""A `Send` whose reply is awaited, so several calls can be in flight on one event loop."""
+
+type AnySend = Callable[[Call], Reply | Awaitable[Reply]]
+"""A `Send` or an `AsyncSend`: `bko.generate.flight` awaits the reply when it is awaitable."""
+
+CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
+"""The number of the call being sent, which `bko.generate.calls.ask` and each of
+`bko.generate.flight`'s call tasks set while the call is in flight, so its retry lines name it,
+and reset once it lands; 0 outside a call."""
+
+ATTEMPTS: Final[ContextVar[list[int] | None]] = ContextVar("attempts", default=None)
+"""The current async call's attempt count, in a one-item list: a holder rather than a value, so
+the count `bko.generate.api.Attempts.handle_async` writes reaches whoever set the holder, wherever
+the SDK runs the attempt. `bko.generate.flight` sets one around each awaited send, so a call the
+idle rule stops still reports its attempts; a send that finds none sets its own."""
 
 
 def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:

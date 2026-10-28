@@ -27,7 +27,8 @@ from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
-from bko.generate.replay import Replay, Resume
+from bko.generate.flight import Limits
+from bko.generate.replay import Answers, Replay, Resume
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -103,7 +104,7 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
 
 
-def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
+def _answers(args: argparse.Namespace, context: Context) -> Answers | None:
     """The source that answers the BKO calls, read before any download or log is made."""
     if args.replay is not None:
         return Replay(args.replay)
@@ -111,10 +112,12 @@ def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
         return None
     resume = Resume(args.resume, context.send())
     logger.info(
-        "resume log=%s sha256=%s answered=%d",
+        "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
         resume.digest,
         resume.answered.calls,
+        resume.dropped,
+        resume.answered.carried_usd,
     )
     return resume
 
@@ -125,7 +128,7 @@ def _guided(
     frame: pd.DataFrame,
     names: Sequence[str],
     context: Context,
-    answers: Replay | None,
+    answers: Answers | None,
     *,
     direct: bool,
 ) -> list[Score]:
@@ -160,6 +163,8 @@ def _guided(
         candidates=args.candidates,
         origin=origin,
         send=context.send if canned is None else lambda: canned,
+        run=args.run,
+        limits=Limits(in_flight=args.in_flight, idle=experiment.idle_limit),
         answers=answers,
         rehearsal=args.rehearse,
     ) as paid:

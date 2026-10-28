@@ -33,6 +33,7 @@ from bko.gaps.definitions import Definition, StatementGap, gaps
 from bko.gaps.detect import CellGap, count_gaps
 from bko.gaps.observe import Cells, record_cells
 from bko.gaps.scope import load_uci_scope
+from bko.generate.flight import Limits
 from bko.generate.log import CallLog
 from bko.generate.replay import Replay
 
@@ -254,6 +255,8 @@ def fill_and_score(
             candidates=folder / "holdout-candidates.jsonl",
             origin=Origin("app", context.uci, context.releases),
             send=context.send,
+            run="app",
+            limits=Limits(in_flight=1, idle=experiment.idle_limit),
             answers=answers,
             now=context.now,
         ) as paid:

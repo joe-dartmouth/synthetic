@@ -153,8 +153,11 @@ A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped 
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
 included. The stopped run keeps its folder; the resumed run takes that id plus `-resume`
-([Runs](#runs)). `launch --resume` runs this command under the paid-run protocol below; by hand it
-reads:
+([Runs](#runs)). A log of a concurrent run (its `run` line holds `in_flight` above 1) resumes from
+its first call not answered by exactly one reply: the later calls are dropped with one warning
+each and sent live again. The new run's `carried_usd` holds their spend plus whatever the stopped
+log itself carried, at any in-flight, so the ceiling reads the whole run. `launch --resume` runs
+this command under the paid-run protocol below; by hand it reads:
 
     test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
 
@@ -202,18 +205,18 @@ launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `re
 `resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
 `score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` in its own
 session, held awake by `caffeinate -i -s` on macOS, with stdout and stderr in those two files;
-`--data-dir` is forwarded as an absolute path. It appends the process id to `launch.log` and prints
-the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute; for
-`--rehearse`, `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it
-appends `error=<type>: <message>` and then removes the two files; it also removes them when
-`launch.log`'s first lines cannot be written, and a failed claim writes nothing, so a failed launch
-leaves the folder free. A started process whose `pid=` line cannot be written is still reported
-started, with a WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=`
-line survives a retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the
-same power check and keep-awake: it starts
-`score <run> --resume <calls.jsonl> --log ... --candidates ...` with the stopped log's path made
-absolute, and refuses a stopped log that is not a file or lies inside the new folder, and the logs
-the resume guard above refuses. `--rehearse` starts
+`--data-dir` is forwarded as an absolute path, and `--in-flight` when given. It appends the process
+id to `launch.log` and prints the command that watches the folder
+(`tail -f <runs>/<run-id>/scores.log`, its path absolute; for `--rehearse`,
+`tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it appends
+`error=<type>: <message>` and then removes the two files; it also removes them when `launch.log`'s
+first lines cannot be written, and a failed claim writes nothing, so a failed launch leaves the
+folder free. A started process whose `pid=` line cannot be written is still reported started, with a
+WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
+retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
+and keep-awake: it starts `score <run> --resume <calls.jsonl> --log ... --candidates ...` with the
+stopped log's path made absolute, and refuses a stopped log that is not a file or lies inside the
+new folder, and the logs the resume guard above refuses. `--rehearse` starts
 `score <run> --log ... --candidates ... --rehearse` with the same checks inside
 `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
 and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
@@ -224,8 +227,13 @@ measure that fired: the spend ceiling (`E1.spend_ceiling`, logged as `stop rule=
 run's spend before the call it refuses), the projection (the live spend after `projection_after`
 holdouts, scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, a
 rehearsal is, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
-seconds for one call to get a reply, its retries included, timed while the call is in flight).
-`bko.evaluate.watch` holds the rules. A `scores.log` with no `run status=` line, which the call log
+seconds for one call to get a reply, its retries included, timed by `asyncio.timeout` around the
+awaited send; on expiry no later call is sent, and the calls beside it land under their own idle
+limits, so their replies and spend are recorded). `bko.evaluate.watch` holds the projection and
+`bko.generate.flight` the ceiling and the idle limit. `--in-flight N` sets the calls in flight,
+`bko.generate.flight.IN_FLIGHT` by default (ADR
+[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the call
+it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call log
 writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
 the runner before any replay.
 
@@ -279,44 +287,53 @@ the runner before any replay.
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
   the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
-  and a `versions` line (the checkout's
-  commit and whether its tree is dirty, `unknown` without git, then Python, the platform, the
-  evaluation stack, the SDK and the ontology parser), with `--resume` a `resume` line (`log=`,
-  `sha256=`, `answered=`) before any call, then per holdout the split line `cells` prints, one
-  `quota` line per stratum, one `arm` line per fill (a replica fill is named `<arm>-replica`) with
-  the attempt, the seed, the added rows' sha256 and the method's parameters, a `retry` warning for
-  each refused attempt before the last, and a `holdout` line with the progress and seconds, then the
-  CSV's row count and sha256. It also logs per BKO attempt a `guided` line (outcome, seed, call
-  range, records asked, candidates generated and passed, dropped for each reason, kept, the run's
-  spend), a `spend` line before each BKO call with the run's spend so far and the ceiling,
-  `bko.generate`'s `log` line and per-call lines and the call log's totals line (with `live_usd=`,
-  `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm copied, and
-  at the end of the run, a stopped run included, one `validity` line per BKO arm, its counts over
-  both fills. A resume logs a WARNING for a cut final line or an unanswered last call it drops from
-  the stopped log, and a `resume live from call` line before its first live call. A fill that stops
-  the run logs a `refused` or `contract` error naming the holdout and arm. `compare` logs a
-  `compare` line with the candidate, whether it is a dry run and the scores file's sha256, then one
-  `criterion` line per criterion with its verdict, a `criterion=validity` line, a `validity` line
-  per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`, `fill=replica`) with its
-  counts and rate, a `copies` line per arm, a `mean` line per arm, measure and scope, a
-  `contrast model=hgb` line per contrast of the boosting model's measures when the scores hold them
-  (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`, `high=`,
-  `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which lacks
-  them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
+  and a `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
+  then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
+  a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
+  per holdout the split line `cells` prints, one `quota` line per stratum, one `arm` line per fill
+  (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
+  the method's parameters, a `retry` warning for each refused attempt before the last, and a
+  `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
+  per BKO attempt a `guided` line (outcome, seed, call range, records asked, candidates generated
+  and passed, dropped for each reason, kept, the run's spend), a `spend` line before each BKO call
+  with the run's spend so far and the ceiling, a
+  `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call waits
+  for the calls in flight because their reservations reach the ceiling, a `halt call=%d unsent=%d`
+  line when a wave sends no more calls after a failure, naming the first call not sent and the
+  planned calls left, a `stop rule=idle call=%d limit_seconds=%.1f` WARNING naming the lowest call
+  the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a
+  `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
+  left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
+  `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
+  copied, and at the end of the run, a stopped run included, one `validity` line per BKO arm, its
+  counts over both fills. A resume logs a WARNING for a cut final line it drops from the stopped log
+  and one for each call it drops: the unanswered last call, or for a concurrent log every call from
+  the first unanswered one. It logs a `resume live from call` line before its first live call. A
+  fill that stops the run logs a `refused` or `contract` error naming the holdout and arm. `compare`
+  logs a `compare` line with the candidate, whether it is a dry run and the scores file's sha256,
+  then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
+  `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
+  `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure
+  and scope, a `contrast model=hgb` line per contrast of the boosting model's measures when the
+  scores hold them (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`,
+  `high=`, `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which
+  lacks them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
   judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
-  the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
-  line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
-  `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
-  `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line
-  (`arm=`, `against=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
-  `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
-  row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
+  the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it
+  then logs a `beside` counts line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`,
+  `mismatched=`, `arm=`, `against=`, `run=`, `level=`), then per series a `beside` line (`arm=`,
+  `against=`, `run=`, `level=`, `source=`, `measure=`, `scope=`, `mean=`, `low=`, `high=`,
+  `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line (`arm=`, `against=`, `run=`,
+  `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`, `defined=`); a
+  refused reading logs the counts line alone. An experiment copies them into its Runs row in
+  [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
-  `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each guidance-level run as
-  `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes a value;
-  `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
-  candidates are recorded and where calls are answered from, never a value.
+  `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each
+  guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes
+  a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
+  candidates are recorded and where calls are answered from, and `--in-flight` how many calls
+  overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
@@ -788,12 +805,13 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   `first-flag.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
   a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
   shows its error in place of its section.
-- **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It
-  starts only while its confirmation box is ticked, the box clears after each fill, the client is
-  built only then, and the fill stops once its call log's spend reaches
-  `bko.app.context.SPEND_CEILING`. One action runs at a time in the process. The credential is the
-  SDK's own (`ANTHROPIC_API_KEY` or `ant auth login`); a missing one stops the fill at its first
-  call, before any spend.
+- **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
+  only while its confirmation box is ticked, the box clears after each fill, the client is built
+  only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.
+  One action runs at a time in the process, and a fill sends one call at a time through the async
+  client (`run=app`, in-flight 1, the experiment's idle limit). The credential is the SDK's own
+  (`ANTHROPIC_API_KEY` or `ant auth login`); a missing one stops the fill at its first call, before
+  any spend.
 - **Replay**: a BKO fill can instead answer every call from the call log of an earlier fill by the
   same arm, picked from a list, with no API call. It refuses a log whose requests differ from the
   fill's or that holds calls the fill does not make (ADR

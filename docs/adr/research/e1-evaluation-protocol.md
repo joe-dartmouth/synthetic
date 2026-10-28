@@ -47,8 +47,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   reporting every measure beside them; a run with none is reported with no verdict. A paid run also
   stops on two rules beside the spend ceiling, each value held by its `Experiment`: its spend after
   `projection_after` holdouts, scaled to every holdout, reaching the ceiling, and a call with no
-  reply within `idle_limit` seconds (`bko.evaluate.watch`); `launch` starts it detached, kept awake
-  and refused on battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
+  reply within `idle_limit` seconds, timed by `asyncio.timeout` around each awaited send, retries
+  included, so that on expiry the run sends no later call, lets the calls in flight beside it land
+  under their own idle limits, records their replies and spend, and raises `StopRuleError("idle")`
+  (ADR `research/concurrent-call-waves`); `launch` starts it detached, kept awake and refused on
+  battery power (`docs/DEVELOPMENT.md`, Evaluation). `launch --resume STOPPED`
   resumes a run the idle rule stopped into a new folder under the same checks; a run the projection
   or the ceiling stopped is reported, not resumed, since resuming would spend past the rule that
   stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's
@@ -87,7 +90,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   line per attempt with its outcome, its call range, the records asked, the candidates generated and
   passed, those dropped for each reason and those kept. Its refusal's message carries the same
   counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
-  reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. That
+  reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. With
+  calls in flight, it first reserves each lower-numbered in-flight call's worst-case spend and, if
+  the spend plus the reservations reaches the ceiling, waits for those calls and checks again
+  exactly, so the stop lands at the call an in-flight 1 run stops at. That
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
   (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct

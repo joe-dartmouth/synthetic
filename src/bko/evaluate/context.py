@@ -14,8 +14,8 @@ from bko.evaluate.experiment import E1, RUNS, Experiment, NamedRun
 from bko.evaluate.launch import Power, Spawn, on_battery, spawn
 from bko.evaluate.rehearse import CannedSend, Rehearse
 from bko.evaluate.run import ARMS
-from bko.generate.api import default_send
-from bko.generate.messages import SETTINGS, Send, Settings
+from bko.generate.api import default_async_send
+from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -51,7 +51,7 @@ class Context:
     models: Mapping[Model, Factory] = MODELS
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
-    send: Callable[[], Send] = default_send
+    send: Callable[[], AnySend] = default_async_send
     rehearse: Rehearse = CannedSend
     power: Power = on_battery
     start: Spawn = spawn

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
 from bko.baselines.request import Request, Strata
-from bko.evaluate.guided import GuidedArm, Knowledge
-from bko.evaluate.watch import Watch
+from bko.evaluate.guided import GuidedArm, Knowledge, spendable
 from bko.gaps.definitions import Definition
 from bko.gaps.scope import load_scope
+from bko.generate.flight import Flight, Limits
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Send
+from bko.generate.messages import SETTINGS, AnySend
 from tests._fusion_fixtures import UCI_X, training_split
 from tests._gaps_fixtures import ANGINA, STENOSIS, ladder_releases
 from tests._ontology_fixtures import RoutingOpener
@@ -42,23 +43,22 @@ def train(directory: Path) -> pd.DataFrame:
 
 def guided(
     directory: Path,
-    send: Send,
+    send: AnySend,
     *,
     budget: int = 3,
     ceiling: float = 50.0,
     definition: Definition = Definition.SUBGROUP,
-    watch: Watch | None = None,
+    idle: float | None = None,
 ) -> tuple[GuidedArm, CallLog]:
-    """A BKO arm and its call log under `directory`; use the log in a `with` block."""
+    """A BKO arm and its call log under `directory`; use the log in a `with` block.
+
+    The arm sends through a `Flight` of one call at a time over `send`, under `ceiling` and the
+    idle limit `idle`, None for none.
+    """
     log = CallLog(directory / "calls.jsonl", SETTINGS)
+    limits = Limits(1, idle)
+    flight = Flight(send, log, limits, spendable=partial(spendable, log, ceiling), ceiling=ceiling)
     arm = GuidedArm(
-        "bko",
-        definition,
-        knowledge(directory / "data"),
-        send=send,
-        log=log,
-        budget=budget,
-        ceiling=ceiling,
-        watch=watch,
+        "bko", definition, knowledge(directory / "data"), log=log, budget=budget, flight=flight
     )
     return arm, log
