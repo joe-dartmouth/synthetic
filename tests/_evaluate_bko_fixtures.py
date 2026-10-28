@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Final
 
 from bko.evaluate.__main__ import Context
-from bko.generate.messages import Reply
+from bko.generate.messages import Reply, Send
 from tests._datasets_fixtures import pin
 from tests._evaluate_fixtures import FAST_ARMS, SMALL
 from tests._fusion_fixtures import young
@@ -40,7 +40,7 @@ def scripted() -> ScriptedSend:
     return ScriptedSend(*holdout, *holdout)
 
 
-def context(send: ScriptedSend, *, arms=None) -> tuple[Context, RoutingOpener]:
+def context(send: Send, *, arms=None) -> tuple[Context, RoutingOpener]:
     """A context over `UCI_E1` and the ladder releases, with `send` for every call."""
     pins, served = ladder_releases()
     opener = RoutingOpener({**served, PIN.url: UCI_E1})
