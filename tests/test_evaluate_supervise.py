@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import io
 import json
 import os
@@ -24,7 +25,7 @@ from bko.evaluate.supervise import Outcome, backoff, outcome, run_segment, super
 from bko.generate.calls import ask
 from bko.generate.flight import IN_FLIGHT
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Call, Reply
+from bko.generate.messages import SETTINGS, Call, Level, Reply, Settings
 from bko.generate.replay import Resume
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
@@ -63,10 +64,11 @@ class Segments:
         commands: Every command run, in order.
     """
 
-    def __init__(self, *ends: End | str) -> None:
-        """Script one segment per end, in order."""
+    def __init__(self, *ends: End | str, settings: Settings = SETTINGS) -> None:
+        """Script one segment per end, in order, each log made with `settings`."""
         self.commands: list[tuple[str, ...]] = []
         self._ends = list(ends)
+        self._settings = settings
 
     def __call__(
         self, command: Sequence[str], out: Path, err: Path, started: Callable[[int], None]
@@ -84,7 +86,7 @@ class Segments:
             return 2
         log = Path(str(_arg(command, "--log")))
         assert log.parent == out.parent
-        with CallLog(log, SETTINGS):
+        with CallLog(log, self._settings):
             pass
         lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
         if end is None or end == CRASHED:
@@ -135,6 +137,7 @@ def _supervise(
         power=lambda: power,
         platform=platform,
         now=lambda: NOW,
+        settings=SETTINGS,
     )
     return code, waits
 
@@ -362,6 +365,17 @@ def test_a_resume_launch_refuses_stops_the_run_with_two(tmp_path, power, taken, 
     assert "next=" not in "".join(_record(tmp_path))
 
 
+def test_a_resume_whose_stopped_log_cannot_be_resumed_is_refused_before_its_folder(tmp_path):
+    segments = Segments(IDLE, settings=dataclasses.replace(SETTINGS, guidance=Level.CELL))
+    code, waits = _supervise(tmp_path, segments)
+    assert (code, waits, len(segments.commands)) == (2, [60.0], 1)
+    assert not (tmp_path / "e1-4-resume-1").exists()
+    *_, refused, done = _record(tmp_path)
+    assert refused.startswith("supervise resume=e1-4-resume-1 refused=")
+    assert "was made with settings" in refused
+    assert done == "supervise done segments=1 last=e1-4 outcome=refused exit=2"
+
+
 def test_outcome_reads_an_unreadable_log_as_final(tmp_path):
     log = tmp_path / "calls.jsonl"
     log.write_text("not a log\n", encoding="utf-8")
@@ -452,6 +466,7 @@ def test_a_stop_during_backoff_claims_no_folder(tmp_path, by):
         sleep=stopped,
         power=lambda: False,
         platform="linux",
+        settings=SETTINGS,
     )
     assert (code, waits, len(segments.commands)) == (2, [60.0], 1)
     assert not (tmp_path / "e1-4-resume-1").exists()
@@ -475,6 +490,7 @@ def test_a_stop_file_keeps_a_killed_segment_from_resuming(tmp_path):
         sleep=pytest.fail,
         power=lambda: False,
         platform="linux",
+        settings=SETTINGS,
     )
     assert (code, len(segments.commands)) == (128 + 9, 1)
     assert _record(tmp_path)[-3:] == [
@@ -508,12 +524,20 @@ SUPERVISOR: Final = """
 import sys
 from pathlib import Path
 from bko.evaluate.supervise import run_segment, supervise
+from bko.generate.messages import SETTINGS
 root, child = Path(sys.argv[1]), sys.argv[2]
 def slow(command, out, err, started):
     log = command[command.index("--log") + 1]
     return run_segment([sys.executable, "-c", child, log], out, err, started)
 code = supervise(
-    "e1-4", "e1", root=root, retries=5, segment=slow, power=lambda: False, platform="linux"
+    "e1-4",
+    "e1",
+    root=root,
+    retries=5,
+    segment=slow,
+    power=lambda: False,
+    platform="linux",
+    settings=SETTINGS,
 )
 sys.exit(code)
 """

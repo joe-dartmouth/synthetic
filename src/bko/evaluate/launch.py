@@ -18,24 +18,28 @@ line survives a retry; a started process whose `pid=` line cannot be written is 
 started, with a WARNING. A dry run writes `launch.log` and starts nothing. A resume
 (`score --resume`) launches into a new folder with the same checks, and refuses a stopped log
 inside that folder. The data root, the runs root and the stopped log are forwarded as absolute
-paths. `check_folder`, `claim`, `release`, `append`, `awake` and `score_command` are the checks,
-claim, keep-awake and command a supervisor's resume reuses.
+paths. `check_folder`, `resumable`, `claim`, `release`, `append`, `awake` and `score_command` are
+the checks, claim, keep-awake and command a supervisor's resume reuses.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
 from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.errors import EvaluationError
+from bko.generate.errors import ReplayError
+from bko.generate.messages import Settings
+from bko.generate.replay import log_ends, refuse_unresumable
 
 
 logger = logging.getLogger(__name__)
@@ -297,6 +301,24 @@ def check_folder(
         msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
         raise EvaluationError(msg)
     return battery
+
+
+def resumable(path: Path, settings: Settings) -> None:
+    """Refuse a stopped log a resume cannot resume, before any folder is claimed.
+
+    Raises:
+        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
+            differ from `settings`, the named run's, so its first replayed call would differ.
+    """
+    try:
+        run_line, end = log_ends(path)
+        refuse_unresumable(path, run_line, end)
+    except ReplayError as exc:
+        raise EvaluationError(str(exc)) from exc
+    expected = json.loads(json.dumps(asdict(settings)))
+    if run_line.get("settings") != expected:
+        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
+        raise EvaluationError(msg)
 
 
 def claim(folder: Path) -> tuple[Path, Path]:

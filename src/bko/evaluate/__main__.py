@@ -42,11 +42,10 @@ resumed contradicts its contract.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
@@ -59,14 +58,12 @@ from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
-from bko.evaluate.launch import RETRIES, launch
+from bko.evaluate.launch import RETRIES, launch, resumable
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
-from bko.generate.errors import GenerationError, ReplayError
+from bko.generate.errors import GenerationError
 from bko.generate.flight import IN_FLIGHT
-from bko.generate.messages import Settings
-from bko.generate.replay import log_ends, refuse_unresumable
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -135,7 +132,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.resume is not None and args.resume.is_file():
-        _resumable(args.resume, context.settings)
+        resumable(args.resume, context.settings)
     found = launch(
         args.run_id,
         name,
@@ -158,6 +155,7 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
     return supervise(
         args.run_id,
         args.run,
+        settings=_named(args.run, context).settings,
         root=args.runs_dir,
         data_dir=args.data_dir,
         rehearse=args.rehearse,
@@ -168,24 +166,6 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
         sleep=context.sleep,
         power=context.power,
     )
-
-
-def _resumable(path: Path, settings: Settings) -> None:
-    """Refuse a stopped log `launch --resume` cannot resume, before any folder is claimed.
-
-    Raises:
-        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
-            differ from the named run's, so its first replayed call would differ.
-    """
-    try:
-        run_line, end = log_ends(path)
-        refuse_unresumable(path, run_line, end)
-    except ReplayError as exc:
-        raise EvaluationError(str(exc)) from exc
-    expected = json.loads(json.dumps(asdict(settings)))
-    if run_line.get("settings") != expected:
-        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
-        raise EvaluationError(msg)
 
 
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:

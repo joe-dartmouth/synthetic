@@ -45,12 +45,14 @@ from bko.evaluate.launch import (
     check_folder,
     claim,
     on_battery,
+    resumable,
     score_command,
     utc_now,
 )
 from bko.evaluate.stopping import STOP_FILE, OperatorStop
 from bko.generate.errors import ReplayError
 from bko.generate.flight import IN_FLIGHT
+from bko.generate.messages import Settings
 from bko.generate.replay import UNRESUMABLE, log_ends
 
 
@@ -201,6 +203,7 @@ def supervise(  # ruff: ignore[too-many-arguments]
     power: Power = on_battery,
     platform: str = sys.platform,
     now: Callable[[], datetime] = utc_now,
+    settings: Settings,
 ) -> int:
     """Run `score` for the named `run` into `root/<run_id>`, resuming API-caused stops.
 
@@ -224,6 +227,8 @@ def supervise(  # ruff: ignore[too-many-arguments]
         platform: `sys.platform`, as `launch` reads it; each segment runs under `caffeinate`
             on `darwin`.
         now: The clock every `launch.log` line reads.
+        settings: The named run's generator settings; a resume refuses a stopped log made with
+            others before it claims its folder.
 
     Returns:
         The last segment's exit code, 128 plus the signal's number for a child a signal killed,
@@ -243,6 +248,7 @@ def supervise(  # ruff: ignore[too-many-arguments]
         platform=platform,
         now=now,
         operator=operator,
+        settings=settings,
     )
     with operator.installed():
         return _supervise(plan, resume, in_flight)
@@ -265,6 +271,7 @@ class _Plan:
         platform: `sys.platform`.
         now: The clock.
         operator: The operator's stop.
+        settings: The named run's generator settings.
     """
 
     run_id: str
@@ -279,6 +286,7 @@ class _Plan:
     platform: str
     now: Callable[[], datetime]
     operator: OperatorStop
+    settings: Settings
 
     @property
     def first(self) -> Path:
@@ -366,10 +374,12 @@ def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
 
 
 def _claim(plan: _Plan, name: str, source: Path) -> str:
-    """Check and claim the resume folder `name` for `source`; return its power reading.
+    """Check `source` and the resume folder `name`, then claim it; return its power reading.
+
+    Nothing is claimed until every check passed, so a refused resume leaves no folder claimed.
 
     Raises:
-        EvaluationError: As `bko.evaluate.launch.check_folder` and `claim`.
+        EvaluationError: As `bko.evaluate.launch.check_folder`, `resumable` and `claim`.
     """
     folder = plan.root / name
     battery = check_folder(
@@ -381,6 +391,7 @@ def _claim(plan: _Plan, name: str, source: Path) -> str:
         power=plan.power,
         platform=plan.platform,
     )
+    resumable(source, plan.settings)
     claim(folder)
     return "unchecked" if battery is None else "mains"
 
