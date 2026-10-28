@@ -11,12 +11,13 @@ loop, which an async client's connections need; outside one, each wave gets its 
 
 The stop rules hold as they do one call at a time. Before each call, every call still in flight
 reserves its most: `max_tokens` of output and its request's JSON length plus `OVERHEAD_TOKENS` of
-input, at the model's `bko.generate.spend.PRICES`. When the log's spend plus those reservations
-reaches the ceiling, the call waits for them to land, and the caller's exact check then reads the
-spend a one-call-at-a-time run reads there. Each awaited send runs under `asyncio.timeout` at the
-idle limit, its retries included: on expiry the call raises `IdleError`, and the calls beside it are
-cancelled, each writing its `error` line, in call order. Each call's task sets
-`bko.generate.messages.CALL_NUMBER`, so its retry lines name it.
+input, at the model's `bko.generate.spend.PRICES`; the input is priced at the higher of `input` and
+`cache_write`, since a call may bill its prompt as a cache write. When the log's spend plus those
+reservations reach the ceiling, the call waits for them to land, and the caller's exact check then
+reads the spend a one-call-at-a-time run reads there. Each awaited send runs under
+`asyncio.timeout` at the idle limit, its retries included: on expiry the call raises `IdleError`,
+and the calls beside it are cancelled, each writing its `error` line, in call order. Each call's
+task sets `bko.generate.messages.CALL_NUMBER`, so its retry lines name it.
 """
 
 from __future__ import annotations
@@ -311,11 +312,12 @@ class Flight:
 
 
 def _reservation(pending: Pending) -> float:
-    """The most `pending` can cost in USD: all its output tokens, and its request's input."""
+    """The most `pending` can cost in USD, its input at the higher of `input` and `cache_write`."""
     settings = pending.call.settings
     price = price_of(settings.model)
     text = len(json.dumps(pending.call.params()))
-    return (settings.max_tokens * price.output + (text + OVERHEAD_TOKENS) * price.input) / 1e6
+    rate = max(price.input, price.cache_write)
+    return (settings.max_tokens * price.output + (text + OVERHEAD_TOKENS) * rate) / 1e6
 
 
 async def _cancel_beside(index: int, wave: _Wave) -> None:

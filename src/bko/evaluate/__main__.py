@@ -95,14 +95,7 @@ def main(
             sink.write(_launch(args, context))
             return 0
         if args.command == "compare":
-            compare(
-                _named(args.run, context).experiment,
-                args.candidate,
-                args.scores,
-                sink,
-                beside=args.beside,
-                beside_arm=args.beside_arm,
-            )
+            _compare(args, context, sink)
             return 0
         text = score(args, _named(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
@@ -168,6 +161,21 @@ def _resumable(path: Path, settings: Settings) -> None:
     if run_line.get("settings") != expected:
         msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
         raise EvaluationError(msg)
+
+
+def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
+    """Judge the scores of the run `args.run` and write the table to `sink`."""
+    named = _named(args.run, context)
+    compare(
+        named.experiment,
+        args.candidate,
+        args.scores,
+        sink,
+        run=args.run,
+        level=named.settings.guidance,
+        beside=args.beside,
+        beside_arm=args.beside_arm,
+    )
 
 
 def _named(name: str, context: Context) -> Context:

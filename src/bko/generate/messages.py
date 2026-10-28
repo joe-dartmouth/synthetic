@@ -183,8 +183,9 @@ type AnySend = Callable[[Call], Reply | Awaitable[Reply]]
 """A `Send` or an `AsyncSend`: `bko.generate.flight` awaits the reply when it is awaitable."""
 
 CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
-"""The number of the call being sent, which `bko.generate.flight` sets in each call's own task so
-its retry lines name it; 0 outside a `Flight`."""
+"""The number of the call being sent, which `bko.generate.calls.request` sets and
+`bko.generate.flight` sets again in each call's own task, so its retry lines name it; 0 before any
+call is requested."""
 
 
 def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:

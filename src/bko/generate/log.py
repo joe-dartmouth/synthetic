@@ -240,10 +240,13 @@ class CallLog:
                 }
             )
             logger.info(
-                "run status=%s calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
-                "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
-                "rehearsal=%s log=%s",
+                "run status=%s run=%s level=%s in_flight=%d calls=%d failed=%d retried=%d asked=%d "
+                "decoded=%d undecoded=%d input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f "
+                "replay=%s resume=%s rehearsal=%s log=%s",
                 status,
+                self.run or "none",
+                self.settings.guidance,
+                self.in_flight,
                 self.calls,
                 self.failed,
                 self.retried,

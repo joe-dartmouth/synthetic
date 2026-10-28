@@ -13,11 +13,12 @@ import pytest
 
 from bko.evaluate.errors import StopRuleError
 from bko.evaluate.guided import spendable
+from bko.generate.calls import request
 from bko.generate.errors import GenerationError, IdleError
-from bko.generate.flight import Flight, Limits, Planned
+from bko.generate.flight import OVERHEAD_TOKENS, Flight, Limits, Planned, _reservation
 from bko.generate.log import CallLog
 from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Reply
-from bko.generate.spend import cost
+from bko.generate.spend import PRICES, cost
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
 
@@ -215,6 +216,18 @@ def test_a_mid_wave_ceiling_stops_at_the_in_flight_1_call(tmp_path, caplog):
     lines = [json.loads(line) for line in (tmp_path / "calls-3.jsonl").read_text().splitlines()]
     assert lines[-1]["calls"] == 2
     assert lines[-1]["stop"] == "ceiling"
+
+
+def test_a_reservation_prices_its_input_at_the_cache_write_rate(tmp_path):
+    price = PRICES[SETTINGS.model]
+    assert price.cache_write > price.input
+    with _log(tmp_path) as log:
+        pending = request(GUIDANCE, 1, log=log)
+    text = len(json.dumps(pending.call.params()))
+    expected = (
+        SETTINGS.max_tokens * price.output + (text + OVERHEAD_TOKENS) * price.cache_write
+    ) / 1e6
+    assert _reservation(pending) == pytest.approx(expected)
 
 
 def test_a_ceiling_the_reservations_stay_under_keeps_every_call_in_flight(tmp_path):

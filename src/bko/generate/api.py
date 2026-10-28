@@ -14,8 +14,9 @@ retry); `send_with` reads it into `Reply.attempts` and `GenerationError.attempts
 `async_send_with` and `default_async_send` are the same over `AsyncAnthropic`, whose calls
 `bko.generate.flight` keeps in flight together. Each such call counts its own attempts in a holder
 it puts in `ATTEMPTS`, a `ContextVar`, so calls in flight together never share a count, and
-`Attempts.handle_async` logs each retryable status as a `retry` line naming the call
-(`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's `retry-after`.
+`Attempts.handle` and `Attempts.handle_async` log each retryable status as a `retry` line naming
+the call (`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's
+`retry-after`.
 """
 
 from __future__ import annotations
@@ -64,6 +65,20 @@ def retryable(status: int, headers: Mapping[str, str]) -> bool:
     return status in RETRIED or status >= 500
 
 
+def _log_retry(
+    attempt: int, response: anthropic.APIResponse[Any] | anthropic.AsyncAPIResponse[Any]
+) -> None:
+    """Log a `retry` line when the SDK will retry `response`'s status."""
+    if retryable(response.status_code, response.headers):
+        logger.warning(
+            "retry call=%d attempt=%d status=%s retry_after=%s",
+            CALL_NUMBER.get(),
+            attempt,
+            response.status_code,
+            response.headers.get("retry-after") or "none",
+        )
+
+
 class Attempts(anthropic.Middleware):
     """Counts the HTTP requests the SDK makes for one call: the first, then each retry."""
 
@@ -76,9 +91,14 @@ class Attempts(anthropic.Middleware):
         request: anthropic.APIRequest,
         call_next: Callable[[anthropic.APIRequest], anthropic.APIResponse[Any]],
     ) -> anthropic.APIResponse[Any]:
-        """Record this attempt's number, then make it."""
+        """Record this attempt's number, make it, and log a retry.
+
+        A status the SDK retries logs the same `retry` line as `handle_async`.
+        """
         self.count = request.retries_taken + 1
-        return call_next(request)
+        response = call_next(request)
+        _log_retry(self.count, response)
+        return response
 
     async def handle_async(  # ruff: ignore[no-self-use]
         self,
@@ -96,14 +116,7 @@ class Attempts(anthropic.Middleware):
         if holder is not None:
             holder[0] = attempt
         response = await call_next(request)
-        if retryable(response.status_code, response.headers):
-            logger.warning(
-                "retry call=%d attempt=%d status=%s retry_after=%s",
-                CALL_NUMBER.get(),
-                attempt,
-                response.status_code,
-                response.headers.get("retry-after") or "none",
-            )
+        _log_retry(attempt, response)
         return response
 
 

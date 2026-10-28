@@ -46,7 +46,8 @@ ceiling stop lands elsewhere.
   candidates header and the resume check read `Settings`, and in-flight changes nothing a call
   sends. `launch` forwards it only when given.
 - **Ceiling.** Before call j, reserve each lower-numbered in-flight call's
-  `max_tokens x PRICES.output + (len(json.dumps(params)) + 2000) x PRICES.input`. If the log's
+  `max_tokens x PRICES.output + (len(json.dumps(params)) + 2000) x max(PRICES.input,
+  PRICES.cache_write)`, so a call billed as a cache write is not understated. If the log's
   spend plus the reservations reaches the ceiling, wait for those calls, then check exactly. The
   stop lands at the call an in-flight 1 run stops at.
 - **Idle.** `asyncio.timeout(idle_limit)` wraps each awaited send, retries included. On expiry the
@@ -59,8 +60,8 @@ ceiling stop lands elsewhere.
   last-call rule (ADR `research/call-log-replay`).
 - **Log identity.** The `run status=` line names `run=`, `level=` and `in_flight=`; `compare`'s
   `beside` lines name `run=` and `level=`; each 429 or retryable status logs
-  `retry call=%d attempt=%d status=%s retry_after=%s`. This pays
-  `cleanup:evaluate/concurrent-run-log-identity`.
+  `retry call=%d attempt=%d status=%s retry_after=%s`. This
+  answers a rate-limit storm that trips the idle rule with a line per retry.
 - **Callers.** `guided_arms` takes the run's name and its limits. The generate CLI records
   `run=generate` at in-flight 1 and stays sequential. The app sends through the async client at
   in-flight 1 with the experiment's idle limit and `run=app`, since a synchronous send cannot be

@@ -42,6 +42,8 @@ def compare(
     scores: Path,
     out: TextIO,
     *,
+    run: str,
+    level: str,
     beside: Path | None = None,
     beside_arm: str | None = None,
 ) -> None:
@@ -62,6 +64,8 @@ def compare(
         candidate: The row-adding arm judged; the experiment's own when None.
         scores: The CSV that `score` wrote.
         out: Where the table goes.
+        run: The name of the run the scores belong to; the `beside` lines name it.
+        level: The guidance level of that run's settings; the `beside` lines name it.
         beside: Another scores file to read the judged arm beside.
         beside_arm: The arm of `beside` read; the judged arm when None.
 
@@ -86,7 +90,9 @@ def compare(
     reading = (
         None
         if beside is None
-        else _prepare(beside, rows, arm=candidate, against=beside_arm or candidate)
+        else _prepare(
+            beside, rows, arm=candidate, against=beside_arm or candidate, run=run, level=level
+        )
     )
     for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
         outcome = next(c.verdict for c in contrasts if c.criterion == criterion)
@@ -100,7 +106,7 @@ def compare(
         _log_unjudged(rows, experiment, candidate)
     log_means(rows, source=Source.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
     if reading is not None:
-        _log_beside(reading, rows, experiment)
+        _log_beside(reading, rows, experiment, run=run, level=level)
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,7 +128,9 @@ def _text(data: bytes) -> str:
         raise ScoresFormatError(msg) from exc
 
 
-def _prepare(path: Path, ours: Sequence[Score], *, arm: str, against: str) -> _Reading:
+def _prepare(
+    path: Path, ours: Sequence[Score], *, arm: str, against: str, run: str, level: str
+) -> _Reading:
     """Read the other file and pair its holdouts; on a refusal, log the counts first.
 
     Raises:
@@ -135,16 +143,16 @@ def _prepare(path: Path, ours: Sequence[Score], *, arm: str, against: str) -> _R
     try:
         check(ours, theirs, arm=arm, against=against, holdouts=found.pairing.holdouts)
     except EvaluationError:
-        _log_counts(found)
+        _log_counts(found, run, level)
         raise
     return found
 
 
-def _log_counts(reading: _Reading) -> None:
+def _log_counts(reading: _Reading, run: str, level: str) -> None:
     pairing = reading.pairing
     logger.info(
         "beside scores_sha256=%s shared=%d paired=%d excluded=%d copied=%d mismatched=%d "
-        "arm=%s against=%s",
+        "arm=%s against=%s run=%s level=%s",
         reading.digest,
         pairing.shared,
         len(pairing.holdouts),
@@ -153,12 +161,16 @@ def _log_counts(reading: _Reading) -> None:
         pairing.mismatched,
         reading.arm,
         reading.against,
+        run,
+        level,
     )
 
 
-def _log_beside(reading: _Reading, ours: Sequence[Score], experiment: Experiment) -> None:
+def _log_beside(
+    reading: _Reading, ours: Sequence[Score], experiment: Experiment, *, run: str, level: str
+) -> None:
     """Log the pairing's counts, then each series read beside the other file's arm, or skipped."""
-    _log_counts(reading)
+    _log_counts(reading, run, level)
     arm, against = reading.arm, reading.against
     found = pair(
         ours,
@@ -172,9 +184,12 @@ def _log_beside(reading: _Reading, ours: Sequence[Score], experiment: Experiment
     for series in found:
         if isinstance(series, Skipped):
             logger.info(
-                "beside skip arm=%s against=%s source=%s measure=%s scope=%s reason=%s defined=%d",
+                "beside skip arm=%s against=%s run=%s level=%s source=%s measure=%s scope=%s "
+                "reason=%s defined=%d",
                 arm,
                 against,
+                run,
+                level,
                 series.source,
                 series.measure,
                 series.scope,
@@ -183,10 +198,12 @@ def _log_beside(reading: _Reading, ours: Sequence[Score], experiment: Experiment
             )
             continue
         logger.info(
-            "beside arm=%s against=%s source=%s measure=%s scope=%s mean=%.6f low=%.6f high=%.6f "
-            "holdouts=%d differing=%d undefined=%d",
+            "beside arm=%s against=%s run=%s level=%s source=%s measure=%s scope=%s mean=%.6f "
+            "low=%.6f high=%.6f holdouts=%d differing=%d undefined=%d",
             arm,
             against,
+            run,
+            level,
             series.source,
             series.measure,
             series.scope,

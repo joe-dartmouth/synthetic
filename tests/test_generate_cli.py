@@ -244,7 +244,7 @@ def test_an_api_failure_exits_2_keeping_earlier_batches_on_stdout_and_the_spend_
     digest = hashlib.sha256(out.encode()).hexdigest()
     assert f"candidates rows=12 sha256={digest}" in [r.getMessage() for r in caplog.records]
     [summary] = [r.getMessage() for r in caplog.records if r.getMessage().startswith("run ")]
-    assert "status=failed calls=2 failed=1" in summary
+    assert "status=failed run=generate level=ontology in_flight=1 calls=2 failed=1" in summary
     assert "usd=0.000350" in summary
     assert log_lines(log)[-1]["status"] == "failed"
     assert any(
@@ -308,7 +308,8 @@ def test_the_summary_line_names_calls_tokens_usd_log_and_stdout_sha256(tmp_path,
     _, out, log = run(tmp_path, make_context(two_replies()))
     messages = [record.getMessage() for record in caplog.records]
     assert (
-        f"run status=complete calls=2 failed=0 retried=0 asked=32 decoded=31 undecoded=1 "
+        "run status=complete run=generate level=ontology in_flight=1 calls=2 failed=0 retried=0 "
+        "asked=32 decoded=31 undecoded=1 "
         f"input_tokens=2000 output_tokens=1000 usd=0.000700 live_usd=0.000700 replay=none "
         f"resume=none rehearsal=false log={log}"
     ) in messages

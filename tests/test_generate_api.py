@@ -215,11 +215,35 @@ def test_attempts_counts_each_http_request():
     probe = Attempts()
     request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=2))
 
-    def call_next(_: anthropic.APIRequest) -> str:
-        return "sent"
+    sent = SimpleNamespace(status_code=200, headers={})
 
-    assert probe.handle(request, call_next) == "sent"  # ty: ignore[invalid-argument-type]
+    def call_next(_: anthropic.APIRequest) -> SimpleNamespace:
+        return sent
+
+    assert probe.handle(request, call_next) is sent  # ty: ignore[invalid-argument-type]
     assert probe.count == 3
+
+
+def test_handle_logs_a_retry_line_for_each_retryable_status(caplog):
+    probe = Attempts()
+    replies = iter(
+        [
+            SimpleNamespace(status_code=429, headers={"retry-after": "2"}),
+            SimpleNamespace(status_code=200, headers={}),
+        ]
+    )
+
+    def call_next(_: anthropic.APIRequest) -> SimpleNamespace:
+        return next(replies)
+
+    caplog.set_level(logging.INFO)
+    CALL_NUMBER.set(7)
+    for retries in range(2):
+        request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=retries))
+        probe.handle(request, call_next)  # ty: ignore[invalid-argument-type]
+    assert [m for m in caplog.messages if m.startswith("retry ")] == [
+        "retry call=7 attempt=1 status=429 retry_after=2"
+    ]
 
 
 def test_a_reply_carries_the_probes_count(monkeypatch):

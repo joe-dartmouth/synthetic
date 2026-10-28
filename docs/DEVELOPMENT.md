@@ -316,9 +316,9 @@ the runner before any replay.
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
   the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
-  `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
-  `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`, `run=`, `level=`) or a `beside skip` line
-  (`arm=`, `against=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
+  `against=`, `run=`, `level=`), then per series a `beside` line (`arm=`, `against=`, `run=`, `level=`,
+  `source=`, `measure=`, `scope=`, `mean=`, `low=`, `high=`, `holdouts=`, `differing=`,
+  `undefined=`) or a `beside skip` line (`arm=`, `against=`, `run=`, `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
   `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
   row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and

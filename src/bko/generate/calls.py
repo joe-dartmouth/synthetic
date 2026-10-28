@@ -23,7 +23,7 @@ from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import Undecoded, decode, undecoded_in
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
-from bko.generate.messages import Call, Reply, Send, Settings
+from bko.generate.messages import CALL_NUMBER, Call, Reply, Send, Settings
 from bko.generate.prompt import render
 from bko.generate.spend import cost, price_of
 
@@ -144,6 +144,7 @@ def request(
     system, user = render(guidance, rows, settings.guidance, frame=frame)
     call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
+    CALL_NUMBER.set(index)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
     logger.info("send call=%d cell=%s asked=%d", index, cell_key(guidance.cell), rows)
     return Pending(index, guidance.cell, rows, call)
