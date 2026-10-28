@@ -326,9 +326,11 @@ log); `crash` (F5 crash); `rehearsal`; `name` (the run id's resume folder name i
 the signal's number for a child a signal killed, or 2 when a resume is refused, a segment cannot
 start or the supervisor cannot run.
 
-- **What `score` does**: it fetches UCI Heart Disease if the data root lacks it, then for each of
-  `E1`'s holdout seeds splits the data with that seed and gives every arm the split's training rows
-  and the request that fills each underrepresented cell up to the threshold. A classifier fit on the
+- **What `score` does**: the named run's dataset (`bko.evaluate.experiment.NamedRun.dataset`)
+  decides what it loads, as one `bko.evaluate.data.Data` every stage reads; for UCI it fetches UCI
+  Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
+  data with that seed and gives every arm the split's training rows and the request that fills
+  each underrepresented cell up to the threshold. A classifier fit on the
   real rows, weighted as the arm says, and the added rows is scored on the test split, then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
@@ -347,8 +349,9 @@ start or the supervisor cannot run.
   answered from it, then live calls. With `--rehearse`, `bko.evaluate.rehearse.CannedSend` answers
   every call, and the projection and the ceiling read its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
-  header line (`kind` `header`, `schema`, the run name, the UCI archive's and each release's sha256,
-  the generator settings), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
+  header line (`kind` `header`, `schema` 2, the run name, the `frame`'s name, the sha256 of the
+  run's records under `data`, each release's sha256, and the generator settings, which a run with
+  no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
   attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
   `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell` or
@@ -375,7 +378,7 @@ start or the supervisor cannot run.
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs an `experiment` line with
-  the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
+  the frame (`frame=`), the budget, the validity threshold, the spend ceiling and the models it scores with (`models=`),
   and a `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
@@ -390,7 +393,8 @@ start or the supervisor cannot run.
   for the calls in flight because their reservations reach the ceiling, a `halt call=%d unsent=%d`
   line when a wave sends no more calls after a failure, naming the first call not sent and the
   planned calls left, a `stop rule=idle call=%d limit_seconds=%.1f` WARNING naming the lowest call
-  the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a
+  the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines,
+  `bko.validate`'s `validated` line per batch it checks (its counts, then `frame=`), a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
@@ -680,8 +684,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and
   `summary` (the default), each adding one component to the one before it; the ADR defines each.
-- **What it logs**: the call log at `--log` gets a `run` line, a `request` line before each call and
-  a `reply` or `error` line after it, and an `end` line with the run's status, the replayed log's
+- **What it logs**: the call log at `--log` gets a `run` line naming the frame under `frame`, a
+  `request` line before each call and a `reply` or `error` line after it, and an `end` line with
+  the run's status, the replayed log's
   sha256 (or null), the resumed log's sha256 and answered calls under `resume` (or null; generate
   always writes null), `rehearsal` (false: generate never rehearses), `stop` (null: generate has no
   stop rule), `retryable` (whether the API caused a failure: a connection error, a timeout, a 408,

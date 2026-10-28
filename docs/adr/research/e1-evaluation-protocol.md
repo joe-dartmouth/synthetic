@@ -39,8 +39,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   another arm as a dry run, never as E1's verdict, and `compare --beside` reads an arm beside
   another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
   rows match and no arm in either file copied a test record. A variant is a named run:
-  `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment` and generator `Settings`, `e1`
-  being `E1` at `SETTINGS` and the default, and `score` and `compare` take the name as a positional.
+  `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment`, generator `Settings` and
+  dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take the name as a positional.
   A named run is a value fixed in code and committed, so it replays at its commit as E1 does, and
   the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
   setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
@@ -109,7 +109,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct
   arm of ADR `research/bkb-direct-generation`, which makes none), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
-  single candidates needs no new run; a stopped run's file lacks the stopped holdout's undrained
+  single candidates needs no new run; its header, schema 2, names the frame and the sha256 of the
+  run's data, and a run with no Messages arm writes no settings; a stopped run's file lacks the stopped holdout's undrained
   fills, whose candidates live only in its call log; `score` requires the file whenever a BKO arm
   runs, and a replay rewrites it byte for byte.
 - **Validity.** Each BKO arm's validity rate is `passed` summed over `generated` summed, from every
