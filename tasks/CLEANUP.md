@@ -128,6 +128,17 @@ links to where its blocker is tracked.
   settings.
   **Trigger:** the next change to `bko.evaluate.holdout_candidates`.
 
+- **`cleanup:evaluate/compare-header-run-level`: `compare`'s judged output names no run and no
+  level.** The header log line, the `criterion=` lines and `criteria.csv` carry neither the run nor
+  its guidance level, so two judged runs at different levels read alike; only the `--beside` lines
+  name a run. Evidence: `bko.evaluate.compare` logs the header as `"compare candidate=%s dry_run=%s
+  scores_sha256=%s"`, with the candidate arm, the dry-run flag and the scores' sha256 only. *Filed
+  2026-10-28 by the diff review of PR #53.*
+  **Why deferred.** `evaluate-e1-second-configuration` changes `SETTINGS` and its pins only, and
+  `bko.evaluate.compare` is outside its Out clause.
+  **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
+  **Trigger:** the next change to `bko.evaluate.compare`.
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
