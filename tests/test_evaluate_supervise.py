@@ -35,6 +35,8 @@ CEILING: Final = {"status": "failed", "stop": "ceiling", "retryable": False, "ra
 PROJECTION: Final = {**CEILING, "stop": "projection"}
 INTERRUPTED: Final = {**DETERMINISTIC, "status": "interrupted"}
 KILLED: Final = None
+CRASHED: Final = "crashed"
+"""A segment that exits on its own, code 1, with no `end` line: a crash, not a kill."""
 ABSENT: Final = "absent"
 """A segment that exits before it makes its call log."""
 
@@ -71,12 +73,14 @@ class Segments:
         with CallLog(log, SETTINGS):
             pass
         lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
-        if end is None:
+        if end is None or end == CRASHED:
             lines.pop()
         else:
             assert isinstance(end, Mapping)
             lines[-1].update(end)
         log.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
+        if end == CRASHED:
+            return 1
         return -9 if end is None else EXIT[str(lines[-1]["status"])]
 
     @property
@@ -176,6 +180,23 @@ def test_supervise_resumes_a_killed_segment(tmp_path):
     assert "status=none stop=none retryable=true" in _lines(tmp_path)[0]
 
 
+@pytest.mark.parametrize("code", [0, 1, 2])
+def test_outcome_reads_a_log_with_no_end_line_as_retryable_only_after_a_signal(tmp_path, code):
+    log = tmp_path / "calls.jsonl"
+    with CallLog(log, SETTINGS):
+        pass
+    log.write_text(log.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    assert outcome(log, code) == Outcome("none", None, retryable=False, rate_limited=False)
+    assert outcome(log, -9) == Outcome("none", None, retryable=True, rate_limited=False)
+
+
+def test_supervise_does_not_resume_a_crash_with_no_end_line(tmp_path):
+    segments = Segments(CRASHED)
+    assert _supervise(tmp_path, segments) == (1, [])
+    assert len(segments.commands) == 1
+    assert "status=none stop=none retryable=false" in _lines(tmp_path)[0]
+
+
 @pytest.mark.parametrize("end", [PROJECTION, CEILING], ids=["projection", "ceiling"])
 @pytest.mark.parametrize("marked", [False, True], ids=["as-written", "marked-retryable"])
 def test_supervise_does_not_resume_a_projection_or_ceiling_stop(tmp_path, end, marked):
@@ -255,7 +276,7 @@ def test_a_resume_launch_refuses_stops_the_run_with_two(tmp_path, power, taken, 
 def test_outcome_reads_an_unreadable_log_as_final(tmp_path):
     log = tmp_path / "calls.jsonl"
     log.write_text("not a log\n", encoding="utf-8")
-    assert outcome(log) == Outcome("unreadable", None, retryable=False, rate_limited=False)
+    assert outcome(log, -9) == Outcome("unreadable", None, retryable=False, rate_limited=False)
 
 
 def test_run_segment_runs_the_command_to_its_exit_with_its_output_appended(tmp_path):

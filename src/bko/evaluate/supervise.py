@@ -4,8 +4,10 @@
 Supervision) holds the stop branches it reads and ADR `research/concurrent-call-waves` the decision.
 Each segment runs `score` as a child process and waits for it. When the child exits, the segment's
 call log's `end` line decides: a failed run whose line reads `retryable`, its stop not a projection
-or ceiling stop, or a log with no `end` line, since the child is gone, is resumed while resumes
-remain; a complete run, any other failure, an interrupt and a missing or unreadable log are not.
+or ceiling stop, or a log with no `end` line whose child a signal killed (a negative exit code:
+`SIGKILL`, an out-of-memory kill or a sleep), is resumed while resumes remain; a complete run, any
+other failure, an interrupt, a log with no `end` line whose child exited on its own (a crash) and a
+missing or unreadable log are not.
 Resume `k` waits `backoff(k)` seconds, takes the folder `<run_id>-resume-<k>` under launch's own
 argument, power and folder checks and claim, and runs `score --resume` on the previous segment's
 call log there, at half the previous in-flight (at least 1) when that segment was rate limited. A
@@ -86,8 +88,8 @@ class Outcome:
         status: The `end` line's status; `none` for a log with no `end` line, `absent` for no
             log, `unreadable` for a log whose first line is not a call log's.
         stop: The stop rule the `end` line names, or None.
-        retryable: Whether the API caused the stop, or the log has no `end` line, so the child
-            was killed: the segment is resumed while resumes remain.
+        retryable: Whether the API caused the stop, or the log has no `end` line and a signal
+            killed the child: the segment is resumed while resumes remain.
         rate_limited: Whether any retry in the segment met a 429.
     """
 
@@ -97,8 +99,13 @@ class Outcome:
     rate_limited: bool
 
 
-def outcome(log: Path) -> Outcome:
-    """Read a finished segment's call log at `log`; its child process must be gone."""
+def outcome(log: Path, code: int) -> Outcome:
+    """Read a finished segment's call log at `log`; its child process, which exited `code`, is gone.
+
+    A log with no `end` line is retryable only when `code` is negative, a signal's: `score` turns
+    `SIGTERM`, `SIGINT` and `SIGHUP` into an `interrupted` end line, so a signal that leaves none
+    is a kill, and a child that exited on its own with none crashed.
+    """
     if not log.is_file():
         return Outcome("absent", None, retryable=False, rate_limited=False)
     try:
@@ -106,7 +113,7 @@ def outcome(log: Path) -> Outcome:
     except ReplayError, OSError:
         return Outcome("unreadable", None, retryable=False, rate_limited=False)
     if end is None:
-        return Outcome("none", None, retryable=True, rate_limited=False)
+        return Outcome("none", None, retryable=code < 0, rate_limited=False)
     stop = end.get("stop")
     status = str(end.get("status"))
     retryable = status == "failed" and end.get("retryable") is True and stop not in UNRESUMABLE
@@ -175,7 +182,7 @@ def supervise(  # ruff: ignore[too-many-arguments]
                 ],
             )
         code = segment(command, folder / "scores.csv", folder / "scores.log")
-        found = outcome(folder / "calls.jsonl")
+        found = outcome(folder / "calls.jsonl", code)
         name = f"{run_id}-resume-{k + 1}"
         resumes = (
             found.retryable and not rehearse and k < retries and RUN_ID.fullmatch(name) is not None
