@@ -1,9 +1,10 @@
 """The prompt: one system text every call shares, and a user turn built up the guidance ladder.
 
-The system text names every column with its meaning, its codes or its unit and plausible range,
-and asks for new patients. The user turn states the cell and the record count, then adds one
-component per level reached. Both read the frame given, UCI's by default. No prompt holds a
-record. ADR `research/record-generation-design` records what each level sends.
+The system text names every column with its meaning and its codes or its unit, with no range,
+and asks for new patients. The user turn states the cell, the record count and each numeric
+field's training-split bounds, then adds one component per level reached. Both read the frame
+given, UCI's by default. No prompt holds a record. ADR `research/record-generation-design`
+records what each level sends.
 """
 
 from __future__ import annotations

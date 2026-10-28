@@ -238,8 +238,9 @@ during high-volume periods. The brief's advice is to build the whole pipeline on
 project never blocks on credentialing, and to start credentialing on day one as a parallel,
 non-blocking track.
 
-**Credentialed data stays local.** The pipeline sends each cell's description, plausibility ranges
-and ontology guidance to the Anthropic Messages API, never a record. Data held under a DUA must
+**Credentialed data stays local.** The pipeline sends each cell's description, each numeric
+field's training-split minimum and maximum (age within the cell's band), two training values per
+field, and ontology guidance to the Anthropic Messages API, never a record. Data held under a DUA must
 not reach that API or any other third-party service unless the DUA permits it; check its current
 terms before any such run.
 

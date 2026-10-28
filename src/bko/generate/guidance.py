@@ -1,9 +1,10 @@
 """What a request tells the model about one cell, as values the prompt renders.
 
-Every level carries the cell, its training record count and each numeric field's plausible
-interval, with age clipped to the cell's band. Higher levels add ontology findings, a profile of
-concept shares and numeric spreads. The numeric fields, their ranges and the band edges are the
-frame's, UCI's by default. ADR `research/record-generation-design` records the ladder.
+Every level carries the cell, its training record count and each numeric field's interval: its
+training-split minimum and maximum, age intersected with the cell's band. Higher levels add
+ontology findings, a profile of concept shares and numeric spreads. The numeric fields and the
+band edges are the frame's, UCI's by default. ADR `research/record-generation-design` records
+the ladder.
 """
 
 from __future__ import annotations
@@ -121,7 +122,8 @@ class Guidance:
         sex: The cell's `sex` code.
         label: The cell's `LABEL` code.
         records: The training records the cell holds.
-        interval: Each numeric field's plausible interval, age clipped to the cell's band.
+        interval: Each numeric field's training-split minimum and maximum, age intersected
+            with the cell's band.
         basis: Why the findings were chosen.
         findings: The ontology findings.
         profile: The reference group's concept shares.

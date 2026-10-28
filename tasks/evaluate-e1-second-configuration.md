@@ -2,7 +2,7 @@
 id: evaluate-e1-second-configuration
 title: E1 under the chosen level, bounds and effort
 status: blocked
-depends_on: generate-prompt-training-bounds, generate-effort-sweep
+depends_on: generate-effort-sweep
 blocks: evaluate-dose-response, evaluate-data-scarcity-curve, evaluate-generator-comparison, generate-bkb-curation
 parallel_safe: false
 owner: Joe
