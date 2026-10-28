@@ -17,11 +17,10 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 
 ## Why this unit exists
 
-Three changes each make a new configuration of E1: the level G3 chose, the
-training-split bounds in the prompt, and the effort the sweep chose. E1 is judged on its latest
-configuration (ADR
-[`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)), so the three
-land first and E1 runs once over all of them, and every power experiment that follows runs on the
+Two changes make the new configuration of E1: the level G3 chose and the training-split bounds
+in the prompt. The effort stays `medium`, as G4 chose. E1 is judged on its latest configuration
+(ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)), so the
+two land first and E1 runs once over both, and every power experiment that follows runs on the
 configuration that will be judged.
 
 ## Scope
