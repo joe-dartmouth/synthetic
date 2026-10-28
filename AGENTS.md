@@ -34,7 +34,7 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
-- `uv run --no-sync python -m bko.evaluate score --log runs/<run-id>/calls.jsonl --candidates runs/<run-id>/holdout-candidates.jsonl > runs/<run-id>/scores.csv`,
+- `uv run --no-sync python -m bko.evaluate score [--in-flight N] --log runs/<run-id>/calls.jsonl --candidates runs/<run-id>/holdout-candidates.jsonl > runs/<run-id>/scores.csv`,
   then `uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv`: score every E1 arm
   on E1's holdouts, keeping every candidate a BKO arm generates per holdout, then judge `bko`
   against E1's criteria. `score` spends money through the three BKO arms and needs an Anthropic
@@ -43,7 +43,7 @@ import it (ADR `tooling/agent-config-single-home`).
   `--candidate` judges); `score --replay` rereads a paid run's call log for free, and
   `score --rehearse` runs every BKO call on canned replies for free. Each takes an optional run
   name first (default `e1`).
-- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--rehearse | --resume <calls.jsonl>]`:
+- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--rehearse | --resume <calls.jsonl>]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money.
   `--resume <calls.jsonl>` resumes a stopped run into the new folder under the same checks, and

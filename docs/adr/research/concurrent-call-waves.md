@@ -1,0 +1,117 @@
+---
+status: accepted
+topic: research
+created: 2026-10-27
+updated: 2026-10-27
+---
+# A round's independent calls go out as concurrent waves that keep the call plan
+
+## Context
+
+A paid E1-shaped run is serial: each call waits for the one before it. On `runs/g3-5`, API wait is
+93.8% of wall time (25141 of 26800 s) and local work is 16.6 s per holdout (measured 2026-10-27).
+Nothing runs concurrently inside a process.
+
+A call's request depends on the records kept in its cell, and a call log replays call by call in
+order (ADR `research/call-log-replay`). Concurrency must therefore leave the call plan, its
+numbering and its stop calls as a sequential run has them, or old logs stop replaying and a
+ceiling stop lands elsewhere.
+
+## Decision Drivers
+
+* **Must keep the call plan**, so a log written at any in-flight replays to the same bytes.
+* **Must stop where a sequential run stops**, at the spend ceiling and at the idle limit.
+* **Must keep `anthropic` inside `bko.generate.api`** (ADR `research/record-generation-design`).
+* **Should cut wall time**, since the API wait dominates it.
+
+## Decision
+
+- **Wave rule.** Each round keeps its budget check. It walks the short cells in quota order. A
+  wave is the longest run of consecutive cells with distinct (sex, label) chains, and a repeated
+  chain closes the wave. A cell's rows are read from committed state with `attempt.short()` and
+  chunked as before. The wave is sent, its batches are committed in call order, then the next wave
+  is built.
+- **Why the plan holds.** A cell's ask depends only on records kept in it. Structured outputs pin
+  sex and label, so only cells of one chain interact, and they stay ordered across waves.
+  Requests are dispatched in plan order, so call numbers match a sequential run's, and
+  `Replay.__call__` answers in dispatch order.
+- **Guard.** If a take keeps a row in a cell that a later group of the same wave already asked
+  for, the run raises `WaveError(ContractError)` and exits 3.
+- **Client.** `AsyncAnthropic(middleware=[Attempts()], max_retries=MAX_RETRIES, timeout=TIMEOUT)`.
+  `Attempts` implements `handle_async`, which the SDK requires of an async client's middleware, and
+  keeps per-call counts in a `ContextVar` holding a mutable holder.
+- **In flight.** `score --in-flight N` sets the calls in flight; the default is
+  `bko.generate.flight.IN_FLIGHT`. It is recorded in the call log's `run` line as `in_flight`
+  (additive; the schema stays 2) and on the `log path=` line. It is not in `Settings`: the
+  candidates header and the resume check read `Settings`, and in-flight changes nothing a call
+  sends. `launch` forwards it only when given.
+- **Ceiling.** Before call j, reserve each lower-numbered in-flight call's
+  `max_tokens x PRICES.output + (len(json.dumps(params)) + 2000) x PRICES.input`. If the log's
+  spend plus the reservations reaches the ceiling, wait for those calls, then check exactly. The
+  stop lands at the call an in-flight 1 run stops at.
+- **Idle.** `asyncio.timeout(idle_limit)` wraps each awaited send, retries included. On expiry the
+  run cancels the calls beside it, writes their error lines in call order and raises
+  `StopRuleError("idle")`. No signal interrupts the main thread, which discharges
+  `cleanup:evaluate/idle-timer-interrupt-escapes`.
+- **Resume.** For a log whose `run` line holds `in_flight` above 1, a resume drops every call from
+  the first one not answered by exactly one `reply` line, with one warning each, and carries the
+  dropped calls' `usd` into the new run's spend as `carried_usd`. Logs without the key keep the
+  last-call rule (ADR `research/call-log-replay`).
+- **Log identity.** The `run status=` line names `run=`, `level=` and `in_flight=`; `compare`'s
+  `beside` lines name `run=` and `level=`; each 429 or retryable status logs
+  `retry call=%d attempt=%d status=%s retry_after=%s`. This pays
+  `cleanup:evaluate/concurrent-run-log-identity`.
+- **Callers.** `guided_arms` takes the run's name and its limits. The generate CLI records
+  `run=generate` at in-flight 1 and stays sequential. The app sends through the async client at
+  in-flight 1 with the experiment's idle limit and `run=app`, since a synchronous send cannot be
+  bounded by `asyncio.timeout`.
+
+## Rationale
+
+Waves are the largest unit that leaves the plan unchanged. Distinct chains cannot see each other's
+kept rows, so their calls commute; a repeated chain cannot, so it waits for the batch before it.
+Reserving before dispatch, then waiting and checking exactly, makes the ceiling a function of the
+plan and not of reply timing. An `asyncio.timeout` per awaited send bounds a call from inside the
+loop, where a signal cannot reach a worker thread or Streamlit's script thread.
+
+The gain is a simulated estimate over `g3-5`'s recorded latencies: 3.37x at 8 in flight, and about
+3.9x at 8 for E3's shape. G4's Runs record the measured rate.
+
+## Consequences
+
+**Gained**: wall time falls by the simulated factor above; golden logs replay at any in-flight; the
+idle stop needs no signal; retries are attributed to their call; concurrent logs name their run and
+level.
+**Accepted**: a rate-limited organisation may see 429s at high in-flight, which the SDK's retries
+absorb and the idle rule turns into a stop if they persist; a resume of a concurrent run pays its
+stopped wave's calls again.
+
+## Ruled Out
+
+| Idea | Why ruled out | When |
+|------|---------------|------|
+| Threads | A stop would hang at interpreter exit | 2026-10-27 |
+| Whole-round waves | They change the asks of 9 of `g3-5`'s 473 rounds, so the plan moves | 2026-10-27 |
+| Arms concurrently | An arm's first call number depends on the arms before it | 2026-10-27 |
+| Message Batches | They cost thousands of sequential waves, or a lockstep rewrite | 2026-10-27 |
+| Parallel local fits | They seed process-wide generators and save about 4% of E3's time | 2026-10-27 |
+
+## Enforcement
+
+- Owner: `src/bko/evaluate/guided.py`
+- Pinned by: `tests/test_evaluate_waves.py`
+
+## Reversal Conditions
+
+**A reply crosses sex or label**: the guard reports it, and waves stop preserving the plan.
+
+**Sustained 429s**: the `retry` lines show them, and the in-flight default or the approach changes.
+
+**A concurrent ceiling stop differs from the in-flight 1 stop**: the test that pins the stop call
+fails, and the reservation changes.
+
+## Related
+
+- [Call-log replay](call-log-replay.md)
+- [E1's evaluation](e1-evaluation-protocol.md)
+- [Record generation](record-generation-design.md)

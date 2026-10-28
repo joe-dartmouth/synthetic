@@ -153,7 +153,10 @@ A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped 
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
 included. The stopped run keeps its folder; the resumed run takes that id plus `-resume`
-([Runs](#runs)). `launch --resume` runs this command under the paid-run protocol below; by hand it
+([Runs](#runs)). A log of a concurrent run (its `run` line holds `in_flight` above 1) resumes from
+its first call not answered by exactly one reply: the later calls are dropped with one warning
+each and sent live again, and their spend goes into the new run's `carried_usd`, so the ceiling
+reads the whole run. `launch --resume` runs this command under the paid-run protocol below; by hand it
 reads:
 
     test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
@@ -224,8 +227,12 @@ measure that fired: the spend ceiling (`E1.spend_ceiling`, logged as `stop rule=
 run's spend before the call it refuses), the projection (the live spend after `projection_after`
 holdouts, scaled to every holdout, reaching the ceiling; a replay and a resume are not projected, a
 rehearsal is, and `stop rules projecting=` says which applies), and the idle limit (`idle_limit`
-seconds for one call to get a reply, its retries included, timed while the call is in flight).
-`bko.evaluate.watch` holds the rules. A `scores.log` with no `run status=` line, which the call log
+seconds for one call to get a reply, its retries included, timed by `asyncio.timeout` around the
+awaited send; on expiry the calls beside it are cancelled and get error lines). `bko.evaluate.watch`
+holds the projection and `bko.generate.flight` the ceiling and the idle limit. `--in-flight N`
+sets the calls in flight, `bko.generate.flight.IN_FLIGHT` by default (ADR
+[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the
+call it lands at with one call in flight. `launch` forwards `--in-flight` when given. A `scores.log` with no `run status=` line, which the call log
 writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
 the runner before any replay.
 
@@ -289,7 +296,9 @@ the runner before any replay.
   CSV's row count and sha256. It also logs per BKO attempt a `guided` line (outcome, seed, call
   range, records asked, candidates generated and passed, dropped for each reason, kept, the run's
   spend), a `spend` line before each BKO call with the run's spend so far and the ceiling,
-  `bko.generate`'s `log` line and per-call lines and the call log's totals line (with `live_usd=`,
+  `bko.generate`'s `log` line (with `in_flight=`) and per-call lines, a `retry call= attempt=
+  status= retry_after=` line for each 429 or retryable status, the `run status=` line (`run=`,
+  `level=`, `in_flight=`) and the call log's totals line (with `live_usd=`,
   `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm copied, and
   at the end of the run, a stopped run included, one `validity` line per BKO arm, its counts over
   both fills. A resume logs a WARNING for a cut final line or an unanswered last call it drops from
@@ -308,7 +317,7 @@ the runner before any replay.
   the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it then logs a `beside` counts
   line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
   `against=`), then per series a `beside` line (`arm=`, `against=`, `source=`, `measure=`, `scope=`,
-  `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line
+  `mean=`, `low=`, `high=`, `holdouts=`, `differing=`, `undefined=`, `run=`, `level=`) or a `beside skip` line
   (`arm=`, `against=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`,
   `defined=`); a refused reading logs the counts line alone. An experiment copies them into its Runs
   row in [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
@@ -316,7 +325,8 @@ the runner before any replay.
   `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each guidance-level run as
   `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes a value;
   `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
-  candidates are recorded and where calls are answered from, never a value.
+  candidates are recorded and where calls are answered from, and `--in-flight` how many calls overlap,
+  never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
@@ -791,7 +801,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It
   starts only while its confirmation box is ticked, the box clears after each fill, the client is
   built only then, and the fill stops once its call log's spend reaches
-  `bko.app.context.SPEND_CEILING`. One action runs at a time in the process. The credential is the
+  `bko.app.context.SPEND_CEILING`. One action runs at a time in the process, and a fill sends one call at a time through the async
+  client (`run=app`, in-flight 1, the experiment's idle limit). The credential is the
   SDK's own (`ANTHROPIC_API_KEY` or `ant auth login`); a missing one stops the fill at its first
   call, before any spend.
 - **Replay**: a BKO fill can instead answer every call from the call log of an earlier fill by the
