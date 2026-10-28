@@ -28,10 +28,10 @@ rows in `docs/EVIDENCE.md`).
 ## Decision
 
 - `bko.generate.replay.Replay` is a `Send` over a call log's calls, in the order the log made
-  them. Calls are numbered in dispatch order, which is plan order, so a concurrent run
-  (ADR `research/concurrent-call-waves`) numbers its calls as a sequential one does; its `reply`
-  and `error` lines may interleave. Call i must send the parameters of the log's i-th `request` line, compared as JSON. Its
-  answer is one of two things:
+  them. Calls are numbered in dispatch order, which is plan order, so a concurrent run (ADR
+  `research/concurrent-call-waves`) numbers its calls as a sequential one does. Log lines are
+  written as calls land, and batches are committed in call order. Call i must send the
+  parameters of the log's i-th `request` line, compared as JSON. Its answer is one of two things:
   - that call's `reply` line, rebuilt as a `Reply`, its text read from the logged response by
     `bko.generate.messages.text_of`, the function `reply_of` also uses;
   - or that call's `error` line, raised again as `GenerationError`.
@@ -58,15 +58,16 @@ rows in `docs/EVIDENCE.md`).
     before it claims a folder.
 
   Every check but the first two runs when the log is read, before any call.
-- `bko.generate.replay.Resume` is a `Replay` over a stopped log's answered calls; after them, it
-  sends live. It reads the stopped log in stopped mode: it drops a final segment with no newline,
-  and drops a last call whose answer is not exactly one `reply` line. For a log whose `run` line
-  holds `in_flight` above 1, it drops every call from the first one not answered by exactly one
-  `reply` line, with one warning each, and carries the dropped calls' `usd` into the new run's
-  spend (`carried_usd` in its `run` line), so the ceiling reads the whole run. A log without
-  `in_flight` keeps the last-call rule, and an `error` line before its last call is refused. The resumed run's log, NEW,
-  names `resume: {sha256, calls}` in its `run` and `end` lines, and its `end` line carries
-  `live_usd`. `score --replay NEW` writes the resumed run's scores byte for byte.
+- `bko.generate.replay.Resume` answers a stopped log's answered calls as `Replay` does; after
+  them, it sends live. It reads the stopped log in stopped mode: it drops a final segment with no
+  newline, and drops a last call whose answer is not exactly one `reply` line. For a log whose
+  `run` line holds `in_flight` above 1, it drops every call from the first one not answered by
+  exactly one `reply` line, with one warning each. The new run's spend (`carried_usd` in its
+  `run` line) carries the dropped calls' `usd` plus what the stopped log itself carried, at any
+  in-flight, so the ceiling reads the whole run. A log without `in_flight` keeps the last-call
+  rule, and an `error` line before its last call is refused. The resumed run's log, NEW, names
+  `resume: {sha256, calls}` in its `run` and `end` lines, and its `end` line carries `live_usd`.
+  `score --replay NEW` writes the resumed run's scores byte for byte.
 - `python -m bko.evaluate score --replay LOG --log NEW` answers every BKO call from `LOG` and
   writes its own log to `NEW`. That log's `run` line names `LOG`'s sha256 under `replay`, so a
   replay's log never reads as paid spend; its `live_usd` is 0. The run refuses a log with calls
@@ -104,8 +105,9 @@ API call, and a fix to a free reading re-records for nothing.
 a log unreplayable and needs a new paid run; replay holds on one machine at the run's commit, data
 and releases, as E1's baselines do. Decontamination makes every arm's scores depend on every arm's
 rows, so byte-identical replay also needs the seeded baselines to repeat, as they do on one
-machine. A resume pays its stopped calls again: one for a sequential run, a stopped wave's for a concurrent one. The spend ceiling counts replayed spend, so a run
-stopped at the ceiling cannot resume. A stop that recurs after the last call recurs on resume, at
+machine. A resume pays its stopped calls again: one for a sequential run, a stopped wave's for a
+concurrent one. The spend ceiling counts replayed spend, so a run stopped at the ceiling cannot
+resume. A stop that recurs after the last call recurs on resume, at
 CPU cost only. Nothing locks a log another process still writes. A missing credential and drifted
 settings show at the first live or replayed call.
 

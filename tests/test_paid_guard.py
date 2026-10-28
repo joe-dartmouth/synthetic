@@ -84,7 +84,8 @@ def test_every_method_of_the_direct_client_reaches_the_one_sink(
 
 
 def test_the_async_client_is_refused_too() -> None:
-    """Nothing uses the async client today; the guard covers it so the first caller is safe."""
+    """The async client is the default send (`bko.generate.api.default_async_send`); the guard
+    refuses its requests as it does the direct client's."""
     client = anthropic.AsyncAnthropic(api_key=_NOT_A_CREDENTIAL, base_url=_NOWHERE, max_retries=0)
 
     async def create() -> object:

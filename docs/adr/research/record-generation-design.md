@@ -73,9 +73,9 @@ ladder.**
 - **The call.** Model `claude-haiku-5-5`; effort `medium`, set explicitly; `max_tokens` 16000;
   non-streaming; the SDK client's retries and timeout from `bko.generate.api` (`MAX_RETRIES`,
   `TIMEOUT`), which enter no logged request. The live client is `AsyncAnthropic`
-  (`default_async_send`), so calls can overlap (ADR `research/concurrent-call-waves`). No `temperature`, `top_p` or `top_k` is sent, and no
-  server-side fallback is set. `Settings` holds these values, with the chunk size `per_call` and the
-  guidance level.
+  (`default_async_send`), so calls can overlap (ADR `research/concurrent-call-waves`). No
+  `temperature`, `top_p` or `top_k` is sent, and no server-side fallback is set. `Settings` holds
+  these values, with the chunk size `per_call` and the guidance level.
 - **The ladder.** `Level` holds six levels, each adding one component to the one before it:
   - `cell`: the bare cell description;
   - `coherent`: a sentence asking for clinically coherent records;
@@ -130,32 +130,31 @@ ladder.**
 - **The log.** `bko.generate.log.CallLog` writes an append-only JSONL file at a required path,
   created exclusively (`O_EXCL`) with mode 0o600 after the settings model's price resolves, so an
   unpriced model or an existing log is refused before any call and only the file's owner can read
-  its prompts and responses; the SDK version it records is read before the file is created too.
-  Its lines, each flushed as written: one `run` line
-  (schema 2, settings, price, SDK version, `replay`: the sha256 of the call log a replay
-  answers from, or null, `resume`: the sha256 and answered calls of the stopped log a resume
-  continues, or null, and `rehearsal`: true when canned replies answer every call, as
-  `score --rehearse` makes them, else false; a concurrent run adds `in_flight`, its calls in
-  flight, and a resume adds `carried_usd`, the spend of the stopped calls it dropped), then per call a `request` line before it is sent and
-  a `reply` or `error` line after, then one `end` line with the status (`complete`, `interrupted`
-  for `KeyboardInterrupt`, `failed` otherwise), the `run` line's `replay`, `resume` and
-  `rehearsal` again, `stop` (the stop rule that ended a failed run: `ceiling`, `projection` or
-  `idle`, read from the exception's `stop_rule`, else null), and the run's totals, `live_usd` (the
-  spend of calls past the answered ones, a rehearsal's billed spend included) among them. The
-  schema stays 2: a replay reads only the `run` line's `kind` and `schema`, and a resume reads
-  `replay`, `resume`, `rehearsal`, `stop`, `in_flight` and `carried_usd` as absent when a log
-  lacks them. A `reply` line
-  holds the whole response and `attempts`, the HTTP requests the SDK made for the call
-  (`bko.generate.api.Attempts` counts them, per call, so concurrent calls count their own). Each
-  429 or retryable status with an attempt left logs `retry call=%d attempt=%d status=%s retry_after=%s`. An `error` line holds `attempts` too, null when
-  nothing counted them. The `end` line's totals add `retried`, the calls that took more than one
-  attempt. Anything raised after a `request` line and before its `reply` line (no
-  response, a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead,
-  so no `request` line is left unpaired; it holds a `GenerationError`'s text, or any other
-  exception's type name only, since its text may hold the credential. `ask` and `generate` take their
-  settings from the log and refuse others before any line, so the `run` line names the settings
-  every call was made and priced under. A call's spend is its usage times `PRICES[settings.model]`, each token kind at
-  its own rate; output tokens already count thinking.
+  its prompts and responses; the SDK version it records is read before the file is created too. Its
+  lines, each flushed as written: one `run` line (schema 2, settings, price, SDK version, `replay`:
+  the sha256 of the call log a replay answers from, or null, `resume`: the sha256 and answered calls
+  of the stopped log a resume continues, or null, and `rehearsal`: true when canned replies answer
+  every call, as `score --rehearse` makes them, else false; a concurrent run adds `in_flight`, its
+  calls in flight, and a resume adds `carried_usd`, the spend of the stopped calls it dropped plus
+  what the stopped log itself carried), then per call a `request` line before it is sent and a `reply` or `error` line after, then one `end`
+  line with the status (`complete`, `interrupted` for `KeyboardInterrupt`, `failed` otherwise), the
+  `run` line's `replay`, `resume` and `rehearsal` again, `stop` (the stop rule that ended a failed
+  run: `ceiling`, `projection` or `idle`, read from the exception's `stop_rule`, else null), and the
+  run's totals, `live_usd` (the spend of calls past the answered ones, a rehearsal's billed spend
+  included) among them. The schema stays 2: a replay reads only the `run` line's `kind` and
+  `schema`, and a resume reads `replay`, `resume`, `rehearsal`, `stop`, `in_flight` and
+  `carried_usd` as absent when a log lacks them. A `reply` line holds the whole response and
+  `attempts`, the HTTP requests the SDK made for the call (`bko.generate.api.Attempts` counts them,
+  per call, so concurrent calls count their own). Each 429 or retryable status with an attempt left
+  logs `retry call=%d attempt=%d status=%s retry_after=%s`. An `error` line holds `attempts` too,
+  null when nothing counted them. The `end` line's totals add `retried`, the calls that took more
+  than one attempt. Anything raised after a `request` line and before its `reply` line (no response,
+  a `KeyboardInterrupt`, a failure reading the reply) writes an `error` line instead, so no
+  `request` line is left unpaired; it holds a `GenerationError`'s text, or any other exception's
+  type name only, since its text may hold the credential. `ask` and `generate` take their settings
+  from the log and refuse others before any line, so the `run` line names the settings every call
+  was made and priced under. A call's spend is its usage times `PRICES[settings.model]`, each token
+  kind at its own rate; output tokens already count thinking.
 - **The command.** `python -m bko.generate` fills E1's count-based gap request on the default
   split: each cell holding fewer than `UNDERREPRESENTED_BELOW` training records is asked for its
   shortfall. With `--request completeness` it fills the completeness request of
@@ -203,10 +202,10 @@ cut mid-value and the stop already says the call failed.
 
 Haiku 5.5 is the generator because E1's replica configuration asks for 77400 records a run, of which
 the gap request asks 6000, and Opus 5.5's input and output rates are 40 times Haiku 5.5's; E1's
-Configuration in `docs/EVIDENCE.md` records the run's estimate. A stopped run resumes only by
-paying its stopped calls again, so the client retries for minutes, where the SDK's default of 2 retries backs off for about 1.5 s. A client
-timeout other than the SDK's default skips the SDK's refusal of a non-streaming call above 21,333
-`max_tokens`; `max_tokens` is 16000.
+Configuration in `docs/EVIDENCE.md` records the run's estimate. A stopped run resumes only by paying
+its stopped calls again, so the client retries for minutes, where the SDK's default of 2 retries
+backs off for about 1.5 s. A client timeout other than the SDK's default skips the SDK's refusal of
+a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 
 ## Consequences
 
