@@ -1,7 +1,8 @@
 """Load the UCI split, its cells and the pinned releases with the ontology fragments they scope.
 
-`load_scope` is the release loader the command lines share, and `load_uci_scope` the UCI load
-sequence of the app and of the commands that split UCI once (`bko.evaluate` splits per holdout).
+`load_scope` is the release loader the command lines and the app share, and `load_uci_scope` the
+UCI load sequence of the commands that split UCI once (`bko.evaluate` splits per holdout, and the
+app splits the records of its `bko.evaluate.data.Data`).
 It lives apart from `bko.gaps.detect` so that a module reading fragments does not import pronto or
 the network fetch with them.
 """

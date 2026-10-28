@@ -62,6 +62,24 @@ def test_analyze_lists_the_flagged_cells_and_each_definitions_gaps(tmp_path):
     assert analysis.parts.seed == 0
 
 
+def test_analyze_reads_one_data_value_for_its_split_and_its_knowledge(tmp_path, monkeypatch):
+    context, _ = app_context(tmp_path, send=never)
+    loads = []
+
+    def counting(*args, **kwargs):
+        loads.append(args)
+        return load_uci(*args, **kwargs)
+
+    monkeypatch.setattr("bko.evaluate.data.load_uci", counting)
+    monkeypatch.setattr("bko.datasets.split.load_uci", counting)
+    analysis = analyze(context)
+    assert len(loads) == 1
+    records = analysis.data.records
+    parts = analysis.parts
+    assert pd.concat([parts.train, parts.test]).sort_index().equals(records.sort_index())
+    assert analysis.knowledge.name == analysis.data.name
+
+
 def test_analyze_fetches_nothing_once_the_data_is_present(tmp_path):
     context, opener = app_context(tmp_path, send=never)
     analyze(context)
