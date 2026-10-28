@@ -21,6 +21,7 @@ import pandas as pd
 
 from bko.datasets.cells import AGE_BAND_EDGES, CELL_COLUMNS, cell_keys
 from bko.datasets.fetch import UrlOpener, ensure
+from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import Source
 from bko.datasets.uci import load_uci
 
@@ -86,6 +87,25 @@ def split(
         held_out.extend(ranked[: held_out_count(len(ranked))])
     is_test = frame.index.isin(held_out)
     return Split(train=frame.loc[~is_test].copy(), test=frame.loc[is_test].copy(), seed=seed)
+
+
+def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, float]]:
+    """Each of `frame`'s numeric fields' minimum and maximum over the training split.
+
+    Args:
+        train: The training split.
+        frame: The frame whose numeric fields are read.
+
+    Returns:
+        Each numeric field's minimum and maximum, in the frame's order.
+
+    Raises:
+        ValueError: If `train` holds no record.
+    """
+    if train.empty:
+        msg = "the training split holds no record"
+        raise ValueError(msg)
+    return {name: (float(train[name].min()), float(train[name].max())) for name in frame.numeric}
 
 
 def _rank(seed: int, record: int) -> bytes:

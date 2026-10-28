@@ -132,8 +132,8 @@ links to where its blocker is tracked.
 ## generate
 
 - **`cleanup:generate/system-prompt-uci-only`: the system prompt is UCI's for every frame.**
-  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units, ranges and decimals,
-  but its opening sentence is fixed text about heart-disease prediction and patients referred for
+  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units and decimals, but
+  its opening sentence is fixed text about heart-disease prediction and patients referred for
   coronary angiography, which `FrameSpec` has no field to replace. Its closing sentence indexes the
   frame's fractional fields, so a frame with none raises `IndexError` in
   `_alternatives` (`items[0]` of an empty list). Evidence: `system(TOY)` in
@@ -144,15 +144,6 @@ links to where its blocker is tracked.
   **What discharges it:** the frame (or the caller) supplies the opening sentence, and a frame
   with no fractional field renders a closing sentence without one; UCI's text stays unchanged.
   **Trigger:** the first non-UCI frame that generates records (`evaluate-synthea-downstream`).
-
-- **`cleanup:generate/system-shim-for-pinned-test`: a shim serves one pinned test.**
-  `bko.generate.prompt._system()` and its `FRACTIONAL` import exist only because the pinned
-  `tests/test_generate_prompt.py` (lines 60-65) monkeypatches `FRACTIONAL` and calls `_system()`;
-  the real path is `system(frame)`. *Filed 2026-10-27 by the review of PR #42.*
-  **Why deferred.** The generate pin files stay unchanged through the frame refactor.
-  **What discharges it:** the test calls `system(replace(UCI_FRAME, fractional=...))`, and the
-  shim and the import are deleted.
-  **Trigger:** the next change that may edit the generate pin files.
 
 - **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
   `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s

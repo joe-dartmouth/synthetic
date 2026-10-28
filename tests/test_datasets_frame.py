@@ -14,7 +14,7 @@ from bko.generate.guidance import Guidance, guide, intervals
 from bko.generate.messages import SETTINGS, Call, Level, record_schema
 from bko.generate.prompt import SYSTEM, render, system
 from bko.validate.checks import CHECKS, checks, validate
-from tests._frame_fixtures import TOY
+from tests._frame_fixtures import TOY, TOY_TRAIN
 
 
 def test_the_uci_frame_holds_the_uci_values():
@@ -276,9 +276,10 @@ def test_a_calls_params_carry_its_frames_schema():
 
 def test_the_system_prompt_lists_the_toy_fields():
     text = system(TOY)
-    assert "- age: age at the visit; years, plausible from 30 to 90" in text
+    assert "- age: age at the visit; years\n" in text
     assert "- sex: recorded sex; 0 = female; 1 = male" in text
-    assert "- level: toy marker level; mg/dL, plausible from 0.5 to 4.5" in text
+    assert "- level: toy marker level; mg/dL\n" in text
+    assert "plausible from" not in text
     assert "- target: whether the toy condition is present; 0 = toy condition absent" in text
     assert "cp" not in text
     assert "Whole numbers except level, which has one decimal place." not in text
@@ -290,16 +291,19 @@ def test_the_uci_system_prompt_is_the_shared_one():
     assert system(UCI_FRAME) is system(UCI_FRAME)
 
 
-def test_intervals_follow_the_toy_ranges_and_edges():
-    assert intervals(TOY_CELL, frame=TOY) == {"age": (45, 69), "level": (0.5, 4.5)}
-    assert intervals(("<45", "male", 0), frame=TOY) == {"age": (30, 44), "level": (0.5, 4.5)}
+def test_intervals_follow_the_toy_split_and_edges():
+    assert intervals(TOY_CELL, TOY_TRAIN, frame=TOY) == {"age": (45, 69), "level": (0.51, 4.44)}
+    assert intervals(("<45", "male", 0), TOY_TRAIN, frame=TOY) == {
+        "age": (35, 44),
+        "level": (0.51, 4.44),
+    }
     with pytest.raises(ValueError, match="not one of"):
-        intervals(("<55", "male", 0), frame=TOY)
+        intervals(("<55", "male", 0), TOY_TRAIN, frame=TOY)
 
 
 def test_the_user_turn_reads_the_toy_frame():
     guidance = Guidance(
-        cell=TOY_CELL, sex=0, label=1, records=3, interval=intervals(TOY_CELL, frame=TOY)
+        cell=TOY_CELL, sex=0, label=1, records=3, interval=intervals(TOY_CELL, TOY_TRAIN, frame=TOY)
     )
     sent, user = render(guidance, 4, Level.CELL, frame=TOY)
     assert sent == system(TOY)
@@ -307,14 +311,11 @@ def test_the_user_turn_reads_the_toy_frame():
         "Write exactly 4 records of patients in this group: sex 0 (female), target 1 (toy "
         "condition present), age 45 to 69 years."
     )
-    assert "Keep each numeric field within: age 45 to 69 years; level 0.5 to 4.5 mg/dL." in user
+    assert "Keep each numeric field within: age 45 to 69 years; level 0.51 to 4.44 mg/dL." in user
 
 
-def test_intervals_refuse_edges_that_contradict_the_frame_given():
-    with pytest.raises(ValueError, match=r"edges \(55,\) differ from frame toy's \(45, 70\)"):
-        intervals(TOY_CELL, (55,), frame=TOY)
-    assert intervals(TOY_CELL, (45, 70), frame=TOY) == intervals(TOY_CELL, frame=TOY)
-    assert intervals(("40-59", "male", 1), (40, 60))["age"] == (40, 59)
+def test_intervals_take_their_edges_from_the_frame():
+    assert "edges" not in inspect.signature(intervals).parameters
 
 
 def test_guide_takes_its_edges_from_the_frame():
