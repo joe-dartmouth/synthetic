@@ -2,17 +2,18 @@
 
 `launch` starts this command detached (`bko.evaluate.launch`); `docs/DEVELOPMENT.md` (Evaluation,
 Supervision) holds the stop branches it reads and ADR `research/concurrent-call-waves` the decision.
-Each segment runs `score` as a child process and waits for it. When the child exits, the segment's
-call log's `end` line decides: a failed run whose line reads `retryable`, its stop not a projection
-or ceiling stop, or a log with no `end` line whose child a signal killed (a negative exit code:
-`SIGKILL`, an out-of-memory kill or a sleep), is resumed while resumes remain; a complete run, any
-other failure, an interrupt, a log with no `end` line whose child exited on its own (a crash) and a
-missing or unreadable log are not.
-Resume `k` waits `backoff(k)` seconds, takes the folder `<run_id>-resume-<k>` under launch's own
-argument, power and folder checks and claim, and runs `score --resume` on the previous segment's
-call log there, at half the previous in-flight (at least 1) when that segment was rate limited. A
-rehearsal is never resumed. Each segment's outcome is appended to the run folder's `launch.log`,
-and the command exits with the last segment's exit code, or 2 when a resume cannot be claimed.
+Each segment runs `score` as a child process, under its own `caffeinate -i -s` on macOS so the
+machine stays awake while the segment runs even if the supervisor dies, and waits for it. When the
+child exits, the segment's call log's `end` line decides: a failed run whose line reads `retryable`,
+its stop not a projection or ceiling stop, or a log with no `end` line whose child a signal killed
+(a negative exit code: `SIGKILL`, an out-of-memory kill or a sleep), is resumed while resumes
+remain; a complete run, any other failure, an interrupt, a log with no `end` line whose child exited
+on its own (a crash) and a missing or unreadable log are not. Resume `k` waits `backoff(k)` seconds,
+takes the folder `<run_id>-resume-<k>` under launch's own argument, power and folder checks and
+claim, and runs `score --resume` on the previous segment's call log there, at half the previous
+in-flight (at least 1) when that segment was rate limited. A rehearsal is never resumed. Each
+segment's outcome is appended to the run folder's `launch.log`, and the command exits with the last
+segment's exit code, or 2 when a resume cannot be claimed.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from bko.evaluate.launch import (
     REHEARSAL,
     Power,
     append,
+    awake,
     check_folder,
     claim,
     on_battery,
@@ -159,7 +161,8 @@ def supervise(  # ruff: ignore[too-many-arguments]
         segment: Runs one segment's command to its exit.
         sleep: Waits the backoff before each resume.
         power: Whether the machine runs on battery, read before each resume.
-        platform: `sys.platform`, as `launch` reads it.
+        platform: `sys.platform`, as `launch` reads it; each segment runs under `caffeinate`
+            on `darwin`.
         now: The clock each resume folder's `launch.log` line reads.
 
     Returns:
@@ -167,10 +170,13 @@ def supervise(  # ruff: ignore[too-many-arguments]
     """
     folder = root / run_id / REHEARSAL if rehearse else root / run_id
     record = folder / "launch.log"
-    source, flight, k = resume, in_flight, 0
+    source, flight, k, reading = resume, in_flight, 0, "unchecked"
     while True:
-        command = score_command(
-            run, folder, data_dir=data_dir, rehearse=rehearse, resume=source, in_flight=flight
+        command = (
+            *awake(platform),
+            *score_command(
+                run, folder, data_dir=data_dir, rehearse=rehearse, resume=source, in_flight=flight
+            ),
         )
         if k > 0:
             stamp = now().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -178,6 +184,8 @@ def supervise(  # ruff: ignore[too-many-arguments]
                 folder / "launch.log",
                 [
                     f"launched {stamp} run={run} segment={k} of={run_id} resume={source}",
+                    f"power={reading}",
+                    f"awake={'caffeinate' if awake(platform) else 'none'}",
                     f"command={shlex.join(command)}",
                 ],
             )
@@ -196,10 +204,11 @@ def supervise(  # ruff: ignore[too-many-arguments]
         sleep(backoff(k))
         source, folder = folder / "calls.jsonl", root / name
         try:
-            check_folder(
+            battery = check_folder(
                 name, run, folder, rehearse=False, resume=source, power=power, platform=platform
             )
             claim(folder)
+            reading = "unchecked" if battery is None else "mains"
         except EvaluationError as exc:
             reason = " ".join(str(exc).split())
             # The message is the diagnosis; a traceback would read as a crash.

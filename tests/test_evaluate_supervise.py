@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import shlex
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -103,6 +104,7 @@ def _supervise(
     power: bool | None = False,
     rehearse: bool = False,
     run_id: str = "e1-4",
+    platform: str = "darwin",
 ) -> tuple[int, list[float]]:
     """Supervise `run_id` under `tmp_path` through `segments`; return its code and its waits."""
     folder = tmp_path / run_id / REHEARSAL if rehearse else tmp_path / run_id
@@ -118,7 +120,7 @@ def _supervise(
         segment=segments,
         sleep=waits.append,
         power=lambda: power,
-        platform="darwin",
+        platform=platform,
     )
     return code, waits
 
@@ -150,6 +152,29 @@ def test_supervise_resumes_an_idle_stop_into_resume_1(tmp_path):
             f"supervise segment=1 folder={resumed} status=complete stop=none "
             "retryable=false rate_limited=false next=none"
         ),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("platform", "awake", "power"),
+    [("darwin", ("caffeinate", "-i", "-s"), "mains"), ("linux", (), "unchecked")],
+)
+def test_each_segment_is_kept_awake_on_macos(tmp_path, platform, awake, power):
+    segments = Segments(IDLE, COMPLETE)
+    _supervise(tmp_path, segments, platform=platform, power=None if power == "unchecked" else False)
+    for command in segments.commands:
+        assert command[: len(awake)] == awake
+        assert command[len(awake) : len(awake) + 4] == (
+            sys.executable,
+            "-m",
+            "bko.evaluate",
+            "score",
+        )
+    resumed = (tmp_path / "e1-4-resume-1" / "launch.log").read_text(encoding="utf-8").splitlines()
+    assert resumed[1:] == [
+        f"power={power}",
+        f"awake={'caffeinate' if awake else 'none'}",
+        f"command={shlex.join(segments.commands[1])}",
     ]
 
 

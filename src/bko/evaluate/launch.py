@@ -18,8 +18,8 @@ line survives a retry; a started process whose `pid=` line cannot be written is 
 started, with a WARNING. A dry run writes `launch.log` and starts nothing. A resume
 (`score --resume`) launches into a new folder with the same checks, and refuses a stopped log
 inside that folder. The data root, the runs root and the stopped log are forwarded as absolute
-paths. `check_folder`, `claim`, `release`, `append` and `score_command` are the checks, claim and
-command a supervisor's resume reuses.
+paths. `check_folder`, `claim`, `release`, `append`, `awake` and `score_command` are the checks,
+claim, keep-awake and command a supervisor's resume reuses.
 """
 
 from __future__ import annotations
@@ -45,6 +45,9 @@ TAKEN: Final = ("calls.jsonl", "scores.csv", "scores.log", "holdout-candidates.j
 
 REHEARSAL: Final = "rehearsal"
 """The folder inside a run's folder its rehearsal writes, so it never takes the run's own roles."""
+
+AWAKE: Final = ("caffeinate", "-i", "-s")
+"""The prefix that holds a macOS machine awake while the command after it runs."""
 
 RETRIES: Final = 5
 """The resumes a launched run's supervisor makes at most unless told otherwise."""
@@ -79,6 +82,11 @@ def on_battery() -> bool | None:
         logger.warning("pmset unreadable returncode=%d", result.returncode)
         return None
     return BATTERY in result.stdout
+
+
+def awake(platform: str) -> tuple[str, ...]:
+    """The prefix that holds the machine awake while a command runs: `AWAKE` on macOS, else none."""
+    return AWAKE if platform == "darwin" else ()
 
 
 def utc_now() -> datetime:
@@ -169,9 +177,9 @@ def launch(  # ruff: ignore[too-many-arguments]
     battery = check_folder(
         run_id, run, folder, rehearse=rehearse, resume=resume, power=power, platform=platform
     )
-    awake = ["caffeinate", "-i", "-s"] if platform == "darwin" else []
+    held = awake(platform)
     command = (
-        *awake,
+        *held,
         sys.executable,
         "-m",
         "bko.evaluate",
@@ -197,7 +205,7 @@ def launch(  # ruff: ignore[too-many-arguments]
             f"resume={resume.absolute() if resume is not None else 'none'}"
         ),
         f"power={reading}",
-        f"awake={'caffeinate' if awake else 'none'}",
+        f"awake={'caffeinate' if held else 'none'}",
         f"command={shlex.join(command)}",
     ]
     claimed = () if dry_run else _claim(out, err)
