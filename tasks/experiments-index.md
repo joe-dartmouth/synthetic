@@ -15,7 +15,6 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-effort-sweep`](generate-effort-sweep.md) | ready | -- | Shirley | final-report |
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | ready | -- | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
 
@@ -23,7 +22,7 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) | blocked | generate-effort-sweep | Joe | final-report |
+| [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) | ready | -- | Joe | final-report |
 | [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
@@ -33,7 +32,6 @@ the ROADMAP heading it serves.
 flowchart LR
     skeleton_fill[generate-bkb-skeleton-fill]
     e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
-    effort_sweep[generate-effort-sweep] --> e1_second[evaluate-e1-second-configuration]
     e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
     e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
     e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
