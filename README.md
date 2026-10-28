@@ -43,17 +43,15 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Evaluation**
 
-3. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
-   ([`evaluate-e1-second-configuration`](tasks/evaluate-e1-second-configuration.md)).
-4. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+3. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
    method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-5. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+4. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-6. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
+5. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
    Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-7. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
+6. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
    population, remove a known share of women with the disease from training, and measure how much
    recall each method recovers; the large cells answer the power problem UCI cannot
    ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).

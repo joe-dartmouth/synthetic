@@ -1,8 +1,8 @@
 ---
 id: evaluate-data-scarcity-curve
 title: Augmentation against training-set size
-status: blocked
-depends_on: evaluate-e1-second-configuration
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe

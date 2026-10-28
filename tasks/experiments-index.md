@@ -16,25 +16,24 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | ready | -- | Shirley | final-report |
-| [`generate-bkb-curation`](generate-bkb-curation.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
+| [`generate-bkb-curation`](generate-bkb-curation.md) | ready | -- | Shirley | final-report |
 
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) | ready | -- | Joe | final-report |
-| [`evaluate-dose-response`](evaluate-dose-response.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
-| [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | blocked | evaluate-e1-second-configuration | Joe | final-report |
-| [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | blocked | evaluate-e1-second-configuration | Shirley | final-report |
+| [`evaluate-dose-response`](evaluate-dose-response.md) | ready | -- | Joe | final-report |
+| [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | ready | -- | Joe | final-report |
+| [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
     skeleton_fill[generate-bkb-skeleton-fill]
-    e1_second[evaluate-e1-second-configuration] --> bkb_curation[generate-bkb-curation]
-    e1_second[evaluate-e1-second-configuration] --> dose_response[evaluate-dose-response]
-    e1_second[evaluate-e1-second-configuration] --> scarcity_curve[evaluate-data-scarcity-curve]
-    e1_second[evaluate-e1-second-configuration] --> generator_comparison[evaluate-generator-comparison]
+    bkb_curation[generate-bkb-curation]
+    dose_response[evaluate-dose-response]
+    scarcity_curve[evaluate-data-scarcity-curve]
+    generator_comparison[evaluate-generator-comparison]
     synthea_downstream[evaluate-synthea-downstream]
 ```
 

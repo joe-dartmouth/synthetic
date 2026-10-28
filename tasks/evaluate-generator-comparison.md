@@ -1,8 +1,8 @@
 ---
 id: evaluate-generator-comparison
 title: The generator model at a fixed level
-status: blocked
-depends_on: evaluate-e1-second-configuration
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley
@@ -22,7 +22,7 @@ difference between them is attributable to the model
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation), Read against). The
 model is the one generator setting no run has varied alone, and it can be varied alone only
 against the judged run's level, bounds and effort, which
-[`evaluate-e1-second-configuration`](evaluate-e1-second-configuration.md) fixes.
+[E1](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation) fixes at `e1-4`.
 
 ## Scope
 

@@ -134,8 +134,8 @@ links to where its blocker is tracked.
   name a run. Evidence: `bko.evaluate.compare` logs the header as `"compare candidate=%s dry_run=%s
   scores_sha256=%s"`, with the candidate arm, the dry-run flag and the scores' sha256 only. *Filed
   2026-10-28 by the diff review of PR #53.*
-  **Why deferred.** `evaluate-e1-second-configuration` changes `SETTINGS` and its pins only, and
-  `bko.evaluate.compare` is outside its Out clause.
+  **Why deferred.** The unit that set `SETTINGS` to `summary` changed `SETTINGS` and its pins only,
+  and `bko.evaluate.compare` was outside its scope.
   **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
   **Trigger:** the next change to `bko.evaluate.compare`.
 
