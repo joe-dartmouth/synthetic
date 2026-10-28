@@ -334,7 +334,7 @@ def test_the_ceiling_stops_the_run_unretried_across_arms(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     out = io.StringIO()
     caplog.set_level(logging.INFO)
-    argv = score_argv(log, tmp_path, "--in-flight", "1")
+    argv = score_argv(log, tmp_path)
     assert main(argv, context=ctx, out=out) == 2
     assert out.getvalue() == ""
     assert len(send.calls) == 3
@@ -500,7 +500,7 @@ def stopped_run(tmp_path, caplog) -> tuple[Path, str]:
     lost = GenerationError("the API could not be reached: APIConnectionError")
     ctx, _ = context(ScriptedSend(*holdout, lost))
     stopped = tmp_path / "stopped.jsonl"
-    argv = score_argv(stopped, tmp_path, "--in-flight", "1")
+    argv = score_argv(stopped, tmp_path)
     assert main(argv, context=ctx, out=io.StringIO()) == 2
     return stopped, text
 
@@ -568,6 +568,8 @@ def test_an_unresumable_log_exits_three_before_any_download_or_log(tmp_path, cap
     _, log, _ = paid_run(tmp_path, caplog)
 
     def fail_first(lines: list[dict]) -> None:
+        # A log without `in_flight` keeps the last-call rule, which refuses an early failure.
+        del lines[0]["in_flight"]
         index = next(i for i, line in enumerate(lines) if line["kind"] == "reply")
         call = lines[index]["call"]
         lines[index] = {"kind": "error", "call": call, "error": "lost", "attempts": None}

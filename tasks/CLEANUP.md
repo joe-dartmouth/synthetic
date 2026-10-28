@@ -108,27 +108,6 @@ links to where its blocker is tracked.
   per-retry line or a per-call `retried=` count.
   **Trigger:** the next change to `bko.generate.log` or `bko.evaluate.compare`.
 
-- **`cleanup:evaluate/idle-timer-interrupt-escapes`: the idle-timer test can crash its xdist
-  worker.** One `make check` run on 2026-10-27 (under `pytest -n auto`) failed
-  `test_the_idle_timer_interrupts_a_blocked_main_thread` in `tests/test_evaluate_watch.py` with
-  these lines of its report:
-
-  ```
-  worker 'gw13' crashed while running 'tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread'
-  FAILED tests/test_evaluate_watch.py::test_the_idle_timer_interrupts_a_blocked_main_thread
-  ! xdist.dsession.Interrupted: <WorkerController gw13> received keyboard-interrupt !
-  ```
-
-  The file passed alone and the next two full runs passed. The test sets `idle_limit=0.05`.
-  `bko.evaluate.watch.Watch.call` starts its timer before entering the `try` that turns the
-  timer's interrupt into a `StopRuleError`. A likely cause, not yet confirmed: under load the
-  timer fires in that window, and the interrupt escapes as a bare `KeyboardInterrupt` that ends
-  the worker. *Filed 2026-10-27 by the `detect-synthea-mappings` work.*
-  **Why deferred.** It is unrelated to the change that met it, which touched no evaluate code.
-  **What discharges it:** `Watch.call` starts the timer inside its `try` (or otherwise catches an
-  interrupt that fires before the call is entered), and the cause is confirmed.
-  **Trigger:** the test's next failure, or the next change to `bko.evaluate.watch`.
-
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
   `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of

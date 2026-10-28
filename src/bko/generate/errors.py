@@ -1,4 +1,4 @@
-"""The errors generation raises: no response, a malformed file, a crossed wave, a refused draw."""
+"""The errors generation raises: no reply, a malformed file, a crossed wave, a refused draw."""
 
 from __future__ import annotations
 
@@ -21,6 +21,18 @@ class GenerationError(Exception):
         """Keep the message and the attempt count."""
         super().__init__(*args)
         self.attempts = attempts
+
+
+class IdleError(GenerationError):
+    """A call got no reply within the run's idle limit, its retries included. Exit 2.
+
+    `bko.generate.flight` raises it; the call log's `end` line names `stop_rule` under `stop`.
+
+    Attributes:
+        stop_rule: The stop rule that fired, `idle`.
+    """
+
+    stop_rule: ClassVar[str] = "idle"
 
 
 class CandidatesFormatError(ContractError):

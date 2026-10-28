@@ -83,35 +83,3 @@ class Spy:
         pipeline = build(frame)
         pipeline.set_params(model=model)
         return pipeline
-
-
-class Timers:
-    """Fake timers: each records its limit and runs its action only when a test fires it."""
-
-    def __init__(self) -> None:
-        self.made: list[FakeTimer] = []
-
-    def __call__(self, seconds, action):
-        timer = FakeTimer(seconds, action)
-        self.made.append(timer)
-        return timer
-
-
-class FakeTimer:
-    def __init__(self, seconds, action) -> None:
-        self.seconds = seconds
-        self.action = action
-        self.daemon = False
-        self.started = False
-        self.cancelled = False
-
-    def start(self) -> None:
-        self.started = True
-
-    def cancel(self) -> None:
-        self.cancelled = True
-
-
-def interrupt() -> None:
-    """What a SIGINT delivered to the main thread does there."""
-    raise KeyboardInterrupt

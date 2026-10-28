@@ -12,21 +12,27 @@ retry); `send_with` reads it into `Reply.attempts` and `GenerationError.attempts
 `default_send` registers it.
 
 `async_send_with` and `default_async_send` are the same over `AsyncAnthropic`, whose calls
-`bko.generate.flight` keeps in flight together; they count no attempts, so their replies and
-failures carry none.
+`bko.generate.flight` keeps in flight together. Each such call counts its own attempts in a holder
+it puts in `ATTEMPTS`, a `ContextVar`, so calls in flight together never share a count, and
+`Attempts.handle_async` logs each retryable status as a `retry` line naming the call
+(`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's `retry-after`.
 """
 
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Awaitable, Callable
+import logging
+from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from typing import Any, Final
 
 import anthropic
 
 from bko.generate.errors import GenerationError
-from bko.generate.messages import AsyncSend, Call, Reply, Send, Usage, text_of
+from bko.generate.messages import CALL_NUMBER, AsyncSend, Call, Reply, Send, Usage, text_of
 
+
+logger = logging.getLogger(__name__)
 
 HTTP_LOGGERS: Final = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
@@ -41,6 +47,21 @@ TIMEOUT: Final = anthropic.Timeout(600.0, connect=30.0)
 """Each HTTP attempt's limits: the SDK's 600 s to read, and 30 s rather than its 5 s to connect.
 Any timeout other than the SDK's default skips its refusal of a non-streaming call above 21,333
 `max_tokens`; `SETTINGS.max_tokens` is 16000."""
+
+ATTEMPTS: Final[ContextVar[list[int] | None]] = ContextVar("attempts", default=None)
+"""The current async call's attempt count, in a one-item list the call made: a holder rather than
+a value, so the count `Attempts.handle_async` writes reaches the call wherever the SDK runs it."""
+
+RETRIED: Final = frozenset({408, 409, 429})
+"""The statuses below 500 the SDK retries, as its `_should_retry` does."""
+
+
+def retryable(status: int, headers: Mapping[str, str]) -> bool:
+    """Whether the SDK retries a `status` response: per `x-should-retry`, else per its rule."""
+    should = headers.get("x-should-retry")
+    if should in {"true", "false"}:
+        return should == "true"
+    return status in RETRIED or status >= 500
 
 
 class Attempts(anthropic.Middleware):
@@ -64,8 +85,26 @@ class Attempts(anthropic.Middleware):
         request: anthropic.APIRequest,
         call_next: Callable[[anthropic.APIRequest], Awaitable[anthropic.AsyncAPIResponse[Any]]],
     ) -> anthropic.AsyncAPIResponse[Any]:
-        """Make this attempt; the async client counts nothing yet, since its calls overlap."""
-        return await call_next(request)
+        """Record this attempt's number in the call's own holder, make it, and log a retry.
+
+        The count goes to `ATTEMPTS`'s holder, not to the instance, since the async client's calls
+        overlap. A status the SDK retries logs `retry call=%d attempt=%d status=%s
+        retry_after=%s`.
+        """
+        attempt = request.retries_taken + 1
+        holder = ATTEMPTS.get()
+        if holder is not None:
+            holder[0] = attempt
+        response = await call_next(request)
+        if retryable(response.status_code, response.headers):
+            logger.warning(
+                "retry call=%d attempt=%d status=%s retry_after=%s",
+                CALL_NUMBER.get(),
+                attempt,
+                response.status_code,
+                response.headers.get("retry-after") or "none",
+            )
+        return response
 
 
 def reply_of(message: anthropic.types.Message) -> Reply:
@@ -187,17 +226,22 @@ def async_send_with(client: anthropic.AsyncAnthropic) -> AsyncSend:
         client: The async SDK client; its credential comes from the SDK's own resolution.
 
     Returns:
-        The send, whose awaited reply carries no attempt count; it raises `GenerationError` when
-        no response arrives.
+        The send, whose awaited reply and failure carry the call's own attempt count, read from
+        the holder it puts in `ATTEMPTS` (None when nothing counted); it raises
+        `GenerationError` when no response arrives.
     """
 
     async def send(call: Call) -> Reply:
+        holder = [0]
+        token = ATTEMPTS.set(holder)
         try:
             body: Any = call.params()
             message = await client.messages.create(**body)
         except (anthropic.APIError, TypeError) as exc:
-            raise _failure(exc, client, None) from None
-        return reply_of(message)
+            raise _failure(exc, client, holder[0] or None) from None
+        finally:
+            ATTEMPTS.reset(token)
+        return dataclasses.replace(reply_of(message), attempts=holder[0] or None)
 
     return send
 

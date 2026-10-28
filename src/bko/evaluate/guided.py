@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Generator, Mapping, Sequence
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
@@ -46,7 +46,7 @@ from bko.evaluate.watch import Watch
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.generate.calls import Batch
-from bko.generate.errors import ReplayError, WaveError
+from bko.generate.errors import IdleError, ReplayError, WaveError
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
@@ -97,7 +97,6 @@ class GuidedArm:
         log: CallLog,
         budget: int,
         ceiling: float,
-        watch: Watch | None = None,
         candidates: CandidateFile | None = None,
         flight: Flight | None = None,
     ) -> None:
@@ -111,10 +110,10 @@ class GuidedArm:
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
             ceiling: The run's spend in USD at which no further call is made.
-            watch: The run's other stop rules; each wave runs under its idle limit.
             candidates: The run's candidates file, shared by every BKO arm; None keeps no lines.
-            flight: The run's `Flight` over `send` and `log`, shared by every BKO arm; None sends
-                each wave through `send` one call at a time, on its own event loop.
+            flight: The run's `Flight` over `send` and `log`, which holds each call to the run's
+                ceiling and idle limit, shared by every BKO arm; None sends each wave through
+                `send` one call at a time, on its own event loop, with no idle limit.
         """
         self.name = name
         self.totals = Tally()
@@ -124,9 +123,10 @@ class GuidedArm:
         self._log = log
         self._budget = budget
         self._ceiling = ceiling
-        self._watch = watch
         self._candidates = candidates
-        self._flight = flight or Flight(send, log, SEQUENTIAL, spendable=self._spendable)
+        self._flight = flight or Flight(
+            send, log, SEQUENTIAL, spendable=self._spendable, ceiling=ceiling
+        )
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -137,7 +137,7 @@ class GuidedArm:
         Raises:
             BaselineError: Plain, when the rest of the budget cannot cover the rows still short.
             EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
-                reached the ceiling.
+                reached the ceiling, or if a call got no reply within the idle limit.
             GenerationError: As `bko.generate.flight.Flight.wave`: a call with no response.
             WaveError: If a reply kept a record in a cell a later call of its wave asked for.
         """
@@ -245,8 +245,10 @@ class GuidedArm:
                 if not planned:
                     continue
                 commit = _committer(attempt, [item.guidance.cell for item in planned])
-                with self._watch.call() if self._watch is not None else nullcontext():
+                try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
+                except IdleError as exc:
+                    raise StopRuleError(str(exc), "idle") from None
 
     def _spendable(self) -> None:
         """Log the run's spend against the ceiling, and refuse the next call once it is reached."""
@@ -389,7 +391,13 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         sender = answers if answers is not None else send()
         watch = Watch(experiment, lambda: call_log.live_usd, projecting=answers is None)
         ceiling = experiment.spend_ceiling
-        flight = Flight(sender, call_log, limits, spendable=partial(spendable, call_log, ceiling))
+        flight = Flight(
+            sender,
+            call_log,
+            limits,
+            spendable=partial(spendable, call_log, ceiling),
+            ceiling=ceiling,
+        )
         arms = {
             name: GuidedArm(
                 name,
@@ -399,7 +407,6 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
                 log=call_log,
                 budget=experiment.budget,
                 ceiling=ceiling,
-                watch=watch,
                 candidates=kept,
                 flight=flight,
             )

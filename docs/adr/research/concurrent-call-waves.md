@@ -51,8 +51,8 @@ ceiling stop lands elsewhere.
   stop lands at the call an in-flight 1 run stops at.
 - **Idle.** `asyncio.timeout(idle_limit)` wraps each awaited send, retries included. On expiry the
   run cancels the calls beside it, writes their error lines in call order and raises
-  `StopRuleError("idle")`. No signal interrupts the main thread, which discharges
-  `cleanup:evaluate/idle-timer-interrupt-escapes`.
+  `StopRuleError("idle")`. No signal interrupts the main thread, so no interrupt can escape the
+  handling that turns it into the stop.
 - **Resume.** For a log whose `run` line holds `in_flight` above 1, a resume drops every call from
   the first one not answered by exactly one `reply` line, with one warning each, and carries the
   dropped calls' `usd` into the new run's spend as `carried_usd`. Logs without the key keep the

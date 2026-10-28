@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import dataclasses
+import logging
 import traceback
 from collections.abc import Callable
 from types import SimpleNamespace
@@ -11,9 +14,9 @@ import anthropic
 import pytest
 
 import bko.generate.api as api_module
-from bko.generate.api import Attempts, reply_of, send_with
+from bko.generate.api import Attempts, async_send_with, reply_of, send_with
 from bko.generate.errors import GenerationError
-from bko.generate.messages import SETTINGS, Call, Send, Usage
+from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Send, Usage
 from tests._generate_fixtures import message, records_text, request, response
 
 
@@ -261,3 +264,104 @@ def _raising_error(monkeypatch: pytest.MonkeyPatch) -> GenerationError:
     with pytest.raises(GenerationError) as caught:
         send_with(client)(CALL)
     return caught.value
+
+
+def _async_client() -> anthropic.AsyncAnthropic:
+    """A real async client with a dummy key; no test sends through its transport."""
+    return anthropic.AsyncAnthropic(api_key="not-a-credential", max_retries=0)
+
+
+def _status(code: int, retry_after: str | None = None) -> SimpleNamespace:
+    """A stand-in for the SDK's response to one HTTP attempt."""
+    headers = {} if retry_after is None else {"retry-after": retry_after}
+    return SimpleNamespace(status_code=code, headers=headers)
+
+
+def _attempting(
+    monkeypatch: pytest.MonkeyPatch,
+    client: anthropic.AsyncAnthropic,
+    statuses: dict[str, list[int]],
+    *,
+    fail: frozenset[str] = frozenset(),
+) -> None:
+    """Make `client.messages.create` run each call's attempts through `Attempts.handle_async`.
+
+    A call is named by its user turn; it takes one attempt per status in `statuses`, yielding to
+    the loop between them, then returns a message, or raises a connection error when in `fail`.
+    """
+    probe = Attempts()
+
+    async def create(**body: object) -> anthropic.types.Message:
+        messages = cast(list[dict[str, str]], body["messages"])
+        name = messages[0]["content"]
+        for retries, code in enumerate(statuses[name]):
+
+            async def call_next(_: anthropic.APIRequest, code: int = code) -> SimpleNamespace:
+                await asyncio.sleep(0.001)
+                return _status(code)
+
+            attempt = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=retries))
+            await probe.handle_async(attempt, call_next)  # ty: ignore[invalid-argument-type]
+        if name in fail:
+            raise anthropic.APIConnectionError(request=request())
+        return message(records_text([]))
+
+    monkeypatch.setattr(client.messages, "create", create)
+
+
+def test_handle_async_counts_attempts_per_call(monkeypatch):
+    client = _async_client()
+    _attempting(monkeypatch, client, {"the user": [429, 200]})
+    reply = asyncio.run(async_send_with(client)(CALL))
+    assert reply.attempts == 2
+
+
+def test_concurrent_calls_count_their_own_attempts(monkeypatch):
+    client = _async_client()
+    statuses = {"a": [429, 429, 503, 200], "b": [200], "c": [429, 500]}
+    _attempting(monkeypatch, client, statuses, fail=frozenset({"c"}))
+    send = async_send_with(client)
+
+    async def both() -> list[object]:
+        calls = [dataclasses.replace(CALL, user=name) for name in statuses]
+        return await asyncio.gather(*(send(call) for call in calls), return_exceptions=True)
+
+    a, b, c = asyncio.run(both())
+    assert [getattr(a, "attempts", a), getattr(b, "attempts", b)] == [4, 1]
+    assert isinstance(c, GenerationError)
+    assert c.attempts == 2
+
+
+def test_a_retry_logs_its_call_attempt_and_status(caplog):
+    probe = Attempts()
+    replies = iter([_status(429, "2"), _status(503), _status(400), _status(200)])
+
+    async def call_next(_: anthropic.APIRequest) -> SimpleNamespace:
+        return next(replies)
+
+    async def attempts() -> None:
+        CALL_NUMBER.set(7)
+        for retries in range(4):
+            request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=retries))
+            await probe.handle_async(request, call_next)  # ty: ignore[invalid-argument-type]
+
+    caplog.set_level(logging.INFO)
+    asyncio.run(attempts())
+    assert [m for m in caplog.messages if m.startswith("retry ")] == [
+        "retry call=7 attempt=1 status=429 retry_after=2",
+        "retry call=7 attempt=2 status=503 retry_after=none",
+    ]
+
+
+@pytest.mark.parametrize(("header", "logged"), [("true", True), ("false", False)])
+def test_a_retry_line_follows_the_servers_should_retry_header(caplog, header, logged):
+    probe = Attempts()
+    status = SimpleNamespace(status_code=400 if logged else 429, headers={"x-should-retry": header})
+
+    async def call_next(_: anthropic.APIRequest) -> SimpleNamespace:
+        return status
+
+    request = cast(anthropic.APIRequest, SimpleNamespace(retries_taken=0))
+    caplog.set_level(logging.INFO)
+    asyncio.run(probe.handle_async(request, call_next))  # ty: ignore[invalid-argument-type]
+    assert any(m.startswith("retry ") for m in caplog.messages) is logged

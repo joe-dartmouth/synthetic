@@ -1,6 +1,7 @@
 """The generation request and reply, as repo-owned values: no SDK type crosses this module.
 
-A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one;
+A `Send` turns one `Call` into one `Reply`, and an `AsyncSend` into an awaitable one, and
+`CALL_NUMBER` names the call a send is making;
 `bko.generate.api` holds the only ones that reach the Anthropic API, so every other module and test
 runs on a fake. The structured-output schema fixes
 each record's shape and codes: each coded field is an `enum` over its codebook, the cell's `sex`
@@ -13,6 +14,7 @@ prompt. Each call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final, Literal
@@ -179,6 +181,10 @@ type AsyncSend = Callable[[Call], Awaitable[Reply]]
 
 type AnySend = Callable[[Call], Reply | Awaitable[Reply]]
 """A `Send` or an `AsyncSend`: `bko.generate.flight` awaits the reply when it is awaitable."""
+
+CALL_NUMBER: Final[ContextVar[int]] = ContextVar("call_number", default=0)
+"""The number of the call being sent, which `bko.generate.flight` sets in each call's own task so
+its retry lines name it; 0 outside a `Flight`."""
 
 
 def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:

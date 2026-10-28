@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import signal
+from functools import partial
+from typing import Final
 
 import pytest
 
-from bko.generate.errors import GenerationError
+from bko.evaluate.errors import StopRuleError
+from bko.evaluate.guided import spendable
+from bko.generate.errors import GenerationError, IdleError
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.log import CallLog
-from bko.generate.messages import SETTINGS, Call, Reply
+from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Reply
+from bko.generate.spend import cost
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
 
@@ -177,3 +184,127 @@ def test_a_skeleton_is_refused_until_it_is_typed(tmp_path):
         Flight(Delayed(), log, Limits(1, None), spendable=lambda: None).wave(
             (Planned(GUIDANCE, 1, skeleton=object()),)
         )
+
+
+SPENT: Final = cost(reply([]).usage, SETTINGS.model)
+"""What each of `Delayed`'s replies costs."""
+
+
+def _ceiling_run(tmp_path, in_flight: int, ceiling: float, caplog) -> tuple[Delayed, list[str]]:
+    """Send `PLAN` under `ceiling` at `in_flight`; return the send and the stop rule lines."""
+    send = Delayed()
+    log = CallLog(tmp_path / f"calls-{in_flight}.jsonl", SETTINGS, now=lambda: FIXED_NOW)
+    caplog.clear()
+    limits = Limits(in_flight=in_flight, idle=None)
+    with (
+        pytest.raises(StopRuleError, match="reached its ceiling") as raised,
+        log,
+        Flight(send, log, limits, spendable=partial(spendable, log, ceiling), ceiling=ceiling) as f,
+    ):
+        f.wave(PLAN)
+    assert raised.value.stop_rule == "ceiling"
+    return send, [m for m in caplog.messages if m.startswith("stop rule=")]
+
+
+def test_a_mid_wave_ceiling_stops_at_the_in_flight_1_call(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    one, stop_one = _ceiling_run(tmp_path, 1, 2 * SPENT, caplog)
+    many, stop_many = _ceiling_run(tmp_path, 3, 2 * SPENT, caplog)
+    assert len(one.calls) == len(many.calls) == 2
+    assert stop_many == stop_one == [f"stop rule=ceiling usd={2 * SPENT:.4f} ceiling=0.00"]
+    lines = [json.loads(line) for line in (tmp_path / "calls-3.jsonl").read_text().splitlines()]
+    assert lines[-1]["calls"] == 2
+    assert lines[-1]["stop"] == "ceiling"
+
+
+def test_a_ceiling_the_reservations_stay_under_keeps_every_call_in_flight(tmp_path):
+    send = Delayed()
+    with (
+        _log(tmp_path) as log,
+        Flight(
+            send,
+            log,
+            Limits(in_flight=3, idle=None),
+            spendable=partial(spendable, log, 1.0),
+            ceiling=1.0,
+        ) as flight,
+    ):
+        flight.wave(PLAN)
+    assert send.landed == [3, 2, 1]
+
+
+def test_a_call_that_fails_while_the_ceiling_waits_stops_the_wave(tmp_path):
+    send = Delayed(fail={1: GenerationError("no response")})
+    log = _log(tmp_path)
+    limits = Limits(in_flight=3, idle=None)
+    with pytest.raises(GenerationError), log:
+        Flight(send, log, limits, spendable=partial(spendable, log, SPENT), ceiling=SPENT).wave(
+            PLAN
+        )
+    assert len(send.calls) == 1
+
+
+class Stalled(Delayed):
+    """`Delayed`, except that calls 1 and 3 never land."""
+
+    def __call__(self, call: Call):
+        sent = super().__call__(call)
+        if len(self.calls) == 2:
+            return sent
+        sent.close()
+
+        async def never() -> Reply:
+            await asyncio.Event().wait()
+            raise AssertionError(call)
+
+        return never()
+
+
+def test_an_idle_send_stops_with_idle_and_no_signal(tmp_path, monkeypatch, caplog):
+    def no_signal(*_: object) -> None:
+        raise AssertionError("the idle rule sent a signal")
+
+    monkeypatch.setattr(signal, "pthread_kill", no_signal)
+    log = _log(tmp_path)
+    caplog.set_level(logging.WARNING)
+    with (
+        pytest.raises(IdleError, match="call 1 got no reply within the idle limit") as raised,
+        log,
+        Flight(Stalled(), log, Limits(in_flight=3, idle=0.05), spendable=lambda: None) as f,
+    ):
+        f.wave(PLAN)
+    assert raised.value.stop_rule == "idle"
+    lines = _lines(log)
+    errors = [(line["call"], line["error"]) for line in lines if line["kind"] == "error"]
+    assert errors == [(1, str(raised.value)), (3, "CancelledError")]
+    assert [line["call"] for line in lines if line["kind"] == "reply"] == [2]
+    assert lines[-1]["status"] == "failed"
+    assert lines[-1]["stop"] == "idle"
+    assert "stop rule=idle call=1 limit_seconds=0.1" in caplog.messages
+
+
+def test_a_send_that_replies_within_the_idle_limit_is_answered(tmp_path):
+    with (
+        _log(tmp_path) as log,
+        Flight(Delayed(), log, Limits(in_flight=3, idle=5.0), spendable=lambda: None) as flight,
+    ):
+        assert [batch.index for batch in flight.wave(PLAN)] == [1, 2, 3]
+
+
+def test_each_send_sees_its_call_number(tmp_path):
+    seen: list[int] = []
+
+    def send(call: Call):
+        async def land() -> Reply:
+            await asyncio.sleep(0)
+            seen.append(CALL_NUMBER.get())
+            return reply([{"age": 40}] * _asked(call))
+
+        return land()
+
+    with (
+        _log(tmp_path) as log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    assert sorted(seen) == [1, 2, 3]
