@@ -1,8 +1,8 @@
 ---
 id: evaluate-e1-second-configuration
 title: E1 under the chosen level, bounds and effort
-status: blocked
-depends_on: generate-effort-sweep
+status: ready
+depends_on: --
 blocks: evaluate-dose-response, evaluate-data-scarcity-curve, evaluate-generator-comparison, generate-bkb-curation
 parallel_safe: false
 owner: Joe
@@ -17,11 +17,10 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 
 ## Why this unit exists
 
-Three changes each make a new configuration of E1: the level G3 chose, the
-training-split bounds in the prompt, and the effort the sweep picks. E1 is judged on its latest
-configuration (ADR
-[`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)), so the three
-land first and E1 runs once over all of them, and every power experiment that follows runs on the
+Two changes make the new configuration of E1: the level G3 chose and the training-split bounds
+in the prompt. The effort stays `medium`, as G4 chose. E1 is judged on its latest configuration
+(ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)), so the
+two land first and E1 runs once over both, and every power experiment that follows runs on the
 configuration that will be judged.
 
 ## Scope
@@ -30,10 +29,11 @@ configuration that will be judged.
 
 - `SETTINGS.guidance` set to `summary`, the level the decision rule of
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g3-guidance-level) G3 chooses.
+- `SETTINGS.effort` stays `medium`, the effort G4 chose
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g4-effort-at-summary)).
 - E1's Configuration in `docs/EVIDENCE.md` restated for the new settings, with the spend and
   duration estimate derived as [`experiments-index.md`](experiments-index.md#spend) says, from
-  `g3-5`'s tokens per record asked (the `bko` arm at `summary`, G3's Runs) and the effort sweep's
-  rate.
+  G4's chosen-effort run's tokens per record asked.
 - The `live` generation test, then a paid completeness request and its closure as a C1 Runs row
   (C1's configuration rules that a change to what a call sends supersedes the judged run), stopping
   to report if validity falls below `E1.validity`.

@@ -419,7 +419,9 @@ start or the supervisor cannot run.
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
   `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each
-  guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)); no flag changes
+  guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)) and each
+  effort-sweep run as `g4-low` and `g4-medium`
+  ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)); no flag changes
   a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
   candidates are recorded and where calls are answered from, and `--in-flight` how many calls
   overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.

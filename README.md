@@ -34,28 +34,26 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Generation**
 
-1. Effort sweep: measure whether a lower model effort keeps validity and fidelity, since output
-   tokens are most of the spend ([`generate-effort-sweep`](tasks/generate-effort-sweep.md)).
-2. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
+1. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
    the best; first measure whether the score separates records that match the real cell, then run
    it as an arm ([`generate-bkb-curation`](tasks/generate-bkb-curation.md)).
-3. BKB-drawn concepts filled by the LLM: the BKB chooses each record's concepts, and the LLM fills
+2. BKB-drawn concepts filled by the LLM: the BKB chooses each record's concepts, and the LLM fills
    the fields consistent with them (conditional generation)
    ([`generate-bkb-skeleton-fill`](tasks/generate-bkb-skeleton-fill.md)).
 
 **Evaluation**
 
-4. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
+3. Rerun E1 under the chosen level, bounds and effort as the new judged configuration
    ([`evaluate-e1-second-configuration`](tasks/evaluate-e1-second-configuration.md)).
-5. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+4. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
    method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-6. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+5. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-7. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
+6. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
    Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-8. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
+7. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
    population, remove a known share of women with the disease from training, and measure how much
    recall each method recovers; the large cells answer the power problem UCI cannot
    ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).

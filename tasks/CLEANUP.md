@@ -37,6 +37,19 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## docs
+
+- **`cleanup:docs/evidence-absolute-paths`: E1's Runs publishes absolute local paths.**
+  `docs/EVIDENCE.md`'s E1 Runs row (line 40) names `/Users/jlaws/Workspace/synthetic-replay`,
+  `/Users/jlaws/Workspace/synthetic/.venv/bin/python` and `/Users/jlaws/Workspace/synthetic/data`,
+  where later entries write `<repo>` and `<worktree>`. Evidence: `grep -n 'Users/jlaws'
+  docs/EVIDENCE.md` matches that row. *Filed 2026-10-28 by the review of PR #52.*
+  **Why deferred.** It is an E1 record outside the change that found it, which edits G4 and a task
+  unit.
+  **What discharges it:** E1's Runs row writes `<repo>` and `<worktree>` for those paths, and
+  `grep -n 'Users/jlaws' docs/EVIDENCE.md` matches nothing.
+  **Trigger:** the next edit of E1's Runs row.
+
 ## evaluate
 
 - **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
