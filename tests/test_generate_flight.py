@@ -500,6 +500,30 @@ def test_a_further_interrupt_while_calls_land_still_logs_every_call(tmp_path):
     assert _lines(log)[-1]["status"] == "interrupted"
 
 
+@pytest.mark.parametrize("idle", [0.5, None])
+def test_a_sends_own_timeout_is_its_failure_and_not_the_idle_rule(tmp_path, caplog, idle):
+    def send(call: Call):
+        async def time_out() -> Reply:
+            # As httpx raises when one HTTP attempt times out and the SDK gives up.
+            raise TimeoutError(call.user)
+
+        return time_out()
+
+    log = _log(tmp_path)
+    caplog.set_level(logging.INFO)
+    with (
+        pytest.raises(TimeoutError) as raised,
+        log,
+        Flight(send, log, Limits(in_flight=1, idle=idle), spendable=lambda: None) as f,
+    ):
+        f.wave(PLAN[:1])
+    assert not isinstance(raised.value, IdleError)
+    assert not [m for m in caplog.messages if m.startswith("stop rule=")]
+    lines = _lines(log)
+    assert [line["error"] for line in lines if line["kind"] == "error"] == ["TimeoutError"]
+    assert lines[-1]["stop"] is None
+
+
 def test_a_send_that_replies_within_the_idle_limit_is_answered(tmp_path):
     with (
         _log(tmp_path) as log,

@@ -39,6 +39,10 @@ from bko.generate.messages import AnySend, Call, Reply, Usage, text_of
 logger = logging.getLogger(__name__)
 
 
+type Answers = Replay | Resume
+"""A source that answers a run's first calls from a call log: every call, or a stopped run's."""
+
+
 class _Log(NamedTuple):
     """A call log as read: sha256, `run` line, calls, `end` line, carried spend, dropped calls."""
 
@@ -110,28 +114,16 @@ def log_ends(path: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
     return run, end
 
 
-class Replay:
-    """A `Send` over a call log's calls, in their order.
+class _Logged:
+    """A call log's calls, answered in their order; `Replay` and `Resume` send through it.
 
     Attributes:
-        digest: The log's sha256, which the rerun's own log records under `replay`.
+        digest: The log's sha256, which the rerun's own log records.
         rehearsal: Whether the log is a rehearsal's, so the rerun's own log keeps the mark.
     """
 
-    def __init__(self, path: Path) -> None:
-        """Read the call log at `path`.
-
-        Raises:
-            ReplayError: If a line is not a JSON object; the first line is not a schema
-                `SCHEMA` `run` line; a request, reply or error line has no whole-number `call`,
-                or shares one with another line of its kind; the requests are not calls 1 to n;
-                a request has no reply or error line, or an answer no request; or a line misses
-                a field its kind needs.
-            OSError: If the log cannot be read.
-        """
-        self._load(_read(path, stopped=False))
-
-    def _load(self, log: _Log) -> None:
+    def __init__(self, log: _Log) -> None:
+        """Hold `log`'s calls, none answered yet."""
         self.digest = log.digest
         self.rehearsal = bool(log.run.get("rehearsal"))
         self._calls = deque(log.calls)
@@ -147,7 +139,7 @@ class Replay:
         """The logged calls not yet answered."""
         return len(self._calls)
 
-    def __call__(self, call: Call) -> Reply:
+    def _next(self, call: Call) -> Reply:
         """Answer `call` with the next logged call's reply, or raise its logged failure.
 
         Raises:
@@ -174,7 +166,38 @@ class Replay:
         )
 
 
-class Resume(Replay):
+class Replay(_Logged):
+    """A `Send` over a call log's calls, in their order.
+
+    Attributes:
+        digest: The log's sha256, which the rerun's own log records under `replay`.
+        rehearsal: Whether the log is a rehearsal's, so the rerun's own log keeps the mark.
+    """
+
+    def __init__(self, path: Path) -> None:
+        """Read the call log at `path`.
+
+        Raises:
+            ReplayError: If a line is not a JSON object; the first line is not a schema
+                `SCHEMA` `run` line; a request, reply or error line has no whole-number `call`,
+                or shares one with another line of its kind; the requests are not calls 1 to n;
+                a request has no reply or error line, or an answer no request; or a line misses
+                a field its kind needs.
+            OSError: If the log cannot be read.
+        """
+        super().__init__(_read(path, stopped=False))
+
+    def __call__(self, call: Call) -> Reply:
+        """Answer `call` with the next logged call's reply, or raise its logged failure.
+
+        Raises:
+            ReplayError: If no logged call is left, or `call` differs from the logged request.
+            GenerationError: The logged call's failure.
+        """
+        return self._next(call)
+
+
+class Resume(_Logged):
     """A `Send` that answers a stopped run's answered calls from its log, then sends the rest live.
 
     Attributes:
@@ -203,7 +226,7 @@ class Resume(Replay):
             if len(log.calls) < calls:
                 msg = f"{path} stopped while it replayed; resume the log with sha256 {sha256!r}"
                 raise ReplayError(msg)
-        self._load(log)
+        super().__init__(log)
         self._carried = log.carried_usd
         self.dropped = log.dropped
         self._live = send
@@ -214,10 +237,10 @@ class Resume(Replay):
         """What the resumed run's own log records about this source, the spend it carries too."""
         return Answered("resume", self.digest, self._total, self._carried)
 
-    def __call__(self, call: Call) -> Reply | Awaitable[Reply]:  # ty: ignore[invalid-method-override]
+    def __call__(self, call: Call) -> Reply | Awaitable[Reply]:
         """Answer from the stopped log while it holds calls, then send live, awaitably or not."""
         if self._calls:
-            return super().__call__(call)
+            return self._next(call)
         if not self._sent:
             self._sent = True
             logger.info("resume live from call %d", self._total + 1)

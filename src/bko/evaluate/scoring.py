@@ -28,7 +28,7 @@ from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
 from bko.generate.flight import Limits
-from bko.generate.replay import Replay, Resume
+from bko.generate.replay import Answers, Replay, Resume
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -104,7 +104,7 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
 
 
-def _answers(args: argparse.Namespace, context: Context) -> Replay | None:
+def _answers(args: argparse.Namespace, context: Context) -> Answers | None:
     """The source that answers the BKO calls, read before any download or log is made."""
     if args.replay is not None:
         return Replay(args.replay)
@@ -128,7 +128,7 @@ def _guided(
     frame: pd.DataFrame,
     names: Sequence[str],
     context: Context,
-    answers: Replay | None,
+    answers: Answers | None,
     *,
     direct: bool,
 ) -> list[Score]:

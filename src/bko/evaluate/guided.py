@@ -51,7 +51,7 @@ from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, AnySend, Settings
-from bko.generate.replay import Replay
+from bko.generate.replay import Answers
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -333,7 +333,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     send: Callable[[], AnySend],
     run: str,
     limits: Limits,
-    answers: Replay | None = None,
+    answers: Answers | None = None,
     rehearsal: bool = False,
     now: Callable[[], datetime] = utc_now,
 ) -> Generator[GuidedRun]:

@@ -27,6 +27,7 @@ before the call log can close, a further interrupt notwithstanding. Each call's 
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import math
@@ -363,7 +364,7 @@ class Flight:
             IdleError: If no reply came within `limits.idle` seconds.
         """
         sent = self._send(pending.call)
-        if isinstance(sent, Reply):
+        if not inspect.isawaitable(sent):
             return sent
         idle = self.limits.idle
         scope = asyncio.timeout(idle)
