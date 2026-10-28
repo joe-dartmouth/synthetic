@@ -26,7 +26,7 @@ from bko.evaluate.experiment import (
     RUNS,
     NamedRun,
 )
-from bko.evaluate.holdout_candidates import KEPT, read
+from bko.evaluate.holdout_candidates import KEPT, SCHEMA, read
 from bko.evaluate.scores import Source
 from bko.ontology.mapping import FIELD_MAPPINGS
 from tests._datasets_fixtures import archive, cleveland_line, pin
@@ -123,6 +123,8 @@ def test_score_g2_writes_candidate_counts_and_a_candidates_file_with_null_calls(
     assert generated["value"].tolist() == passed["value"].tolist() == [28.0, 28.0]
     found = read(path.read_bytes())
     assert found.header["run"] == "g2"
+    assert (found.header["schema"], found.header["frame"]) == (SCHEMA, "uci")
+    assert "settings" not in found.header
     assert {line.call for line in found.candidates} == {None}
     assert {line.arm for line in found.candidates} == {DIRECT_ARM}
     assert {line.fill for line in found.candidates} == {"gap", "replica"}

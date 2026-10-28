@@ -241,3 +241,11 @@ def test_a_canned_send_refusal_keeps_its_message(tmp_path):
     error = next(line for line in _lines(tmp_path / "calls.jsonl") if line["kind"] == "error")
     assert error["error"] == str(caught.value)
     assert "frame uci" in error["error"]
+
+
+def test_a_canned_send_refuses_a_user_turn_it_cannot_read():
+    send = CannedSend(_toy_data(), NARROW, SETTINGS)
+    call = Call(SETTINGS, 0, 1, "system", "Write some records.", frame=TOY)
+    with pytest.raises(GenerationError, match="does not read as the prompt renders it"):
+        send(call)
+    assert send.calls == 0
