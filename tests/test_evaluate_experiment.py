@@ -24,7 +24,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.gaps.definitions import Definition
-from bko.generate.messages import LEVELS, SETTINGS
+from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
@@ -88,6 +88,8 @@ def test_one_guidance_run_per_level():
         "g3-ontology",
         "g3-profile",
         "g3-summary",
+        "g4-low",
+        "g4-medium",
     }
 
 
@@ -109,6 +111,13 @@ def test_a_guidance_run_differs_from_e1_only_in_its_arms_ceiling_criteria_and_le
     assert NamedRun(same, dataclasses.replace(run.settings, guidance=SETTINGS.guidance)) == (
         NamedRun(E1)
     )
+
+
+@pytest.mark.parametrize("effort", ["low", "medium"])
+def test_a_sweep_run_is_g3_summarys_experiment_with_literal_settings(effort):
+    run = RUNS[f"g4-{effort}"]
+    assert run.experiment == RUNS["g3-summary"].experiment
+    assert run.settings == Settings("claude-haiku-5-5", effort, 16000, 20, Level.SUMMARY)
 
 
 def test_an_ablation_arm_may_be_judged_as_a_dry_run():

@@ -23,7 +23,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
-from bko.generate.messages import LEVELS, SETTINGS, Settings
+from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -219,6 +219,19 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
                 replace(SETTINGS, guidance=level),
             )
             for level in LEVELS
+        },
+        **{
+            f"g4-{effort}": NamedRun(
+                replace(
+                    E1,
+                    arms=(*METHOD_ARMS, "bko"),
+                    replica_arms=(*ADDS_ROWS, "bko"),
+                    spend_ceiling=10.0,
+                    criteria=(),
+                ),
+                Settings("claude-haiku-5-5", effort, 16000, 20, Level.SUMMARY),
+            )
+            for effort in ("low", "medium")
         },
         "g2": NamedRun(G2),
     }
