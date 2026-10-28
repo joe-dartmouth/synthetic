@@ -18,7 +18,7 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 ## Why this unit exists
 
 At level `ontology` the prompt lists the findings a gap rests on and leaves the model to decide
-which records show them, and E1's Result reads the drift that follows: trained on its replica
+which records show them, and E1's Result (`e1-3`, at `ontology`) reads the drift that follows: trained on its replica
 alone, `bko` scores the lowest fidelity quality of every arm
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)). Conditional
 generation puts the BKB in charge of each record's concepts and the model in charge of the fields

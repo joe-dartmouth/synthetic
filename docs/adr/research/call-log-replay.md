@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -86,7 +86,8 @@ rows in `docs/EVIDENCE.md`).
 A BKO arm sends the same gap request on every holdout and on each retry. At level `ontology`,
 `bko`'s two gap-request prompts are identical across every E1 holdout (measured 2026-10-19). One
 request is therefore logged many times with different replies, and only the call order tells them
-apart.
+apart. At `summary`, `SETTINGS`' level, each holdout's prompt carries its own spreads and bounds,
+so prompts differ across holdouts, and pairing by call order is unaffected.
 
 Everything after a call is deterministic: decoding, validation, drops, top-ups, numbering and the
 classifier. Answering the same calls in the same order therefore rewrites the scores byte for byte.
