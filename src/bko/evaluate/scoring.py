@@ -20,9 +20,8 @@ from pathlib import Path
 from typing import Final
 
 from bko.datasets.fetch import default_data_dir
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.context import Context
-from bko.evaluate.data import Data, load
+from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DIRECT_ARM, NamedRun
@@ -62,38 +61,20 @@ def interrupted_by_termination() -> Generator[None]:
 def score(args: argparse.Namespace, context: Context) -> str:
     """Run every arm of `context`'s experiment on its dataset and return the scores as CSV.
 
-    The run is `context`'s experiment, settings and dataset; its data is loaded once
-    (`bko.evaluate.data.load`) after the flags are checked, then scored as `score_data`.
-    `SIGTERM` and `SIGHUP` interrupt it as `SIGINT` does (`interrupted_by_termination`).
+    The run is `context`'s experiment, settings and dataset. `_prepare` refuses the flags and arms
+    the run cannot use and reads what answers its calls, before any download; then the data is
+    loaded once (`bko.evaluate.data.load`) and `_score` scores every arm on it. `SIGTERM` and
+    `SIGHUP` interrupt it as `SIGINT` does (`interrupted_by_termination`).
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or as the run.
+        EvaluationError: As `_prepare`, or as the run.
         FileExistsError: If the call log or candidates file exists.
         KeyboardInterrupt: On `SIGINT`, `SIGTERM` or `SIGHUP`.
     """
     named = NamedRun(context.experiment, context.settings, context.dataset)
     with interrupted_by_termination():
         answers = _prepare(args, named, context)
-        data = load(context.dataset, _data_dir(args), context)
-        return _score(data, named, args, context, answers)
-
-
-def score_data(data: Data, named: NamedRun, args: argparse.Namespace, context: Context) -> str:
-    """Run every arm of `named`'s experiment on `data` and return the scores as CSV.
-
-    Every stage reads `data`: the harness splits its records under its frame's edges, the BKO arms
-    observe cells by its field rows and name it in their knowledge, the rehearsal answers in its
-    frame, and the call log and candidates file name its frame. `SIGTERM` and `SIGHUP` interrupt
-    it as `SIGINT` does.
-
-    Raises:
-        EvaluationError: As `_refuse_flags`, if the direct arm runs on a frame other than UCI's,
-            or as the run.
-        FileExistsError: If the call log or candidates file exists.
-        KeyboardInterrupt: On `SIGINT`, `SIGTERM` or `SIGHUP`.
-    """
-    with interrupted_by_termination():
-        answers = _prepare(args, named, context)
+        data = load(named.dataset, _data_dir(args), context)
         return _score(data, named, args, context, answers)
 
 
@@ -105,14 +86,20 @@ def _arms(named: NamedRun, context: Context) -> tuple[list[str], bool]:
 
 
 def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Answers | None:
-    """Refuse the flags the run cannot use, then read what answers its calls, before any download.
+    """Refuse the flags and arms the run cannot use, then read what answers its calls.
+
+    It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`.
+        EvaluationError: As `_refuse_flags`, or if the direct arm runs on a dataset other than
+            UCI.
         FileExistsError: If the call log or candidates file exists.
     """
     guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
+    if direct and named.dataset is not Dataset.UCI:
+        msg = f"the direct arm {DIRECT_ARM} draws UCI records only, not dataset {named.dataset}"
+        raise EvaluationError(msg)
     if args.rehearse:
         # scores.csv carries no marker, so its log says what the run was before anything else.
         logger.warning(
@@ -133,12 +120,14 @@ def _score(
     context: Context,
     answers: Answers | None,
 ) -> str:
-    """Score every arm of `named` on `data`, as `score_data`, once the flags are checked."""
+    """Score every arm of `named` on `data` with `answers`, once `_prepare` has checked the run.
+
+    Every stage reads `data`: the harness splits its records under its frame's edges, the BKO arms
+    observe cells by its field rows and name it in their knowledge, the rehearsal answers in its
+    frame, and the experiment line, call log and candidates file name its frame.
+    """
     experiment = named.experiment
     guided, direct = _arms(named, context)
-    if direct and data.frame is not UCI_FRAME:
-        msg = f"the direct arm {DIRECT_ARM} draws UCI records only, not frame {data.frame.name}"
-        raise EvaluationError(msg)
     log_experiment(args.run, experiment, context.models, frame=data.frame.name)
     if guided or direct:
         scores = _guided(args, data, guided, named, context, answers, direct=direct)

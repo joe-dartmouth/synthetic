@@ -6,7 +6,7 @@ import dataclasses
 import hashlib
 import json
 import logging
-from typing import BinaryIO
+from typing import BinaryIO, cast
 
 import pytest
 
@@ -19,14 +19,14 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, RUNS, NamedRun
 from bko.evaluate.holdout_candidates import SCHEMA, CandidateFile, Origin, read
 from bko.evaluate.rehearse import CannedSend
-from bko.evaluate.scoring import score_data
+from bko.evaluate.scoring import _prepare, _score, score
 from bko.generate.errors import GenerationError
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend, Call
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context
 from tests._evaluate_fixtures import FAST_ARMS
-from tests._frame_fixtures import TOY, toy_records
+from tests._frame_fixtures import SHORT, TOY, toy_records
 from tests._generate_fixtures import ScriptedSend
 from tests._validate_fixtures import planted
 
@@ -62,6 +62,15 @@ def _toy_context(**changes: object) -> Context:
     return dataclasses.replace(built, **changes)
 
 
+TOY_BANDS = frozenset({"<45", "45-69", ">=70"})
+"""The toy frame's age-band labels under its edges (45, 70)."""
+
+
+def _scored(data: Data, named: NamedRun, args, ctx: Context) -> str:
+    """Score `data` as `score` does once it has loaded it: `_prepare`, then `_score`."""
+    return _score(data, named, args, ctx, _prepare(args, named, ctx))
+
+
 def _lines(path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
@@ -78,14 +87,18 @@ def test_uci_data_carries_frame_rows_name_and_digest(tmp_path):
     ensure(ctx.uci, tmp_path, open_url=_refusing_opener)
 
 
-def test_score_data_rehearses_over_the_toy_frame(tmp_path):
+def test_a_toy_rehearsal_reads_the_toy_frame_at_every_stage(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
     log = tmp_path / "calls.jsonl"
     candidates = candidates_for(log)
     argv = ["score", "toy", "--rehearse", "--log", str(log), "--candidates", str(candidates)]
     args = _parser().parse_args([*argv, "--data-dir", str(tmp_path / "data")])
     named = NamedRun(NARROW)
-    text = score_data(_toy_data(), named, args, _toy_context())
+    text = _scored(_toy_data(), named, args, _toy_context())
     assert ",bko," in text
+    assert any(
+        record.getMessage().startswith("experiment run=toy frame=toy ") for record in caplog.records
+    )
     kept = read(candidates.read_bytes())
     assert kept.header["frame"] == "toy"
     assert kept.header["data"] == _toy_data().digest
@@ -93,26 +106,55 @@ def test_score_data_rehearses_over_the_toy_frame(tmp_path):
     for line in kept.candidates:
         assert isinstance(line.candidate, dict)
         assert set(line.candidate) == set(TOY.columns)
+        assert line.cell.split("/")[0] in TOY_BANDS
     lines = _lines(log)
     assert lines[0]["frame"] == "toy"
     assert lines[-1]["status"] == "complete"
     requests = [line for line in lines if line["kind"] == "request"]
+    assert {line["cell"].split("/")[0] for line in requests} <= TOY_BANDS
+    assert {"/".join(map(str, cell)) for cell in SHORT} <= {line["cell"] for line in requests}
+    system = requests[0]["params"]["system"]
+    assert f"a study of {TOY.study}. Each record is one {TOY.cohort}." in system
     user = requests[0]["params"]["messages"][0]["content"]
     assert "The findings below" not in user
     assert "No record of this group" not in user
     assert not (tmp_path / "data").exists()
 
 
-def test_the_direct_arm_is_refused_on_a_non_uci_frame(tmp_path):
+def test_a_method_only_toy_run_asks_for_the_toy_cells(tmp_path):
+    asked = []
+    smote = FAST_ARMS["smote"]
+
+    def spying(train, request):
+        asked.append(request)
+        return smote(train, request)
+
+    experiment = dataclasses.replace(
+        NARROW, arms=("none", "smote"), candidate="smote", comparators=("none",)
+    )
+    ctx = _toy_context(experiment=experiment, arms={"none": FAST_ARMS["none"], "smote": spying})
+    args = _parser().parse_args(["score", "toy", "--data-dir", str(tmp_path / "data")])
+    text = _scored(_toy_data(), NamedRun(experiment), args, ctx)
+    assert ",smote," in text
+    assert asked
+    assert {request.frame.name for request in asked} == {"toy"}
+    cells = {cell for request in asked for cell in request.quota}
+    assert set(SHORT) <= cells
+    assert {cell[0] for cell in cells} <= TOY_BANDS
+
+
+def test_the_direct_arm_is_refused_on_a_non_uci_dataset_before_any_load(tmp_path):
     candidates = tmp_path / "candidates.jsonl"
     args = _parser().parse_args(
         ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
     )
     named = RUNS["g2"]
     assert DIRECT_ARM in named.experiment.arms
+    other = cast("Dataset", "toy")
     with pytest.raises(EvaluationError, match="direct arm"):
-        score_data(_toy_data(), named, args, _toy_context(experiment=named.experiment))
+        score(args, _toy_context(experiment=named.experiment, dataset=other))
     assert not candidates.exists()
+    assert not (tmp_path / "data").exists()
 
 
 def test_the_call_log_run_line_names_the_frame(tmp_path):
