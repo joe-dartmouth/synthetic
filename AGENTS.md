@@ -46,8 +46,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl>]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money. It supervises the
-  run and resumes an API-caused stop into `runs/<run-id>-resume-<k>/`, at most R times (5 by
-  default).
+  run and resumes an API-caused stop into `runs/<run-id>-resume-<k>/`, at most R times (its
+  default in `launch --help`).
   `--resume <calls.jsonl>` resumes a stopped run into the new folder under the same checks, and
   `--rehearse` rehearses the run on canned replies into `runs/<run-id>/rehearsal/` for free
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paid-run protocol).

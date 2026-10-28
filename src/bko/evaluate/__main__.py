@@ -10,9 +10,10 @@ stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached under `supervise` (`bko.evaluate.launch`);
 RUN defaults to the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED`
 resumes a stopped run into the new folder, `--in-flight N` is forwarded to `score` only when given,
-and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is what `launch` starts: it
-runs `score` into the claimed folder and resumes API-caused stops (`bko.evaluate.supervise`), and
-exits with the last segment's code.
+and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is internal to `launch`,
+which starts it: it runs `score` into the claimed folder and resumes API-caused stops
+(`bko.evaluate.supervise`), and exits with the last segment's code, 128 plus the signal's number
+for a child a signal killed, or 2 when it or a resume cannot run.
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
