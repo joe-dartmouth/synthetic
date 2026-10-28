@@ -120,8 +120,9 @@ stopped wave's calls again.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/flight.py`
-- Pinned by: `tests/test_generate_flight.py`, `tests/test_evaluate_waves.py`
+- Owner: `src/bko/generate/flight.py`; supervision: `src/bko/evaluate/supervise.py`
+- Pinned by: `tests/test_generate_flight.py`, `tests/test_evaluate_waves.py`,
+  `tests/test_evaluate_supervise.py`
 
 ## Reversal Conditions
 

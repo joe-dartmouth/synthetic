@@ -11,6 +11,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -79,13 +80,14 @@ def test_it_starts_score_with_its_call_log_kept_awake_on_macos(tmp_path):
     )
     (command,) = start.commands
     assert command[:3] == ("caffeinate", "-i", "-s")
-    assert command[3:7] == (sys.executable, "-m", "bko.evaluate", "score")
+    assert command[3:7] == (sys.executable, "-m", "bko.evaluate", "supervise")
     assert command[7:] == (
+        "e1-4",
         "e1",
-        "--log",
-        str(tmp_path / "e1-4" / "calls.jsonl"),
-        "--candidates",
-        str(tmp_path / "e1-4" / "holdout-candidates.jsonl"),
+        "--retries",
+        "5",
+        "--runs-dir",
+        str(tmp_path.absolute()),
         "--data-dir",
         str((tmp_path / "data").absolute()),
     )
@@ -96,9 +98,8 @@ def test_it_starts_score_with_its_call_log_kept_awake_on_macos(tmp_path):
         "power=mains",
         "awake=caffeinate",
         (
-            f"command=caffeinate -i -s {sys.executable} -m bko.evaluate score e1 --log "
-            f"{tmp_path / 'e1-4' / 'calls.jsonl'} --candidates "
-            f"{tmp_path / 'e1-4' / 'holdout-candidates.jsonl'} --data-dir {tmp_path / 'data'}"
+            f"command=caffeinate -i -s {sys.executable} -m bko.evaluate supervise e1-4 e1 "
+            f"--retries 5 --runs-dir {tmp_path} --data-dir {tmp_path / 'data'}"
         ),
         "pid=4242",
     ]
@@ -141,14 +142,14 @@ def test_a_start_that_fails_otherwise_also_leaves_the_folder_free(tmp_path):
 
 def _failing_on(prefix: str, monkeypatch) -> None:
     """Make `_append` raise for the lines that start with `prefix`, and write the others."""
-    appending = launching._append
+    appending = launching.append
 
     def failing(record, lines):
         if lines and lines[0].startswith(prefix):
             raise PermissionError(13, "Permission denied", str(record))
         appending(record, lines)
 
-    monkeypatch.setattr(launching, "_append", failing)
+    monkeypatch.setattr(launching, "append", failing)
 
 
 def test_a_started_process_whose_pid_line_fails_is_reported_started(tmp_path, monkeypatch, caplog):
@@ -184,7 +185,7 @@ def test_a_launch_log_that_cannot_be_written_leaves_the_folder_free(tmp_path, mo
     def unwritable(record, lines):
         raise PermissionError(13, "Permission denied", str(record))
 
-    monkeypatch.setattr(launching, "_append", unwritable)
+    monkeypatch.setattr(launching, "append", unwritable)
     start = Starts()
     with pytest.raises(PermissionError):
         launch("e1-4", "e1", root=tmp_path, power=lambda: False, start=start)
@@ -255,22 +256,23 @@ def test_a_resume_refuses_a_log_it_cannot_resume_before_the_folder(
     assert context.start.commands == []
 
 
-def test_a_resume_starts_score_on_the_stopped_log_into_a_new_folder(tmp_path):
+def test_a_resume_supervises_the_stopped_log_into_a_new_folder(tmp_path):
     source = _stopped(tmp_path)
     context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
     argv = ["launch", "g9-6", "g9-probe", "--resume", str(source)]
     assert main(argv, context=context, out=io.StringIO()) == 0
     folder = tmp_path / "g9-6"
     (command,) = context.start.commands
-    assert command[-8:] == (
-        "score",
+    assert command[-9:] == (
+        "supervise",
+        "g9-6",
         "g9-probe",
+        "--retries",
+        "5",
+        "--runs-dir",
+        str(tmp_path.absolute()),
         "--resume",
         str(source.absolute()),
-        "--log",
-        str(folder / "calls.jsonl"),
-        "--candidates",
-        str(folder / "holdout-candidates.jsonl"),
     )
     log = (folder / "launch.log").read_text(encoding="utf-8")
     assert f"resume={source.absolute()}" in log
@@ -372,13 +374,11 @@ def test_a_rehearsal_launches_into_its_folder_inside_the_runs_and_leaves_the_run
     folder = tmp_path / "e1-4" / REHEARSAL
     (command,) = start.commands
     assert command[-1] == "--rehearse"
-    assert str(folder / "calls.jsonl") in command
-    assert str(folder / "holdout-candidates.jsonl") in command
+    assert command[command.index("supervise") + 1 :][:2] == ("e1-4", "e1")
     assert "rehearse=true" in (folder / "launch.log").read_text(encoding="utf-8")
     assert sorted(path.name for path in (tmp_path / "e1-4").iterdir()) == [REHEARSAL]
     assert main(["launch", "e1-4"], context=context, out=io.StringIO()) == 0
     assert "--rehearse" not in start.commands[-1]
-    assert str(tmp_path / "e1-4" / "calls.jsonl") in start.commands[-1]
     assert "rehearse=false" in (tmp_path / "e1-4" / "launch.log").read_text(encoding="utf-8")
 
 
@@ -406,14 +406,59 @@ def test_a_second_rehearsal_into_one_folder_is_refused(tmp_path):
         launch("e1-4", "e1", root=tmp_path, rehearse=True, power=lambda: False, start=Starts())
 
 
+SESSION_PROBE = "import os, sys; print(os.getsid(0) == os.getpid()); print('e', file=sys.stderr)"
+"""A child that prints whether it leads its own session, then a line to stderr."""
+
+
+def _written(path: Path, text: str, *, timeout: float = 10.0) -> bool:
+    """Whether `path` holds `text` within `timeout` seconds; nothing waits on the spawned child."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists() and path.read_text(encoding="utf-8") == text:
+            return True
+        time.sleep(0.01)
+    return False
+
+
 def test_spawn_starts_the_command_detached_with_its_output_in_the_files(tmp_path):
     out, err = tmp_path / "out", tmp_path / "err"
-    code = "import os, sys; print(os.getsid(0) == os.getpid()); print('e', file=sys.stderr)"
-    pid = spawn([sys.executable, "-c", code], out, err)
-    _, status = os.waitpid(pid, 0)
-    assert os.waitstatus_to_exitcode(status) == 0
+    spawn([sys.executable, "-c", SESSION_PROBE], out, err)
+    assert _written(out, "True\n")
+    assert _written(err, "e\n")
+
+
+class _ExitedPopen(subprocess.Popen):
+    """A `Popen` that returns only once its child has exited, leaving the child unreaped."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        os.waitid(os.P_PID, self.pid, os.WEXITED | os.WNOWAIT)
+
+
+def test_spawn_leaves_no_child_for_the_caller_to_reap(tmp_path, monkeypatch):
+    """The race `os.waitpid` lost: a child that exits before `spawn` returns is reaped when the
+    dropped `Popen` is collected, so a caller waiting on the pid finds no child."""
+    monkeypatch.setattr(launching.subprocess, "Popen", _ExitedPopen)
+    out, err = tmp_path / "out", tmp_path / "err"
+    pid = spawn([sys.executable, "-c", SESSION_PROBE], out, err)
+    with pytest.raises(ChildProcessError):
+        os.waitpid(pid, os.WNOHANG)
     assert out.read_text(encoding="utf-8") == "True\n"
-    assert err.read_text(encoding="utf-8") == "e\n"
+
+
+def test_launch_passes_retries(tmp_path):
+    start = Starts()
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
+    assert main(["launch", "e1-4", "--retries", "0"], context=context, out=io.StringIO()) == 0
+    assert main(["launch", "e1-5"], context=context, out=io.StringIO()) == 0
+    once, default = start.commands
+    assert once[once.index("--retries") + 1] == "0"
+    assert default[default.index("--retries") + 1] == "5"
+    assert default[default.index("--runs-dir") + 1] == str(tmp_path.absolute())
+    with pytest.raises(SystemExit):
+        main(["launch", "e1-6", "--retries", "-1"], context=context, out=io.StringIO())
+    with pytest.raises(SystemExit):
+        main(["launch", "e1-6", "--retries", "many"], context=context, out=io.StringIO())
 
 
 def test_elsewhere_nothing_holds_the_machine_awake_and_power_is_recorded_unchecked(tmp_path):
@@ -538,7 +583,7 @@ def test_a_named_run_of_the_run_ids_entry_launches(tmp_path):
     assert main(argv, context=context, out=io.StringIO()) == 0
     log = (tmp_path / "g9-1" / "launch.log").read_text(encoding="utf-8")
     assert "run=g9-probe " in log
-    assert " score g9-probe --log " in log
+    assert " supervise g9-1 g9-probe --retries " in log
 
 
 def test_a_named_run_of_another_entry_is_refused(tmp_path, caplog):

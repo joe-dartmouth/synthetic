@@ -1,4 +1,4 @@
-"""Command line for the evaluation: `python -m bko.evaluate score`, `compare` and `launch`.
+"""The evaluation's command line: `python -m bko.evaluate score`, `compare`, `launch`, `supervise`.
 
 `score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
 of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
@@ -7,9 +7,12 @@ each BKO arm's counts per fill and each replica arm's mean replica utility and f
 `--candidate` judges another arm, a dry run whose verdict is not E1's; `--beside SCORES` logs the
 judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside`). Logs go to
 stderr.
-`launch RUN_ID [RUN]` starts a paid `score` detached (`bko.evaluate.launch`); RUN defaults to
-the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED` resumes a
-stopped run into the new folder, and `--in-flight N` is forwarded to `score` only when given.
+`launch RUN_ID [RUN]` starts a paid `score` detached under `supervise` (`bko.evaluate.launch`);
+RUN defaults to the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED`
+resumes a stopped run into the new folder, `--in-flight N` is forwarded to `score` only when given,
+and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is what `launch` starts: it
+runs `score` into the claimed folder and resumes API-caused stops (`bko.evaluate.supervise`), and
+exits with the last segment's code.
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
@@ -56,8 +59,9 @@ from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
-from bko.evaluate.launch import launch
+from bko.evaluate.launch import RETRIES, launch
 from bko.evaluate.scoring import score
+from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.flight import IN_FLIGHT
@@ -84,12 +88,15 @@ def main(
             cannot read still leaves the interval criteria's table.
 
     Returns:
-        0 done, 2 the command could not run, 3 an input contradicts its contract. Any other
-        exception propagates, so the process exits 1 with its traceback.
+        0 done, 2 the command could not run, 3 an input contradicts its contract; `supervise`
+        returns its last segment's exit code. Any other exception propagates, so the process
+        exits 1 with its traceback.
     """
     context = context or Context()
     args = _parser().parse_args(argv)
     sink = out or sys.stdout
+    if args.command == "supervise":
+        return _supervise(args, context)
     try:
         if args.command == "launch":
             sink.write(_launch(args, context))
@@ -138,11 +145,29 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         rehearse=args.rehearse,
         resume=args.resume,
         in_flight=args.in_flight,
+        retries=args.retries,
         power=context.power,
         start=context.start,
     )
     logger.info("launch started=%s pid=%s command=%s", found.started, found.pid, found.command)
     return f"{found.watch}\n"
+
+
+def _supervise(args: argparse.Namespace, context: Context) -> int:
+    """Run the launched run's segments; return the last one's exit code."""
+    return supervise(
+        args.run_id,
+        args.run,
+        root=args.runs_dir,
+        data_dir=args.data_dir,
+        rehearse=args.rehearse,
+        resume=args.resume,
+        in_flight=args.in_flight,
+        retries=args.retries,
+        segment=context.segment,
+        sleep=context.sleep,
+        power=context.power,
+    )
 
 
 def _resumable(path: Path, settings: Settings) -> None:
@@ -203,6 +228,18 @@ def _in_flight(text: str) -> int:
         value = 0
     if value < 1:
         msg = f"the calls in flight must be a whole number of at least 1, not {text!r}"
+        raise argparse.ArgumentTypeError(msg)
+    return value
+
+
+def _retries(text: str) -> int:
+    """`--retries`' value: a whole number of resumes, at least 0."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = -1
+    if value < 0:
+        msg = f"the retries must be a whole number of at least 0, not {text!r}"
         raise argparse.ArgumentTypeError(msg)
     return value
 
@@ -288,6 +325,12 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="the most BKO calls in flight at once, forwarded to score; default: score's",
     )
+    launching.add_argument(
+        "--retries",
+        type=_retries,
+        default=RETRIES,
+        help=f"the most resumes of API-caused stops; 0 runs one segment; default: {RETRIES}",
+    )
     instead = launching.add_mutually_exclusive_group()
     instead.add_argument(
         "--rehearse",
@@ -300,6 +343,7 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="resume the stopped run whose call log this is, into the run id's new folder",
     )
+    _supervising(commands)
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
@@ -316,6 +360,21 @@ def _parser() -> argparse.ArgumentParser:
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
     return parser
+
+
+def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    supervising = commands.add_parser(
+        "supervise", help="run a launched run's score segments, resuming API-caused stops"
+    )
+    supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
+    supervising.add_argument("run", help="the named run")
+    supervising.add_argument("--runs-dir", type=Path, required=True, help="the run folders' root")
+    supervising.add_argument("--data-dir", type=Path, default=None, help="the data root")
+    supervising.add_argument("--in-flight", type=_in_flight, default=None, help="as score's")
+    supervising.add_argument("--retries", type=_retries, default=RETRIES, help="as launch's")
+    instead = supervising.add_mutually_exclusive_group()
+    instead.add_argument("--rehearse", action="store_true", help="as launch's; never resumed")
+    instead.add_argument("--resume", type=Path, default=None, help="as launch's")
 
 
 if __name__ == "__main__":

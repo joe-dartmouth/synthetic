@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ from bko.evaluate.experiment import E1, RUNS, Experiment, NamedRun
 from bko.evaluate.launch import Power, Spawn, on_battery, spawn
 from bko.evaluate.rehearse import CannedSend, Rehearse
 from bko.evaluate.run import ARMS
+from bko.evaluate.supervise import Segment, run_segment
 from bko.generate.api import default_async_send
 from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
@@ -37,9 +39,11 @@ class Context:
         field_rows: The field mappings the BKO arms observe cells by.
         send: Builds the send every BKO arm's call goes through.
         rehearse: Builds the send a rehearsal answers every BKO call with.
-        power: Whether the machine runs on battery, for `launch`.
+        power: Whether the machine runs on battery, for `launch` and each `supervise` resume.
         start: Starts `launch`'s detached run.
         runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
+        segment: Runs one of `supervise`'s `score` segments to its exit.
+        sleep: Waits `supervise`'s backoff before a resume.
     """
 
     open_url: UrlOpener = open_https
@@ -56,3 +60,5 @@ class Context:
     power: Power = on_battery
     start: Spawn = spawn
     runs_dir: Path | None = None
+    segment: Segment = run_segment
+    sleep: Callable[[float], None] = time.sleep

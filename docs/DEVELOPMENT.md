@@ -264,8 +264,10 @@ segment was rate limited, else at the same. `--retries R` caps the resumes, 5 by
 `--retries 0` runs one segment. A rehearsal is never resumed, and neither is a run id whose
 `-resume-<k>` folder name is not a `RUN_ID`. Each segment's outcome is appended to
 `<run-id>/launch.log` as
-`supervise segment=%d folder=%s status=%s stop=%s retryable=%s rate_limited=%s next=%s`, and
-`supervise` exits with the last segment's exit code. The last segment's call log holds every
+`supervise segment=%d folder=%s status=%s stop=%s retryable=%s rate_limited=%s next=%s`; a
+resume folder's own `launch.log` gets its `launched` and `command=` lines, and a refused resume
+appends `supervise resume=<folder> refused=<reason>`. `supervise` exits with the last segment's
+exit code, or 2 when a resume is refused. The last segment's call log holds every
 call, the replayed ones included, so it replays the whole run, and a Runs row lists every segment's
 folder.
 
