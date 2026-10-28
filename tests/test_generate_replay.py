@@ -33,7 +33,7 @@ def call_for(guidance: Guidance, rows: int) -> Call:
 def logged(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     """A call log of one `ask` for 2 records of `GUIDANCE` per scripted outcome."""
     path = tmp_path / "paid.jsonl"
-    with CallLog(path, SETTINGS) as log:
+    with CallLog(path, SETTINGS, frame="uci") as log:
         for outcome in script:
             with contextlib.suppress(GenerationError):
                 ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
@@ -43,7 +43,7 @@ def logged(tmp_path: Path, *script: Reply | GenerationError) -> Path:
 def test_a_replayed_reply_equals_the_logged_reply(tmp_path):
     original = dataclasses.replace(reply([young(1), young(1)]), attempts=2)
     replay = Replay(logged(tmp_path, original))
-    with CallLog(tmp_path / "again.jsonl", SETTINGS, answered=replay.answered) as log:
+    with CallLog(tmp_path / "again.jsonl", SETTINGS, answered=replay.answered, frame="uci") as log:
         batch = ask(GUIDANCE, 2, send=replay, log=log)
     assert batch.reply == original
     assert replay.remaining == 0
@@ -227,7 +227,7 @@ def test_a_reply_whose_usage_is_not_usage_is_refused(tmp_path, usage):
 def stopped(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     """A log of `logged`'s calls whose run was then interrupted, so its end is not complete."""
     path = tmp_path / "stopped.jsonl"
-    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS) as log:
+    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, frame="uci") as log:
         for outcome in script:
             with contextlib.suppress(GenerationError):
                 ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
@@ -279,7 +279,7 @@ def test_resume_refuses_a_replays_log(tmp_path):
     path = tmp_path / "replaying.jsonl"
     with (
         contextlib.suppress(KeyboardInterrupt),
-        CallLog(path, SETTINGS, answered=source.answered) as log,
+        CallLog(path, SETTINGS, answered=source.answered, frame="uci") as log,
     ):
         ask(GUIDANCE, 2, send=source, log=log)
         raise KeyboardInterrupt
@@ -289,7 +289,7 @@ def test_resume_refuses_a_replays_log(tmp_path):
 
 def test_resume_refuses_a_rehearsals_log_and_replay_reads_it(tmp_path):
     path = tmp_path / "rehearsal.jsonl"
-    with CallLog(path, SETTINGS, rehearsal=True) as log:
+    with CallLog(path, SETTINGS, rehearsal=True, frame="uci") as log:
         ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
     with pytest.raises(ReplayError, match="rehearsal's log"):
         Resume(path, ScriptedSend())
@@ -324,7 +324,10 @@ def test_resume_accepts_an_idle_stop_and_a_log_that_predates_the_stop_field(tmp_
 def test_resume_refuses_a_resume_that_stopped_while_it_replayed(tmp_path):
     path = tmp_path / "resumed.jsonl"
     earlier = Answered("resume", "ab" * 32, 3)
-    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, answered=earlier) as log:
+    with (
+        contextlib.suppress(KeyboardInterrupt),
+        CallLog(path, SETTINGS, answered=earlier, frame="uci") as log,
+    ):
         ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
         raise KeyboardInterrupt
     with pytest.raises(ReplayError, match="ab" * 32):
@@ -350,7 +353,10 @@ def test_replay_still_refuses_a_cut_final_line(tmp_path):
 def test_resume_accepts_a_resume_that_holds_every_call_it_replayed(tmp_path):
     path = tmp_path / "resumed.jsonl"
     earlier = Answered("resume", "ab" * 32, 1)
-    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, answered=earlier) as log:
+    with (
+        contextlib.suppress(KeyboardInterrupt),
+        CallLog(path, SETTINGS, answered=earlier, frame="uci") as log,
+    ):
         ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
         raise KeyboardInterrupt
     assert Resume(path, ScriptedSend()).answered.calls == 1
@@ -406,7 +412,10 @@ def test_resume_warns_of_what_it_drops(tmp_path, caplog):
 def concurrent(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     """`stopped`'s log of `script`, written by a run that kept 8 calls in flight."""
     path = tmp_path / "concurrent.jsonl"
-    with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, in_flight=8) as log:
+    with (
+        contextlib.suppress(KeyboardInterrupt),
+        CallLog(path, SETTINGS, in_flight=8, frame="uci") as log,
+    ):
         for outcome in script:
             with contextlib.suppress(GenerationError):
                 ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
@@ -446,7 +455,7 @@ def test_resume_carries_the_spend_of_dropped_calls(tmp_path):
     carried = _replied(path, 43)
     assert resume.answered.carried_usd == pytest.approx(carried)
     resumed = tmp_path / "resumed.jsonl"
-    with CallLog(resumed, SETTINGS, answered=resume.answered) as log:
+    with CallLog(resumed, SETTINGS, answered=resume.answered, frame="uci") as log:
         assert log.usd == pytest.approx(carried)
         with pytest.raises(StopRuleError, match="reached its ceiling"):
             spendable(log, carried)

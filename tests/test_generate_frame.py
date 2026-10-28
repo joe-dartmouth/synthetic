@@ -49,7 +49,7 @@ TOY_ROW = {"age": 50, "sex": 0, "level": 1.5, "target": 1}
 
 def test_a_guided_arm_fills_a_toy_request_through_the_sdk_adapter(monkeypatch, tmp_path):
     client, sent = fake_client(monkeypatch, [TOY_ROW, TOY_ROW | {"level": 1.25}])
-    log = CallLog(tmp_path / "calls.jsonl", SETTINGS)
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="toy")
     flight = Flight(send_with(client), log, SEQUENTIAL, spendable=partial(spendable, log, 50.0))
     arm = GuidedArm(
         "bko", Definition.SUBGROUP, Knowledge("toy", {}, (), ()), log=log, budget=3, flight=flight

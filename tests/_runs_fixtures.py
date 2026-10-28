@@ -77,7 +77,7 @@ def write(folder: Path, role: str, text: str) -> None:
 def call_log(path: Path) -> Path:
     """A complete call log of one call for 2 records, as `CallLog` writes it."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with CallLog(path, SETTINGS) as log, contextlib.suppress(GenerationError):
+    with CallLog(path, SETTINGS, frame="uci") as log, contextlib.suppress(GenerationError):
         ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1)] * 2)), log=log)
     return path
 

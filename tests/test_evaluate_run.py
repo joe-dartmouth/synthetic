@@ -13,7 +13,7 @@ import bko.evaluate.run as run_module
 from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.records import derived_seed
 from bko.datasets.split import split
-from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES
+from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, gap_request
@@ -107,7 +107,7 @@ def test_models_without_the_regression_are_refused():
 
 
 def test_the_held_out_ratio_is_the_largest_cells():
-    assert held_out_ratio(split(GRADED, seed=0)) == pytest.approx(5 / 18)
+    assert held_out_ratio(split(GRADED, seed=0), edges=UCI_FRAME.edges) == pytest.approx(5 / 18)
 
 
 def test_class_weights_reach_the_fit_through_the_harness():

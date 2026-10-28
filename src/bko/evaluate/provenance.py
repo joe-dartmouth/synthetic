@@ -32,12 +32,13 @@ VERSIONED: Final = (
 """The distributions whose installed versions a `score` run logs."""
 
 
-def log_experiment(name: str, experiment: Experiment, models: Iterable[str]) -> None:
-    """Log the run's configuration and models, then the commit and library versions it ran with."""
+def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> None:
+    """Log the run's configuration, frame and models, then the commit and libraries it ran with."""
     logger.info(
-        "experiment run=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d validity=%s "
-        "spend_ceiling=%.2f criteria=%s models=%s",
+        "experiment run=%s frame=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d "
+        "validity=%s spend_ceiling=%.2f criteria=%s models=%s",
         name,
+        frame,
         len(experiment.holdout_seeds),
         ",".join(experiment.arms),
         ",".join(experiment.replica_arms),

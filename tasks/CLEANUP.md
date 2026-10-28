@@ -37,6 +37,20 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## datasets
+
+- **`cleanup:datasets/edges-default-to-uci`: the data stage's cell helpers fall back to UCI's
+  bands.** `bko.datasets.split.split`, `bko.datasets.cells.age_band_labels`, `cell_keys` and
+  `cell_counts`, `bko.gaps.observe.record_cells` and `bko.fusion.join.join` default `edges` to
+  `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that omits `edges` silently gets UCI's
+  bands. Evidence: each signature reads `edges: Sequence[int] = AGE_BAND_EDGES`. *Filed
+  2026-10-28 by the frame-selection work, which made the evaluate stage's helpers require
+  `edges`.*
+  **Why deferred.** They serve UCI-only commands (`bko.gaps uci`, `bko.fusion`, `cells`), and
+  many call sites in those commands and their tests omit `edges`.
+  **What discharges it:** each takes the frame or requires `edges`.
+  **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
+
 ## evaluate
 
 - **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
@@ -51,30 +65,6 @@ links to where its blocker is tracked.
   **What discharges it:** `score` records a per-holdout fingerprint of the flagged cells, and
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
-
-- **`cleanup:evaluate/frame-unnamed-in-run-logs`: no log says which frame a run read.** No run
-  log line, call log line, candidates header or `validated` summary names the frame, so two runs
-  over different frames read alike. A refusal that is not a `GenerationError`, such as
-  `CannedSend`'s frame refusal, reaches the call log as its type name only. Evidence:
-  `bko.generate.log.CallLog`'s run line and `bko.evaluate.holdout_candidates`' header carry
-  settings and origin with no frame field, and `bko.validate.checks._log` writes counts only.
-  *Filed 2026-10-27 by the review of PR #42.*
-  **Why deferred.** Naming the frame in the call log's run line changes call-log bytes, and only
-  one frame runs.
-  **What discharges it:** the run line, the candidates header and the `validated` line carry
-  `frame=`, and `log.failure` keeps a refusal's message.
-  **Trigger:** the first non-UCI frame that runs `score` or `generate`
-  (`evaluate-synthea-downstream`).
-
-- **`cleanup:evaluate/edges-default-to-uci`: helpers taking `edges` fall back to UCI's bands.**
-  `bko.evaluate.experiment.flagged`, `bko.evaluate.run.held_out_ratio`,
-  `bko.evaluate.utility.in_scope` and `utility`, and `bko.baselines.request.Strata.grid` and
-  `stratum_keys` default `edges` to `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that
-  omits `edges` silently gets UCI's bands. *Filed 2026-10-27 by the review of PR #42.*
-  **Why deferred.** Every caller in the harness passes its frame's edges, and only one frame runs.
-  **What discharges it:** each takes the frame, or requires `edges`.
-  **Trigger:** the first non-UCI frame that runs `score` or `generate`
-  (`evaluate-synthea-downstream`).
 
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
@@ -104,17 +94,6 @@ links to where its blocker is tracked.
   **What discharges it:** `score` logs a zero-distance count of each arm's added and replica rows.
   **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
 
-- **`cleanup:evaluate/holdout-candidates-schema-for-direct`: a direct run's candidates file reads
-  as a Messages run's.** `bko.evaluate.holdout_candidates` lines now allow `call: null` under
-  schema 1, and a run with no BKO arm still writes the Messages settings it never used into its
-  header. Evidence, the start of `runs/g2-2/holdout-candidates.jsonl`'s header: `{"kind":
-  "header", ..., "run": "g2", "schema": 1, "settings": {"effort": "medium", "guidance":
-  "ontology", "max_tokens": 16000, "model": ...`. *Filed 2026-10-27 by the review of PR #47.*
-  **Why deferred.** Bumping the schema moves the recorded bytes of `runs/g2-2`.
-  **What discharges it:** the schema is bumped for a null call, or a run with no BKO arm writes no
-  settings.
-  **Trigger:** the next change to `bko.evaluate.holdout_candidates`.
-
 - **`cleanup:evaluate/compare-header-run-level`: `compare`'s judged output names no run and no
   level.** The header log line, the `criterion=` lines and `criteria.csv` carry neither the run nor
   its guidance level, so two judged runs at different levels read alike; only the `--beside` lines
@@ -125,17 +104,6 @@ links to where its blocker is tracked.
   `summary`, which touches `SETTINGS` and its pins only.
   **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
   **Trigger:** the next change to `bko.evaluate.compare`.
-
-- **`cleanup:evaluate/rehearsal-tokens-from-judged-run`: the rehearsal bills `e1-3`'s tokens per
-  record, not the judged run's.** `INPUT_PER_RECORD` 368 and `OUTPUT_PER_RECORD` 197 in
-  `bko.evaluate.rehearse` come from `e1-3`'s Runs row (34843870 and 18665554 over 94727 records
-  asked); the judged run `e1-4` bills 300.535 input and 211.162 output tokens per record asked
-  (`docs/EVIDENCE.md`, E1's Runs row). *Filed 2026-10-28 by the evidence review of PR #53.*
-  **Why deferred.** The constants only scale a wiring check's spend and projection, and
-  `bko.evaluate.rehearse` is code outside the evidence review's documents.
-  **What discharges it:** the two constants come from the judged run `e1-4`, and the rehearsal's
-  comments and ADR `research/e1-evaluation-protocol` name that run.
-  **Trigger:** the next change to `bko.evaluate.rehearse`.
 
 ## gaps
 
@@ -152,20 +120,6 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
 
 ## generate
-
-- **`cleanup:generate/system-prompt-uci-only`: the system prompt is UCI's for every frame.**
-  `bko.generate.prompt.system(frame)` reads the frame's columns, codes, units and decimals, but
-  its opening sentence is fixed text about heart-disease prediction and patients referred for
-  coronary angiography, which `FrameSpec` has no field to replace. Its closing sentence indexes the
-  frame's fractional fields, so a frame with none raises `IndexError` in
-  `_alternatives` (`items[0]` of an empty list). Evidence: `system(TOY)` in
-  `tests/test_datasets_frame.py` still opens with the heart-disease sentence. *Filed 2026-10-26 by
-  the `evaluate-frame-generic-pipeline` work.*
-  **Why deferred.** UCI is the only frame that generates records, and its prompt must stay
-  byte-identical through that unit.
-  **What discharges it:** the frame (or the caller) supplies the opening sentence, and a frame
-  with no fractional field renders a closing sentence without one; UCI's text stays unchanged.
-  **Trigger:** the first non-UCI frame that generates records (`evaluate-synthea-downstream`).
 
 - **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
   `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s

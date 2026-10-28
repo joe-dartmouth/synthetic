@@ -24,6 +24,7 @@ from bko.generate.messages import LEVELS, Level
 from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render, system
 from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
 from bko.ontology.schema import FieldMapping
+from tests._frame_fixtures import TOY
 from tests._generate_fixtures import GUIDANCE, TRAIN_A
 
 
@@ -66,6 +67,61 @@ def test_the_system_prompt_names_the_fractional_fields_from_the_frame():
     assert "Whole numbers except chol, which has one decimal place." in one
     two = system(dataclasses.replace(UCI_FRAME, fractional=("oldpeak", "chol")))
     assert "Whole numbers except oldpeak or chol, which have one decimal place." in two
+
+
+EXPECTED_UCI_SYSTEM = (
+    "You write synthetic patient records for a study of heart-disease prediction. "
+    "Each record is one adult patient referred for coronary angiography. Invent new "
+    "patients; do not reproduce records from any published dataset.\n"
+    "\n"
+    "Each record has these fields:\n"
+    "- age: age in years\n"
+    "- sex: sex; 0 = female; 1 = male\n"
+    "- cp: chest pain type; 1 = typical angina; 2 = atypical angina; 3 = non-anginal "
+    "pain; 4 = asymptomatic\n"
+    "- trestbps: resting blood pressure (in mm Hg on admission to the hospital)\n"
+    "- chol: serum cholestoral in mg/dl\n"
+    "- fbs: fasting blood sugar > 120 mg/dl; 0 = fasting blood sugar <= 120 mg/dl; 1 "
+    "= fasting blood sugar > 120 mg/dl\n"
+    "- restecg: resting electrocardiographic results; 0 = normal; 1 = ST-T wave "
+    "abnormality; 2 = left ventricular hypertrophy\n"
+    "- thalach: maximum heart rate achieved; beats per minute\n"
+    "- exang: exercise induced angina; 0 = no exercise induced angina; 1 = exercise "
+    "induced angina\n"
+    "- oldpeak: ST depression induced by exercise relative to rest; mm\n"
+    "- slope: the slope of the peak exercise ST segment; 1 = upsloping; 2 = flat; 3 "
+    "= downsloping\n"
+    "- ca: number of major vessels (0-3) colored by flourosopy; 0 = 0 major vessels; "
+    "1 = 1 major vessel; 2 = 2 major vessels; 3 = 3 major vessels\n"
+    "- thal: thallium scintigraphy result; 3 = normal; 6 = fixed defect; 7 = "
+    "reversable defect\n"
+    "- target: diagnosis of heart disease (angiographic disease status); 0 = < 50% "
+    "diameter narrowing; 1 = > 50% diameter narrowing\n"
+    "\n"
+    "Whole numbers except oldpeak, which has one decimal place. Every value must be "
+    "plausible for a real patient."
+)
+"""`system(UCI_FRAME)` as `origin/main` rendered it before the opening came from the frame."""
+
+
+def test_uci_system_text_is_unchanged():
+    assert system(UCI_FRAME) == EXPECTED_UCI_SYSTEM
+
+
+def test_a_frame_with_no_fractional_field_renders():
+    text = system(dataclasses.replace(TOY, fractional=()))
+    closing = text.splitlines()[-1]
+    assert closing.startswith("Every field is a whole number.")
+    assert "Whole numbers except" not in text
+
+
+def test_the_opening_names_the_frames_study_and_cohort():
+    opening = system(TOY).splitlines()[0]
+    assert opening.startswith(
+        f"You write synthetic patient records for a study of {TOY.study}. "
+        f"Each record is one {TOY.cohort}. "
+    )
+    assert "heart-disease" not in opening
 
 
 def test_the_system_prompt_asks_for_new_patients():

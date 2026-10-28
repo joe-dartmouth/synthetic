@@ -1,7 +1,8 @@
 """The evaluation's command line: `python -m bko.evaluate score`, `compare`, `launch`, `supervise`.
 
-`score` fetches UCI Heart Disease into the data root if it is absent, runs every arm of E1 on each
-of its holdouts and writes the scores to stdout as CSV. `compare SCORES` reads that CSV and writes
+`score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
+into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
+scores to stdout as CSV. `compare SCORES` reads that CSV and writes
 every contrast of E1's criteria, with each criterion's verdict, to stdout as CSV; its logs carry
 each BKO arm's counts per fill and each replica arm's mean replica utility and fidelity.
 `--candidate` judges another arm, a dry run whose verdict is not E1's; `--beside SCORES` logs the
@@ -191,9 +192,9 @@ def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
 
 
 def _named(name: str, context: Context) -> Context:
-    """`context` with the experiment and settings of the run `name`.
+    """`context` with the experiment, settings and dataset of the run `name`.
 
-    `e1` is the context's own experiment and settings, so a test can stand in for it.
+    `e1` is the context's own experiment, settings and dataset, so a test can stand in for it.
 
     Raises:
         EvaluationError: If no run has that name.
@@ -204,7 +205,7 @@ def _named(name: str, context: Context) -> Context:
     if run is None:
         msg = f"no run named {name!r}; the runs are {', '.join(sorted(context.runs))}"
         raise EvaluationError(msg)
-    return replace(context, experiment=run.experiment, settings=run.settings)
+    return replace(context, experiment=run.experiment, settings=run.settings, dataset=run.dataset)
 
 
 def _in_flight(text: str) -> int:

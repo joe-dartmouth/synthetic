@@ -15,7 +15,7 @@ import pandas as pd
 from sklearn.metrics import average_precision_score, precision_score, recall_score
 
 from bko.baselines.request import Stratum
-from bko.datasets.cells import AGE_BAND_EDGES, LABEL, cell_keys
+from bko.datasets.cells import LABEL, cell_keys
 from bko.evaluate.scores import Measure, Scope
 
 
@@ -28,7 +28,7 @@ def in_scope(
     scope: Scope,
     flagged: Collection[Stratum],
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> pd.Series:
     """Which test records `scope` covers, as booleans on the test index; `edges` band them."""
     if scope is Scope.ALL:
@@ -46,7 +46,7 @@ def utility(
     probability: pd.Series,
     flagged: Collection[Stratum],
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> dict[tuple[Measure, Scope], float]:
     """Each measure in each scope, `probability` holding P(disease) per test record by index."""
     scores: dict[tuple[Measure, Scope], float] = {}

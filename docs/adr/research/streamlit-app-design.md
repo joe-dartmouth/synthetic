@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-21
-updated: 2026-10-22
+updated: 2026-10-28
 ---
 # The Streamlit app: one split of E1's harness, one paid fill per confirmed click
 
@@ -35,8 +35,8 @@ We will build the page as follows.
   a G1 run.
 * **Orchestration**: `bko.app.steps` composes the stages' public APIs; the BKO wiring is
   `bko.evaluate.guided.guided_arms`, which the evaluate command and `bko.app.steps` both call; the
-  UCI load sequence is `bko.gaps.scope.load_uci_scope`, which the app shares with the gaps,
-  fusion and generate commands.
+  app loads UCI once through `bko.evaluate.data.load`, as `score` does, and splits, observes and
+  names its knowledge from that one `Data` value.
 * **Fill path**: E1's runner interface over E1's gap request on the default split, E1's first
   holdout.
 * **Methods**: the arms of E1 that add rows, row-adding methods first, then the three BKO arms.

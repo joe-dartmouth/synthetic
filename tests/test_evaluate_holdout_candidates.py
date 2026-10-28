@@ -16,8 +16,10 @@ from typing import Final
 import pandas as pd
 import pytest
 
+from bko.datasets.uci import load_uci
 from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
+from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
 from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import SCHEMA, Candidate, CandidateFile, Origin, read
@@ -33,7 +35,7 @@ from tests._evaluate_bko_fixtures import (
     score_argv,
     scripted,
 )
-from tests._evaluate_fixtures import FAST_ARMS
+from tests._evaluate_fixtures import FAST_ARMS, GRADED_DATA
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import ScriptedSend, reply
 from tests._validate_fixtures import PLANTED, planted
@@ -58,7 +60,8 @@ KEYS: Final = {
 """The keys every candidate line holds, beside exactly one of `candidate` and `undecoded`."""
 
 HEADER: Final = (
-    b'{"kind": "header", "schema": 1, "run": "e1", "uci": "", "releases": {}, "settings": {}}\n'
+    b'{"kind": "header", "schema": 2, "run": "e1", "frame": "uci", "data": "", "releases": {}, '
+    b'"settings": {}}\n'
 )
 """A header line with no candidate after it."""
 
@@ -125,7 +128,8 @@ def test_a_paid_run_keeps_every_candidate_and_a_replay_rewrites_it(tmp_path, cap
         "kind": "header",
         "schema": SCHEMA,
         "run": "e1",
-        "uci": PIN.sha256,
+        "frame": "uci",
+        "data": digest(load_uci(tmp_path / "data", source=PIN)),
         "releases": {prefix: source.sha256 for prefix, source in ctx.releases.items()},
         "settings": json.loads(json.dumps(dataclasses.asdict(SETTINGS))),
     }
@@ -269,12 +273,12 @@ def test_candidates_and_the_call_log_must_be_two_files(tmp_path, caplog, spellin
         b'{"kind": "candidate"}\n',
         b'{"kind": "header", "schema": 0}\n',
         HEADER + b'{"kind": "candidate", "holdout": 0}\n',
-        HEADER.replace(b'"schema": 1', b'"schema": 0'),
+        HEADER.replace(b'"schema": 2', b'"schema": 0'),
         HEADER + HEADER,
         HEADER + json.dumps({**LINE, "holdout": "0"}).encode() + b"\n",
         HEADER + json.dumps({**LINE, "failed": []}).encode() + b"\n",
         HEADER + json.dumps({**LINE, "outcome": "kept"}).encode() + b"\n",
-        HEADER.replace(b'"schema": 1', b'"schema": true'),
+        HEADER.replace(b'"schema": 2', b'"schema": true'),
         HEADER + json.dumps({**LINE, "undecoded": None}).encode() + b"\n",
         HEADER + json.dumps({**LINE, "outcome": "dropped-range", "failed": []}).encode() + b"\n",
         b"not json\n",
@@ -299,7 +303,7 @@ def test_a_call_log_that_cannot_be_made_leaves_no_candidates_file(tmp_path):
     log.write_text("", encoding="utf-8")
     candidates = tmp_path / "candidates.jsonl"
     knowledge = Knowledge("x", {}, (), ())
-    origin = Origin("e1", PIN, {})
+    origin = Origin("e1", GRADED_DATA, {})
     with (
         pytest.raises(FileExistsError),
         guided_arms(
@@ -327,7 +331,7 @@ def _arms(tmp_path: Path, send) -> tuple[Path, Path]:
         NARROW,
         log=log,
         candidates=candidates,
-        origin=Origin("e1", PIN, {}),
+        origin=Origin("e1", GRADED_DATA, {}),
         send=send,
         run="e1",
         limits=SEQUENTIAL,
@@ -365,5 +369,5 @@ def test_a_candidates_file_whose_setup_fails_is_removed(tmp_path, monkeypatch, f
         monkeypatch.setattr(CandidateFile, "_write", refuse)
     path = tmp_path / "candidates.jsonl"
     with pytest.raises(OSError, match="disk full"):
-        CandidateFile(path, Origin("e1", PIN, {}), SETTINGS)
+        CandidateFile(path, Origin("e1", GRADED_DATA, {}), SETTINGS)
     assert not path.exists()

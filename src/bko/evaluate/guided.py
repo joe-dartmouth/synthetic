@@ -340,13 +340,12 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
 
     The candidates file at `candidates` is created before the call log, with a header naming
-    `origin` and `settings`, and every arm writes its lines there. The call log names the run
-    `run` and records `limits.in_flight`, and every arm's calls go through one `Flight` at
-    `limits`. Every call goes through
-    `answers` when given, else through `send()`; `rehearsal` marks the call log as a rehearsal's,
-    whose `send()` answers with canned replies, and a replay of a rehearsal's log keeps the mark.
-    Once the body returns, answers left over are refused. Each arm logs its validity sums on the
-    way out, a stopped run included.
+    `origin` and `settings`, and every arm writes its lines there. The call log names the run `run`
+    and `origin`'s frame and records `limits.in_flight`, and every arm's calls go through one
+    `Flight` at `limits`. Every call goes through `answers` when given, else through `send()`;
+    `rehearsal` marks the call log as a rehearsal's, whose `send()` answers with canned replies, and
+    a replay of a rehearsal's log keeps the mark. Once the body returns, answers left over are
+    refused. Each arm logs its validity sums on the way out, a stopped run included.
 
     Raises:
         ReplayError: If the body returns while `answers` holds calls it did not answer.
@@ -370,6 +369,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             rehearsal=rehearsal,
             run=run,
             in_flight=limits.in_flight,
+            frame=origin.data.frame.name,
             now=now,
         )
     except BaseException:

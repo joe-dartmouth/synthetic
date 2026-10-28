@@ -19,7 +19,9 @@ from bko.baselines.methods import METHODS
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
 from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.classifier import build
+from bko.evaluate.data import Data
 from bko.evaluate.experiment import BKO_ARMS, E1
 from bko.evaluate.run import method_arms
 from tests._baselines_fixtures import EDGE, TINY_CTGAN, TINY_TVAE, cell_list, full_records
@@ -58,6 +60,15 @@ FAST_ARMS = MappingProxyType(
 """Every E1 arm, fast: each BKO name runs SMOTE, so no test reaches the API."""
 
 GRADED = graded()
+
+
+def uci_data(records: pd.DataFrame, name: str = "uci") -> Data:
+    """`records` as UCI's `Data`, with no field rows."""
+    return Data(records, UCI_FRAME, (), name)
+
+
+GRADED_DATA = uci_data(GRADED)
+"""`GRADED` as UCI's `Data`."""
 
 SMALL = dataclasses.replace(E1, holdout_seeds=(0, 1))
 """E1 on two holdouts."""

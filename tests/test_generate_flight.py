@@ -26,7 +26,7 @@ from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, reply
 
 
 def _log(tmp_path) -> CallLog:
-    return CallLog(tmp_path / "calls.jsonl", SETTINGS, now=lambda: FIXED_NOW)
+    return CallLog(tmp_path / "calls.jsonl", SETTINGS, now=lambda: FIXED_NOW, frame="uci")
 
 
 def _lines(log: CallLog) -> list[dict[str, object]]:
@@ -211,7 +211,9 @@ FULL_USD: Final = cost(FULL, SETTINGS.model)
 def _ceiling_run(tmp_path, in_flight: int, ceiling: float, caplog) -> tuple[Delayed, list[str]]:
     """Send `PLAN` under `ceiling` at `in_flight`; return the send and the stop rule lines."""
     send = Delayed(usage=FULL)
-    log = CallLog(tmp_path / f"calls-{in_flight}.jsonl", SETTINGS, now=lambda: FIXED_NOW)
+    log = CallLog(
+        tmp_path / f"calls-{in_flight}.jsonl", SETTINGS, now=lambda: FIXED_NOW, frame="uci"
+    )
     caplog.clear()
     limits = Limits(in_flight=in_flight, idle=None)
     with (

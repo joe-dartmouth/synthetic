@@ -1,8 +1,8 @@
 """What the stages read of an evaluation frame: one `FrameSpec` per dataset.
 
-A frame's records have its `features` and its label, each a number. Validation, generation, the
-baselines and evaluation take a frame as a keyword defaulting to UCI's,
-`bko.datasets.uci.UCI_FRAME`, so another dataset runs through them without editing them. A cell is
+A frame's records have its `features` and its label, each a number. Generation, the baselines and
+evaluation take a frame as a keyword defaulting to UCI's, `bko.datasets.uci.UCI_FRAME`, and
+validation requires it, so another dataset runs through them without editing them. A cell is
 always an age band, a sex and the label (`bko.datasets.cells`), so a frame holds only its band
 edges. ADR `research/uci-evaluation-frame` records why. Beside the standard library it imports
 `bko.datasets.cells` (`LABEL`, `LABEL_CODES`, `SEXES`), which loads pandas.
@@ -62,6 +62,9 @@ class FrameSpec:
         label_codes: The label's codes, ascending.
         label_meanings: Each label code's meaning.
         edges: The age band starts (`bko.datasets.cells.age_band_labels`).
+        study: What the records are synthesized for, as the system prompt's opening names it
+            after "a study of".
+        cohort: Who one record is, as the opening names it after "Each record is one".
         label: The binary label column.
     """
 
@@ -77,6 +80,8 @@ class FrameSpec:
     label_codes: tuple[int, ...]
     label_meanings: Mapping[int, str]
     edges: tuple[int, ...]
+    study: str
+    cohort: str
     label: str = LABEL
 
     def __post_init__(self) -> None:

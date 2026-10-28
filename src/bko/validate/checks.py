@@ -6,8 +6,9 @@ Each field of a candidate runs one chain, and the first check it fails stops the
 constraint; then, for a numeric field, `precision:<field>`, the frame's decimals. A field fails at
 most one check, and no check reads a value an earlier one refused. `fields` refuses a candidate
 that is not a mapping, which nothing else then reads, and a mapping naming a key outside the
-frame's columns. The frame is a keyword defaulting to `UCI_FRAME`. No check reads an ontology
-relationship. ADR `research/record-validation-design` records the checks and the counting rule.
+frame's columns. The frame is a required keyword, so no caller checks against UCI's by
+default. No check reads an ontology relationship. ADR `research/record-validation-design` records
+the checks and the counting rule.
 """
 
 from __future__ import annotations
@@ -91,7 +92,7 @@ CHECKS: Final[tuple[str, ...]] = checks(UCI_FRAME)
 """Every check's name under `UCI_FRAME`, in the order `failures` reports them."""
 
 
-def failures(candidate: object, *, frame: FrameSpec = UCI_FRAME) -> tuple[str, ...]:
+def failures(candidate: object, *, frame: FrameSpec) -> tuple[str, ...]:
     """Return the checks `candidate` fails, in `checks(frame)` order; empty when it passes all."""
     return _read(candidate, frame)[0]
 
@@ -154,7 +155,7 @@ class Validated:
 
     accepted: pd.DataFrame
     rejected: tuple[Rejection, ...]
-    frame: FrameSpec = UCI_FRAME
+    frame: FrameSpec
 
     @property
     def generated(self) -> int:
@@ -177,7 +178,7 @@ class Validated:
         return MappingProxyType({check: counts[check] for check in checks(self.frame)})
 
 
-def validate(candidates: Iterable[object], *, frame: FrameSpec = UCI_FRAME) -> Validated:
+def validate(candidates: Iterable[object], *, frame: FrameSpec) -> Validated:
     """Check every candidate against `frame` and keep the ones that pass, never repairing a value.
 
     Args:
@@ -220,13 +221,16 @@ def validate(candidates: Iterable[object], *, frame: FrameSpec = UCI_FRAME) -> V
 
 def _log(result: Validated) -> None:
     if result.generated == 0:
-        logger.warning("validated no candidates, so validity is undefined")
+        logger.warning(
+            "validated no candidates frame=%s, so validity is undefined", result.frame.name
+        )
         return
     counts = [f"{check}={count}" for check, count in result.rejections.items() if count]
     logger.info(
-        "validated generated=%d passed=%d rejected=%d %s",
+        "validated generated=%d passed=%d rejected=%d %s frame=%s",
         result.generated,
         result.passed,
         len(result.rejected),
         " ".join(counts) or "none",
+        result.frame.name,
     )

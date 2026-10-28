@@ -8,10 +8,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bko.datasets.cells import LABEL
+from bko.datasets.cells import AGE_BAND_EDGES, LABEL
 from bko.evaluate.scores import Measure, Scope
 from bko.evaluate.utility import utility
 from tests._baselines_fixtures import EDGE
+
+
+EDGES = AGE_BAND_EDGES
+"""The band edges the fixture's cells are named by."""
 
 
 pytestmark = [
@@ -37,7 +41,7 @@ def records() -> pd.DataFrame:
 
 def test_each_measure_in_each_scope_is_hand_computed():
     test = records()
-    scores = utility(test, pd.Series(PROBABILITY, index=test.index), FLAGGED)
+    scores = utility(test, pd.Series(PROBABILITY, index=test.index), FLAGGED, edges=EDGES)
     assert scores[Measure.RECALL, Scope.ALL] == pytest.approx(2 / 3)
     assert scores[Measure.PRECISION, Scope.ALL] == pytest.approx(1 / 2)
     assert scores[Measure.AUC_PR, Scope.ALL] == pytest.approx(13 / 15)
@@ -49,13 +53,15 @@ def test_each_measure_in_each_scope_is_hand_computed():
 def test_a_probability_of_one_half_is_called_positive():
     test = records()
     probability = pd.Series([0.5] + [0.0] * 7, index=test.index)
-    scores = utility(test, probability, FLAGGED)
+    scores = utility(test, probability, FLAGGED, edges=EDGES)
     assert scores[Measure.RECALL, Scope.FLAGGED] == pytest.approx(0.5)
 
 
 def test_a_scope_without_positives_is_nan_not_zero():
     test = records()
-    scores = utility(test, pd.Series(0.9, index=test.index), ((f"<{EDGE}", "female", 1),))
+    scores = utility(
+        test, pd.Series(0.9, index=test.index), ((f"<{EDGE}", "female", 1),), edges=EDGES
+    )
     assert math.isnan(scores[Measure.RECALL, Scope.FLAGGED])
     assert math.isnan(scores[Measure.AUC_PR, Scope.FLAGGED])
     assert scores[Measure.PRECISION, Scope.FLAGGED] == pytest.approx(0.0)
@@ -63,7 +69,7 @@ def test_a_scope_without_positives_is_nan_not_zero():
 
 def test_precision_without_a_positive_call_is_nan():
     test = records()
-    scores = utility(test, pd.Series(0.1, index=test.index), FLAGGED)
+    scores = utility(test, pd.Series(0.1, index=test.index), FLAGGED, edges=EDGES)
     assert math.isnan(scores[Measure.PRECISION, Scope.ALL])
     assert scores[Measure.RECALL, Scope.ALL] == pytest.approx(0.0)
 
@@ -72,4 +78,6 @@ def test_probabilities_are_matched_to_records_by_index():
     test = records()
     probability = pd.Series(PROBABILITY, index=test.index)
     shuffled = probability.iloc[np.array([7, 2, 5, 0, 3, 6, 1, 4])]
-    assert utility(test, shuffled, FLAGGED) == pytest.approx(utility(test, probability, FLAGGED))
+    assert utility(test, shuffled, FLAGGED, edges=EDGES) == pytest.approx(
+        utility(test, probability, FLAGGED, edges=EDGES)
+    )

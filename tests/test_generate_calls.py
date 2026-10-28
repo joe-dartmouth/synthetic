@@ -34,7 +34,7 @@ GUIDED: dict[Cell, Guidance] = {CELL: GUIDANCE, OTHER: OTHER_GUIDANCE}
 
 
 def _log(tmp_path, settings=SETTINGS) -> CallLog:
-    return CallLog(tmp_path / "calls.jsonl", settings, now=lambda: FIXED_NOW)
+    return CallLog(tmp_path / "calls.jsonl", settings, now=lambda: FIXED_NOW, frame="uci")
 
 
 def _asked(call: Call) -> int:

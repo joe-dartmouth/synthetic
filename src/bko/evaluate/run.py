@@ -14,7 +14,6 @@ again after the replica fills, so each fill's candidates enter the scores under 
 from __future__ import annotations
 
 import dataclasses
-import hashlib
 import json
 import logging
 import time
@@ -29,12 +28,13 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, training_set
 from bko.baselines.request import Method, Request, Stratum
-from bko.datasets.cells import AGE_BAND_EDGES, cell_counts
+from bko.datasets.cells import cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
+from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
@@ -70,7 +70,7 @@ The harness drains each arm after the gap fills and, for a replica arm, after th
 and writes them per holdout as `Source.CANDIDATES` and `Source.REPLICA_CANDIDATES` scores."""
 
 
-def held_out_ratio(parts: Split, *, edges: Sequence[int] = AGE_BAND_EDGES) -> float:
+def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     """Nadeau and Bengio's n2/n1: the largest ratio of held-out to training records in a cell.
 
     Taking the largest keeps every scope's interval at least as wide as its own cells need.
@@ -228,7 +228,7 @@ def _fill(
             )
             request = dataclasses.replace(request, seed=derived_seed(first, "attempt", attempt))
             continue
-        digest = hashlib.sha256(baseline.added.to_csv(lineterminator="\n").encode()).hexdigest()
+        added_digest = digest(baseline.added)
         logger.info(
             "arm holdout=%d arm=%s attempt=%d seed=%d added=%d sha256=%s params=%s",
             holdout,
@@ -236,7 +236,7 @@ def _fill(
             attempt,
             request.seed,
             len(baseline.added),
-            digest,
+            added_digest,
             json.dumps(baseline.params, sort_keys=True, default=str),
         )
         return baseline

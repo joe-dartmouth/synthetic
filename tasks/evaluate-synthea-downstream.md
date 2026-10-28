@@ -1,14 +1,14 @@
 ---
 id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
-status: ready
-depends_on: --
+status: blocked
+depends_on: evaluate-synthea-frame
 blocks: --
 parallel_safe: true
 owner: Joe
 milestone: final-report
 paid: true
-adrs: research/synthea-downstream-design
+adrs: --
 ---
 
 # A downstream experiment on Synthea with known gaps
@@ -22,39 +22,29 @@ subgroups per holdout, and no arrangement of the archive adds more (ADR
 [`research/uci-evaluation-frame`](../docs/adr/research/uci-evaluation-frame.md)). The pinned
 Synthea population has cells as large as the ablation wants and a truth it fixes: remove a share
 of the women with ischemic heart disease from the training rows, and the recall each method
-recovers on the held-out cases is the measure of the augmentation itself.
+recovers on the held-out cases is the measure of the augmentation itself. The frame, its rules and
+the named runs come from `evaluate-synthea-frame`; this unit spends the money and records E3.
 
 ## Scope
 
 **In.**
 
-- A Synthea frame (`evaluate-frame-generic-pipeline`) from the pinned population: one row per
-  patient alive on the snapshot date, with age, sex, the conditions
-  `bko.ontology.mapping.CODE_MAPPINGS` maps as indicators (`UNMAPPED_CODES` lists the named
-  conditions' codes it excludes), and the label ischemic heart disease by the snapshot; a new ADR under `docs/adr/research/` fixes the fields,
-  the label, the age bands, the split, the removed share, the replica policy and the run's
-  ceiling, with the reason for each, and excludes from the features any code that stands in for
-  the label (a procedure or finding that only cases carry).
-- Cell-stratified holdouts as E1's, with `bko.datasets.ablation`'s fraction draw applied to the training
-  rows only: women with the condition removed to the ADR's share, so the test split keeps every
-  case.
-- A named run (`bko.evaluate.experiment.RUNS`) with every arm of E1 on the frame, the BKO arms with a
-  Synthea prompt rendered from the frame and guidance from the Synthea BKO; the measures E1
-  reports, with recall on the removed cell's held-out cases as the headline, read against the
-  un-ablated training set. Spend estimated before the run from the judged run's (`e1-4`'s) tokens per record asked,
-  300.535 input and 211.162 output, and the frame's quotas, stated in the Runs row, under the run's ceiling and the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
-- ADRs [`research/record-generation-design`](../docs/adr/research/record-generation-design.md)
-  and [`research/record-validation-design`](../docs/adr/research/record-validation-design.md)
-  edited as their reversal conditions for a Synthea request say.
-- A new `docs/EVIDENCE.md` entry, E3, with its Configuration, Runs, Result and Read against, and
-  [`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting) gaining the
+- The paid E3 run as its two slices, the named runs `e3-a` and `e3-b`, each launched under the
+  paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation), with its spend estimated before it runs
+  from the judged run's (`e1-4`'s) tokens per record asked, 300.535 input and 211.162 output, and
+  the frame's quotas, stated in the Runs row, under the run's ceiling.
+- The `merge` of the two slices' scores into E3's scores, and `compare e3` over them.
+- A new `docs/EVIDENCE.md` entry, E3, with its Configuration, Runs, Result and Read against: each
+  method's measures, with recall on the removed cell's held-out cases as the headline, read
+  against the un-ablated `real` reference arm.
+- [`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting) gaining the
   experiment and what it is read against.
 
-**Out.** Replacing E1 as the judged experiment; credentialed data.
+**Out.** Replacing E1 as the judged experiment; credentialed data; any change to the frame or to
+E3's rules.
 
 ## Acceptance
 
-- The frame builds from the pinned population identically on a second run, pinned by its sha256 in
-  the entry, and a test builds it on a `tmp_path` population.
-- The run is recorded with its spend and replays byte for byte.
+- Each slice replays byte for byte.
+- The merged scores are recorded in E3 with its spend.
 - `make check`.

@@ -87,7 +87,7 @@ class Segments:
             return 2
         log = Path(str(_arg(command, "--log")))
         assert log.parent == out.parent
-        with CallLog(log, self._settings):
+        with CallLog(log, self._settings, frame="uci"):
             pass
         lines = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
         if end is None or end == CRASHED:
@@ -279,7 +279,7 @@ def test_supervise_resumes_a_killed_segment(tmp_path):
 @pytest.mark.parametrize("code", [0, 1, 2])
 def test_outcome_reads_a_log_with_no_end_line_as_retryable_only_after_a_signal(tmp_path, code):
     log = tmp_path / "calls.jsonl"
-    with CallLog(log, SETTINGS):
+    with CallLog(log, SETTINGS, frame="uci"):
         pass
     log.write_text(log.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
     assert outcome(log, code) == Outcome("none", None, retryable=False, rate_limited=False)
@@ -484,7 +484,7 @@ def test_a_resumed_log_holds_every_call(tmp_path):
     """Assumption 4: a resume's own call log holds every call, its replayed ones included, so the
     last segment's log replays the whole run."""
     stopped = tmp_path / "stopped.jsonl"
-    with CallLog(stopped, SETTINGS) as log:
+    with CallLog(stopped, SETTINGS, frame="uci") as log:
         for _ in range(2):
             ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
     resume = Resume(stopped, ScriptedSend(reply([young(1), young(1)])))
@@ -495,7 +495,7 @@ def test_a_resumed_log_holds_every_call(tmp_path):
         assert isinstance(answer, Reply)
         return answer
 
-    with CallLog(resumed, SETTINGS, answered=resume.answered) as log:
+    with CallLog(resumed, SETTINGS, answered=resume.answered, frame="uci") as log:
         for _ in range(3):
             ask(GUIDANCE, 2, send=send, log=log)
     lines = [json.loads(line) for line in resumed.read_text(encoding="utf-8").splitlines()]
@@ -582,7 +582,7 @@ from pathlib import Path
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS
 log = Path(sys.argv[1])
-with CallLog(log, SETTINGS):
+with CallLog(log, SETTINGS, frame="uci"):
     try:
         (log.parent / "ready").touch()
         time.sleep(60)

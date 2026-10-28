@@ -20,8 +20,9 @@ from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import Method, Request
 from bko.datasets.cells import cell_counts
-from bko.datasets.split import Split
+from bko.datasets.split import Split, split
 from bko.evaluate.classifier import Model
+from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
 from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
@@ -32,7 +33,7 @@ from bko.fusion.closure import Closure, closure
 from bko.gaps.definitions import Definition, StatementGap, gaps
 from bko.gaps.detect import CellGap, count_gaps
 from bko.gaps.observe import Cells, record_cells
-from bko.gaps.scope import load_uci_scope
+from bko.gaps.scope import load_scope
 from bko.generate.flight import Limits
 from bko.generate.log import CallLog
 from bko.generate.replay import Replay
@@ -47,6 +48,7 @@ class Analysis:
 
     Attributes:
         parts: The default split, E1's first holdout; only `bko.evaluate` reads its test rows.
+        data: The records it splits, as a fill's candidates file names them.
         knowledge: The releases and field mappings every BKO arm reads.
         cells: The training records observed whole and per cell.
         counts: `cell_counts` of the training split.
@@ -55,6 +57,7 @@ class Analysis:
     """
 
     parts: Split
+    data: Data
     knowledge: Knowledge
     cells: Cells
     counts: pd.DataFrame
@@ -65,32 +68,31 @@ class Analysis:
 def analyze(context: Context) -> Analysis:
     """Load UCI Heart Disease and the releases, fetching what is absent, and list every gap.
 
+    The records are loaded once (`bko.evaluate.data.load`); the default split, the observed cells
+    and the knowledge's name all come from that one `Data` value.
+
     Raises:
-        DatasetError: As `load_uci_scope`.
-        GapError: As `load_uci_scope`.
+        DatasetError: As `bko.evaluate.data.load` and `record_cells`.
+        GapError: As `load_scope`.
         BKBError: As `gaps`.
         OSError: If the data root cannot be written.
     """
     data_dir = context.data_root()
-    rows = context.field_rows
-    scope = load_uci_scope(
+    data = load(Dataset.UCI, data_dir, context)
+    rows = data.field_rows
+    parts = split(data.records, seed=context.experiment.holdout_seeds[0], edges=data.frame.edges)
+    ontologies, fragments = load_scope(
+        {row.concept for row in rows},
         data_dir,
-        uci=context.uci,
         releases=context.releases,
-        field_rows=rows,
         open_url=context.open_url,
-        seed=context.experiment.holdout_seeds[0],
     )
-    parts, ontologies, fragments, cells = (
-        scope.parts,
-        scope.ontologies,
-        scope.fragments,
-        scope.cells,
-    )
-    counts = cell_counts(parts.train)
+    cells = record_cells(parts.train, rows, name=data.name)
+    counts = cell_counts(parts.train, edges=data.frame.edges)
     return Analysis(
         parts=parts,
-        knowledge=Knowledge(context.uci.name, ontologies, fragments, rows),
+        data=data,
+        knowledge=Knowledge(data.name, ontologies, fragments, rows),
         cells=cells,
         counts=counts,
         counted=count_gaps(counts),
@@ -253,7 +255,7 @@ def fill_and_score(
             experiment,
             log=folder / "calls.jsonl",
             candidates=folder / "holdout-candidates.jsonl",
-            origin=Origin("app", context.uci, context.releases),
+            origin=Origin("app", analysis.data, context.releases),
             send=context.send,
             run="app",
             limits=Limits(in_flight=1, idle=experiment.idle_limit),

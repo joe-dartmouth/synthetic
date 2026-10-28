@@ -3,7 +3,8 @@
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
 `g3-summary` being E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
-`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`).
+`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`). Each named run also fixes
+the dataset it scores, UCI for every one here.
 No command-line flag changes a value here.
 """
 
@@ -18,9 +19,10 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
-from bko.datasets.cells import AGE_BAND_EDGES, UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -207,10 +209,12 @@ class NamedRun:
     Attributes:
         experiment: What the run fixes before it starts.
         settings: How its generator calls are made; the call log records them.
+        dataset: The data it scores (`bko.evaluate.data.load`).
     """
 
     experiment: Experiment
     settings: Settings = SETTINGS
+    dataset: Dataset = Dataset.UCI
 
 
 DEFAULT_RUN: Final = "e1"
@@ -252,10 +256,10 @@ ceiling and criteria."""
 
 
 def flagged(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int] = AGE_BAND_EDGES
+    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
 ) -> tuple[Stratum, ...]:
     """The cells under `edges` holding fewer than `experiment.fill_to` records, in grid order."""
-    return tuple(_short(train, experiment, edges))
+    return tuple(_short(train, experiment, edges=edges))
 
 
 def gap_request(
@@ -266,7 +270,7 @@ def gap_request(
     Raises:
         EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
     """
-    quota = _short(train, experiment, frame.edges)
+    quota = _short(train, experiment, edges=frame.edges)
     if not quota:
         msg = f"no cell holds fewer than {experiment.fill_to} training records; nothing to fill"
         raise EvaluationError(msg)
@@ -279,7 +283,9 @@ def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec = UCI_FR
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def _short(train: pd.DataFrame, experiment: Experiment, edges: Sequence[int]) -> dict[Stratum, int]:
+def _short(
+    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
+) -> dict[Stratum, int]:
     return {
         cell: experiment.fill_to - count
         for cell, count, short in _cells(train, experiment.fill_to, edges=edges)
@@ -291,7 +297,7 @@ def _cells(
     train: pd.DataFrame,
     below: int = UNDERREPRESENTED_BELOW,
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> list[tuple[Stratum, int, bool]]:
     counts = cell_counts(train, edges=edges, below=below)
     return [

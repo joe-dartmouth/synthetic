@@ -10,6 +10,7 @@ from collections.abc import Mapping
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.generate.decode import decode
 from bko.generate.messages import SETTINGS, Reply, Usage
 from bko.validate.checks import FIELDS, Rejection, validate
@@ -38,7 +39,7 @@ def test_k_of_n_decoded_hands_validation_n_candidates_with_the_rest_failing_fiel
     asked: int, decoded: int
 ):
     candidates = decode(_reply(records_text([RECORD] * decoded)), asked)
-    result = validate(candidates)
+    result = validate(candidates, frame=UCI_FRAME)
     assert result.generated == asked
     assert result.passed == decoded
     assert result.rejected == tuple(Rejection(p, (FIELDS,)) for p in range(decoded, asked))
@@ -46,13 +47,15 @@ def test_k_of_n_decoded_hands_validation_n_candidates_with_the_rest_failing_fiel
 
 
 def test_a_refusal_hands_validation_one_failure_per_asked_record():
-    result = validate(decode(_reply(records_text([RECORD] * 3), stop_reason="refusal"), 3))
+    result = validate(
+        decode(_reply(records_text([RECORD] * 3), stop_reason="refusal"), 3), frame=UCI_FRAME
+    )
     assert result.generated == 3
     assert result.passed == 0
     assert result.rejected == tuple(Rejection(p, (FIELDS,)) for p in range(3))
 
 
 def test_over_delivery_counts_every_decoded_item_as_generated():
-    result = validate(decode(_reply(records_text([RECORD] * 4)), 2))
+    result = validate(decode(_reply(records_text([RECORD] * 4)), 2), frame=UCI_FRAME)
     assert result.generated == 4
     assert result.passed == 4

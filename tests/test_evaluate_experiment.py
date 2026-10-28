@@ -10,6 +10,7 @@ import pytest
 
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     ADDS_ROWS,
@@ -139,7 +140,7 @@ def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
     assert dict(request.quota) == {FLAGGED[0]: 18, FLAGGED[1]: 2}
     assert request.strata is Strata.CELL
     assert request.seed == seed
-    assert flagged(train, E1) == FLAGGED
+    assert flagged(train, E1, edges=UCI_FRAME.edges) == FLAGGED
 
 
 def test_the_gap_request_is_what_the_baselines_command_asks_for():

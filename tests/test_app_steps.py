@@ -31,8 +31,10 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.classifier import build
 from bko.evaluate.criteria import BOOSTED
+from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
@@ -58,6 +60,24 @@ def test_analyze_lists_the_flagged_cells_and_each_definitions_gaps(tmp_path):
     assert set(analysis.found) == set(Definition)
     assert analysis.counts.equals(cell_counts(analysis.parts.train))
     assert analysis.parts.seed == 0
+
+
+def test_analyze_reads_one_data_value_for_its_split_and_its_knowledge(tmp_path, monkeypatch):
+    context, _ = app_context(tmp_path, send=never)
+    loads = []
+
+    def counting(*args, **kwargs):
+        loads.append(args)
+        return load_uci(*args, **kwargs)
+
+    monkeypatch.setattr("bko.evaluate.data.load_uci", counting)
+    monkeypatch.setattr("bko.datasets.split.load_uci", counting)
+    analysis = analyze(context)
+    assert len(loads) == 1
+    records = analysis.data.records
+    parts = analysis.parts
+    assert pd.concat([parts.train, parts.test]).sort_index().equals(records.sort_index())
+    assert analysis.knowledge.name == analysis.data.name
 
 
 def test_analyze_fetches_nothing_once_the_data_is_present(tmp_path):
@@ -211,6 +231,10 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     ]
     header = read((outcome.folder / "holdout-candidates.jsonl").read_bytes()).header
     assert header["run"] == "app"
+    assert analysis.data.frame is UCI_FRAME
+    assert analysis.data.records.equals(load_uci(context.data_root(), source=context.uci))
+    assert (header["frame"], header["data"]) == ("uci", analysis.data.digest)
+    assert header["data"] == digest(analysis.data.records)
 
 
 def test_a_bko_fill_sends_one_call_at_a_time_as_the_app_run(tmp_path, monkeypatch):

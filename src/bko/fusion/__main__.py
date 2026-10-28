@@ -41,6 +41,7 @@ from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
+from bko.datasets.uci import UCI_FRAME
 from bko.fusion.closure import Closure, closure
 from bko.fusion.errors import ClosureError
 from bko.fusion.join import Joined, join
@@ -169,7 +170,7 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
     accepted: dict[Cell, pd.DataFrame] = {}
     for cell, items in candidates.items():
         logger.info("validate key=%s lines=%d", cell_key(cell), len(items))
-        accepted[cell] = validate(items).accepted
+        accepted[cell] = validate(items, frame=UCI_FRAME).accepted
     joined = join(parts.train, accepted, request)
     after = record_cells(joined.frame, context.field_rows, name=f"{context.uci.name}-joined")
     _log_join(candidates, accepted, joined, before, after)

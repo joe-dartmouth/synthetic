@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-26
+updated: 2026-10-28
 ---
 # Record validation: each field's number, bound and decimals, counted per check
 
@@ -83,9 +83,9 @@ fails.**
   - One INFO summary per batch, with counts only, and a WARNING for an empty batch.
 - **No threshold:** the stage reports counts, and the final evaluation judges the criterion.
 - **No ontology check**, for the reasons in Context.
-- **Library only**, with the `data` extra. `validate` takes the frame as a keyword defaulting to
-  `UCI_FRAME`, and the frame's columns and dtypes live in `bko.datasets`, so this stage imports
-  only upstream stages.
+- **Library only**, with the `data` extra. `validate` takes the frame as a required keyword, so each
+  caller names the frame it checks against, and the frame's columns and dtypes live in
+  `bko.datasets`, so this stage imports only upstream stages.
 
 ## Rationale
 

@@ -40,13 +40,13 @@ def test_an_unpriced_model_is_refused_before_the_file_exists(tmp_path):
     path = tmp_path / "calls.jsonl"
     settings = dataclasses.replace(SETTINGS, model="claude-unpriced")
     with pytest.raises(GenerationError, match="claude-unpriced"):
-        CallLog(path, settings, now=_now)
+        CallLog(path, settings, now=_now, frame="uci")
     assert not path.exists()
 
 
 def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, now=_now):
+    with CallLog(path, SETTINGS, now=_now, frame="uci"):
         pass
     header = _lines(path)[0]
     assert header == {
@@ -56,6 +56,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "resume": None,
         "rehearsal": False,
         "in_flight": 1,
+        "frame": "uci",
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -71,7 +72,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
 
 def test_a_replay_log_names_its_source(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, answered=Answered("replay", "ab" * 32, 0), now=_now):
+    with CallLog(path, SETTINGS, answered=Answered("replay", "ab" * 32, 0), now=_now, frame="uci"):
         pass
     assert _lines(path)[0]["replay"] == "ab" * 32
 
@@ -84,7 +85,7 @@ def test_a_request_line_is_flushed_before_the_call(tmp_path):
         seen.append(_lines(path))
         return reply([{}, {}])
 
-    with CallLog(path, SETTINGS, now=_now) as log:
+    with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         ask(GUIDANCE, 2, send=send, log=log)
     assert [line["kind"] for line in seen[0]] == ["run", "request"]
     request = seen[0][1]
@@ -100,7 +101,7 @@ def test_a_reply_line_holds_request_id_model_stop_reason_counts_usage_usd_and_th
     tmp_path,
 ):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, now=_now) as log:
+    with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         index = log.request(CELL, 3, _call())
         answer = dataclasses.replace(
             reply([{}, {}], usage=Usage(1000, 500, 100, 2000), request_id="req_abc"), attempts=3
@@ -137,7 +138,7 @@ def test_a_failed_call_writes_an_error_line_and_a_failed_footer(tmp_path):
     send = ScriptedSend(
         GenerationError("the API could not be reached: APIConnectionError", attempts=2)
     )
-    with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now) as log:
+    with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         ask(GUIDANCE, 2, send=send, log=log)
     lines = _lines(path)
     assert [line["kind"] for line in lines] == ["run", "request", "error", "end"]
@@ -154,7 +155,7 @@ def test_a_failed_call_writes_an_error_line_and_a_failed_footer(tmp_path):
 
 def test_an_interrupt_writes_an_error_line_with_no_attempts(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, now=_now) as log:
+    with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         index = log.request(CELL, 2, _call())
         log.failure(index, KeyboardInterrupt())
     line = _lines(path)[2]
@@ -170,7 +171,7 @@ def test_a_keyboard_interrupt_writes_interrupted_and_any_other_exception_failed(
     tmp_path, raised, status
 ):
     path = tmp_path / "calls.jsonl"
-    with pytest.raises(raised), CallLog(path, SETTINGS, now=_now):
+    with pytest.raises(raised), CallLog(path, SETTINGS, now=_now, frame="uci"):
         raise raised
     end = _lines(path)[-1]
     assert end["kind"] == "end"
@@ -189,7 +190,7 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
         ask(GUIDANCE, 3, send=send, log=log)
         ask(GUIDANCE, 4, send=send, log=log)
 
-    with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now) as log:
+    with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         two_calls(log)
     lines = _lines(path)
     kinds = [line["kind"] for line in lines]
@@ -225,7 +226,7 @@ def test_the_end_totals_count_the_calls_retried(tmp_path):
         dataclasses.replace(reply([{}, {}]), attempts=3),
         dataclasses.replace(reply([{}, {}]), attempts=1),
     )
-    with CallLog(path, SETTINGS, now=_now) as log:
+    with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         ask(GUIDANCE, 2, send=send, log=log)
         ask(GUIDANCE, 2, send=send, log=log)
     assert _lines(path)[-1]["retried"] == 1
@@ -233,18 +234,18 @@ def test_the_end_totals_count_the_calls_retried(tmp_path):
 
 def test_a_second_log_on_the_same_path_is_refused_and_leaves_the_first_intact(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, now=_now):
+    with CallLog(path, SETTINGS, now=_now, frame="uci"):
         pass
     before = path.read_bytes()
     with pytest.raises(FileExistsError):
-        CallLog(path, SETTINGS, now=_now)
+        CallLog(path, SETTINGS, now=_now, frame="uci")
     assert path.read_bytes() == before
 
 
 def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
     send = ScriptedSend(reply([{}, {}]))
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now) as log:
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         ask(GUIDANCE, 2, send=send, log=log)
     assert (
         "run status=complete run=none level=summary in_flight=1 calls=1 failed=0 retried=0 "
@@ -256,7 +257,10 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
 
 def test_the_run_status_line_names_run_level_and_in_flight(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, run="g3-cell", in_flight=4):
+    with (
+        caplog.at_level(logging.INFO),
+        CallLog(path, SETTINGS, run="g3-cell", in_flight=4, frame="uci"),
+    ):
         pass
     assert any(
         m.startswith(
@@ -282,7 +286,7 @@ def test_a_failed_header_write_closes_the_file(tmp_path, monkeypatch):
     monkeypatch.setattr(CallLog, "_write", refuse)
     path = tmp_path / "calls.jsonl"
     with pytest.raises(OSError, match="disk full"):
-        CallLog(path, SETTINGS, now=_now)
+        CallLog(path, SETTINGS, now=_now, frame="uci")
     assert len(opened) == 1
     assert opened[0].closed
     assert not path.exists()
@@ -295,12 +299,12 @@ def test_a_log_whose_file_cannot_be_opened_is_removed(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "fdopen", refuse)
     path = tmp_path / "calls.jsonl"
     with pytest.raises(OSError, match="no descriptor"):
-        CallLog(path, SETTINGS, now=_now)
+        CallLog(path, SETTINGS, now=_now, frame="uci")
     assert not path.exists()
 
 
 def test_the_log_exposes_the_settings_it_priced(tmp_path):
-    with CallLog(tmp_path / "calls.jsonl", SETTINGS, now=_now) as log:
+    with CallLog(tmp_path / "calls.jsonl", SETTINGS, now=_now, frame="uci") as log:
         assert log.settings is SETTINGS
 
 
@@ -308,7 +312,7 @@ def test_the_log_is_readable_by_its_owner_only(tmp_path):
     path = tmp_path / "calls.jsonl"
     previous = os.umask(0o022)
     try:
-        with CallLog(path, SETTINGS, now=_now):
+        with CallLog(path, SETTINGS, now=_now, frame="uci"):
             pass
     finally:
         os.umask(previous)
@@ -322,7 +326,7 @@ def test_a_missing_sdk_version_leaves_no_file(tmp_path, monkeypatch):
     monkeypatch.setattr(importlib.metadata, "version", absent)
     path = tmp_path / "calls.jsonl"
     with pytest.raises(importlib.metadata.PackageNotFoundError):
-        CallLog(path, SETTINGS, now=_now)
+        CallLog(path, SETTINGS, now=_now, frame="uci")
     assert not path.exists()
 
 
@@ -330,7 +334,7 @@ def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
     with (
         caplog.at_level(logging.INFO),
-        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now),
+        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now, frame="uci"),
     ):
         pass
     assert (
@@ -342,7 +346,7 @@ def test_opening_the_log_logs_its_path_settings_and_replay(tmp_path, caplog):
 
 def test_the_log_records_the_calls_in_flight(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, in_flight=8, now=_now):
+    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, in_flight=8, now=_now, frame="uci"):
         pass
     assert _lines(path)[0]["in_flight"] == 8
     assert any(m.startswith("log path=") and m.endswith(" in_flight=8") for m in caplog.messages)
@@ -352,7 +356,7 @@ def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
     with (
         caplog.at_level(logging.INFO),
-        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now),
+        CallLog(path, SETTINGS, answered=Answered("replay", "ab12", 0), now=_now, frame="uci"),
     ):
         pass
     assert _lines(path)[-1]["replay"] == "ab12"
@@ -361,7 +365,10 @@ def test_a_replays_end_line_and_totals_name_the_replayed_log(tmp_path, caplog):
 
 def test_a_rehearsals_run_and_end_lines_and_log_lines_say_so(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
-    with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, rehearsal=True, now=_now):
+    with (
+        caplog.at_level(logging.INFO),
+        CallLog(path, SETTINGS, rehearsal=True, now=_now, frame="uci"),
+    ):
         pass
     lines = _lines(path)
     assert lines[0]["rehearsal"] is True
@@ -387,21 +394,21 @@ class StoppedError(Exception):
 )
 def test_the_end_line_names_the_stop_rule_that_ended_the_run(tmp_path, raised, stop):
     path = tmp_path / "calls.jsonl"
-    with pytest.raises(type(raised)), CallLog(path, SETTINGS, now=_now):
+    with pytest.raises(type(raised)), CallLog(path, SETTINGS, now=_now, frame="uci"):
         raise raised
     assert _lines(path)[-1]["stop"] == stop
 
 
 def test_a_complete_runs_end_line_names_no_stop(tmp_path):
     path = tmp_path / "calls.jsonl"
-    with CallLog(path, SETTINGS, now=_now):
+    with CallLog(path, SETTINGS, now=_now, frame="uci"):
         pass
     assert _lines(path)[-1]["stop"] is None
 
 
 def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
     path = tmp_path / "log.jsonl"
-    with CallLog(path, SETTINGS, answered=Answered("resume", "ab" * 32, 1)) as log:
+    with CallLog(path, SETTINGS, answered=Answered("resume", "ab" * 32, 1), frame="uci") as log:
         for _ in range(2):
             ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -425,7 +432,10 @@ def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
 def test_the_end_line_marks_rate_limited_segments(tmp_path, outcome, limited):
     path = tmp_path / "calls.jsonl"
     send = ScriptedSend(reply([{}, {}]), outcome)
-    with contextlib.suppress(GenerationError), CallLog(path, SETTINGS, now=_now) as log:
+    with (
+        contextlib.suppress(GenerationError),
+        CallLog(path, SETTINGS, now=_now, frame="uci") as log,
+    ):
         ask(GUIDANCE, 2, send=send, log=log)
         ask(GUIDANCE, 2, send=send, log=log)
     send.assert_consumed()

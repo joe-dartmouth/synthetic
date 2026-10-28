@@ -192,6 +192,8 @@ UCI_FRAME: Final = FrameSpec(
     label_codes=tuple(sorted(LABEL_CODES)),
     label_meanings=LABEL_MEANINGS,
     edges=AGE_BAND_EDGES,
+    study="heart-disease prediction",
+    cohort="adult patient referred for coronary angiography",
     label=LABEL,
 )
 """UCI Heart Disease's frame: what every stage reads of it, built from this module's constants."""

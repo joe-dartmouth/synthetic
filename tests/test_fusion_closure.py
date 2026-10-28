@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from bko.bkb.structure import BKB
+from bko.datasets.uci import UCI_FRAME
 from bko.fusion.closure import Closure, closure
 from bko.fusion.join import join
 from bko.gaps.definitions import Definition, StatementGap
@@ -45,7 +46,7 @@ def read(
 ) -> tuple[Closure, ...]:
     """Validate `items`, join them to `data`'s training split, and read each definition."""
     train = training_split(tmp_path / "data", data)
-    accepted = {cell: validate(batch).accepted for cell, batch in items.items()}
+    accepted = {cell: validate(batch, frame=UCI_FRAME).accepted for cell, batch in items.items()}
     joined = join(train, accepted, request)
     rows = (ANGINA, STENOSIS)
     before = record_cells(train, rows, name="t")
@@ -148,6 +149,6 @@ def test_one_cells_records_close_a_population_level_pair_in_every_cell(tmp_path)
 
 def test_rejected_candidates_close_nothing(tmp_path):
     items = [young(1, cp=1, chol=601)] * 20
-    assert validate(items).passed == 0
+    assert validate(items, frame=UCI_FRAME).passed == 0
     readings = read(tmp_path, UCI_X, BOTH, {CELL1: items})
     assert tuple(counts(reading) for reading in readings) == MEASURED["D"]
