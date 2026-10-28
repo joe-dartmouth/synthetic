@@ -150,6 +150,12 @@ STAMPED: Final = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ (supervise .*)")
 """A supervisor's `launch.log` line: a UTC time, then the line."""
 
 
+def _no_backoff(seconds: float) -> None:
+    """A backoff the test expects never to wait."""
+    msg = f"backed off {seconds} s"
+    raise AssertionError(msg)
+
+
 def _record(tmp_path: Path, run_id: str = "e1-4") -> list[str]:
     """The run's `supervise` lines in its `launch.log`, each without its time."""
     text = (tmp_path / run_id / "launch.log").read_text(encoding="utf-8")
@@ -440,12 +446,13 @@ def test_the_command_forwards_the_data_root_the_stopped_log_and_the_rehearsal(tm
     data, stopped = tmp_path / "data", tmp_path / "e1-3" / "calls.jsonl"
     stopped.parent.mkdir()
     stopped.write_text("x\n", encoding="utf-8")
-    context = Context(power=lambda: False, segment=Segments(COMPLETE, COMPLETE), sleep=pytest.fail)
+    segments = Segments(COMPLETE, COMPLETE)
+    context = Context(power=lambda: False, segment=segments, sleep=_no_backoff)
     root = ["--runs-dir", str(tmp_path), "--data-dir", str(data)]
     (tmp_path / "e1-4" / REHEARSAL).mkdir(parents=True)
     assert main(["supervise", "e1-4", "e1", *root, "--resume", str(stopped)], context=context) == 0
     assert main(["supervise", "e1-4", "e1", *root, "--rehearse"], context=context) == 0
-    resumed, rehearsed = context.segment.commands
+    resumed, rehearsed = segments.commands
     assert _arg(resumed, "--resume") == str(stopped)
     assert _arg(resumed, "--data-dir") == str(data)
     assert "--rehearse" not in resumed
@@ -553,7 +560,7 @@ def test_a_stop_file_keeps_a_killed_segment_from_resuming(tmp_path):
         root=tmp_path,
         retries=5,
         segment=segments,
-        sleep=pytest.fail,
+        sleep=_no_backoff,
         power=lambda: False,
         platform="linux",
         settings=SETTINGS,
@@ -697,7 +704,7 @@ def test_a_resume_that_cannot_start_releases_its_folder_and_exits_two(tmp_path):
     ids=["no-folder", "unknown-run"],
 )
 def test_the_command_maps_a_supervisor_that_cannot_run_to_two(tmp_path, caplog, argv, message):
-    context = Context(power=lambda: False, segment=Segments(), sleep=pytest.fail)
+    context = Context(power=lambda: False, segment=Segments(), sleep=_no_backoff)
     with caplog.at_level(logging.ERROR):
         code = main([*argv, "--runs-dir", str(tmp_path)], context=context, out=io.StringIO())
     assert code == 2
