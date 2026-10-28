@@ -66,20 +66,6 @@ links to where its blocker is tracked.
   `pairable` compares it.
   **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
 
-- **`cleanup:evaluate/frame-unnamed-in-run-logs`: no log says which frame a run read.** No run
-  log line, call log line, candidates header or `validated` summary names the frame, so two runs
-  over different frames read alike. A refusal that is not a `GenerationError`, such as
-  `CannedSend`'s frame refusal, reaches the call log as its type name only. Evidence:
-  `bko.generate.log.CallLog`'s run line and `bko.evaluate.holdout_candidates`' header carry
-  settings and origin with no frame field, and `bko.validate.checks._log` writes counts only.
-  *Filed 2026-10-27 by the review of PR #42.*
-  **Why deferred.** Naming the frame in the call log's run line changes call-log bytes, and only
-  one frame runs.
-  **What discharges it:** the run line, the candidates header and the `validated` line carry
-  `frame=`, and `log.failure` keeps a refusal's message.
-  **Trigger:** the first non-UCI frame that runs `score` or `generate`
-  (`evaluate-synthea-downstream`).
-
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
   `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
@@ -107,17 +93,6 @@ links to where its blocker is tracked.
   **Why deferred.** The bound needs no new run, and a count moves the recorded logs.
   **What discharges it:** `score` logs a zero-distance count of each arm's added and replica rows.
   **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
-
-- **`cleanup:evaluate/holdout-candidates-schema-for-direct`: a direct run's candidates file reads
-  as a Messages run's.** `bko.evaluate.holdout_candidates` lines now allow `call: null` under
-  schema 1, and a run with no BKO arm still writes the Messages settings it never used into its
-  header. Evidence, the start of `runs/g2-2/holdout-candidates.jsonl`'s header: `{"kind":
-  "header", ..., "run": "g2", "schema": 1, "settings": {"effort": "medium", "guidance":
-  "ontology", "max_tokens": 16000, "model": ...`. *Filed 2026-10-27 by the review of PR #47.*
-  **Why deferred.** Bumping the schema moves the recorded bytes of `runs/g2-2`.
-  **What discharges it:** the schema is bumped for a null call, or a run with no BKO arm writes no
-  settings.
-  **Trigger:** the next change to `bko.evaluate.holdout_candidates`.
 
 - **`cleanup:evaluate/compare-header-run-level`: `compare`'s judged output names no run and no
   level.** The header log line, the `criterion=` lines and `criteria.csv` carry neither the run nor

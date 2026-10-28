@@ -15,7 +15,6 @@ import pytest
 
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
-from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
@@ -30,14 +29,14 @@ from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply
 from bko.generate.replay import Replay, Resume
 from bko.generate.spend import cost
 from bko.ontology.mapping import RELEASES
-from tests._evaluate_fixtures import SMALL
+from tests._evaluate_fixtures import GRADED_DATA, SMALL
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply, request, response
 from tests._guided_fixtures import REQUEST, YOUNG_SICK, guided, train
 from tests._validate_fixtures import planted
 
 
-ORIGIN: Final = Origin("e1", UCI_HEART_DISEASE, RELEASES)
+ORIGIN: Final = Origin("e1", GRADED_DATA, RELEASES)
 """The header of every candidates file these tests make."""
 
 OLD: Final = planted(age=63, sex=0, target=1)

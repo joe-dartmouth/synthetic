@@ -1,7 +1,9 @@
 """The per-holdout candidates file: every candidate a run's BKO arms generate, with its outcome.
 
 The file is JSONL. Its first line is the header, `kind` `header`: the schema, the named run, the
-sha256 of the UCI archive and of each ontology release, and the generator settings. Every other line
+name of its `frame`, the sha256 of its records under `data` (`bko.evaluate.data.Data.digest`), the
+sha256 of each ontology release, and the generator settings, which a run with no Messages arm
+omits. Every other line
 is one candidate, `kind` `candidate`: the holdout, the arm, the fill (`gap` or `replica`), the
 attempt within that fill counted from 1 and whether it `returned` or was refused, the call (null for
 a direct arm's record, drawn with no call) and the cell it asked for, the candidate's 0-based
@@ -31,12 +33,13 @@ from typing import Final, NoReturn, Self, TextIO
 
 from bko.baselines.records import Drop
 from bko.datasets.sources import Source as Download
+from bko.evaluate.data import Data
 from bko.evaluate.errors import CandidatesFormatError
 from bko.evaluate.scores import Source
 from bko.generate.messages import Settings
 
 
-SCHEMA: Final = 1
+SCHEMA: Final = 2
 """The file format's version, written in the header."""
 
 FILLS: Final[Mapping[Source, str]] = MappingProxyType(
@@ -53,7 +56,9 @@ REJECTED: Final = "rejected"
 OUTCOMES: Final = (KEPT, REJECTED, *(f"dropped-{drop}" for drop in Drop))
 """Every outcome a line names."""
 
-_HEADER: Final = frozenset({"kind", "schema", "run", "uci", "releases", "settings"})
+_HEADER: Final = frozenset({"kind", "schema", "run", "frame", "data", "releases"})
+_SETTINGS: Final = "settings"
+
 _LINE: Final = frozenset(
     {
         "kind",
@@ -77,12 +82,12 @@ class Origin:
 
     Attributes:
         run: The named run, or `app` for an app fill.
-        uci: The UCI archive the run read.
+        data: The data the run scored; the header names its frame and digest.
         releases: The ontology releases its gap detection read, by concept prefix.
     """
 
     run: str
-    uci: Download
+    data: Data
     releases: Mapping[str, Download]
 
 
@@ -201,16 +206,19 @@ class HoldoutCandidates:
     candidates: tuple[Candidate, ...]
 
 
-def header(origin: Origin, settings: Settings) -> dict[str, object]:
-    """The header line a run with `origin` and `settings` writes."""
-    return {
+def header(origin: Origin, settings: Settings | None) -> dict[str, object]:
+    """The header line a run with `origin` and `settings` writes; no settings key for None."""
+    line: dict[str, object] = {
         "kind": "header",
         "schema": SCHEMA,
         "run": origin.run,
-        "uci": origin.uci.sha256,
+        "frame": origin.data.frame.name,
+        "data": origin.data.digest,
         "releases": {prefix: source.sha256 for prefix, source in origin.releases.items()},
-        "settings": dataclasses.asdict(settings),
     }
+    if settings is not None:
+        line[_SETTINGS] = dataclasses.asdict(settings)
+    return line
 
 
 class CandidateFile:
@@ -220,8 +228,8 @@ class CandidateFile:
         path: The file.
     """
 
-    def __init__(self, path: Path, origin: Origin, settings: Settings) -> None:
-        """Create the file and write its header.
+    def __init__(self, path: Path, origin: Origin, settings: Settings | None) -> None:
+        """Create the file and write its header; `settings` is None for a run with no Messages arm.
 
         Raises:
             FileExistsError: If `path` exists.
@@ -285,8 +293,15 @@ def read(data: bytes) -> HoldoutCandidates:
         msg = "a candidates file starts with its header line; this one is empty"
         raise CandidatesFormatError(msg)
     first, *rest = lines
-    if not isinstance(first, dict) or set(first) != _HEADER or first["kind"] != "header":
-        msg = f"a candidates file's first line is its header, with the keys {sorted(_HEADER)}"
+    if (
+        not isinstance(first, dict)
+        or set(first) - {_SETTINGS} != _HEADER
+        or first["kind"] != "header"
+    ):
+        msg = (
+            f"a candidates file's first line is its header, with the keys {sorted(_HEADER)} "
+            f"and, for a run with a Messages arm, {_SETTINGS!r}"
+        )
         raise CandidatesFormatError(msg)
     if isinstance(first["schema"], bool) or first["schema"] != SCHEMA:
         msg = f"the candidates file's schema is {first['schema']!r}, not {SCHEMA}"

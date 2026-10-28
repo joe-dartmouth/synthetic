@@ -4,9 +4,10 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its records are
-UCI's, so it refuses a call for another frame. Its spend is a wiring
-check, not an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
+none equal to a real record, each billed at `e1-3`'s tokens per record asked. Its records are in
+the run's frame (`bko.evaluate.data.Data`), so it refuses a call for another frame, raising
+`GenerationError` so the call log's `error` line keeps the reason. Its spend is a wiring check, not
+an estimate. ADR `research/e1-evaluation-protocol` says when the tokens per record are
 recomputed.
 """
 
@@ -22,16 +23,10 @@ import pandas as pd
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
-from bko.datasets.uci import (
-    CODEBOOK,
-    FRACTION_DIGITS,
-    FRACTIONAL,
-    FRAME_COLUMNS,
-    NUMERIC,
-    UCI_FRAME,
-)
+from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
+from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
 
 
@@ -49,13 +44,21 @@ PROMPT: Final = re.compile(
 """The first sentence of every user turn `bko.generate.prompt.render` writes, at every level."""
 
 STEPS: Final = {"age": 11, "trestbps": 7, "chol": 13, "thalach": 11, "oldpeak": 7}
-"""Each measured field's stride through its safe values, so successive records differ."""
+"""Each of UCI's measured fields' stride through its safe values, so successive records differ."""
+
+PACES: Final = {"cp": 1, "fbs": 1, "restecg": 1, "exang": 2, "slope": 3, "ca": 5, "thal": 7}
+"""Each of UCI's coded fields' pace: the records a code holds before the next one comes."""
+
+FALLBACK_STEPS: Final = (7, 11, 13)
+"""The strides of a measured field `STEPS` lacks, by its position among the frame's numeric
+fields, cycling."""
 
 SKIPS: Final = 10_000
 """Canned records in a row that may equal real ones before the send gives up."""
 
-type Rehearse = Callable[[pd.DataFrame, Experiment, Settings], Send]
-"""Build the send a rehearsal answers every call with, from the frame, the run and its settings."""
+type Rehearse = Callable[[Data, Experiment, Settings], Send]
+"""Build the send a rehearsal answers every call with, from the run's data, the run and its
+settings."""
 
 
 def safe_ranges(
@@ -80,9 +83,9 @@ def safe_ranges(
     return ranges
 
 
-def _grid(low: float, high: float, name: str) -> tuple[int, int, int]:
+def _grid(low: float, high: float, name: str, frame: FrameSpec) -> tuple[int, int, int]:
     """The scaled whole-number bounds of `name`'s values in `low` to `high`, and its scale."""
-    scale = 10**FRACTION_DIGITS if name in FRACTIONAL else 1
+    scale = 10**frame.fraction_digits if name in frame.fractional else 1
     first, last = math.ceil(low * scale - 1e-9), math.floor(high * scale + 1e-9)
     if first > last:
         msg = f"no {name} on the archive's precision lies in {low:g} to {high:g}"
@@ -100,33 +103,39 @@ class CannedSend:
 
     def __init__(
         self,
-        records: pd.DataFrame,
+        data: Data,
         experiment: Experiment,
         settings: Settings,
         *,
         per_record: tuple[int, int] = (INPUT_PER_RECORD, OUTPUT_PER_RECORD),
-        frame: FrameSpec = UCI_FRAME,
     ) -> None:
-        """Read the safe ranges over `experiment`'s holdouts of `records`.
+        """Read the safe ranges over `experiment`'s holdouts of `data`'s records.
 
         Args:
-            records: The records the run splits; no canned record equals one of them.
+            data: The run's data; its frame shapes every canned record, and no canned record
+                equals one of its records.
             experiment: The run; its holdout seeds bound the ranges.
             settings: The run's settings; each reply names their model.
             per_record: The input and output tokens billed per record asked.
-            frame: The run's frame; only `UCI_FRAME` is answered.
 
         Raises:
-            ValueError: If `frame` is not `UCI_FRAME`.
             EvaluationError: As `safe_ranges`, or if a field has no value on its precision there.
         """
-        if frame is not UCI_FRAME:
-            msg = f"a rehearsal writes UCI records only, not frame {frame.name}"
-            raise ValueError(msg)
-        ranges = safe_ranges(records, experiment.holdout_seeds, frame=frame)
-        self._grids = {name: _grid(*ranges[name], name) for name in NUMERIC}
+        frame = data.frame
+        self._frame = frame
+        ranges = safe_ranges(data.records, experiment.holdout_seeds, frame=frame)
+        self._grids = {name: _grid(*ranges[name], name, frame) for name in frame.numeric}
+        self._steps = {
+            name: STEPS.get(name, FALLBACK_STEPS[position % len(FALLBACK_STEPS)])
+            for position, name in enumerate(frame.numeric)
+        }
+        self._paces = {
+            name: PACES.get(name, position + 1)
+            for position, name in enumerate(frame.categorical)
+            if name != "sex"
+        }
         self._real = frozenset(
-            records.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None)
+            data.records.loc[:, list(frame.columns)].itertuples(index=False, name=None)
         )
         self._model = settings.model
         self._input, self._output = per_record
@@ -137,21 +146,24 @@ class CannedSend:
         """Answer `call` with its records, billed at the tokens per record.
 
         Raises:
-            ValueError: If the call is for another frame than UCI's, or its user turn does not
-                read as the prompt renders it or names another cell than the call's.
+            GenerationError: If the call is for another frame than the run's, or its user turn
+                does not read as the prompt renders it or names another cell than the call's.
             EvaluationError: If no canned record of the cell's ages fits the safe ranges, or
                 `SKIPS` in a row equal real records.
         """
-        if call.frame is not UCI_FRAME:
-            msg = f"a rehearsal answers UCI calls only, not a call for frame {call.frame.name}"
-            raise ValueError(msg)
+        if call.frame is not self._frame:
+            msg = (
+                f"a rehearsal of frame {self._frame.name} answers its own calls only, not a call "
+                f"for frame {call.frame.name}"
+            )
+            raise GenerationError(msg)
         found = PROMPT.match(call.user)
         if found is None:
             msg = f"the user turn does not read as the prompt renders it: {call.user[:200]!r}"
-            raise ValueError(msg)
+            raise GenerationError(msg)
         if (int(found["sex"]), int(found["label"])) != (call.sex, call.label):
             msg = f"the user turn names sex {found['sex']} target {found['label']}, not the call's"
-            raise ValueError(msg)
+            raise GenerationError(msg)
         rows = int(found["rows"])
         first, last, _ = self._grids["age"]
         ages = (
@@ -184,10 +196,11 @@ class CannedSend:
         )
 
     def _next(self, sex: int, label: int, ages: tuple[int, int]) -> dict[str, int | float]:
+        columns = self._frame.columns
         for _ in range(SKIPS):
             item = self._record(self.records, sex, label, ages)
             self.records += 1
-            if tuple(item[name] for name in FRAME_COLUMNS) not in self._real:
+            if tuple(item[name] for name in columns) not in self._real:
                 return item
         msg = f"{SKIPS} canned records in a row equal real records"
         raise EvaluationError(msg)
@@ -196,14 +209,14 @@ class CannedSend:
         self, n: int, sex: int, label: int, ages: tuple[int, int]
     ) -> dict[str, int | float]:
         """The n-th canned record: each code cycles at its own pace, each measure strides."""
+        frame = self._frame
         values: dict[str, int | float] = {}
-        for name in NUMERIC:
+        for name in frame.numeric:
             first, last, scale = (*ages, 1) if name == "age" else self._grids[name]
-            scaled = first + n * STEPS[name] % (last - first + 1)
+            scaled = first + n * self._steps[name] % (last - first + 1)
             values[name] = scaled / scale if scale > 1 else scaled
-        paces = {"cp": 1, "fbs": 1, "restecg": 1, "exang": 2, "slope": 3, "ca": 5, "thal": 7}
-        for name, pace in paces.items():
-            codes = sorted(CODEBOOK[name])
+        for name, pace in self._paces.items():
+            codes = sorted(frame.codebook[name])
             values[name] = codes[n // pace % len(codes)]
-        values["sex"], values["target"] = sex, label
-        return {name: values[name] for name in FRAME_COLUMNS}
+        values["sex"], values[frame.label] = sex, label
+        return {name: values[name] for name in frame.columns}

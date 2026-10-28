@@ -10,6 +10,7 @@ from bko.baselines.methods import Runner
 from bko.datasets.fetch import UrlOpener, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.evaluate.classifier import MODELS, Factory, Model
+from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import E1, RUNS, Experiment, NamedRun
 from bko.evaluate.launch import Power, Spawn, on_battery, spawn
 from bko.evaluate.rehearse import CannedSend, Rehearse
@@ -30,6 +31,7 @@ class Context:
         uci: The pinned UCI archive.
         experiment: The configuration the run named `e1` is; every other name reads `runs`.
         settings: The generator settings of the run named `e1`.
+        dataset: The data the run named `e1` scores; every other name reads `runs`.
         runs: Every other named run, by name.
         arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
             the API.
@@ -50,6 +52,7 @@ class Context:
     uci: Source = UCI_HEART_DISEASE
     experiment: Experiment = E1
     settings: Settings = SETTINGS
+    dataset: Dataset = Dataset.UCI
     runs: Mapping[str, NamedRun] = RUNS
     arms: Mapping[str, Runner] = ARMS
     models: Mapping[Model, Factory] = MODELS

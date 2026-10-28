@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -19,6 +20,7 @@ from bko.evaluate import experiment as experiment_module
 from bko.evaluate import fidelity as fidelity_module
 from bko.evaluate.classifier import build, probabilities
 from bko.evaluate.copies import copies, decontaminated
+from bko.evaluate.data import Data, digest
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
 from bko.evaluate.privacy import distances
@@ -26,8 +28,12 @@ from bko.evaluate.rehearse import CannedSend
 from bko.evaluate.run import ARMS, held_out_ratio, run
 from bko.evaluate.scores import Measure, Scope, Source
 from bko.evaluate.utility import in_scope, utility
+from bko.generate.errors import GenerationError
+from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import SETTINGS, Call
-from tests._evaluate_fixtures import FAST_METHODS, GRADED, SMALL
+from bko.generate.prompt import render
+from bko.validate.checks import validate
+from tests._evaluate_fixtures import FAST_METHODS, GRADED_DATA, SMALL
 from tests._frame_fixtures import SHORT, TOY, TOY_PARTS, TOY_TRAIN, toy_records
 
 
@@ -206,14 +212,24 @@ def test_a_toy_experiment_runs_end_to_end():
     assert not any(math.isnan(s.value) for s in flagged_recall)
 
 
-def test_a_rehearsal_refuses_another_frame():
-    with pytest.raises(ValueError, match="UCI records only, not frame toy"):
-        CannedSend(GRADED, SMALL, SETTINGS, frame=TOY)
+def test_a_rehearsal_answers_in_its_own_frame():
+    records = toy_records()
+    send = CannedSend(Data(records, TOY, (), "toy", digest(records)), TOY_EXPERIMENT, SETTINGS)
+    cell = SHORT[0]
+    interval = intervals(cell, TOY_TRAIN, frame=TOY)
+    guidance = Guidance(cell=cell, sex=0, label=1, records=3, interval=interval)
+    answer = send(
+        Call(SETTINGS, 0, 1, *render(guidance, 5, SETTINGS.guidance, frame=TOY), frame=TOY)
+    )
+    canned = json.loads(answer.text or "")["records"]
+    assert len(canned) == 5
+    assert all(set(record) == set(TOY.columns) for record in canned)
+    assert validate(canned, frame=TOY).passed == 5
 
 
 def test_a_rehearsal_refuses_a_call_for_another_frame():
-    send = CannedSend(GRADED, SMALL, SETTINGS)
-    with pytest.raises(ValueError, match="toy"):
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
+    with pytest.raises(GenerationError, match="toy"):
         send(Call(SETTINGS, 0, 1, "system", "user", frame=TOY))
 
 

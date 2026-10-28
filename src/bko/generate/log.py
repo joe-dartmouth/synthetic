@@ -3,16 +3,16 @@
 A run writes one `run` line, then per call a `request` line before the call and a `reply` or `error`
 line after it, then one `end` line holding the run's status and totals. The `run` and `end` lines
 name the log a replay answers from under `replay` and the stopped log a resume continues under
-`resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line
-records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
-`carried_usd` the spend of the stopped log's calls it dropped, and the `end` line names under `stop`
-the stop rule that ended a failed run, or null, under `retryable` whether the API caused the stop
-(the exception's `retryable` attribute), so a supervised run resumes it, and under
-`rate_limited` whether any call's retry met a 429; its totals split `live_usd`, what the run paid
-or a rehearsal billed, from `usd`. Each line is flushed as it is written, so the lines of every call
-made survive a failure, an interrupt or a killed process. The file is created exclusively, so a
-rerun never overwrites a paid log, with mode 0o600, so only its owner reads it. ADR
-`research/record-generation-design` records the format.
+`resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line names
+the frame whose records the calls ask for under `frame` and records under `in_flight` the most calls
+the run keeps in flight at once, and a resume's under `carried_usd` the spend of the stopped log's
+calls it dropped, and the `end` line names under `stop` the stop rule that ended a failed run, or
+null, under `retryable` whether the API caused the stop (the exception's `retryable` attribute), so
+a supervised run resumes it, and under `rate_limited` whether any call's retry met a 429; its totals
+split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is flushed as it is
+written, so the lines of every call made survive a failure, an interrupt or a killed process. The
+file is created exclusively, so a rerun never overwrites a paid log, with mode 0o600, so only its
+owner reads it. ADR `research/record-generation-design` records the format.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Literal, Self, TextIO
 
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import undecoded_in
 from bko.generate.errors import GenerationError
@@ -106,6 +107,7 @@ class CallLog:
         rehearsal: bool = False,
         run: str | None = None,
         in_flight: int = 1,
+        frame: str = UCI_FRAME.name,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         """Price the settings model, then create the log and write its `run` line.
@@ -117,6 +119,7 @@ class CallLog:
             rehearsal: Whether canned replies answer every call.
             run: The named run whose calls the log holds, or None outside a named run.
             in_flight: The most calls the run keeps in flight at once; the `run` line records it.
+            frame: The name of the frame whose records the calls ask for; the `run` line names it.
             now: The clock each line's time is read from.
 
         Raises:
@@ -167,6 +170,7 @@ class CallLog:
             "resume": self.resume,
             "rehearsal": rehearsal,
             "in_flight": in_flight,
+            "frame": frame,
         }
         if self.resume is not None:
             run_line["carried_usd"] = self.usd

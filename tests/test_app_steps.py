@@ -31,8 +31,10 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.classifier import build
 from bko.evaluate.criteria import BOOSTED
+from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
@@ -211,6 +213,10 @@ def test_a_bko_fill_logs_its_calls_and_scores_its_candidates(tmp_path):
     ]
     header = read((outcome.folder / "holdout-candidates.jsonl").read_bytes()).header
     assert header["run"] == "app"
+    assert analysis.data.frame is UCI_FRAME
+    assert analysis.data.records.equals(load_uci(context.data_root(), source=context.uci))
+    assert (header["frame"], header["data"]) == ("uci", analysis.data.digest)
+    assert header["data"] == digest(analysis.data.records)
 
 
 def test_a_bko_fill_sends_one_call_at_a_time_as_the_app_run(tmp_path, monkeypatch):

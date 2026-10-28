@@ -224,9 +224,10 @@ def _log(result: Validated) -> None:
         return
     counts = [f"{check}={count}" for check, count in result.rejections.items() if count]
     logger.info(
-        "validated generated=%d passed=%d rejected=%d %s",
+        "validated generated=%d passed=%d rejected=%d %s frame=%s",
         result.generated,
         result.passed,
         len(result.rejected),
         " ".join(counts) or "none",
+        result.frame.name,
     )

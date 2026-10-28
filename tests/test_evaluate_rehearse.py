@@ -31,12 +31,13 @@ from bko.evaluate.rehearse import (
     CannedSend,
     safe_ranges,
 )
+from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
 from bko.generate.prompt import COHERENCE, render
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
-from tests._evaluate_fixtures import GRADED, SMALL
+from tests._evaluate_fixtures import GRADED, GRADED_DATA, SMALL, uci_data
 from tests._frame_fixtures import TOY, toy_records
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, ScriptedSend
 
@@ -87,7 +88,7 @@ def _cells(frame: pd.DataFrame) -> set[tuple[str, str, int]]:
 
 
 def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
-    send = CannedSend(GRADED, SMALL, SETTINGS)
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
     trains = [split(GRADED, seed=seed).train for seed in SMALL.holdout_seeds]
     real = set(GRADED.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
     for cell in sorted(_cells(GRADED)):
@@ -111,9 +112,9 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
 
 
 def test_a_call_whose_user_turn_names_another_cell_is_refused():
-    send = CannedSend(GRADED, SMALL, SETTINGS)
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
     _, user = render(GUIDANCE, 3, SETTINGS.guidance)
-    with pytest.raises(ValueError, match="not the call's"):
+    with pytest.raises(GenerationError, match="not the call's"):
         send(Call(SETTINGS, 1, 1, "system", user))
 
 
@@ -244,17 +245,17 @@ def _with(record: dict) -> pd.DataFrame:
 
 
 def test_a_canned_record_equal_to_a_real_one_is_skipped(monkeypatch):
-    first = _one(CannedSend(GRADED, SMALL, SETTINGS))
+    first = _one(CannedSend(GRADED_DATA, SMALL, SETTINGS))
     frame = _with(first)
     assert safe_ranges(frame, SMALL.holdout_seeds, frame=UCI_FRAME) == safe_ranges(
         GRADED, SMALL.holdout_seeds, frame=UCI_FRAME
     )
-    send = CannedSend(frame, SMALL, SETTINGS)
+    send = CannedSend(uci_data(frame), SMALL, SETTINGS)
     assert _one(send) != first
     assert send.records == 2
     monkeypatch.setattr(rehearse, "SKIPS", 1)
     with pytest.raises(EvaluationError, match="equal real records"):
-        _one(CannedSend(frame, SMALL, SETTINGS))
+        _one(CannedSend(uci_data(frame), SMALL, SETTINGS))
 
 
 def test_every_candidate_of_a_rehearsal_is_kept(tmp_path):

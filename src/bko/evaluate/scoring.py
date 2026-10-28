@@ -19,14 +19,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Final
 
-import pandas as pd
-
-from bko.datasets.fetch import default_data_dir, ensure
-from bko.datasets.uci import load_uci
+from bko.datasets.fetch import default_data_dir
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.context import Context
+from bko.evaluate.data import Data, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import BKO_ARMS, DIRECT_ARM
+from bko.evaluate.experiment import BKO_ARMS, DIRECT_ARM, NamedRun
 from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.provenance import log_experiment
@@ -61,8 +60,10 @@ def interrupted_by_termination() -> Generator[None]:
 
 
 def score(args: argparse.Namespace, context: Context) -> str:
-    """Run every arm of `context`'s experiment and return the scores as CSV.
+    """Run every arm of `context`'s experiment on its dataset and return the scores as CSV.
 
+    The run is `context`'s experiment, settings and dataset; its data is loaded once
+    (`bko.evaluate.data.load`) after the flags are checked, then scored as `score_data`.
     `SIGTERM` and `SIGHUP` interrupt it as `SIGINT` does (`interrupted_by_termination`).
 
     Raises:
@@ -70,15 +71,47 @@ def score(args: argparse.Namespace, context: Context) -> str:
         FileExistsError: If the call log or candidates file exists.
         KeyboardInterrupt: On `SIGINT`, `SIGTERM` or `SIGHUP`.
     """
+    named = NamedRun(context.experiment, context.settings, context.dataset)
     with interrupted_by_termination():
-        return _score(args, context)
+        answers = _prepare(args, named, context)
+        data = load(context.dataset, _data_dir(args), context)
+        return _score(data, named, args, context, answers)
 
 
-def _score(args: argparse.Namespace, context: Context) -> str:
-    """Run every arm of `context`'s experiment and return the scores as CSV, as `score`."""
-    experiment = context.experiment
+def score_data(data: Data, named: NamedRun, args: argparse.Namespace, context: Context) -> str:
+    """Run every arm of `named`'s experiment on `data` and return the scores as CSV.
+
+    Every stage reads `data`: the harness splits its records under its frame's edges, the BKO arms
+    observe cells by its field rows and name it in their knowledge, the rehearsal answers in its
+    frame, and the call log and candidates file name its frame. `SIGTERM` and `SIGHUP` interrupt
+    it as `SIGINT` does.
+
+    Raises:
+        EvaluationError: As `_refuse_flags`, if the direct arm runs on a frame other than UCI's,
+            or as the run.
+        FileExistsError: If the call log or candidates file exists.
+        KeyboardInterrupt: On `SIGINT`, `SIGTERM` or `SIGHUP`.
+    """
+    with interrupted_by_termination():
+        answers = _prepare(args, named, context)
+        return _score(data, named, args, context, answers)
+
+
+def _arms(named: NamedRun, context: Context) -> tuple[list[str], bool]:
+    """The BKO arms the run builds, and whether it builds the direct arm."""
+    experiment = named.experiment
     guided = [name for name in experiment.arms if name in BKO_ARMS and name not in context.arms]
-    direct = DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
+    return guided, DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
+
+
+def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Answers | None:
+    """Refuse the flags the run cannot use, then read what answers its calls, before any download.
+
+    Raises:
+        EvaluationError: As `_refuse_flags`.
+        FileExistsError: If the call log or candidates file exists.
+    """
+    guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
     if args.rehearse:
         # scores.csv carries no marker, so its log says what the run was before anything else.
@@ -86,15 +119,33 @@ def _score(args: argparse.Namespace, context: Context) -> str:
             "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
             "not paid figures"
         )
-    answers = _answers(args, context)
-    data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-    ensure(context.uci, data_dir, open_url=context.open_url)
-    frame = load_uci(data_dir, source=context.uci)
-    log_experiment(args.run, experiment, context.models)
+    return _answers(args, context)
+
+
+def _data_dir(args: argparse.Namespace) -> Path:
+    return args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
+
+
+def _score(
+    data: Data,
+    named: NamedRun,
+    args: argparse.Namespace,
+    context: Context,
+    answers: Answers | None,
+) -> str:
+    """Score every arm of `named` on `data`, as `score_data`, once the flags are checked."""
+    experiment = named.experiment
+    guided, direct = _arms(named, context)
+    if direct and data.frame is not UCI_FRAME:
+        msg = f"the direct arm {DIRECT_ARM} draws UCI records only, not frame {data.frame.name}"
+        raise EvaluationError(msg)
+    log_experiment(args.run, experiment, context.models, frame=data.frame.name)
     if guided or direct:
-        scores = _guided(args, data_dir, frame, guided, context, answers, direct=direct)
+        scores = _guided(args, data, guided, named, context, answers, direct=direct)
     else:
-        scores = run(frame, experiment, context.arms, models=context.models)
+        scores = run(
+            data.records, experiment, context.arms, models=context.models, frame=data.frame
+        )
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
@@ -159,9 +210,9 @@ def _answers(args: argparse.Namespace, context: Context) -> Answers | None:
 
 def _guided(
     args: argparse.Namespace,
-    data_dir: Path,
-    frame: pd.DataFrame,
+    data: Data,
     names: Sequence[str],
+    named: NamedRun,
     context: Context,
     answers: Answers | None,
     *,
@@ -170,30 +221,32 @@ def _guided(
     """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
 
     With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
-    writes that file alone and no call log is made. Each BKO or direct arm logs its run's validity
-    sums on the way out, a stopped run included.
+    writes that file alone, with no settings in its header, and no call log is made. Each BKO or
+    direct arm logs its run's validity sums on the way out, a stopped run included.
     """
-    rows = context.field_rows
+    rows = data.field_rows
     ontologies, fragments = load_scope(
         {row.concept for row in rows},
-        data_dir,
+        _data_dir(args),
         releases=context.releases,
         open_url=context.open_url,
     )
-    knowledge = Knowledge(context.uci.name, ontologies, fragments, rows)
-    experiment = context.experiment
-    origin = Origin(args.run, context.uci, context.releases)
+    knowledge = Knowledge(data.name, ontologies, fragments, rows)
+    experiment = named.experiment
+    origin = Origin(args.run, data, context.releases)
+    records, frame = data.records, data.frame
     if not names:
-        with CandidateFile(args.candidates, origin, context.settings) as kept:
+        with CandidateFile(args.candidates, origin, None) as kept:
             return run_direct(
-                frame, experiment, context.arms, knowledge, sink=kept, models=context.models
+                records, experiment, context.arms, knowledge, sink=kept, models=context.models
             )
-    canned = context.rehearse(frame, experiment, context.settings) if args.rehearse else None
+    settings = named.settings
+    canned = context.rehearse(data, experiment, settings) if args.rehearse else None
     with guided_arms(
         names,
         knowledge,
         experiment,
-        settings=context.settings,
+        settings=settings,
         log=args.log,
         candidates=args.candidates,
         origin=origin,
@@ -207,7 +260,7 @@ def _guided(
         drains = {name: arm.drain for name, arm in paid.arms.items()}
         if direct:
             return run_direct(
-                frame,
+                records,
                 experiment,
                 arms,
                 knowledge,
@@ -217,10 +270,11 @@ def _guided(
                 on_holdout=paid.watch.holdout_done,
             )
         return run(
-            frame,
+            records,
             experiment,
             arms,
             models=context.models,
             drains=drains,
             on_holdout=paid.watch.holdout_done,
+            frame=frame,
         )

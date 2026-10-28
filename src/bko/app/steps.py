@@ -22,6 +22,7 @@ from bko.baselines.request import Method, Request
 from bko.datasets.cells import cell_counts
 from bko.datasets.split import Split
 from bko.evaluate.classifier import Model
+from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import BKO_ARMS, METHOD_ARMS, Experiment
 from bko.evaluate.guided import GuidedRun, Knowledge, guided_arms
@@ -47,6 +48,7 @@ class Analysis:
 
     Attributes:
         parts: The default split, E1's first holdout; only `bko.evaluate` reads its test rows.
+        data: The records it splits, as a fill's candidates file names them.
         knowledge: The releases and field mappings every BKO arm reads.
         cells: The training records observed whole and per cell.
         counts: `cell_counts` of the training split.
@@ -55,6 +57,7 @@ class Analysis:
     """
 
     parts: Split
+    data: Data
     knowledge: Knowledge
     cells: Cells
     counts: pd.DataFrame
@@ -90,6 +93,7 @@ def analyze(context: Context) -> Analysis:
     counts = cell_counts(parts.train)
     return Analysis(
         parts=parts,
+        data=load(Dataset.UCI, data_dir, context),
         knowledge=Knowledge(context.uci.name, ontologies, fragments, rows),
         cells=cells,
         counts=counts,
@@ -253,7 +257,7 @@ def fill_and_score(
             experiment,
             log=folder / "calls.jsonl",
             candidates=folder / "holdout-candidates.jsonl",
-            origin=Origin("app", context.uci, context.releases),
+            origin=Origin("app", analysis.data, context.releases),
             send=context.send,
             run="app",
             limits=Limits(in_flight=1, idle=experiment.idle_limit),

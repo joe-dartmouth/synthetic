@@ -56,6 +56,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "resume": None,
         "rehearsal": False,
         "in_flight": 1,
+        "frame": "uci",
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",

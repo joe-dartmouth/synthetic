@@ -3,7 +3,8 @@
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
 `g3-summary` being E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
-`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`).
+`g4-low` and `g4-medium` (G4), and `g2`, the direct arm's run (`G2`). Each named run also fixes
+the dataset it scores, UCI for every one here.
 No command-line flag changes a value here.
 """
 
@@ -21,6 +22,7 @@ from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -207,10 +209,12 @@ class NamedRun:
     Attributes:
         experiment: What the run fixes before it starts.
         settings: How its generator calls are made; the call log records them.
+        dataset: The data it scores (`bko.evaluate.data.load`).
     """
 
     experiment: Experiment
     settings: Settings = SETTINGS
+    dataset: Dataset = Dataset.UCI
 
 
 DEFAULT_RUN: Final = "e1"
