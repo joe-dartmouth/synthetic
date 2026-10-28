@@ -233,14 +233,21 @@ class Flight:
         gone, is absorbed until every call has landed, so each requested call gets its `error`
         line before the call log can close; the first interrupt still propagates.
         """
-        flying = list(wave.flying.values())
-        for task in flying:
+        # The wave's own task is among them when an interrupt left it waiting on its calls.
+        others = asyncio.all_tasks(runner.get_loop()) if wave.flying else set()
+        tasks = [*wave.flying.values(), *(others - set(wave.flying.values()))]
+        # Cancelled in call order, so their `error` lines are written in it.
+        for task in tasks:
             task.cancel()
-        while any(not task.done() for task in flying):
+        while any(not task.done() for task in tasks):
             try:
-                runner.get_loop().run_until_complete(asyncio.wait(flying))
+                runner.get_loop().run_until_complete(asyncio.wait(tasks))
             except KeyboardInterrupt:
                 continue
+        for task in tasks:
+            # Read, so no exception is reported as never retrieved; the first one propagates.
+            if not task.cancelled():
+                task.exception()
         while True:
             try:
                 runner.close()
