@@ -118,7 +118,10 @@ ladder.**
   record, the concepts the sampler drew present (label-only ones left out), one line per record
   after the level's components (`bko.generate.skeleton`). Its first sentence says the lines take
   precedence over the level's findings; then it names every concept a line may hold, with its
-  field states, and each record's line names its concepts by label, sorted by curie, or none.
+  field states, and each record's line names its concepts by label, sorted by curie, or none. A
+  decoded record is matched to a line of its call by concept set, not by position, and counts only
+  in the call's own cell (ADR `research/e1-evaluation-protocol`, The BKO arms' added rows), so a
+  reply may order its records freely.
 - **The decode.** `bko.generate.decode` reads a reply only when the model stopped on `end_turn`.
   Its items pass as decoded, in order, unfiltered and unrepaired, followed by one `Undecoded`
   placeholder per asked record short: `max(0, asked - decoded)` of them. A refusal, a truncation,
@@ -290,6 +293,7 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | Replacing `bko`'s prompt with the prescribed lines | `bko` stays the in-run control the skeleton arm is read beside | 2026-10-27 |
 | Prescriptions on `Guidance` | `Guidance` is per cell, while lines are per call | 2026-10-27 |
 | Redrawing lines on a top-up | It selects toward the concept sets the model fills easily | 2026-10-27 |
+| Positional matching of a prescribed record to its line | One skipped or reordered record shifts every later record onto the wrong line | 2026-10-28 |
 
 ## Enforcement
 

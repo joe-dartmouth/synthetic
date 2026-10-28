@@ -15,9 +15,9 @@ cover the rows still short. The arm keeps its validity counts itself, since a re
 returns no `Baseline`, and writes every candidate it saw, with its outcome, to the run's candidates
 file when the harness drains it (`bko.evaluate.holdout_candidates`). An arm given a prescribe step
 (`bko.evaluate.skeleton`) draws each attempt's lines once, hands each planned call its cell's next
-lines at wave planning, drops a record whose concepts differ from its line, and returns every line
-no record kept in its cell consumed to that cell's queue. ADR `research/e1-evaluation-protocol`
-records the rule. `guided_arms` builds a run's BKO arms over one
+lines at wave planning, drops a record outside the call's cell or matching no line of the call
+left unconsumed, and returns every line no kept record consumed to its cell's queue. ADR
+`research/e1-evaluation-protocol` records the rule. `guided_arms` builds a run's BKO arms over one
 call log and one candidates file, for the evaluate command and the app alike.
 """
 
@@ -292,12 +292,12 @@ def _committer(
         attempt: The attempt the wave fills.
         planned: Each planned call, in plan order; a group is one cell's calls.
         queues: The attempt's lines not yet consumed, None for an arm that prescribes nothing;
-            each call's lines no record kept in its cell consumed go back to its cell's queue.
+            each call's lines no kept record consumed go back to its cell's queue.
 
     Returns:
-        The callable that takes each batch. It raises `WaveError` if a batch keeps a row in a
-        cell a later group of the wave asked for, so a one-call-at-a-time run would have asked
-        that group differently.
+        The callable that takes each batch. It raises `EvaluationError` if a batch's cell is not
+        its planned call's, and `WaveError` if a batch keeps a row in a cell a later group of the
+        wave asked for, so a one-call-at-a-time run would have asked that group differently.
     """
     plan = [item.guidance.cell for item in planned]
     groups = list(dict.fromkeys(plan))
@@ -305,14 +305,21 @@ def _committer(
 
     def commit(batch: Batch) -> None:
         first = batch.index - len(taken)
-        lines: Skeleton | None = planned[len(taken)].skeleton
+        call = planned[len(taken)]
+        if batch.cell != call.guidance.cell:
+            msg = (
+                f"call {batch.index} answered cell {cell_key(batch.cell)}, but its planned call "
+                f"asked cell {cell_key(call.guidance.cell)}"
+            )
+            raise EvaluationError(msg)
+        prescription: Skeleton | None = call.skeleton
         taken.append(batch)
         before = attempt.held()
-        kept = attempt.take(batch, skeleton=lines)
-        if queues is not None and lines is not None:
+        consumed = attempt.take(batch, skeleton=prescription)
+        if queues is not None and prescription is not None:
+            lines = prescription.lines
             queues.give_back(
-                batch.cell,
-                (line for at, line in enumerate(lines.lines) if kept.get(at) != batch.cell),
+                batch.cell, [line for at, line in enumerate(lines) if at not in consumed]
             )
         after = attempt.held()
         for cell in groups[groups.index(batch.cell) + 1 :]:

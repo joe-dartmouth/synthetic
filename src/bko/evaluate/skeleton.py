@@ -4,15 +4,16 @@
 request's records once with `bko.generate.direct.sample` at the request's seed, the draw
 `bko-direct` makes for the same request, and keeps each record's drawn concepts, label-only ones
 left out, as one line. `Queues` holds each cell's lines in draw order. A wave takes each planned
-call's lines from its cell's queue at planning, in plan order; a line is consumed only by a record
-kept in the line's own cell, and every other line asked goes back to the end of its cell's queue
-for the next top-up, never redrawn (ADR `research/e1-evaluation-protocol`).
+call's lines from its cell's queue at planning, in plan order. Within one call a record is matched
+to a line by concept set, not by position, and only a record kept in the call's own cell consumes
+one (`bko.baselines.records.assess`); every other line asked goes back to the end of its cell's
+queue, in call order, for the next top-up, never redrawn (ADR `research/e1-evaluation-protocol`).
 """
 
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -28,7 +29,7 @@ from bko.generate.errors import SamplingError
 if TYPE_CHECKING:
     from bko.evaluate.guided import Knowledge
 
-type Lines = dict[Cell, tuple[frozenset[str], ...]]
+type Lines = Mapping[Cell, tuple[frozenset[str], ...]]
 """Each requested cell's lines, one per requested record, in draw order."""
 
 type Prescribe = Callable[[pd.DataFrame, Request], Lines]
@@ -67,11 +68,16 @@ def prescriber(knowledge: Knowledge) -> Prescribe:
 
 
 class Queues:
-    """Each cell's lines not yet consumed, in the order they are asked."""
+    """Each cell's lines not yet consumed, in the order they are asked.
+
+    Attributes:
+        requeued: The lines given back so far.
+    """
 
     def __init__(self, lines: Mapping[Cell, Sequence[frozenset[str]]]) -> None:
         """Queue each cell's lines in draw order."""
         self._queues = {cell: deque(held) for cell, held in lines.items()}
+        self.requeued = 0
 
     def take(self, cell: Cell, rows: int) -> tuple[frozenset[str], ...]:
         """The next `rows` lines of `cell`, taken off its queue.
@@ -80,12 +86,14 @@ class Queues:
             EvaluationError: If the queue holds fewer, which a request's own lines never allow:
                 a cell is short by no more records than its lines not consumed.
         """
-        queue = self._queues.get(cell, deque())
-        if len(queue) < rows:
-            msg = f"cell {cell} holds {len(queue)} lines for {rows} records asked"
+        queue = self._queues.get(cell)
+        held = 0 if queue is None else len(queue)
+        if queue is None or held < rows:
+            msg = f"cell {cell} holds {held} lines for {rows} records asked"
             raise EvaluationError(msg)
         return tuple(queue.popleft() for _ in range(rows))
 
-    def give_back(self, cell: Cell, lines: Iterable[frozenset[str]]) -> None:
-        """Put `lines`, asked of `cell` and not consumed, at the end of its queue."""
+    def give_back(self, cell: Cell, lines: Sequence[frozenset[str]]) -> None:
+        """Put `lines`, asked of `cell` and not consumed, at the end of its queue, in order."""
         self._queues.setdefault(cell, deque()).extend(lines)
+        self.requeued += len(lines)

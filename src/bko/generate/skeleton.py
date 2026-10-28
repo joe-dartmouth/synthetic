@@ -4,8 +4,9 @@ A `Skeleton` names every mapped concept that is not label-only, by curie, with t
 it, and holds one line per asked record: the named concepts that record must show. The concepts
 come from `bko.generate.direct.sample`'s draws (ADR `research/bkb-direct-generation`), and
 `bko.generate.prompt.render` writes the lines after the level's components (ADR
-`research/record-generation-design`, What every level sends). `Skeleton.differs` reads a decoded
-record against its line, so a record that shows other concepts is dropped and topped up.
+`research/record-generation-design`, What every level sends). `Skeleton.shows` reads the named
+concepts a decoded record shows, which `bko.baselines.records.assess` matches against the call's
+lines by concept set, so a record matching no line left unconsumed is dropped and topped up.
 """
 
 from __future__ import annotations
@@ -49,13 +50,6 @@ class Skeleton:
     def shows(self, record: Mapping[str, float]) -> frozenset[str]:
         """The named concepts `record` shows, a value per field name."""
         return shown(record, (row for one in self.named for row in one.states))
-
-    def differs(self, position: int, record: Mapping[str, float]) -> bool:
-        """Whether the record at `position` among a call's shows other concepts than its line.
-
-        A position past the lines has no line, so it differs.
-        """
-        return position >= len(self.lines) or self.shows(record) != self.lines[position]
 
 
 def prescribable(

@@ -7,7 +7,7 @@ from typing import Final
 
 import pytest
 
-from bko.baselines.records import Drop, drops
+from bko.baselines.records import Drop, Prescribed, assess, drops
 from bko.baselines.request import Request, Strata
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.rehearse import PROMPT
@@ -15,7 +15,7 @@ from bko.generate.calls import request
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Level
 from bko.generate.prompt import render
-from bko.generate.skeleton import Skeleton, prescribable, skeleton
+from bko.generate.skeleton import prescribable, skeleton
 from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import shown
 from tests._datasets_fixtures import FIXED_NOW
@@ -156,24 +156,38 @@ def test_drops_a_record_whose_concepts_differ_after_cell_before_quota():
         ]
     )
     asked = Request(quota={CELL: 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
-    differs = [False, True, True, True, False]
-    assert drops(rows, train, asked, differs=differs) == (
-        None,
-        Drop.CONCEPTS,
-        Drop.RANGE,
-        Drop.CELL,
-        Drop.QUOTA,
-    )
+    one, other = frozenset({"a"}), frozenset({"b"})
+    lined = Prescribed(CELL, (one, one), (one, other, one, one, one))
+    found = assess(rows, train, asked, prescribed=lined)
+    assert found.reasons == (None, Drop.CONCEPTS, Drop.RANGE, Drop.CELL, Drop.QUOTA)
+    assert found.lines == (0, None, None, None, None)
+    assert drops(rows, train, asked, prescribed=lined) == found.reasons
     assert drops(rows, train, asked) == (None, Drop.QUOTA, Drop.RANGE, Drop.CELL, Drop.QUOTA)
     assert list(Drop) == [Drop.RANGE, Drop.CELL, Drop.CONCEPTS, Drop.QUOTA]
-    with pytest.raises(ValueError, match="differs"):
-        drops(rows, train, asked, differs=differs[:2])
+    with pytest.raises(ValueError, match="2 concept sets for 5 rows"):
+        drops(rows, train, asked, prescribed=dataclasses.replace(lined, shows=(one, one)))
 
 
-def test_a_position_past_the_prescriptions_counts_as_differing():
-    record = _record(target=1, cp=4, restecg=0, oldpeak=0.0, trestbps=120, fbs=0, thal=3)
-    lined = Skeleton(SKELETON.named, (frozenset(),))
-    assert lined.shows(record) == frozenset()
-    assert not lined.differs(0, record)
-    assert lined.differs(1, record)
-    assert lined.differs(0, _record(target=1))
+def test_a_record_matches_any_line_of_its_call_not_consumed_in_position_order():
+    train = frame([planted(age=40, sex=0, target=1), planted(age=70, sex=1, target=0)])
+    rows = frame([planted(age=40 + n, sex=0, target=1) for n in range(4)])
+    asked = Request(quota={CELL: 4}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
+    a, b, c = frozenset({"a"}), frozenset({"b"}), frozenset()
+    reordered = assess(rows, train, asked, prescribed=Prescribed(CELL, (a, b, c, a), (c, a, a, b)))
+    assert reordered.reasons == (None, None, None, None)
+    assert reordered.lines == (2, 0, 3, 1)
+    skipped = assess(rows[:3], train, asked, prescribed=Prescribed(CELL, (a, b, c, a), (b, c, b)))
+    assert skipped.reasons == (None, None, Drop.CONCEPTS)
+    assert skipped.lines == (1, 2, None)
+
+
+def test_a_prescribed_record_kept_in_another_asked_cell_is_dropped_for_its_cell():
+    train = frame([planted(age=40, sex=0, target=1), planted(age=70, sex=1, target=0)])
+    rows = frame([planted(age=63, sex=0, target=1), planted(age=40, sex=0, target=1)])
+    sibling = (">=55", "female", 1)
+    asked = Request(quota={CELL: 2, sibling: 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
+    line = frozenset({"a"})
+    found = assess(rows, train, asked, prescribed=Prescribed(CELL, (line, line), (line, line)))
+    assert found.reasons == (Drop.CELL, None)
+    assert found.lines == (None, 0)
+    assert drops(rows, train, asked) == (None, None)

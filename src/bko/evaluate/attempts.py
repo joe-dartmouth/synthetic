@@ -3,8 +3,9 @@
 `bko.evaluate.guided` makes the calls and `bko.evaluate.direct` draws records with none; an
 `Attempt` takes each call's or draw's candidates as they come,
 validates them (`bko.validate`), drops each accepted one that `check` would refuse
-(`bko.baselines.records.drops`), and for a prescribing arm each one whose concepts differ from its
-line (`bko.generate.skeleton`), keeps the rest under the cell their own values name, and it
+(`bko.baselines.records.assess`), and for a prescribing call each one outside the call's cell or
+whose concepts match no line of the call left unconsumed (`bko.generate.skeleton`), keeps the rest
+under the cell their own values name, and it
 records each candidate's outcome for the per-holdout candidates file
 (`bko.evaluate.holdout_candidates`). `Tally` counts candidates over some calls, and `DROPPED`
 names the measure each drop reason is counted under.
@@ -20,7 +21,7 @@ from typing import Final
 
 import pandas as pd
 
-from bko.baselines.records import Drop, drops, number
+from bko.baselines.records import Drop, Prescribed, assess, number
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
 from bko.evaluate.holdout_candidates import KEPT, REJECTED, Seen
 from bko.evaluate.scores import Measure
@@ -62,7 +63,14 @@ class Tally:
     reasons: tuple[Drop, ...] = COMMON
 
     def add(self, other: Tally) -> None:
-        """Add `other`'s counts to these."""
+        """Add `other`'s counts to these.
+
+        Raises:
+            ValueError: If `other` reports other drop reasons, so its counts would be misread.
+        """
+        if other.reasons != self.reasons:
+            msg = f"a tally of {other.reasons} cannot add to one of {self.reasons}"
+            raise ValueError(msg)
         self.generated += other.generated
         self.passed += other.passed
         self.dropped.update(other.dropped)
@@ -122,7 +130,7 @@ class Attempt:
             if rows > held.get(cell, 0)
         }
 
-    def take(self, batch: Batch, *, skeleton: Skeleton | None = None) -> dict[int, Stratum]:
+    def take(self, batch: Batch, *, skeleton: Skeleton | None = None) -> frozenset[int]:
         """Validate one call's candidates, drop what `add` drops, and keep the rest.
 
         Returns:
@@ -138,7 +146,7 @@ class Attempt:
         candidates: Sequence[object],
         *,
         skeleton: Skeleton | None = None,
-    ) -> dict[int, Stratum]:
+    ) -> frozenset[int]:
         """Validate candidates asked of `cell`, drop what `check` would refuse, keep the rest.
 
         Args:
@@ -146,12 +154,14 @@ class Attempt:
             cell: The cell they were asked for.
             asked: The records asked for.
             candidates: The decoded items, then one `Undecoded` per asked record short.
-            skeleton: The call's prescriptions; a record whose concepts differ from its line, or
-                past the lines, is dropped after its cell and before the quota. None prescribes
+            skeleton: The call's prescriptions; a record outside `cell` is dropped for its
+                cell, and one whose concepts match no line left unconsumed is dropped after its
+                cell and before the quota (`bko.baselines.records.assess`). None prescribes
                 nothing.
 
         Returns:
-            Each kept candidate's position among `candidates`, with the cell it counts toward.
+            The positions among `skeleton`'s lines of those a kept record consumed; empty
+            without a skeleton.
         """
         self.asked += asked
         frame = self.request.frame
@@ -159,15 +169,20 @@ class Attempt:
         self.tally.generated += checked.generated
         self.tally.passed += checked.passed
         rows = checked.accepted
-        differs = (
+        prescribed = (
             None
             if skeleton is None
-            else [
-                skeleton.differs(position, {str(name): float(value) for name, value in row.items()})
-                for position, row in zip(rows.index.tolist(), rows.to_dict("records"), strict=True)
-            ]
+            else Prescribed(
+                cell,
+                skeleton.lines,
+                tuple(
+                    skeleton.shows({str(name): float(value) for name, value in row.items()})
+                    for row in rows.to_dict("records")
+                ),
+            )
         )
-        reasons = drops(rows, self.train, self.request, held=self.held(), differs=differs)
+        assessed = assess(rows, self.train, self.request, held=self.held(), prescribed=prescribed)
+        reasons = assessed.reasons
         self.tally.dropped.update(reason for reason in reasons if reason is not None)
         outcomes = {
             int(position): KEPT if reason is None else DROPPED[reason].value
@@ -193,7 +208,7 @@ class Attempt:
         keys = stratum_keys(kept, Strata.CELL, edges=frame.edges)
         for stratum in dict.fromkeys(keys):
             self.kept[stratum].append(kept.loc[[key == stratum for key in keys]])
-        return {int(position): key for position, key in zip(kept.index, keys, strict=True)}
+        return frozenset(line for line in assessed.lines if line is not None)
 
     def rows(self) -> pd.DataFrame:
         """The kept rows, cell by cell in the quota's order, in generation order within one."""

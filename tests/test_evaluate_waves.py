@@ -26,7 +26,6 @@ from typing import Final
 
 import pytest
 
-from bko.baselines.request import Stratum
 from bko.evaluate.__main__ import main
 from bko.evaluate.attempts import Attempt
 from bko.evaluate.experiment import SKELETON_ARM
@@ -124,8 +123,9 @@ SCRIPT: Final[Mapping[int, Edit]] = {
 among the calls that prescribe nothing."""
 
 AGAINST: Final[Mapping[int, frozenset[int]]] = {
-    # Holdout 0, `bko-skeleton`'s gap fill: two records against their lines, so both are re-asked.
-    1: frozenset({0, 3}),
+    # Holdout 0, `bko-skeleton`'s gap fill: two records against their lines, both of which ask
+    # for no finding, so two angina records match no line left and two lines are re-asked.
+    1: frozenset({0, 1}),
     # Its replica fill's first call: one record against its line.
     3: frozenset({1}),
 }
@@ -316,7 +316,7 @@ def test_a_reply_crossing_sex_inside_a_wave_stops(tmp_path: Path, caplog, monkey
 
     def spied(
         attempt: Attempt, batch: Batch, *, skeleton: Skeleton | None = None
-    ) -> dict[int, Stratum]:
+    ) -> frozenset[int]:
         taken.append(batch.index)
         return take(attempt, batch, skeleton=skeleton)
 

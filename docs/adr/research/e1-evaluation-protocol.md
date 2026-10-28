@@ -91,26 +91,33 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   shortfall, cell by cell in the quota's order and round by round, and validates every reply with
   `bko.validate`. It drops each accepted candidate `bko.baselines.records.check` would refuse, by
   `bko.baselines.records.drops`, which tests: - a numeric value outside the training split's minimum
-  and maximum, with the rule `check` uses; - then a cell the request does not ask for; - then, for
-  an arm that carries prescriptions, a record whose concepts differ from its line; - then a row
-  past its cell's quota. A candidate counts toward the cell its own values name, as `check` reads
-  it. The prescribing arm `bko-skeleton` draws each attempt's lines once, with
-  `bko.generate.direct.sample` at the request's seed, keeps them in a queue per cell and assigns
-  them at wave planning, in plan order; a line is consumed only by a record kept in the line's own
-  cell, and every other line asked returns to its cell's queue for the next top-up, never
-  redrawn. This differs from fusion's join, which drops a record whose values name another cell (ADR
+  and maximum, with the rule `check` uses; - then a cell the request does not ask for, or, in a
+  call that carries prescriptions, any cell but the call's own; - then, in such a call, a record
+  whose concepts match no line of the call left unconsumed; - then a row past its cell's quota. A
+  candidate counts toward the cell its own values name, as `check` reads it. The prescribing arm
+  `bko-skeleton` draws each attempt's lines once, with `bko.generate.direct.sample` at the
+  request's seed, keeps them in a queue per cell and assigns them at wave planning, in plan order.
+  Within one call a record is matched by concept set, not by position: it matches the first line,
+  in the call's order, whose concepts equal its own and that no earlier kept record of the call
+  consumed, and only a kept record consumes its match (`bko.baselines.records.assess`). A record
+  outside the call's cell is dropped as `dropped-cell`, not `dropped-concepts`: the reason is its
+  cell, so `dropped-concepts` counts only records that ignored their lines, and no other cell's
+  quota is filled with a line drawn for this one. Every line asked and not consumed returns to the
+  end of its cell's queue, in call order, for the next top-up, never redrawn. This differs from
+  fusion's join, which drops a record whose values name another cell (ADR
   `research/gap-closure-design`), because E1's rows are bound by `check`. The arm returns the kept
   rows cell by cell in the quota's order and in generation order within a cell. It never clips,
   rounds or repairs one, and it calls `check` before it returns. An attempt asks for at most `E1`'s
   budget, three times the request's rows, and raises a plain `BaselineError` as soon as the rest of
   that budget cannot cover the rows still short; the retries below repeat it. It logs one `guided`
   line per attempt with its outcome, its call range, the records asked, the candidates generated and
-  passed, those dropped for each reason and those kept. Its refusal's message carries the same
-  counts. A run stops, unretried, once its call log's spend reaches `E1`'s spend ceiling; the arm
-  reads the spend before every call and logs `stop rule=ceiling` before the call it refuses. With
-  calls in flight, it first reserves each lower-numbered in-flight call's worst-case spend and, if
-  the spend plus the reservations reaches the ceiling, waits for those calls and checks again
-  exactly, so the stop lands at the call an in-flight 1 run stops at. That
+  passed, those dropped for each reason and those kept, and for a prescribing arm the lines
+  re-queued. Its refusal's message carries the same counts. A run stops, unretried, once its call
+  log's spend reaches `E1`'s spend ceiling; the arm reads the spend before every call and logs
+  `stop rule=ceiling` before the call it refuses. With calls in flight, it first reserves each
+  lower-numbered in-flight call's worst-case spend and, if the spend plus the reservations reaches
+  the ceiling, waits for those calls and checks again exactly, so the stop lands at the call an
+  in-flight 1 run stops at. That
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
   (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct
@@ -127,8 +134,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   both. A refused attempt returns no `Baseline`, so the arm keeps its counts itself; the harness
   drains them after the gap fills and again after the replica fills, and writes them per holdout as
   `candidates` and `replica-candidates` scores (`generated`, `passed`, and one count per drop
-  reason; `dropped-concepts` only for a prescribing arm). `compare` sums both over the holdouts for the rate, refuses a replica arm's scores
-  without its replica counts, and logs each fill's counts and rate apart, with no verdict on a fill.
+  reason; `dropped-concepts` only for a prescribing arm). `compare` sums both over the holdouts
+  for the rate, refuses a replica arm's scores without its replica counts, and logs each fill's
+  counts and rate apart, with no verdict on a fill.
   The criterion reads `bko`'s rate: it is met when the rate reaches `E1`'s validity threshold, read
   as a point with no interval, and not met below it. A candidate dropped after validation stays in
   the rate, having passed every check. The other BKO arms' rates are reported beside it, with no
@@ -391,6 +399,8 @@ and holdout.
 | Scaling the boosting model's measured predictors | Trees split on order, so scaling changes no split | 2026-10-26 |
 | Unbounded OpenMP threads for the boosting fit | 41749 ms against 78 ms median per fit under 12 processes, for bit-identical scores | 2026-10-26 |
 | A leaf size below the whole 20-row gap fill | Passes a leaf of 19, which cannot hold the 2-row cell's rows apart | 2026-10-26 |
+| Positional matching of a prescribed record to its line | One skipped or reordered record shifts every later record onto the wrong line | 2026-10-28 |
+| Keeping a prescribed record in another asked cell | Fills that cell's quota with a line drawn for another cell, and consumes no line of its own | 2026-10-28 |
 
 ## Enforcement
 
