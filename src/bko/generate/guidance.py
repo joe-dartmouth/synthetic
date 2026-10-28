@@ -18,6 +18,7 @@ import pandas as pd
 
 from bko.bkb.structure import BKB
 from bko.datasets.cells import LABEL, SEXES, age_band_labels, cell_keys
+from bko.datasets.errors import ContractError
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import ranges
 from bko.datasets.uci import UCI_FRAME
@@ -160,8 +161,9 @@ def intervals(
         intersected with the cell's band.
 
     Raises:
-        ValueError: If the cell's band is not one of the frame's, `train` holds no record, or
-            the band and the split's ages do not overlap.
+        ValueError: If the cell's band is not one of the frame's.
+        ContractError: As `bko.datasets.split.ranges`, or if the band and the split's ages do not
+            overlap.
     """
     labels = age_band_labels(frame.edges)
     if cell[0] not in labels:
@@ -171,13 +173,13 @@ def intervals(
     bounds = ranges(train, frame)
     low, high = bounds["age"]
     if band > 0:
-        low = max(low, frame.edges[band - 1])
+        low = max(low, float(frame.edges[band - 1]))
     if band < len(frame.edges):
-        high = min(high, frame.edges[band] - 1)
+        high = min(high, float(frame.edges[band] - 1))
     if low > high:
         found = bounds["age"]
         msg = f"age band {cell[0]!r} does not overlap the split's ages {found[0]:g} to {found[1]:g}"
-        raise ValueError(msg)
+        raise ContractError(msg)
     bounds["age"] = (low, high)
     return bounds
 
@@ -222,9 +224,10 @@ def guide(
     Raises:
         ValueError: If a gap's cell is not in `cells`, a cell carries no label, a row's prefix
             has no release, or `train` holds a cell's reference group with another record count
-            than `cells` does, so it is not the frame `cells` was observed from; as `intervals`,
-            if a cell's age band and the split's ages do not overlap.
-        ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes.
+            than `cells` does, so it is not the frame `cells` was observed from.
+        ContractError: As `bko.datasets.cells.cell_keys`, for a `train` value outside its codes;
+            as `intervals`, for a split with no finite range or a cell's age band that does not
+            overlap the split's ages.
     """
     by_cell: dict[Cell, list[Statement]] = {}
     for gap in found:

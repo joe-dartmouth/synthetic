@@ -9,6 +9,7 @@ import pytest
 
 from bko.baselines.records import Drop, drops
 from bko.baselines.request import Request
+from bko.datasets.errors import ContractError
 from bko.datasets.split import ranges
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition
@@ -39,8 +40,21 @@ def test_ranges_are_each_numeric_fields_training_min_and_max():
 
 
 def test_ranges_refuse_an_empty_split():
-    with pytest.raises(ValueError, match="holds no record"):
+    with pytest.raises(ContractError, match="holds no record"):
         ranges(TRAIN_A.iloc[:0], UCI_FRAME)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_ranges_refuse_a_non_finite_bound_naming_the_field(bad):
+    broken = TRAIN_A.astype({"chol": float}).assign(chol=bad)
+    with pytest.raises(ContractError, match="chol has no finite range"):
+        ranges(broken, UCI_FRAME)
+
+
+def test_intervals_are_floats_so_age_is_never_mixed():
+    for cell in (YOUNG, OLDER):
+        found = intervals(cell, TRAIN_A, frame=UCI_FRAME)
+        assert all(isinstance(bound, float) for pair in found.values() for bound in pair), cell
 
 
 def test_intervals_follow_the_training_split():
@@ -60,7 +74,7 @@ def test_the_age_interval_intersects_the_band_and_the_split():
 
 def test_a_band_outside_the_splits_ages_is_refused():
     frame = replace(UCI_FRAME, edges=(80,))
-    with pytest.raises(ValueError, match="does not overlap"):
+    with pytest.raises(ContractError, match="does not overlap"):
         intervals((">=80", "female", 1), TRAIN_A, frame=frame)
     with pytest.raises(ValueError, match="not one of"):
         intervals(("60-69", "female", 1), TRAIN_A, frame=UCI_FRAME)
@@ -81,18 +95,35 @@ def _row(**changes: float) -> dict[str, int | float]:
     }
 
 
+def _probes(name: str, bound: float, step: float, *, up: bool) -> dict[str, float]:
+    return {name: bound + step if up else bound - step}
+
+
 def test_every_interval_is_what_the_drop_rule_enforces():
-    bounds = intervals(YOUNG, TRAIN_A, frame=UCI_FRAME)
-    request = Request(quota={YOUNG: 100})
-    inside = [_row(**{name: value}) for name, pair in bounds.items() for value in pair]
-    outside = [_row(**{name: low - 1}) for name, (low, _) in bounds.items() if name != "age"] + [
-        _row(**{name: high + 1}) for name, (_, high) in bounds.items() if name != "age"
-    ]
-    rows = pd.DataFrame([*inside, *outside, _row(age=55)]).astype(dict(UCI_FRAME.dtypes))
-    found = drops(rows, TRAIN_A, request)
-    assert found[: len(inside)] == (None,) * len(inside)
-    assert found[len(inside) : -1] == (Drop.RANGE,) * len(outside)
-    assert found[-1] is Drop.CELL
+    """Each bound keeps its row, and the first value past it drops, for both bands."""
+    split_age = (float(TRAIN_A["age"].min()), float(TRAIN_A["age"].max()))
+    steps = {"age": 1.0, "trestbps": 1.0, "chol": 1.0, "thalach": 1.0, "oldpeak": 0.1}
+    for cell in (YOUNG, OLDER):
+        bounds = intervals(cell, TRAIN_A, frame=UCI_FRAME)
+        request = Request(quota={cell: 100})
+        probes: list[tuple[dict[str, float], Drop | None]] = []
+        for name, (low, high) in bounds.items():
+            probes += [({name: low}, None), ({name: high}, None)]
+            if name == "age":
+                # A band edge drops as another cell; the split's own extreme drops as out of range.
+                for bound, extreme, up in ((low, split_age[0], False), (high, split_age[1], True)):
+                    drop = Drop.RANGE if bound == extreme else Drop.CELL
+                    probes.append((_probes(name, bound, steps[name], up=up), drop))
+            else:
+                probes += [
+                    (_probes(name, low, steps[name], up=False), Drop.RANGE),
+                    (_probes(name, high, steps[name], up=True), Drop.RANGE),
+                ]
+        rows = pd.DataFrame(
+            [_row(**{"age": 45 if cell is YOUNG else 60, **probe}) for probe, _ in probes]
+        ).astype(dict(UCI_FRAME.dtypes))
+        found = drops(rows, TRAIN_A, request)
+        assert found == tuple(drop for _, drop in probes), cell
 
 
 def _user(train: pd.DataFrame) -> tuple[str, str]:
@@ -110,3 +141,22 @@ def test_a_second_split_renders_other_bounds():
     assert "chol 180 to 300 mg/dL" in user_a
     assert "chol 180 to 400 mg/dL" in user_b
     assert user_a.replace("300 mg/dL", "400 mg/dL") == user_b
+
+
+def test_guide_refuses_a_band_outside_the_splits_ages():
+    train = TRAIN_A.assign(age=lambda frame: frame["age"].clip(upper=54))
+    cells = record_cells(train, (), name="uci")
+    with pytest.raises(ContractError, match="does not overlap the split's ages 35 to 54"):
+        guide(
+            train, cells, (), definition=Definition.SUBGROUP, fragments=(), ontologies={}, rows=()
+        )
+
+
+def test_the_age_interval_clips_a_custom_edge_set_to_the_split():
+    frame = replace(UCI_FRAME, edges=(40, 60))
+    middle = intervals(("40-59", "female", 1), TRAIN_A, frame=frame)
+    assert middle["age"] == (40, 59)
+    assert intervals(("<40", "female", 1), TRAIN_A, frame=frame)["age"] == (35, 39)
+    assert intervals((">=60", "female", 1), TRAIN_A, frame=frame)["age"] == (60, 70)
+    with pytest.raises(ValueError, match="not one of"):
+        intervals(("<55", "female", 1), TRAIN_A, frame=frame)

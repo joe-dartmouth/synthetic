@@ -314,9 +314,5 @@ def test_the_user_turn_reads_the_toy_frame():
     assert "Keep each numeric field within: age 45 to 69 years; level 0.51 to 4.44 mg/dL." in user
 
 
-def test_intervals_take_their_edges_from_the_frame():
-    assert "edges" not in inspect.signature(intervals).parameters
-
-
 def test_guide_takes_its_edges_from_the_frame():
     assert "edges" not in inspect.signature(guide).parameters

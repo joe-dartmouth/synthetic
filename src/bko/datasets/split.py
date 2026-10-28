@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.cells import AGE_BAND_EDGES, CELL_COLUMNS, cell_keys
+from bko.datasets.errors import ContractError
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import Source
@@ -100,12 +102,18 @@ def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, floa
         Each numeric field's minimum and maximum, in the frame's order.
 
     Raises:
-        ValueError: If `train` holds no record.
+        ContractError: If `train` holds no record, or a numeric field's minimum or maximum is
+            not finite (an all-missing column, or an infinite value).
     """
     if train.empty:
         msg = "the training split holds no record"
-        raise ValueError(msg)
-    return {name: (float(train[name].min()), float(train[name].max())) for name in frame.numeric}
+        raise ContractError(msg)
+    found = {name: (float(train[name].min()), float(train[name].max())) for name in frame.numeric}
+    for name, bounds in found.items():
+        if not all(math.isfinite(bound) for bound in bounds):
+            msg = f"the training split's {name} has no finite range: {bounds[0]} to {bounds[1]}"
+            raise ContractError(msg)
+    return found
 
 
 def _rank(seed: int, record: int) -> bytes:

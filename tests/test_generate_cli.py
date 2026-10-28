@@ -538,3 +538,20 @@ def test_direct_exits_2_writing_nothing_when_no_training_record_can_supply_a_dra
         r.levelno == logging.ERROR and "<55/female/1 cannot draw age" in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_split_without_a_cells_ages_exits_3_with_one_line(tmp_path, caplog):
+    young_only = uci({}, "4.0", sizes={(40, 0, 0): 25, (40, 0, 1): 25, (40, 1, 0): 25})
+    _, served = ladder_releases()
+    pinned = pin(young_only)
+    send = ScriptedSend()
+    context = make_context(
+        send, open_url=RoutingOpener({**served, pinned.url: young_only}), uci=pinned
+    )
+    code, out, log = run(tmp_path, context)
+    assert (code, out) == (3, "")
+    assert send.calls == []
+    assert not log.exists()
+    assert [record.getMessage() for record in caplog.records if record.levelno >= 40] == [
+        "age band '>=55' does not overlap the split's ages 40 to 40"
+    ]

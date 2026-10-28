@@ -73,8 +73,7 @@ def _column(name: str, frame: FrameSpec) -> str:
     if codes:
         details = "".join(f"; {code} = {meaning}" for code, meaning in codes.items())
     else:
-        bound = next(bound for bound in frame.ranges if bound.field == name)
-        unit = UNITS[bound.unit]
+        unit = field_units(frame)[name]
         # A description that already names its unit, in any case, does not get it twice.
         details = "" if unit.lower() in description.lower() else f"; {unit}"
     return f"- {name}: {description}{details}"
@@ -210,7 +209,8 @@ def render(
         frame: The frame whose fields, codes, units and decimals the prompt states.
 
     Returns:
-        The system prompt and the user turn.
+        The system prompt and the user turn. Each bound is written with `:g`, six significant
+        digits, so a bound needing more would state a value the drop rule does not enforce.
     """
     units = field_units(frame)
     low, high = guidance.interval["age"]
