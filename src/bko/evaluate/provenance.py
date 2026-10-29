@@ -33,13 +33,22 @@ VERSIONED: Final = (
 
 
 def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> None:
-    """Log the run's configuration, frame and models, then the commit and libraries it ran with."""
+    """Log the run's configuration, frame and models, then the commit and libraries it ran with.
+
+    `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
+    band, sex and label joined by `/`, then `@` and the fraction, or `none`.
+    """
+    seeds, removal = experiment.holdout_seeds, experiment.removal
     logger.info(
-        "experiment run=%s frame=%s holdouts=%d arms=%s replica=%s fill_to=%d budget=%d "
-        "validity=%s spend_ceiling=%.2f criteria=%s models=%s",
+        "experiment run=%s frame=%s holdouts=%d seeds=%d-%d removal=%s decontaminate=%s arms=%s "
+        "replica=%s fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s",
         name,
         frame,
-        len(experiment.holdout_seeds),
+        len(seeds),
+        seeds[0],
+        seeds[-1],
+        "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}",
+        "true" if experiment.decontaminate else "false",
         ",".join(experiment.arms),
         ",".join(experiment.replica_arms),
         experiment.fill_to,

@@ -279,6 +279,7 @@ def test_beside_leaves_stdout_and_logs_after_compares_lines(tmp_path, caplog):
     first = next(i for i, m in enumerate(messages) if m.startswith("beside "))
     assert not any(m.startswith(("compare ", "criterion=")) for m in messages[first:])
     assert messages[first].startswith("beside scores_sha256=")
+    assert " copies_excluded=true shared=" in messages[first]
     assert messages[first].endswith(
         " shared=4 paired=4 excluded=0 copied=0 mismatched=0 arm=smote against=smote "
         "run=e1 level=summary"
@@ -419,13 +420,18 @@ def fingerprinted(rows, value):
 def test_beside_refuses_scores_of_another_flagged_scope(tmp_path, caplog):
     ours = fingerprinted(scores(range(4), shifts=OURS), 1.0)
     theirs = fingerprinted(scores(range(4), shifts=THEIRS), 2.0)
-    assert pairable(ours, theirs) == Pairing(frozenset(), shared=4, copied=0, mismatched=4)
+    assert pairable(ours, theirs) == Pairing(
+        frozenset(), shared=4, copied=0, mismatched=4, flagged=tuple((h, 1, 2) for h in range(4))
+    )
     same = fingerprinted(scores(range(4), shifts=THEIRS), 1.0)
     assert pairable(ours, same).holdouts == frozenset(range(4))
     paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         assert run([paths[0], "--beside", paths[1]]) == (2, "")
     assert " shared=4 paired=0 excluded=4 copied=0 mismatched=4 " in caplog.text
+    lines = beside_lines(caplog)
+    assert lines[:4] == [f"beside flagged holdout={h} ours=1 theirs=2" for h in range(4)]
+    assert lines[4].startswith("beside scores_sha256=")
 
 
 def test_beside_pairs_old_files_without_a_fingerprint():
@@ -449,14 +455,16 @@ def test_pairable_allows_copies_for_a_run_that_keeps_them(tmp_path, caplog):
     ours, theirs = kept(ours), kept(scores(range(4), shifts=THEIRS))
     assert pairable(ours, theirs).copied == 1
     assert pairable(ours, theirs, allow_copies=True) == Pairing(
-        frozenset(range(4)), shared=4, copied=0, mismatched=0
+        frozenset(range(4)), shared=4, copied=0, mismatched=0, copies_excluded=False
     )
     paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
     keeps = Context(experiment=dataclasses.replace(CLI, criteria=(), decontaminate=False))
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         code = main(["compare", str(paths[0]), "--beside", str(paths[1])], context=keeps)
     assert code == 0
-    assert " shared=4 paired=4 excluded=0 copied=0 mismatched=0 " in caplog.text
+    assert " copies_excluded=false shared=4 paired=4 excluded=0 copied=0 mismatched=0 " in (
+        caplog.text
+    )
 
 
 @pytest.mark.parametrize("copied", ["ours", "theirs"])

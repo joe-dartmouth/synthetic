@@ -92,12 +92,18 @@ class Pairing:
         copied: The shared holdouts excluded because an arm in either file copied a test record.
         mismatched: The other excluded shared holdouts, whose held-out rows or flagged cells do
             not match.
+        copies_excluded: False when a copy excludes no shared holdout under the rule, since
+            `allow_copies` is set and both files hold `copies-kept` on every one of them.
+        flagged: Each mismatched holdout whose two `flagged-fingerprint` scores differ, with ours
+            and theirs read as integers, in holdout order.
     """
 
     holdouts: frozenset[int]
     shared: int
     copied: int
     mismatched: int
+    copies_excluded: bool = True
+    flagged: tuple[tuple[int, int, int], ...] = ()
 
     @property
     def excluded(self) -> int:
@@ -123,21 +129,37 @@ def pairable(
     keep copies scored its arms on a split without the copied records.
 
     Returns:
-        The holdouts that pair, and the shared holdouts excluded for a copy and for a mismatch.
+        The holdouts that pair, the shared holdouts excluded for a copy and for a mismatch,
+        whether a copy can exclude a shared holdout, and the mismatched holdouts whose flagged
+        cells differ.
     """
     shared = {s.holdout for s in ours} & {s.holdout for s in theirs}
     held_ours, held_theirs = _held_out(ours), _held_out(theirs)
     copied = shared & {
         s.holdout for s in (*ours, *theirs) if s.measure is Measure.TEST_COPIES and s.value != 0
     }
-    if allow_copies:
-        copied -= _keeps(held_ours) & _keeps(held_theirs)
+    kept = _keeps(held_ours) & _keeps(held_theirs) if allow_copies else set()
+    copied -= kept
     paired = frozenset(
         holdout
         for holdout in shared - copied
         if holdout in held_ours and _same(held_ours[holdout], held_theirs.get(holdout, {}))
     )
-    return Pairing(paired, len(shared), len(copied), len(shared) - len(copied) - len(paired))
+    flagged = tuple(
+        (holdout, int(held_ours[holdout][_FINGERPRINT]), int(held_theirs[holdout][_FINGERPRINT]))
+        for holdout in sorted(shared - copied)
+        if _FINGERPRINT in held_ours.get(holdout, {})
+        and _FINGERPRINT in held_theirs.get(holdout, {})
+        and not _bitwise(held_ours[holdout][_FINGERPRINT], held_theirs[holdout][_FINGERPRINT])
+    )
+    return Pairing(
+        paired,
+        len(shared),
+        len(copied),
+        len(shared) - len(copied) - len(paired),
+        copies_excluded=not shared <= kept,
+        flagged=flagged,
+    )
 
 
 def check(

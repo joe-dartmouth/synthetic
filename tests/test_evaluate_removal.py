@@ -7,6 +7,7 @@ removing 0.9 of `>=70 female 1` leaves 2, and at `fill_to` 5 that cell alone is 
 from __future__ import annotations
 
 import dataclasses
+import logging
 from hashlib import sha256
 
 import pandas as pd
@@ -190,3 +191,52 @@ def test_a_run_that_keeps_copies_says_so_on_every_holdout(decontaminate):
     assert all(
         (s.arm, s.source, s.scope) == (HELD_OUT_ARM, Source.HELD_OUT, Scope.ALL) for s in found
     )
+
+
+def _lines(caplog, prefix):
+    return [m for m in caplog.messages if m.startswith(prefix)]
+
+
+def test_each_holdout_logs_its_removal_and_flagged_cells(caplog):
+    with caplog.at_level(logging.INFO):
+        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+    kept, removed = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)
+    whole = len(TOY_PARTS.train)
+    line = (
+        f"removal holdout={TOY_PARTS.seed} cell=>=70/female/1 fraction=0.9 train={whole} "
+        f"removed={len(removed)} kept={len(kept.train)}"
+    )
+    assert _lines(caplog, "removal ") == [line]
+    assert _lines(caplog, "flagged ") == [f"flagged holdout={TOY_PARTS.seed} cells=>=70/female/1"]
+
+
+def test_no_removal_logs_no_removal_line(caplog):
+    with caplog.at_level(logging.INFO):
+        prepared(TOY_PARTS, None, edges=TOY.edges)
+    assert not _lines(caplog, "removal ")
+
+
+def test_the_real_arms_line_reads_attempt_1_the_gap_seed_and_no_params(caplog):
+    with caplog.at_level(logging.INFO):
+        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+    removed = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)[1]
+    (line,) = _lines(caplog, f"arm holdout={TOY_PARTS.seed} arm={REAL_ARM} ")
+    assert line.startswith(
+        f"arm holdout={TOY_PARTS.seed} arm={REAL_ARM} attempt=1 seed={TOY_PARTS.seed} "
+        f"added={len(removed)} sha256="
+    )
+    assert line.endswith(" params={}")
+
+
+@pytest.mark.parametrize("decontaminate", [False, True])
+def test_the_test_line_says_whether_copies_are_kept(caplog, decontaminate):
+    experiment = dataclasses.replace(
+        TOY_E3, arms=("none", "copier"), candidate="copier", decontaminate=decontaminate
+    )
+    arms = {**ARMS, "copier": copier(TOY_PARTS.test, 3)}
+    with caplog.at_level(logging.INFO):
+        score_holdout(TOY_PARTS, experiment, arms, models=LR, frame=TOY)
+    kept = "false" if decontaminate else "true"
+    assert _lines(caplog, "test ") == [
+        f"test holdout={TOY_PARTS.seed} records={len(TOY_PARTS.test)} copied=3 kept={kept}"
+    ]

@@ -89,7 +89,8 @@ def prepared(
     """`parts` with `removal`'s rows gone from its training rows, and the rows removed.
 
     The draw takes the split's seed (`bko.datasets.ablation.thinned`), and the test rows are
-    `parts`' own. With no removal, `parts` itself and no row.
+    `parts`' own. With no removal, `parts` itself and no row. A removal logs one `removal` line:
+    the holdout, the cell, the fraction, and the training rows before, removed and kept.
 
     Raises:
         DatasetError: As `thinned`, if the removal's cell holds no training row.
@@ -100,6 +101,15 @@ def prepared(
         parts.train, cell=removal.cell, edges=edges, fraction=removal.fraction, seed=parts.seed
     )
     removed = parts.train.loc[~parts.train.index.isin(kept.index)]
+    logger.info(
+        "removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d",
+        parts.seed,
+        "/".join(map(str, removal.cell)),
+        removal.fraction,
+        len(parts.train),
+        len(removed),
+        len(kept),
+    )
     return Split(kept, parts.test, parts.seed), removed
 
 
@@ -194,6 +204,7 @@ def score_holdout(
     gap = gap_request(train, experiment, seed=seed, frame=frame)
     _log_quota(seed, gap)
     cells = flagged(train, experiment, edges=frame.edges)
+    logger.info("flagged holdout=%d cells=%s", seed, ",".join("/".join(map(str, c)) for c in cells))
     fills = {
         name: _real(removed, train, holdout=seed, seed=gap.seed, frame=frame)
         if name == REAL_ARM
@@ -260,10 +271,18 @@ def _scored_split(
 ) -> pd.DataFrame:
     """The test records every arm is scored on, after logging how many some arm's rows copy.
 
-    E1's rule drops each copied record; with `keep_copies` the whole split is scored.
+    A test record is copied when some arm's added or replica row equals it in every one of
+    `frame`'s columns. E1's rule drops each copied record; with `keep_copies` the whole split is
+    scored, and the `test` line reads `kept=true`.
     """
     clean = decontaminated(test, added, frame=frame)
-    logger.info("test holdout=%d records=%d copied=%d", holdout, len(test), len(test) - len(clean))
+    logger.info(
+        "test holdout=%d records=%d copied=%d kept=%s",
+        holdout,
+        len(test),
+        len(test) - len(clean),
+        "true" if keep_copies else "false",
+    )
     return test if keep_copies else clean
 
 

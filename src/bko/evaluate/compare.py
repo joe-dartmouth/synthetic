@@ -165,11 +165,15 @@ def _prepare(
 
 
 def _log_counts(reading: _Reading, run: str, level: str) -> None:
+    """Log a `beside flagged` line per holdout whose flagged cells differ, then the counts."""
     pairing = reading.pairing
+    for holdout, ours, theirs in pairing.flagged:
+        logger.info("beside flagged holdout=%d ours=%d theirs=%d", holdout, ours, theirs)
     logger.info(
-        "beside scores_sha256=%s shared=%d paired=%d excluded=%d copied=%d mismatched=%d "
-        "arm=%s against=%s run=%s level=%s",
+        "beside scores_sha256=%s copies_excluded=%s shared=%d paired=%d excluded=%d copied=%d "
+        "mismatched=%d arm=%s against=%s run=%s level=%s",
         reading.digest,
+        "true" if pairing.copies_excluded else "false",
         pairing.shared,
         len(pairing.holdouts),
         pairing.excluded,

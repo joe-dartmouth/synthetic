@@ -406,12 +406,19 @@ start or the supervisor cannot run.
 - **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
-  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d arms=%s
-  replica=%s fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s`, and a
+  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
+  removal=%s decontaminate=%s arms=%s replica=%s fill_to=%d budget=%d validity=%s
+  spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
+  the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
+  `false`), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
-  per holdout the split line `cells` prints, one `quota` line per stratum, one `arm` line per fill
+  per holdout the split line `cells` prints, for a run with a removal (`e3` and its slices) a
+  `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
+  before the removal, those it removed and those it kept), one `quota` line per stratum, a
+  `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
+  comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
   the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
   `params={}`), a `retry` warning for each refused attempt before the last, and a
@@ -440,8 +447,10 @@ start or the supervisor cannot run.
   validity is undefined`, a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
-  `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
-  copied, which leave the test split unless the run keeps copies (`e3` and its slices), and at
+  `live_usd=`, `resume=` and `rehearsal=`), a `test holdout=%d records=%d copied=%d kept=%s` line
+  per holdout, `copied=` counting the test records some arm's added or replica row equals in every
+  frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
+  `kept=true`), and at
   the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
@@ -463,12 +472,16 @@ start or the supervisor cannot run.
   judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
   the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it
-  then logs a `beside` counts line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`,
-  `mismatched=`, `arm=`, `against=`, `run=`, `level=`), then per series a `beside` line (`arm=`,
+  then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
+  excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
+  `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
+  `against=`, `run=`, `level=`; `copies_excluded=false` when a copy can exclude no shared holdout,
+  since the run keeps copies and both files hold `copies-kept` on each), then per series a
+  `beside` line (`arm=`,
   `against=`, `run=`, `level=`, `source=`, `measure=`, `scope=`, `mean=`, `low=`, `high=`,
   `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line (`arm=`, `against=`, `run=`,
   `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`, `defined=`); a
-  refused reading logs the counts line alone. An experiment copies them into its Runs row in
+  refused reading logs its `beside flagged` lines and the counts line alone. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`. It holds `E1` as `e1`, `G2`
   as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)), each
