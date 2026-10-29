@@ -289,6 +289,19 @@ def test_read_refuses_a_file_that_is_not_a_candidates_file(data):
         read(data)
 
 
+def test_schema_2_reads_a_prescribing_arms_concept_drop():
+    dropped = {
+        **{key: value for key, value in LINE.items() if key != "undecoded"},
+        "arm": "bko-skeleton",
+        "candidate": {"age": 40},
+        "outcome": "dropped-concepts",
+        "failed": [],
+    }
+    (line,) = read(HEADER + json.dumps(dropped).encode() + b"\n").candidates
+    assert (line.arm, line.outcome) == ("bko-skeleton", "dropped-concepts")
+    assert SCHEMA == 2
+
+
 def test_read_takes_a_header_and_a_well_formed_line():
     kept = read(HEADER + json.dumps(LINE).encode() + b"\n")
     assert kept.header["run"] == "e1"

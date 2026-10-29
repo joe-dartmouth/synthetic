@@ -91,6 +91,7 @@ def test_every_run_name_is_pinned():
         "g3-summary",
         "g4-low",
         "g4-medium",
+        "g5",
     }
 
 

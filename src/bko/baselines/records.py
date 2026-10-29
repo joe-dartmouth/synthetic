@@ -4,7 +4,8 @@
 UCI's by default), so the harness treats a method's rows like any generator's. Added rows are
 numbered -1, -2, ... so no `record_id` of the archive can collide with one.
 
-`drops` exposes the per-row rules, so a runner that drops rows uses the rules `check` refuses by.
+`drops` exposes the per-row rules, so a runner that drops rows uses the rules `check` refuses by;
+`assess` also says which prescribed line each kept row of a prescribing call consumed.
 """
 
 from __future__ import annotations
@@ -30,12 +31,19 @@ INDEX_NAME: Final = "record_id"
 
 
 class Drop(enum.StrEnum):
-    """Why `check` would refuse an added row, in the order `drops` tests each reason."""
+    """Why an added row is dropped, in the order `drops` tests each reason.
+
+    `check` refuses a row for every reason but `CONCEPTS`, which holds only for a request that
+    prescribes each row's concepts (`bko.generate.skeleton`).
+    """
 
     RANGE = "range"
     """A measured value lies outside the training split's minimum and maximum."""
     CELL = "cell"
-    """The row's own cell is not one the request asks for."""
+    """The row's own cell is not one the request asks for, or, in a prescribing call, not the
+    call's own cell."""
+    CONCEPTS = "concepts"
+    """The row's concepts equal no line of its call that an earlier kept row left unconsumed."""
     QUOTA = "quota"
     """Its cell already holds every row the request asks of it."""
 
@@ -130,35 +138,110 @@ def within_split(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class Prescribed:
+    """One prescribing call's lines and each row's concepts, as `assess` matches them.
+
+    Attributes:
+        cell: The cell the call asked for; a row whose own cell is another is dropped as
+            `Drop.CELL`, so a line is consumed only in its own cell.
+        lines: Per asked record, in the call's order, the concepts it must show.
+        shows: Per row, in order, the concepts it shows.
+    """
+
+    cell: Stratum
+    lines: tuple[frozenset[str], ...]
+    shows: tuple[frozenset[str], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Assessed:
+    """Each row's outcome under `assess`.
+
+    Attributes:
+        reasons: Per row, the first reason it is dropped for, or None for a row kept.
+        lines: Per row, the position of the line a kept row of a prescribing call consumed, or
+            None.
+    """
+
+    reasons: tuple[Drop | None, ...]
+    lines: tuple[int | None, ...]
+
+
+def assess(
+    rows: pd.DataFrame,
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    held: Mapping[Stratum, int] | None = None,
+    prescribed: Prescribed | None = None,
+) -> Assessed:
+    """Each row's first drop reason and, for a prescribing call, the line each kept row consumed.
+
+    Rows are read in order, and a row's cell is the one its own values name under the request's
+    frame. A row past its cell's quota counts the rows kept before it, `held` included. A row
+    dropped for an earlier reason uses none of the quota. With `prescribed`, a row outside the
+    call's own cell is dropped for its cell, and after its cell and before the quota a row is
+    matched by concept set: it matches the first line, in the call's order, that equals its
+    concepts and no earlier kept row consumed, and it is dropped for its concepts if none does. A
+    row kept consumes its match; a row dropped consumes nothing.
+
+    Raises:
+        ValueError: If `prescribed` does not hold one concept set per row.
+    """
+    if prescribed is not None and len(prescribed.shows) != len(rows):
+        msg = f"prescribed holds {len(prescribed.shows)} concept sets for {len(rows)} rows"
+        raise ValueError(msg)
+    frame = request.frame
+    inside = within_split(rows, train, frame).all(axis="columns").tolist()
+    keys = stratum_keys(rows, request.strata, edges=frame.edges)
+    taken = Counter(held or {})
+    consumed: set[int] = set()
+    reasons: list[Drop | None] = []
+    lines: list[int | None] = []
+    for row, (fits, key) in enumerate(zip(inside, keys, strict=True)):
+        match = None if prescribed is None else _match(prescribed, row, consumed)
+        if not fits:
+            reason: Drop | None = Drop.RANGE
+        elif key not in request.quota or (prescribed is not None and key != prescribed.cell):
+            reason = Drop.CELL
+        elif prescribed is not None and match is None:
+            reason = Drop.CONCEPTS
+        elif taken[key] >= request.quota[key]:
+            reason = Drop.QUOTA
+        else:
+            taken[key] += 1
+            reason = None
+            if match is not None:
+                consumed.add(match)
+        reasons.append(reason)
+        lines.append(match if reason is None else None)
+    return Assessed(tuple(reasons), tuple(lines))
+
+
+def _match(prescribed: Prescribed, row: int, consumed: set[int]) -> int | None:
+    """The first line of `prescribed` equal to row `row`'s concepts and not `consumed`."""
+    shows = prescribed.shows[row]
+    return next(
+        (at for at, line in enumerate(prescribed.lines) if at not in consumed and line == shows),
+        None,
+    )
+
+
 def drops(
     rows: pd.DataFrame,
     train: pd.DataFrame,
     request: Request,
     *,
     held: Mapping[Stratum, int] | None = None,
+    prescribed: Prescribed | None = None,
 ) -> tuple[Drop | None, ...]:
-    """The first reason `check` would refuse each row for, or None for a row it would keep.
+    """The first reason each row is dropped for, or None for a row kept, as `assess` reads them.
 
-    Rows are read in order, and a row's cell is the one its own values name under the request's
-    frame. A row past its cell's quota counts the rows kept before it, `held` included. A row
-    dropped for an earlier reason uses none of the quota.
+    Raises:
+        ValueError: As `assess`.
     """
-    frame = request.frame
-    inside = within_split(rows, train, frame).all(axis="columns").tolist()
-    keys = stratum_keys(rows, request.strata, edges=frame.edges)
-    taken = Counter(held or {})
-    reasons: list[Drop | None] = []
-    for fits, key in zip(inside, keys, strict=True):
-        if not fits:
-            reasons.append(Drop.RANGE)
-        elif key not in request.quota:
-            reasons.append(Drop.CELL)
-        elif taken[key] >= request.quota[key]:
-            reasons.append(Drop.QUOTA)
-        else:
-            taken[key] += 1
-            reasons.append(None)
-    return tuple(reasons)
+    return assess(rows, train, request, held=held, prescribed=prescribed).reasons
 
 
 def check(baseline: Baseline, train: pd.DataFrame, request: Request) -> None:

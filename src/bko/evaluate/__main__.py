@@ -59,7 +59,7 @@ from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import BKO_ARMS, DEFAULT_RUN
+from bko.evaluate.experiment import DEFAULT_RUN, MESSAGES_ARMS
 from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
@@ -136,7 +136,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         raise EvaluationError(msg)
     name = args.run or match["entry"]
     context = _named(name, context)
-    if not set(context.experiment.arms) & set(BKO_ARMS):
+    if not set(context.experiment.arms) & set(MESSAGES_ARMS):
         msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.resume is not None and args.resume.is_file():

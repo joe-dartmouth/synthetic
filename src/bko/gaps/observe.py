@@ -30,7 +30,7 @@ from bko.datasets.cells import (
 from bko.datasets.synthea import SYNTHEA_AGE_BAND_EDGES, Population, subjects
 from bko.gaps.errors import GapError
 from bko.ontology.fragments import INDIVIDUAL
-from bko.ontology.schema import CodeMapping, FieldMapping
+from bko.ontology.schema import CodeMapping, FieldMapping, shown
 
 
 type Cell = tuple[str | int, ...]
@@ -235,7 +235,7 @@ def _observed(name: str, records: int, holders: dict[str, int]) -> Observed:
 def _record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
     """Whether each record of `frame`, by position, shows each concept `rows` map, in sorted order.
 
-    A record shows a concept when any row mapping it applies.
+    A record shows a concept when any row mapping it applies (`bko.ontology.schema.shown`).
 
     Raises:
         GapError: If a row reads a field `frame` lacks.
@@ -250,9 +250,9 @@ def _record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: st
         dict(zip(fields, values, strict=True))
         for values in frame.itertuples(index=False, name=None)
     ]
+    shows = [shown(record, mappings) for record in records]
     columns = {
-        concept: [any(row.applies(record) for row in mapped) for record in records]
-        for concept, mapped in sorted(_by_concept(mappings).items())
+        concept: [concept in one for one in shows] for concept in sorted(_by_concept(mappings))
     }
     return pd.DataFrame(columns, index=pd.RangeIndex(len(records)), dtype=bool)
 

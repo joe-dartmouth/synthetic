@@ -356,9 +356,10 @@ start or the supervisor cannot run.
   no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
   attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
-  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell` or
-  `dropped-quota`) and the `failed` checks of a rejected one. Lines are written when the harness
-  drains a holdout: after every arm's gap fill, then after every replica fill. A stopped run's file
+  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell`,
+  `dropped-concepts`, a prescribing arm's alone, or `dropped-quota`) and the `failed` checks of a
+  rejected one. Lines are written when the harness drains a holdout: after every arm's gap fill,
+  then after every replica fill. A stopped run's file
   holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
   even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
   fill's lines count what its `candidates` or `replica-candidates` rows count;
@@ -391,8 +392,18 @@ start or the supervisor cannot run.
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
   the method's parameters, a `retry` warning for each refused attempt before the last, and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
-  per BKO attempt a `guided` line (outcome, seed, call range, records asked, candidates generated
-  and passed, dropped for each reason, kept, the run's spend), a `spend` line before each BKO call
+  per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
+  generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
+  (`calls=` is the attempt's call range `<first>-<last>`, or `none` for an attempt refused before
+  any call, and `usd=` the run's spend so far); for the prescribing arm `bko-skeleton` it reads
+  `guided arm=%s seed=%d outcome=%s calls=%s asked=%d generated=%d passed=%d dropped_range=%d
+  dropped_cell=%d dropped_concepts=%d dropped_quota=%d kept=%d requeued=%d usd=%.4f`, where
+  `requeued=` counts the attempt's lines returned to their cell's queue. That arm also logs, after
+  each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
+  (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
+  their concepts and lines re-queued), so an arm starving on concept drops shows before its
+  attempt ends, and, from logger `bko.generate.direct`, the `direct key=` and `fallback` lines of
+  each attempt's draw of its lines, as `g2` logs them. It logs a `spend` line before each BKO call
   with the run's spend so far and the ceiling, a
   `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call waits
   for the calls in flight because their reservations reach the ceiling, a `halt call=%d unsent=%d`
@@ -406,12 +417,17 @@ start or the supervisor cannot run.
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
-  copied, and at the end of the run, a stopped run included, one `validity` line per BKO arm, its
-  counts over both fills. A resume logs a WARNING for a cut final line it drops from the stopped log
-  and one for each call it drops: the unanswered last call, or for a concurrent log every call from
-  the first unanswered one. It logs a `resume live from call` line before its first live call. A
-  fill that stops the run logs a `refused` or `contract` error naming the holdout and arm. `compare`
-  logs a `compare` line with the candidate, whether it is a dry run and the scores file's sha256,
+  copied, and at the end of the run, a stopped run included, one `validity` line per Messages arm,
+  `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
+  usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
+  over both fills and its own spend in USD, the sum of each of its attempts' change in the call
+  log's spend. A concept-drop rate reads `dropped_concepts` over `passed` from that line, since
+  only a candidate that passed validation can be dropped for its concepts. A resume logs a WARNING
+  for a cut final line it drops from the stopped log and one for each call it drops: the unanswered
+  last call, or for a concurrent log every call from the first unanswered one. It logs a `resume
+  live from call` line before its first live call. A fill that stops the run logs a `refused` or
+  `contract` error naming the holdout and arm. `compare` logs a `compare` line with the candidate,
+  whether it is a dry run and the scores file's sha256,
   then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
   `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
   `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure
@@ -429,14 +445,16 @@ start or the supervisor cannot run.
   `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`, `defined=`); a
   refused reading logs the counts line alone. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`, which holds `E1` as `e1` and
-  `G2` as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)) and each
-  guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)) and each
-  effort-sweep run as `g4-low` and `g4-medium`
-  ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)); no flag changes
-  a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and
-  candidates are recorded and where calls are answered from, and `--in-flight` how many calls
-  overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.
+- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`. It holds `E1` as `e1`, `G2`
+  as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)), each
+  guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)), each
+  effort-sweep run as `g4-low` and `g4-medium` ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)),
+  and the skeleton run as `g5`, whose `bko-skeleton` arm prescribes each record's concepts beside
+  an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). No flag
+  changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
+  calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
+  calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
+  per run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
@@ -685,8 +703,10 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   record count, and the guidance of the chosen level; at `summary`, also the quartiles of each
   numeric field over the same-label records of the other cells, that reference group's record count
   and each mapped concept's share of it in percent (the `profile` block). Every `SETTINGS` run
-  sends them. No record is sent, but every bound and quartile is a real training value, and a
-  small split or reference group exposes them together as a record. Check a DUA's terms for them
+  sends them. A `bko-skeleton` request also sends each asked record's drawn concept names: ontology
+  labels drawn at the fused BKB's aggregate shares, never a record's values. No record is sent, but
+  every bound and quartile is a real training value, and a small split or reference group exposes
+  them together as a record. Check a DUA's terms for them
   ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.

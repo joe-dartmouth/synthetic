@@ -243,7 +243,9 @@ field's training-split minimum and maximum (age within the cell's band), the 25t
 percentiles of each numeric field over the same-label records of the other cells (the `summary`
 level), that reference group's record count and each mapped concept's share of it in percent (the
 `profile` block, which `summary` includes), and ontology guidance to the Anthropic Messages API.
-Every run at `SETTINGS`' level, `summary`, sends them. No call carries a record, but every bound
+Every run at `SETTINGS`' level, `summary`, sends them. A `bko-skeleton` call also sends each asked
+record's drawn concept names: ontology labels drawn at the fused BKB's aggregate shares, never a
+record's values. No call carries a record, but every bound
 and percentile is a real training value: two per numeric field leave on each call, three more per
 field at `summary`. Their exposure grows as the split or a reference group shrinks, since
 a group of one record sends that record's values and a split of identical records sends a whole

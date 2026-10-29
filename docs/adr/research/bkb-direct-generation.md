@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -79,6 +79,11 @@ concept shares, not the ontology's structure: closure is recorded and never read
    with `definition` and `guidance` null (ADR `research/gap-closure-design`). `--log` names the
    draw log: one `draw` line per record with its call, cell, position, drawn concepts, closure and
    fallback fields.
+9. **Prescriptions.** `sample`'s draw at a request's seed also feeds `bko-skeleton`'s
+   prescriptions (`bko.evaluate.skeleton`): each record's drawn concepts, label-only ones left
+   out, become one line of a Messages request, which the model fills (ADR
+   `research/record-generation-design`, What every level sends). The lines equal the draws
+   `bko-direct` makes for the same request.
 
 ## Rationale
 

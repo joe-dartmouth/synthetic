@@ -233,14 +233,17 @@ def test_three_bko_arms_share_one_log_and_replay_byte_for_byte(tmp_path, caplog)
     send.assert_consumed()
     live = _validity(caplog)
     assert live == [
-        "validity arm=bko generated=56 passed=56 dropped_range=0 dropped_cell=0 dropped_quota=0",
+        (
+            "validity arm=bko generated=56 passed=56 dropped_range=0 dropped_cell=0 "
+            "dropped_quota=0 usd=0.0014"
+        ),
         (
             "validity arm=bko-population generated=58 passed=58 dropped_range=2 dropped_cell=0 "
-            "dropped_quota=0"
+            "dropped_quota=0 usd=0.0014"
         ),
         (
             "validity arm=bko-frequency generated=60 passed=60 dropped_range=0 dropped_cell=0 "
-            "dropped_quota=4"
+            "dropped_quota=4 usd=0.0014"
         ),
     ]
     frame = pd.read_csv(io.StringIO(out.getvalue()))
@@ -318,7 +321,10 @@ def test_a_refusal_retry_and_top_up_replay_byte_for_byte(tmp_path, caplog):
     assert asked[6:9] == [12, 16, 1]
     live = _validity(caplog)
     assert live == [
-        "validity arm=bko generated=141 passed=141 dropped_range=85 dropped_cell=0 dropped_quota=0"
+        (
+            "validity arm=bko generated=141 passed=141 dropped_range=85 dropped_cell=0 "
+            "dropped_quota=0 usd=0.0039"
+        )
     ]
     caplog.clear()
     again = io.StringIO()
@@ -388,7 +394,10 @@ def test_a_failure_mid_run_keeps_the_calls_before_it_in_the_sums(tmp_path, caplo
     assert "outcome=returned calls=1-2 " in guided[0]
     assert "outcome=failed calls=3-4 " in guided[1]
     assert _validity(caplog) == [
-        "validity arm=bko generated=40 passed=40 dropped_range=0 dropped_cell=0 dropped_quota=0"
+        (
+            "validity arm=bko generated=40 passed=40 dropped_range=0 dropped_cell=0 "
+            "dropped_quota=0 usd=0.0010"
+        )
     ]
 
 
@@ -410,7 +419,10 @@ def test_a_failed_gap_query_exits_two_unretried(tmp_path, caplog, monkeypatch):
     assert send.calls == []
     assert "no fragment holds" in caplog.text
     assert _validity(caplog) == [
-        "validity arm=bko generated=0 passed=0 dropped_range=0 dropped_cell=0 dropped_quota=0"
+        (
+            "validity arm=bko generated=0 passed=0 dropped_range=0 dropped_cell=0 dropped_quota=0 "
+            "usd=0.0000"
+        )
     ]
 
 
@@ -443,14 +455,17 @@ def test_every_bko_arm_fills_a_replica_counted_apart_and_replayed(tmp_path, capl
     assert asked == ([12, 16] * 3 + [rows for *_, rows in REPLICA_QUOTA] * 3) * 2
     live = _validity(caplog)
     assert live == [
-        "validity arm=bko generated=322 passed=320 dropped_range=0 dropped_cell=0 dropped_quota=0",
+        (
+            "validity arm=bko generated=322 passed=320 dropped_range=0 dropped_cell=0 "
+            "dropped_quota=0 usd=0.0070"
+        ),
         (
             "validity arm=bko-population generated=328 passed=328 dropped_range=8 dropped_cell=0 "
-            "dropped_quota=0"
+            "dropped_quota=0 usd=0.0070"
         ),
         (
             "validity arm=bko-frequency generated=326 passed=326 dropped_range=0 dropped_cell=0 "
-            "dropped_quota=6"
+            "dropped_quota=6 usd=0.0070"
         ),
     ]
     frame = pd.read_csv(io.StringIO(out.getvalue()))

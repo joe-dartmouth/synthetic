@@ -15,7 +15,6 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-bkb-skeleton-fill`](generate-bkb-skeleton-fill.md) | ready | -- | Shirley | final-report |
 | [`generate-bkb-curation`](generate-bkb-curation.md) | ready | -- | Shirley | final-report |
 
 ### Evaluation power
@@ -30,7 +29,6 @@ the ROADMAP heading it serves.
 
 ```mermaid
 flowchart LR
-    skeleton_fill[generate-bkb-skeleton-fill]
     bkb_curation[generate-bkb-curation]
     dose_response[evaluate-dose-response]
     scarcity_curve[evaluate-data-scarcity-curve]

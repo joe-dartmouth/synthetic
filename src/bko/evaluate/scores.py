@@ -60,6 +60,9 @@ class Measure(enum.StrEnum):
     PASSED = "passed"
     DROPPED_RANGE = "dropped-range"
     DROPPED_CELL = "dropped-cell"
+    DROPPED_CONCEPTS = "dropped-concepts"
+    """A prescribing arm's candidates dropped for showing other concepts than their line; no
+    other arm writes it."""
     DROPPED_QUOTA = "dropped-quota"
     TEST_COPIES = "test-copies"
 

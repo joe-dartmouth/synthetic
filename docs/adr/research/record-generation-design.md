@@ -114,7 +114,14 @@ ladder.**
   - the cell and its training record count;
   - an instruction to invent new patients.
 
-  No level sends a record.
+  No level sends a record. A request for a prescribing arm (`bko-skeleton`) carries, per asked
+  record, the concepts the sampler drew present (label-only ones left out), one line per record
+  after the level's components (`bko.generate.skeleton`). Its first sentence says the lines take
+  precedence over the level's findings; then it names every concept a line may hold, with its
+  field states, and each record's line names its concepts by label, sorted by curie, or none. A
+  decoded record is matched to a line of its call by concept set, not by position, and counts only
+  in the call's own cell (ADR `research/e1-evaluation-protocol`, The BKO arms' added rows), so a
+  reply may order its records freely.
 - **The decode.** `bko.generate.decode` reads a reply only when the model stopped on `end_turn`.
   Its items pass as decoded, in order, unfiltered and unrepaired, followed by one `Undecoded`
   placeholder per asked record short: `max(0, asked - decoded)` of them. A refusal, a truncation,
@@ -283,6 +290,10 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | The split's range in the system prompt | One system text per holdout, age carrying two ranges, and a frame-keyed cache serving stale text | 2026-10-27 |
 | Each cell's own minimum and maximum | Narrower than the drop rule enforces, and more training values leave the machine | 2026-10-27 |
 | `ontology` as SETTINGS' level | G3 found `summary`'s replica fidelity gain ([G3](../../EVIDENCE.md#g3-guidance-level)) | 2026-10-28 |
+| Replacing `bko`'s prompt with the prescribed lines | `bko` stays the in-run control the skeleton arm is read beside | 2026-10-27 |
+| Prescriptions on `Guidance` | `Guidance` is per cell, while lines are per call | 2026-10-27 |
+| Redrawing lines on a top-up | It selects toward the concept sets the model fills easily | 2026-10-27 |
+| Positional matching of a prescribed record to its line | One skipped or reordered record shifts every later record onto the wrong line | 2026-10-28 |
 
 ## Enforcement
 

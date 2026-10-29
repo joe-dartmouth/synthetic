@@ -44,6 +44,7 @@ from bko.generate.errors import IdleError
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply, Tries
+from bko.generate.skeleton import Skeleton
 from bko.generate.spend import price_of
 
 
@@ -87,12 +88,13 @@ class Planned:
     Attributes:
         guidance: What the call says about its cell.
         rows: The records it asks for.
-        skeleton: Reserved for a record skeleton; it must be None.
+        skeleton: A prescribing request's lines, one per record asked; None for an arm that
+            prescribes none.
     """
 
     guidance: Guidance
     rows: int
-    skeleton: object | None = None
+    skeleton: Skeleton | None = None
 
 
 @dataclass(eq=False, slots=True)
