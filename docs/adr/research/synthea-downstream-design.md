@@ -177,7 +177,22 @@ replies are shorter. The $65.00 ceiling leaves about twice the estimate.
 **The duration.** `e1-4` ran from 08:08:12 to 13:08:18 UTC on 2026-10-28, 5.00 h for 77487 records
 asked at 8 in flight. Each slice asks 113400 records at 8 in flight, so 113400 / 77487 x 5.00 h is
 about 7.3 h. The local arms fit about three times UCI's training rows, which this scaling does not
-count; E3's rehearsal measures their wall time per holdout.
+count. E3's rehearsal `e3-1` (below) scored all 100 holdouts with canned replies in 14.7 min, so the
+local arms add about 9 s per holdout to each slice's API wait.
+
+**The rehearsal.** `launch e3-1 e3 --rehearse` at commit
+`44aaa9e7e9877163433c698a77adefff1762b366`, from a detached worktree, wrote `runs/e3-1/rehearsal/`
+from 21:20:10 to 21:34:54 EDT on 2026-10-28, one segment ending `outcome=complete exit=0`. Its
+`scores.log` reads `data dataset=synthea frame=synthea records=985
+digest=f9c6a23e30036a12a8647903783cac6cd47eac3f58e40d82b09b7d572898b94f`, and two further
+processes building the frame print the same digest. No arm refused: `tvae` retried 4 times and
+`tvae-replica` 12 times, each recovering. The call log ends `complete` with 12900 calls and 226800
+records asked, the quota above. The paired `none` minus `real` recall at scope
+`flagged-subgroups` over its 100 holdouts is -0.3515 [-0.4819, -0.2212] at confidence 0.95, so the
+removal hurts the headline (Reversal Conditions). sha256: scores
+`2a06450bca2687a41b6e1ba58710f78a73e516d9ddbc25763f58e4af4f074129`, scores.log
+`ba63681bb61d2461d705a80844052452025c48c2009cd1e65943be9296ee7419`, calls
+`9cffa9e201aca7ebf4bab66652e8b18534eac02c6ad84c242c83e99e09a7d824`.
 
 The evidence commands, each run read-only at the repository root:
 

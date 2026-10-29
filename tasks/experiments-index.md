@@ -24,8 +24,7 @@ the ROADMAP heading it serves.
 | [`evaluate-dose-response`](evaluate-dose-response.md) | ready | -- | Joe | final-report |
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | ready | -- | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
-| [`evaluate-synthea-frame`](evaluate-synthea-frame.md) | ready | -- | Joe | final-report |
-| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | blocked | evaluate-synthea-frame | Joe | final-report |
+| [`evaluate-synthea-downstream`](evaluate-synthea-downstream.md) | ready | -- | Joe | final-report |
 
 ### Comparison methods
 
@@ -41,8 +40,7 @@ flowchart LR
     dose_response[evaluate-dose-response]
     scarcity_curve[evaluate-data-scarcity-curve]
     generator_comparison[evaluate-generator-comparison]
-    synthea_frame[evaluate-synthea-frame] --> synthea_downstream[evaluate-synthea-downstream]
-    synthea_downstream --> classical_baselines[evaluate-classical-baselines]
+    synthea_downstream[evaluate-synthea-downstream] --> classical_baselines[evaluate-classical-baselines]
     synthea_downstream --> bn_baseline[evaluate-bayesian-network-baseline]
     synthea_downstream --> cllm_baseline[evaluate-cllm-baseline]
 ```

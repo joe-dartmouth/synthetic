@@ -1,8 +1,8 @@
 ---
 id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
-status: blocked
-depends_on: evaluate-synthea-frame
+status: ready
+depends_on: --
 blocks: evaluate-classical-baselines, evaluate-bayesian-network-baseline, evaluate-cllm-baseline
 parallel_safe: true
 owner: Joe
@@ -23,7 +23,9 @@ subgroups per holdout, and no arrangement of the archive adds more (ADR
 Synthea population has cells as large as the ablation wants and a truth it fixes: remove a share
 of the women with ischemic heart disease from the training rows, and the recall each method
 recovers on the held-out cases is the measure of the augmentation itself. The frame, its rules and
-the named runs come from `evaluate-synthea-frame`; this unit spends the money and records E3.
+the named runs are ADR
+[`research/synthea-downstream-design`](../docs/adr/research/synthea-downstream-design.md)'s; this
+unit spends the money and records E3.
 
 ## Scope
 
