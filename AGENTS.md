@@ -43,9 +43,10 @@ import it (ADR `tooling/agent-config-single-home`).
   `--candidate` judges); `score --replay` rereads a paid run's call log for free, and
   `score --rehearse` runs every BKO call on canned replies for free. Each takes an optional run
   name first (default `e1`).
-- `uv run --no-sync python -m bko.evaluate merge <run> <scores>... > runs/<run-id>/scores.csv`:
+- `test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge <run> <scores>... > runs/<run-id>/scores.csv`:
   join holdout slices' scores, such as `e3-a`'s and `e3-b`'s for `e3`, into the bytes one run of
-  `<run>` writes, refusing overlapping or missing holdouts; `compare <run>` reads the result. It
+  `<run>` writes, refusing overlapping or missing holdouts and slices of other code or
+  configuration; `compare <run>` reads the result. It
   makes no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
 - `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl>]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into

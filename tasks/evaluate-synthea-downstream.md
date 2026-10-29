@@ -8,7 +8,7 @@ parallel_safe: true
 owner: Joe
 milestone: final-report
 paid: true
-adrs: --
+adrs: research/synthea-downstream-design
 ---
 
 # A downstream experiment on Synthea with known gaps

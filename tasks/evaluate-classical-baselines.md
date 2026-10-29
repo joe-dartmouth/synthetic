@@ -45,8 +45,12 @@ would change that run's configuration; landing after it keeps E3 as its ADR fixe
   their reasons.
 - SDV, its `copulas` dependency and the `ctgan` package carry the BUSL-1.1 licence (each installed
   distribution's metadata), so it covers CTGAN and TVAE as well as the copula; the ADR states it.
-- E1, E3 and every run built from them keep their arms and comparators: the new methods join the
-  harness's arms (`bko.evaluate.run.ARMS`) without entering `METHOD_ARMS`, which those runs read.
+- E1, E3 and every run built from them keep their arms and comparators. No seam allows that yet:
+  `METHOD_ARMS` and `ADDS_ROWS` (`bko.evaluate.experiment`) derive from every `Method` value, as
+  `bko.evaluate.run.ARMS` does through `bko.baselines.methods.METHODS`, so a new `Method` value
+  joins E1's and E3's arms. The unit builds the seam first: `METHOD_ARMS` and `ADDS_ROWS` pinned to
+  explicit tuples of today's six methods, with a test pinning E1's and E3's arms, comparators and
+  replica arms; the new methods then join `ARMS` alone.
 - Two free named runs (`bko.evaluate.experiment.RUNS`), with no criterion and no BKO arm, so
   `score` takes no `--log` or `--candidates` and spends nothing: one on E1's holdouts over UCI,
   one on E3's holdouts, removal and copy rule over the Synthea frame. Each holds `METHOD_ARMS`,

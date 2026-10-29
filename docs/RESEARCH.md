@@ -250,7 +250,9 @@ and percentile is a real training value: two per numeric field leave on each cal
 field at `summary`. Their exposure grows as the split or a reference group shrinks, since
 a group of one record sends that record's values and a split of identical records sends a whole
 record. Data held under a DUA must not reach that API or any other third-party service unless the
-DUA permits it, bounds and percentiles included; check its current terms before any such run.
+DUA permits it, bounds and percentiles included; check its current terms before any such run. E3's
+Synthea frame sends the same kinds of quantity, but its rows are generated, so none describes a
+person ([`DEVELOPMENT.md`](DEVELOPMENT.md#generation), What leaves the machine).
 
 ## 7. Augmentation versus resampling
 

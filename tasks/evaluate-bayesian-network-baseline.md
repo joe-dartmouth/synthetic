@@ -48,8 +48,10 @@ E3's paid run would change that run's arms.
   values), and the seeding, each with its reason.
 - A method under `bko.baselines` that fills a request exactly, stratum by stratum, on the training
   split only, seeded from the run's seed. E1, E3 and every run built from them keep their arms and
-  comparators: it joins the harness's arms (`bko.evaluate.run.ARMS`) without entering
-  `METHOD_ARMS`.
+  comparators: it joins the harness's arms (`bko.evaluate.run.ARMS`) alone, through the seam
+  `evaluate-classical-baselines` builds (`METHOD_ARMS` and `ADDS_ROWS` pinned to explicit tuples of
+  today's six methods, with a test pinning E1's and E3's arms). If this unit lands first, it builds
+  that seam itself.
 - Free named runs (`bko.evaluate.experiment.RUNS`), with no criterion and no BKO arm, the network
   as the candidate: on E1's holdouts over UCI, read by `compare --beside` E1's judged run's scores
   with `--beside-arm bko` and G2's scores with `--beside-arm bko-direct`; on E3's holdouts,

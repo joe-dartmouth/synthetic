@@ -127,10 +127,12 @@ out: each trains a model on the table, a training cost the brief's GReaT figures
 plan's other arms do not pay, and the CLLM arm already asks an LLM for records without the
 ontology.
 
-**Why it is not in the plan.** The 2-pager generates through the Anthropic Messages API, guided by
-ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN. For balance, the brief
-also cites "Why LLMs Are Bad at Synthetic Table Generation" [`llms-2024`][llms-2024] on the failure
-modes of in-context generation, which the Messages API approach is.
+**Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
+API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the
+CLLM arm runs in its own named runs with no verdict rather than among E1's comparators. For
+balance, the brief also cites "Why LLMs Are Bad at Synthetic Table Generation"
+[`llms-2024`][llms-2024] on the failure modes of in-context generation, which the Messages API
+approach is.
 
 **Sources.** Brief TL;DR, B4, B6, F15 (bullet 1); 2-pager section 4. Details:
 [BACKGROUND.md](BACKGROUND.md#tabular-generator-families).

@@ -81,6 +81,10 @@ figure below is what the command beside it in Rationale prints against that popu
   where both files hold `copies-kept`; beside a file that lacks it there, a copy in either file
   excludes the holdout, since that file scored its arms on a split without the copied records.
 - **Privacy**: the distance-to-closest-record rows are reported with no verdict.
+- **Egress**: each BKO call sends the frame's study and cohort text, its codebook and indicator
+  labels, age's bounds and quartiles, cell counts and, at `summary`, each mapped concept's share,
+  and no record's values; the rows are generated, so none describes a person
+  ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation), What leaves the machine).
 - **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.
 - **Settings**: `SETTINGS` itself (`claude-haiku-5-5`, effort `medium`, `max_tokens` 16000,
@@ -188,7 +192,8 @@ local arms add about 9 s per holdout to each slice's API wait.
 from 21:20:10 to 21:34:54 EDT on 2026-10-28, one segment ending `outcome=complete exit=0`. Its
 `scores.log` reads `data dataset=synthea frame=synthea records=985
 digest=f9c6a23e30036a12a8647903783cac6cd47eac3f58e40d82b09b7d572898b94f`, and two further
-processes building the frame print the same digest. No arm refused: `tvae` retried 4 times and
+processes building the frame print the same digest, each running [C12] at the repository root. No
+arm refused: `tvae` retried 4 times and
 `tvae-replica` 12 times, each recovering. The call log ends `complete` with 12900 calls and 226800
 records asked, the quota above. The paired `none` minus `real` recall at scope
 `flagged-subgroups` over its 100 holdouts is -0.3515 [-0.4819, -0.2212] at confidence 0.95, so the
@@ -476,6 +481,12 @@ age>=0 distinct 572 of 2000; test records with an exact training twin: mean 0.82
 age>=40 distinct 467 of 985; test records with an exact training twin: mean 0.667 (min 0.609, max 0.736)
 ```
 
+[C12] The frame's digest, built in a fresh process:
+
+```
+env -u ANTHROPIC_API_KEY uv run --no-sync python -I -c "from pathlib import Path; from bko.evaluate.data import load, Dataset; from bko.evaluate.context import Context; print(load(Dataset.SYNTHEA, Path('data'), Context()).digest)"
+```
+
 ## Consequences
 
 **Gained**: a gap whose truth is fixed by construction; a reference arm paired with every other
@@ -488,16 +499,16 @@ co-occurring condition; an estimate scaled from UCI's prompts.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| E2's age bands | Leave training cells of 0 to 10 rows, so the removed cell is not the only gap ([C8]) | 2026-10-27 |
-| All ages | 1015 more patients with no case, 391 of them under 18, and double the replica spend; see Rationale | 2026-10-27 |
-| Removing test copies | Most test records have a chance training twin; see Rationale | 2026-10-27 |
-| The ablated held-out ratio | Widens every interval 3.10 times; see Rationale | 2026-10-27 |
-| A separate un-ablated run as the reference | Cannot pair: its held-out distances differ and it flags nothing; see Rationale | 2026-10-27 |
-| Removing 0.75 of the cell | The duplication gain does not resolve ([C10]) | 2026-10-27 |
-| Removing 0.95 of the cell | Leaves 2 rows, SMOTE's floor and the size of the UCI cell default TVAE refused; see Rationale | 2026-10-27 |
-| Removing both female case cells | Leaves about 2 `<65` rows and splits the headline; see Rationale | 2026-10-27 |
-| Fractional age | `subjects` computes whole years, and a fractional field adds decimals the prompt must hold | 2026-10-27 |
-| A richer frame from Synthea's observations | Moves E2's population, which exports conditions only, and needs a JDK to regenerate | 2026-10-27 |
+| E2's age bands | Leave training cells of 0 to 10 rows, so the removed cell is not the only gap ([C8]) | 2026-10-28 |
+| All ages | 1015 more patients with no case, 391 of them under 18, and double the replica spend; see Rationale | 2026-10-28 |
+| Removing test copies | Most test records have a chance training twin; see Rationale | 2026-10-28 |
+| The ablated held-out ratio | Widens every interval 3.10 times; see Rationale | 2026-10-28 |
+| A separate un-ablated run as the reference | Cannot pair: its held-out distances differ and it flags nothing; see Rationale | 2026-10-28 |
+| Removing 0.75 of the cell | The duplication gain does not resolve ([C10]) | 2026-10-28 |
+| Removing 0.95 of the cell | Leaves 2 rows, SMOTE's floor and the size of the UCI cell default TVAE refused; see Rationale | 2026-10-28 |
+| Removing both female case cells | Leaves about 2 `<65` rows and splits the headline; see Rationale | 2026-10-28 |
+| Fractional age | `subjects` computes whole years, and a fractional field adds decimals the prompt must hold | 2026-10-28 |
+| A richer frame from Synthea's observations | Moves E2's population, which exports conditions only, and needs a JDK to regenerate | 2026-10-28 |
 
 ## Enforcement
 

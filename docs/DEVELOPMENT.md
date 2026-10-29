@@ -159,15 +159,16 @@ row, its row count and the sha256 of its bytes), then for the merged scores
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
-holds is not counted. A holdout pairs only when its held-out rows match, both files flagged the
-same cells there, and no arm in either file copied a test record there, since the test split loses
-every record any arm copied. A run that keeps copies (`e3` and its slices, whose experiment sets
+holds is not counted. A holdout pairs only when its held-out rows match, its flagged cells match,
+and no arm in either file copied a test record there, since the test split loses every record any
+arm copied. A run that keeps copies (`e3` and its slices, whose experiment sets
 `decontaminate` false) scores every arm on the whole test split and writes a `copies-kept`
 held-out row on each holdout, so in its reading a copy excludes no holdout where both files hold
 that row; beside a file without it, a copy in either file still excludes its holdout. Held-out
-rows match when both files record equal held-out summary scores on the holdout,
-and the flagged cells match when both files' `flagged-fingerprint` held-out scores are equal or
-either file lacks one; `bko.evaluate.beside.pairable` is the one home of the exact rule. The other
+rows match when both files record equal held-out summary scores on the holdout (`copies-kept` and
+the fingerprint aside), and the flagged cells match unless both files hold a
+`flagged-fingerprint` held-out score there and the two differ; `bko.evaluate.beside.pairable` is
+the one home of the exact rule. The other
 shared holdouts are counted as excluded, split into copied and mismatched; a holdout whose flagged
 cells differ counts as mismatched. Fewer than two paired holdouts, or an arm either file lacks, is
 refused before the table is written, so a refusal leaves stdout empty. A series either arm lacks,
@@ -370,9 +371,14 @@ start or the supervisor cannot run.
   baseline's. Every arm fills before any is scored. A test record that some arm's rows copy in every
   column leaves the test split each arm's utility is scored on. With `--replay`, every BKO call is
   answered from that call log instead of the API. A call that differs from the log's, or a logged
-  call left unplayed, stops the run. With `--resume`, the stopped log's answered calls come first,
-  answered from it, then live calls. With `--rehearse`, `bko.evaluate.rehearse.CannedSend` answers
-  every call, and the projection and the ceiling read its billed spend as live.
+  call left unplayed, stops the run. A replay reproduces the scores, and their sha256, only at the
+  commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row per
+  holdout, and a run that keeps copies a `copies-kept` row per holdout, so a run scored at a
+  commit without those rows does not reproduce its scores' sha256 when replayed at a later commit.
+  Replay each run at its own commit (its `versions` line names it). With `--resume`, the stopped
+  log's answered calls come first, answered from it, then live calls. With `--rehearse`,
+  `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
+  its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
   header line (`kind` `header`, `schema` 2, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
@@ -739,16 +745,22 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
-- **What leaves the machine**: each field's meaning, codes and unit, each numeric field's
-  training-split minimum and maximum (age within the cell's band), the cell and its training
-  record count, and the guidance of the chosen level; at `summary`, also the quartiles of each
-  numeric field over the same-label records of the other cells, that reference group's record count
-  and each mapped concept's share of it in percent (the `profile` block). Every `SETTINGS` run
-  sends them. A `bko-skeleton` request also sends each asked record's drawn concept names: ontology
-  labels drawn at the fused BKB's aggregate shares, never a record's values. No record is sent, but
-  every bound and quartile is a real training value, and a small split or reference group exposes
-  them together as a record. Check a DUA's terms for them
-  ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
+- **What leaves the machine**: the frame's study and cohort text, each field's meaning, codes and
+  unit, each numeric field's training-split minimum and maximum (age within the cell's band), the
+  cell and its training record count, and the guidance of the chosen level; at `summary`, also the
+  quartiles of each numeric field over the same-label records of the other cells, that reference
+  group's record count and each mapped concept's share of it in percent (the `profile` block).
+  Every `SETTINGS` run sends them. A `bko-skeleton` request also sends each asked record's drawn
+  concept names: ontology labels drawn at the fused BKB's aggregate shares, never a record's values.
+  No record is sent. Per frame:
+  - UCI (`e1`, `g3-<level>`, `g4-low`, `g4-medium`, `g5`, and this command): every bound and
+    quartile is a real training value of a de-identified patient record, and a small split or
+    reference group exposes them together as a record. Check a DUA's terms for them
+    ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
+  - Synthea (`e3`, `e3-a`, `e3-b`, through the BKO arms): the study and cohort text, the codebook
+    with each indicator's label, age's bounds within the cell's band and its quartiles, the cell
+    counts and, at `summary`, each mapped concept's share. Its rows are generated by Synthea from
+    a pinned seed, so no bound, quartile or share describes a person.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

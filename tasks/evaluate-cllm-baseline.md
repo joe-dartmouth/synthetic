@@ -53,9 +53,10 @@ its E3 reading pairs with E3's recorded scores, and E3's paid run should not cha
   `bko`.
 - **Egress**: real training records leave the machine; no arm sends one today
   ([`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#generation), What leaves the machine). UCI
-  Heart Disease is public and Synthea's records are generated, so neither run sends a person's
-  record; the ADR and that list state what the arm sends, and that a credentialed dataset would
-  need its DUA read before this arm ran on it
+  Heart Disease's rows are de-identified patient records, which leave under the dataset's public
+  licence (CC BY 4.0, `bko.datasets.sources`); Synthea's rows are generated, so they describe no
+  person. The ADR and that list state what the arm sends, and the arm refuses a dataset held under
+  a DUA unless a named permission for it is recorded
   ([`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets)).
 - E1, E3 and every run built from them keep their arms and comparators. The arm joins a new named
   run per dataset (`bko.evaluate.experiment.RUNS`), with no criterion, the arm as the candidate
@@ -64,8 +65,9 @@ its E3 reading pairs with E3's recorded scores, and E3's paid run should not cha
 - Each run's spend estimated before it, in its Runs row, for both Messages arms: the judged run's
   tokens per record asked, plus the shown records' input tokens for the new arm, at
   `SETTINGS.model`'s `PRICES` row, under the named run's own ceiling, and launched under the
-  paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation). Each is also read by `compare --beside` the judged scores of its dataset (E1's
-  judged run, E3's merged scores) with `--beside-arm bko`, to check the in-run `bko` against them.
+  paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation). Each is also read by `compare --beside`
+  the judged scores of its dataset (E1's judged run, E3's merged scores) with `--beside-arm bko`,
+  to check the in-run `bko` against them.
 - A new `docs/EVIDENCE.md` entry: per dataset, validity and drops before and after curation, test
   copies, distance to closest record, replica fidelity and utility and each criterion's measures,
   with no verdict; on Synthea, recall on the removed cell's held-out cases against `real`.
@@ -80,5 +82,8 @@ section 4 first); changing what `bko` sends.
 - `tmp_path` tests on a fake client pin the prompt's shown records and the curation's kept rows
   at one seed.
 - `E1`'s and `E3`'s arms and comparators are unchanged, pinned by a test.
+- The arm refuses a dataset held under a DUA that names no permission for it, pinned by a test.
+- ADR `research/record-generation-design` points at the new ADR where it states that no training
+  record is shown, naming the arm's departure from that driver.
 - Each run is recorded with its spend and replays byte for byte.
 - `make check`.
