@@ -69,7 +69,7 @@ from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
 from bko.evaluate.merge import merge
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
-from bko.generate.api import HTTP_LOGGERS
+from bko.generate.api import HTTP_LOGGERS, install_call_tag
 from bko.generate.errors import GenerationError
 from bko.generate.flight import IN_FLIGHT
 
@@ -244,7 +244,10 @@ def _retries(text: str) -> int:
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
+    """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV.
+
+    The SDK's retry records name their call (`bko.generate.api.CallTag`).
+    """
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.INFO,
@@ -253,6 +256,7 @@ def configure_logging() -> None:
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
+    install_call_tag()
 
 
 def _parser() -> argparse.ArgumentParser:

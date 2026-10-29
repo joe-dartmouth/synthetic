@@ -24,7 +24,7 @@ from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS
-from bko.generate.api import HTTP_LOGGERS, default_async_send
+from bko.generate.api import HTTP_LOGGERS, default_async_send, install_call_tag
 from bko.generate.messages import AnySend
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
@@ -35,7 +35,10 @@ SPEND_CEILING: Final = 0.25
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr; a second call changes nothing."""
+    """Send INFO and higher, and every warning, to stderr; a second call changes nothing.
+
+    The SDK's retry records name their call (`bko.generate.api.CallTag`).
+    """
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.INFO,
@@ -44,6 +47,7 @@ def configure_logging() -> None:
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
+    install_call_tag()
 
 
 def _utc_now() -> datetime:

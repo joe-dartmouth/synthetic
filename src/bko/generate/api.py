@@ -20,7 +20,8 @@ the SDK retries below 500 (`RETRIED`: 408, 409, 429) or a status of 500 or above
 in flight together never share a count, and
 `Attempts.handle` and `Attempts.handle_async` log each retryable status as a `retry` line naming
 the call (`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's
-`retry-after`.
+`retry-after`. The SDK's own retry records, which a connection error or a timeout also produces,
+name the call through `CallTag`, which `install_call_tag` adds to the SDK's client logger.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any, Final
+from typing import Any, Final, override
 
 import anthropic
 
@@ -47,6 +48,9 @@ from bko.generate.messages import (
 
 
 logger = logging.getLogger(__name__)
+
+SDK_CLIENT_LOGGER: Final = "anthropic._base_client"
+"""The logger the SDK writes its `Retrying request` records to."""
 
 HTTP_LOGGERS: Final = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
@@ -238,6 +242,28 @@ def _failure(
         raise exc
     msg = f"no Anthropic credential: set ANTHROPIC_API_KEY or run ant auth login ({exc})"
     return GenerationError(msg, attempts=attempts)
+
+
+class CallTag(logging.Filter):
+    """Appends ` call=<n>` to a record made while call n is in flight, so a retry names its call.
+
+    `CALL_NUMBER` is a `ContextVar`, so calls in flight together each tag their own records.
+    """
+
+    @override
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Tag `record` when a call is in flight; never drop it."""
+        number = CALL_NUMBER.get()
+        if number > 0:
+            record.msg = f"{record.msg} call={number}"
+        return True
+
+
+def install_call_tag() -> None:
+    """Add a `CallTag` to the SDK's client logger, unless it holds one already."""
+    sdk = logging.getLogger(SDK_CLIENT_LOGGER)
+    if not any(isinstance(f, CallTag) for f in sdk.filters):
+        sdk.addFilter(CallTag())
 
 
 def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) -> Send:

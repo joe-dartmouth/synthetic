@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import dataclasses
 import logging
 import traceback
@@ -14,7 +15,15 @@ import anthropic
 import pytest
 
 import bko.generate.api as api_module
-from bko.generate.api import MAX_RETRIES, Attempts, async_send_with, reply_of, send_with
+from bko.generate.api import (
+    MAX_RETRIES,
+    Attempts,
+    CallTag,
+    async_send_with,
+    install_call_tag,
+    reply_of,
+    send_with,
+)
 from bko.generate.errors import GenerationError
 from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Send, Usage
 from tests._generate_fixtures import message, records_text, request, response
@@ -493,3 +502,54 @@ def test_a_failure_is_retryable_when_the_api_caused_it(monkeypatch, build, retry
     with pytest.raises(GenerationError) as caught:
         send_with(_raising(monkeypatch, build()))(CALL)
     assert (caught.value.retryable, caught.value.rate_limited) == (retryable, limited)
+
+
+def _retry_record() -> logging.LogRecord:
+    return logging.getLogger("anthropic._base_client").makeRecord(
+        "anthropic._base_client",
+        logging.INFO,
+        __file__,
+        0,
+        "Retrying request to %s in %f seconds",
+        ("/v1/messages", 0.5),
+        None,
+    )
+
+
+def _tagged(record: logging.LogRecord) -> str:
+    CallTag().filter(record)
+    return record.getMessage()
+
+
+def test_an_sdk_retry_record_carries_the_call_number():
+    def tagged(number: int) -> str:
+        CALL_NUMBER.set(number)
+        return _tagged(_retry_record())
+
+    # A fresh context each, so no other test's call number leaks in.
+    seconds = "Retrying request to /v1/messages in 0.500000 seconds"
+    assert contextvars.Context().run(tagged, 7) == f"{seconds} call=7"
+    assert contextvars.Context().run(tagged, 0) == seconds
+
+
+def test_concurrent_calls_tag_their_own_retry_records():
+    async def tagged(number: int) -> str:
+        CALL_NUMBER.set(number)
+        await asyncio.sleep(0)
+        return _tagged(_retry_record())
+
+    async def both() -> list[str]:
+        return list(await asyncio.gather(tagged(3), tagged(4)))
+
+    assert [line.rsplit(" ", 1)[1] for line in asyncio.run(both())] == ["call=3", "call=4"]
+
+
+def test_installing_the_call_tag_twice_installs_one_filter():
+    sdk = logging.getLogger("anthropic._base_client")
+    before = list(sdk.filters)
+    try:
+        install_call_tag()
+        install_call_tag()
+        assert sum(isinstance(f, CallTag) for f in sdk.filters) == 1
+    finally:
+        sdk.filters[:] = before

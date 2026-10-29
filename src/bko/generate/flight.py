@@ -20,9 +20,9 @@ reads the spend a one-call-at-a-time run reads there. Each awaited send runs und
 carrying its attempt count and whether a retry met a 429, no later call is sent, and the calls
 beside it land under their own idle limits, so their replies and spend are recorded, before the
 lowest idle call's `IdleError` is raised. An interrupt cancels the calls in flight; each requested
-call still gets its `error` line before the call log can close, a further interrupt
-notwithstanding. Each call's task sets `bko.generate.messages.CALL_NUMBER`, so its retry lines name
-it.
+call still gets its `error` line, recording `KeyboardInterrupt`, before the call log can close, a
+further interrupt notwithstanding. Each call's task sets `bko.generate.messages.CALL_NUMBER`, so
+its retry lines name it.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ import inspect
 import json
 import logging
 import math
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -109,6 +110,9 @@ class _Wave:
         answered: The numbers of the calls whose `reply` or `error` line is written.
         reserved: Each call still in flight's reservation in USD, by its number.
         idle: Each call's `IdleError`, by its number, once it has fired.
+        cause: What first stopped the wave's loop: an interrupt, as `KeyboardInterrupt` or as the
+            cancellation of the wave's own task by `asyncio.Runner`'s SIGINT handler, or another
+            `BaseException`; None while nothing has.
     """
 
     slots: asyncio.Semaphore
@@ -118,6 +122,22 @@ class _Wave:
     answered: set[int] = field(default_factory=set)
     reserved: dict[int, float] = field(default_factory=dict)
     idle: dict[int, IdleError] = field(default_factory=dict)
+    cause: BaseException | None = None
+
+    def stop(self, cause: BaseException) -> None:
+        """Record `cause` as what stopped the wave, unless something already has."""
+        if self.cause is None:
+            self.cause = cause
+
+    def cancelled(self, error: BaseException) -> BaseException:
+        """What a call's `error` line records for `error`.
+
+        A cancellation an interrupt caused records `KeyboardInterrupt`; anything else, itself.
+        """
+        interrupted = isinstance(self.cause, (KeyboardInterrupt, asyncio.CancelledError))
+        if isinstance(error, asyncio.CancelledError) and interrupted:
+            return KeyboardInterrupt()
+        return error
 
 
 class Flight:
@@ -218,13 +238,17 @@ class Flight:
             runner = asyncio.Runner()
             try:
                 return runner.run(self._wave(planned, frame, wave))
+            except BaseException as exc:
+                wave.stop(exc)
+                raise
             finally:
                 self._settle(runner, wave)
         try:
             return self._runner.run(self._wave(planned, frame, wave))
-        except BaseException:
+        except BaseException as exc:
             # An interrupt raised inside a call leaves the others on the loop: they are
             # cancelled and landed, so their `error` lines are written before the caller's next.
+            wave.stop(exc)
             self._settle(self._runner, wave)
             self._runner = asyncio.Runner()
             raise
@@ -260,7 +284,7 @@ class Flight:
         # A call cancelled before its first step never ran the code that writes its line.
         for index, pending in wave.pending.items():
             if index not in wave.answered:
-                fail(pending, asyncio.CancelledError(), log=self.log)
+                fail(pending, wave.cancelled(asyncio.CancelledError()), log=self.log)
                 wave.answered.add(index)
 
     async def _wave(
@@ -273,7 +297,10 @@ class Flight:
             # Calls already sent are paid for: let them land and be logged before stopping.
             stopped = exc
             await asyncio.gather(*wave.flying.values(), return_exceptions=True)
-        except BaseException:
+        except BaseException as exc:
+            # A cancellation here first is the SIGINT handler's: the flight cancels this task
+            # only in `_settle`, after it has recorded what stopped the loop.
+            wave.stop(exc)
             for task in wave.flying.values():
                 task.cancel()
             await asyncio.gather(*wave.flying.values(), return_exceptions=True)
@@ -351,9 +378,17 @@ class Flight:
         token = CALL_NUMBER.set(pending.index)
         try:
             try:
-                batch = answer(pending, await self._reply(pending), log=self.log)
+                started = time.monotonic()
+                reply = await self._reply(pending)
+                batch = answer(
+                    pending,
+                    reply,
+                    log=self.log,
+                    elapsed_s=time.monotonic() - started,
+                    in_flight=len(wave.reserved),
+                )
             except BaseException as exc:
-                fail(pending, exc, log=self.log)
+                fail(pending, wave.cancelled(exc), log=self.log)
                 wave.answered.add(pending.index)
                 # No later call is sent; the calls in flight land under their own idle limits.
                 wave.failed.set()

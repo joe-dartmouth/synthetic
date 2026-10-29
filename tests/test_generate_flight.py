@@ -150,7 +150,7 @@ def test_a_keyboard_interrupt_mid_wave_ends_interrupted(tmp_path):
     answered = {line["call"]: line["kind"] for line in lines if line["kind"] in {"reply", "error"}}
     assert answered == {1: "error", 2: "error", 3: "reply"}
     assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
-        1: "CancelledError",
+        1: "KeyboardInterrupt",
         2: "KeyboardInterrupt",
     }
 
@@ -480,8 +480,8 @@ def test_an_interrupt_before_the_calls_beside_it_start_still_logs_them(tmp_path)
     lines = _lines(log)
     assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
         1: "KeyboardInterrupt",
-        2: "CancelledError",
-        3: "CancelledError",
+        2: "KeyboardInterrupt",
+        3: "KeyboardInterrupt",
     }
     assert lines[-1]["status"] == "interrupted"
     assert lines[-1]["failed"] == 3
@@ -571,3 +571,61 @@ def test_each_send_sees_its_call_number(tmp_path):
     finally:
         CALL_NUMBER.reset(token)
     assert sorted(seen) == [1, 2, 3]
+
+
+def test_each_landed_line_carries_the_calls_in_flight(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    with (
+        _log(tmp_path) as log,
+        Flight(Delayed(), log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    landed = [m for m in caplog.messages if m.startswith("generate call=")]
+    found = [re.search(r"call=(\d+) .* elapsed_s=([\d.]+) in_flight=(\d+)$", m) for m in landed]
+    assert all(found)
+    assert [(int(f[1]), int(f[3])) for f in found if f] == [(3, 3), (2, 2), (1, 1)]
+    assert all(float(f[2]) >= STEP / 3 for f in found if f)
+
+
+def test_a_real_sigint_records_keyboard_interrupt(tmp_path):
+    def send(call: Call):
+        number = _asked(call)
+
+        async def land() -> Reply:
+            if number == 2:
+                await asyncio.sleep(0.05)
+                signal.raise_signal(signal.SIGINT)
+            await asyncio.sleep(5)
+            return reply([{"age": 40}] * number)
+
+        return land()
+
+    log = _log(tmp_path)
+    with (
+        pytest.raises(KeyboardInterrupt),
+        log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    lines = _lines(log)
+    assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
+        1: "KeyboardInterrupt",
+        2: "KeyboardInterrupt",
+        3: "KeyboardInterrupt",
+    }
+    assert lines[-1]["status"] == "interrupted"
+
+
+def test_a_non_interrupt_exit_still_cancels_with_cancelled_error(tmp_path):
+    """A `BaseException` that is no interrupt, here `SystemExit` from call 2's send, still
+    cancels the calls beside it, and they record `CancelledError`."""
+    send = Delayed(fail={2: SystemExit(3)})
+    log = _log(tmp_path)
+    with (
+        pytest.raises(SystemExit),
+        log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
+    assert errors[1] == "CancelledError"

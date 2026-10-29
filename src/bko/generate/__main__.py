@@ -55,7 +55,7 @@ from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
 from bko.gaps.observe import Cell, Cells, cell_key
 from bko.gaps.scope import load_uci_scope
-from bko.generate.api import HTTP_LOGGERS, default_send
+from bko.generate.api import HTTP_LOGGERS, default_send, install_call_tag
 from bko.generate.calls import Batch, chunks, generate
 from bko.generate.candidates import Generator, Header, Request, render_header, render_lines
 from bko.generate.direct import draw_line, sample
@@ -141,13 +141,17 @@ def main(
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr, and quiet the SDK's HTTP client."""
+    """Send INFO and higher, and every warning, to stderr, and quiet the SDK's HTTP client.
+
+    The SDK's retry records name their call (`bko.generate.api.CallTag`).
+    """
     logging.basicConfig(
         stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
     )
     logging.captureWarnings(True)
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    install_call_tag()
 
 
 def _parser(settings: Settings) -> argparse.ArgumentParser:
