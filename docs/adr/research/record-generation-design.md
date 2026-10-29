@@ -36,7 +36,9 @@ The prices `bko.generate.spend.PRICES` holds were read 2026-10-19 from
 `platform.claude.com/docs/en/about-claude/pricing.md`, Model pricing, row Claude Haiku 5.5 for
 prompts up to 100,000 tokens: input $0.10, 5-minute cache writes $0.125, cache hits $0.01 and output
 $0.50, each per million tokens. A call's prompt runs to a few thousand tokens, so the higher tier
-never applies. The API reports a call's tokens and no price.
+never applies. Claude Sonnet 5.5's, read 2026-10-29 from the same page, are input $2, 5-minute cache
+writes $2.50, cache hits $0.10 and output $10, at every prompt length; G6 alone generates with it.
+The API reports a call's tokens and no price.
 
 A record's fields, codes and plausible ranges already have a home: the frame
 (`bko.datasets.frames.FrameSpec`), whose UCI instance `bko.datasets.uci.UCI_FRAME` holds UCI's

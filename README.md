@@ -45,9 +45,11 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 3. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-4. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
-   Opus and Haiku runs differed in more than the model
+4. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
+   fixed configuration, since the earlier Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
+5. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
+   full run would take ([`evaluate-local-thinking-cost`](tasks/evaluate-local-thinking-cost.md)).
 
 ## Setup
 

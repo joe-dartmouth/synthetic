@@ -28,25 +28,24 @@ against the judged run's level, bounds and effort, which
 
 **In.**
 
-- `bko.generate.spend.PRICES` gains Sonnet 5.5's and Opus 5.5's rates, read from the pricing page
-  `PRICES`' docstring names on the day they are added, with `tests/test_generate_spend.py` pinning
-  the three rows.
-- Two named runs (`bko.evaluate.named_runs.RUNS`) with the baselines and the `bko` arm at the judged
-  configuration's level, bounds and effort, `SETTINGS.model` at Sonnet 5.5 and then at Opus 5.5,
-  each run's spend estimated before it from the judged run's tokens per record asked at the
-  model's rates. The Opus estimate at `e1-4`'s tokens per record asked (300.535 input, 211.162 output) passes
-  `E1.spend_ceiling` many times over,
-  so the Opus run has its own ceiling in its `Experiment`, and the commit that sets it is the
-  sign-off; until that commit the unit records Sonnet alone. Each run under the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
+- `bko.generate.spend.PRICES` gains Sonnet 5.5's rates, read from the pricing page `PRICES`'
+  docstring names on the day they are added, with `tests/test_generate_spend.py` pinning the rows.
+- Four named runs (`bko.evaluate.named_runs.RUNS`), each the baselines and the `bko` arm at the
+  judged configuration's level, bounds and effort with `SETTINGS.model` alone changed: Sonnet 5.5
+  through the Messages API (`g6-sonnet`), and three open models on this machine with thinking off
+  (`g6-gemma`, `g6-nemotron`, `g6-olmo`; ADR `research/local-generator-backend`). Sonnet's spend is
+  estimated before its run from the judged run's tokens per record asked at its rates; each run
+  goes under the paid-run protocol (`docs/DEVELOPMENT.md`, Evaluation).
 - Per model, beside the judged Haiku figures at the same holdouts: validity, drops, tokens and
   seconds per record asked, replica fidelity and utility, each criterion's measures with no
   verdict, in a new `docs/EVIDENCE.md` entry.
 
-**Out.** Changing `SETTINGS.model` for the judged run (a result that argues for it goes through
-[`docs/RESEARCH.md`](../docs/RESEARCH.md) and a new E1 configuration).
+**Out.** Opus 5.5 (unscheduled, `docs/IDEAS.md`); thinking on for the local models (unit
+`evaluate-local-thinking-cost`); changing `SETTINGS.model` for the judged run (a result that argues
+for it goes through [`docs/RESEARCH.md`](../docs/RESEARCH.md) and a new E1 configuration).
 
 ## Acceptance
 
-- Each model's run is recorded with its spend and replays byte for byte, or the entry states that
-  the Opus run waits on its ceiling's commit.
+- Each model's run is recorded with its spend and replays byte for byte, or the entry states why a
+  local model was not run (a projected duration over 36 hours).
 - `make check`.
