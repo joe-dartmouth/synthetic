@@ -52,23 +52,27 @@ seed their sampling after every fit, and seed no fit.
 - **CTGAN and TVAE are SDV's synthesizers at SDV's defaults** on explicit metadata, on the CPU. Each
   draws unconditioned batches and keeps the rows whose own values fall in a stratum still short, until
   every quota is met or a cap on drawn rows refuses the run.
-- **The Gaussian copula is SDV's `GaussianCopulaSynthesizer` at its defaults**, fit on the
+- **The Gaussian copula is SDV's `GaussianCopulaSynthesizer` at its defaults**
+  ([`patki-2016`](../../literature.md#tabular-generators)), fit on the
   training split and drawn unconditioned, rows kept by their own values as CTGAN's and TVAE's are.
-- **Sequential CART is synthpop's `syn.cart` (CRAN 1.9-3) on scikit-learn.** The columns are
+- **Sequential CART is synthpop's `syn.cart` (CRAN 1.9-3) on scikit-learn**
+  ([`nowok-2016`](../../literature.md#tabular-generators)). The columns are
   visited in the frame's order; the first is drawn from its training values with replacement, and
   each later one from a tree fit once on the columns before it: a classifier (Gini) for a coded
   field or the label, a regressor (squared error) for a measured one. Predictors are the earlier
-  columns, a code with 3 or more values one-hot. The trees take rpart's settings as synthpop sets
+  columns, a code with 3 or more values one-hot, so a tree splits such a code one value against the
+  rest where rpart may split it on any subset of its values; scikit-learn's trees have no subset
+  split. The trees take rpart's settings as synthpop sets
   them: `min_samples_leaf` 5, `min_samples_split` 15, `max_depth` 30 and `min_impurity_decrease`
   1e-8 times the root's impurity. A new row's value is copied from a uniformly chosen training row
   in its leaf. Rows are kept by their own values until each quota is met.
 - **Seeds**: imbalanced-learn takes one seed per stratum, derived from the run's seed. CTGAN and TVAE
   fit with numpy's and torch's global generators seeded from it and one torch thread, all restored
   afterwards; SDV seeds sampling itself after every fit. The Gaussian copula's fit draws nothing
-at random and SDV fixes its sampling seed (`FIXED_RNG_SEED`), so the copula's rows do not move with
-the seed, as the classifier's fit does not. Sequential CART seeds each tree with
-`derived_seed(seed, "cart", column)` and every draw from `default_rng(derived_seed(seed, "cart"))`,
-touching no global generator.
+  at random and SDV fixes its sampling seed (`FIXED_RNG_SEED`), so the copula's rows do not move
+  with the seed, as the classifier's fit does not. Sequential CART seeds each tree with
+  `derived_seed(seed, "cart", column)` and every draw from `default_rng(derived_seed(seed, "cart"))`,
+  touching no global generator.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
   defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.

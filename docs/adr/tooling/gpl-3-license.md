@@ -69,8 +69,9 @@ change dates.
 **The license changes only if Dartmouth College agrees and no code adapted from a GPL-licensed work, pybkb's included, is in the tree**;
 this record is then edited.
 
-**The BUSL-1.1 reading is revisited if the app or the baselines are hosted for third parties, or a
-lock bump changes any listed package's `License-Expression`.**
+**The BUSL-1.1 reading is revisited if the app or the baselines are hosted for third parties, a
+work combining this code with a listed package is distributed (a release archive or container
+image), or a lock bump changes any listed package's `License-Expression`.**
 
 ## Related
 

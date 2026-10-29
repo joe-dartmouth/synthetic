@@ -11,9 +11,9 @@ the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, 
 and `app` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
-  `synth` (sdv, imbalanced-learn, scikit-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
-  (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`. `synth` brings
-  `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
+  `synth` (sdv, imbalanced-learn, scikit-learn, torch), `eval` (scikit-learn, sdmetrics, scipy),
+  `ontology` (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`.
+  `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
   [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
   `make sync` installs every extra.
 - **Try a new extra before it joins `make setup`, the lock-faithful way**: copy the `setup` recipe

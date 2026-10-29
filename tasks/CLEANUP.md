@@ -39,6 +39,21 @@ links to where its blocker is tracked.
 
 ## baselines
 
+- **`cleanup:baselines/classical-fit-line-and-docstrings`: the classical synthesizers log no fit
+  time, and three docstrings overstate them.** CTGAN and TVAE log `fit method=%s seconds=%.1f`
+  (`bko.baselines.synthesizers`), but `bko.baselines.classical.gaussian_copula` and `cart` log no
+  fit line, so a B1 log has no fit duration for either. `bko.baselines.classical`'s module
+  docstring says CART runs "as synthpop runs it" without naming the one-hot departure from rpart's
+  subset splits (ADR `research/baseline-augmentation-design` names it), and `CART_COMPLEXITY`'s
+  says "as rpart reads it" though rpart scales `cp` by the root's risk. `bko.evaluate.named_runs`'
+  module and `RUNS` docstrings omit `b1-uci` and `b1-synthea`. *Filed 2026-10-29 by the diff review
+  of PR #60.*
+  **Why deferred.** B1 ran at commit `3788fa4`; changing `src` after the run would make its merge
+  carry code the run did not.
+  **What discharges it:** both methods log a `fit` line in CTGAN's format, the three docstrings
+  state the current behavior, and `docs/DEVELOPMENT.md` (Baselines) names the fit lines.
+  **Trigger:** the next change to `bko.baselines.classical` or `bko.evaluate.named_runs`.
+
 - **`cleanup:baselines/request-frame-defaults-to-uci`: the baselines fall back to UCI's frame.**
   `bko.baselines.request.Request.frame`, `bko.baselines.records.no_rows`, `training_set` and the
   other `bko.baselines.records` helpers, and `bko.baselines.synthesizers`' metadata default `frame`
