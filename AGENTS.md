@@ -73,6 +73,10 @@ import it (ADR `tooling/agent-config-single-home`).
   generate candidate records for E1's count-based gap request through the Anthropic Messages API,
   or for the completeness request with `--request completeness`. It spends money and needs an
   Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation)).
+- `uv run --no-sync python -m bko.generate.local {fetch,serve-command,probe} <model>`: fetch and
+  verify an on-device model's pinned weights into `data/models/`, print the `llama-server` argv
+  that serves it on `127.0.0.1`, or probe the running server with one call. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation), Local models).
 - `uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl`: read a completeness run's
   candidates, join the ones that pass validation to the training records of their cell, and list
   what closed, stayed open and is new under each BKO gap definition. It makes no API call

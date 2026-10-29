@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-28
+updated: 2026-10-29
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -57,6 +57,9 @@ We will **make one Messages call per chunk of a cell's request, through a repo-o
 with the record's shape fixed by structured outputs and the guidance chosen from a six-level
 ladder.**
 
+- **On-device models.** A model in `bko.generate.local.LOCAL_MODELS` answers the same `Call`
+  through a llama.cpp server on this machine rather than the Messages API (ADR
+  `research/local-generator-backend`); G6 reads three, and every judged run stays on Haiku 5.5.
 - **The seam.** `Send = Callable[[Call], Reply]` in `bko.generate.messages`. `Call` and `Reply`
   are repo-owned values. `bko.generate.api` is the only module that imports `anthropic`: it reads
   an SDK message into a `Reply`, and turns an SDK failure into `GenerationError`, built from the
@@ -332,3 +335,4 @@ per-check counts.
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)
 - [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [A session-wide guard on the Anthropic SDK's request sink](../tooling/paid-api-request-guard.md)
+- [On-device generators](local-generator-backend.md)
