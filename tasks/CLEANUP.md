@@ -51,6 +51,21 @@ links to where its blocker is tracked.
   **What discharges it:** each takes the frame or requires `edges`.
   **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
 
+## evaluate
+
+- **`cleanup:evaluate/fill-unnamed-in-arm-lines`: the guided, prescribed and baseline lines name
+  no holdout or fill.** The direct arm's and the sampler's lines name both (`holdout=`, `fill=`,
+  read from `bko.evaluate.fills.CURRENT_FILL`), but `guided arm=%s seed=%d outcome=...` and
+  `prescribed arm=%s seed=%d wave=%d ...` (`bko.evaluate.guided`) and `filled method=%s drawn=%d
+  added=%d` and `fit method=%s seconds=%.1f` (`bko.baselines.synthesizers`) carry neither, so a
+  reader joins them to the `arm holdout=` line by order. *Filed 2026-10-29 by the diff review of
+  PR #58.*
+  **Why deferred.** The entries PR #58 paid named the direct arm's lines only.
+  **What discharges it:** each of those lines names `holdout=` and `fill=` from `CURRENT_FILL`,
+  documented in `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the next change to `bko.evaluate.guided`'s attempt line or
+  `bko.baselines.synthesizers`' fill.
+
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
@@ -82,3 +97,26 @@ links to where its blocker is tracked.
   **What discharges it:** `frame` is a required keyword on each of those, and the default's pin
   in `tests/test_datasets_frame.py` goes.
   **Trigger:** the next change to `bko.generate`'s send path, or a second non-UCI caller of it.
+
+- **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
+  flight on a closed runner.** In `bko.generate.flight.Flight._run`'s persistent-runner branch,
+  `self._runner = asyncio.Runner()` runs after `self._settle(...)`, so if `_settle` raises (a
+  `fail` or call-log write error), `self._runner` stays the runner `_settle` closed and the next
+  `wave` raises `RuntimeError: Runner is closed` instead of the first error. *Filed 2026-10-29 by
+  the diff review of PR #58.*
+  **Why deferred.** It predates PR #58, which touched `_run` only to record what stopped the wave.
+  **What discharges it:** the replacement runner is made in a `finally` around `_settle`, pinned by
+  a test whose `fail` raises.
+  **Trigger:** the next change to `Flight._run` or `Flight._settle`.
+
+- **`cleanup:generate/sdk-debug-log-bodies`: SDK debug logging would write request bodies to
+  stderr.** Nothing holds logger `anthropic._base_client` at INFO or above, so `ANTHROPIC_LOG=debug`
+  makes the SDK log each request's options, prompt records included, to stderr, where
+  `bko.generate.api.CallTag` tags them like any other record. Evidence: the SDK's `_setup_logging`
+  sets that logger to DEBUG when `ANTHROPIC_LOG=debug`, and `HTTP_LOGGERS` lists only `httpx2`.
+  *Filed 2026-10-29 by the diff review of PR #58.*
+  **Why deferred.** It predates PR #58, and no documented command sets `ANTHROPIC_LOG`.
+  **What discharges it:** `install_call_tag` or `configure_logging` holds that logger at INFO, or
+  `docs/DEVELOPMENT.md` states what `ANTHROPIC_LOG=debug` writes.
+  **Trigger:** the next change to `bko.generate.api`'s logging, or a run that sets
+  `ANTHROPIC_LOG`.

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-10-27
+updated: 2026-10-29
 ---
 # A round's independent calls go out as concurrent waves that keep the call plan
 
@@ -62,7 +62,8 @@ ceiling stop lands elsewhere.
   lowest idle call. The stop is raised from inside the event loop, with no signal.
 - **Interrupt.** A `KeyboardInterrupt` cancels the calls in flight. Every requested call gets an
   error line before the call log closes, one cancelled before it started and one hit by a further
-  Ctrl-C included.
+  Ctrl-C included, and each such line records `KeyboardInterrupt`, whether the interrupt arrived
+  as the exception or as `asyncio.Runner`'s cancellation of the wave on SIGINT.
 - **Resume.** For a log whose `run` line holds `in_flight` above 1, a resume drops every call from
   the first one not answered by exactly one `reply` line, with one warning each, and carries the
   dropped calls' `usd` into the new run's spend as `carried_usd`. At any in-flight,
