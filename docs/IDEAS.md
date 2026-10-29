@@ -2,8 +2,9 @@
 
 Sources: [research brief](../papers/research-brief.pdf) TL;DR, A1, A2, B4, B6, C7, C8, C9, F15, F16, Caveats; [2-pager](../papers/proposal-2-pager.pdf) sections 2, 3 and 4.
 
-Unscheduled ideas. Each records what it is, why it is not in the plan, and its sources. None is
-scheduled; adopting one means changing [RESEARCH.md](RESEARCH.md) first.
+Ideas outside the plan. Each records what it is, why it is not in the plan, and its sources.
+Adopting one means changing [RESEARCH.md](RESEARCH.md) first; an entry that points at a task unit
+is scheduled through that unit, which makes the change in its own PR.
 
 ## SLM distillation stretch goal
 
@@ -113,11 +114,18 @@ and clinician review appears only in the concept-to-field mapping
 ## CLLM and GReaT as alternative generators
 
 **What it is.** The brief's recommended generators: prompt-based CLLM [`seedat-2024`][seedat-2024]
-or fine-tuned GReaT [`borisov-2023`][borisov-2023]. CLLM curates generated rows by predictive
-confidence or aleatoric uncertainty; the brief cites its gains in the low-data regime (n<100) and
-for underrepresented subgroups, and its code is public. GReaT is costly to train (~9h10m in its
-paper, against 0:46 for TVAE). Either could join the comparison as a further baseline, and
-CLLM-style curation could join the Validate stage.
+or fine-tuned GReaT [`borisov-2023`][borisov-2023]. CLLM shows a model real training records as
+in-context examples and curates the generated rows by predictive confidence or aleatoric
+uncertainty; the brief cites its gains in the low-data regime (n<100) and for underrepresented
+subgroups, and its code is public. GReaT fine-tunes a language model on the table and is costly to
+train (~9h10m in its paper, against 0:46 for TVAE). REaLTabFormer [`solatorio-2023`][solatorio-2023]
+also trains a transformer on the table.
+
+**Status.** CLLM, as a comparison arm with its curation, is scheduled as the task unit
+[`evaluate-cllm-baseline`](../tasks/evaluate-cllm-baseline.md). GReaT and REaLTabFormer are ruled
+out: each trains a model on the table, a training cost the brief's GReaT figures show and the
+plan's other arms do not pay, and the CLLM arm already asks an LLM for records without the
+ontology.
 
 **Why it is not in the plan.** The 2-pager generates through the Anthropic Messages API, guided by
 ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN. For balance, the brief
@@ -126,6 +134,40 @@ modes of in-context generation, which the Messages API approach is.
 
 **Sources.** Brief TL;DR, B4, B6, F15 (bullet 1); 2-pager section 4. Details:
 [BACKGROUND.md](BACKGROUND.md#tabular-generator-families).
+
+## Diffusion generators: TabDDPM and TabSyn
+
+**What it is.** Denoising diffusion over tabular rows: TabDDPM [`kotelnikov-2023`][kotelnikov-2023]
+diffuses the rows themselves, and TabSyn [`zhang-2024`][zhang-2024] diffuses in a learned latent
+space. The brief lists both as its diffusion family
+([BACKGROUND.md](BACKGROUND.md#tabular-generator-families)).
+
+**Why it is not in the plan.** Deferred. synthcity does not resolve on Python 3.14 (ADR
+[tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)), so either
+needs a standalone implementation. Both are deep generators that train on the training
+split, and at UCI's about 240 training records the deep generators E1 already runs, CTGAN and TVAE,
+get few optimizer steps (ADR
+[research/baseline-augmentation-design](adr/research/baseline-augmentation-design.md)); a larger
+model on the same rows is not expected to gain much. The Synthea frame's larger split is where one
+would be worth a unit.
+
+**Sources.** Brief B4.
+
+## Tree-based generators: ARF and ForestDiffusion
+
+**What it is.** Generators built from tree ensembles: adversarial random forests
+[`watson-2023`][watson-2023] alternate a forest that tells real rows from synthetic ones with
+sampling from the forest's leaves, and ForestDiffusion
+[`jolicoeur-martineau-2023`][jolicoeur-martineau-2023] trains gradient-boosted trees as the
+diffusion or flow model.
+
+**Why it is not in the plan.** Deferred. The task unit
+[`evaluate-classical-baselines`](../tasks/evaluate-classical-baselines.md) runs sequential CART
+synthesis, the simplest tree-based synthesizer; ARF and ForestDiffusion are worth a unit if it
+reads well beside `bko`. Each resolves on Python 3.14 under a scratch copy of the lock (checked
+2026-10-28); neither has been installed or run.
+
+**Sources.** None in the brief or the 2-pager.
 
 ## Alternative gap detectors
 
@@ -163,8 +205,13 @@ reads a posterior, with a hand-worked case to check it against, since pybkb has 
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694
 [gunasekar-2023]: https://arxiv.org/abs/2306.11644
+[jolicoeur-martineau-2023]: https://arxiv.org/abs/2309.09968
 [kim-2025]: https://doi.org/10.1038/s41746-025-01653-8
+[kotelnikov-2023]: https://arxiv.org/abs/2209.15421
 [llms-2024]: https://arxiv.org/abs/2406.14541
 [meditron-2023]: https://arxiv.org/abs/2311.16079
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [shacl-2025]: https://arxiv.org/abs/2507.22305
+[solatorio-2023]: https://arxiv.org/abs/2302.02041
+[watson-2023]: https://arxiv.org/abs/2205.09435
+[zhang-2024]: https://arxiv.org/abs/2310.09656

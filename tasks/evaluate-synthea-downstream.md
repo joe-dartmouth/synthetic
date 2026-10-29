@@ -3,7 +3,7 @@ id: evaluate-synthea-downstream
 title: A downstream experiment on Synthea with known gaps
 status: blocked
 depends_on: evaluate-synthea-frame
-blocks: --
+blocks: evaluate-classical-baselines, evaluate-bayesian-network-baseline, evaluate-cllm-baseline
 parallel_safe: true
 owner: Joe
 milestone: final-report
