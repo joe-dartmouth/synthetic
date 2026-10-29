@@ -37,21 +37,18 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 1. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
    the best; first measure whether the score separates records that match the real cell, then run
    it as an arm ([`generate-bkb-curation`](tasks/generate-bkb-curation.md)).
-2. BKB-drawn concepts filled by the LLM: the BKB chooses each record's concepts, and the LLM fills
-   the fields consistent with them (conditional generation)
-   ([`generate-bkb-skeleton-fill`](tasks/generate-bkb-skeleton-fill.md)).
 
 **Evaluation**
 
-3. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+2. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
    method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-4. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+3. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-5. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
+4. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
    Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-6. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
+5. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
    population, remove a known share of women with the disease from training, and measure how much
    recall each method recovers; the large cells answer the power problem UCI cannot
    ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).
