@@ -34,7 +34,7 @@ from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, number, training_set, unit_weights
 from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.ablation import thinned
-from bko.datasets.cells import cell_counts
+from bko.datasets.cells import SEXES, age_band_labels, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
@@ -97,10 +97,9 @@ def prepared(
     """
     if removal is None:
         return parts, parts.train.iloc[:0]
-    kept = thinned(
+    kept, removed = thinned(
         parts.train, cell=removal.cell, edges=edges, fraction=removal.fraction, seed=parts.seed
     )
-    removed = parts.train.loc[~parts.train.index.isin(kept.index)]
     logger.info(
         "removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d",
         parts.seed,
@@ -149,10 +148,12 @@ def run(
     no runner.
 
     Raises:
-        EvaluationError: If an arm other than `REAL_ARM` has no runner, no cell needs filling, or
-            a fit does not converge.
+        EvaluationError: If the removal's cell is not a cell of `frame`, an arm other than
+            `REAL_ARM` has no runner, no cell needs filling, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
+        DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout.
     """
+    _require_cell(experiment.removal, frame)
     missing = sorted(set(experiment.arms) - set(arms) - {REAL_ARM})
     if missing:
         msg = f"no runner for arms {missing}"
@@ -189,17 +190,17 @@ def score_holdout(
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
+        DatasetError: As `prepared`, if the removal's cell holds no training row.
     """
     _require_regression(models)
-    whole = parts
-    parts, removed = prepared(whole, experiment.removal, edges=frame.edges)
-    train, seed = parts.train, parts.seed
+    ablated, removed = prepared(parts, experiment.removal, edges=frame.edges)
+    train, test, seed = ablated.train, ablated.test, ablated.seed
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
         seed,
         len(train),
-        len(parts.test),
-        parts.fingerprint,
+        len(test),
+        ablated.fingerprint,
     )
     gap = gap_request(train, experiment, seed=seed, frame=frame)
     _log_quota(seed, gap)
@@ -229,7 +230,7 @@ def score_holdout(
         name: drains[name](seed, Source.REPLICA_CANDIDATES) for name in replicas if name in drains
     }
     clean = _scored_split(
-        parts.test,
+        test,
         [*(fill.added for fill in fills.values()), *replicas.values()],
         keep_copies=not experiment.decontaminate,
         holdout=seed,
@@ -240,25 +241,44 @@ def score_holdout(
         HELD_OUT_ARM,
         Source.HELD_OUT,
         {
-            Measure.HELD_OUT_RATIO: held_out_ratio(whole, edges=frame.edges),
-            **distances(parts.test, train, frame=frame),
+            Measure.HELD_OUT_RATIO: held_out_ratio(parts, edges=frame.edges),
+            **distances(test, train, frame=frame),
             Measure.FLAGGED_FINGERPRINT: fingerprint(cells),
             **({} if experiment.decontaminate else {Measure.COPIES_KEPT: 1.0}),
         },
     )
     for name in experiment.arms:
         fill = fills[name]
-        scores += _arm_scores(seed, name, fill, parts, clean, cells, models=models, frame=frame)
+        scores += _arm_scores(seed, name, fill, ablated, clean, cells, models=models, frame=frame)
         if name in replicas:
             replica = replicas[name]
             scores += _replica_scores(
-                seed, name, replica, parts, clean, cells, factory=models[Model.LR], frame=frame
+                seed, name, replica, ablated, clean, cells, factory=models[Model.LR], frame=frame
             )
         if name in gap_counts:
             scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
         if name in replica_counts:
             scores += _rows(seed, name, Source.REPLICA_CANDIDATES, replica_counts[name])
     return scores
+
+
+def _require_cell(removal: Removal | None, frame: FrameSpec) -> None:
+    """Refuse a removal whose cell is not one of `frame`'s cells.
+
+    Raises:
+        EvaluationError: If the cell's band, sex label or label is not `frame`'s.
+    """
+    if removal is None:
+        return
+    cells = {
+        (band, sex, label)
+        for band in age_band_labels(frame.edges)
+        for sex in SEXES.values()
+        for label in frame.label_codes
+    }
+    if removal.cell not in cells:
+        msg = f"the removal's cell {removal.cell} is not a cell of the {frame.name} frame"
+        raise EvaluationError(msg)
 
 
 def _scored_split(

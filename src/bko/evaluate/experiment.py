@@ -119,7 +119,8 @@ class Experiment:
                 comparators, the confidence is not in (0, 1), there is no attempt, the budget is
                 below 1, the validity is not in (0, 1], the spend ceiling is not above 0 USD, a
                 criterion is unknown or named twice, the projection is not read after at least one
-                holdout, or the idle limit is not above 0 seconds.
+                holdout, the idle limit is not above 0 seconds, or `REAL_ARM` is an arm with no
+                removal, a replica arm, or an arm of an experiment that removes copies.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -168,6 +169,26 @@ class Experiment:
             msg = f"criteria {self.criteria} must be distinct names among {CRITERION_NAMES}"
             raise ValueError(msg)
         self._check_stop_rules()
+        self._check_real()
+
+    def _check_real(self) -> None:
+        """Refuse `REAL_ARM` where the harness cannot score it.
+
+        Its added rows are the removal's rows, so it needs a removal; it has no runner, so it
+        fills no replica; and its rows are real training rows, so E3's copy rule, which keeps
+        copies, is the one it is read under.
+        """
+        if REAL_ARM in self.replica_arms:
+            msg = f"the reference arm {REAL_ARM!r} has no runner, so it has no replica"
+            raise ValueError(msg)
+        if REAL_ARM not in self.arms:
+            return
+        if self.removal is None:
+            msg = f"the reference arm {REAL_ARM!r} needs a removal: its rows are the removed rows"
+            raise ValueError(msg)
+        if self.decontaminate:
+            msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
+            raise ValueError(msg)
 
     def _check_stop_rules(self) -> None:
         if self.projection_after < 1:
@@ -271,8 +292,11 @@ E3: Final = replace(
 removed, test copies kept, a $65.00 ceiling and no criterion (ADR
 `research/synthea-downstream-design`)."""
 
-E3_SLICE_CEILING: Final = 32.5
+E3_SLICE_CEILING: Final = E3.spend_ceiling / 2
 """Each of E3's two holdout slices' ceiling: half of E3's."""
+
+_E3_SPLIT: Final = HOLDOUTS // 2
+"""The first holdout seed of E3's second slice."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,12 +342,14 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         },
         "e3": NamedRun(E3, SETTINGS, Dataset.SYNTHEA),
         "e3-a": NamedRun(
-            replace(E3, holdout_seeds=tuple(range(50)), spend_ceiling=E3_SLICE_CEILING),
+            replace(E3, holdout_seeds=tuple(range(_E3_SPLIT)), spend_ceiling=E3_SLICE_CEILING),
             SETTINGS,
             Dataset.SYNTHEA,
         ),
         "e3-b": NamedRun(
-            replace(E3, holdout_seeds=tuple(range(50, HOLDOUTS)), spend_ceiling=E3_SLICE_CEILING),
+            replace(
+                E3, holdout_seeds=tuple(range(_E3_SPLIT, HOLDOUTS)), spend_ceiling=E3_SLICE_CEILING
+            ),
             SETTINGS,
             Dataset.SYNTHEA,
         ),

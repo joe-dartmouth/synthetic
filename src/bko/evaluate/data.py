@@ -12,10 +12,11 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final, Protocol, assert_never
 
 import pandas as pd
@@ -58,12 +59,30 @@ def indicator(row: CodeMapping) -> str:
     return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
 
 
-SYNTHEA_INDICATORS: Final[Mapping[str, str]] = {
-    indicator(row): row.snomed for row in INDICATOR_ROWS
-}
-"""Each indicator column's condition code, in `CODE_MAPPINGS` order."""
+def indicators(rows: Sequence[CodeMapping]) -> Mapping[str, str]:
+    """Each row's indicator column and its condition code, in `rows`' order, frozen.
 
-_PRESENCE: Final[Mapping[int, str]] = {0: "absent", 1: "present"}
+    Raises:
+        ValueError: If two rows name one column, or a row names `age`, `sex` or the label.
+    """
+    found: dict[str, str] = {}
+    for row in rows:
+        name = indicator(row)
+        if name in found:
+            msg = f"indicator {name!r} is named twice"
+            raise ValueError(msg)
+        if name in {"age", "sex", LABEL}:
+            msg = f"indicator {name!r} is one of the frame's own columns"
+            raise ValueError(msg)
+        found[name] = row.snomed
+    return MappingProxyType(found)
+
+
+SYNTHEA_INDICATORS: Final[Mapping[str, str]] = indicators(INDICATOR_ROWS)
+"""Each indicator column's condition code, in `CODE_MAPPINGS` order; checked when the module is
+imported."""
+
+_PRESENCE: Final[Mapping[int, str]] = MappingProxyType({0: "absent", 1: "present"})
 
 SYNTHEA_FRAME: Final = FrameSpec(
     name=SYNTHEA_NAME,

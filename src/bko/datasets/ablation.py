@@ -219,7 +219,7 @@ def thinned(
     edges: Sequence[int],
     fraction: float,
     seed: int,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """`train` without `fraction` of its rows in `cell`, drawn as an ablation draws its cases.
 
     The cell's rows, sorted by index, are ordered by `removal_order` at `seed`, and the first
@@ -234,7 +234,7 @@ def thinned(
         seed: The draw's seed.
 
     Returns:
-        The rows kept.
+        The rows kept, then the rows removed, each in `train`'s order.
 
     Raises:
         DatasetError: If the fraction is not in (0, 1) or `cell` holds no row of `train`.
@@ -249,8 +249,10 @@ def thinned(
     if selected.empty:
         msg = f"cell {band}/{sex}/{label} holds no training row to thin"
         raise DatasetError(msg)
-    removed = removal_order(selected, seed)[: removed_count(fraction, len(selected))]
-    return train.loc[~train.index.isin(removed)]
+    removed = train.index.isin(
+        removal_order(selected, seed)[: removed_count(fraction, len(selected))]
+    )
+    return train.loc[~removed], train.loc[removed]
 
 
 def _drawn(selected: pd.Index, spec: AblationSpec) -> pd.Index:

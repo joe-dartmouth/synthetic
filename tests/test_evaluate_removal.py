@@ -183,7 +183,9 @@ def test_the_flagged_subgroup_is_the_removed_cells_subgroup():
 
 @pytest.mark.parametrize("decontaminate", [False, True])
 def test_a_run_that_keeps_copies_says_so_on_every_holdout(decontaminate):
-    experiment = dataclasses.replace(TOY_E3, decontaminate=decontaminate)
+    experiment = dataclasses.replace(
+        TOY_E3, arms=("none",), candidate="none", comparators=(), decontaminate=decontaminate
+    )
     scores = run(toy_records(), experiment, ARMS, models=LR, frame=TOY)
     found = [s for s in scores if s.measure is Measure.COPIES_KEPT]
     expected = [] if decontaminate else [(h, 1.0) for h in experiment.holdout_seeds]

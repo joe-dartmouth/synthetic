@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from types import MappingProxyType
+
+import pytest
 
 from bko.datasets.cells import LABEL
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population, subjects
 from bko.evaluate.data import (
+    INDICATOR_ROWS,
     SYNTHEA_ADULTS_FROM,
     SYNTHEA_FIELD_ROWS,
     SYNTHEA_FRAME,
     SYNTHEA_INDICATORS,
     digest,
+    indicators,
 )
 from bko.gaps.observe import observe_population, record_cells
 from bko.ontology.mapping import CODE_MAPPINGS
@@ -120,3 +126,26 @@ def test_indicator_rows_reproduce_observe_population(tmp_path):
     assert dict(cells.whole.holders) == dict(observed.holders)
     assert cells.whole.records == observed.records
     assert all(count > 0 for count in observed.holders.values())
+
+
+def test_the_indicators_are_a_frozen_mapping_of_their_rows():
+    assert isinstance(SYNTHEA_INDICATORS, MappingProxyType)
+    assert dict(SYNTHEA_INDICATORS) == dict(indicators(INDICATOR_ROWS))
+
+
+@pytest.mark.parametrize(
+    ("labels", "message"),
+    [
+        (("Hypertension", "hypertension"), "twice"),
+        (("Age",), "frame's own"),
+        (("Sex",), "frame's own"),
+        (("Target",), "frame's own"),
+    ],
+)
+def test_indicator_names_must_be_unique_and_not_the_frames_own(labels, message):
+    rows = tuple(
+        dataclasses.replace(INDICATOR_ROWS[0], label=label, snomed=str(i))
+        for i, label in enumerate(labels)
+    )
+    with pytest.raises(ValueError, match=message):
+        indicators(rows)

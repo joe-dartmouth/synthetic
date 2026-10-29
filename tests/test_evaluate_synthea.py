@@ -91,8 +91,9 @@ def test_the_removal_thins_training_rows_only(tmp_path):
     pd.testing.assert_frame_equal(removed, parts.train.loc[removed.index])
     assert sorted(kept.train.index) == sorted(parts.train.index.difference(drawn))
     assert len(selected) - count == int(_in_cell(kept.train).sum())
-    again = thinned(parts.train, cell=REMOVED, edges=SYNTHEA_FRAME.edges, fraction=0.9, seed=3)
+    again, out = thinned(parts.train, cell=REMOVED, edges=SYNTHEA_FRAME.edges, fraction=0.9, seed=3)
     pd.testing.assert_frame_equal(again, kept.train)
+    pd.testing.assert_frame_equal(out, removed)
     unthinned, none = prepared(parts, None, edges=SYNTHEA_FRAME.edges)
     assert unthinned is parts
     assert none.empty
