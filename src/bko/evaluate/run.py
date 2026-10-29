@@ -185,6 +185,10 @@ def score_holdout(
         holdout=seed,
         frame=frame,
     )
+    for name in experiment.arms:
+        _log_training(seed, name, "gap", fills[name].added, train, frame=frame)
+        if name in replicas:
+            _log_training(seed, name, "replica", replicas[name], train, frame=frame)
     scores = _rows(
         seed,
         HELD_OUT_ARM,
@@ -234,6 +238,29 @@ def _scored_split(
         "true" if keep_copies else "false",
     )
     return test if keep_copies else clean
+
+
+def _log_training(
+    holdout: int,
+    name: str,
+    fill: str,
+    added: pd.DataFrame,
+    train: pd.DataFrame,
+    *,
+    frame: FrameSpec,
+) -> None:
+    """Log how many of an arm's `added` rows equal some training row in every frame column.
+
+    A log line only, never a score: the scores' columns stay as they are.
+    """
+    logger.info(
+        "training holdout=%d arm=%s fill=%s rows=%d copies=%d",
+        holdout,
+        name,
+        fill,
+        len(added),
+        copies(added, train, frame=frame),
+    )
 
 
 def _log_quota(seed: int, request: Request) -> None:

@@ -19,9 +19,13 @@ def _records(rows: pd.DataFrame, frame: FrameSpec) -> list[tuple[object, ...]]:
     return list(rows.loc[:, list(frame.columns)].itertuples(index=False, name=None))
 
 
-def copies(rows: pd.DataFrame, test: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME) -> int:
-    """How many of `rows` equal some test record in every one of `frame`'s columns."""
-    held = set(_records(test, frame))
+def copies(rows: pd.DataFrame, records: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME) -> int:
+    """How many of `rows` equal some record of `records` in every one of `frame`'s columns.
+
+    The harness counts copies of the test split's records and, in a log line, of the training
+    split's.
+    """
+    held = set(_records(records, frame))
     return sum(record in held for record in _records(rows, frame))
 
 

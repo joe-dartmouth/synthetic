@@ -71,27 +71,6 @@ links to where its blocker is tracked.
   carry the holdout and the fill.
   **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
 
-- **`cleanup:evaluate/direct-training-copies-count`: no log counts added rows that equal a training
-  row.** The direct arm copies training values by design, and nothing counts a drawn row that
-  equals a training row in every column. Evidence: the smallest `bko-direct` `added` `dcr-p5` in
-  `runs/g2-2/scores.csv` is 0.011978916663589707, above 0 on every holdout, which bounds such rows
-  at 1 of 20 per holdout at most (inferred from the 5th percentile, not counted). *Filed 2026-10-27
-  by the review of PR #47.*
-  **Why deferred.** The bound needs no new run, and a count moves the recorded logs.
-  **What discharges it:** `score` logs a zero-distance count of each arm's added and replica rows.
-  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
-
-- **`cleanup:evaluate/compare-header-run-level`: `compare`'s judged output names no run and no
-  level.** The header log line, the `criterion=` lines and `criteria.csv` carry neither the run nor
-  its guidance level, so two judged runs at different levels read alike; only the `--beside` lines
-  name a run. Evidence: `bko.evaluate.compare` logs the header as `"compare candidate=%s dry_run=%s
-  scores_sha256=%s"`, with the candidate arm, the dry-run flag and the scores' sha256 only. *Filed
-  2026-10-28 by the diff review of PR #53.*
-  **Why deferred.** `bko.evaluate.compare` lies outside the change that set `SETTINGS` to
-  `summary`, which touches `SETTINGS` and its pins only.
-  **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
-  **Trigger:** the next change to `bko.evaluate.compare`.
-
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
