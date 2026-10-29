@@ -19,7 +19,7 @@ which starts it: it runs `score` into the claimed folder and resumes API-caused 
 for a child a signal killed, or 2 when it or a resume cannot run.
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
-RUN's, or whose columns differ.
+RUN's, whose columns differ, or whose holdouts hold different scores' keys.
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 

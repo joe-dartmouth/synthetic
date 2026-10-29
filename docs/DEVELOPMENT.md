@@ -144,13 +144,18 @@ label group. `compare g2` writes a table of its header alone, since `G2` judges 
 logs every criterion's intervals as `unjudged` lines.
 
 `merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
-holdouts overlap, whose union is not the named run's holdout seeds, or whose headers differ, and
-writes the rows in seed order under one header to stdout:
+holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
+holdouts hold different (arm, source, measure, scope) keys, as slices scored under other code or
+configuration would, and writes the rows in the named run's seed order under one header to stdout,
+each holdout's rows in its file's order:
 
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
-`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs one
-INFO line, `merge files=<n> holdouts=<n> rows=<n>`, to stderr.
+`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs to
+stderr, at INFO, one line per input as it reads it, `merge file=%s holdouts=%s rows=%d sha256=%s`
+(the path, the file's lowest and highest holdout as `<first>-<last>`, or `none` for a file with no
+row, its row count and the sha256 of its bytes), then for the merged scores
+`merge files=%d holdouts=%d rows=%d sha256=%s`, the sha256 of the bytes it writes.
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
