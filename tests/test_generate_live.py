@@ -6,6 +6,7 @@ plausibility.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 
@@ -23,9 +24,11 @@ pytestmark = pytest.mark.live
 logger = logging.getLogger(__name__)
 
 
-def test_one_real_call_returns_schema_shaped_records(tmp_path):
+@pytest.mark.parametrize("model", [SETTINGS.model, "claude-sonnet-5-5"])
+def test_one_real_call_returns_schema_shaped_records(tmp_path, model):
+    settings = dataclasses.replace(SETTINGS, model=model)
     call = Call(
-        SETTINGS, 0, 1, *render(GUIDANCE, 2, SETTINGS.guidance, frame=UCI_FRAME), frame=UCI_FRAME
+        settings, 0, 1, *render(GUIDANCE, 2, settings.guidance, frame=UCI_FRAME), frame=UCI_FRAME
     )
     reply = default_send()(call)
     (tmp_path / "call.json").write_text(
@@ -57,4 +60,5 @@ def test_one_real_call_returns_schema_shaped_records(tmp_path):
     assert reply.attempts >= 1
     assert reply.request_id is not None
     assert reply.request_id.startswith("req_")
+    assert reply.model == model
     assert reply.usage.output_tokens <= SETTINGS.max_tokens
