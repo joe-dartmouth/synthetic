@@ -25,11 +25,21 @@ from bko.evaluate.experiment import (
     gap_request,
     replica_request,
 )
-from bko.evaluate.named_runs import E3, E3_SLICE_CEILING, G2, G5, RUNS, SETTINGS_SWEEP, NamedRun
+from bko.evaluate.named_runs import (
+    E3,
+    E3_SLICE_CEILING,
+    G2,
+    G5,
+    G6_MODELS,
+    RUNS,
+    SETTINGS_SWEEP,
+    NamedRun,
+)
 from bko.evaluate.run import ARMS, run
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
+from bko.generate.weights import LOCAL_MODELS
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
 
@@ -104,10 +114,6 @@ def test_every_run_name_is_pinned():
         "e3-a",
         "e3-b",
         "g2",
-        "g6-gemma",
-        "g6-nemotron",
-        "g6-olmo",
-        "g6-sonnet",
         "g3-cell",
         "g3-coherent",
         "g3-findings",
@@ -117,6 +123,10 @@ def test_every_run_name_is_pinned():
         "g4-low",
         "g4-medium",
         "g5",
+        "g6-gemma",
+        "g6-nemotron",
+        "g6-olmo",
+        "g6-sonnet",
     }
 
 
@@ -347,4 +357,13 @@ def test_the_sonnet_ceiling_covers_its_estimate():
     asked, at Sonnet 5.5's rates: about $70, and the ceiling is at least 1.25 times that."""
     price = price_of("claude-sonnet-5-5")
     estimate = 25829 * (300.535 * price.input + 211.162 * price.output) / 1e6
-    assert RUNS["g6-sonnet"].experiment.spend_ceiling >= 1.25 * estimate
+    ceiling = RUNS["g6-sonnet"].experiment.spend_ceiling
+    assert 1.25 * estimate <= ceiling <= 1.5 * estimate
+
+
+def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
+    assert {name for name in RUNS if name.startswith("g6-")} == set(G6_MODELS)
+    for name, (model, _) in G6_MODELS.items():
+        assert RUNS[name].settings.model == model
+        price_of(model)
+        assert (model in LOCAL_MODELS) == (name != "g6-sonnet"), name

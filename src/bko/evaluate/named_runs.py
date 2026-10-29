@@ -128,8 +128,9 @@ G6_MODELS: Final[Mapping[str, tuple[str, float]]] = MappingProxyType(
         "g6-olmo": ("olmo-3-7b-instruct-q8_0", 1.0),
     }
 )
-"""Each generator-comparison run's model and spend ceiling in USD: Sonnet 5.5's covers 1.25 times
-its estimate; an on-device model bills nothing, so its $1.00 stops any call that reached the API."""
+"""Each generator-comparison run's model and spend ceiling in USD. Sonnet 5.5's covers 1.25 times
+its estimate. An on-device model bills nothing, so its $1.00 is the least ceiling an `Experiment`
+takes and never stops the run; `bko.evaluate.context.Context.sender` keeps its calls local."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +211,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
 `medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
 G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
-holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling. A
-variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
-seeds, fill target,
-ceiling and criteria."""
+holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
+`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
+its `G6_MODELS` model and ceiling (G6). A variant adds its own entry in its own change, listing
+its arms, candidate, comparators, holdout seeds, fill target, ceiling and criteria."""
