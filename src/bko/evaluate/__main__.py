@@ -1,4 +1,6 @@
-"""The evaluation's command line: `python -m bko.evaluate score`, `compare`, `launch`, `supervise`.
+"""The evaluation's command line: `python -m bko.evaluate` and its subcommands.
+
+The subcommands are `score`, `compare`, `merge`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -15,6 +17,9 @@ and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is inter
 which starts it: it runs `score` into the claimed folder and resumes API-caused stops
 (`bko.evaluate.supervise`), and exits with the last segment's code, 128 plus the signal's number
 for a child a signal killed, or 2 when it or a resume cannot run.
+`merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
+to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
+RUN's, or whose columns differ.
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
@@ -61,6 +66,7 @@ from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DEFAULT_RUN, MESSAGES_ARMS
 from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
+from bko.evaluate.merge import merge
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
@@ -111,11 +117,13 @@ def main(
 
 
 def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
-    """Run `supervise`, `launch` or `compare`, writing what it prints to `sink`; return its code."""
+    """Run `supervise`, `launch`, `merge` or `compare`, writing its output to `sink`."""
     if args.command == "supervise":
         return _supervise(args, context)
     if args.command == "launch":
         sink.write(_launch(args, context))
+    elif args.command == "merge":
+        sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
     else:
         _compare(args, context, sink)
     return 0
@@ -338,6 +346,11 @@ def _parser() -> argparse.ArgumentParser:
         help="resume the stopped run whose call log this is, into the run id's new folder",
     )
     _supervising(commands)
+    merging = commands.add_parser(
+        "merge", help="join holdout slices' scores into the scores one run writes"
+    )
+    merging.add_argument("run", help="the named run whose holdouts the slices partition")
+    merging.add_argument("scores", type=Path, nargs="+", help="a CSV that `score` wrote")
     comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
     comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")

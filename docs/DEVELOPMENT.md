@@ -149,7 +149,8 @@ writes the rows in seed order under one header to stdout:
 
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
-`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's.
+`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs one
+INFO line, `merge files=<n> holdouts=<n> rows=<n>`, to stderr.
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
