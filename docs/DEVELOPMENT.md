@@ -497,7 +497,8 @@ start or the supervisor cannot run.
   an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). It holds
   E3 over the Synthea frame as `e3`, and its two holdout slices as `e3-a` (holdouts 0 to 49) and
   `e3-b` (50 to 99), each with half of `e3`'s spend ceiling (ADR
-  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)). No flag
+  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md);
+  [EVIDENCE.md](EVIDENCE.md#e3-synthea-downstream-augmentation)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
