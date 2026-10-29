@@ -4,8 +4,8 @@ ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md
 each criterion is read. `RUNS` also holds G3's guidance-level runs, `g3-<level>`, one per level,
 `g3-summary` being E1's level (`docs/EVIDENCE.md`, G3), the effort sweep's runs,
 `g4-low` and `g4-medium` (G4), `g2`, the direct arm's run (`G2`), and `g5`, the prescribing arm's
-run (`G5`). Each named run also fixes
-the dataset it scores, UCI for every one here.
+run (`G5`), and E3's runs over the Synthea frame, `e3` and its holdout slices `e3-a` and `e3-b`
+(ADR `research/synthea-downstream-design`). Each named run also fixes the dataset it scores.
 No command-line flag changes a value here.
 """
 
@@ -31,6 +31,30 @@ from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
 """The criteria `compare` can judge, by name; `docs/EVIDENCE.md` (E1) states how each is read."""
+
+
+@dataclass(frozen=True, slots=True)
+class Removal:
+    """A share of one cell's training rows that leaves every holdout's training split.
+
+    Attributes:
+        cell: The cell's age band, sex label and label.
+        fraction: The share of its training rows removed, drawn per holdout at the holdout's seed
+            (`bko.datasets.ablation.thinned`).
+    """
+
+    cell: Stratum
+    fraction: float
+
+    def __post_init__(self) -> None:
+        """Refuse a fraction outside (0, 1).
+
+        Raises:
+            ValueError: If the fraction is not strictly between 0 and 1.
+        """
+        if not 0 < self.fraction < 1:
+            msg = f"removal fraction {self.fraction} must lie strictly between 0 and 1"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +85,9 @@ class Experiment:
             read against the ceiling (`bko.evaluate.watch`).
         idle_limit: The seconds a paid run's call may go without a reply, its retries included,
             before the run stops.
+        removal: The training rows each holdout loses before any arm runs; None removes none.
+        decontaminate: Whether the test records an arm copies leave the test split (E1's rule);
+            E3 keeps them and counts them.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -79,6 +106,8 @@ class Experiment:
     criteria: tuple[str, ...] = CRITERION_NAMES
     projection_after: int = 5
     idle_limit: float = 900.0
+    removal: Removal | None = None
+    decontaminate: bool = True
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -225,6 +254,22 @@ the runs that vary only the settings, every guidance-level run (`docs/EVIDENCE.m
 effort-sweep run (G4)."""
 
 
+E3: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, *BKO_ARMS),
+    replica_arms=(*ADDS_ROWS, *BKO_ARMS),
+    spend_ceiling=65.0,
+    criteria=(),
+    removal=Removal((">=65", "female", 1), 0.9),
+    decontaminate=False,
+)
+"""E1's arms over the Synthea frame with 0.9 of `(>=65, female, 1)`'s training rows removed, test
+copies kept, a $65.00 ceiling and no criterion (ADR `research/synthea-downstream-design`)."""
+
+E3_SLICE_CEILING: Final = 32.5
+"""Each of E3's two holdout slices' ceiling: half of E3's."""
+
+
 @dataclass(frozen=True, slots=True)
 class NamedRun:
     """One run of the harness, fixed in code and selected by name.
@@ -266,6 +311,17 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             )
             for effort in ("low", "medium")
         },
+        "e3": NamedRun(E3, SETTINGS, Dataset.SYNTHEA),
+        "e3-a": NamedRun(
+            replace(E3, holdout_seeds=tuple(range(50)), spend_ceiling=E3_SLICE_CEILING),
+            SETTINGS,
+            Dataset.SYNTHEA,
+        ),
+        "e3-b": NamedRun(
+            replace(E3, holdout_seeds=tuple(range(50, HOLDOUTS)), spend_ceiling=E3_SLICE_CEILING),
+            SETTINGS,
+            Dataset.SYNTHEA,
+        ),
         "g2": NamedRun(G2),
         "g5": NamedRun(
             G5,
@@ -283,7 +339,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 `bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-summary` is
 E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
 `medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
-G4's effort, `medium` (G5). A
+G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
+holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling. A
 variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
 seeds, fill target,
 ceiling and criteria."""

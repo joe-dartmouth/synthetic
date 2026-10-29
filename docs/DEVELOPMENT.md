@@ -58,8 +58,8 @@ root or to see the module's own code, run it directly:
   [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)) needs only the
   pinned population `DEFAULT_RUN` names: `score e3` checks it against its `run.json` with no Java
   and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
-  snapshot date and aged 40 and over, and the sha256 of its records is the
-  `frame name=synthea rows=%d sha256=%s` line `score` logs.
+  snapshot date and aged 40 and over, and the sha256 of its records is the `digest` of the
+  `data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs.
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,

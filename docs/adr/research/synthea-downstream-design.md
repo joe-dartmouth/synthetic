@@ -94,7 +94,9 @@ figure below is what the command beside it in Rationale prints against that popu
 
 `bko.datasets.synthea` builds the frame's records, `bko.evaluate.data` holds the dataset, the frame
 and its field rows, `bko.datasets.ablation` the training-only removal, and
-`bko.evaluate.experiment` the runs.
+`bko.evaluate.experiment` the runs. The frame's identity is the `digest` of the
+`data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs: the sha256
+of its records, which two builds in separate processes match.
 
 ## Rationale
 
@@ -478,8 +480,8 @@ co-occurring condition; an estimate scaled from UCI's prompts.
 
 ## Enforcement
 
-- Owner: `src/bko/datasets/synthea.py`
-- Pinned by: `tests/test_datasets_synthea.py`
+- Owner: `src/bko/evaluate/data.py`
+- Pinned by: `tests/test_datasets_synthea_frame.py`
 
 ## Reversal Conditions
 

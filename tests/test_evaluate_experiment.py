@@ -71,6 +71,8 @@ def test_e1_is_its_stated_configuration():
         "criteria": ("primary", "secondary", "privacy", "validity"),
         "projection_after": 5,
         "idle_limit": 900.0,
+        "removal": None,
+        "decontaminate": True,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -82,6 +84,9 @@ def test_e1_is_its_stated_configuration():
 def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "e1",
+        "e3",
+        "e3-a",
+        "e3-b",
         "g2",
         "g3-cell",
         "g3-coherent",

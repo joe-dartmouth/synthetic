@@ -4,12 +4,14 @@ A case is a patient: every patient with one of the spec's codes by the snapshot 
 the spec's age band and sex when it names them, is removed with all their condition rows, so
 nothing is left in the loaded tables to infer the case from. A spec removes all of its cases, or a
 fraction of them drawn by a seed. Removal of a case is complete, because a single remaining record
-grounds a BKO statement (ADR `research/synthea-ablation-design`).
+grounds a BKO statement (ADR `research/synthea-ablation-design`). `thinned` removes a fraction of
+one cell's training rows of a frame the same way, by the same draw and count.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
@@ -205,9 +207,55 @@ def ablate(population: Population, spec: AblationSpec) -> Ablation:
     )
 
 
+def removed_count(fraction: float, selected: int) -> int:
+    """`ceil(fraction * selected)`, the product taken exactly from the fraction's decimal text."""
+    return math.ceil(Fraction(str(fraction)) * selected)
+
+
+def thinned(
+    train: pd.DataFrame,
+    *,
+    cell: tuple[str | int, ...],
+    edges: Sequence[int],
+    fraction: float,
+    seed: int,
+) -> pd.DataFrame:
+    """`train` without `fraction` of its rows in `cell`, drawn as an ablation draws its cases.
+
+    The cell's rows, sorted by index, are ordered by `removal_order` at `seed`, and the first
+    `removed_count` of them leave; every other row stays, in its order. E3 thins a holdout's
+    training rows this way and never its test rows (ADR `research/synthea-downstream-design`).
+
+    Args:
+        train: The training rows, with `age`, `sex` and `LABEL`.
+        cell: The age band, sex label and label of the rows to thin.
+        edges: Age band starts.
+        fraction: The share of the cell's rows to remove, in (0, 1).
+        seed: The draw's seed.
+
+    Returns:
+        The rows kept.
+
+    Raises:
+        DatasetError: If the fraction is not in (0, 1) or `cell` holds no row of `train`.
+    """
+    if not 0 < fraction < 1:
+        msg = f"the thinned fraction must lie in (0, 1), not {fraction}"
+        raise DatasetError(msg)
+    keys = cell_keys(train, edges=edges)
+    band, sex, label = cell
+    inside = (keys["age_band"] == band) & (keys["sex"] == sex) & (keys[LABEL] == label)
+    selected = train.index[inside.to_numpy()].sort_values()
+    if selected.empty:
+        msg = f"cell {band}/{sex}/{label} holds no training row to thin"
+        raise DatasetError(msg)
+    removed = removal_order(selected, seed)[: removed_count(fraction, len(selected))]
+    return train.loc[~train.index.isin(removed)]
+
+
 def _drawn(selected: pd.Index, spec: AblationSpec) -> pd.Index:
     """The first `spec.fraction` of `selected` in a draw seeded by `spec.seed`, sorted."""
     if spec.fraction == 1:
         return selected
-    count = math.ceil(Fraction(str(spec.fraction)) * len(selected))
+    count = removed_count(spec.fraction, len(selected))
     return removal_order(selected, spec.seed)[:count].sort_values()

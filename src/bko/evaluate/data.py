@@ -3,25 +3,32 @@
 `score` loads it once (`load`) and hands it to the harness, the BKO arms, the rehearsal and the
 candidates file, so each reads the same records, frame, field mappings and digest, and the run's
 logs name the frame. ADR `research/uci-evaluation-frame` records why the run, not a flag, chooses
-it.
+it. The Synthea frame, its indicators and its field rows are defined here, from
+`bko.ontology.mapping.CODE_MAPPINGS` (ADR `research/synthea-downstream-design`).
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol, assert_never
+from typing import Final, Protocol, assert_never
 
 import pandas as pd
 
+from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.fetch import UrlOpener, ensure
-from bko.datasets.frames import FrameSpec
+from bko.datasets.frames import FrameSpec, RangeConstraint
 from bko.datasets.sources import Source
+from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
+from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.uci import UCI_FRAME, load_uci
-from bko.ontology.schema import FieldMapping
+from bko.ontology.mapping import CODE_MAPPINGS
+from bko.ontology.schema import CodeMapping, Codes, FieldMapping
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -31,6 +38,81 @@ class Dataset(StrEnum):
     """The datasets a named run can score."""
 
     UCI = "uci"
+    SYNTHEA = "synthea"
+
+
+SYNTHEA_NAME: Final = "synthea"
+"""The Synthea frame's name and its dataset's source name, as E2's fragments take it."""
+
+SYNTHEA_ADULTS_FROM: Final = 40
+"""The youngest age, in whole years on the snapshot date, a Synthea record has."""
+
+INDICATOR_ROWS: Final[tuple[CodeMapping, ...]] = tuple(
+    row for row in CODE_MAPPINGS if row.snomed != ISCHEMIC_HEART_DISEASE
+)
+"""The code rows that become the Synthea frame's indicators: every one but the label's."""
+
+
+def indicator(row: CodeMapping) -> str:
+    """The indicator column of `row`: its label, lowercased, each run of other characters `_`."""
+    return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
+
+
+SYNTHEA_INDICATORS: Final[Mapping[str, str]] = {
+    indicator(row): row.snomed for row in INDICATOR_ROWS
+}
+"""Each indicator column's condition code, in `CODE_MAPPINGS` order."""
+
+_PRESENCE: Final[Mapping[int, str]] = {0: "absent", 1: "present"}
+
+SYNTHEA_FRAME: Final = FrameSpec(
+    name=SYNTHEA_NAME,
+    features=("age", "sex", *SYNTHEA_INDICATORS),
+    numeric=("age",),
+    fractional=(),
+    fraction_digits=0,
+    categorical=("sex", *SYNTHEA_INDICATORS),
+    codebook={"sex": SEXES, **dict.fromkeys(SYNTHEA_INDICATORS, _PRESENCE)},
+    descriptions={
+        "age": "age in years on the snapshot date",
+        "sex": "sex",
+        **{indicator(row): f"{row.label} recorded by the snapshot date" for row in INDICATOR_ROWS},
+        LABEL: "ischemic heart disease recorded by the snapshot date",
+    },
+    ranges=(
+        RangeConstraint(
+            field="age",
+            unit="a",
+            low=SYNTHEA_ADULTS_FROM,
+            high=120,
+            source="research/synthea-downstream-design",
+            limits="the frame keeps patients aged 40 and over; 120 is UCI's team-specified top",
+        ),
+    ),
+    label_codes=tuple(sorted(LABEL_CODES)),
+    label_meanings={0: "no ischemic heart disease", 1: "ischemic heart disease"},
+    edges=(65,),
+    study="ischemic heart disease prediction",
+    cohort="patient aged 40 or over in a generated population",
+)
+"""E3's frame over the pinned Synthea population (ADR `research/synthea-downstream-design`)."""
+
+
+def _field_row(row: CodeMapping) -> FieldMapping:
+    column = LABEL if row.snomed == ISCHEMIC_HEART_DISEASE else indicator(row)
+    return FieldMapping(
+        when=(Codes(column, frozenset({1})),),
+        concept=row.concept,
+        label=row.label,
+        source=row.source,
+        limits="the code recorded by the snapshot date; a patient without it may still hold it",
+    )
+
+
+SYNTHEA_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = tuple(_field_row(r) for r in CODE_MAPPINGS)
+"""The Synthea frame's field rows, one per `CODE_MAPPINGS` row: each indicator's
+`Codes(column, {1})`, and the label's `Codes(target, {1})` for ischemic heart disease (ADR
+`research/ontology-mapping-design`)."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -75,6 +157,16 @@ class Reach(Protocol):
         """The field mappings."""
         ...
 
+    @property
+    def synthea(self) -> SyntheaRun:
+        """The pinned Synthea population's run."""
+        ...
+
+    @property
+    def synthea_jar(self) -> Source:
+        """The jar the pinned Synthea population was generated with."""
+        ...
+
 
 def digest(records: pd.DataFrame) -> str:
     """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
@@ -87,10 +179,15 @@ def digest(records: pd.DataFrame) -> str:
 def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     """Load `dataset` from `data_dir`, fetching UCI Heart Disease if the data root lacks it.
 
-    Logs one `data` line naming the dataset, its frame, its record count and its digest.
+    Synthea's records are the pinned population's, checked against its `run.json` with no Java
+    and never generated (`make synthea` generates it), kept from `SYNTHEA_ADULTS_FROM`; its field
+    rows are `SYNTHEA_FIELD_ROWS`, whatever the context's. Logs one `data` line naming the
+    dataset, its frame, its record count and its digest, the records' sha256.
 
     Raises:
-        DatasetError: As `bko.datasets.fetch.ensure` and `bko.datasets.uci.load_uci`.
+        DatasetError: As `bko.datasets.fetch.ensure` and `bko.datasets.uci.load_uci`, or as
+            `bko.datasets.synthea_run.check_population` and
+            `bko.datasets.synthea.load_population`.
         OSError: If the data root cannot be written.
     """
     match dataset:
@@ -98,6 +195,18 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             ensure(context.uci, data_dir, open_url=context.open_url)
             records = load_uci(data_dir, source=context.uci)
             data = Data(records, UCI_FRAME, context.field_rows, context.uci.name)
+        case Dataset.SYNTHEA:
+            run = context.synthea
+            directory = population_dir(run, data_dir, context.synthea_jar)
+            check_population(directory, run, context.synthea_jar)
+            population = load_population(directory, snapshot_date=run.snapshot_date)
+            records = frame_records(
+                population,
+                label=ISCHEMIC_HEART_DISEASE,
+                indicators=SYNTHEA_INDICATORS,
+                adults_from=SYNTHEA_ADULTS_FROM,
+            )
+            data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, SYNTHEA_NAME)
         case _:
             assert_never(dataset)
     logger.info(

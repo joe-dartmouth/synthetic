@@ -1,8 +1,9 @@
 """The harness: every arm on every holdout of an experiment, scored into one list.
 
-Each holdout splits the records with its seed, under the frame's band edges. An arm gets a copy
-of the split's training rows and the request, which carries the frame, never the test rows, so no
-generator sees a test record. A runner returns a checked
+Each holdout splits the records with its seed, under the frame's band edges, and an experiment's
+removal then thins its training rows (`prepared`); the test rows are never thinned. An arm gets a
+copy of the split's training rows and the request, which carries the frame, never the test rows,
+so no generator sees a test record. A runner returns a checked
 `Baseline`; `augment` checks every method's.
 
 Each holdout fills every arm, then scores each on the test split without the records any arm's
@@ -28,6 +29,7 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, training_set
 from bko.baselines.request import Method, Request, Stratum
+from bko.datasets.ablation import thinned
 from bko.datasets.cells import cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
@@ -36,7 +38,7 @@ from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
+from bko.evaluate.experiment import Experiment, Removal, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
@@ -68,6 +70,26 @@ type Drain = Callable[[int, Source], Mapping[Measure, float]]
 """A BKO arm's counts since the last call, given the holdout's seed and the source they score as.
 The harness drains each arm after the gap fills and, for a replica arm, after the replica fills,
 and writes them per holdout as `Source.CANDIDATES` and `Source.REPLICA_CANDIDATES` scores."""
+
+
+def prepared(
+    parts: Split, removal: Removal | None, *, edges: Sequence[int]
+) -> tuple[Split, pd.DataFrame]:
+    """`parts` with `removal`'s rows gone from its training rows, and the rows removed.
+
+    The draw takes the split's seed (`bko.datasets.ablation.thinned`), and the test rows are
+    `parts`' own. With no removal, `parts` itself and no row.
+
+    Raises:
+        DatasetError: As `thinned`, if the removal's cell holds no training row.
+    """
+    if removal is None:
+        return parts, parts.train.iloc[:0]
+    kept = thinned(
+        parts.train, cell=removal.cell, edges=edges, fraction=removal.fraction, seed=parts.seed
+    )
+    removed = parts.train.loc[~parts.train.index.isin(kept.index)]
+    return Split(kept, parts.test, parts.seed), removed
 
 
 def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
@@ -128,11 +150,14 @@ def score_holdout(
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
+    The holdout's training rows are `parts`' after the experiment's removal (`prepared`).
+
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
     """
     _require_regression(models)
+    parts = prepared(parts, experiment.removal, edges=frame.edges)[0]
     train, test, seed = parts.train, parts.test, parts.seed
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
@@ -166,8 +191,9 @@ def score_holdout(
     replica_counts = {
         name: drains[name](seed, Source.REPLICA_CANDIDATES) for name in replicas if name in drains
     }
-    added = [*(fill.added for fill in fills.values()), *replicas.values()]
-    clean = decontaminated(test, added, frame=frame)
+    clean = decontaminated(
+        test, [*(fill.added for fill in fills.values()), *replicas.values()], frame=frame
+    )
     logger.info("test holdout=%d records=%d copied=%d", seed, len(test), len(test) - len(clean))
     held_out = {
         Measure.HELD_OUT_RATIO: held_out_ratio(parts, edges=frame.edges),
