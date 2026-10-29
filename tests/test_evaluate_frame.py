@@ -23,9 +23,10 @@ from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import Data
 from bko.evaluate.experiment import Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
+from bko.evaluate.prepare import held_out_ratio
 from bko.evaluate.privacy import distances
 from bko.evaluate.rehearse import CannedSend
-from bko.evaluate.run import ARMS, held_out_ratio, run
+from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import Measure, Scope, Source
 from bko.evaluate.utility import in_scope, utility
 from bko.generate.errors import GenerationError

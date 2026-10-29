@@ -1,11 +1,11 @@
 """The harness: every arm on every holdout of an experiment, scored into one list.
 
 Each holdout splits the records with its seed, under the frame's band edges, and an experiment's
-removal then thins its training rows (`prepared`); the test rows are never thinned. An arm gets a
-copy of the split's training rows and the request, which carries the frame, never the test rows,
-so no generator sees a test record. A runner returns a checked
-`Baseline`; `augment` checks every method's. The reference arm `real` has no runner: its added
-rows are the rows the removal took.
+removal then thins its training rows (`bko.evaluate.prepare.prepared`); the test rows are never
+thinned. An arm gets a copy of the split's training rows and the request, which carries the frame,
+never the test rows, so no generator sees a test record. A runner returns a checked `Baseline`;
+`augment` checks every method's. The reference arm `real` has no runner: its added rows are the
+rows the removal took.
 
 Each holdout fills every arm, then scores each on the test split, with every model; under E1's
 rule (`Experiment.decontaminate`) the split first loses the records any arm's rows copy, and an
@@ -23,7 +23,6 @@ import logging
 import time
 from collections.abc import Callable, Mapping, Sequence
 from functools import partial
-from hashlib import sha256
 from types import MappingProxyType
 from typing import Final
 
@@ -33,8 +32,6 @@ from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, number, training_set, unit_weights
 from bko.baselines.request import Method, Request, Stratum
-from bko.datasets.ablation import thinned
-from bko.datasets.cells import SEXES, age_band_labels, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.datasets.uci import UCI_FRAME
@@ -45,12 +42,12 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     REAL_ARM,
     Experiment,
-    Removal,
     flagged,
     gap_request,
     replica_request,
 )
 from bko.evaluate.fidelity import fidelity
+from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.utility import utility
@@ -83,54 +80,6 @@ The harness drains each arm after the gap fills and, for a replica arm, after th
 and writes them per holdout as `Source.CANDIDATES` and `Source.REPLICA_CANDIDATES` scores."""
 
 
-def prepared(
-    parts: Split, removal: Removal | None, *, edges: Sequence[int]
-) -> tuple[Split, pd.DataFrame]:
-    """`parts` with `removal`'s rows gone from its training rows, and the rows removed.
-
-    The draw takes the split's seed (`bko.datasets.ablation.thinned`), and the test rows are
-    `parts`' own. With no removal, `parts` itself and no row. A removal logs one `removal` line:
-    the holdout, the cell, the fraction, and the training rows before, removed and kept.
-
-    Raises:
-        DatasetError: As `thinned`, if the removal's cell holds no training row.
-    """
-    if removal is None:
-        return parts, parts.train.iloc[:0]
-    kept, removed = thinned(
-        parts.train, cell=removal.cell, edges=edges, fraction=removal.fraction, seed=parts.seed
-    )
-    logger.info(
-        "removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d",
-        parts.seed,
-        "/".join(map(str, removal.cell)),
-        removal.fraction,
-        len(parts.train),
-        len(removed),
-        len(kept),
-    )
-    return Split(kept, parts.test, parts.seed), removed
-
-
-def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
-    """Nadeau and Bengio's n2/n1: the largest ratio of held-out to training records in a cell.
-
-    Taking the largest keeps every scope's interval at least as wide as its own cells need. The
-    harness reads it from the split before any removal, so a thinned cell does not set it.
-    """
-    kept = cell_counts(parts.train, edges=edges)["count"].tolist()
-    held = cell_counts(parts.test, edges=edges)["count"].tolist()
-    return max(out / into for out, into in zip(held, kept, strict=True) if out)
-
-
-def fingerprint(cells: Sequence[Stratum]) -> float:
-    """`cells` as a number: the first 12 hex digits of the sha256 of their sorted list's `repr`.
-
-    The value is below 2**48, so a float holds it exactly.
-    """
-    return float(int(sha256(repr(sorted(cells)).encode()).hexdigest()[:12], 16))
-
-
 def run(
     records: pd.DataFrame,
     experiment: Experiment,
@@ -153,7 +102,7 @@ def run(
         BaselineError: If an arm cannot fill a request.
         DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout.
     """
-    _require_cell(experiment.removal, frame)
+    require_cell(experiment.removal, frame)
     missing = sorted(set(experiment.arms) - set(arms) - {REAL_ARM})
     if missing:
         msg = f"no runner for arms {missing}"
@@ -260,25 +209,6 @@ def score_holdout(
         if name in replica_counts:
             scores += _rows(seed, name, Source.REPLICA_CANDIDATES, replica_counts[name])
     return scores
-
-
-def _require_cell(removal: Removal | None, frame: FrameSpec) -> None:
-    """Refuse a removal whose cell is not one of `frame`'s cells.
-
-    Raises:
-        EvaluationError: If the cell's band, sex label or label is not `frame`'s.
-    """
-    if removal is None:
-        return
-    cells = {
-        (band, sex, label)
-        for band in age_band_labels(frame.edges)
-        for sex in SEXES.values()
-        for label in frame.label_codes
-    }
-    if removal.cell not in cells:
-        msg = f"the removal's cell {removal.cell} is not a cell of the {frame.name} frame"
-        raise EvaluationError(msg)
 
 
 def _scored_split(

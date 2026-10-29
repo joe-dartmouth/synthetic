@@ -17,7 +17,8 @@ from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, gap_request
-from bko.evaluate.run import held_out_ratio, run, score_holdout
+from bko.evaluate.prepare import held_out_ratio
+from bko.evaluate.run import run, score_holdout
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source, render
 from tests._baselines_fixtures import EDGE, cell_list
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Spy

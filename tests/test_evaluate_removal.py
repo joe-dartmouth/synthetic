@@ -19,14 +19,8 @@ from bko.datasets.split import split
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.data import SYNTHEA_FRAME
 from bko.evaluate.experiment import E1, E3, REAL_ARM, Removal, flagged
-from bko.evaluate.run import (
-    fingerprint,
-    held_out_ratio,
-    method_arms,
-    prepared,
-    run,
-    score_holdout,
-)
+from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared
+from bko.evaluate.run import method_arms, run, score_holdout
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source
 from tests._evaluate_fixtures import FAST_METHODS
 from tests._frame_fixtures import TOY, TOY_PARTS, toy_records
