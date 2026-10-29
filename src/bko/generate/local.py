@@ -56,12 +56,15 @@ class LocalModel:
         filename: The GGUF file in that repository.
         size: The file's exact byte count.
         sha256: The file's lowercase hex sha256.
+        template: A built-in llama.cpp chat template the server uses in place of the file's own,
+            or None to render the file's template with thinking off.
     """
 
     repo: str
     filename: str
     size: int
     sha256: str
+    template: str | None = None
 
     @property
     def url(self) -> str:
@@ -88,11 +91,15 @@ LOCAL_MODELS: Final[Mapping[str, LocalModel]] = MappingProxyType(
             filename="Olmo-3-7B-Instruct-Q8_0.gguf",
             size=7_759_252_672,
             sha256="73a9db00c542d93578892c1fafedc9fb6668db6177262d8035ecaf70748c8122",
+            template="chatml",
         ),
     }
 )
 """Each on-device model by its id, read from the repository's file listing on 2026-10-29: the
-publisher's own GGUF repository, else `ggml-org`'s, else `unsloth`'s."""
+publisher's own GGUF repository, else `ggml-org`'s, else `unsloth`'s. Olmo 3 7B Instruct's file
+template pipes an undefined `tools` into `tojson`, which llama.cpp's template parser refuses; for a
+system and a user turn with no tools it renders ChatML, so the server uses its built-in `chatml`.
+Olmo 3 7B Instruct has no thinking mode."""
 
 LOCAL_URL: Final = "http://127.0.0.1:8081"
 """The address `llama-server` listens on; it binds the loopback interface only."""
@@ -265,7 +272,20 @@ def fetch(model: str, data_dir: Path, *, open_url: UrlOpener = open_https) -> Pa
 
 
 def serve_command(model: str, data_dir: Path) -> list[str]:
-    """The `llama-server` argv that serves `model` on `LOCAL_URL` with thinking off."""
+    """The `llama-server` argv that serves `model` on `LOCAL_URL` with thinking off.
+
+    A model with a built-in `template` is served with it; any other renders its file's template.
+    """
+    template = LOCAL_MODELS[model].template
+    rendering = (
+        ["--chat-template", template]
+        if template is not None
+        else [
+            "--jinja",
+            "--chat-template-kwargs",
+            json.dumps({"enable_thinking": False}, separators=(",", ":")),
+        ]
+    )
     return [
         "llama-server",
         "-m",
@@ -280,9 +300,7 @@ def serve_command(model: str, data_dir: Path) -> list[str]:
         str(SLOTS),
         "-c",
         str(CONTEXT),
-        "--jinja",
-        "--chat-template-kwargs",
-        json.dumps({"enable_thinking": False}, separators=(",", ":")),
+        *rendering,
     ]
 
 

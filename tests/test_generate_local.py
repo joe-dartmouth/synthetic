@@ -226,6 +226,28 @@ def test_every_pinned_model_has_a_digest_and_size():
 
 
 def test_serve_command_pins_alias_slots_context_and_thinking(tmp_path):
+    model = "gemma-4-26b-a4b-q8_0"
+    assert serve_command(model, tmp_path) == [
+        "llama-server",
+        "-m",
+        str(model_path(model, tmp_path)),
+        "--alias",
+        model,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8081",
+        "-np",
+        "4",
+        "-c",
+        "81920",
+        "--jinja",
+        "--chat-template-kwargs",
+        '{"enable_thinking":false}',
+    ]
+
+
+def test_a_model_with_a_built_in_template_is_served_with_it(tmp_path):
     assert serve_command(MODEL, tmp_path) == [
         "llama-server",
         "-m",
@@ -240,9 +262,8 @@ def test_serve_command_pins_alias_slots_context_and_thinking(tmp_path):
         "4",
         "-c",
         "81920",
-        "--jinja",
-        "--chat-template-kwargs",
-        '{"enable_thinking":false}',
+        "--chat-template",
+        "chatml",
     ]
 
 

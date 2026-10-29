@@ -29,6 +29,10 @@ with the same structured-output schema, and the run's spend gates still have to 
 - **Backend.** `llama.cpp`'s `llama-server` (Homebrew), one model per process, on
   `http://127.0.0.1:8081` with `--alias <model id> -np 4 -c 81920 --jinja --chat-template-kwargs
   '{"enable_thinking":false}'`: four parallel slots sharing an 81920-token context, 20480 per call.
+  Olmo 3 7B Instruct is served with llama.cpp's built-in `--chat-template chatml` instead: its
+  file's template pipes an undefined `tools` into `tojson`, which llama.cpp's template parser
+  refuses at start, and for a system and a user turn with no tools that template renders ChatML.
+  Olmo 3 7B Instruct has no thinking mode.
 - **Send.** `bko.generate.local.local_send(model)` posts each call to `/v1/chat/completions` with its
   system and user turns, its `max_tokens`, `temperature` 1.0 and `top_p` 1.0 (the Messages API's
   default temperature), the call's `record_schema` as a strict `json_schema` response format, and
@@ -80,6 +84,7 @@ run rather than locked.
 | Each model's own sampling defaults | Not comparable across models | 2026-10-29 |
 | BF16 weights | About twice the run time and size | 2026-10-29 |
 | Changing `Context.send`'s signature to take the model | Rewrites every test's fake send | 2026-10-29 |
+| Olmo's file template with `tools` set to null | llama.cpp's template parser still refuses it at start (measured 2026-10-29, `llama-server` 0.8.0 build 11960) | 2026-10-29 |
 
 ## Enforcement
 
