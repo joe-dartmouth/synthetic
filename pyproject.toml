@@ -16,8 +16,9 @@ dependencies = []
 data = ["numpy>=2.5", "pandas>=2.3", "scipy>=1.18"]
 ontology = ["pronto>=2.7"]
 llm = ["anthropic>=1.13"]
-# CTGAN and TVAE come from SDV; SMOTE and ADASYN from imbalanced-learn; torch is seeded directly.
-synth = ["sdv>=1.38", "imbalanced-learn>=0.14", "torch>=2.14"]
+# CTGAN, TVAE and the Gaussian copula come from SDV; SMOTE and ADASYN from imbalanced-learn;
+# scikit-learn fits sequential CART's trees; torch is seeded directly.
+synth = ["sdv>=1.38", "imbalanced-learn>=0.14", "scikit-learn>=1.9", "torch>=2.14"]
 # scipy is imported directly for the t quantile of the corrected interval; threadpoolctl is
 # imported directly to hold the boosting model to one OpenMP thread.
 eval = ["scikit-learn>=1.9", "sdmetrics>=0.32", "scipy>=1.18", "threadpoolctl>=3.5"]
