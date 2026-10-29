@@ -18,6 +18,7 @@ from bko.evaluate.criteria import (
     BOOSTED,
     JUDGED,
     Absent,
+    Contrast,
     Reported,
     held_out_ratio_of,
     judge,
@@ -25,7 +26,7 @@ from bko.evaluate.criteria import (
     series_of,
     table,
 )
-from bko.evaluate.errors import EvaluationError, ScoresFormatError
+from bko.evaluate.errors import EvaluationError, ScoresFormatError, UndefinedIntervalError
 from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
@@ -242,11 +243,19 @@ def _log_beside(
 def _log_unjudged(rows: Sequence[Score], experiment: Experiment, candidate: str) -> None:
     """Log each interval every criterion of `CRITERION_NAMES` reads, with no verdict.
 
+    A criterion whose contrasts some holdout leaves undefined is logged as one `unjudged skip`
+    line instead, and the others are still logged.
+
     Raises:
-        EvaluationError: As `judge`.
+        EvaluationError: As `judge`, for anything but an undefined contrast.
     """
-    every = replace(experiment, criteria=CRITERION_NAMES)
-    for c in judge(rows, every, candidate=candidate):
+    found: list[Contrast] = []
+    for name in CRITERION_NAMES:
+        try:
+            found += judge(rows, replace(experiment, criteria=(name,)), candidate=candidate)
+        except UndefinedIntervalError as exc:
+            logger.info("unjudged skip criterion=%s reason=undefined detail=%s", name, exc)
+    for c in found:
         logger.info(
             "unjudged criterion=%s scope=%s arm=%s against=%s measure=%s mean=%.6f low=%.6f "
             "high=%.6f refuting_high=%.6f holdouts=%d differing=%d",

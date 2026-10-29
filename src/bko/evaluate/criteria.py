@@ -21,7 +21,7 @@ import pandas as pd
 from scipy.stats import t as student
 
 from bko.evaluate.classifier import Model
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, UndefinedIntervalError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 
@@ -172,8 +172,8 @@ def corrected_interval(
             `refuting_confidence(confidence, family)`.
 
     Raises:
-        EvaluationError: If fewer than 2 contrasts are given, one is not finite, or `family` is
-            under 1.
+        EvaluationError: If fewer than 2 contrasts are given or `family` is under 1.
+        UndefinedIntervalError: If 2 or more are given and one is not finite.
     """
     if family < 1:
         msg = f"an interval's family needs 1 or more intervals; got {family}"
@@ -182,7 +182,7 @@ def corrected_interval(
     finite = int(np.isfinite(values).sum())
     if len(values) < 2 or finite < len(values):
         msg = f"an interval needs 2 or more finite contrasts; got {finite} of {len(values)}"
-        raise EvaluationError(msg)
+        raise (UndefinedIntervalError if len(values) >= 2 else EvaluationError)(msg)
     holdouts = len(values)
     mean = float(values.mean())
     scale = math.sqrt((1 / holdouts + ratio) * float(values.var(ddof=1)))

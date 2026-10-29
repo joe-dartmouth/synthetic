@@ -266,3 +266,27 @@ def test_compare_on_a_judged_run_logs_nothing_unjudged(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 0
     assert not any(m.startswith("unjudged ") for m in caplog.messages)
+
+
+def test_compare_skips_an_unjudged_criterion_a_holdout_leaves_undefined(tmp_path, caplog):
+    code, out, _ = scored(tmp_path)
+    assert code == 0
+    lines = out.splitlines(keepends=True)
+    first = lines[1].split(",")[0]
+    blanked = [
+        line.rsplit(",", 1)[0] + ",\n"
+        if line.startswith(f"{first},") and ",augmented,recall,flagged-subgroups," in line
+        else line
+        for line in lines
+    ]
+    assert blanked != lines
+    path = tmp_path / "scores.csv"
+    path.write_text("".join(blanked), encoding="utf-8")
+    ctx, _ = g2_context()
+    caplog.set_level(logging.INFO)
+    assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 0
+    skips = [m for m in caplog.messages if m.startswith("unjudged skip ")]
+    detail = "an interval needs 2 or more finite contrasts; got 1 of 2"
+    assert skips == [f"unjudged skip criterion=secondary reason=undefined detail={detail}"]
+    unjudged = {m.split()[1] for m in caplog.messages if m.startswith("unjudged criterion=")}
+    assert unjudged == {"criterion=primary", "criterion=privacy"}
