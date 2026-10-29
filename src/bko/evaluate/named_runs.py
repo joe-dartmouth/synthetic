@@ -14,6 +14,7 @@ from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Final
 
+from bko.baselines.request import Method
 from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import (
     ADDS_ROWS,
@@ -86,6 +87,31 @@ _E3_SPLIT: Final = HOLDOUTS // 2
 """The first holdout seed of E3's second slice."""
 
 
+NEW_METHODS: Final = (str(Method.GAUSSIAN_COPULA), str(Method.CART))
+"""The classical synthesizers B1 reads beside the comparison set (`docs/EVIDENCE.md`, B1)."""
+
+B1_UCI: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, *NEW_METHODS),
+    candidate=NEW_METHODS[0],
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, *NEW_METHODS),
+    criteria=(),
+)
+"""E1's methods and the classical synthesizers, the copula as the candidate, no BKO arm and no
+criterion, so it makes no API call (`docs/EVIDENCE.md`, B1)."""
+
+B1_SYNTHEA: Final = replace(
+    E3,
+    arms=(*METHOD_ARMS, *NEW_METHODS, REAL_ARM),
+    candidate=NEW_METHODS[0],
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, *NEW_METHODS),
+)
+"""E3's removal and copy rule with E3's methods, the classical synthesizers and `real`, no BKO arm
+(`docs/EVIDENCE.md`, B1)."""
+
+
 @dataclass(frozen=True, slots=True)
 class NamedRun:
     """One run of the harness, fixed in code and selected by name.
@@ -141,6 +167,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             Dataset.SYNTHEA,
         ),
         "g2": NamedRun(G2),
+        "b1-uci": NamedRun(B1_UCI),
+        "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         "g5": NamedRun(
             G5,
             Settings(
