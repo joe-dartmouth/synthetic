@@ -38,7 +38,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   and candidates are recorded and where calls are answered from, `compare --candidate` judges
   another arm as a dry run, never as E1's verdict, and `compare --beside` reads an arm beside
   another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
-  rows match and no arm in either file copied a test record. A variant is a named run:
+  rows match, their flagged-cell fingerprints match when both files hold one, and no arm in either
+  file copied a test record, unless the experiment keeps copies. A variant is a named run:
   `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment`, generator `Settings` and
   dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take
   the name as a positional. A named run is a value fixed in code and committed, so it replays at its
@@ -164,12 +165,16 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
   `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
   both against the training rows. Each arm's added and replica rows that equal a test record in
-  every column are counted (`test-copies`).
+  every column are counted (`test-copies`). Each holdout's held-out rows also carry a
+  `flagged-fingerprint` score, a hash of the cells it flagged, so two scores files show whether
+  their flagged subgroups are the same test records.
 - **A test split without copied records.** On each holdout every arm fills before any is scored. A
   test record that some arm's added or replica rows copy in every column leaves the test split every
   arm's utility is then scored on. No classifier is then scored on a record it trained on, and the
   comparison stays paired. The held-out ratio and the test rows' distance to closest record read the
-  whole split.
+  whole split. An experiment with `decontaminate` false keeps copied records in the split, counts
+  them only, and writes a `copies-kept` held-out row on each holdout so a scores file says which
+  rule scored it.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
@@ -186,6 +191,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
   contract stops it at once. A call that gets no response stops the run at once, as do a failed
   gap query and a spend at the ceiling.
+- **E3's additions.** `Experiment.removal`, `Experiment.decontaminate`, the `real` arm, whose
+  added rows are the removed training rows, `pairable`'s `allow_copies` and holdout slices joined
+  by `merge` exist for E3 (ADR [`research/synthea-downstream-design`](synthea-downstream-design.md));
+  the held-out ratio reads the split before any removal. E1 removes no training rows, removes copied
+  test records and runs no `real` arm.
 - **The latest configuration is judged.** E1 judges its latest configuration: after a change to
   the system, the design or any configuration, E1 runs again, and only runs of the new
   configuration count. A configuration with one complete paid run (exit 0, call log ending
@@ -401,6 +411,7 @@ and holdout.
 | A leaf size below the whole 20-row gap fill | Passes a leaf of 19, which cannot hold the 2-row cell's rows apart | 2026-10-26 |
 | Positional matching of a prescribed record to its line | One skipped or reordered record shifts every later record onto the wrong line | 2026-10-28 |
 | Keeping a prescribed record in another asked cell | Fills that cell's quota with a line drawn for another cell, and consumes no line of its own | 2026-10-28 |
+| Pairing scores across different flagged scopes | Two runs that flag different cells score their flagged subgroups on different test records, so the flagged-cell fingerprints must match | 2026-10-28 |
 
 ## Enforcement
 
@@ -442,3 +453,4 @@ run that judges it.
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [Record validation: each field's number, bound and decimals, counted per check](record-validation-design.md)
 - [A paid run's call log answers its rerun](call-log-replay.md)
+- [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)

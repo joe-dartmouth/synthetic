@@ -91,7 +91,13 @@ def compare(
         None
         if beside is None
         else _prepare(
-            beside, rows, arm=candidate, against=beside_arm or candidate, run=run, level=level
+            beside,
+            rows,
+            arm=candidate,
+            against=beside_arm or candidate,
+            run=run,
+            level=level,
+            allow_copies=not experiment.decontaminate,
         )
     )
     for criterion in dict.fromkeys(contrast.criterion for contrast in contrasts):
@@ -129,9 +135,18 @@ def _text(data: bytes) -> str:
 
 
 def _prepare(
-    path: Path, ours: Sequence[Score], *, arm: str, against: str, run: str, level: str
+    path: Path,
+    ours: Sequence[Score],
+    *,
+    arm: str,
+    against: str,
+    run: str,
+    level: str,
+    allow_copies: bool,
 ) -> _Reading:
     """Read the other file and pair its holdouts; on a refusal, log the counts first.
+
+    `allow_copies` is true for an experiment that keeps copies (`Experiment.decontaminate`).
 
     Raises:
         EvaluationError: As `bko.evaluate.beside.check`.
@@ -139,7 +154,8 @@ def _prepare(
     """
     data = path.read_bytes()
     theirs = parse(_text(data))
-    found = _Reading(theirs, hashlib.sha256(data).hexdigest(), arm, against, pairable(ours, theirs))
+    pairing = pairable(ours, theirs, allow_copies=allow_copies)
+    found = _Reading(theirs, hashlib.sha256(data).hexdigest(), arm, against, pairing)
     try:
         check(ours, theirs, arm=arm, against=against, holdouts=found.pairing.holdouts)
     except EvaluationError:
@@ -149,11 +165,15 @@ def _prepare(
 
 
 def _log_counts(reading: _Reading, run: str, level: str) -> None:
+    """Log a `beside flagged` line per holdout whose flagged cells differ, then the counts."""
     pairing = reading.pairing
+    for holdout, ours, theirs in pairing.flagged:
+        logger.info("beside flagged holdout=%d ours=%d theirs=%d", holdout, ours, theirs)
     logger.info(
-        "beside scores_sha256=%s shared=%d paired=%d excluded=%d copied=%d mismatched=%d "
-        "arm=%s against=%s run=%s level=%s",
+        "beside scores_sha256=%s copies_excluded=%s shared=%d paired=%d excluded=%d copied=%d "
+        "mismatched=%d arm=%s against=%s run=%s level=%s",
         reading.digest,
+        "true" if pairing.copies_excluded else "false",
         pairing.shared,
         len(pairing.holdouts),
         pairing.excluded,

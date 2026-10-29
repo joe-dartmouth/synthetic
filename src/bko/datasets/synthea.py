@@ -4,12 +4,13 @@ Only the columns the ablation and the cell counts read are loaded (`PATIENT_COLU
 `CONDITION_COLUMNS`), so the synthetic SSNs, names and addresses Synthea writes never enter a
 frame. Codes are read as text and matched exactly; descriptions are not read. Dates must be
 `YYYY-MM-DD`, and only `DEATHDATE` may be blank. A patient who dies on the snapshot date is not in
-the population.
+the population. `frame_records` reads it as E3's records (ADR `research/synthea-downstream-design`).
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -143,6 +144,42 @@ def subjects(population: Population, *, codes: frozenset[str]) -> pd.DataFrame:
         },
         index=people.index,
     )
+
+
+def frame_records(
+    population: Population,
+    *,
+    label: str,
+    indicators: Mapping[str, str],
+    adults_from: int,
+) -> pd.DataFrame:
+    """Return one record per patient aged `adults_from` or over: age, sex, indicators and label.
+
+    Each indicator and the label read `subjects`' rule: 1 where the patient had the code by the
+    snapshot date. Patients are taken in sorted id order, so the records do not depend on the
+    tables' row order or on hash order.
+
+    Args:
+        population: The population.
+        label: The condition code that makes `LABEL` 1.
+        indicators: Each indicator column's condition code, in column order.
+        adults_from: The youngest age, in whole years on the snapshot date, a record may have.
+
+    Returns:
+        `age`, `sex`, each indicator and `LABEL`, all int64, indexed by `record_id` from 1.
+    """
+    people = subjects(population, codes=frozenset({label})).sort_index()
+    held = {
+        column: subjects(population, codes=frozenset({code}))[LABEL].reindex(people.index)
+        for column, code in indicators.items()
+    }
+    records = pd.DataFrame(
+        {"age": people["age"], "sex": people["sex"], **held, LABEL: people[LABEL]},
+        index=people.index,
+    )
+    records = records.loc[records["age"] >= adults_from].astype("int64")
+    records.index = pd.RangeIndex(1, len(records) + 1, name="record_id")
+    return records
 
 
 def _read(path: Path, columns: tuple[str, ...]) -> pd.DataFrame:

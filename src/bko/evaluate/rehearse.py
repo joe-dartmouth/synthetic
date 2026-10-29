@@ -28,7 +28,8 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import Experiment
+from bko.evaluate.experiment import Experiment, Removal
+from bko.evaluate.run import prepared
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
 from bko.generate.prompt import NO_FINDING
@@ -71,16 +72,24 @@ settings."""
 
 
 def safe_ranges(
-    records: pd.DataFrame, seeds: Sequence[int], *, frame: FrameSpec
+    records: pd.DataFrame,
+    seeds: Sequence[int],
+    *,
+    frame: FrameSpec,
+    removal: Removal | None = None,
 ) -> dict[str, tuple[float, float]]:
     """Each of `frame`'s measured fields' range inside the training split of every one of `seeds`.
 
-    Each split bands its cells by `frame`'s edges.
+    Each split bands its cells by `frame`'s edges, and its training rows are those `removal`
+    leaves (`bko.evaluate.run.prepared`), as the harness's are.
 
     Raises:
         EvaluationError: If no value of a field lies inside every split's range.
     """
-    trains = [split(records, seed=seed, edges=frame.edges).train for seed in seeds]
+    trains = [
+        prepared(split(records, seed=seed, edges=frame.edges), removal, edges=frame.edges)[0].train
+        for seed in seeds
+    ]
     ranges: dict[str, tuple[float, float]] = {}
     for name in frame.numeric:
         low = max(float(train[name].min()) for train in trains)
@@ -132,7 +141,9 @@ class CannedSend:
         """
         frame = data.frame
         self._frame = frame
-        ranges = safe_ranges(data.records, experiment.holdout_seeds, frame=frame)
+        ranges = safe_ranges(
+            data.records, experiment.holdout_seeds, frame=frame, removal=experiment.removal
+        )
         self._grids = {name: _grid(*ranges[name], name, frame) for name in frame.numeric}
         self._steps = {
             name: STEPS.get(name, FALLBACK_STEPS[position % len(FALLBACK_STEPS)])

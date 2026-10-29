@@ -56,6 +56,14 @@ class Measure(enum.StrEnum):
     DCR_P5 = "dcr-p5"
     DCR_MEDIAN = "dcr-median"
     HELD_OUT_RATIO = "held-out-ratio"
+    FLAGGED_FINGERPRINT = "flagged-fingerprint"
+    """The holdout's flagged cells, as the first 12 hex digits of the sha256 of their sorted
+    list's `repr`, read as an integer: below 2**48, so a float holds it exactly. `compare
+    --beside` pairs a holdout only when both files flag the same cells."""
+    COPIES_KEPT = "copies-kept"
+    """1.0 on a holdout of a run that keeps copies (`Experiment.decontaminate` false), whose arms
+    are scored on the whole test split; a decontaminating run writes no such row. `compare
+    --beside` lets a copy pair a holdout only when both files hold it there."""
     GENERATED = "generated"
     PASSED = "passed"
     DROPPED_RANGE = "dropped-range"

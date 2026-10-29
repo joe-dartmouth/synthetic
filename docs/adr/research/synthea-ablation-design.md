@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-26
+updated: 2026-10-28
 ---
 # The Synthea ablation: a pinned generated population, with whole patients removed
 
@@ -50,6 +50,10 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
   (`bko.gaps.scan`) reads the same order one case at a time, so its removed counts and the
   fraction ablations name the same removals.
 - **Ground truth** is the removed patient ids and the cell counts before and after.
+- **E3 removes training rows only**: E3 thins one cell of each holdout's training split with
+  `bko.datasets.ablation.thinned`, by the same `removal_order` and exact count, and leaves the
+  population and the test split whole (ADR
+  [`research/synthea-downstream-design`](synthea-downstream-design.md)).
 
 `bko.datasets.synthea_run`, `bko.datasets.synthea` and `bko.datasets.ablation` hold the values. The
 command's default spec is a demonstration cell; E2's configuration fixes its own target cells and
@@ -111,3 +115,4 @@ under a new directory key.
 
 - [The UCI evaluation frame](uci-evaluation-frame.md)
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
+- [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)

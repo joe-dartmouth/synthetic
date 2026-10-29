@@ -54,6 +54,12 @@ root or to see the module's own code, run it directly:
   `DEFAULT_RUN` in `bko.datasets.synthea_run` names; later runs reuse it. It removes the cases
   `DEFAULT_ABLATION` in `bko.datasets.ablation` names and writes `age_band`, `sex`, `target`,
   `before` and `after` for every cell.
+- **The Synthea frame**: E3's frame (ADR
+  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)) needs only the
+  pinned population `DEFAULT_RUN` names: `score e3` checks it against its `run.json` with no Java
+  and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
+  snapshot date and aged 40 and over, and the sha256 of its records is the `digest` of the
+  `data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs.
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
@@ -137,18 +143,36 @@ cell's records, its label group's records) and a `fallback` line per cell and fi
 label group. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
 logs every criterion's intervals as `unjudged` lines.
 
+`merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
+holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
+holdouts hold different (arm, source, measure, scope) keys, as slices scored under other code or
+configuration would, and writes the rows in the named run's seed order under one header to stdout,
+each holdout's rows in its file's order:
+
+    test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
+
+`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs to
+stderr, at INFO, one line per input as it reads it, `merge file=%s holdouts=%s rows=%d sha256=%s`
+(the path, the file's lowest and highest holdout as `<first>-<last>`, or `none` for a file with no
+row, its row count and the sha256 of its bytes), then for the merged scores
+`merge files=%d holdouts=%d rows=%d sha256=%s`, the sha256 of the bytes it writes.
+
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
-holds is not counted. A holdout pairs only when its held-out rows match and no arm in either file
-copied a test record there, since the test split loses every record any arm copied. Held-out rows
-match when both files record equal held-out summary scores on the holdout;
-`bko.evaluate.beside.pairable` is the one home of the exact rule. The other shared holdouts are
-counted as excluded, split into copied and mismatched. Fewer than two paired holdouts, or an arm
-either file lacks, is refused before the table is written, so a refusal leaves stdout empty. A
-series either arm lacks, or that fewer than two paired holdouts define, is skipped with a
-`beside skip` line. The flagged-subgroups scope is compared as each file scored it: two runs whose
-`fill_to` or cell edges differ flag different test records, and nothing checks it
-(`cleanup:evaluate/beside-flagged-scope-fingerprint`).
+holds is not counted. A holdout pairs only when its held-out rows match, its flagged cells match,
+and no arm in either file copied a test record there, since the test split loses every record any
+arm copied. A run that keeps copies (`e3` and its slices, whose experiment sets
+`decontaminate` false) scores every arm on the whole test split and writes a `copies-kept`
+held-out row on each holdout, so in its reading a copy excludes no holdout where both files hold
+that row; beside a file without it, a copy in either file still excludes its holdout. Held-out
+rows match when both files record equal held-out summary scores on the holdout (`copies-kept` and
+the fingerprint aside), and the flagged cells match unless both files hold a
+`flagged-fingerprint` held-out score there and the two differ; `bko.evaluate.beside.pairable` is
+the one home of the exact rule. The other
+shared holdouts are counted as excluded, split into copied and mismatched; a holdout whose flagged
+cells differ counts as mismatched. Fewer than two paired holdouts, or an arm either file lacks, is
+refused before the table is written, so a refusal leaves stdout empty. A series either arm lacks,
+or that fewer than two paired holdouts define, is skipped with a `beside skip` line.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
@@ -347,9 +371,14 @@ start or the supervisor cannot run.
   baseline's. Every arm fills before any is scored. A test record that some arm's rows copy in every
   column leaves the test split each arm's utility is scored on. With `--replay`, every BKO call is
   answered from that call log instead of the API. A call that differs from the log's, or a logged
-  call left unplayed, stops the run. With `--resume`, the stopped log's answered calls come first,
-  answered from it, then live calls. With `--rehearse`, `bko.evaluate.rehearse.CannedSend` answers
-  every call, and the projection and the ceiling read its billed spend as live.
+  call left unplayed, stops the run. A replay reproduces the scores, and their sha256, only at the
+  commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row per
+  holdout, and a run that keeps copies a `copies-kept` row per holdout, so a run scored at a
+  commit without those rows does not reproduce its scores' sha256 when replayed at a later commit.
+  Replay each run at its own commit (its `versions` line names it). With `--resume`, the stopped
+  log's answered calls come first, answered from it, then live calls. With `--rehearse`,
+  `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
+  its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
   header line (`kind` `header`, `schema` 2, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
@@ -383,14 +412,22 @@ start or the supervisor cannot run.
 - **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
-  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d arms=%s
-  replica=%s fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s`, and a
+  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
+  removal=%s decontaminate=%s arms=%s replica=%s fill_to=%d budget=%d validity=%s
+  spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
+  the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
+  `false`), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
-  per holdout the split line `cells` prints, one `quota` line per stratum, one `arm` line per fill
+  per holdout the split line `cells` prints, for a run with a removal (`e3` and its slices) a
+  `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
+  before the removal, those it removed and those it kept), one `quota` line per stratum, a
+  `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
+  comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
-  the method's parameters, a `retry` warning for each refused attempt before the last, and a
+  the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
+  `params={}`), a `retry` warning for each refused attempt before the last, and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
   per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
@@ -416,8 +453,11 @@ start or the supervisor cannot run.
   validity is undefined`, a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
-  `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
-  copied, and at the end of the run, a stopped run included, one `validity` line per Messages arm,
+  `live_usd=`, `resume=` and `rehearsal=`), a `test holdout=%d records=%d copied=%d kept=%s` line
+  per holdout, `copied=` counting the test records some arm's added or replica row equals in every
+  frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
+  `kept=true`), and at
+  the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
   over both fills and its own spend in USD, the sum of each of its attempts' change in the call
@@ -438,19 +478,26 @@ start or the supervisor cannot run.
   judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
   the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it
-  then logs a `beside` counts line (`scores_sha256=`, `shared=`, `paired=`, `excluded=`, `copied=`,
-  `mismatched=`, `arm=`, `against=`, `run=`, `level=`), then per series a `beside` line (`arm=`,
+  then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
+  excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
+  `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
+  `against=`, `run=`, `level=`; `copies_excluded=false` when a copy can exclude no shared holdout,
+  since the run keeps copies and both files hold `copies-kept` on each), then per series a
+  `beside` line (`arm=`,
   `against=`, `run=`, `level=`, `source=`, `measure=`, `scope=`, `mean=`, `low=`, `high=`,
   `holdouts=`, `differing=`, `undefined=`) or a `beside skip` line (`arm=`, `against=`, `run=`,
   `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`, `defined=`); a
-  refused reading logs the counts line alone. An experiment copies them into its Runs row in
+  refused reading logs its `beside flagged` lines and the counts line alone. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **Where the configuration lives**: `bko.evaluate.experiment.RUNS`. It holds `E1` as `e1`, `G2`
   as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)), each
   guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)), each
   effort-sweep run as `g4-low` and `g4-medium` ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)),
   and the skeleton run as `g5`, whose `bko-skeleton` arm prescribes each record's concepts beside
-  an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). No flag
+  an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). It holds
+  E3 over the Synthea frame as `e3`, and its two holdout slices as `e3-a` (holdouts 0 to 49) and
+  `e3-b` (50 to 99), each with half of `e3`'s spend ceiling (ADR
+  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -698,16 +745,22 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   Each call's lines are written and flushed as it returns, so a failed or interrupted run's stdout
   holds every batch that returned before the failure. Candidates are unfiltered and unrepaired;
   `bko.validate` checks them.
-- **What leaves the machine**: each field's meaning, codes and unit, each numeric field's
-  training-split minimum and maximum (age within the cell's band), the cell and its training
-  record count, and the guidance of the chosen level; at `summary`, also the quartiles of each
-  numeric field over the same-label records of the other cells, that reference group's record count
-  and each mapped concept's share of it in percent (the `profile` block). Every `SETTINGS` run
-  sends them. A `bko-skeleton` request also sends each asked record's drawn concept names: ontology
-  labels drawn at the fused BKB's aggregate shares, never a record's values. No record is sent, but
-  every bound and quartile is a real training value, and a small split or reference group exposes
-  them together as a record. Check a DUA's terms for them
-  ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
+- **What leaves the machine**: the frame's study and cohort text, each field's meaning, codes and
+  unit, each numeric field's training-split minimum and maximum (age within the cell's band), the
+  cell and its training record count, and the guidance of the chosen level; at `summary`, also the
+  quartiles of each numeric field over the same-label records of the other cells, that reference
+  group's record count and each mapped concept's share of it in percent (the `profile` block).
+  Every `SETTINGS` run sends them. A `bko-skeleton` request also sends each asked record's drawn
+  concept names: ontology labels drawn at the fused BKB's aggregate shares, never a record's values.
+  No record is sent. Per frame:
+  - UCI (`e1`, `g3-<level>`, `g4-low`, `g4-medium`, `g5`, and this command): every bound and
+    quartile is a real training value of a de-identified patient record, and a small split or
+    reference group exposes them together as a record. Check a DUA's terms for them
+    ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
+  - Synthea (`e3`, `e3-a`, `e3-b`, through the BKO arms): the study and cohort text, the codebook
+    with each indicator's label, age's bounds within the cell's band and its quartiles, the cell
+    counts and, at `summary`, each mapped concept's share. Its rows are generated by Synthea from
+    a pinned seed, so no bound, quartile or share describes a person.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

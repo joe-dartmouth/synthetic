@@ -8,7 +8,9 @@ from pathlib import Path
 
 from bko.baselines.methods import Runner
 from bko.datasets.fetch import UrlOpener, open_https
-from bko.datasets.sources import UCI_HEART_DISEASE, Source
+from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
+from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
+from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import E1, RUNS, Experiment, NamedRun
@@ -38,6 +40,9 @@ class Context:
         models: Builds each unfitted classifier, by model; it holds `Model.LR`.
         releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
         field_rows: The field mappings the BKO arms observe cells by.
+        synthea: The pinned Synthea population's run, which a Synthea run's records are
+            read from (`bko.evaluate.data.load`).
+        synthea_jar: The jar that population was generated with.
         send: Builds the send every BKO arm's call goes through.
         rehearse: Builds the send a rehearsal answers every BKO call with.
         power: Whether the machine runs on battery, for `launch` and each `supervise` resume.
@@ -58,6 +63,8 @@ class Context:
     models: Mapping[Model, Factory] = MODELS
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
+    synthea: SyntheaRun = SYNTHEA_RUN
+    synthea_jar: Source = SYNTHEA_JAR
     send: Callable[[], AnySend] = default_async_send
     rehearse: Rehearse = CannedSend
     power: Power = on_battery

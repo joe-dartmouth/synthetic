@@ -53,19 +53,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
-  two runs flagged the same test records.** `bko.evaluate.beside.pairable` pairs a holdout on its
-  held-out summary scores and its test copies, and the `flagged-subgroups` scope is the test records
-  of every age-sex subgroup holding a cell under the run's `fill_to` (`flagged` in
-  `bko.evaluate.run.score_holdout`). Two runs whose `fill_to` or cell edges differ share held-out
-  rows but flag different test records, and their flagged-scope series still pair. *Filed
-  2026-10-26 by the review of PR #39.*
-  **Why deferred.** Every registered run shares E1's `fill_to` and edges, and the scores file
-  records no identity of the flagged cells.
-  **What discharges it:** `score` records a per-holdout fingerprint of the flagged cells, and
-  `pairable` compares it.
-  **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
-
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
   `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
@@ -152,3 +139,19 @@ links to where its blocker is tracked.
   **Why deferred.** Nothing in `src/` reads the error text, and the end status is right.
   **What discharges it:** calls cancelled by an operator's interrupt record `KeyboardInterrupt`.
   **Trigger:** the next change to `bko.generate.flight`'s interrupt path.
+
+- **`cleanup:generate/required-frame-on-send-path`: the send path falls back to UCI's frame.**
+  `bko.generate.messages.Call`, `bko.generate.calls.request`, `ask` and `generate`,
+  `bko.generate.flight`'s `wave` and `bko.generate.prompt.render` default `frame` to `UCI_FRAME`,
+  so a caller holding the Synthea frame that omits `frame` sends a UCI prompt and schema for its
+  cell. Every `bko.evaluate` call site passes the run's frame. Evidence: each signature reads
+  `frame: FrameSpec = UCI_FRAME`; `tests/test_datasets_frame.py` asserts
+  `Call(SETTINGS, 0, 1, "system", "user").frame is UCI_FRAME`; `bko.generate.__main__` calls
+  `generate` without `frame`; and the generate-stage tests call `Call`, `render`, `ask`,
+  `request`, `generate` and `wave` without it (list them with an `ast` scan for those calls with
+  no `frame` keyword). *Filed 2026-10-28 by the review of PR #56.*
+  **Why deferred.** Requiring it rewrites the generate stage's test call sites, outside the
+  Synthea frame change, and no Synthea call omits it.
+  **What discharges it:** `frame` is a required keyword on each of those, and the default's pin
+  in `tests/test_datasets_frame.py` goes.
+  **Trigger:** the next change to `bko.generate`'s send path, or a second non-UCI caller of it.

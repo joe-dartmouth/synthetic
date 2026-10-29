@@ -22,9 +22,9 @@ from bko.evaluate.__main__ import (
 )
 from bko.evaluate.classifier import MODELS
 from bko.evaluate.criteria import CONTRAST_COLUMNS
-from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, RUNS, NamedRun
+from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, E3, RUNS, NamedRun
 from bko.evaluate.logs import log_copies, log_means
-from bko.evaluate.provenance import commit
+from bko.evaluate.provenance import commit, log_experiment
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from bko.generate.api import default_async_send
 from tests._baselines_fixtures import cleveland_text, full_records
@@ -305,6 +305,24 @@ def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_pa
     assert '"threadpoolctl": "' in line
     experiment = next(m for m in caplog.messages if m.startswith("experiment "))
     assert experiment.endswith(" models=lr,hgb")
+
+
+@pytest.mark.parametrize(
+    ("experiment", "fields"),
+    [
+        (E1, "holdouts=100 seeds=0-99 removal=none decontaminate=true "),
+        (E3, "holdouts=100 seeds=0-99 removal=>=65/female/1@0.9 decontaminate=false "),
+        (
+            dataclasses.replace(E3, holdout_seeds=tuple(range(50, 100))),
+            "holdouts=50 seeds=50-99 removal=>=65/female/1@0.9 decontaminate=false ",
+        ),
+    ],
+)
+def test_the_experiment_line_names_the_seeds_removal_and_copy_rule(caplog, experiment, fields):
+    with caplog.at_level(logging.INFO):
+        log_experiment("x", experiment, ["lr"], frame="f")
+    line = next(m for m in caplog.messages if m.startswith("experiment "))
+    assert line.startswith(f"experiment run=x frame=f {fields}arms={','.join(experiment.arms)} ")
 
 
 def test_the_commit_is_unknown_without_git(monkeypatch):

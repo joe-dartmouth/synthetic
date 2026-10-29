@@ -40,7 +40,7 @@ def scores():
 def test_every_arm_is_scored_on_every_holdout(scores):
     counts = Counter((score.holdout, score.arm, score.source) for score in scores)
     for seed in SMALL.holdout_seeds:
-        assert counts[seed, HELD_OUT_ARM, Source.HELD_OUT] == 3
+        assert counts[seed, HELD_OUT_ARM, Source.HELD_OUT] == 4
         for arm in SMALL.arms:
             assert counts[seed, arm, Source.AUGMENTED] == 12
         for arm in SMALL.replica_arms:

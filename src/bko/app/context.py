@@ -18,7 +18,9 @@ from bko.baselines.methods import Runner
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.run_folders import runs_root
-from bko.datasets.sources import UCI_HEART_DISEASE, Source
+from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
+from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
+from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS
@@ -57,6 +59,9 @@ class Context:
         uci: The pinned UCI archive.
         releases: The ontology releases, by concept prefix.
         field_rows: The field mappings.
+        synthea: The pinned Synthea population's run; the app scores UCI only, so it is
+            never read.
+        synthea_jar: The jar that population was generated with; never read.
         arms: Each comparison method's runner, by name.
         factory: Builds the unfitted classifier.
         experiment: The configuration every fill narrows (`bko.app.steps.experiment_for`).
@@ -72,6 +77,8 @@ class Context:
     uci: Source = UCI_HEART_DISEASE
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
+    synthea: SyntheaRun = SYNTHEA_RUN
+    synthea_jar: Source = SYNTHEA_JAR
     arms: Mapping[str, Runner] = ARMS
     factory: Factory = build
     experiment: Experiment = E1

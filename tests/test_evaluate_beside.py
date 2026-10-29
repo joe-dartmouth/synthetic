@@ -279,6 +279,7 @@ def test_beside_leaves_stdout_and_logs_after_compares_lines(tmp_path, caplog):
     first = next(i for i, m in enumerate(messages) if m.startswith("beside "))
     assert not any(m.startswith(("compare ", "criterion=")) for m in messages[first:])
     assert messages[first].startswith("beside scores_sha256=")
+    assert " copies_excluded=true shared=" in messages[first]
     assert messages[first].endswith(
         " shared=4 paired=4 excluded=0 copied=0 mismatched=0 arm=smote against=smote "
         "run=e1 level=summary"
@@ -404,3 +405,82 @@ def test_a_malformed_beside_file_exits_three_before_the_table(tmp_path):
     theirs = tmp_path / "theirs.csv"
     theirs.write_text("a,b\n1,2\n", encoding="utf-8")
     assert run([ours, "--beside", theirs]) == (3, "")
+
+
+def fingerprinted(rows, value):
+    """`rows` with a flagged-fingerprint held-out row of `value` on each of their holdouts."""
+    holdouts = sorted({s.holdout for s in rows})
+    fingerprint = Measure.FLAGGED_FINGERPRINT
+    return [
+        *rows,
+        *(Score(h, HELD_OUT_ARM, Source.HELD_OUT, fingerprint, Scope.ALL, value) for h in holdouts),
+    ]
+
+
+def test_beside_refuses_scores_of_another_flagged_scope(tmp_path, caplog):
+    ours = fingerprinted(scores(range(4), shifts=OURS), 1.0)
+    theirs = fingerprinted(scores(range(4), shifts=THEIRS), 2.0)
+    assert pairable(ours, theirs) == Pairing(
+        frozenset(), shared=4, copied=0, mismatched=4, flagged=tuple((h, 1, 2) for h in range(4))
+    )
+    same = fingerprinted(scores(range(4), shifts=THEIRS), 1.0)
+    assert pairable(ours, same).holdouts == frozenset(range(4))
+    paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        assert run([paths[0], "--beside", paths[1]]) == (2, "")
+    assert " shared=4 paired=0 excluded=4 copied=0 mismatched=4 " in caplog.text
+    lines = beside_lines(caplog)
+    assert lines[:4] == [f"beside flagged holdout={h} ours=1 theirs=2" for h in range(4)]
+    assert lines[4].startswith("beside scores_sha256=")
+
+
+def test_beside_pairs_old_files_without_a_fingerprint():
+    ours, theirs = fingerprinted(scores(range(4)), 1.0), scores(range(4))
+    assert pairable(ours, theirs) == Pairing(frozenset(range(4)), shared=4, copied=0, mismatched=0)
+    assert pairable(theirs, ours).holdouts == frozenset(range(4))
+
+
+def kept(rows):
+    """`rows` with a copies-kept held-out row on each of their holdouts, as a keeping run writes."""
+    holdouts = sorted({s.holdout for s in rows})
+    copies = Measure.COPIES_KEPT
+    return [
+        *rows,
+        *(Score(h, HELD_OUT_ARM, Source.HELD_OUT, copies, Scope.ALL, 1.0) for h in holdouts),
+    ]
+
+
+def test_pairable_allows_copies_for_a_run_that_keeps_them(tmp_path, caplog):
+    ours = replaced(scores(range(4), shifts=OURS), 2, "smote", Source.ADDED, Measure.TEST_COPIES, 3)
+    ours, theirs = kept(ours), kept(scores(range(4), shifts=THEIRS))
+    assert pairable(ours, theirs).copied == 1
+    assert pairable(ours, theirs, allow_copies=True) == Pairing(
+        frozenset(range(4)), shared=4, copied=0, mismatched=0, copies_excluded=False
+    )
+    paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
+    keeps = Context(experiment=dataclasses.replace(CLI, criteria=(), decontaminate=False))
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        code = main(["compare", str(paths[0]), "--beside", str(paths[1])], context=keeps)
+    assert code == 0
+    assert " copies_excluded=false shared=4 paired=4 excluded=0 copied=0 mismatched=0 " in (
+        caplog.text
+    )
+
+
+@pytest.mark.parametrize("copied", ["ours", "theirs"])
+def test_a_copy_beside_a_decontaminating_file_still_excludes_its_holdout(copied):
+    ours, theirs = kept(scores(range(4), shifts=OURS)), scores(range(4), shifts=THEIRS)
+    if copied == "ours":
+        ours = replaced(ours, 2, "smote", Source.ADDED, Measure.TEST_COPIES, 1.0)
+    else:
+        theirs = replaced(theirs, 2, "smote", Source.ADDED, Measure.TEST_COPIES, 1.0)
+    found = pairable(ours, theirs, allow_copies=True)
+    assert found == Pairing(frozenset({0, 1, 3}), shared=4, copied=1, mismatched=0)
+    assert pairable(theirs, ours, allow_copies=True) == found
+
+
+def test_the_copies_kept_row_is_not_a_held_out_score_to_match():
+    ours, theirs = kept(scores(range(4), shifts=OURS)), scores(range(4), shifts=THEIRS)
+    whole = Pairing(frozenset(range(4)), shared=4, copied=0, mismatched=0)
+    assert pairable(ours, theirs) == whole
+    assert pairable(ours, theirs, allow_copies=True) == whole

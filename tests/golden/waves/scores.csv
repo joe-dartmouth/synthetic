@@ -2,6 +2,7 @@ holdout,arm,source,measure,scope,value
 0,none,held-out,held-out-ratio,all,0.25
 0,none,held-out,dcr-p5,all,0.0
 0,none,held-out,dcr-median,all,0.0
+0,none,held-out,flagged-fingerprint,all,168111326669882.0
 0,none,added,rows,all,0.0
 0,none,added,test-copies,all,0.0
 0,none,augmented,recall,all,0.3125
@@ -165,6 +166,7 @@ holdout,arm,source,measure,scope,value
 1,none,held-out,held-out-ratio,all,0.25
 1,none,held-out,dcr-p5,all,0.0
 1,none,held-out,dcr-median,all,0.0
+1,none,held-out,flagged-fingerprint,all,168111326669882.0
 1,none,added,rows,all,0.0
 1,none,added,test-copies,all,0.0
 1,none,augmented,recall,all,0.3125
@@ -328,6 +330,7 @@ holdout,arm,source,measure,scope,value
 2,none,held-out,held-out-ratio,all,0.25
 2,none,held-out,dcr-p5,all,0.0
 2,none,held-out,dcr-median,all,0.0
+2,none,held-out,flagged-fingerprint,all,168111326669882.0
 2,none,added,rows,all,0.0
 2,none,added,test-copies,all,0.0
 2,none,augmented,recall,all,0.3125

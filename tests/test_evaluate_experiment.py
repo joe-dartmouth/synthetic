@@ -16,14 +16,19 @@ from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
     E1,
+    E3,
+    E3_SLICE_CEILING,
     METHOD_ARMS,
+    REAL_ARM,
     RUNS,
     Experiment,
     NamedRun,
+    Removal,
     flagged,
     gap_request,
     replica_request,
 )
+from bko.evaluate.run import run
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
@@ -71,6 +76,8 @@ def test_e1_is_its_stated_configuration():
         "criteria": ("primary", "secondary", "privacy", "validity"),
         "projection_after": 5,
         "idle_limit": 900.0,
+        "removal": None,
+        "decontaminate": True,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -82,6 +89,9 @@ def test_e1_is_its_stated_configuration():
 def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "e1",
+        "e3",
+        "e3-a",
+        "e3-b",
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -209,6 +219,38 @@ def test_the_replica_asks_for_every_cells_training_count():
 def test_a_configuration_that_cannot_run_is_refused(change, message):
     with pytest.raises(ValueError, match=message):
         dataclasses.replace(E1, **change)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"removal": None}, "needs a removal"),
+        ({"replica_arms": (*E3.replica_arms, REAL_ARM)}, "has no replica"),
+        ({"decontaminate": True}, "keeps copies"),
+    ],
+    ids=["no removal", "replica", "decontaminating"],
+)
+def test_a_real_arm_the_harness_cannot_score_is_refused(change, message):
+    with pytest.raises(ValueError, match=message):
+        dataclasses.replace(E3, **change)
+
+
+def test_a_removal_of_a_cell_outside_the_frame_is_refused_before_any_holdout():
+    experiment = dataclasses.replace(E3, removal=Removal((">=65", "female", 7), 0.5))
+    with pytest.raises(EvaluationError, match="not a cell of"):
+        run(full_records(), experiment, {}, frame=UCI_FRAME)
+
+
+def test_e3s_slices_partition_its_seeds_and_its_ceiling():
+    slices = [RUNS["e3-a"].experiment, RUNS["e3-b"].experiment]
+    assert (*slices[0].holdout_seeds, *slices[1].holdout_seeds) == E3.holdout_seeds
+    assert sum(s.spend_ceiling for s in slices) == E3.spend_ceiling
+    assert E3.spend_ceiling / 2 == E3_SLICE_CEILING
+    for experiment in slices:
+        assert (
+            dataclasses.replace(experiment, holdout_seeds=E3.holdout_seeds, spend_ceiling=65.0)
+            == E3
+        )
 
 
 E1_1_TOKENS: Final = (1_925_406, 564_976)

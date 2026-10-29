@@ -68,6 +68,12 @@ fails.**
     inclusive) for a numeric field.
   - Then `precision:<field>` for a numeric field: whole, or `oldpeak` at one decimal, tested as
     `round(value, digits) == value`.
+- **The Synthea frame** (ADR
+  [`research/synthea-downstream-design`](synthea-downstream-design.md)): `sex`, `target` and each
+  condition indicator are coded fields checked by `code:`, against 0 and 1 for an indicator; `age`
+  is the one numeric field, checked by `range:age` and `precision:age` (whole). No field is
+  fractional. The schema already holds each coded field to its codes and `age` to an integer, so
+  on a decoded Synthea record only `range:age` can fail.
 - **No coercion and no repair:** a numeric string fails `number`. A value is never rounded or
   clipped.
 - **Counting:**
@@ -167,9 +173,6 @@ absence or exclusion**; the check is a read of that union.
 **A command line joins when a task unit's acceptance names one**; the check is a search of
 `tasks/`.
 
-**The candidate shape changes when a generation request asks for Synthea records**; the check is a
-search of `tasks/` and `src/bko/generate/`.
-
 ## Related
 
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
@@ -178,3 +181,4 @@ search of `tasks/` and `src/bko/generate/`.
 - [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)
 - [src layout, one subpackage per pipeline stage](../tooling/src-layout.md)
 - [E1's evaluation: repeated holdouts, one classifier, separation judged on paired intervals](e1-evaluation-protocol.md)
+- [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
