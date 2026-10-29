@@ -139,3 +139,19 @@ links to where its blocker is tracked.
   **Why deferred.** Nothing in `src/` reads the error text, and the end status is right.
   **What discharges it:** calls cancelled by an operator's interrupt record `KeyboardInterrupt`.
   **Trigger:** the next change to `bko.generate.flight`'s interrupt path.
+
+- **`cleanup:generate/required-frame-on-send-path`: the send path falls back to UCI's frame.**
+  `bko.generate.messages.Call`, `bko.generate.calls.request`, `ask` and `generate`,
+  `bko.generate.flight`'s `wave` and `bko.generate.prompt.render` default `frame` to `UCI_FRAME`,
+  so a caller holding the Synthea frame that omits `frame` sends a UCI prompt and schema for its
+  cell. Every `bko.evaluate` call site passes the run's frame. Evidence: each signature reads
+  `frame: FrameSpec = UCI_FRAME`; `tests/test_datasets_frame.py` asserts
+  `Call(SETTINGS, 0, 1, "system", "user").frame is UCI_FRAME`; `bko.generate.__main__` calls
+  `generate` without `frame`; and the generate-stage tests call `Call`, `render`, `ask`,
+  `request`, `generate` and `wave` without it (list them with an `ast` scan for those calls with
+  no `frame` keyword). *Filed 2026-10-28 by the review of PR #56.*
+  **Why deferred.** Requiring it rewrites the generate stage's test call sites, outside the
+  Synthea frame change, and no Synthea call omits it.
+  **What discharges it:** `frame` is a required keyword on each of those, and the default's pin
+  in `tests/test_datasets_frame.py` goes.
+  **Trigger:** the next change to `bko.generate`'s send path, or a second non-UCI caller of it.
