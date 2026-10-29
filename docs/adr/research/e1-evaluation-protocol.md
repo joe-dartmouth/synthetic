@@ -165,12 +165,15 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
   `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
   both against the training rows. Each arm's added and replica rows that equal a test record in
-  every column are counted (`test-copies`).
+  every column are counted (`test-copies`). Each holdout's held-out rows also carry a
+  `flagged-fingerprint` score, a hash of the cells it flagged, so two scores files show whether
+  their flagged subgroups are the same test records.
 - **A test split without copied records.** On each holdout every arm fills before any is scored. A
   test record that some arm's added or replica rows copy in every column leaves the test split every
   arm's utility is then scored on. No classifier is then scored on a record it trained on, and the
   comparison stays paired. The held-out ratio and the test rows' distance to closest record read the
-  whole split.
+  whole split. An experiment with `decontaminate` false keeps copied records in the split and
+  counts them only.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
@@ -187,10 +190,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
   contract stops it at once. A call that gets no response stops the run at once, as do a failed
   gap query and a spend at the ceiling.
-- **E3's additions.** `Experiment.removal`, `Experiment.decontaminate`, the `real` arm and holdout
-  slices joined by `merge` exist for E3 (ADR
-  [`research/synthea-downstream-design`](synthea-downstream-design.md)); E1 removes no training
-  rows, removes copied test records and runs no `real` arm.
+- **E3's additions.** `Experiment.removal`, `Experiment.decontaminate`, the `real` arm, whose
+  added rows are the removed training rows, `pairable`'s `allow_copies` and holdout slices joined
+  by `merge` exist for E3 (ADR [`research/synthea-downstream-design`](synthea-downstream-design.md));
+  the held-out ratio reads the split before any removal. E1 removes no training rows, removes copied
+  test records and runs no `real` arm.
 - **The latest configuration is judged.** E1 judges its latest configuration: after a change to
   the system, the design or any configuration, E1 runs again, and only runs of the new
   configuration count. A configuration with one complete paid run (exit 0, call log ending

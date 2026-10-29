@@ -65,15 +65,18 @@ figure below is what the command beside it in Rationale prints against that popu
 - **Fill**: E1's `fill_to` of 20, so each arm is asked for 15 rows of the removed cell.
 - **Headline**: recall at scope `flagged-subgroups`. With every other training cell at 23 or more
   ([C9]), `(>=65, female)` is the only flagged subgroup, and its positive test records are the
-  removed cell's test cases, so the scope's recall is the recall on those cases. Each holdout's
-  flagged-cell fingerprint records which cells it flagged.
+  removed cell's test cases, so the scope's recall is the recall on those cases. Each holdout
+  writes a `flagged-fingerprint` held-out score of the cells it flagged, and `compare --beside`
+  pairs a holdout only when both files' fingerprints match or either file lacks one.
 - **Reference**: arm `real` adds the removed rows back, so its augmented training set is the
   un-ablated training split, with no runner and no `check`. Every other arm is read against it on
   the same holdout.
 - **Held-out ratio**: the corrected interval's n2/n1 is read from the un-ablated split: 0.261
   ([C9]). The ablated cell's 13/5 = 2.6 is not used.
-- **Copies**: counted, not removed (`Experiment.decontaminate` is false for E3), and
-  `bko.evaluate.beside.pairable` allows copies for a run that keeps them.
+- **Copies**: counted, not removed (`Experiment.decontaminate` is false for E3): a test record an
+  arm copies stays in the test split every arm is scored on, and the `test-copies` scores and the
+  `test` log line still count it. `compare` calls `bko.evaluate.beside.pairable` with
+  `allow_copies` for such a run, so a copy excludes no holdout from a reading beside another file.
 - **Privacy**: the distance-to-closest-record rows are reported with no verdict.
 - **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.
@@ -481,7 +484,8 @@ co-occurring condition; an estimate scaled from UCI's prompts.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/data.py`
-- Pinned by: `tests/test_datasets_synthea_frame.py`
+- Pinned by: `tests/test_datasets_synthea_frame.py`, `tests/test_evaluate_synthea.py`,
+  `tests/test_evaluate_removal.py`, `tests/test_evaluate_beside.py`
 
 ## Reversal Conditions
 

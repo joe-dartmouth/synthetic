@@ -2,10 +2,12 @@
 
 Each reading pairs the two arms' scores holdout by holdout, ours minus theirs, under Nadeau and
 Bengio's corrected interval at the run's confidence with family 1. A holdout pairs only when both
-files record the same held-out rows' scores on it (`pairable` holds the rule), and no arm in either
-file copied a test record there: `score` drops every copied record from the test split, so a copy
-in either run would put the two arms' classifiers on different test records. A series either arm
-lacks, or that fewer than 2 paired holdouts define, is skipped rather than refused.
+files record the same held-out rows' scores on it and flag the same cells (`pairable` holds the
+rule), and no arm in either file copied a test record there: under E1's rule `score` drops every
+copied record from the test split, so a copy in either run would put the two arms' classifiers on
+different test records. A run that keeps copies (`Experiment.decontaminate` false) scores every arm
+on the whole split, so for it a copy excludes nothing. A series either arm lacks, or that fewer
+than 2 paired holdouts define, is skipped rather than refused.
 """
 
 from __future__ import annotations
@@ -87,7 +89,8 @@ class Pairing:
         holdouts: The holdouts that pair.
         shared: The holdouts both files hold; a holdout one file holds is not counted.
         copied: The shared holdouts excluded because an arm in either file copied a test record.
-        mismatched: The other excluded shared holdouts, whose held-out rows do not match.
+        mismatched: The other excluded shared holdouts, whose held-out rows or flagged cells do
+            not match.
     """
 
     holdouts: frozenset[int]
@@ -101,24 +104,31 @@ class Pairing:
         return self.shared - len(self.holdouts)
 
 
-def pairable(ours: Sequence[Score], theirs: Sequence[Score]) -> Pairing:
-    """The shared holdouts whose held-out rows match and where no arm copied a test record.
+def pairable(
+    ours: Sequence[Score], theirs: Sequence[Score], *, allow_copies: bool = False
+) -> Pairing:
+    """The shared holdouts whose held-out rows and flagged cells match, and where no arm copied.
 
-    The held-out rows match on a holdout when the `none` arm's `held-out` scores (the held-out
-    ratio, `dcr-p5` and `dcr-median`) are present in both files with equal keys and bitwise-equal
-    values, NaN equal to NaN. Bitwise, because a replay reproduces them bit for bit. The scores
-    file records no row identity, so equal summaries are the evidence that the two splits match.
-    An arm copied a test record when any `test-copies` score of either file, of any arm, added or
-    replica, is not 0; NaN counts as a copy.
+    The held-out rows match on a holdout when the `none` arm's `held-out` scores other than the
+    flagged fingerprint (the held-out ratio, `dcr-p5` and `dcr-median`) are present in both files
+    with equal keys and bitwise-equal values, NaN equal to NaN. Bitwise, because a replay
+    reproduces them bit for bit. The scores file records no row identity, so equal summaries are
+    the evidence that the two splits match. The flagged cells match when the two
+    `flagged-fingerprint` scores are bitwise equal, or either file lacks one. An arm copied a test
+    record when any `test-copies` score of either file, of any arm, added or replica, is not 0; NaN
+    counts as a copy. With `allow_copies`, a copy excludes nothing.
 
     Returns:
         The holdouts that pair, and the shared holdouts excluded for a copy and for a mismatch.
     """
     shared = {s.holdout for s in ours} & {s.holdout for s in theirs}
     held_ours, held_theirs = _held_out(ours), _held_out(theirs)
-    copied = shared & {
-        s.holdout for s in (*ours, *theirs) if s.measure is Measure.TEST_COPIES and s.value != 0
-    }
+    copied = (
+        set()
+        if allow_copies
+        else shared
+        & {s.holdout for s in (*ours, *theirs) if s.measure is Measure.TEST_COPIES and s.value != 0}
+    )
     paired = frozenset(
         holdout
         for holdout in shared - copied
@@ -211,6 +221,23 @@ def _held_out(scores: Sequence[Score]) -> dict[int, dict[tuple[Measure, Scope], 
     return found
 
 
+_FINGERPRINT: Final = (Measure.FLAGGED_FINGERPRINT, Scope.ALL)
+
+
 def _same(a: dict[tuple[Measure, Scope], float], b: dict[tuple[Measure, Scope], float]) -> bool:
-    """Equal keys and bitwise-equal values, NaN equal to NaN."""
-    return a.keys() == b.keys() and all(float(a[key]).hex() == float(b[key]).hex() for key in a)
+    """Whether two holdouts' held-out scores match.
+
+    The scores but the fingerprint have equal keys and bitwise-equal values, NaN equal to NaN, and
+    the fingerprints are equal when both hold one.
+    """
+    if _FINGERPRINT in a and _FINGERPRINT in b and not _bitwise(a[_FINGERPRINT], b[_FINGERPRINT]):
+        return False
+    rest_a = {key: value for key, value in a.items() if key != _FINGERPRINT}
+    rest_b = {key: value for key, value in b.items() if key != _FINGERPRINT}
+    return rest_a.keys() == rest_b.keys() and all(
+        _bitwise(rest_a[key], rest_b[key]) for key in rest_a
+    )
+
+
+def _bitwise(a: float, b: float) -> bool:
+    return float(a).hex() == float(b).hex()

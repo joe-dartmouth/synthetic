@@ -53,19 +53,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/beside-flagged-scope-fingerprint`: `compare --beside` cannot tell whether
-  two runs flagged the same test records.** `bko.evaluate.beside.pairable` pairs a holdout on its
-  held-out summary scores and its test copies, and the `flagged-subgroups` scope is the test records
-  of every age-sex subgroup holding a cell under the run's `fill_to` (`flagged` in
-  `bko.evaluate.run.score_holdout`). Two runs whose `fill_to` or cell edges differ share held-out
-  rows but flag different test records, and their flagged-scope series still pair. *Filed
-  2026-10-26 by the review of PR #39.*
-  **Why deferred.** Every registered run shares E1's `fill_to` and edges, and the scores file
-  records no identity of the flagged cells.
-  **What discharges it:** `score` records a per-holdout fingerprint of the flagged cells, and
-  `pairable` compares it.
-  **Trigger:** the first named run whose `fill_to` or cell edges differ from E1's.
-
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
   fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
   `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of

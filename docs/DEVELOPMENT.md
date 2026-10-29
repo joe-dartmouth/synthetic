@@ -153,16 +153,17 @@ writes the rows in seed order under one header to stdout:
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
-holds is not counted. A holdout pairs only when its held-out rows match and no arm in either file
-copied a test record there, since the test split loses every record any arm copied. Held-out rows
-match when both files record equal held-out summary scores on the holdout;
-`bko.evaluate.beside.pairable` is the one home of the exact rule. The other shared holdouts are
-counted as excluded, split into copied and mismatched. Fewer than two paired holdouts, or an arm
-either file lacks, is refused before the table is written, so a refusal leaves stdout empty. A
-series either arm lacks, or that fewer than two paired holdouts define, is skipped with a
-`beside skip` line. The flagged-subgroups scope is compared as each file scored it: two runs whose
-`fill_to` or cell edges differ flag different test records, and nothing checks it
-(`cleanup:evaluate/beside-flagged-scope-fingerprint`).
+holds is not counted. A holdout pairs only when its held-out rows match, both files flagged the
+same cells there, and no arm in either file copied a test record there, since the test split loses
+every record any arm copied. A run that keeps copies (`e3` and its slices, whose experiment sets
+`decontaminate` false) scores every arm on the whole test split, so for it a copy excludes no
+holdout. Held-out rows match when both files record equal held-out summary scores on the holdout,
+and the flagged cells match when both files' `flagged-fingerprint` held-out scores are equal or
+either file lacks one; `bko.evaluate.beside.pairable` is the one home of the exact rule. The other
+shared holdouts are counted as excluded, split into copied and mismatched; a holdout whose flagged
+cells differ counts as mismatched. Fewer than two paired holdouts, or an arm either file lacks, is
+refused before the table is written, so a refusal leaves stdout empty. A series either arm lacks,
+or that fewer than two paired holdouts define, is skipped with a `beside skip` line.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
@@ -404,7 +405,8 @@ start or the supervisor cannot run.
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
   per holdout the split line `cells` prints, one `quota` line per stratum, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
-  the method's parameters, a `retry` warning for each refused attempt before the last, and a
+  the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
+  `params={}`), a `retry` warning for each refused attempt before the last, and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
   per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
@@ -431,7 +433,8 @@ start or the supervisor cannot run.
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test` line per holdout with the test records any arm
-  copied, and at the end of the run, a stopped run included, one `validity` line per Messages arm,
+  copied, which leave the test split unless the run keeps copies (`e3` and its slices), and at
+  the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
   over both fills and its own spend in USD, the sum of each of its attempts' change in the call

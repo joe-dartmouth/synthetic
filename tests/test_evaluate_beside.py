@@ -404,3 +404,46 @@ def test_a_malformed_beside_file_exits_three_before_the_table(tmp_path):
     theirs = tmp_path / "theirs.csv"
     theirs.write_text("a,b\n1,2\n", encoding="utf-8")
     assert run([ours, "--beside", theirs]) == (3, "")
+
+
+def fingerprinted(rows, value):
+    """`rows` with a flagged-fingerprint held-out row of `value` on each of their holdouts."""
+    holdouts = sorted({s.holdout for s in rows})
+    fingerprint = Measure.FLAGGED_FINGERPRINT
+    return [
+        *rows,
+        *(Score(h, HELD_OUT_ARM, Source.HELD_OUT, fingerprint, Scope.ALL, value) for h in holdouts),
+    ]
+
+
+def test_beside_refuses_scores_of_another_flagged_scope(tmp_path, caplog):
+    ours = fingerprinted(scores(range(4), shifts=OURS), 1.0)
+    theirs = fingerprinted(scores(range(4), shifts=THEIRS), 2.0)
+    assert pairable(ours, theirs) == Pairing(frozenset(), shared=4, copied=0, mismatched=4)
+    same = fingerprinted(scores(range(4), shifts=THEIRS), 1.0)
+    assert pairable(ours, same).holdouts == frozenset(range(4))
+    paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        assert run([paths[0], "--beside", paths[1]]) == (2, "")
+    assert " shared=4 paired=0 excluded=4 copied=0 mismatched=4 " in caplog.text
+
+
+def test_beside_pairs_old_files_without_a_fingerprint():
+    ours, theirs = fingerprinted(scores(range(4)), 1.0), scores(range(4))
+    assert pairable(ours, theirs) == Pairing(frozenset(range(4)), shared=4, copied=0, mismatched=0)
+    assert pairable(theirs, ours).holdouts == frozenset(range(4))
+
+
+def test_pairable_allows_copies_for_a_run_that_keeps_them(tmp_path, caplog):
+    ours = replaced(scores(range(4), shifts=OURS), 2, "smote", Source.ADDED, Measure.TEST_COPIES, 3)
+    theirs = scores(range(4), shifts=THEIRS)
+    assert pairable(ours, theirs).copied == 1
+    assert pairable(ours, theirs, allow_copies=True) == Pairing(
+        frozenset(range(4)), shared=4, copied=0, mismatched=0
+    )
+    paths = written(tmp_path, "ours.csv", ours), written(tmp_path, "theirs.csv", theirs)
+    keeps = Context(experiment=dataclasses.replace(CLI, criteria=(), decontaminate=False))
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        code = main(["compare", str(paths[0]), "--beside", str(paths[1])], context=keeps)
+    assert code == 0
+    assert " shared=4 paired=4 excluded=0 copied=0 mismatched=0 " in caplog.text

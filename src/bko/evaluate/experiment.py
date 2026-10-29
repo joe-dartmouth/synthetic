@@ -204,6 +204,10 @@ SKELETON_ARM: Final = "bko-skeleton"
 request carries each record's concepts drawn from the fused BKB (`bko.evaluate.skeleton`). It is
 not in `BKO_ARMS`, the three gap definitions' arms."""
 
+REAL_ARM: Final = "real"
+"""The reference arm: its added rows are the training rows the experiment's removal took, so its
+augmented training set is the un-ablated training split. It has no runner and no `check`."""
+
 MESSAGES_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     {**BKO_ARMS, SKELETON_ARM: Definition.SUBGROUP}
 )
@@ -256,15 +260,16 @@ effort-sweep run (G4)."""
 
 E3: Final = replace(
     E1,
-    arms=(*METHOD_ARMS, *BKO_ARMS),
+    arms=(*METHOD_ARMS, *BKO_ARMS, REAL_ARM),
     replica_arms=(*ADDS_ROWS, *BKO_ARMS),
     spend_ceiling=65.0,
     criteria=(),
     removal=Removal((">=65", "female", 1), 0.9),
     decontaminate=False,
 )
-"""E1's arms over the Synthea frame with 0.9 of `(>=65, female, 1)`'s training rows removed, test
-copies kept, a $65.00 ceiling and no criterion (ADR `research/synthea-downstream-design`)."""
+"""E1's arms and `real` over the Synthea frame with 0.9 of `(>=65, female, 1)`'s training rows
+removed, test copies kept, a $65.00 ceiling and no criterion (ADR
+`research/synthea-downstream-design`)."""
 
 E3_SLICE_CEILING: Final = 32.5
 """Each of E3's two holdout slices' ceiling: half of E3's."""
