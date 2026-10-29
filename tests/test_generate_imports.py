@@ -58,4 +58,7 @@ def test_generate_imports_no_release_loader():
 
 
 def test_generate_opens_no_other_network_client():
-    assert _importers("urllib", "http.client", "httpx2", "httpx", "requests") == set()
+    """`bko.generate.local` alone opens one: it posts to the loopback llama.cpp server and fetches
+    pinned weights over `bko.datasets.fetch.open_https`."""
+    clients = ("urllib", "http.client", "httpx2", "httpx", "requests")
+    assert _importers(*clients) == {Path("src/bko/generate/local.py")}
