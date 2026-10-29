@@ -16,7 +16,7 @@ import pytest
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import record_cells
 from bko.gaps.scope import load_scope
@@ -54,16 +54,17 @@ def test_every_cell_renders_at_every_level_and_every_statement_reaches_a_row(
             definition=definition,
             fragments=fragments,
             ontologies=ontologies,
+            frame=UCI_FRAME,
         )
     assert [r.getMessage() for r in caplog.records if r.getMessage().startswith("unreached")] == []
     assert len(guided) == len(cells.each)
     chained = 0
     for guidance in guided.values():
         for level in LEVELS:
-            system, user = render(guidance, 2, level)
+            system, user = render(guidance, 2, level, frame=UCI_FRAME)
             assert system
             assert user.startswith("Write exactly 2 records")
-        _, user = render(guidance, 2, Level.ONTOLOGY)
+        _, user = render(guidance, 2, Level.ONTOLOGY, frame=UCI_FRAME)
         if guidance.basis is not Basis.NONE and guidance.findings:
             assert BASES[guidance.basis] in user
             chained += " is a kind of " in user

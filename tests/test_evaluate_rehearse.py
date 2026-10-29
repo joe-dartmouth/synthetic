@@ -51,7 +51,7 @@ def _lines(path: Path) -> list[dict]:
 
 @pytest.mark.parametrize("level", LEVELS)
 def test_the_pattern_reads_the_user_turn_at_every_level(level):
-    _, user = render(GUIDANCE, 7, level)
+    _, user = render(GUIDANCE, 7, level, frame=UCI_FRAME)
     found = PROMPT.match(user)
     assert found is not None
     low, high = GUIDANCE.interval["age"]
@@ -65,7 +65,7 @@ def test_the_prompt_regex_reads_the_bounded_first_sentence():
         interval = intervals(cell, train, frame=UCI_FRAME)
         sex = SEXES_BY_LABEL[cell[1]]
         guidance = Guidance(cell=cell, sex=sex, label=cell[2], records=3, interval=interval)
-        _, user = render(guidance, 4, SETTINGS.guidance)
+        _, user = render(guidance, 4, SETTINGS.guidance, frame=UCI_FRAME)
         found = PROMPT.match(user)
         assert found is not None, cell
         assert (float(found["low"]), float(found["high"])) == interval["age"]
@@ -103,7 +103,13 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
         sex, label = SEXES_BY_LABEL[cell[1]], cell[2]
         interval = intervals(cell, trains[0], frame=UCI_FRAME)
         guidance = Guidance(cell=cell, sex=sex, label=label, records=3, interval=interval)
-        call = Call(SETTINGS, sex, label, *render(guidance, 20, SETTINGS.guidance))
+        call = Call(
+            SETTINGS,
+            sex,
+            label,
+            *render(guidance, 20, SETTINGS.guidance, frame=UCI_FRAME),
+            frame=UCI_FRAME,
+        )
         answer = send(call)
         assert answer.model == SETTINGS.model
         assert answer.usage.input_tokens == INPUT_PER_RECORD * 20
@@ -121,9 +127,9 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
 
 def test_a_call_whose_user_turn_names_another_cell_is_refused():
     send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
-    _, user = render(GUIDANCE, 3, SETTINGS.guidance)
+    _, user = render(GUIDANCE, 3, SETTINGS.guidance, frame=UCI_FRAME)
     with pytest.raises(GenerationError, match="not the call's"):
-        send(Call(SETTINGS, 1, 1, "system", user))
+        send(Call(SETTINGS, 1, 1, "system", user, frame=UCI_FRAME))
 
 
 def test_a_rehearsal_runs_with_no_request_and_its_log_says_so(tmp_path):
@@ -238,7 +244,13 @@ def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
 
 
 def _one(send: CannedSend) -> dict:
-    call = Call(SETTINGS, 1, 0, *render(OTHER_GUIDANCE, 1, SETTINGS.guidance))
+    call = Call(
+        SETTINGS,
+        1,
+        0,
+        *render(OTHER_GUIDANCE, 1, SETTINGS.guidance, frame=UCI_FRAME),
+        frame=UCI_FRAME,
+    )
     (record,) = json.loads(send(call).text or "")["records"]
     return record
 

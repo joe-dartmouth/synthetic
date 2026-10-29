@@ -12,6 +12,7 @@ from typing import Final
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
 from bko.evaluate.guided import spendable
 from bko.generate.calls import ask
@@ -27,7 +28,13 @@ from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 
 def call_for(guidance: Guidance, rows: int) -> Call:
     """The call `ask` sends for `rows` records of `guidance`'s cell."""
-    return Call(SETTINGS, guidance.sex, guidance.label, *render(guidance, rows, SETTINGS.guidance))
+    return Call(
+        SETTINGS,
+        guidance.sex,
+        guidance.label,
+        *render(guidance, rows, SETTINGS.guidance, frame=UCI_FRAME),
+        frame=UCI_FRAME,
+    )
 
 
 def logged(tmp_path: Path, *script: Reply | GenerationError) -> Path:
@@ -36,7 +43,7 @@ def logged(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     with CallLog(path, SETTINGS, frame="uci") as log:
         for outcome in script:
             with contextlib.suppress(GenerationError):
-                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
+                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log, frame=UCI_FRAME)
     return path
 
 
@@ -44,7 +51,7 @@ def test_a_replayed_reply_equals_the_logged_reply(tmp_path):
     original = dataclasses.replace(reply([young(1), young(1)]), attempts=2)
     replay = Replay(logged(tmp_path, original))
     with CallLog(tmp_path / "again.jsonl", SETTINGS, answered=replay.answered, frame="uci") as log:
-        batch = ask(GUIDANCE, 2, send=replay, log=log)
+        batch = ask(GUIDANCE, 2, send=replay, log=log, frame=UCI_FRAME)
     assert batch.reply == original
     assert replay.remaining == 0
 
@@ -230,7 +237,7 @@ def stopped(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     with contextlib.suppress(KeyboardInterrupt), CallLog(path, SETTINGS, frame="uci") as log:
         for outcome in script:
             with contextlib.suppress(GenerationError):
-                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
+                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log, frame=UCI_FRAME)
         raise KeyboardInterrupt
     return path
 
@@ -281,7 +288,7 @@ def test_resume_refuses_a_replays_log(tmp_path):
         contextlib.suppress(KeyboardInterrupt),
         CallLog(path, SETTINGS, answered=source.answered, frame="uci") as log,
     ):
-        ask(GUIDANCE, 2, send=source, log=log)
+        ask(GUIDANCE, 2, send=source, log=log, frame=UCI_FRAME)
         raise KeyboardInterrupt
     with pytest.raises(ReplayError, match=f"replays the log with sha256 {source.digest}"):
         Resume(path, ScriptedSend())
@@ -290,7 +297,7 @@ def test_resume_refuses_a_replays_log(tmp_path):
 def test_resume_refuses_a_rehearsals_log_and_replay_reads_it(tmp_path):
     path = tmp_path / "rehearsal.jsonl"
     with CallLog(path, SETTINGS, rehearsal=True, frame="uci") as log:
-        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log, frame=UCI_FRAME)
     with pytest.raises(ReplayError, match="rehearsal's log"):
         Resume(path, ScriptedSend())
     assert Replay(path).remaining == 1
@@ -328,7 +335,7 @@ def test_resume_refuses_a_resume_that_stopped_while_it_replayed(tmp_path):
         contextlib.suppress(KeyboardInterrupt),
         CallLog(path, SETTINGS, answered=earlier, frame="uci") as log,
     ):
-        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log, frame=UCI_FRAME)
         raise KeyboardInterrupt
     with pytest.raises(ReplayError, match="ab" * 32):
         Resume(path, ScriptedSend())
@@ -357,7 +364,7 @@ def test_resume_accepts_a_resume_that_holds_every_call_it_replayed(tmp_path):
         contextlib.suppress(KeyboardInterrupt),
         CallLog(path, SETTINGS, answered=earlier, frame="uci") as log,
     ):
-        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log, frame=UCI_FRAME)
         raise KeyboardInterrupt
     assert Resume(path, ScriptedSend()).answered.calls == 1
 
@@ -418,7 +425,7 @@ def concurrent(tmp_path: Path, *script: Reply | GenerationError) -> Path:
     ):
         for outcome in script:
             with contextlib.suppress(GenerationError):
-                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log)
+                ask(GUIDANCE, 2, send=ScriptedSend(outcome), log=log, frame=UCI_FRAME)
         raise KeyboardInterrupt
     return path
 

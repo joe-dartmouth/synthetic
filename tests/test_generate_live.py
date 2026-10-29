@@ -11,7 +11,7 @@ import logging
 
 import pytest
 
-from bko.datasets.uci import CODEBOOK, FRACTIONAL, FRAME_COLUMNS
+from bko.datasets.uci import CODEBOOK, FRACTIONAL, FRAME_COLUMNS, UCI_FRAME
 from bko.generate.api import default_send
 from bko.generate.messages import SETTINGS, Call
 from bko.generate.prompt import render
@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 def test_one_real_call_returns_schema_shaped_records(tmp_path):
-    call = Call(SETTINGS, 0, 1, *render(GUIDANCE, 2, SETTINGS.guidance))
+    call = Call(
+        SETTINGS, 0, 1, *render(GUIDANCE, 2, SETTINGS.guidance, frame=UCI_FRAME), frame=UCI_FRAME
+    )
     reply = default_send()(call)
     (tmp_path / "call.json").write_text(
         json.dumps({"params": call.params(), "raw": reply.raw}, indent=2), encoding="utf-8"

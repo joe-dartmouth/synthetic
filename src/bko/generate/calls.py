@@ -19,7 +19,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.decode import Undecoded, decode, undecoded_in
 from bko.generate.guidance import Guidance
@@ -119,7 +118,7 @@ def request(
     *,
     log: CallLog,
     settings: Settings | None = None,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     skeleton: Skeleton | None = None,
 ) -> Pending:
     """Render one call for `rows` records of `guidance`'s cell and write its `request` line.
@@ -229,7 +228,7 @@ def ask(
     send: Send,
     log: CallLog,
     settings: Settings | None = None,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     clock: Callable[[], float] = time.monotonic,
 ) -> Batch:
     """Make one call for `rows` records of `guidance`'s cell, and log it.
@@ -274,7 +273,7 @@ def generate(
     log: CallLog,
     settings: Settings | None = None,
     on_batch: Callable[[Batch], None] | None = None,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     clock: Callable[[], float] = time.monotonic,
 ) -> Generation:
     """Ask for each cell's quota in chunks of `settings.per_call`, cells in quota order.

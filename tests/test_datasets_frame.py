@@ -15,6 +15,7 @@ from bko.generate.messages import SETTINGS, Call, Level, record_schema
 from bko.generate.prompt import SYSTEM, render, system
 from bko.validate.checks import CHECKS, checks, validate
 from tests._frame_fixtures import TOY, TOY_TRAIN
+from tests._generate_fixtures import GUIDANCE
 
 
 def test_the_uci_frame_holds_the_uci_values():
@@ -271,7 +272,15 @@ def test_a_calls_params_carry_its_frames_schema():
     params: Any = call.params()
     schema = params["output_config"]["format"]["schema"]
     assert schema == record_schema(0, 1, frame=TOY)
-    assert Call(SETTINGS, 0, 1, "system", "user").frame is UCI_FRAME
+
+
+def test_a_call_without_a_frame_is_refused():
+    with pytest.raises(TypeError, match="frame"):
+        Call(SETTINGS, 0, 1, "s", "u")  # ty: ignore[missing-argument]
+    with pytest.raises(TypeError, match="frame"):
+        record_schema(0, 1)  # ty: ignore[missing-argument]
+    with pytest.raises(TypeError, match="frame"):
+        render(GUIDANCE, 1, Level.SUMMARY)  # ty: ignore[missing-argument]
 
 
 def test_the_system_prompt_lists_the_toy_fields():

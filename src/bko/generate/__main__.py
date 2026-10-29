@@ -261,6 +261,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
         fragments=fragments,
         ontologies=ontologies,
         rows=context.field_rows,
+        frame=UCI_FRAME,
     )
     settings = dataclasses.replace(context.settings, guidance=Level(args.guidance))
     log = CallLog(args.log, settings, run="generate", frame=UCI_FRAME.name, now=context.now)
@@ -293,6 +294,7 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
                 log=log,
                 settings=settings,
                 on_batch=writer.write,
+                frame=UCI_FRAME,
             )
     finally:
         # After the last write and the run's totals, whether or not every call returned.
@@ -319,6 +321,7 @@ def _direct(args: argparse.Namespace, data_dir: Path, context: Context, writer: 
         ontologies=scope.ontologies,
         name=context.uci.name,
         seed=args.seed,
+        frame=UCI_FRAME,
     )
     plan = chunks(quota, context.settings.per_call)
     # Owner-only and exclusive, as `CallLog` creates the call log.

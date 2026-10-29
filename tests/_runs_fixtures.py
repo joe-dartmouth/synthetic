@@ -6,6 +6,7 @@ import contextlib
 from pathlib import Path
 from typing import Final
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.experiment import E1
 from bko.evaluate.scores import Measure, Scope, Score, Source, render
 from bko.gaps.definitions import Definition
@@ -78,7 +79,7 @@ def call_log(path: Path) -> Path:
     """A complete call log of one call for 2 records, as `CallLog` writes it."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with CallLog(path, SETTINGS, frame="uci") as log, contextlib.suppress(GenerationError):
-        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1)] * 2)), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1)] * 2)), log=log, frame=UCI_FRAME)
     return path
 
 

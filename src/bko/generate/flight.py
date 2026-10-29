@@ -39,7 +39,6 @@ from types import TracebackType
 from typing import Final, Self
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.generate.calls import Batch, Pending, answer, fail, request
 from bko.generate.errors import IdleError
 from bko.generate.guidance import Guidance
@@ -197,7 +196,7 @@ class Flight:
         self,
         planned: Sequence[Planned],
         *,
-        frame: FrameSpec = UCI_FRAME,
+        frame: FrameSpec,
         on_batch: Callable[[Batch], None] | None = None,
     ) -> tuple[Batch, ...]:
         """Send `planned`'s calls, requested in its order, and return their batches in that order.

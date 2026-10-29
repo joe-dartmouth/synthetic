@@ -20,6 +20,7 @@ from typing import Final
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.launch import REHEARSAL, score_command
 from bko.evaluate.supervise import Outcome, backoff, outcome, run_segment, supervise
@@ -486,7 +487,13 @@ def test_a_resumed_log_holds_every_call(tmp_path):
     stopped = tmp_path / "stopped.jsonl"
     with CallLog(stopped, SETTINGS, frame="uci") as log:
         for _ in range(2):
-            ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+            ask(
+                GUIDANCE,
+                2,
+                send=ScriptedSend(reply([young(1), young(1)])),
+                log=log,
+                frame=UCI_FRAME,
+            )
     resume = Resume(stopped, ScriptedSend(reply([young(1), young(1)])))
     resumed = tmp_path / "resumed.jsonl"
 
@@ -497,7 +504,7 @@ def test_a_resumed_log_holds_every_call(tmp_path):
 
     with CallLog(resumed, SETTINGS, answered=resume.answered, frame="uci") as log:
         for _ in range(3):
-            ask(GUIDANCE, 2, send=send, log=log)
+            ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     lines = [json.loads(line) for line in resumed.read_text(encoding="utf-8").splitlines()]
     assert [line["call"] for line in lines if line["kind"] == "request"] == [1, 2, 3]
     assert [line["call"] for line in lines if line["kind"] == "reply"] == [1, 2, 3]

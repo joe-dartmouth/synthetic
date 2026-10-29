@@ -22,7 +22,6 @@ import pandas as pd
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.definitions import Definition
@@ -385,7 +384,7 @@ def flagged(
 
 
 def gap_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec = UCI_FRAME
+    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
 ) -> Request:
     """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
 
@@ -399,7 +398,7 @@ def gap_request(
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec = UCI_FRAME) -> Request:
+def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec) -> Request:
     """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells."""
     quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)

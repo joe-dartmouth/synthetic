@@ -112,7 +112,14 @@ def draw(
     tag: tuple[int, str] | None = None,
 ) -> dict[Cell, tuple]:
     return sample(
-        train, quota, rows=FIELD_MAPPINGS, ontologies=ONTOLOGIES, name=NAME, seed=seed, tag=tag
+        train,
+        quota,
+        rows=FIELD_MAPPINGS,
+        ontologies=ONTOLOGIES,
+        name=NAME,
+        seed=seed,
+        tag=tag,
+        frame=UCI_FRAME,
     )
 
 
@@ -301,7 +308,7 @@ def test_shares_are_the_fused_bkbs_priors_weighted_by_the_cells_records():
 
 
 def test_the_mapping_table_reads_as_eight_field_groups_one_nesting_and_two_label_rows():
-    assert field_groups(FIELD_MAPPINGS) == (
+    assert field_groups(FIELD_MAPPINGS, frame=UCI_FRAME) == (
         FieldGroup(("cp", "exang"), ("HP:0001681", "HP:0100749")),
         FieldGroup(("trestbps",), ("HP:0004421",)),
         FieldGroup(("chol",), ("HP:0003124",)),
@@ -312,7 +319,7 @@ def test_the_mapping_table_reads_as_eight_field_groups_one_nesting_and_two_label
         FieldGroup(("thal",), ("HP:0500018",)),
     )
     assert nested(FIELD_MAPPINGS) == {"HP:0001712": "HP:0003115"}
-    assert label_only(FIELD_MAPPINGS) == {"MONDO:0006715", "HP:0005145"}
+    assert label_only(FIELD_MAPPINGS, frame=UCI_FRAME) == {"MONDO:0006715", "HP:0005145"}
 
 
 def _restecg(concept: str, *codes: int) -> FieldMapping:
@@ -340,7 +347,7 @@ def test_nesting_deeper_or_wider_than_one_pair_is_refused(rows, message):
     with pytest.raises(ValueError, match=message):
         nested(rows)
     with pytest.raises(ValueError, match=message):
-        sample(frame([planted()]), {}, rows=rows, ontologies={}, name=NAME, seed=0)
+        sample(frame([planted()]), {}, rows=rows, ontologies={}, name=NAME, seed=0, frame=UCI_FRAME)
 
 
 def test_an_empty_cells_age_comes_from_its_label_group_inside_its_band():

@@ -10,6 +10,7 @@ from typing import NoReturn
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell
 from bko.generate import calls as calls_module
 from bko.generate.calls import Generation, ask, chunks, generate
@@ -46,9 +47,11 @@ def test_ask_renders_at_the_log_settings_level_and_returns_candidates_and_spend(
     settings = dataclasses.replace(SETTINGS, guidance=Level.CELL)
     send = ScriptedSend(reply([{"age": 40}], usage=Usage(1_000_000, 0, 0, 0)))
     with _log(tmp_path, settings) as log:
-        batch = ask(GUIDANCE, 2, send=send, log=log)
-    system, user = render(GUIDANCE, 2, Level.CELL)
-    assert send.calls == [Call(settings, GUIDANCE.sex, GUIDANCE.label, system, user)]
+        batch = ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
+    system, user = render(GUIDANCE, 2, Level.CELL, frame=UCI_FRAME)
+    assert send.calls == [
+        Call(settings, GUIDANCE.sex, GUIDANCE.label, system, user, frame=UCI_FRAME)
+    ]
     assert batch.index == 1
     assert batch.cell == CELL
     assert batch.asked == 2
@@ -72,7 +75,7 @@ def test_ask_names_its_call_while_it_sends_and_resets_the_name_after(tmp_path, f
         with _log(tmp_path) as log:
             for _ in range(2):
                 with contextlib.suppress(GenerationError):
-                    ask(GUIDANCE, 1, send=send, log=log)
+                    ask(GUIDANCE, 1, send=send, log=log, frame=UCI_FRAME)
                 assert CALL_NUMBER.get() == 0
     finally:
         CALL_NUMBER.reset(token)
@@ -82,7 +85,7 @@ def test_ask_names_its_call_while_it_sends_and_resets_the_name_after(tmp_path, f
 def test_generate_makes_ceil_rows_over_per_call_calls_per_cell_in_quota_order(tmp_path, caplog):
     send = ScriptedSend(*(reply([{}] * n) for n in (3, 20, 20, 5)))
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
-        generation = generate({OTHER: 3, CELL: 45}, GUIDED, send=send, log=log)
+        generation = generate({OTHER: 3, CELL: 45}, GUIDED, send=send, log=log, frame=UCI_FRAME)
     # 4 calls x 16000 output tokens x 0.50 USD per million output tokens.
     assert "plan calls=4 level=summary max_tokens=16000 max_output_usd=0.03" in caplog.text
     assert [(call.sex, _asked(call)) for call in send.calls] == [(1, 3), (0, 20), (0, 20), (0, 5)]
@@ -107,14 +110,14 @@ def test_generate_makes_ceil_rows_over_per_call_calls_per_cell_in_quota_order(tm
 def test_generate_refuses_a_bad_quota_before_any_call(tmp_path, quota):
     send = ScriptedSend()
     with _log(tmp_path) as log, pytest.raises(ValueError, match="quota"):
-        generate(quota, GUIDED, send=send, log=log)
+        generate(quota, GUIDED, send=send, log=log, frame=UCI_FRAME)
     assert send.calls == []
 
 
 def test_a_failure_mid_run_raises_after_logging_and_keeps_earlier_lines(tmp_path):
     send = ScriptedSend(reply([{}] * 20), GenerationError("the API could not be reached"))
     with pytest.raises(GenerationError), _log(tmp_path) as log:
-        generate({CELL: 25}, GUIDED, send=send, log=log)
+        generate({CELL: 25}, GUIDED, send=send, log=log, frame=UCI_FRAME)
     lines = [
         json.loads(line) for line in (tmp_path / "calls.jsonl").read_text("utf-8").splitlines()
     ]
@@ -128,7 +131,7 @@ def test_a_failure_mid_run_raises_after_logging_and_keeps_earlier_lines(tmp_path
 def test_a_served_model_other_than_the_settings_model_warns(tmp_path, caplog):
     send = ScriptedSend(reply([{}], model="claude-other"))
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
-        ask(GUIDANCE, 1, send=send, log=log)
+        ask(GUIDANCE, 1, send=send, log=log, frame=UCI_FRAME)
     warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
     assert [record.getMessage() for record in warnings] == [
         f"served call=1 model=claude-other settings={SETTINGS.model}"
@@ -138,7 +141,7 @@ def test_a_served_model_other_than_the_settings_model_warns(tmp_path, caplog):
 def test_a_short_call_warns_with_its_reason(tmp_path, caplog):
     send = ScriptedSend(reply([], stop_reason="refusal"))
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
-        ask(GUIDANCE, 2, send=send, log=log, clock=iter([0.0, 2.5]).__next__)
+        ask(GUIDANCE, 2, send=send, log=log, clock=iter([0.0, 2.5]).__next__, frame=UCI_FRAME)
     messages = [record.getMessage() for record in caplog.records]
     assert "short call=1 cell=<55/female/1 asked=2 undecoded=2 reason=refused" in messages
     assert (
@@ -162,9 +165,9 @@ def test_settings_other_than_the_logs_are_refused_before_the_request_line(tmp_pa
 
     def run(log: CallLog) -> None:
         if call == "ask":
-            ask(GUIDANCE, 2, send=send, log=log, settings=settings)
+            ask(GUIDANCE, 2, send=send, log=log, settings=settings, frame=UCI_FRAME)
         else:
-            generate({CELL: 2}, GUIDED, send=send, log=log, settings=settings)
+            generate({CELL: 2}, GUIDED, send=send, log=log, settings=settings, frame=UCI_FRAME)
 
     with _log(tmp_path) as log, pytest.raises(ValueError, match="settings"):
         run(log)
@@ -180,7 +183,7 @@ def test_any_exception_from_send_writes_an_error_line_and_propagates(tmp_path):
         raise RuntimeError(secret)
 
     with pytest.raises(RuntimeError, match=secret), _log(tmp_path) as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     text = (tmp_path / "calls.jsonl").read_text("utf-8")
     lines = [json.loads(line) for line in text.splitlines()]
     assert [line["kind"] for line in lines] == ["run", "request", "error", "end"]
@@ -199,7 +202,7 @@ def test_a_send_line_precedes_each_call_so_sdk_retry_lines_sit_between_it_and_th
         return reply([{}, {}])
 
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     assert seen[0][-1] == "send call=1 cell=<55/female/1 asked=2"
 
 
@@ -219,7 +222,7 @@ def test_anything_raised_after_the_request_line_writes_the_error_line_and_propag
     else:
         send = fail
     with caplog.at_level(logging.INFO), pytest.raises(raised), _log(tmp_path) as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     lines = [
         json.loads(line) for line in (tmp_path / "calls.jsonl").read_text("utf-8").splitlines()
     ]
@@ -239,7 +242,12 @@ def test_generate_hands_each_batch_on_before_the_next_call(tmp_path):
 
     with _log(tmp_path) as log:
         generation = generate(
-            {CELL: 25}, GUIDED, send=counting, log=log, on_batch=lambda b: handed.append(b.index)
+            {CELL: 25},
+            GUIDED,
+            send=counting,
+            log=log,
+            on_batch=lambda b: handed.append(b.index),
+            frame=UCI_FRAME,
         )
     assert handed == [batch.index for batch in generation.batches] == [1, 2]
     send.assert_consumed()

@@ -238,7 +238,7 @@ def render(
     rows: int,
     level: Level,
     *,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     skeleton: Skeleton | None = None,
 ) -> tuple[str, str]:
     """Render one call's prompt.

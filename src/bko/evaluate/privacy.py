@@ -14,7 +14,6 @@ import pandas as pd
 from sdmetrics.single_table.privacy.dcr_utils import calculate_dcr
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.fidelity import metadata
 from bko.evaluate.scores import Measure
 
@@ -23,9 +22,7 @@ QUANTILE: Final = 0.05
 """The lower quantile of the distances the privacy criterion reads."""
 
 
-def distances(
-    rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
-) -> dict[Measure, float]:
+def distances(rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec) -> dict[Measure, float]:
     """The 5th percentile and the median of each row's distance to its closest training row."""
     columns = list(frame.columns)
     nearest = calculate_dcr(

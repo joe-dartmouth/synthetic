@@ -27,7 +27,6 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from threadpoolctl import threadpool_limits
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
 
 
@@ -47,13 +46,13 @@ class Model(enum.StrEnum):
     """The histogram gradient boosting model, reported with no verdict."""
 
 
-def build(frame: FrameSpec = UCI_FRAME) -> Pipeline:
+def build(frame: FrameSpec) -> Pipeline:
     """The unfitted classifier: `frame`'s features, then a logistic regression named `model`."""
     model = LogisticRegression(C=1.0, l1_ratio=0.0, solver="lbfgs", max_iter=MAX_ITER)
     return Pipeline([("features", _features(frame, scaled=True)), ("model", model)])
 
 
-def build_hgb(frame: FrameSpec = UCI_FRAME) -> Pipeline:
+def build_hgb(frame: FrameSpec) -> Pipeline:
     """The unfitted boosting classifier: `frame`'s features, then the model named `model`.
 
     Early stopping is off and every feature is read, so no random number is drawn and the seed
@@ -99,7 +98,7 @@ def probabilities(
     test: pd.DataFrame,
     *,
     factory: Factory = build,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
 ) -> pd.Series:
     """Fit on `training`, weighted by its `weight` column; return each test record's P(disease).
 

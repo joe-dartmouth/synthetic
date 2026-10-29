@@ -15,6 +15,7 @@ import anthropic
 import pytest
 
 import bko.generate.api as api_module
+from bko.datasets.uci import UCI_FRAME
 from bko.generate.api import (
     MAX_RETRIES,
     SDK_CLIENT_LOGGER,
@@ -30,7 +31,7 @@ from bko.generate.messages import CALL_NUMBER, SETTINGS, Call, Send, Usage
 from tests._generate_fixtures import message, records_text, request, response
 
 
-CALL = Call(SETTINGS, 0, 1, "the system", "the user")
+CALL = Call(SETTINGS, 0, 1, "the system", "the user", frame=UCI_FRAME)
 """One call's request."""
 
 SENTINEL = "sk-ant-SENTINEL"

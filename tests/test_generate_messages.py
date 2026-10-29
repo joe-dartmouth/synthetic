@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from bko.datasets.cells import LABEL
-from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS
+from bko.datasets.uci import CATEGORICAL, CODEBOOK, FRACTIONAL, FRAME_COLUMNS, UCI_FRAME
 from bko.generate.messages import (
     LEVELS,
     SETTINGS,
@@ -42,7 +42,7 @@ def _objects(node: object) -> Iterator[dict[str, object]]:
 
 
 def _record(sex: int = 0, label: int = 1) -> Any:
-    schema: Any = record_schema(sex, label)
+    schema: Any = record_schema(sex, label, frame=UCI_FRAME)
     return schema["properties"]["records"]["items"]
 
 
@@ -64,7 +64,7 @@ def test_each_level_reaches_itself_and_every_level_below_it():
 
 
 def test_the_schema_closes_every_object_and_requires_exactly_the_frame_columns():
-    schema = record_schema(0, 1)
+    schema = record_schema(0, 1, frame=UCI_FRAME)
     objects = [node for node in _objects(schema) if node.get("type") == "object"]
     assert len(objects) == 2
     assert all(node["additionalProperties"] is False for node in objects)
@@ -98,12 +98,12 @@ def test_whole_fields_are_integers_and_oldpeak_a_number():
 
 
 def test_the_schema_has_no_numeric_bound():
-    for node in _objects(record_schema(1, 1)):
+    for node in _objects(record_schema(1, 1, frame=UCI_FRAME)):
         assert not BOUNDS & node.keys(), node
 
 
 def test_call_params_carry_model_tokens_system_user_effort_and_the_cells_schema():
-    call = Call(SETTINGS, 1, 0, "the system", "the user")
+    call = Call(SETTINGS, 1, 0, "the system", "the user", frame=UCI_FRAME)
     assert call.params() == {
         "model": "claude-haiku-5-5",
         "max_tokens": 16000,
@@ -111,13 +111,13 @@ def test_call_params_carry_model_tokens_system_user_effort_and_the_cells_schema(
         "messages": [{"role": "user", "content": "the user"}],
         "output_config": {
             "effort": "medium",
-            "format": {"type": "json_schema", "schema": record_schema(1, 0)},
+            "format": {"type": "json_schema", "schema": record_schema(1, 0, frame=UCI_FRAME)},
         },
     }
 
 
 def test_the_request_carries_no_parameter_the_model_rejects():
-    params: Any = Call(SETTINGS, 0, 1, "s", "u").params()
+    params: Any = Call(SETTINGS, 0, 1, "s", "u", frame=UCI_FRAME).params()
     assert not (REJECTED | {"fallbacks"}) & params.keys()
     assert params["messages"][-1]["role"] == "user"
 

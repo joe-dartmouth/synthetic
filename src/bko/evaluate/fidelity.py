@@ -15,7 +15,6 @@ from sdmetrics.reports import QualityReport
 
 from bko.baselines import synthesizers
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scores import Measure
 
 
@@ -23,13 +22,13 @@ MEASURES: Final = (Measure.QUALITY, Measure.COLUMN_SHAPES, Measure.COLUMN_PAIR_T
 """The measures `fidelity` returns, in its order."""
 
 
-def metadata(frame: FrameSpec = UCI_FRAME) -> dict[str, object]:
+def metadata(frame: FrameSpec) -> dict[str, object]:
     """`frame`'s SDV metadata as the plain, private dict SDMetrics requires."""
     return copy.deepcopy(dict(synthesizers.metadata(frame)))
 
 
 def quality_report(
-    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> QualityReport:
     """SDMetrics' quality report of `synthetic` against `reference`, generated quietly."""
     columns = list(frame.columns)
@@ -46,7 +45,7 @@ def quality_report(
 
 
 def fidelity(
-    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> dict[Measure, float]:
     """The quality score and its two properties for `synthetic` against `reference`."""
     report = quality_report(reference, synthetic, frame=frame)

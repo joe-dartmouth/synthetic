@@ -229,7 +229,13 @@ def _guided(
     if not names:
         with CandidateFile(args.candidates, origin, None) as kept:
             return run_direct(
-                records, experiment, context.arms, knowledge, sink=kept, models=context.models
+                records,
+                experiment,
+                context.arms,
+                knowledge,
+                sink=kept,
+                models=context.models,
+                frame=frame,
             )
     settings = named.settings
     canned = context.rehearse(data, experiment, settings) if args.rehearse else None
@@ -259,6 +265,7 @@ def _guided(
                 models=context.models,
                 drains=drains,
                 on_holdout=paid.watch.holdout_done,
+                frame=frame,
             )
         return run(
             records,

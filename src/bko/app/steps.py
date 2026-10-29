@@ -285,7 +285,9 @@ def _score(
 ) -> list[Score]:
     arms = {**context.arms, experiment.candidate: recorder}
     models = {Model.LR: context.factory}
-    return score_holdout(analysis.parts, experiment, arms, models=models, drains=drains)
+    return score_holdout(
+        analysis.parts, experiment, arms, models=models, drains=drains, frame=analysis.data.frame
+    )
 
 
 def _outcome(

@@ -21,7 +21,6 @@ from enum import StrEnum
 from typing import Final, Literal
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 
 
 class Level(StrEnum):
@@ -149,7 +148,7 @@ class Call:
     label: int
     system: str
     user: str
-    frame: FrameSpec = UCI_FRAME
+    frame: FrameSpec
 
     def params(self) -> dict[str, object]:
         """Return the request body `bko.generate.api.send_with` sends, as keyword arguments."""
@@ -217,7 +216,7 @@ the SDK runs the attempt. `bko.generate.flight` sets one around each awaited sen
 idle rule stops still reports its attempts; a send that finds none sets its own."""
 
 
-def record_schema(sex: int, label: int, *, frame: FrameSpec = UCI_FRAME) -> dict[str, object]:
+def record_schema(sex: int, label: int, *, frame: FrameSpec) -> dict[str, object]:
     """The structured-output schema of one call: a `records` array of complete `frame` records.
 
     Args:

@@ -21,7 +21,6 @@ from bko.datasets.cells import LABEL, SEXES, age_band_labels, cell_keys
 from bko.datasets.errors import ContractError
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import ranges
-from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, StatementGap
 from bko.gaps.detect import Statement, grounded
 from bko.gaps.observe import Cell, Cells, cell_key, dataset_fragment
@@ -193,7 +192,7 @@ def guide(
     fragments: Sequence[BKB],
     ontologies: Mapping[str, Ontology],
     rows: Sequence[FieldMapping] = FIELD_MAPPINGS,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
 ) -> dict[Cell, Guidance]:
     """Each cell's guidance: its gaps under `definition`, else what its records ground, else none.
 

@@ -129,9 +129,16 @@ def test_every_interval_is_what_the_drop_rule_enforces():
 def _user(train: pd.DataFrame) -> tuple[str, str]:
     cells = record_cells(train, (), name="uci")
     guided = guide(
-        train, cells, (), definition=Definition.SUBGROUP, fragments=(), ontologies={}, rows=()
+        train,
+        cells,
+        (),
+        definition=Definition.SUBGROUP,
+        fragments=(),
+        ontologies={},
+        rows=(),
+        frame=UCI_FRAME,
     )
-    return render(guided[YOUNG], 5, Level.CELL)
+    return render(guided[YOUNG], 5, Level.CELL, frame=UCI_FRAME)
 
 
 def test_a_second_split_renders_other_bounds():
@@ -148,7 +155,14 @@ def test_guide_refuses_a_band_outside_the_splits_ages():
     cells = record_cells(train, (), name="uci")
     with pytest.raises(ContractError, match="does not overlap the split's ages 35 to 54"):
         guide(
-            train, cells, (), definition=Definition.SUBGROUP, fragments=(), ontologies={}, rows=()
+            train,
+            cells,
+            (),
+            definition=Definition.SUBGROUP,
+            fragments=(),
+            ontologies={},
+            rows=(),
+            frame=UCI_FRAME,
         )
 
 

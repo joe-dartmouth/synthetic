@@ -15,6 +15,7 @@ import pytest
 
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
@@ -204,7 +205,7 @@ def test_the_summary_logs_the_runs_sums(tmp_path, caplog):
 def test_guided_arms_refuses_a_resume_with_answers_left_and_logs_the_sums(tmp_path, caplog):
     stopped = tmp_path / "stopped.jsonl"
     with CallLog(stopped, SETTINGS, frame="uci") as log:
-        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log, frame=UCI_FRAME)
     resume = Resume(stopped, ScriptedSend())
     knowledge = Knowledge("x", {}, (), ())
     path = tmp_path / "resumed.jsonl"
@@ -321,7 +322,7 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
     whole run's spend, the replayed calls' included, over every holdout done."""
     stopped = tmp_path / "stopped.jsonl"
     with contextlib.suppress(StopRuleError), CallLog(stopped, SETTINGS, frame="uci") as log:
-        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+        ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log, frame=UCI_FRAME)
         raise StopRuleError("stalled", "idle", retryable=True)
     one = json.loads(stopped.read_text(encoding="utf-8").splitlines()[-1])["usd"]
     assert one > 0
@@ -346,7 +347,7 @@ def test_a_resume_projects_the_whole_runs_spend_over_every_holdout(tmp_path, cap
             limits=SEQUENTIAL,
             answers=resume,
         ) as resumed:
-            ask(GUIDANCE, 2, send=send, log=resumed.log)
+            ask(GUIDANCE, 2, send=send, log=resumed.log, frame=UCI_FRAME)
             assert resumed.log.live_usd == 0
             resumed.watch.holdout_done()
 

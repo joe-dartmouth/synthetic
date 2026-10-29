@@ -138,6 +138,7 @@ def guided(
         fragments=fragments,
         ontologies=ontologies,
         rows=rows,
+        frame=UCI_FRAME,
     )
 
 
@@ -328,6 +329,7 @@ def test_a_row_whose_prefix_has_no_release_is_refused(ladders):
             fragments=ontology_fragments(ladders, {A, B}),
             ontologies=ladders,
             rows=(*ROWS, stray),
+            frame=UCI_FRAME,
         )
 
 

@@ -30,13 +30,13 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 def test_a_control_arm_ignores_the_request():
     train = split(GRADED, seed=0).train
-    baseline = FAST_ARMS["none"](train, gap_request(train, E1, seed=0))
+    baseline = FAST_ARMS["none"](train, gap_request(train, E1, seed=0, frame=UCI_FRAME))
     assert baseline.added.empty
 
 
 @pytest.fixture(scope="module")
 def scores():
-    return run(GRADED, SMALL, FAST_ARMS)
+    return run(GRADED, SMALL, FAST_ARMS, frame=UCI_FRAME)
 
 
 def test_every_arm_is_scored_on_every_holdout(scores):
@@ -96,8 +96,8 @@ def test_dropping_the_boosting_rows_leaves_the_regression_rows_byte_for_byte():
         comparators=("none",),
         replica_arms=("smote",),
     )
-    both = render(run(GRADED, experiment, FAST_ARMS))
-    alone = render(run(GRADED, experiment, FAST_ARMS, models={Model.LR: build}))
+    both = render(run(GRADED, experiment, FAST_ARMS, frame=UCI_FRAME))
+    alone = render(run(GRADED, experiment, FAST_ARMS, models={Model.LR: build}, frame=UCI_FRAME))
     assert "-hgb," in both
     stripped = "".join(line for line in both.splitlines(keepends=True) if "-hgb," not in line)
     assert stripped == alone
@@ -105,7 +105,9 @@ def test_dropping_the_boosting_rows_leaves_the_regression_rows_byte_for_byte():
 
 def test_models_without_the_regression_are_refused():
     with pytest.raises(EvaluationError, match="lack the regression"):
-        score_holdout(split(GRADED, seed=0), SMALL, FAST_ARMS, models={Model.HGB: build})
+        score_holdout(
+            split(GRADED, seed=0), SMALL, FAST_ARMS, models={Model.HGB: build}, frame=UCI_FRAME
+        )
 
 
 def test_the_held_out_ratio_is_the_largest_cells():
@@ -121,7 +123,7 @@ def test_class_weights_reach_the_fit_through_the_harness():
         comparators=(),
         replica_arms=(),
     )
-    run(GRADED, experiment, FAST_ARMS, models={Model.LR: spy})
+    run(GRADED, experiment, FAST_ARMS, models={Model.LR: spy}, frame=UCI_FRAME)
     labels, weights = spy.models[0].seen
     total, positives = len(labels), int(labels.sum())
     expected = np.where(labels == 1, total / (2 * positives), total / (2 * (total - positives)))
@@ -138,7 +140,7 @@ def test_no_arm_sees_a_test_record():
     experiment = dataclasses.replace(
         SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=("smote",)
     )
-    run(GRADED, experiment, {"smote": spying})
+    run(GRADED, experiment, {"smote": spying}, frame=UCI_FRAME)
     assert len(seen) == 2 * len(SMALL.holdout_seeds)
     for position, indexes in enumerate(seen):
         parts = split(GRADED, seed=SMALL.holdout_seeds[position // 2])
@@ -148,7 +150,7 @@ def test_no_arm_sees_a_test_record():
 
 def test_an_arm_without_a_runner_is_refused():
     with pytest.raises(EvaluationError, match="no runner"):
-        run(GRADED, SMALL, {"none": FAST_ARMS["none"]})
+        run(GRADED, SMALL, {"none": FAST_ARMS["none"]}, frame=UCI_FRAME)
 
 
 def test_a_refusing_arm_stops_the_run_after_every_attempt():
@@ -160,7 +162,7 @@ def test_a_refusing_arm_stops_the_run_after_every_attempt():
         raise BaselineError(msg)
 
     with pytest.raises(BaselineError, match="refused"):
-        run(GRADED, SMALL, {**FAST_ARMS, "smote": refuse})
+        run(GRADED, SMALL, {**FAST_ARMS, "smote": refuse}, frame=UCI_FRAME)
     assert len(calls) == SMALL.attempts
 
 
@@ -177,7 +179,7 @@ def test_a_refusal_is_retried_with_a_derived_seed():
     experiment = dataclasses.replace(
         SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=()
     )
-    scores = run(GRADED, experiment, {"smote": flaky})
+    scores = run(GRADED, experiment, {"smote": flaky}, frame=UCI_FRAME)
     expected = [s for seed in SMALL.holdout_seeds for s in (seed, derived_seed(seed, "attempt", 1))]
     assert seeds == expected
     assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
@@ -192,7 +194,7 @@ def test_a_contract_break_is_not_retried():
         raise OutputContractError(msg)
 
     with pytest.raises(OutputContractError, match="broken"):
-        run(GRADED, SMALL, {**FAST_ARMS, "smote": broken})
+        run(GRADED, SMALL, {**FAST_ARMS, "smote": broken}, frame=UCI_FRAME)
     assert len(calls) == 1
 
 
@@ -204,9 +206,9 @@ def test_a_rerun_writes_the_same_bytes():
         comparators=(),
         replica_arms=("smote",),
     )
-    first = render(run(GRADED, experiment, FAST_ARMS))
+    first = render(run(GRADED, experiment, FAST_ARMS, frame=UCI_FRAME))
     np.random.seed(1)
-    assert render(run(GRADED, experiment, FAST_ARMS)) == first
+    assert render(run(GRADED, experiment, FAST_ARMS, frame=UCI_FRAME)) == first
 
 
 def test_a_runner_that_changes_its_input_changes_nothing_else():
@@ -219,8 +221,10 @@ def test_a_runner_that_changes_its_input_changes_nothing_else():
     experiment = dataclasses.replace(
         SMALL, arms=("smote", "none"), candidate="smote", comparators=(), replica_arms=("smote",)
     )
-    honest = render(run(GRADED, experiment, FAST_ARMS))
-    assert render(run(GRADED, experiment, {**FAST_ARMS, "smote": vandal})) == honest
+    honest = render(run(GRADED, experiment, FAST_ARMS, frame=UCI_FRAME))
+    assert (
+        render(run(GRADED, experiment, {**FAST_ARMS, "smote": vandal}, frame=UCI_FRAME)) == honest
+    )
 
 
 def test_every_retry_is_logged_with_its_own_derived_seed(caplog):
@@ -238,7 +242,7 @@ def test_every_retry_is_logged_with_its_own_derived_seed(caplog):
         SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=("smote",)
     )
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
-        run(GRADED, experiment, {"smote": twice_refused_replica})
+        run(GRADED, experiment, {"smote": twice_refused_replica}, frame=UCI_FRAME)
     first = SMALL.holdout_seeds[0]
     derived = [derived_seed(first, "attempt", attempt) for attempt in (1, 2)]
     assert seeds[:3] == [first, *derived]
@@ -276,7 +280,9 @@ def test_utility_reads_the_split_without_a_copied_record(monkeypatch):
         return dataclasses.replace(baseline, added=added.astype(dict(FRAME_DTYPES)))
 
     seen = fits_on(monkeypatch)
-    scores = score_holdout(parts, PAIR, {"none": FAST_ARMS["none"], "smote": copier})
+    scores = score_holdout(
+        parts, PAIR, {"none": FAST_ARMS["none"], "smote": copier}, frame=UCI_FRAME
+    )
     assert seen
     assert all(copied.index[0] not in index for index in seen)
     found = {(s.arm, s.measure): s.value for s in scores if s.source is Source.ADDED}
@@ -287,13 +293,17 @@ def test_utility_reads_the_split_without_a_copied_record(monkeypatch):
 def test_a_holdout_with_no_copy_scores_the_whole_test_split(monkeypatch):
     parts = split(GRADED, seed=0)
     seen = fits_on(monkeypatch)
-    score_holdout(parts, PAIR, FAST_ARMS)
+    score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME)
     assert {len(index) for index in seen} == {len(parts.test)}
 
 
 def test_a_drain_writes_candidates_rows_per_holdout():
     scores = run(
-        GRADED, PAIR, FAST_ARMS, drains={"smote": lambda seed, source: {Measure.GENERATED: 1.0}}
+        GRADED,
+        PAIR,
+        FAST_ARMS,
+        drains={"smote": lambda seed, source: {Measure.GENERATED: 1.0}},
+        frame=UCI_FRAME,
     )
     rows = [s for s in scores if s.source is Source.CANDIDATES]
     assert sorted((s.holdout, s.arm, s.measure) for s in rows) == [
@@ -312,7 +322,7 @@ def test_a_replica_arms_drain_is_read_after_each_fill():
         asked.append((seed, source))
         return {Measure.GENERATED: float(next(counted))}
 
-    scores = run(GRADED, experiment, FAST_ARMS, drains={"smote": drain})
+    scores = run(GRADED, experiment, FAST_ARMS, drains={"smote": drain}, frame=UCI_FRAME)
     assert asked == [
         (0, Source.CANDIDATES),
         (0, Source.REPLICA_CANDIDATES),
@@ -340,7 +350,7 @@ def test_an_arm_filling_no_replica_is_drained_once_per_holdout_beside_one_that_d
 
     experiment = dataclasses.replace(PAIR, arms=("none", "smote", "tvae"), replica_arms=("smote",))
     drains = {name: counter(name) for name in ("smote", "tvae")}
-    scores = run(GRADED, experiment, FAST_ARMS, drains=drains)
+    scores = run(GRADED, experiment, FAST_ARMS, drains=drains, frame=UCI_FRAME)
     found = {
         (s.holdout, s.arm, s.source): s.value for s in scores if s.measure is Measure.GENERATED
     }
@@ -366,7 +376,9 @@ def test_training_copies_are_counted_per_arm_and_fill(caplog):
         return Baseline(added=added, weights=unit_weights(train), params={})
 
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
-        score_holdout(parts, copying, {"none": FAST_ARMS["none"], "smote": verbatim})
+        score_holdout(
+            parts, copying, {"none": FAST_ARMS["none"], "smote": verbatim}, frame=UCI_FRAME
+        )
     gap, replica = asked
     assert f"training holdout=0 arm=smote fill=gap rows={gap} copies={gap}" in caplog.text
     assert (
@@ -377,7 +389,7 @@ def test_training_copies_are_counted_per_arm_and_fill(caplog):
 
 def test_smote_rows_copy_fewer_training_rows_than_it_adds(caplog):
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
-        score_holdout(split(GRADED, seed=0), PAIR, FAST_ARMS)
+        score_holdout(split(GRADED, seed=0), PAIR, FAST_ARMS, frame=UCI_FRAME)
     found = re.search(r"training holdout=0 arm=smote fill=gap rows=(\d+) copies=(\d+)", caplog.text)
     assert found is not None
     rows, copied = map(int, found.groups())

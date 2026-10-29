@@ -141,7 +141,7 @@ def test_the_cell_level_states_sex_label_age_band_record_count_and_row_count(
 ):
     interval = intervals(cell, TRAIN_A, frame=UCI_FRAME)
     guidance = Guidance(cell=cell, sex=sex, label=label, records=4, interval=interval)
-    system, user = render(guidance, 3, Level.CELL)
+    system, user = render(guidance, 3, Level.CELL, frame=UCI_FRAME)
     assert system == SYSTEM
     assert "Write exactly 3 records" in user
     assert sentence in user
@@ -153,8 +153,8 @@ def test_the_cell_level_states_sex_label_age_band_record_count_and_row_count(
 
 
 def test_the_coherent_level_adds_only_the_coherence_sentence():
-    _, cell = render(GUIDANCE, 2, Level.CELL)
-    _, coherent = render(GUIDANCE, 2, Level.COHERENT)
+    _, cell = render(GUIDANCE, 2, Level.CELL, frame=UCI_FRAME)
+    _, coherent = render(GUIDANCE, 2, Level.COHERENT, frame=UCI_FRAME)
     assert coherent.startswith(cell)
     assert coherent.removeprefix(cell).strip() == COHERENCE
 
@@ -175,7 +175,9 @@ def test_intervals_clip_age_to_the_band_within_the_training_range():
 
 
 def test_rendering_is_deterministic():
-    assert render(GUIDANCE, 2, Level.SUMMARY) == render(GUIDANCE, 2, Level.SUMMARY)
+    assert render(GUIDANCE, 2, Level.SUMMARY, frame=UCI_FRAME) == render(
+        GUIDANCE, 2, Level.SUMMARY, frame=UCI_FRAME
+    )
 
 
 def _row(concept: str, field: str) -> FieldMapping:
@@ -249,8 +251,8 @@ def _found(basis: Basis) -> Guidance:
 
 
 def test_the_findings_level_renders_field_states_with_code_meanings_units_and_concept_labels():
-    _, coherent = render(_found(Basis.ABSENT), 2, Level.COHERENT)
-    _, findings = render(_found(Basis.ABSENT), 2, Level.FINDINGS)
+    _, coherent = render(_found(Basis.ABSENT), 2, Level.COHERENT, frame=UCI_FRAME)
+    _, findings = render(_found(Basis.ABSENT), 2, Level.FINDINGS, frame=UCI_FRAME)
     assert findings.startswith(coherent)
     added = findings.removeprefix(coherent).strip()
     assert added.splitlines() == [SENTENCES[Basis.ABSENT], *FINDING_LINES]
@@ -258,31 +260,31 @@ def test_the_findings_level_renders_field_states_with_code_meanings_units_and_co
 
 @pytest.mark.parametrize("basis", list(SENTENCES))
 def test_each_basis_has_its_own_wording(basis):
-    _, user = render(_found(basis), 2, Level.FINDINGS)
+    _, user = render(_found(basis), 2, Level.FINDINGS, frame=UCI_FRAME)
     assert SENTENCES[basis] in user
     assert [other for other in SENTENCES.values() if other in user] == [SENTENCES[basis]]
 
 
 def test_the_ontology_level_adds_each_findings_is_a_chain():
-    _, findings = render(_found(Basis.SHOWN), 2, Level.FINDINGS)
-    _, ontology = render(_found(Basis.SHOWN), 2, Level.ONTOLOGY)
+    _, findings = render(_found(Basis.SHOWN), 2, Level.FINDINGS, frame=UCI_FRAME)
+    _, ontology = render(_found(Basis.SHOWN), 2, Level.ONTOLOGY, frame=UCI_FRAME)
     assert findings.splitlines()[-3:] == list(FINDING_LINES)
     assert ontology.splitlines() == [*findings.splitlines()[:-3], *CHAINED_LINES]
 
 
 def test_basis_none_omits_the_findings_block():
-    _, coherent = render(_found(Basis.NONE), 2, Level.COHERENT)
+    _, coherent = render(_found(Basis.NONE), 2, Level.COHERENT, frame=UCI_FRAME)
     for level in (Level.FINDINGS, Level.ONTOLOGY):
-        assert render(_found(Basis.NONE), 2, level)[1] == coherent
+        assert render(_found(Basis.NONE), 2, level, frame=UCI_FRAME)[1] == coherent
     shown_without = dataclasses.replace(GUIDANCE, basis=Basis.SHOWN)
-    assert render(shown_without, 2, Level.ONTOLOGY)[1] == coherent
+    assert render(shown_without, 2, Level.ONTOLOGY, frame=UCI_FRAME)[1] == coherent
 
 
 def test_the_is_a_chain_reads_from_the_lowest_class_up_whatever_the_stored_order():
     top_down = dataclasses.replace(
         GUIDANCE, basis=Basis.SHOWN, findings=(Finding((ANGINA_HISTORY,), CHAIN[::-1]),)
     )
-    _, user = render(top_down, 2, Level.ONTOLOGY)
+    _, user = render(top_down, 2, Level.ONTOLOGY, frame=UCI_FRAME)
     assert user.splitlines()[-1] == (
         "- cp is 1 (typical angina) (Angina pectoris): Angina pectoris is a kind of Arrhythmia; "
         "Arrhythmia is a kind of Heart disease"
@@ -296,7 +298,7 @@ def test_a_cyclic_chain_is_rendered_whole_in_stored_order():
     cyclic = dataclasses.replace(
         GUIDANCE, basis=Basis.SHOWN, findings=(Finding((ANGINA_HISTORY,), (CHAIN[0], back)),)
     )
-    _, user = render(cyclic, 2, Level.ONTOLOGY)
+    _, user = render(cyclic, 2, Level.ONTOLOGY, frame=UCI_FRAME)
     assert user.splitlines()[-1].endswith(
         ": Angina pectoris is a kind of Arrhythmia; Arrhythmia is a kind of Angina pectoris"
     )
@@ -347,19 +349,19 @@ FULL = dataclasses.replace(
 
 
 def test_the_profile_level_adds_shares_as_whole_percents_with_their_field_states():
-    _, ontology = render(FULL, 2, Level.ONTOLOGY)
-    _, profile = render(FULL, 2, Level.PROFILE)
+    _, ontology = render(FULL, 2, Level.ONTOLOGY, frame=UCI_FRAME)
+    _, profile = render(FULL, 2, Level.PROFILE, frame=UCI_FRAME)
     assert profile == "\n\n".join([ontology, "\n".join(PROFILE_BLOCK)])
 
 
 def test_the_summary_level_adds_median_and_middle_half_with_units():
-    _, profile = render(FULL, 2, Level.PROFILE)
-    _, summary = render(FULL, 2, Level.SUMMARY)
+    _, profile = render(FULL, 2, Level.PROFILE, frame=UCI_FRAME)
+    _, summary = render(FULL, 2, Level.SUMMARY, frame=UCI_FRAME)
     assert summary == "\n\n".join([profile, "\n".join(SUMMARY_BLOCK)])
 
 
 def test_each_level_adds_exactly_its_own_block():
-    texts = [render(FULL, 2, level)[1].split("\n\n") for level in LEVELS]
+    texts = [render(FULL, 2, level, frame=UCI_FRAME)[1].split("\n\n") for level in LEVELS]
     for before, after, level in zip(texts, texts[1:], LEVELS[1:], strict=False):
         if level is Level.ONTOLOGY:
             assert after[:-1] == before[:-1], level
@@ -368,4 +370,6 @@ def test_each_level_adds_exactly_its_own_block():
         else:
             assert after[:-1] == before, level
     bare = dataclasses.replace(GUIDANCE, profile=None, summary=None)
-    assert render(bare, 2, Level.SUMMARY) == render(bare, 2, Level.COHERENT)
+    assert render(bare, 2, Level.SUMMARY, frame=UCI_FRAME) == render(
+        bare, 2, Level.COHERENT, frame=UCI_FRAME
+    )
