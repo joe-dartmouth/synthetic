@@ -88,7 +88,8 @@ figure below is what the command beside it in Rationale prints against that popu
   the training records outside the cell that share its label; no record's values are sent, and the
   rows are generated, so none describes a person
   ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation), What leaves the machine).
-- **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
+- **Arms**: E1's arms (`METHOD_ARMS`, the literal tuple of the six comparison methods, and
+  `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.
 - **Settings**: `SETTINGS` itself (`claude-haiku-5-5`, effort `medium`, `max_tokens` 16000,
   `per_call` 20, level `summary`), the effort G4 chose

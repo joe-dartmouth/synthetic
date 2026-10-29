@@ -33,8 +33,9 @@ underrepresented subgroups as the brief cites them
 in-context records. The curation differs from `generate-bkb-curation`'s, which scores records by
 their likelihood under the fused BKB rather than by a classifier.
 
-Its E3 reading pairs with E3's recorded scores, and E3's arms stay as its ADR fixes them, as
-`evaluate-classical-baselines` says.
+Its E3 reading pairs with E3's recorded scores, and E3's arms stay as its ADR fixes them
+(`bko.evaluate.experiment.METHOD_ARMS` is a literal tuple; `tests/test_evaluate_experiment.py`
+pins E1's and E3's arms).
 
 ## Scope
 

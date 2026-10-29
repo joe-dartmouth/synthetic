@@ -29,7 +29,6 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-classical-baselines`](evaluate-classical-baselines.md) | ready | -- | Joe | final-report |
 | [`evaluate-bayesian-network-baseline`](evaluate-bayesian-network-baseline.md) | ready | -- | Joe | final-report |
 | [`evaluate-cllm-baseline`](evaluate-cllm-baseline.md) | ready | -- | Joe | final-report |
 
@@ -39,7 +38,6 @@ flowchart LR
     dose_response[evaluate-dose-response]
     scarcity_curve[evaluate-data-scarcity-curve]
     generator_comparison[evaluate-generator-comparison]
-    classical_baselines[evaluate-classical-baselines]
     bn_baseline[evaluate-bayesian-network-baseline]
     cllm_baseline[evaluate-cllm-baseline]
 ```

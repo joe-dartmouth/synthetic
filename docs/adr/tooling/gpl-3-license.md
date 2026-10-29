@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-15
-updated: 2026-10-16
+updated: 2026-10-29
 ---
 # GPL-3.0-only for the repository's code, copyright Dartmouth College
 
@@ -28,6 +28,14 @@ is possible at all.
   contributions; the license text itself forbids edits, so it carries no copyright line. Code adapted
   from pybkb keeps its author's attribution in each adapted file (ADR `research/bkb-layer-source`).
 - **Dependencies keep their own licenses**; the license covers this repository's code.
+- **Five locked dependencies are BUSL-1.1**, each with `License-Expression: BUSL-1.1` in its
+  installed metadata: `sdv`, `copulas`, `ctgan`, `rdt` and `deepecho`. The `synth` extra brings
+  them through SDV, and the `eval` extra brings `copulas` through `sdmetrics`, which is MIT. Each
+  grants use of the work and its derivatives except for a commercial service that lets third
+  parties use its features: a synthetic data service (`sdv`), a synthetic data creation service
+  (`copulas`, `ctgan`, `deepecho`) or a data transform service (`rdt`). Each changes to the MIT
+  License four years after its release. This repository uses them for non-commercial research,
+  distributes no work that combines them, and serves its app on `127.0.0.1` only.
 
 ## Rationale
 
@@ -38,7 +46,9 @@ version 3 only (SPDX `GPL-3.0-only`) rather than version 3 or later.
 
 **Gained**: a reusable, standard license; the pybkb port is licensing compatible.
 **Accepted**: anyone distributing a work that includes this code must license it under GPL-3.0
-too; changing the license later needs the copyright holder's agreement.
+too; changing the license later needs the copyright holder's agreement; the BUSL-1.1 dependencies
+rule out offering the baselines or the app to third parties as a commercial service before their
+change dates.
 
 ## Ruled Out
 
@@ -58,6 +68,9 @@ too; changing the license later needs the copyright holder's agreement.
 
 **The license changes only if Dartmouth College agrees and no code adapted from a GPL-licensed work, pybkb's included, is in the tree**;
 this record is then edited.
+
+**The BUSL-1.1 reading is revisited if the app or the baselines are hosted for third parties, or a
+lock bump changes any listed package's `License-Expression`.**
 
 ## Related
 

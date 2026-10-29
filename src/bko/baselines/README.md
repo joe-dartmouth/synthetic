@@ -1,6 +1,6 @@
 # `bko.baselines`: baseline augmentation
 
-The comparison methods, at equal row counts: no augmentation, class weighting, SMOTE and ADASYN (imbalanced-learn), CTGAN and TVAE (SDV).
+The comparison methods, at equal row counts: no augmentation, class weighting, SMOTE and ADASYN (imbalanced-learn), CTGAN, TVAE and the Gaussian copula (SDV), and sequential CART (scikit-learn).
 
 Each method reads the training split `bko.datasets` computes and fills exactly the rows per stratum
 it is asked for, so methods given one request meet equal row counts stratum by stratum; the controls

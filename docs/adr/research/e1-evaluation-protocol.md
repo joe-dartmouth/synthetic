@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-28
+updated: 2026-10-29
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -42,7 +42,13 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   file copied a test record, unless the experiment keeps copies. A variant is a named run:
   `bko.evaluate.named_runs.RUNS` maps a run name to its `Experiment`, generator `Settings` and
   dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take
-  the name as a positional. A named run is a value fixed in code and committed, so it replays at its
+  the name as a positional. E1's comparison set is the literal `METHOD_ARMS` in
+  `bko.evaluate.experiment`, docs/RESEARCH.md section 4's six methods, and the methods that add
+  rows (`ADDS_ROWS`) follow from it; a method `bko.baselines` adds later joins
+  `bko.evaluate.run.ARMS` alone, so E1, E3 and every run built on them keep their arms. A run that
+  reads a new method names it as its candidate with `comparators=METHOD_ARMS`, and another new
+  method is read from the same scores with `compare --candidate`. A named run is a value fixed in
+  code and committed, so it replays at its
   commit as E1 does, and
   the name does not reopen the ruled-out flags: no flag sets a reading, a holdout count or a
   setting. A run lists its own `criteria`, which may be none, and `compare` judges only those,
@@ -366,6 +372,9 @@ and holdout.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| `METHOD_ARMS` and `ADDS_ROWS` derived from every `Method` | A method added for B1 would join E1 and E3, changing their arms and the runs that replay them | 2026-10-29 |
+| A separate enum for the comparison set | `augment` takes a `Method`, so a second enum breaks its typing | 2026-10-29 |
+| One free run per new method | Doubles the CTGAN and TVAE fits the runs share; a second method reads from the same scores | 2026-10-29 |
 | The 2-pager's 10% gain over no augmentation | No stated basis; whole-split AUC-PR leaves it no room | 2026-10-15 |
 | Non-overlap of each arm's own interval | Discards the pairing and asks for roughly p below 0.006 | 2026-10-15 |
 | Judging on the mean over holdouts | A true effect at the threshold passes half the time | 2026-10-15 |

@@ -163,10 +163,9 @@ sampling from the forest's leaves, and ForestDiffusion
 [`jolicoeur-martineau-2023`][jolicoeur-martineau-2023] trains gradient-boosted trees as the
 diffusion or flow model.
 
-**Why it is not in the plan.** Deferred. The task unit
-[`evaluate-classical-baselines`](../tasks/evaluate-classical-baselines.md) runs sequential CART
-synthesis, the simplest tree-based synthesizer; ARF and ForestDiffusion are worth a unit if it
-reads well beside `bko`. Each resolves on Python 3.14 under a scratch copy of the lock (checked
+**Why it is not in the plan.** Deferred. B1 runs sequential CART synthesis, the simplest
+tree-based synthesizer, beside `bko` ([`docs/EVIDENCE.md`](EVIDENCE.md#b1-classical-baselines));
+ARF and ForestDiffusion are worth a unit if it reads well there. Each resolves on Python 3.14 under a scratch copy of the lock (checked
 2026-10-28); neither has been installed or run.
 
 **Sources.** None in the brief or the 2-pager.

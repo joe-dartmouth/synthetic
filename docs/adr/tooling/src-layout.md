@@ -34,7 +34,7 @@ pipeline stage:
 | `generate` | Candidate-record generation through the Messages API or the direct sampler | `llm` |
 | `validate` | Record consistency checks | `data` |
 | `fusion` | Validated records joined back into the BKO; gap closure | `data` |
-| `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE | `synth` |
+| `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE, the Gaussian copula, sequential CART | `synth` |
 | `evaluate` | Utility, fidelity, privacy and validity metrics, and the BKO arms | `eval` |
 | `app` | The Streamlit interface | `app` |
 

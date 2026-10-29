@@ -11,7 +11,7 @@ the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, 
 and `app` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
-  `synth` (sdv, imbalanced-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
+  `synth` (sdv, imbalanced-learn, scikit-learn, torch), `eval` (scikit-learn, sdmetrics, scipy), `ontology`
   (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`. `synth` brings
   `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
   [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
@@ -83,7 +83,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -92,14 +92,16 @@ command per method, inside `.venv`:
   `bko.baselines.request`.
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
   with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
-  row counts and the output's sha256, the fit and fill lines of CTGAN and TVAE, and the method's
+  row counts and the output's sha256, the fit and fill lines of CTGAN and TVAE, the fill line of
+  the Gaussian copula and sequential CART, and the method's
   parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
   method whose output breaks the contract.
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN and
-  TVAE promise no more, so the logged sha256 is the record.
+  TVAE promise no more, so the logged sha256 is the record. The Gaussian copula gives the same rows
+  at every seed, since SDV fixes its sampling seed; sequential CART's rows follow the seed alone.
 
 ## Evaluation
 
@@ -146,6 +148,15 @@ cell's records, its label group's records) and a
 group. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a harness fill
 they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone, since `G2`
 judges no criterion, and logs every criterion's intervals as `unjudged` lines.
+
+A run with neither a BKO arm nor the direct arm, such as `b1-uci` and `b1-synthea`, makes no call
+and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`, `--resume` and
+`--rehearse`:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score <run> [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+
+`compare <run> runs/<run-id>/scores.csv --candidate <arm>` reads each new method in turn, and
+`--beside` reads it beside another run's arm.
 
 `merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
 holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
@@ -509,7 +520,10 @@ start or the supervisor cannot run.
   E3 over the Synthea frame as `e3`, and its two holdout slices as `e3-a` (holdouts 0 to 49) and
   `e3-b` (50 to 99), each with half of `e3`'s spend ceiling (ADR
   [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md);
-  [EVIDENCE.md](EVIDENCE.md#e3-synthea-downstream-augmentation)). No flag
+  [EVIDENCE.md](EVIDENCE.md#e3-synthea-downstream-augmentation)). It holds B1's runs, `b1-uci`
+  (E1's methods beside the Gaussian copula and sequential CART) and `b1-synthea` (E3's methods,
+  both and `real` under E3's removal), each with no BKO arm and no criterion
+  ([EVIDENCE.md](EVIDENCE.md#b1-classical-baselines)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
