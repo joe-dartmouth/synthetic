@@ -46,7 +46,7 @@ LINES: Final = (
 )
 """A 3-record draw, label-only concepts left out."""
 
-SKELETON: Final = skeleton(LINES, FIELD_MAPPINGS)
+SKELETON: Final = skeleton(LINES, FIELD_MAPPINGS, frame=UCI_FRAME)
 
 
 def _record(**changes: float) -> dict[str, float]:
@@ -73,11 +73,11 @@ def test_skeleton_leaves_out_label_only_concepts_and_refuses_an_unnamed_one():
     assert angina.label == "Angina pectoris"
     assert [row.when[0].field for row in angina.states] == ["cp", "exang"]
     assert {"MONDO:0006715", "HP:0005145"}.isdisjoint(
-        row.concept for row in prescribable(FIELD_MAPPINGS)
+        row.concept for row in prescribable(FIELD_MAPPINGS, frame=UCI_FRAME)
     )
     assert SKELETON.shows(_record(target=1)) == BASE_SHOWS
     with pytest.raises(ValueError, match=r"line 2 names \['MONDO:0006715'\]"):
-        skeleton((frozenset(), frozenset({"MONDO:0006715"})), FIELD_MAPPINGS)
+        skeleton((frozenset(), frozenset({"MONDO:0006715"})), FIELD_MAPPINGS, frame=UCI_FRAME)
 
 
 EXPECTED_USER: Final = (
@@ -112,10 +112,10 @@ EXPECTED_USER: Final = (
 
 
 def test_the_user_turn_with_one_line_per_record():
-    _, user = render(GUIDANCE, 3, Level.SUMMARY, skeleton=SKELETON)
+    _, user = render(GUIDANCE, 3, Level.SUMMARY, skeleton=SKELETON, frame=UCI_FRAME)
     assert user == EXPECTED_USER
-    _, bare = render(FULL, 3, Level.SUMMARY)
-    _, full = render(FULL, 3, Level.SUMMARY, skeleton=SKELETON)
+    _, bare = render(FULL, 3, Level.SUMMARY, frame=UCI_FRAME)
+    _, full = render(FULL, 3, Level.SUMMARY, skeleton=SKELETON, frame=UCI_FRAME)
     assert full.startswith(f"{bare}\n\n")
     block = full.removeprefix(f"{bare}\n\n").splitlines()
     assert block[0].startswith("Each record below must show exactly the listed findings")
@@ -124,7 +124,7 @@ def test_the_user_turn_with_one_line_per_record():
 
 
 def test_the_prompt_regex_still_reads_a_skeleton_user_turn():
-    _, user = render(FULL, 3, Level.SUMMARY, skeleton=SKELETON)
+    _, user = render(FULL, 3, Level.SUMMARY, skeleton=SKELETON, frame=UCI_FRAME)
     found = PROMPT.match(user)
     assert found is not None
     assert (found["rows"], found["sex"], found["label"]) == ("3", "0", "1")
@@ -134,10 +134,19 @@ def test_request_refuses_lines_that_do_not_match_rows(tmp_path):
     path = tmp_path / "calls.jsonl"
     with CallLog(path, SETTINGS, now=lambda: FIXED_NOW, frame="uci") as log:
         with pytest.raises(ValueError, match="2 lines for 3 records"):
-            request(GUIDANCE, 3, log=log, skeleton=dataclasses.replace(SKELETON, lines=LINES[:2]))
+            request(
+                GUIDANCE,
+                3,
+                log=log,
+                skeleton=dataclasses.replace(SKELETON, lines=LINES[:2]),
+                frame=UCI_FRAME,
+            )
         assert log.calls == 0
-        pending = request(GUIDANCE, 3, log=log, skeleton=SKELETON)
-    assert pending.call.user == render(GUIDANCE, 3, Level.SUMMARY, skeleton=SKELETON)[1]
+        pending = request(GUIDANCE, 3, log=log, skeleton=SKELETON, frame=UCI_FRAME)
+    assert (
+        pending.call.user
+        == render(GUIDANCE, 3, Level.SUMMARY, skeleton=SKELETON, frame=UCI_FRAME)[1]
+    )
     assert sum('"kind": "request"' in line for line in path.read_text().splitlines()) == 1
 
 

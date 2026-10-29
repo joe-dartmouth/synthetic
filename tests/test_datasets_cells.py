@@ -23,6 +23,7 @@ from bko.datasets.cells import (
 )
 from bko.datasets.errors import ContractError
 from bko.datasets.split import SPLIT_SEED, held_out_count, split, uci_split
+from bko.datasets.uci import UCI_FRAME
 from tests._datasets_fixtures import pin, records
 from tests._generate_fixtures import SIZES, uci
 from tests._ontology_fixtures import RoutingOpener
@@ -33,12 +34,17 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 EDGE = AGE_BAND_EDGES[0]
 YOUNG = EDGE - 1
 OLD = EDGE
-GRID = [(band, sex, t) for band in age_band_labels() for sex in ("female", "male") for t in (0, 1)]
+GRID = [
+    (band, sex, t)
+    for band in age_band_labels(AGE_BAND_EDGES)
+    for sex in ("female", "male")
+    for t in (0, 1)
+]
 
 
 def test_the_edge_age_starts_the_older_band():
-    keys = cell_keys(records({(EDGE - 1, 0, 0): 1, (EDGE, 0, 0): 1}))
-    assert list(keys["age_band"]) == list(age_band_labels())
+    keys = cell_keys(records({(EDGE - 1, 0, 0): 1, (EDGE, 0, 0): 1}), edges=UCI_FRAME.edges)
+    assert list(keys["age_band"]) == list(age_band_labels(AGE_BAND_EDGES))
 
 
 def test_band_labels_for_several_edges():
@@ -52,7 +58,7 @@ def test_empty_or_unsorted_edges_are_refused(edges):
 
 
 def test_the_grid_lists_every_cell_including_empty_ones():
-    counts = cell_counts(records({(YOUNG, 1, 0): 3}))
+    counts = cell_counts(records({(YOUNG, 1, 0): 3}), edges=UCI_FRAME.edges)
     assert list(counts.columns) == list(COUNT_COLUMNS)
     assert list(zip(counts["age_band"], counts["sex"], counts["target"], strict=True)) == GRID
     assert counts["count"].sum() == 3
@@ -63,19 +69,21 @@ def test_the_grid_lists_every_cell_including_empty_ones():
 
 def test_the_rule_is_fewer_than_twenty():
     """The 2-pager's figure, pinned once; every other case derives from the constant."""
-    counts = cell_counts(records({(YOUNG, 0, 0): 19, (YOUNG, 0, 1): 20}))
+    counts = cell_counts(records({(YOUNG, 0, 0): 19, (YOUNG, 0, 1): 20}), edges=UCI_FRAME.edges)
     assert list(counts["underrepresented"][:2]) == [True, False]
 
 
 def test_a_cell_at_the_threshold_is_not_underrepresented_and_one_below_is():
     below = UNDERREPRESENTED_BELOW
-    counts = cell_counts(records({(OLD, 1, 0): below - 1, (OLD, 1, 1): below}))
+    counts = cell_counts(
+        records({(OLD, 1, 0): below - 1, (OLD, 1, 1): below}), edges=UCI_FRAME.edges
+    )
     assert bool(counts.loc[counts["count"] == below - 1, "underrepresented"].item())
     assert not bool(counts.loc[counts["count"] == below, "underrepresented"].item())
 
 
 def test_a_given_threshold_replaces_the_default():
-    counts = cell_counts(records({(OLD, 1, 0): 4, (OLD, 1, 1): 5}), below=5)
+    counts = cell_counts(records({(OLD, 1, 0): 4, (OLD, 1, 1): 5}), below=5, edges=UCI_FRAME.edges)
     assert counts.loc[counts["count"] > 0, "underrepresented"].tolist() == [True, False]
 
 
@@ -97,7 +105,7 @@ def test_a_missing_or_infinite_age_is_refused(age):
     frame = records({(YOUNG, 0, 0): 2}).astype({"age": "float64"})
     frame.loc[2, "age"] = age
     with pytest.raises(ContractError, match="age of record 2 is"):
-        cell_keys(frame)
+        cell_keys(frame, edges=UCI_FRAME.edges)
 
 
 def test_a_refusal_names_one_value_even_with_a_duplicate_index():
@@ -105,13 +113,15 @@ def test_a_refusal_names_one_value_even_with_a_duplicate_index():
     frame.index = pd.Index([1, 1], name="record_id")
     frame["sex"] = [5, 0]
     with pytest.raises(ContractError, match=r"^sex of record 1 is 5, not in \[0, 1\]$"):
-        cell_keys(frame)
+        cell_keys(frame, edges=UCI_FRAME.edges)
 
 
 def test_counts_do_not_depend_on_row_order():
     frame = records({(YOUNG, 0, 0): 4, (OLD, 1, 1): 7, (OLD, 0, 1): 2})
     shuffled = frame.sample(frac=1, random_state=1)
-    pd.testing.assert_frame_equal(cell_counts(frame), cell_counts(shuffled))
+    pd.testing.assert_frame_equal(
+        cell_counts(frame, edges=UCI_FRAME.edges), cell_counts(shuffled, edges=UCI_FRAME.edges)
+    )
 
 
 @pytest.mark.parametrize("seed", range(25))
@@ -129,7 +139,7 @@ def test_counts_match_a_counter_oracle(seed):
         (f"<{EDGE}" if age < EDGE else f">={EDGE}", ("female", "male")[sex], target)
         for age, sex, target in zip(frame["age"], frame["sex"], frame["target"], strict=True)
     )
-    counts = cell_counts(frame)
+    counts = cell_counts(frame, edges=UCI_FRAME.edges)
     got = dict(
         zip(
             zip(counts["age_band"], counts["sex"], counts["target"], strict=True),
@@ -145,7 +155,7 @@ def test_a_sex_or_label_outside_its_codes_is_refused(column, value):
     frame = records({(YOUNG, 0, 0): 2})
     frame.loc[2, column] = value
     with pytest.raises(ContractError, match=f"{column} of record 2"):
-        cell_keys(frame)
+        cell_keys(frame, edges=UCI_FRAME.edges)
 
 
 @pytest.mark.parametrize(
@@ -168,30 +178,41 @@ SPEC = {
 
 def test_split_partitions_the_records():
     frame = records(SPEC)
-    parts = split(frame)
+    parts = split(frame, edges=UCI_FRAME.edges)
     assert set(parts.train.index).isdisjoint(parts.test.index)
     assert sorted([*parts.train.index, *parts.test.index]) == list(frame.index)
 
 
 def test_each_cell_holds_out_its_rounded_fifth():
     frame = records(SPEC)
-    parts = split(frame)
-    full = cell_counts(frame).set_index(["age_band", "sex", "target"])["count"]
-    held = cell_counts(parts.test).set_index(["age_band", "sex", "target"])["count"]
+    parts = split(frame, edges=UCI_FRAME.edges)
+    full = cell_counts(frame, edges=UCI_FRAME.edges).set_index(["age_band", "sex", "target"])[
+        "count"
+    ]
+    held = cell_counts(parts.test, edges=UCI_FRAME.edges).set_index(["age_band", "sex", "target"])[
+        "count"
+    ]
     assert held.to_dict() == {cell: held_out_count(n) for cell, n in full.items()}
 
 
 def test_training_counts_are_the_same_for_every_seed():
     frame = records(SPEC)
-    baseline = cell_counts(split(frame, seed=0).train)
+    baseline = cell_counts(split(frame, seed=0, edges=UCI_FRAME.edges).train, edges=UCI_FRAME.edges)
     for seed in range(1, 10):
-        pd.testing.assert_frame_equal(cell_counts(split(frame, seed=seed).train), baseline)
+        pd.testing.assert_frame_equal(
+            cell_counts(
+                split(frame, seed=seed, edges=UCI_FRAME.edges).train, edges=UCI_FRAME.edges
+            ),
+            baseline,
+        )
 
 
 def test_the_same_seed_gives_the_same_split():
     frame = records(SPEC)
-    assert list(split(frame, seed=3).test.index) == list(split(frame, seed=3).test.index)
-    assert split(frame, seed=3).seed == 3
+    assert list(split(frame, seed=3, edges=UCI_FRAME.edges).test.index) == list(
+        split(frame, seed=3, edges=UCI_FRAME.edges).test.index
+    )
+    assert split(frame, seed=3, edges=UCI_FRAME.edges).seed == 3
 
 
 def test_split_stratifies_on_the_given_edges():
@@ -203,7 +224,7 @@ def test_split_stratifies_on_the_given_edges():
 
 def test_the_parts_can_be_changed_without_a_warning_or_touching_the_frame():
     frame = records(SPEC)
-    parts = split(frame)
+    parts = split(frame, edges=UCI_FRAME.edges)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         parts.train["age"] = 0
@@ -214,19 +235,21 @@ def test_the_parts_can_be_changed_without_a_warning_or_touching_the_frame():
 def test_a_different_seed_gives_a_different_split():
     """The positive control: without it a split that ignored its seed would pass the test above."""
     frame = records(SPEC)
-    tests = {tuple(split(frame, seed=seed).test.index) for seed in range(10)}
+    tests = {tuple(split(frame, seed=seed, edges=UCI_FRAME.edges).test.index) for seed in range(10)}
     assert len(tests) > 1
 
 
 def test_split_does_not_depend_on_row_order():
     frame = records(SPEC)
     shuffled = frame.sample(frac=1, random_state=7)
-    assert sorted(split(frame).test.index) == sorted(split(shuffled).test.index)
+    assert sorted(split(frame, edges=UCI_FRAME.edges).test.index) == sorted(
+        split(shuffled, edges=UCI_FRAME.edges).test.index
+    )
 
 
 def test_the_split_is_pinned():
     """Golden ids for one 20-record cell at seed 0, computed with hashlib on 2026-10-14."""
-    parts = split(records({(YOUNG, 0, 0): 20}), seed=SPLIT_SEED)
+    parts = split(records({(YOUNG, 0, 0): 20}), seed=SPLIT_SEED, edges=UCI_FRAME.edges)
     assert sorted(parts.test.index) == [7, 15, 18, 20]
     assert parts.fingerprint == hashlib.sha256(b"7,15,18,20").hexdigest()
 
@@ -235,7 +258,7 @@ def test_a_duplicate_record_id_is_refused():
     frame = records({(YOUNG, 0, 0): 3})
     frame.index = pd.Index([1, 1, 2], name="record_id")
     with pytest.raises(ValueError, match="unique record index"):
-        split(frame)
+        split(frame, edges=UCI_FRAME.edges)
 
 
 def test_the_label_codes_have_meanings():
@@ -263,3 +286,18 @@ def test_uci_split_takes_its_seed(tmp_path):
     seeded = uci_split(tmp_path, source=source, open_url=opener, seed=7)
     assert seeded.seed == 7
     assert seeded.fingerprint != default.fingerprint
+
+
+@pytest.mark.parametrize(
+    "helper",
+    [
+        split,
+        cell_keys,
+        cell_counts,
+        lambda frame: age_band_labels(),  # ty: ignore[missing-argument]
+    ],
+    ids=["split", "cell_keys", "cell_counts", "age_band_labels"],
+)
+def test_each_cell_helper_requires_edges(helper):
+    with pytest.raises(TypeError, match="edges"):
+        helper(records({(40, 0, 0): 1}))

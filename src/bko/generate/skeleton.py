@@ -15,7 +15,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.generate.direct import label_only
 from bko.ontology.schema import FieldMapping, shown
 
@@ -52,16 +51,14 @@ class Skeleton:
         return shown(record, (row for one in self.named for row in one.states))
 
 
-def prescribable(
-    rows: Sequence[FieldMapping], *, frame: FrameSpec = UCI_FRAME
-) -> tuple[FieldMapping, ...]:
+def prescribable(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[FieldMapping, ...]:
     """The rows of every concept that is not label-only, in the table's order."""
     following = label_only(rows, frame=frame)
     return tuple(row for row in rows if row.concept not in following)
 
 
 def skeleton(
-    lines: Sequence[frozenset[str]], rows: Sequence[FieldMapping], *, frame: FrameSpec = UCI_FRAME
+    lines: Sequence[frozenset[str]], rows: Sequence[FieldMapping], *, frame: FrameSpec
 ) -> Skeleton:
     """Name `rows`' prescribable concepts and hold `lines`, one per asked record.
 

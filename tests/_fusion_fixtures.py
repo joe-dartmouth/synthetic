@@ -13,7 +13,7 @@ import pandas as pd
 
 from bko.datasets.fetch import ensure
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.observe import Cell
 from bko.generate.decode import Undecoded
 from tests._datasets_fixtures import pin
@@ -37,7 +37,7 @@ def training_split(data_dir: Path, data: bytes) -> pd.DataFrame:
     """The default training split of the archive `data`, fetched into `data_dir`."""
     source = pin(data)
     ensure(source, data_dir, open_url=RoutingOpener({source.url: data}))
-    return split(load_uci(data_dir, source=source)).train
+    return split(load_uci(data_dir, source=source), edges=UCI_FRAME.edges).train
 
 
 def young(target: int, **changes: object) -> dict[str, object]:
@@ -82,7 +82,9 @@ def fusion_header(
     source = pin(archive)
     with tempfile.TemporaryDirectory() as scratch:
         ensure(source, Path(scratch), open_url=RoutingOpener({source.url: archive}))
-        fingerprint = split(load_uci(Path(scratch), source=source)).fingerprint
+        fingerprint = split(
+            load_uci(Path(scratch), source=source), edges=UCI_FRAME.edges
+        ).fingerprint
     if plan is None:
         cells: dict[int, str] = {}
         counts: Counter[int] = Counter()

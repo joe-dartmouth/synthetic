@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TextIO
 
+from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
@@ -41,6 +42,7 @@ from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, gaps, under_represented
 from bko.gaps.detect import count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
@@ -114,7 +116,9 @@ def main(
         out: Where the report goes; stdout when omitted.
 
     Returns:
-        0 done, 2 the command could not run, 3 the data contradicts its pin or schema.
+        0 done, 2 the command could not run, a BKB error included, 3 the data contradicts its pin
+            or schema or a BKB document is malformed. Any other exception propagates, so the
+            process exits 1.
     """
     args = _parser().parse_args(argv)
     try:
@@ -127,7 +131,7 @@ def main(
             importlib.metadata.version("scipy"),
         )
         rows = command(data_dir, Context() if context is None else context)
-    except DatasetError as exc:
+    except (DatasetError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code
@@ -214,7 +218,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
             for gap in found
         )
     log_listing(cells.whole.name, listing(fragments, cells))
-    counted = count_gaps(cell_counts(parts.train))
+    counted = count_gaps(cell_counts(parts.train, edges=UCI_FRAME.edges))
     logger.info(
         "count dataset=%s flagged=%d below=%d",
         cells.whole.name,

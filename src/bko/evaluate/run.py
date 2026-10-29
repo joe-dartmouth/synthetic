@@ -34,7 +34,6 @@ from bko.baselines.records import Baseline, derived_seed, number, training_set, 
 from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import digest
@@ -89,7 +88,7 @@ def run(
     models: Mapping[Model, Factory] = MODELS,
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
@@ -128,7 +127,7 @@ def score_holdout(
     *,
     models: Mapping[Model, Factory] = MODELS,
     drains: Mapping[str, Drain] = MappingProxyType({}),
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 

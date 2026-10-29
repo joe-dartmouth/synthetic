@@ -2,7 +2,8 @@
 
 The report's default thresholds leave out every column pair whose real correlation or association
 is weak, which on this frame drops most pairs and changes the set from split to split; both are set
-to 0, so the same pairs count every time. The table is named for the frame, UCI's by default.
+to 0, so the same pairs count every time. The table is named for the frame, which each function
+requires.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ from sdmetrics.reports import QualityReport
 
 from bko.baselines import synthesizers
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scores import Measure
 
 
@@ -23,13 +23,13 @@ MEASURES: Final = (Measure.QUALITY, Measure.COLUMN_SHAPES, Measure.COLUMN_PAIR_T
 """The measures `fidelity` returns, in its order."""
 
 
-def metadata(frame: FrameSpec = UCI_FRAME) -> dict[str, object]:
+def metadata(frame: FrameSpec) -> dict[str, object]:
     """`frame`'s SDV metadata as the plain, private dict SDMetrics requires."""
     return copy.deepcopy(dict(synthesizers.metadata(frame)))
 
 
 def quality_report(
-    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> QualityReport:
     """SDMetrics' quality report of `synthetic` against `reference`, generated quietly."""
     columns = list(frame.columns)
@@ -46,7 +46,7 @@ def quality_report(
 
 
 def fidelity(
-    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME
+    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> dict[Measure, float]:
     """The quality score and its two properties for `synthetic` against `reference`."""
     report = quality_report(reference, synthetic, frame=frame)

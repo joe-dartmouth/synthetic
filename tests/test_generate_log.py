@@ -13,6 +13,7 @@ from typing import Any, TextIO
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.generate.calls import ask
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.errors import GenerationError
@@ -33,7 +34,7 @@ def _lines(path: Path) -> list[dict[str, Any]]:
 
 
 def _call() -> Call:
-    return Call(SETTINGS, GUIDANCE.sex, GUIDANCE.label, "system", "user")
+    return Call(SETTINGS, GUIDANCE.sex, GUIDANCE.label, "system", "user", frame=UCI_FRAME)
 
 
 def test_an_unpriced_model_is_refused_before_the_file_exists(tmp_path):
@@ -86,7 +87,7 @@ def test_a_request_line_is_flushed_before_the_call(tmp_path):
         return reply([{}, {}])
 
     with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     assert [line["kind"] for line in seen[0]] == ["run", "request"]
     request = seen[0][1]
     assert request["call"] == 1
@@ -139,7 +140,7 @@ def test_a_failed_call_writes_an_error_line_and_a_failed_footer(tmp_path):
         GenerationError("the API could not be reached: APIConnectionError", attempts=2)
     )
     with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     lines = _lines(path)
     assert [line["kind"] for line in lines] == ["run", "request", "error", "end"]
     assert lines[2] == {
@@ -187,8 +188,8 @@ def test_every_line_is_json_and_totals_survive_a_failure(tmp_path):
     )
 
     def two_calls(log: CallLog) -> None:
-        ask(GUIDANCE, 3, send=send, log=log)
-        ask(GUIDANCE, 4, send=send, log=log)
+        ask(GUIDANCE, 3, send=send, log=log, frame=UCI_FRAME)
+        ask(GUIDANCE, 4, send=send, log=log, frame=UCI_FRAME)
 
     with pytest.raises(GenerationError), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         two_calls(log)
@@ -227,8 +228,8 @@ def test_the_end_totals_count_the_calls_retried(tmp_path):
         dataclasses.replace(reply([{}, {}]), attempts=1),
     )
     with CallLog(path, SETTINGS, now=_now, frame="uci") as log:
-        ask(GUIDANCE, 2, send=send, log=log)
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     assert _lines(path)[-1]["retried"] == 1
 
 
@@ -246,7 +247,7 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     path = tmp_path / "calls.jsonl"
     send = ScriptedSend(reply([{}, {}]))
     with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     assert (
         "run status=complete run=none level=summary in_flight=1 calls=1 failed=0 retried=0 "
         "asked=2 decoded=2 undecoded=0 "
@@ -410,7 +411,13 @@ def test_live_usd_counts_only_calls_past_the_answered_ones(tmp_path):
     path = tmp_path / "log.jsonl"
     with CallLog(path, SETTINGS, answered=Answered("resume", "ab" * 32, 1), frame="uci") as log:
         for _ in range(2):
-            ask(GUIDANCE, 2, send=ScriptedSend(reply([young(1), young(1)])), log=log)
+            ask(
+                GUIDANCE,
+                2,
+                send=ScriptedSend(reply([young(1), young(1)])),
+                log=log,
+                frame=UCI_FRAME,
+            )
     lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     one = cost(reply([young(1), young(1)]).usage, SETTINGS.model)
     assert lines[0]["resume"] == {"sha256": "ab" * 32, "calls": 1}
@@ -436,7 +443,7 @@ def test_the_end_line_marks_rate_limited_segments(tmp_path, outcome, limited):
         contextlib.suppress(GenerationError),
         CallLog(path, SETTINGS, now=_now, frame="uci") as log,
     ):
-        ask(GUIDANCE, 2, send=send, log=log)
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
+        ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     send.assert_consumed()
     assert _lines(path)[-1]["rate_limited"] is limited

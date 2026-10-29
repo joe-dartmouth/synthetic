@@ -59,7 +59,7 @@ def test_analyze_lists_the_flagged_cells_and_each_definitions_gaps(tmp_path):
     analysis = analyze(context)
     assert {gap.cell for gap in analysis.counted} == {YOUNG_WELL, YOUNG_SICK}
     assert set(analysis.found) == set(Definition)
-    assert analysis.counts.equals(cell_counts(analysis.parts.train))
+    assert analysis.counts.equals(cell_counts(analysis.parts.train, edges=UCI_FRAME.edges))
     assert analysis.parts.seed == 0
 
 

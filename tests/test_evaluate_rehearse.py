@@ -51,7 +51,7 @@ def _lines(path: Path) -> list[dict]:
 
 @pytest.mark.parametrize("level", LEVELS)
 def test_the_pattern_reads_the_user_turn_at_every_level(level):
-    _, user = render(GUIDANCE, 7, level)
+    _, user = render(GUIDANCE, 7, level, frame=UCI_FRAME)
     found = PROMPT.match(user)
     assert found is not None
     low, high = GUIDANCE.interval["age"]
@@ -60,12 +60,12 @@ def test_the_pattern_reads_the_user_turn_at_every_level(level):
 
 
 def test_the_prompt_regex_reads_the_bounded_first_sentence():
-    train = split(GRADED, seed=SMALL.holdout_seeds[0]).train
+    train = split(GRADED, seed=SMALL.holdout_seeds[0], edges=UCI_FRAME.edges).train
     for cell in sorted(_cells(GRADED)):
         interval = intervals(cell, train, frame=UCI_FRAME)
         sex = SEXES_BY_LABEL[cell[1]]
         guidance = Guidance(cell=cell, sex=sex, label=cell[2], records=3, interval=interval)
-        _, user = render(guidance, 4, SETTINGS.guidance)
+        _, user = render(guidance, 4, SETTINGS.guidance, frame=UCI_FRAME)
         found = PROMPT.match(user)
         assert found is not None, cell
         assert (float(found["low"]), float(found["high"])) == interval["age"]
@@ -77,13 +77,13 @@ def test_the_safe_ranges_lie_inside_every_holdouts_training_range():
     ranges = safe_ranges(GRADED, SMALL.holdout_seeds, frame=UCI_FRAME)
     assert set(ranges) == set(NUMERIC)
     for seed in SMALL.holdout_seeds:
-        train = split(GRADED, seed=seed).train
+        train = split(GRADED, seed=seed, edges=UCI_FRAME.edges).train
         for name, (low, high) in ranges.items():
             assert train[name].min() <= low <= high <= train[name].max()
 
 
 def _cells(frame: pd.DataFrame) -> set[tuple[str, str, int]]:
-    keys = cell_keys(frame)
+    keys = cell_keys(frame, edges=UCI_FRAME.edges)
     return {(str(a), str(s), int(t)) for a, s, t in keys.itertuples(index=False)}
 
 
@@ -97,13 +97,19 @@ def test_the_tokens_per_record_are_the_judged_runs():
 
 def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
     send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
-    trains = [split(GRADED, seed=seed).train for seed in SMALL.holdout_seeds]
+    trains = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train for seed in SMALL.holdout_seeds]
     real = set(GRADED.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
     for cell in sorted(_cells(GRADED)):
         sex, label = SEXES_BY_LABEL[cell[1]], cell[2]
         interval = intervals(cell, trains[0], frame=UCI_FRAME)
         guidance = Guidance(cell=cell, sex=sex, label=label, records=3, interval=interval)
-        call = Call(SETTINGS, sex, label, *render(guidance, 20, SETTINGS.guidance))
+        call = Call(
+            SETTINGS,
+            sex,
+            label,
+            *render(guidance, 20, SETTINGS.guidance, frame=UCI_FRAME),
+            frame=UCI_FRAME,
+        )
         answer = send(call)
         assert answer.model == SETTINGS.model
         assert answer.usage.input_tokens == INPUT_PER_RECORD * 20
@@ -121,9 +127,9 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
 
 def test_a_call_whose_user_turn_names_another_cell_is_refused():
     send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
-    _, user = render(GUIDANCE, 3, SETTINGS.guidance)
+    _, user = render(GUIDANCE, 3, SETTINGS.guidance, frame=UCI_FRAME)
     with pytest.raises(GenerationError, match="not the call's"):
-        send(Call(SETTINGS, 1, 1, "system", user))
+        send(Call(SETTINGS, 1, 1, "system", user, frame=UCI_FRAME))
 
 
 def test_a_rehearsal_runs_with_no_request_and_its_log_says_so(tmp_path):
@@ -230,15 +236,21 @@ def test_a_replay_of_a_rehearsal_keeps_the_mark(tmp_path):
 
 def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
     # Holdout 2's training split lacks the lowest chol, holdout 3's the highest.
-    mins = [split(GRADED, seed=seed).train["chol"].min() for seed in (2, 3)]
-    maxes = [split(GRADED, seed=seed).train["chol"].max() for seed in (2, 3)]
+    mins = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train["chol"].min() for seed in (2, 3)]
+    maxes = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train["chol"].max() for seed in (2, 3)]
     assert len(set(mins)) == 2
     assert len(set(maxes)) == 2
     assert safe_ranges(GRADED, (2, 3), frame=UCI_FRAME)["chol"] == (max(mins), min(maxes))
 
 
 def _one(send: CannedSend) -> dict:
-    call = Call(SETTINGS, 1, 0, *render(OTHER_GUIDANCE, 1, SETTINGS.guidance))
+    call = Call(
+        SETTINGS,
+        1,
+        0,
+        *render(OTHER_GUIDANCE, 1, SETTINGS.guidance, frame=UCI_FRAME),
+        frame=UCI_FRAME,
+    )
     (record,) = json.loads(send(call).text or "")["records"]
     return record
 

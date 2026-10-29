@@ -239,7 +239,7 @@ def test_lines_are_drawn_once_per_request_and_equal_bko_directs_draw(tmp_path, m
         seed=REQUEST.seed,
         frame=REQUEST.frame,
     )
-    following = label_only(known.field_rows)
+    following = label_only(known.field_rows, frame=UCI_FRAME)
     expected = {
         cell: tuple(d.concepts - following for d in draws) for cell, draws in direct.items()
     }
@@ -340,13 +340,15 @@ def test_canned_records_show_their_prescribed_concepts():
         frozenset({"HP:0001681", "HP:0004421", "HP:0003074", "HP:0001717", "HP:0500018"}),
         frozenset({"HP:0100749", "HP:0003115"}),
     )
-    prescribed = skeleton(lines, FIELD_MAPPINGS)
-    system, user = render(SICK_GUIDANCE, len(lines), Level.SUMMARY, skeleton=prescribed)
+    prescribed = skeleton(lines, FIELD_MAPPINGS, frame=UCI_FRAME)
+    system, user = render(
+        SICK_GUIDANCE, len(lines), Level.SUMMARY, skeleton=prescribed, frame=UCI_FRAME
+    )
     call = Call(SETTINGS, 0, 1, system, user, frame=UCI_FRAME)
     answer = send(call).text
     assert answer is not None
     records = json.loads(answer)["records"]
-    rows = prescribable(FIELD_MAPPINGS)
+    rows = prescribable(FIELD_MAPPINGS, frame=UCI_FRAME)
     assert [shown(record, rows) for record in records] == list(lines)
 
 
@@ -375,7 +377,7 @@ def test_g5_is_e1_plus_the_skeleton_arm_with_literal_settings():
 def test_a_call_keeps_reordered_records_and_drops_only_a_skipped_ones_line(tmp_path):
     rows = train(tmp_path / "train")
     angina, none = frozenset({ANGINA.concept}), frozenset()
-    lined = skeleton((angina, none, none), (ANGINA, STENOSIS))
+    lined = skeleton((angina, none, none), (ANGINA, STENOSIS), frame=UCI_FRAME)
     reordered = Attempt(rows, REQUEST, 9, prescribing=True)
     sick, well = young(1, cp=1), young(1, cp=2)
     assert reordered.add(1, YOUNG_SICK, 3, [well, well, sick], skeleton=lined) == {0, 1, 2}
@@ -438,7 +440,9 @@ def test_the_validity_line_carries_the_arms_own_spend(tmp_path, caplog):
 
 def test_a_batch_answering_another_cell_than_its_planned_call_is_refused(tmp_path):
     attempt = Attempt(train(tmp_path / "train"), REQUEST, 9, prescribing=True)
-    planned = [Planned(SICK_GUIDANCE, 1, skeleton((frozenset(),), (ANGINA, STENOSIS)))]
+    planned = [
+        Planned(SICK_GUIDANCE, 1, skeleton((frozenset(),), (ANGINA, STENOSIS), frame=UCI_FRAME))
+    ]
     commit = _committer(attempt, planned, Queues({YOUNG_SICK: ()}))
     batch = Batch(1, YOUNG_WELL, 1, (young(0, cp=2),), reply([young(0, cp=2)]), 0.0)
     with pytest.raises(EvaluationError, match="answered cell <55/female/0, but its planned call"):

@@ -26,7 +26,6 @@ import pandas as pd
 from bko.bkb.structure import BKB
 from bko.datasets.cells import SEXES, UNDERREPRESENTED_BELOW, cell_keys
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import (
     Cell,
     CellRecords,
@@ -109,7 +108,7 @@ def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
     }
 
 
-def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec = UCI_FRAME) -> frozenset[str]:
+def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> frozenset[str]:
     """The concepts every row of which reads only the label: they follow the cell's label."""
     return frozenset(
         concept
@@ -151,9 +150,7 @@ def nested(rows: Sequence[FieldMapping]) -> dict[str, str]:
     return dict(pairs)
 
 
-def field_groups(
-    rows: Sequence[FieldMapping], *, frame: FrameSpec = UCI_FRAME
-) -> tuple[FieldGroup, ...]:
+def field_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[FieldGroup, ...]:
     """The fields the rows read, joined when one concept's rows read both, in column order.
 
     The label is no field of a group: label-only rows follow the cell.
@@ -198,7 +195,7 @@ def sample(
     ontologies: Mapping[str, Ontology],
     name: str,
     seed: int,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     tag: tuple[int, str] | None = None,
 ) -> dict[Cell, tuple[Draw, ...]]:
     """Draw `quota` records per cell from the fused BKB's concept shares.

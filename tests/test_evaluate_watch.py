@@ -7,6 +7,7 @@ import logging
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.run import run
 from bko.evaluate.watch import Watch
@@ -94,5 +95,5 @@ def test_the_harness_calls_on_holdout_after_each_holdout():
         SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=()
     )
     calls: list[int] = []
-    run(GRADED, light, FAST_ARMS, on_holdout=lambda: calls.append(len(calls)))
+    run(GRADED, light, FAST_ARMS, on_holdout=lambda: calls.append(len(calls)), frame=UCI_FRAME)
     assert calls == list(range(len(light.holdout_seeds)))

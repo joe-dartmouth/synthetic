@@ -4,7 +4,7 @@ The system text opens with the frame's study and cohort, names every column with
 codes or its unit, with no range, and asks for new patients. The user turn states the cell, the
 record count and each numeric field's training-split bounds, then adds one component per level
 reached, and for a prescribing request (`bko.generate.skeleton`) one line per asked record naming
-the concepts it must show. Both read the frame given, UCI's by default. No prompt holds a record.
+the concepts it must show. Both read the frame given, a required keyword. No prompt holds a record.
 ADR `research/record-generation-design` records what each level sends.
 """
 
@@ -238,7 +238,7 @@ def render(
     rows: int,
     level: Level,
     *,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
     skeleton: Skeleton | None = None,
 ) -> tuple[str, str]:
     """Render one call's prompt.

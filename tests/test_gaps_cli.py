@@ -17,7 +17,9 @@ from pathlib import Path
 
 import pytest
 
+import bko.gaps.__main__ as gaps_main
 import bko.gaps.experiment
+from bko.bkb.errors import DocumentFormatError, FusionError, QueryError
 from bko.datasets.synthea_run import SyntheaRun
 from bko.gaps.__main__ import Context, configure_logging, main
 from bko.gaps.experiment import Recovery
@@ -565,3 +567,19 @@ def test_first_flag_scans_each_whole_ablation_and_skips_the_partial_ones(tmp_pat
 def test_a_second_first_flag_run_writes_the_same_bytes(tmp_path):
     assert run("first-flag", tmp_path, make_context()) == (0, FIRST_FLAG_EXPECTED)
     assert run("first-flag", tmp_path, make_context()) == (0, FIRST_FLAG_EXPECTED)
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [(QueryError("x"), 2), (FusionError("x"), 2), (DocumentFormatError("x"), 3)],
+)
+def test_a_bkb_error_is_a_logged_refusal(error, code, tmp_path, monkeypatch, caplog):
+    def raise_it(data_dir, context):
+        raise error
+
+    monkeypatch.setattr(gaps_main, "_uci", raise_it)
+    out = io.StringIO()
+    with caplog.at_level(logging.ERROR):
+        assert main(["uci", "--data-dir", str(tmp_path)], context=Context(), out=out) == code
+    assert out.getvalue() == ""
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR] == ["x"]

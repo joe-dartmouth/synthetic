@@ -13,6 +13,7 @@ from typing import Final
 
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
 from bko.evaluate.guided import spendable
 from bko.generate.calls import request
@@ -86,7 +87,7 @@ def test_a_wave_requests_in_plan_order_and_returns_in_plan_order(tmp_path):
             send, log, Limits(in_flight=3, idle=None), spendable=lambda: checks.append(log.calls)
         ) as flight,
     ):
-        batches = flight.wave(PLAN)
+        batches = flight.wave(PLAN, frame=UCI_FRAME)
     assert send.landed == [3, 2, 1]
     assert checks == [0, 1, 2]
     assert [batch.index for batch in batches] == [1, 2, 3]
@@ -103,7 +104,7 @@ def test_a_wave_at_in_flight_1_sends_each_call_after_the_one_before_lands(tmp_pa
         _log(tmp_path) as log,
         Flight(send, log, Limits(in_flight=1, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     assert send.landed == [1, 2, 3]
     kinds = [line["kind"] for line in _lines(log)[1:-1]]
     assert kinds == ["request", "reply"] * 3
@@ -115,7 +116,9 @@ def test_a_failure_raises_the_lowest_failing_index(tmp_path):
     send = Delayed(fail={2: second, 3: third})
     log = _log(tmp_path)
     with pytest.raises(GenerationError) as caught, log:
-        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None).wave(PLAN)
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None).wave(
+            PLAN, frame=UCI_FRAME
+        )
     assert caught.value is second
     lines = _lines(log)
     assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
@@ -130,7 +133,9 @@ def test_a_failure_at_in_flight_1_sends_no_later_call(tmp_path, caplog):
     log = _log(tmp_path)
     caplog.set_level(logging.INFO)
     with pytest.raises(GenerationError), log:
-        Flight(send, log, Limits(in_flight=1, idle=None), spendable=lambda: None).wave(PLAN)
+        Flight(send, log, Limits(in_flight=1, idle=None), spendable=lambda: None).wave(
+            PLAN, frame=UCI_FRAME
+        )
     assert len(send.calls) == 1
     assert [line["kind"] for line in _lines(log)] == ["run", "request", "error", "end"]
     assert [m for m in caplog.messages if m.startswith("halt ")] == ["halt call=2 unsent=2"]
@@ -144,7 +149,7 @@ def test_a_keyboard_interrupt_mid_wave_ends_interrupted(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     lines = _lines(log)
     assert lines[-1]["status"] == "interrupted"
     answered = {line["call"]: line["kind"] for line in lines if line["kind"] in {"reply", "error"}}
@@ -175,7 +180,7 @@ def test_two_live_sends_overlap(tmp_path):
         _log(tmp_path) as log,
         Flight(send, log, Limits(in_flight=2, idle=None), spendable=lambda: None) as flight,
     ):
-        batches = flight.wave(PLAN[:2])
+        batches = flight.wave(PLAN[:2], frame=UCI_FRAME)
     assert [batch.index for batch in batches] == [1, 2]
 
 
@@ -183,8 +188,8 @@ def test_a_flight_outside_a_with_block_runs_each_wave_on_its_own_loop(tmp_path):
     send = Delayed()
     with _log(tmp_path) as log:
         flight = Flight(send, log, Limits(in_flight=2, idle=None), spendable=lambda: None)
-        assert [batch.index for batch in flight.wave(PLAN[:1])] == [1]
-        assert [batch.index for batch in flight.wave(PLAN[1:])] == [2, 3]
+        assert [batch.index for batch in flight.wave(PLAN[:1], frame=UCI_FRAME)] == [1]
+        assert [batch.index for batch in flight.wave(PLAN[1:], frame=UCI_FRAME)] == [2, 3]
 
 
 @pytest.mark.parametrize("in_flight", [0, -1])
@@ -198,7 +203,7 @@ def test_a_skeleton_that_does_not_hold_a_line_per_record_is_refused(tmp_path):
     with _log(tmp_path) as log:
         flight = Flight(Delayed(), log, Limits(1, None), spendable=lambda: None)
         with pytest.raises(ValueError, match="2 lines for 1 records"):
-            flight.wave((Planned(GUIDANCE, 1, skeleton=lines),))
+            flight.wave((Planned(GUIDANCE, 1, skeleton=lines),), frame=UCI_FRAME)
         assert log.calls == 0
 
 
@@ -224,7 +229,7 @@ def _ceiling_run(tmp_path, in_flight: int, ceiling: float, caplog) -> tuple[Dela
         log,
         Flight(send, log, limits, spendable=partial(spendable, log, ceiling), ceiling=ceiling) as f,
     ):
-        f.wave(PLAN)
+        f.wave(PLAN, frame=UCI_FRAME)
     assert raised.value.stop_rule == "ceiling"
     return send, [m for m in caplog.messages if m.startswith("stop rule=")]
 
@@ -253,7 +258,7 @@ def test_a_reservation_prices_its_input_at_the_cache_write_rate(tmp_path):
     price = PRICES[SETTINGS.model]
     assert price.cache_write > price.input
     with _log(tmp_path) as log:
-        pending = request(GUIDANCE, 1, log=log)
+        pending = request(GUIDANCE, 1, log=log, frame=UCI_FRAME)
     text = len(json.dumps(pending.call.params()))
     expected = (
         SETTINGS.max_tokens * price.output + (text + OVERHEAD_TOKENS) * price.cache_write
@@ -273,7 +278,7 @@ def test_a_ceiling_the_reservations_stay_under_keeps_every_call_in_flight(tmp_pa
             ceiling=1.0,
         ) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     assert send.landed == [3, 2, 1]
 
 
@@ -283,7 +288,7 @@ def test_a_call_that_fails_while_the_ceiling_waits_stops_the_wave(tmp_path):
     limits = Limits(in_flight=3, idle=None)
     with pytest.raises(GenerationError), log:
         Flight(send, log, limits, spendable=partial(spendable, log, SPENT), ceiling=SPENT).wave(
-            PLAN
+            PLAN, frame=UCI_FRAME
         )
     assert len(send.calls) == 1
 
@@ -299,7 +304,7 @@ def test_a_ceiling_stop_outranks_a_call_in_flight_that_fails(tmp_path):
 
     flight = Flight(send, log, Limits(in_flight=3, idle=None), spendable=refuse_the_third)
     with pytest.raises(StopRuleError) as raised, log:
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     assert raised.value.stop_rule == "ceiling"
     lines = _lines(log)
     assert [line["call"] for line in lines if line["kind"] == "error"] == [1]
@@ -335,7 +340,7 @@ def test_an_idle_send_stops_with_idle_and_no_signal(tmp_path, monkeypatch, caplo
         log,
         Flight(Stalled(), log, Limits(in_flight=3, idle=0.5), spendable=lambda: None) as f,
     ):
-        f.wave(PLAN)
+        f.wave(PLAN, frame=UCI_FRAME)
     assert raised.value.stop_rule == "idle"
     lines = _lines(log)
     errors = [(line["call"], line["error"]) for line in lines if line["kind"] == "error"]
@@ -387,7 +392,7 @@ def test_a_call_beside_an_idle_stop_lands_and_its_spend_is_counted(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=2, idle=0.5), spendable=lambda: None) as f,
     ):
-        f.wave(PLAN)
+        f.wave(PLAN, frame=UCI_FRAME)
     assert _answered_lines(log) == {1: ["error"], 2: ["reply"], 3: ["reply"]}
     assert log.usd == pytest.approx(2 * SPENT)
 
@@ -410,7 +415,7 @@ def test_an_idle_calls_error_line_counts_its_attempts_and_rate_limits(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=1, idle=0.5), spendable=lambda: None) as f,
     ):
-        f.wave(PLAN[:1])
+        f.wave(PLAN[:1], frame=UCI_FRAME)
     assert raised.value.attempts == 3
     assert raised.value.rate_limited
     lines = _lines(log)
@@ -455,7 +460,7 @@ def test_a_loop_blocked_past_an_idle_deadline_still_answers_every_call(tmp_path)
         log,
         Flight(send, log, Limits(in_flight=2, idle=idle), spendable=lambda: None) as f,
     ):
-        f.wave(PLAN)
+        f.wave(PLAN, frame=UCI_FRAME)
     answers = _answered_lines(log)
     assert all(len(kinds) == 1 for kinds in answers.values()), answers
     assert _lines(log)[-1]["failed"] == sum(kinds == ["error"] for kinds in answers.values())
@@ -476,7 +481,7 @@ def test_an_interrupt_before_the_calls_beside_it_start_still_logs_them(tmp_path)
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     lines = _lines(log)
     assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
         1: "KeyboardInterrupt",
@@ -512,7 +517,7 @@ def test_a_further_interrupt_while_calls_land_still_logs_every_call(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     assert _answered_lines(log) == {1: ["error"], 2: ["error"], 3: ["error"]}
     assert _lines(log)[-1]["status"] == "interrupted"
 
@@ -533,7 +538,7 @@ def test_a_sends_own_timeout_is_its_failure_and_not_the_idle_rule(tmp_path, capl
         log,
         Flight(send, log, Limits(in_flight=1, idle=idle), spendable=lambda: None) as f,
     ):
-        f.wave(PLAN[:1])
+        f.wave(PLAN[:1], frame=UCI_FRAME)
     assert not isinstance(raised.value, IdleError)
     assert not [m for m in caplog.messages if m.startswith("stop rule=")]
     lines = _lines(log)
@@ -546,7 +551,7 @@ def test_a_send_that_replies_within_the_idle_limit_is_answered(tmp_path):
         _log(tmp_path) as log,
         Flight(Delayed(), log, Limits(in_flight=3, idle=5.0), spendable=lambda: None) as flight,
     ):
-        assert [batch.index for batch in flight.wave(PLAN)] == [1, 2, 3]
+        assert [batch.index for batch in flight.wave(PLAN, frame=UCI_FRAME)] == [1, 2, 3]
 
 
 def test_each_send_sees_its_call_number(tmp_path):
@@ -566,7 +571,7 @@ def test_each_send_sees_its_call_number(tmp_path):
             _log(tmp_path) as log,
             Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
         ):
-            flight.wave(PLAN)
+            flight.wave(PLAN, frame=UCI_FRAME)
             assert CALL_NUMBER.get() == 0
     finally:
         CALL_NUMBER.reset(token)
@@ -579,7 +584,7 @@ def test_each_landed_line_carries_the_calls_in_flight(tmp_path, caplog):
         _log(tmp_path) as log,
         Flight(Delayed(), log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     landed = [m for m in caplog.messages if m.startswith("generate call=")]
     found = [re.search(r"call=(\d+) .* elapsed_s=([\d.]+) in_flight=(\d+)$", m) for m in landed]
     assert all(found)
@@ -610,7 +615,7 @@ def test_a_real_sigint_records_keyboard_interrupt(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     lines = _lines(log)
     assert {line["call"]: line["error"] for line in lines if line["kind"] == "error"} == {
         1: "KeyboardInterrupt",
@@ -630,7 +635,7 @@ def test_a_non_interrupt_exit_still_cancels_with_cancelled_error(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
     assert errors == {1: "CancelledError", 2: "SystemExit"}
     assert [line["call"] for line in _lines(log) if line["kind"] == "reply"] == [3]
@@ -646,6 +651,6 @@ def test_a_call_cancelled_on_its_own_is_no_interrupt(tmp_path):
         log,
         Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
     ):
-        flight.wave(PLAN)
+        flight.wave(PLAN, frame=UCI_FRAME)
     errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
     assert errors == {3: "CancelledError"}

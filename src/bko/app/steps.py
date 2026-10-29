@@ -87,7 +87,7 @@ def analyze(context: Context) -> Analysis:
         releases=context.releases,
         open_url=context.open_url,
     )
-    cells = record_cells(parts.train, rows, name=data.name)
+    cells = record_cells(parts.train, rows, name=data.name, edges=data.frame.edges)
     counts = cell_counts(parts.train, edges=data.frame.edges)
     return Analysis(
         parts=parts,
@@ -285,7 +285,9 @@ def _score(
 ) -> list[Score]:
     arms = {**context.arms, experiment.candidate: recorder}
     models = {Model.LR: context.factory}
-    return score_holdout(analysis.parts, experiment, arms, models=models, drains=drains)
+    return score_holdout(
+        analysis.parts, experiment, arms, models=models, drains=drains, frame=analysis.data.frame
+    )
 
 
 def _outcome(
@@ -300,7 +302,10 @@ def _outcome(
     request, baseline = recorder.fill
     known = analysis.knowledge
     after = record_cells(
-        training_set(analysis.parts.train, baseline), known.field_rows, name=f"{known.name}-{name}"
+        training_set(analysis.parts.train, baseline),
+        known.field_rows,
+        name=f"{known.name}-{name}",
+        edges=analysis.data.frame.edges,
     )
     return Outcome(
         name=name,

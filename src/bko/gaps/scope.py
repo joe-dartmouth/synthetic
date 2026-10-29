@@ -18,6 +18,7 @@ from bko.bkb.structure import BKB
 from bko.datasets.fetch import UrlOpener
 from bko.datasets.sources import Source
 from bko.datasets.split import SPLIT_SEED, Split, uci_split
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.detect import ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.observe import Cells, record_cells
@@ -107,5 +108,5 @@ def load_uci_scope(
     ontologies, fragments = load_scope(
         {row.concept for row in field_rows}, data_dir, releases=releases, open_url=open_url
     )
-    cells = record_cells(parts.train, field_rows, name=uci.name)
+    cells = record_cells(parts.train, field_rows, name=uci.name, edges=UCI_FRAME.edges)
     return UciScope(parts, ontologies, fragments, cells)

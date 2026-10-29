@@ -12,14 +12,13 @@ from collections.abc import Iterable
 import pandas as pd
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 
 
 def _records(rows: pd.DataFrame, frame: FrameSpec) -> list[tuple[object, ...]]:
     return list(rows.loc[:, list(frame.columns)].itertuples(index=False, name=None))
 
 
-def copies(rows: pd.DataFrame, records: pd.DataFrame, *, frame: FrameSpec = UCI_FRAME) -> int:
+def copies(rows: pd.DataFrame, records: pd.DataFrame, *, frame: FrameSpec) -> int:
     """How many of `rows` equal some record of `records` in every one of `frame`'s columns.
 
     The harness counts copies of the test split's records and, in a log line, of the training
@@ -30,7 +29,7 @@ def copies(rows: pd.DataFrame, records: pd.DataFrame, *, frame: FrameSpec = UCI_
 
 
 def decontaminated(
-    test: pd.DataFrame, added: Iterable[pd.DataFrame], *, frame: FrameSpec = UCI_FRAME
+    test: pd.DataFrame, added: Iterable[pd.DataFrame], *, frame: FrameSpec
 ) -> pd.DataFrame:
     """`test` without each record some frame of `added` copies in every one of `frame`'s columns."""
     seen = {record for rows in added for record in _records(rows, frame)}

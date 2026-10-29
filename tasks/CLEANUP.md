@@ -37,19 +37,19 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## datasets
+## baselines
 
-- **`cleanup:datasets/edges-default-to-uci`: the data stage's cell helpers fall back to UCI's
-  bands.** `bko.datasets.split.split`, `bko.datasets.cells.age_band_labels`, `cell_keys` and
-  `cell_counts`, `bko.gaps.observe.record_cells` and `bko.fusion.join.join` default `edges` to
-  `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that omits `edges` silently gets UCI's
-  bands. Evidence: each signature reads `edges: Sequence[int] = AGE_BAND_EDGES`. *Filed
-  2026-10-28 by the frame-selection work, which made the evaluate stage's helpers require
-  `edges`.*
-  **Why deferred.** They serve UCI-only commands (`bko.gaps uci`, `bko.fusion`, `cells`), and
-  many call sites in those commands and their tests omit `edges`.
-  **What discharges it:** each takes the frame or requires `edges`.
-  **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
+- **`cleanup:baselines/request-frame-defaults-to-uci`: the baselines fall back to UCI's frame.**
+  `bko.baselines.request.Request.frame`, `bko.baselines.records.no_rows`, `training_set` and the
+  other `bko.baselines.records` helpers, and `bko.baselines.synthesizers`' metadata default `frame`
+  to `UCI_FRAME`, while the generate stage, the evaluate scoring helpers and the cell helpers
+  require it. Every `bko.evaluate` caller passes the run's frame on the request. Evidence: `grep -rn
+  "= UCI_FRAME" src/bko/baselines` lists them. *Filed 2026-10-29 by the diff review of PR #59.*
+  **Why deferred.** The entries PR #59 paid named the generate stage and the cell helpers only.
+  **What discharges it:** `frame` is required on `Request` and each helper, and ADR
+  `research/uci-evaluation-frame` drops the baselines' exception.
+  **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
+  baseline outside `bko.evaluate`.
 
 ## evaluate
 
@@ -66,37 +66,7 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.evaluate.guided`'s attempt line or
   `bko.baselines.synthesizers`' fill.
 
-## gaps
-
-- **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a
-  traceback.** `bko.gaps.__main__.main` catches `DatasetError` and `OSError` only, so a
-  `bko.bkb.errors.BKBError` (`QueryError`, `FusionError`) raised while grounding exits 1 with a
-  traceback instead of a logged refusal. Evidence: `main`'s only handlers are `except DatasetError`
-  and `except OSError`, and `QueryError` and `FusionError` subclass `BKBError`, which subclasses
-  `Exception` alone (`src/bko/bkb/errors.py`). Whether the current mappings can raise it is
-  unverified. *Filed 2026-10-26 by the review of PR #41.*
-  **Why deferred.** It predates the change that found it and takes the same path in `synthea` and
-  `uci` as in `first-flag`, so it lies outside that change.
-  **What discharges it:** `main` maps `BKBError` to a logged refusal with a documented exit code.
-  **Trigger:** the next change to `bko.gaps.__main__.main`, or the first mapping that raises it.
-
 ## generate
-
-- **`cleanup:generate/required-frame-on-send-path`: the send path falls back to UCI's frame.**
-  `bko.generate.messages.Call`, `bko.generate.calls.request`, `ask` and `generate`,
-  `bko.generate.flight`'s `wave` and `bko.generate.prompt.render` default `frame` to `UCI_FRAME`,
-  so a caller holding the Synthea frame that omits `frame` sends a UCI prompt and schema for its
-  cell. Every `bko.evaluate` call site passes the run's frame. Evidence: each signature reads
-  `frame: FrameSpec = UCI_FRAME`; `tests/test_datasets_frame.py` asserts
-  `Call(SETTINGS, 0, 1, "system", "user").frame is UCI_FRAME`; `bko.generate.__main__` calls
-  `generate` without `frame`; and the generate-stage tests call `Call`, `render`, `ask`,
-  `request`, `generate` and `wave` without it (list them with an `ast` scan for those calls with
-  no `frame` keyword). *Filed 2026-10-28 by the review of PR #56.*
-  **Why deferred.** Requiring it rewrites the generate stage's test call sites, outside the
-  Synthea frame change, and no Synthea call omits it.
-  **What discharges it:** `frame` is a required keyword on each of those, and the default's pin
-  in `tests/test_datasets_frame.py` goes.
-  **Trigger:** the next change to `bko.generate`'s send path, or a second non-UCI caller of it.
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
   flight on a closed runner.** In `bko.generate.flight.Flight._run`'s persistent-runner branch,

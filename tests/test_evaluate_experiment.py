@@ -146,8 +146,8 @@ def test_an_ablation_arm_may_be_judged_as_a_dry_run():
 
 @pytest.mark.parametrize("seed", [0, 1, 7])
 def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
-    train = split(GRADED, seed=seed).train
-    request = gap_request(train, E1, seed=seed)
+    train = split(GRADED, seed=seed, edges=UCI_FRAME.edges).train
+    request = gap_request(train, E1, seed=seed, frame=UCI_FRAME)
     assert dict(request.quota) == {FLAGGED[0]: 18, FLAGGED[1]: 2}
     assert request.strata is Strata.CELL
     assert request.seed == seed
@@ -155,25 +155,27 @@ def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
 
 
 def test_the_gap_request_is_what_the_baselines_command_asks_for():
-    train = split(GRADED, seed=0).train
-    assert dict(gap_request(train, E1, seed=0).quota) == dict(plan(train, 20).quota)
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == dict(
+        plan(train, 20).quota
+    )
 
 
 def test_a_cell_at_the_threshold_is_not_filled():
-    train = split(GRADED, seed=0).train
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     lower = dataclasses.replace(E1, fill_to=18)
-    assert dict(gap_request(train, lower, seed=0).quota) == {FLAGGED[0]: 16}
+    assert dict(gap_request(train, lower, seed=0, frame=UCI_FRAME).quota) == {FLAGGED[0]: 16}
 
 
 def test_nothing_to_fill_is_refused():
-    train = split(full_records(26), seed=0).train
+    train = split(full_records(26), seed=0, edges=UCI_FRAME.edges).train
     with pytest.raises(EvaluationError, match="nothing to fill"):
-        gap_request(train, E1, seed=0)
+        gap_request(train, E1, seed=0, frame=UCI_FRAME)
 
 
 def test_the_replica_asks_for_every_cells_training_count():
-    train = split(GRADED, seed=0).train
-    request = replica_request(train, seed=3)
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    request = replica_request(train, seed=3, frame=UCI_FRAME)
     assert request.rows == len(train)
     assert request.seed == 3
     assert request.quota[FLAGGED[0]] == 2

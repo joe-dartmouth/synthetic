@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.definitions import Definition
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.__main__ import Context, configure_logging, main
@@ -111,19 +111,18 @@ def test_the_request_equals_e1s_gap_request(tmp_path):
 
     code, _, log = run(tmp_path, make_context(two_replies()))
     assert code == 0
-    train = split(load_uci(tmp_path / "data", source=pin(UCI))).train
-    expected = gap_request(train, E1, seed=0).quota
+    train = split(load_uci(tmp_path / "data", source=pin(UCI)), edges=UCI_FRAME.edges).train
+    expected = gap_request(train, E1, seed=0, frame=UCI_FRAME).quota
     assert asked_per_cell(log) == {cell_key(cell): rows for cell, rows in expected.items()}
     assert dict(expected) == REQUEST
 
 
 def test_generate_cli_prompts_with_the_training_split_bounds(tmp_path):
-    from bko.datasets.uci import UCI_FRAME
     from bko.generate.guidance import intervals
 
     code, _, log = run(tmp_path, make_context(two_replies()), "--guidance", "summary")
     assert code == 0
-    parts = split(load_uci(tmp_path / "data", source=pin(UCI)))
+    parts = split(load_uci(tmp_path / "data", source=pin(UCI)), edges=UCI_FRAME.edges)
     youngest = parts.train["age"].min()
     users = {
         line["cell"]: line["params"]["messages"][0]["content"]
@@ -389,7 +388,7 @@ def test_the_header_is_the_first_line_and_names_the_run_and_its_plan(tmp_path, c
     caplog.set_level(logging.INFO)
     _, out, _ = run(tmp_path, make_context(two_replies()))
     header = json.loads(out.splitlines()[0])
-    train = split(load_uci(tmp_path / "data", source=pin(UCI)))
+    train = split(load_uci(tmp_path / "data", source=pin(UCI)), edges=UCI_FRAME.edges)
     assert header["request"] == "e1"
     assert header["definition"] == "per-subgroup"
     assert header["guidance"] == "summary"

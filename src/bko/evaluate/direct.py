@@ -26,6 +26,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, check, unit_weights
 from bko.baselines.request import Request, Strata
+from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
@@ -182,6 +183,7 @@ def run_direct(
     models: Mapping[Model, Factory],
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
+    frame: FrameSpec,
 ) -> list[Score]:
     """Score every arm of `experiment` with a `DirectArm` named `DIRECT_ARM` writing `sink`.
 
@@ -206,6 +208,7 @@ def run_direct(
             models=models,
             drains={**drains, DIRECT_ARM: arm.drain},
             on_holdout=on_holdout,
+            frame=frame,
         )
     finally:
         arm.summary()

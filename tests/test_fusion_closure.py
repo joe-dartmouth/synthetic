@@ -47,10 +47,10 @@ def read(
     """Validate `items`, join them to `data`'s training split, and read each definition."""
     train = training_split(tmp_path / "data", data)
     accepted = {cell: validate(batch, frame=UCI_FRAME).accepted for cell, batch in items.items()}
-    joined = join(train, accepted, request)
+    joined = join(train, accepted, request, edges=UCI_FRAME.edges)
     rows = (ANGINA, STENOSIS)
-    before = record_cells(train, rows, name="t")
-    after = record_cells(joined.frame, rows, name="t-joined")
+    before = record_cells(train, rows, name="t", edges=UCI_FRAME.edges)
+    after = record_cells(joined.frame, rows, name="t-joined", edges=UCI_FRAME.edges)
     return closure(fragments(tmp_path), before, after)
 
 

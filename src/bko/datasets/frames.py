@@ -1,8 +1,8 @@
 """What the stages read of an evaluation frame: one `FrameSpec` per dataset.
 
-A frame's records have its `features` and its label, each a number. Generation, the baselines and
-evaluation take a frame as a keyword defaulting to UCI's, `bko.datasets.uci.UCI_FRAME`, and
-validation requires it, so another dataset runs through them without editing them. A cell is
+A frame's records have its `features` and its label, each a number. Generation, evaluation and
+validation require a frame, and the baselines read it from their request, which defaults to UCI's
+(`bko.datasets.uci.UCI_FRAME`), so another dataset runs through them without editing them. A cell is
 always an age band, a sex and the label (`bko.datasets.cells`), so a frame holds only its band
 edges. ADR `research/uci-evaluation-frame` records why. Beside the standard library it imports
 `bko.datasets.cells` (`LABEL`, `LABEL_CODES`, `SEXES`), which loads pandas.

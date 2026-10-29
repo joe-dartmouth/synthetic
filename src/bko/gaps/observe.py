@@ -20,7 +20,6 @@ import pandas as pd
 
 from bko.bkb.structure import BKB
 from bko.datasets.cells import (
-    AGE_BAND_EDGES,
     CELL_COLUMNS,
     LABEL,
     LABEL_CODES,
@@ -123,7 +122,7 @@ def record_cells(
     rows: Iterable[FieldMapping],
     *,
     name: str,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> Cells:
     """Observe the records of `frame` whole and in each age-sex-label cell.
 

@@ -22,15 +22,15 @@ from tests._evaluate_fixtures import FAST_METHODS, FLAGGED, GRADED, Spy
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-UNBALANCED = split(complete_records(parse_cleveland(UNBALANCED_TEXT))).train
-TRAIN = split(GRADED, seed=0).train
+UNBALANCED = split(complete_records(parse_cleveland(UNBALANCED_TEXT)), edges=UCI_FRAME.edges).train
+TRAIN = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
 
 
 def test_class_weights_reach_the_regression_row_by_row():
     spy = Spy()
     baseline = augment(UNBALANCED, Method.CLASS_WEIGHT, Request())
     shuffled = training_set(UNBALANCED, baseline).sample(frac=1.0, random_state=0)
-    probabilities(shuffled, UNBALANCED, factory=spy)
+    probabilities(shuffled, UNBALANCED, factory=spy, frame=UCI_FRAME)
     labels, weights = spy.models[0].seen
     assert weights == pytest.approx(np.where(labels == 0, 36 / 24, 36 / 48))
 
@@ -39,7 +39,7 @@ def test_added_rows_follow_the_real_rows_at_weight_one():
     request = Request(quota={FLAGGED[0]: 3}, seed=0)
     baseline = augment(TRAIN, Method.SMOTE, request, methods=FAST_METHODS)
     spy = Spy()
-    probabilities(training_set(TRAIN, baseline), TRAIN, factory=spy)
+    probabilities(training_set(TRAIN, baseline), TRAIN, factory=spy, frame=UCI_FRAME)
     labels, weights = spy.models[0].seen
     assert len(weights) == len(TRAIN) + 3
     assert weights[-3:].tolist() == [1.0] * 3
@@ -50,7 +50,7 @@ def test_every_code_has_a_column_whatever_the_training_rows_hold():
     narrow = TRAIN[TRAIN["restecg"] != 1].assign(weight=1.0)
     test = TRAIN[TRAIN["restecg"] == 1]
     assert not test.empty
-    probability = probabilities(narrow, test)
+    probability = probabilities(narrow, test, frame=UCI_FRAME)
     assert probability.between(0, 1).all()
     assert probability.index.equals(test.index)
 
@@ -62,11 +62,11 @@ def test_a_fit_that_does_not_converge_stops_the_run():
         return pipeline
 
     with pytest.raises(EvaluationError, match="did not converge"):
-        probabilities(TRAIN.assign(weight=1.0), TRAIN, factory=stingy)
+        probabilities(TRAIN.assign(weight=1.0), TRAIN, factory=stingy, frame=UCI_FRAME)
 
 
 def test_probabilities_are_pinned():
-    probability = probabilities(TRAIN.assign(weight=1.0), GRADED)
+    probability = probabilities(TRAIN.assign(weight=1.0), GRADED, frame=UCI_FRAME)
     np.testing.assert_allclose(
         probability.to_numpy()[[0, 7, 23, 41]],
         [0.2743870822873947, 0.3788422046931614, 0.3911697315854433, 0.38625833787281055],
@@ -105,7 +105,7 @@ def _hgb(training, test=GRADED, **params):
         pipeline.set_params(**{f"model__{name}": value for name, value in params.items()})
         return pipeline
 
-    return probabilities(training, test, factory=factory).to_numpy()
+    return probabilities(training, test, factory=factory, frame=UCI_FRAME).to_numpy()
 
 
 def test_models_name_the_regression_and_the_boosting_model():
@@ -116,11 +116,11 @@ def test_models_name_the_regression_and_the_boosting_model():
 
 
 def test_the_boosting_model_settings_are_pinned():
-    assert build_hgb().named_steps["model"].get_params() == HGB_PARAMS
+    assert build_hgb(frame=UCI_FRAME).named_steps["model"].get_params() == HGB_PARAMS
 
 
 def test_a_boosting_leaf_is_smaller_than_the_gap_fills_smallest_cell():
-    assert build_hgb().named_steps["model"].min_samples_leaf < 2
+    assert build_hgb(frame=UCI_FRAME).named_steps["model"].min_samples_leaf < 2
 
 
 def test_two_boosting_fits_score_the_same():
@@ -151,7 +151,7 @@ def test_the_boosting_model_scores_the_same_on_four_threads_as_on_one():
 
     def fitted(threads):
         with threadpool_limits(limits=threads, user_api="openmp"):
-            pipeline = build_hgb().fit(many.loc[:, features], many[UCI_FRAME.label])
+            pipeline = build_hgb(frame=UCI_FRAME).fit(many.loc[:, features], many[UCI_FRAME.label])
             return pipeline.predict_proba(GRADED.loc[:, features])
 
     np.testing.assert_array_equal(fitted(4), fitted(1))
@@ -182,14 +182,16 @@ def test_probabilities_fits_and_predicts_on_one_openmp_thread():
         pipeline.set_params(model=spy)
         return pipeline
 
-    probabilities(TRAIN.assign(weight=1.0), GRADED, factory=factory)
+    probabilities(TRAIN.assign(weight=1.0), GRADED, factory=factory, frame=UCI_FRAME)
     assert spy.fit_threads_
     assert spy.fit_threads_ == [1] * len(spy.fit_threads_)
     assert spy.predict_threads_ == [1] * len(spy.predict_threads_)
 
 
 def test_boosting_probabilities_are_pinned():
-    probability = probabilities(TRAIN.assign(weight=1.0), GRADED, factory=build_hgb)
+    probability = probabilities(
+        TRAIN.assign(weight=1.0), GRADED, factory=build_hgb, frame=UCI_FRAME
+    )
     np.testing.assert_allclose(
         probability.to_numpy()[[3, 21, 33, 45]],
         [0.29854498130049056, 0.9832056845220146, 0.02037211227150123, 0.9018548910132792],
