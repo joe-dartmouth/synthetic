@@ -48,7 +48,7 @@ COUNT_COLUMNS: Final = (*CELL_COLUMNS, "count", "underrepresented")
 """The columns of `cell_counts`."""
 
 
-def age_band_labels(edges: Sequence[int] = AGE_BAND_EDGES) -> tuple[str, ...]:
+def age_band_labels(edges: Sequence[int]) -> tuple[str, ...]:
     """Return the band labels for `edges`, youngest first: `<a`, then `a-b`, then `>=z`.
 
     Args:
@@ -67,7 +67,7 @@ def age_band_labels(edges: Sequence[int] = AGE_BAND_EDGES) -> tuple[str, ...]:
     return (f"<{edges[0]}", *middle, f">={edges[-1]}")
 
 
-def cell_keys(frame: pd.DataFrame, *, edges: Sequence[int] = AGE_BAND_EDGES) -> pd.DataFrame:
+def cell_keys(frame: pd.DataFrame, *, edges: Sequence[int]) -> pd.DataFrame:
     """Return each row's cell, on the same index: `age_band` and `sex` as labels, `target` as 0/1.
 
     Args:
@@ -108,7 +108,7 @@ def _refuse_first(frame: pd.DataFrame, column: str, bad: np.ndarray, expected: s
 def cell_counts(
     frame: pd.DataFrame,
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
     below: int = UNDERREPRESENTED_BELOW,
 ) -> pd.DataFrame:
     """Count the records in every cell of the grid, empty cells included.

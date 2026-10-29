@@ -37,20 +37,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## datasets
-
-- **`cleanup:datasets/edges-default-to-uci`: the data stage's cell helpers fall back to UCI's
-  bands.** `bko.datasets.split.split`, `bko.datasets.cells.age_band_labels`, `cell_keys` and
-  `cell_counts`, `bko.gaps.observe.record_cells` and `bko.fusion.join.join` default `edges` to
-  `AGE_BAND_EDGES`, so a caller holding a non-UCI frame that omits `edges` silently gets UCI's
-  bands. Evidence: each signature reads `edges: Sequence[int] = AGE_BAND_EDGES`. *Filed
-  2026-10-28 by the frame-selection work, which made the evaluate stage's helpers require
-  `edges`.*
-  **Why deferred.** They serve UCI-only commands (`bko.gaps uci`, `bko.fusion`, `cells`), and
-  many call sites in those commands and their tests omit `edges`.
-  **What discharges it:** each takes the frame or requires `edges`.
-  **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
-
 ## evaluate
 
 - **`cleanup:evaluate/fill-unnamed-in-arm-lines`: the guided, prescribed and baseline lines name

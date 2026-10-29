@@ -64,9 +64,7 @@ def held_out_count(cell_size: int) -> int:
     return (2 * cell_size + TEST_SHARE_DENOMINATOR) // (2 * TEST_SHARE_DENOMINATOR)
 
 
-def split(
-    frame: pd.DataFrame, *, seed: int = SPLIT_SEED, edges: Sequence[int] = AGE_BAND_EDGES
-) -> Split:
+def split(frame: pd.DataFrame, *, seed: int = SPLIT_SEED, edges: Sequence[int]) -> Split:
     """Hold out `held_out_count` records of every cell, those ranked lowest by hash.
 
     Args:
@@ -129,7 +127,7 @@ def uci_split(
         DatasetError: As `ensure` and `load_uci`.
     """
     ensure(source, data_dir, open_url=open_url)
-    parts = split(load_uci(data_dir, source=source), seed=seed)
+    parts = split(load_uci(data_dir, source=source), seed=seed, edges=AGE_BAND_EDGES)
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
         parts.seed,

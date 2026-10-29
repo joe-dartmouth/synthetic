@@ -13,7 +13,7 @@ from types import MappingProxyType
 
 import pandas as pd
 
-from bko.datasets.cells import AGE_BAND_EDGES, cell_keys
+from bko.datasets.cells import cell_keys
 from bko.gaps.observe import Cell, cell_key
 
 
@@ -39,7 +39,7 @@ def join(
     accepted: Mapping[Cell, pd.DataFrame],
     request: Mapping[Cell, int],
     *,
-    edges: Sequence[int] = AGE_BAND_EDGES,
+    edges: Sequence[int],
 ) -> Joined:
     """Join each requested cell's accepted records to `train`, in request order.
 

@@ -11,6 +11,7 @@ import pytest
 from bko.bkb.structure import SNode
 from bko.datasets.cells import LABEL
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, load_population
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.errors import GapError
 from bko.gaps.observe import (
     Observed,
@@ -155,6 +156,7 @@ def test_record_cells_observe_every_cell_of_the_grid_and_the_whole():
         uci_frame((40, 0, 0, 1), (40, 0, 0, 4), (60, 1, 1, 1), (60, 1, 1, 4), (60, 1, 1, 4)),
         [ANGINA, STENOSIS],
         name="uci",
+        edges=UCI_FRAME.edges,
     )
     assert (cells.whole.records, cells.whole.holders) == (
         5,
@@ -189,7 +191,7 @@ def test_a_cell_assumes_a_concept_only_rows_of_another_label_name(codes, assumed
         source="t",
         limits="t",
     )
-    cells = record_cells(uci_frame((40, 0, 0, 4)), [row], name="uci")
+    cells = record_cells(uci_frame((40, 0, 0, 4)), [row], name="uci", edges=UCI_FRAME.edges)
     for cell, records in cells.each.items():
         assert ("MONDO:9000004" in records.assumed) is assumed_at[cell[2]], cell
 
@@ -202,7 +204,9 @@ def test_a_concept_one_row_maps_without_the_label_is_never_assumed():
         source="t",
         limits="t",
     )
-    cells = record_cells(uci_frame((40, 0, 0, 4)), [STENOSIS, plain], name="uci")
+    cells = record_cells(
+        uci_frame((40, 0, 0, 4)), [STENOSIS, plain], name="uci", edges=UCI_FRAME.edges
+    )
     assert all(records.assumed == frozenset() for records in cells.each.values())
 
 
@@ -214,23 +218,23 @@ def test_a_label_row_with_another_clause_still_assumes_its_concept():
         source="t",
         limits="t",
     )
-    cells = record_cells(uci_frame((40, 0, 0, 4)), [both], name="uci")
+    cells = record_cells(uci_frame((40, 0, 0, 4)), [both], name="uci", edges=UCI_FRAME.edges)
     assert cells.each["<55", "female", 0].assumed == frozenset({"MONDO:9000004"})
 
 
 def test_record_cells_pair_records_by_position_whatever_the_index():
     records = uci_frame((40, 0, 0, 1), (60, 1, 1, 4))
     records.index = pd.Index([7, 7])
-    cells = record_cells(records, [ANGINA], name="uci")
+    cells = record_cells(records, [ANGINA], name="uci", edges=UCI_FRAME.edges)
     assert cells.each["<55", "female", 0].observed.holders == {"HP:9000003": 1}
     assert cells.each[">=55", "male", 1].observed.holders == {"HP:9000003": 0}
 
 
 def test_record_cells_refuse_an_empty_frame_and_a_frame_without_its_cell_columns():
     with pytest.raises(GapError, match="uci holds no record"):
-        record_cells(uci_frame(), [ANGINA], name="uci")
+        record_cells(uci_frame(), [ANGINA], name="uci", edges=UCI_FRAME.edges)
     with pytest.raises(GapError, match="the cells read fields uci lacks: age, sex"):
-        record_cells(frame((1, 0, 100)), [ANGINA], name="uci")
+        record_cells(frame((1, 0, 100)), [ANGINA], name="uci", edges=UCI_FRAME.edges)
 
 
 def test_population_cells_observe_each_age_sex_cell_of_the_living(tmp_path):
@@ -256,3 +260,8 @@ def test_population_cells_follow_the_grid_order_of_their_age_bands(tmp_path):
     people = load_population(tmp_path, snapshot_date=date(2026, 1, 1))
     cells = population_cells(people, [ISCHEMIA], name="synthea", edges=(40, 50))
     assert [band for band, _ in cells.each][::2] == ["<40", "40-49", ">=50"]
+
+
+def test_record_cells_requires_edges():
+    with pytest.raises(TypeError, match="edges"):
+        record_cells(pd.DataFrame(), (), name="uci")  # ty: ignore[missing-argument]

@@ -37,6 +37,7 @@ from bko.datasets.synthea_run import (
     ensure_population,
     run_java,
 )
+from bko.datasets.uci import UCI_FRAME
 
 
 logger = logging.getLogger("bko.datasets")
@@ -126,7 +127,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def _cells(data_dir: Path, context: Context, out: TextIO) -> None:
     parts = uci_split(data_dir, source=context.uci, open_url=context.open_url)
-    counts = cell_counts(parts.train)
+    counts = cell_counts(parts.train, edges=UCI_FRAME.edges)
     under = counts.loc[counts["underrepresented"]]
     cells = zip(*(under[column] for column in (*CELL_COLUMNS, "count")), strict=True)
     logger.info(

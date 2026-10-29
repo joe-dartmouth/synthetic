@@ -41,6 +41,7 @@ from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, gaps, under_represented
 from bko.gaps.detect import count_gaps
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
@@ -214,7 +215,7 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
             for gap in found
         )
     log_listing(cells.whole.name, listing(fragments, cells))
-    counted = count_gaps(cell_counts(parts.train))
+    counted = count_gaps(cell_counts(parts.train, edges=UCI_FRAME.edges))
     logger.info(
         "count dataset=%s flagged=%d below=%d",
         cells.whole.name,

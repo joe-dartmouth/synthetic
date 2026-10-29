@@ -171,8 +171,10 @@ def _run(path: Path, data_dir: Path, context: Context) -> list[Row]:
     for cell, items in candidates.items():
         logger.info("validate key=%s lines=%d", cell_key(cell), len(items))
         accepted[cell] = validate(items, frame=UCI_FRAME).accepted
-    joined = join(parts.train, accepted, request)
-    after = record_cells(joined.frame, context.field_rows, name=f"{context.uci.name}-joined")
+    joined = join(parts.train, accepted, request, edges=UCI_FRAME.edges)
+    after = record_cells(
+        joined.frame, context.field_rows, name=f"{context.uci.name}-joined", edges=UCI_FRAME.edges
+    )
     _log_join(candidates, accepted, joined, before, after)
     readings = closure(fragments, before, after)
     _log_closure(readings)

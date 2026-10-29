@@ -15,6 +15,7 @@ from bko.bkb.errors import QueryError
 from bko.bkb.fusion import Normalization, fuse
 from bko.bkb.structure import BKB
 from bko.datasets.cells import cell_counts
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.detect import (
     CellGap,
     Statement,
@@ -182,7 +183,9 @@ def test_every_held_subset_matches_an_independent_closure():
 
 
 def test_count_gaps_are_the_underrepresented_cells_in_grid_order():
-    counts = cell_counts(records({(40, 0, 1): 19, (40, 1, 1): 20, (60, 1, 0): 25}))
+    counts = cell_counts(
+        records({(40, 0, 1): 19, (40, 1, 1): 20, (60, 1, 0): 25}), edges=UCI_FRAME.edges
+    )
     gaps = count_gaps(counts)
     assert gaps == (
         CellGap("<55", "female", 0, 0),
@@ -202,6 +205,7 @@ from types import MappingProxyType
 
 import pandas as pd
 
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.detect import detect, ontology_fragments
 from bko.gaps.observe import Observed, dataset_fragment, record_cells
@@ -223,7 +227,7 @@ frame = pd.DataFrame(
     {"age": [40, 40, 60, 60, 60], "sex": [0, 0, 1, 1, 1], "target": [0, 1, 1, 1, 0],
      "cp": [1, 4, 1, 1, 4]}
 )
-cells = record_cells(frame, (ANGINA, STENOSIS), name="uci")
+cells = record_cells(frame, (ANGINA, STENOSIS), name="uci", edges=UCI_FRAME.edges)
 fragments = ontology_fragments(ladders, {"HP:9000003", "MONDO:9000004"})
 for definition in Definition:
     sys.stdout.write(repr(gaps(definition, fragments, cells)) + "\\n")

@@ -371,7 +371,10 @@ def _request(
 
 def _quota(train: pd.DataFrame) -> dict[Cell, int]:
     """E1's count-based request: each flagged cell's shortfall below `UNDERREPRESENTED_BELOW`."""
-    return {gap.cell: UNDERREPRESENTED_BELOW - gap.count for gap in count_gaps(cell_counts(train))}
+    return {
+        gap.cell: UNDERREPRESENTED_BELOW - gap.count
+        for gap in count_gaps(cell_counts(train, edges=UCI_FRAME.edges))
+    }
 
 
 if __name__ == "__main__":

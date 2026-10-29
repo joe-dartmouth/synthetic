@@ -29,7 +29,7 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 
 def test_a_control_arm_ignores_the_request():
-    train = split(GRADED, seed=0).train
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     baseline = FAST_ARMS["none"](train, gap_request(train, E1, seed=0, frame=UCI_FRAME))
     assert baseline.added.empty
 
@@ -106,12 +106,18 @@ def test_dropping_the_boosting_rows_leaves_the_regression_rows_byte_for_byte():
 def test_models_without_the_regression_are_refused():
     with pytest.raises(EvaluationError, match="lack the regression"):
         score_holdout(
-            split(GRADED, seed=0), SMALL, FAST_ARMS, models={Model.HGB: build}, frame=UCI_FRAME
+            split(GRADED, seed=0, edges=UCI_FRAME.edges),
+            SMALL,
+            FAST_ARMS,
+            models={Model.HGB: build},
+            frame=UCI_FRAME,
         )
 
 
 def test_the_held_out_ratio_is_the_largest_cells():
-    assert held_out_ratio(split(GRADED, seed=0), edges=UCI_FRAME.edges) == pytest.approx(5 / 18)
+    assert held_out_ratio(
+        split(GRADED, seed=0, edges=UCI_FRAME.edges), edges=UCI_FRAME.edges
+    ) == pytest.approx(5 / 18)
 
 
 def test_class_weights_reach_the_fit_through_the_harness():
@@ -143,7 +149,7 @@ def test_no_arm_sees_a_test_record():
     run(GRADED, experiment, {"smote": spying}, frame=UCI_FRAME)
     assert len(seen) == 2 * len(SMALL.holdout_seeds)
     for position, indexes in enumerate(seen):
-        parts = split(GRADED, seed=SMALL.holdout_seeds[position // 2])
+        parts = split(GRADED, seed=SMALL.holdout_seeds[position // 2], edges=UCI_FRAME.edges)
         assert indexes == set(parts.train.index)
         assert not indexes & set(parts.test.index)
 
@@ -269,7 +275,7 @@ def fits_on(monkeypatch: pytest.MonkeyPatch) -> list[list[int]]:
 
 
 def test_utility_reads_the_split_without_a_copied_record(monkeypatch):
-    parts = split(GRADED, seed=0)
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
     cells = cell_list(parts.test)
     copied = parts.test[[cell == (f">={EDGE}", "female", 1) for cell in cells]].iloc[[0]]
 
@@ -291,7 +297,7 @@ def test_utility_reads_the_split_without_a_copied_record(monkeypatch):
 
 
 def test_a_holdout_with_no_copy_scores_the_whole_test_split(monkeypatch):
-    parts = split(GRADED, seed=0)
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
     seen = fits_on(monkeypatch)
     score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME)
     assert {len(index) for index in seen} == {len(parts.test)}
@@ -365,7 +371,7 @@ def test_an_arm_filling_no_replica_is_drained_once_per_holdout_beside_one_that_d
 
 
 def test_training_copies_are_counted_per_arm_and_fill(caplog):
-    parts = split(GRADED, seed=0)
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
     copying = dataclasses.replace(PAIR, replica_arms=("smote",))
     asked: list[int] = []
 
@@ -389,7 +395,9 @@ def test_training_copies_are_counted_per_arm_and_fill(caplog):
 
 def test_smote_rows_copy_fewer_training_rows_than_it_adds(caplog):
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
-        score_holdout(split(GRADED, seed=0), PAIR, FAST_ARMS, frame=UCI_FRAME)
+        score_holdout(
+            split(GRADED, seed=0, edges=UCI_FRAME.edges), PAIR, FAST_ARMS, frame=UCI_FRAME
+        )
     found = re.search(r"training holdout=0 arm=smote fill=gap rows=(\d+) copies=(\d+)", caplog.text)
     assert found is not None
     rows, copied = map(int, found.groups())

@@ -227,7 +227,7 @@ def varied() -> pd.DataFrame:
 
 def test_every_drawn_record_passes_validation_and_lies_inside_the_training_range():
     train = varied()
-    cells = record_cells(train, FIELD_MAPPINGS, name=NAME)
+    cells = record_cells(train, FIELD_MAPPINGS, name=NAME, edges=UCI_FRAME.edges)
     quota = {cell: 40 for cell, records in cells.each.items() if records.observed.records}
     drawn = draw(train, quota)
     records = [dict(d.record) for draws in drawn.values() for d in draws]
@@ -284,7 +284,7 @@ def test_a_draw_no_record_matches_refuses_the_attempt():
 
 def test_shares_are_the_fused_bkbs_priors_weighted_by_the_cells_records():
     train = varied()
-    cells = record_cells(train, FIELD_MAPPINGS, name=NAME)
+    cells = record_cells(train, FIELD_MAPPINGS, name=NAME, edges=UCI_FRAME.edges)
     concepts = {row.concept for row in FIELD_MAPPINGS}
     for cell, records in cells.each.items():
         members = train.loc[train[LABEL].eq(cell[2])]

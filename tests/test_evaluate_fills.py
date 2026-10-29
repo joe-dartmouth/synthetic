@@ -36,7 +36,7 @@ def test_the_harness_sets_the_fill_around_each_runner_call():
         replica_arms=("smote",),
     )
     score_holdout(
-        split(GRADED, seed=1),
+        split(GRADED, seed=1, edges=UCI_FRAME.edges),
         experiment,
         {"none": FAST_ARMS["none"], "smote": spy},
         frame=UCI_FRAME,
@@ -59,7 +59,7 @@ def test_each_attempt_sees_the_fill_and_a_refusal_resets_it():
         raise BaselineError("refused")
 
     score_holdout(
-        split(GRADED, seed=0),
+        split(GRADED, seed=0, edges=UCI_FRAME.edges),
         PAIR,
         {"none": FAST_ARMS["none"], "smote": refuse_once},
         frame=UCI_FRAME,
@@ -68,7 +68,7 @@ def test_each_attempt_sees_the_fill_and_a_refusal_resets_it():
     assert CURRENT_FILL.get() is None
     with pytest.raises(BaselineError):
         score_holdout(
-            split(GRADED, seed=0),
+            split(GRADED, seed=0, edges=UCI_FRAME.edges),
             PAIR,
             {"none": FAST_ARMS["none"], "smote": always_refuse},
             frame=UCI_FRAME,

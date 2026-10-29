@@ -117,7 +117,7 @@ def observed(
 ) -> tuple[pd.DataFrame, Cells]:
     """The training frame of `records` and its cells."""
     train = frame(records)
-    return train, record_cells(train, rows, name="uci")
+    return train, record_cells(train, rows, name="uci", edges=UCI_FRAME.edges)
 
 
 def guided(

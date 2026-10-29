@@ -38,14 +38,14 @@ def test_every_cell_renders_at_every_level_and_every_statement_reaches_a_row(
     definition: Definition, caplog: pytest.LogCaptureFixture
 ) -> None:
     data_dir = default_data_dir()
-    train = split(load_uci(data_dir)).train
+    train = split(load_uci(data_dir), edges=UCI_FRAME.edges).train
     ontologies, fragments = load_scope(
         {row.concept for row in FIELD_MAPPINGS},
         data_dir,
         releases=RELEASES,
         open_url=_no_fetch,
     )
-    cells = record_cells(train, FIELD_MAPPINGS, name=UCI_HEART_DISEASE.name)
+    cells = record_cells(train, FIELD_MAPPINGS, name=UCI_HEART_DISEASE.name, edges=UCI_FRAME.edges)
     with caplog.at_level(logging.WARNING, logger="bko.generate"):
         guided = guide(
             train,

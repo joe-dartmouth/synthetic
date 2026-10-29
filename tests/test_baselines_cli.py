@@ -22,7 +22,7 @@ from bko.baselines.records import Baseline, no_rows, unit_weights
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
 from bko.datasets.split import split
-from bko.datasets.uci import complete_records, parse_cleveland
+from bko.datasets.uci import UCI_FRAME, complete_records, parse_cleveland
 from tests._baselines_fixtures import (
     CLI_TEXT,
     EVALUATION_COLUMNS,
@@ -55,7 +55,7 @@ FAST = MappingProxyType(
 )
 """The methods the in-process tests run, with small SDV models."""
 
-TRAIN_SPLIT = split(complete_records(parse_cleveland(CLI_TEXT))).train
+TRAIN_SPLIT = split(complete_records(parse_cleveland(CLI_TEXT)), edges=UCI_FRAME.edges).train
 
 
 def run(tmp_path, *argv, text=CLI_TEXT, methods=None, opener=None):

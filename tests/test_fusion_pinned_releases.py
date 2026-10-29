@@ -34,14 +34,14 @@ def _no_fetch(url: str, timeout: float) -> NoReturn:
 
 def test_records_showing_every_mapped_concept_close_every_per_subgroup_gap() -> None:
     data_dir = default_data_dir()
-    train = split(load_uci(data_dir)).train
+    train = split(load_uci(data_dir), edges=UCI_FRAME.edges).train
     _, fragments = load_scope(
         {row.concept for row in FIELD_MAPPINGS},
         data_dir,
         releases=RELEASES,
         open_url=_no_fetch,
     )
-    before = record_cells(train, FIELD_MAPPINGS, name=UCI_HEART_DISEASE.name)
+    before = record_cells(train, FIELD_MAPPINGS, name=UCI_HEART_DISEASE.name, edges=UCI_FRAME.edges)
     request = completeness_request(fragments, before)
     accepted = {}
     for cell, rows in request.items():
@@ -64,8 +64,10 @@ def test_records_showing_every_mapped_concept_close_every_per_subgroup_gap() -> 
         result = validate([record] * rows, frame=UCI_FRAME)
         assert result.passed == rows
         accepted[cell] = result.accepted
-    joined = join(train, accepted, request)
-    after = record_cells(joined.frame, FIELD_MAPPINGS, name=f"{UCI_HEART_DISEASE.name}-joined")
+    joined = join(train, accepted, request, edges=UCI_FRAME.edges)
+    after = record_cells(
+        joined.frame, FIELD_MAPPINGS, name=f"{UCI_HEART_DISEASE.name}-joined", edges=UCI_FRAME.edges
+    )
     readings = {reading.definition: reading for reading in closure(fragments, before, after)}
     assert readings[Definition.SUBGROUP].before
     assert readings[Definition.SUBGROUP].after == ()

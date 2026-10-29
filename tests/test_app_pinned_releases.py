@@ -15,7 +15,7 @@ from bko.app.page import OUTCOME_KEY
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.definitions import Definition
 from bko.gaps.detect import count_gaps
 from tests._app_fixtures import frame_with, launch, never, settled
@@ -37,7 +37,14 @@ def test_a_free_fill_runs_through_the_page_over_the_pinned_releases(tmp_path):
     at = settled(at.button(key="bko.analyze").click().run(timeout=300))
     cells = frame_with(at, {"count", "status"})
     flagged = cells.loc[cells["status"] == "underrepresented", ["age_band", "sex", "target"]]
-    expected = {gap.cell for gap in count_gaps(cell_counts(split(load_uci(data_dir)).train))}
+    expected = {
+        gap.cell
+        for gap in count_gaps(
+            cell_counts(
+                split(load_uci(data_dir), edges=UCI_FRAME.edges).train, edges=UCI_FRAME.edges
+            )
+        )
+    }
     assert set(flagged.itertuples(index=False, name=None)) == expected
     at = settled(at.selectbox(key="bko.method").select("smote").run())
     at = settled(at.button(key="bko.fill").click().run(timeout=600))

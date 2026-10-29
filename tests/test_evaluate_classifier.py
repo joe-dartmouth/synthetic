@@ -22,8 +22,8 @@ from tests._evaluate_fixtures import FAST_METHODS, FLAGGED, GRADED, Spy
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
-UNBALANCED = split(complete_records(parse_cleveland(UNBALANCED_TEXT))).train
-TRAIN = split(GRADED, seed=0).train
+UNBALANCED = split(complete_records(parse_cleveland(UNBALANCED_TEXT)), edges=UCI_FRAME.edges).train
+TRAIN = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
 
 
 def test_class_weights_reach_the_regression_row_by_row():

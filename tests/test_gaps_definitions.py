@@ -15,6 +15,7 @@ import pytest
 import bko.gaps.definitions
 from bko.bkb.errors import QueryError
 from bko.bkb.structure import BKB
+from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import (
     CREDIBILITY,
     SHARE_RATIO,
@@ -249,7 +250,7 @@ def test_a_training_frame_gives_each_definitions_gaps(ladders, settings):
         + [(63, 1, 1, 4)] * 5
     )
     frame = pd.DataFrame(rows, columns=["age", "sex", "target", "cp"], dtype="int64")
-    cells = record_cells(frame, [ANGINA, STENOSIS], name="uci")
+    cells = record_cells(frame, [ANGINA, STENOSIS], name="uci", edges=UCI_FRAME.edges)
     fragments = ontology_fragments(ladders, {A, B})
     every = (H21, H32, M21, M42)
 

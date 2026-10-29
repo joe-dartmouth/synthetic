@@ -19,7 +19,7 @@ import pytest
 import bko.gaps.__main__ as gaps_command
 from bko.datasets.sources import Source
 from bko.datasets.split import split
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.fusion.__main__ import Context, configure_logging, main
 from bko.gaps.definitions import Definition
 from bko.generate.decode import Reason, Undecoded
@@ -246,7 +246,7 @@ def test_a_requested_cell_nothing_joins_is_warned(tmp_path, caplog):
 def held_out_angina(tmp_path: Path) -> bytes:
     """`UCI_X` with angina in the held-out young women without the condition, and no others."""
     training_split(tmp_path / "probe", UCI_X)
-    test = split(load_uci(tmp_path / "probe", source=pin(UCI_X))).test
+    test = split(load_uci(tmp_path / "probe", source=pin(UCI_X)), edges=UCI_FRAME.edges).test
     held = set(test[(test["age"] == 40) & (test["sex"] == 0)].index)
     assert held
     lines: list[str] = []
@@ -257,7 +257,7 @@ def held_out_angina(tmp_path: Path) -> bytes:
             lines.append(cleveland_line(age=age, sex=sex, num=num, cp=cp))
     data = archive("\n".join(lines) + "\n")
     training_split(tmp_path / "rebuilt", data)
-    rebuilt = split(load_uci(tmp_path / "rebuilt", source=pin(data))).test
+    rebuilt = split(load_uci(tmp_path / "rebuilt", source=pin(data)), edges=UCI_FRAME.edges).test
     assert set(rebuilt[(rebuilt["age"] == 40) & (rebuilt["sex"] == 0)].index) == held
     assert set(rebuilt.loc[sorted(held), "cp"]) == {1}
     return data

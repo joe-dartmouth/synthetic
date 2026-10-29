@@ -60,7 +60,7 @@ def test_the_pattern_reads_the_user_turn_at_every_level(level):
 
 
 def test_the_prompt_regex_reads_the_bounded_first_sentence():
-    train = split(GRADED, seed=SMALL.holdout_seeds[0]).train
+    train = split(GRADED, seed=SMALL.holdout_seeds[0], edges=UCI_FRAME.edges).train
     for cell in sorted(_cells(GRADED)):
         interval = intervals(cell, train, frame=UCI_FRAME)
         sex = SEXES_BY_LABEL[cell[1]]
@@ -77,13 +77,13 @@ def test_the_safe_ranges_lie_inside_every_holdouts_training_range():
     ranges = safe_ranges(GRADED, SMALL.holdout_seeds, frame=UCI_FRAME)
     assert set(ranges) == set(NUMERIC)
     for seed in SMALL.holdout_seeds:
-        train = split(GRADED, seed=seed).train
+        train = split(GRADED, seed=seed, edges=UCI_FRAME.edges).train
         for name, (low, high) in ranges.items():
             assert train[name].min() <= low <= high <= train[name].max()
 
 
 def _cells(frame: pd.DataFrame) -> set[tuple[str, str, int]]:
-    keys = cell_keys(frame)
+    keys = cell_keys(frame, edges=UCI_FRAME.edges)
     return {(str(a), str(s), int(t)) for a, s, t in keys.itertuples(index=False)}
 
 
@@ -97,7 +97,7 @@ def test_the_tokens_per_record_are_the_judged_runs():
 
 def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
     send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
-    trains = [split(GRADED, seed=seed).train for seed in SMALL.holdout_seeds]
+    trains = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train for seed in SMALL.holdout_seeds]
     real = set(GRADED.loc[:, list(FRAME_COLUMNS)].itertuples(index=False, name=None))
     for cell in sorted(_cells(GRADED)):
         sex, label = SEXES_BY_LABEL[cell[1]], cell[2]
@@ -236,8 +236,8 @@ def test_a_replay_of_a_rehearsal_keeps_the_mark(tmp_path):
 
 def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
     # Holdout 2's training split lacks the lowest chol, holdout 3's the highest.
-    mins = [split(GRADED, seed=seed).train["chol"].min() for seed in (2, 3)]
-    maxes = [split(GRADED, seed=seed).train["chol"].max() for seed in (2, 3)]
+    mins = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train["chol"].min() for seed in (2, 3)]
+    maxes = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train["chol"].max() for seed in (2, 3)]
     assert len(set(mins)) == 2
     assert len(set(maxes)) == 2
     assert safe_ranges(GRADED, (2, 3), frame=UCI_FRAME)["chol"] == (max(mins), min(maxes))
