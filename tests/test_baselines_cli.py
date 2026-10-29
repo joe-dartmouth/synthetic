@@ -43,8 +43,15 @@ ARGS = {
     Method.ADASYN: ["--rows", "5"],
     Method.CTGAN: ["--rows", "5"],
     Method.TVAE: ["--rows", "5"],
+    Method.GAUSSIAN_COPULA: ["--rows", "5"],
+    Method.CART: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
+
+
+def test_args_cover_every_method():
+    assert set(ARGS) == set(Method)
+
 
 FAST = MappingProxyType(
     {

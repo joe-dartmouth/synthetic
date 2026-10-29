@@ -1,0 +1,88 @@
+"""The Gaussian copula and sequential CART: the contract, the seed, and other frames."""
+
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import pytest
+import torch
+
+from bko.baselines.classical import cart, gaussian_copula
+from bko.baselines.records import unit_weights
+from bko.baselines.request import Request, Strata, Stratum
+from tests._baselines_fixtures import QUOTA, assert_contract, full_records
+from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
+
+
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
+TRAIN = full_records()
+
+
+def _run(method, ambient: int, seed: int, train: pd.DataFrame = TRAIN, quota=QUOTA):
+    np.random.seed(ambient)
+    torch.manual_seed(ambient)
+    return method(train, Request(quota=quota, seed=seed))
+
+
+@pytest.fixture(scope="module")
+def copula_runs():
+    return _run(gaussian_copula, 1, 3), _run(gaussian_copula, 2, 4)
+
+
+@pytest.fixture(scope="module")
+def cart_runs():
+    return _run(cart, 1, 3), _run(cart, 2, 3), _run(cart, 1, 4)
+
+
+def test_the_copula_meets_the_contract(copula_runs):
+    assert_contract(copula_runs[0].added, TRAIN, QUOTA)
+    pd.testing.assert_series_equal(copula_runs[0].weights, unit_weights(TRAIN))
+
+
+def test_the_copula_ignores_the_seed(copula_runs):
+    """SDV fixes the copula's sampling seed, so neither the request's seed nor the ambient
+    generators move the rows."""
+    pd.testing.assert_frame_equal(copula_runs[0].added, copula_runs[1].added)
+
+
+def test_cart_meets_the_contract(cart_runs):
+    assert_contract(cart_runs[0].added, TRAIN, QUOTA)
+    pd.testing.assert_series_equal(cart_runs[0].weights, unit_weights(TRAIN))
+
+
+def test_cart_rows_depend_on_the_seed_alone(cart_runs):
+    pd.testing.assert_frame_equal(cart_runs[0].added, cart_runs[1].added)
+
+
+def test_cart_differs_at_another_seed(cart_runs):
+    assert not cart_runs[0].added.equals(cart_runs[2].added)
+
+
+def test_cart_restores_the_ambient_rngs():
+    np.random.seed(11)
+    torch.manual_seed(11)
+    cart(TRAIN, Request(quota=QUOTA, seed=3))
+    after = (np.random.random(), torch.rand(1).item())
+    np.random.seed(11)
+    torch.manual_seed(11)
+    assert after == (np.random.random(), torch.rand(1).item())
+
+
+def test_cart_copies_values_from_same_leaf_donors():
+    """`thal` follows `cp` exactly in training (cp 1 -> 3, cp 4 -> 7, others 6), with enough rows
+    per value for pure leaves; a donor drawn from the whole split would break the mapping."""
+    train = full_records(per_cell=30)
+    train["thal"] = train["cp"].map({1: 3, 4: 7}).fillna(6).astype(train["thal"].dtype)
+    added = cart(train, Request(quota=QUOTA, seed=0)).added
+    expected = added["cp"].map({1: 3, 4: 7}).fillna(6)
+    assert (added["thal"] == expected).all()
+
+
+@pytest.mark.parametrize("method", [gaussian_copula, cart], ids=["copula", "cart"])
+def test_each_method_fills_the_toy_frame(method):
+    quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
+    request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
+    added = method(TOY_TRAIN, request).added
+    assert list(added.columns) == list(TOY.columns)
+    assert len(added) == sum(quota.values())
