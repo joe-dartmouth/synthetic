@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-28
+updated: 2026-10-29
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -52,9 +52,11 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   fields' decimals, the codebook, each column's description, the numeric fields' ranges, the label
   with its codes and meanings, the age band edges, and the study and cohort the system prompt
   opens with. `bko.datasets.uci.UCI_FRAME` is UCI's, built from the module's constants.
-  Generation, the baselines and evaluation take the frame as a keyword defaulting to `UCI_FRAME`;
-  `bko.validate`'s entry points require it, the call log requires the frame's name, and the
-  evaluate stage's cell helpers require the band edges.
+  The generate stage, the evaluate stage's scoring helpers and `bko.validate`'s entry points take
+  the frame as a required keyword, the call log requires the frame's name, and the cell helpers
+  (`bko.datasets.split.split`, `bko.datasets.cells.cell_keys` and `cell_counts`,
+  `bko.gaps.observe.record_cells`, `bko.fusion.join.join`) require the band edges, so no caller
+  holding another frame falls back to UCI's. The baselines take the frame on their `Request`.
 - **One frame value per named run**: `bko.evaluate.experiment.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name and the sha256 of its records), and every stage of `score` reads its frame from
@@ -137,6 +139,7 @@ criteria, and no other frame from this archive adds records of women with heart 
 | A `cell_columns` field on the frame | Every cell is an age band, a sex and the label, so only the band edges vary between frames; see Rationale | 2026-10-26 |
 | A dataset flag on `score` | A flag would vary a run's values, which a named run fixes in code | 2026-10-27 |
 | The frame on `Experiment` | `compare` reads only the experiment, which needs no frame | 2026-10-27 |
+| A keyword defaulting to `UCI_FRAME` on the generate stage, the scoring helpers and the cell helpers | A caller holding the Synthea frame that omits it sends a UCI prompt and schema, or bands by UCI's edges, with no error | 2026-10-29 |
 | A frame field on `Settings` | Every call log's header records the settings, and a run is refused when they differ from its log's, so the field would change what a logged run reads as | 2026-10-26 |
 | The name `Frame` | The package calls a pandas DataFrame a frame throughout | 2026-10-26 |
 

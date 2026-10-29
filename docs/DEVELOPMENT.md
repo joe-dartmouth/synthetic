@@ -726,8 +726,10 @@ commands, inside `.venv`:
   while it runs and restores it after, so `synthea`, `uci` and the fusion reproduction keep
   theirs.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
-  command could not run, including a mapped concept its release lacks; 3 the data or a release
-  contradicts its pin or schema, including a release naming an `is_a` parent it lacks.
+  command could not run, including a mapped concept its release lacks and a BKB the fragments
+  cannot ground, fuse or query (`bko.bkb.errors.BKBError`); 3 the data or a release contradicts
+  its pin or schema, including a release naming an `is_a` parent it lacks and a malformed BKB
+  document (`DocumentFormatError`). Each refusal is logged, with no traceback.
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
@@ -904,9 +906,11 @@ guidance=None`.
   on-cell records dropped past the cell's rows; and `unjoined`, a requested cell no record joined.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a missing candidates file and a training split no cell holds
-  a per-subgroup gap in; 3 the candidates file is malformed or does not answer the completeness
-  request (a header for another run, an unplanned or misplaced call, or a short call), or the data
-  or a release contradicts its pin or schema.
+  a per-subgroup gap in, and a BKB the fragments cannot ground, fuse or query
+  (`bko.bkb.errors.BKBError`); 3 the candidates file is malformed or does not answer the
+  completeness request (a header for another run, an unplanned or misplaced call, or a short
+  call), the data or a release contradicts its pin or schema, or a BKB document is malformed
+  (`DocumentFormatError`). Each refusal is logged, with no traceback.
 - **Headerless files**: ADR [`research/gap-closure-design`](adr/research/gap-closure-design.md)
   (Consequences) says what becomes of a candidates file with no header line.
 - **Reproducibility**: the same bytes on every run over the same inputs. The Messages API takes
