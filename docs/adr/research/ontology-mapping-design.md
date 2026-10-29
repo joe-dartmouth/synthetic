@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -76,6 +76,12 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   concept is an `UnmappedCode` row in `UNMAPPED_CODES` with its reason, and the check refuses one
   that gains a live `skos:exactMatch`; the population's other codes with no match, such as type 2
   diabetes complications, have no row. No finding or situation code joins.
+- **Synthea field rows**: the Synthea frame's guidance reads field rows derived from
+  `CODE_MAPPINGS`, not a second table (ADR
+  [`research/synthea-downstream-design`](synthea-downstream-design.md)). Each code row other than
+  ischemic heart disease becomes a `FieldMapping` with the clause `Codes(<its indicator column>,
+  {1})` and the row's concept, label and source, and ischemic heart disease becomes the label row,
+  `Codes(target, {1})`. `bko.evaluate.data.SYNTHEA_FIELD_ROWS` holds them.
 - **No out-of-scope row above a mapped concept**: once type 2 diabetes maps, diabetes mellitus
   (MONDO:0005015) is its `is_a` ancestor and so in scope, and it has no out-of-scope row. The
   reason no UCI field grounds it, that `fbs` is one reading, sits in the `fbs` row's limits, which
@@ -195,5 +201,6 @@ is a comparison of that configuration with `bko.datasets.sources`.
 - [uv, ruff and ty, wrapped by a Makefile](../tooling/uv-ruff-ty.md)
 - [src layout, one subpackage per pipeline stage](../tooling/src-layout.md)
 - [The Synthea ablation: a pinned generated population, with whole patients removed](synthea-ablation-design.md)
+- [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)

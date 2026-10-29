@@ -66,10 +66,18 @@ ladder.**
 - **The schema.** As much as structured outputs can express:
   - each coded field is `integer` with an `enum` of its codebook;
   - the cell's `sex` and `target` are each an `enum` of one value;
-  - the whole-number fields are `integer`, and `oldpeak` is `number`;
+  - the whole-number fields are `integer`, and each fractional field (UCI's `oldpeak`) is
+    `number`;
   - every object is closed and requires all of its properties.
 
-  Each numeric field's bounds and `oldpeak`'s one decimal stay as prompt instructions.
+  Each numeric field's bounds and each fractional field's decimals stay as prompt instructions.
+- **The Synthea shape.** A request for Synthea records reads the Synthea frame (ADR
+  [`research/synthea-downstream-design`](synthea-downstream-design.md)) through the same schema and
+  prompt: its columns are `age`, `sex`, one 0/1 indicator per mapped condition and `target`; the
+  cell's `sex` and `target` are each an `enum` of one value, each indicator an `integer` with an
+  `enum` of its codebook, 0 (absent) and 1 (present), and `age` an `integer`. Every field is a
+  whole number, so no field carries a decimal instruction, and `age` is the only field with
+  bounds. The system text opens from the frame's `study` and `cohort`, as for every frame.
 - **The call.** Model `claude-haiku-5-5`; effort `medium`, set explicitly; `max_tokens` 16000;
   non-streaming; the SDK client's retries and timeout from `bko.generate.api` (`MAX_RETRIES`,
   `TIMEOUT`), which enter no logged request. The live client is `AsyncAnthropic`
@@ -237,7 +245,8 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 - A run can be repeated at each guidance level.
 
 **Accepted:**
-- On a decoded record only `range:<field>` and `precision:oldpeak` can fail validation. `fields`,
+- On a decoded record only `range:<field>` and `precision:oldpeak` can fail validation; on a
+  decoded Synthea record, only `range:age`. `fields`,
   `number:`, `code:` and whole-field `precision:` fail only on placeholders, or on a non-finite
   value the API should not emit. Validity then measures range adherence.
 - A plausible value outside a training split's range passes validation, and E1's runner drops it
@@ -309,9 +318,6 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 
 ## Reversal Conditions
 
-**The candidate shape changes when a generation request asks for Synthea records**; the check is a
-search of `tasks/` and `src/bko/generate/`.
-
 **The schema loosens if a judged run reports no `range:` failure and the team wants validity to
 measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`. `e1-4`'s `scores.log`
 holds no `range:` rejection in its `validated` lines, and `docs/EVIDENCE.md` does not hold its
@@ -324,4 +330,5 @@ per-check counts.
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [A frequency-aware gap: a concept credibly under four-fifths of its share in the rest of its label group](frequency-aware-gap-score.md)
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)
+- [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [A session-wide guard on the Anthropic SDK's request sink](../tooling/paid-api-request-guard.md)

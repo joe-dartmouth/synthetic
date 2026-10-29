@@ -54,6 +54,12 @@ root or to see the module's own code, run it directly:
   `DEFAULT_RUN` in `bko.datasets.synthea_run` names; later runs reuse it. It removes the cases
   `DEFAULT_ABLATION` in `bko.datasets.ablation` names and writes `age_band`, `sex`, `target`,
   `before` and `after` for every cell.
+- **The Synthea frame**: E3's frame (ADR
+  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)) needs only the
+  pinned population `DEFAULT_RUN` names: `score e3` checks it against its `run.json` with no Java
+  and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
+  snapshot date and aged 40 and over, and the sha256 of its records is the
+  `frame name=synthea rows=%d sha256=%s` line `score` logs.
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
@@ -136,6 +142,14 @@ and from logger `bko.generate.direct`, for every fill, a `direct key=` line per 
 cell's records, its label group's records) and a `fallback` line per cell and field read from the
 label group. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
 logs every criterion's intervals as `unjudged` lines.
+
+`merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
+holdouts overlap, whose union is not the named run's holdout seeds, or whose headers differ, and
+writes the rows in seed order under one header to stdout:
+
+    test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
+
+`compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's.
 
 `--beside` pairs the judged arm, or `--candidate`, with the same arm, or `--beside-arm`, in another
 scores file over the holdouts both hold, at the run's confidence with no verdict; a holdout one file
@@ -450,7 +464,10 @@ start or the supervisor cannot run.
   guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)), each
   effort-sweep run as `g4-low` and `g4-medium` ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)),
   and the skeleton run as `g5`, whose `bko-skeleton` arm prescribes each record's concepts beside
-  an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). No flag
+  an in-run `bko` ([EVIDENCE.md](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields)). It holds
+  E3 over the Synthea frame as `e3`, and its two holdout slices as `e3-a` (holdouts 0 to 49) and
+  `e3-b` (50 to 99), each with half of `e3`'s spend ceiling (ADR
+  [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
