@@ -82,8 +82,11 @@ figure below is what the command beside it in Rationale prints against that popu
   excludes the holdout, since that file scored its arms on a split without the copied records.
 - **Privacy**: the distance-to-closest-record rows are reported with no verdict.
 - **Egress**: each BKO call sends the frame's study and cohort text, its codebook and indicator
-  labels, age's bounds and quartiles, cell counts and, at `summary`, each mapped concept's share,
-  and no record's values; the rows are generated, so none describes a person
+  labels, age's training-split bounds within the cell's band, the cell and its training record
+  count, the gap findings with their ontology chains and, at `summary`, the reference group's
+  record count, each mapped concept's share of it and its age quartiles, the reference group being
+  the training records outside the cell that share its label; no record's values are sent, and the
+  rows are generated, so none describes a person
   ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation), What leaves the machine).
 - **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.
@@ -178,8 +181,9 @@ asks a replica of the thinned training split, 788 - 47 = 741 rows, plus the 15-r
 3 arms and 100 holdouts that is 3 x 756 x 100 = 226800 records, and 226800 x $1.35635e-4 = $30.76.
 `e1-4` asked 77487 records against a base quota of 77400 (ADR
 [`research/record-generation-design`](record-generation-design.md), Rationale), so top-ups add
-little. The basis overstates: a Synthea record has 9 fields against UCI's 14, so its prompts and
-replies are shorter. The $65.00 ceiling leaves about twice the estimate.
+little. The basis likely overstates on the input side: a Synthea record has 9 fields against
+UCI's 14, so its prompts are shorter per record asked; output need not shrink with the fields
+([E3](../../EVIDENCE.md#e3-synthea-downstream-augmentation), Runs). The $65.00 ceiling leaves about twice the estimate.
 
 **The duration.** `e1-4` ran from 08:08:12 to 13:08:18 UTC on 2026-10-28, 5.00 h for 77487 records
 asked at 8 in flight. Each slice asks 113400 records at 8 in flight, so 113400 / 77487 x 5.00 h is
@@ -197,7 +201,17 @@ arm refused: `tvae` retried 4 times and
 `tvae-replica` 12 times, each recovering. The call log ends `complete` with 12900 calls and 226800
 records asked, the quota above. The paired `none` minus `real` recall at scope
 `flagged-subgroups` over its 100 holdouts is -0.3515 [-0.4819, -0.2212] at confidence 0.95, so the
-removal hurts the headline (Reversal Conditions). sha256: scores
+removal hurts the headline (Reversal Conditions). The figure is [C13]'s
+`none vs real augmented recall flagged-subgroups -0.351538 [-0.481875, -0.221202] n=100` line,
+run over `runs/e3-1/rehearsal/scores.csv` at that commit's code as
+`env -u ANTHROPIC_API_KEY PYTHONPATH=<worktree>/src .venv/bin/python - runs/e3-1/rehearsal/scores.csv`,
+`<worktree>` being a detached worktree of `44aaa9e` (kept in PR #56's history, on
+`feat/synthea-frame`). The rehearsal's `scores.csv` holds no `copies-kept` row, so at later code
+`pairable` excludes every holdout with a copy and [C13] pairs none; there the same figure, negated,
+is the `unjudged criterion=secondary scope=flagged-subgroups arm=real against=none measure=recall
+mean=0.351538 low=0.221202 high=0.481875` line of
+`compare e3 runs/e3-1/rehearsal/scores.csv --candidate real`, whose comparators include `none`.
+sha256: scores
 `2a06450bca2687a41b6e1ba58710f78a73e516d9ddbc25763f58e4af4f074129`, scores.log
 `ba63681bb61d2461d705a80844052452025c48c2009cd1e65943be9296ee7419`, calls
 `9cffa9e201aca7ebf4bab66652e8b18534eac02c6ad84c242c83e99e09a7d824`.
@@ -485,6 +499,59 @@ age>=40 distinct 467 of 985; test records with an exact training twin: mean 0.66
 
 ```
 env -u ANTHROPIC_API_KEY uv run --no-sync python -I -c "from pathlib import Path; from bko.evaluate.data import load, Dataset; from bko.evaluate.context import Context; print(load(Dataset.SYNTHEA, Path('data'), Context()).digest)"
+```
+
+[C13] E3's paired readings: every arm against `real` and against `none`, in-run on the same
+holdouts, over every series `bko.evaluate.beside.pair` pairs, copies counted (`allow_copies`). E3
+reads it over `runs/e3-4/scores.csv`:
+
+```
+uv run --no-sync python -I - runs/e3-4/scores.csv <<'EOF'
+import sys
+from pathlib import Path
+
+from bko.evaluate.beside import Skipped, pair, pairable
+from bko.evaluate.criteria import held_out_ratio_of, series_of
+from bko.evaluate.experiment import E3
+from bko.evaluate.scores import parse
+
+s = parse(Path(sys.argv[1]).read_text())
+pg = pairable(s, s, allow_copies=True)
+ratio = held_out_ratio_of(series_of(s))
+for arm in E3.arms:
+    for ref in ("real", "none"):
+        if arm == ref:
+            continue
+        for b in pair(s, s, arm=arm, against=ref, holdouts=pg.holdouts, ratio=ratio, confidence=0.95):
+            if not isinstance(b, Skipped):
+                i = b.interval
+                print(
+                    f"{arm} vs {ref} {b.source.value} {b.measure.value} {b.scope.value} "
+                    f"{i.mean:+.6f} [{i.low:+.6f}, {i.high:+.6f}] n={len(pg.holdouts)}"
+                )
+EOF
+```
+
+[C14] Each arm's mean headline recall over its holdouts, `none`, `class-weight` and `real`
+included:
+
+```
+uv run --no-sync python -I - runs/e3-4/scores.csv <<'EOF'
+import sys
+from pathlib import Path
+from statistics import mean
+
+from bko.evaluate.scores import Measure, Scope, Source, parse
+
+rows = [
+    s
+    for s in parse(Path(sys.argv[1]).read_text())
+    if s.source == Source.AUGMENTED and s.measure == Measure.RECALL and s.scope == Scope.FLAGGED
+]
+for arm in sorted({s.arm for s in rows}):
+    values = [s.value for s in rows if s.arm == arm]
+    print(f"{arm} holdouts={len(values)} mean_recall_removed_cell={mean(values):.4f}")
+EOF
 ```
 
 ## Consequences

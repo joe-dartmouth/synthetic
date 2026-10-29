@@ -53,11 +53,14 @@ from the generated population, which gives the detector a known set of removed c
 ADR [`research/synthea-ablation-design`](adr/research/synthea-ablation-design.md) fixes how the
 population is generated and what a removed case is.
 
-A downstream Synthea experiment runs E1's arms on a frame of that population's patients aged 40
-and over. In each holdout, 0.9 of one cell's cases leave the training rows, and the recall each
-method recovers on that cell's held-out cases measures the augmentation. It is read with no
-criterion, each arm paired in-run against `real`, the un-ablated training split, and `none`, the
-ablated split unaugmented. ADR
+A downstream Synthea experiment runs E1's arms on a frame of that population's patients alive on
+the snapshot date and aged 40 and over. In each holdout, 0.9 of one cell's cases leave the training
+rows, and the recall each method recovers on that cell's held-out cases measures the augmentation.
+That recall is read at scope `flagged-subgroups`: recall counts only cases, and the removed cell's
+subgroup is the only flagged one, so it is the recall on the removed cell's test cases; AUC-PR at
+that scope covers the subgroup's test records of both labels. It is read with no criterion, each
+arm paired in-run against `real`, the un-ablated training split, and `none`, the ablated split
+unaugmented. ADR
 [`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md) fixes the frame,
 the removal and the reference.
 
