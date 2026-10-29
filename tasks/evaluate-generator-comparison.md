@@ -39,6 +39,12 @@ against the judged run's level, bounds and effort, which
 - Per model, beside the judged Haiku figures at the same holdouts: validity, drops, tokens and
   seconds per record asked, replica fidelity and utility, each criterion's measures with no
   verdict, in a new `docs/EVIDENCE.md` entry.
+- A reading that pairs each run with `e1-4` on the test records both keep. `--beside` pairs only
+  holdouts whose test splits match, and Sonnet's replica fills copy test records word for word:
+  `g6-1`'s `scores.log` reads 457 of 5900 test records copied over 98 holdouts, `e1-4`'s 1 over 1,
+  so its `beside` counts line reads `paired=2 excluded=98 copied=98`
+  (`runs/g6-1-judged/criteria.log`). Each run then scores on its own decontaminated test split,
+  and the reading scores every compared run's arms on the records no compared run copies.
 
 **Out.** Opus 5.5 (unscheduled, `docs/IDEAS.md`); thinking on for the local models (unit
 `evaluate-local-thinking-cost`); changing `SETTINGS.model` for the judged run (a result that argues
