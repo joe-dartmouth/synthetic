@@ -13,8 +13,9 @@ from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.data import Dataset
-from bko.evaluate.experiment import E1, RUNS, Experiment, NamedRun
+from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.launch import Power, Spawn, on_battery, spawn
+from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.rehearse import CannedSend, Rehearse
 from bko.evaluate.run import ARMS
 from bko.evaluate.supervise import Segment, run_segment

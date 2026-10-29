@@ -38,7 +38,8 @@ from bko.evaluate.data import (
     digest,
     load,
 )
-from bko.evaluate.experiment import E3, RUNS, Removal
+from bko.evaluate.experiment import Removal
+from bko.evaluate.named_runs import E3, RUNS
 from bko.evaluate.prepare import prepared
 from bko.evaluate.rehearse import CannedSend
 from bko.evaluate.run import method_arms

@@ -29,7 +29,7 @@ so both can be read beside the judged runs for free.
 
 Its E3 reading pairs with E3's recorded scores
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e3-synthea-downstream-augmentation)). E3's arms are
-`METHOD_ARMS` plus the BKO arms and `real` (`bko.evaluate.experiment.E3`), so a method that joins
+`METHOD_ARMS` plus the BKO arms and `real` (`bko.evaluate.named_runs.E3`), so a method that joins
 `METHOD_ARMS` would change E3's configuration; the seam below keeps E3 as its ADR fixes it.
 
 ## Scope
@@ -51,7 +51,7 @@ Its E3 reading pairs with E3's recorded scores
   joins E1's and E3's arms. The unit builds the seam first: `METHOD_ARMS` and `ADDS_ROWS` pinned to
   explicit tuples of today's six methods, with a test pinning E1's and E3's arms, comparators and
   replica arms; the new methods then join `ARMS` alone.
-- Two free named runs (`bko.evaluate.experiment.RUNS`), with no criterion and no BKO arm, so
+- Two free named runs (`bko.evaluate.named_runs.RUNS`), with no criterion and no BKO arm, so
   `score` takes no `--log` or `--candidates` and spends nothing: one on E1's holdouts over UCI,
   one on E3's holdouts, removal and copy rule over the Synthea frame. Each holds `METHOD_ARMS`,
   the two new methods and, on Synthea, `real`, with one new method as the candidate.

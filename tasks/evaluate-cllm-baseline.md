@@ -59,7 +59,7 @@ Its E3 reading pairs with E3's recorded scores, and E3's arms stay as its ADR fi
   a DUA unless a named permission for it is recorded
   ([`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets)).
 - E1, E3 and every run built from them keep their arms and comparators. The arm joins a new named
-  run per dataset (`bko.evaluate.experiment.RUNS`), with no criterion, the arm as the candidate
+  run per dataset (`bko.evaluate.named_runs.RUNS`), with no criterion, the arm as the candidate
   and `bko` beside it in-run, so the pair needs no reading across files: one on E1's holdouts over
   UCI and one on E3's holdouts, removal and copy rule over the Synthea frame, with `real`.
 - Each run's spend estimated before it, in its Runs row, for both Messages arms: the judged run's

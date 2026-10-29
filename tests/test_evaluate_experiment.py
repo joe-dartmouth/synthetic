@@ -8,7 +8,7 @@ from typing import Final
 
 import pytest
 
-from bko.baselines.request import Method, Strata, plan
+from bko.baselines.request import Strata, plan
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError
@@ -16,18 +16,15 @@ from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
     E1,
-    E3,
-    E3_SLICE_CEILING,
     METHOD_ARMS,
     REAL_ARM,
-    RUNS,
     Experiment,
-    NamedRun,
     Removal,
     flagged,
     gap_request,
     replica_request,
 )
+from bko.evaluate.named_runs import E3, E3_SLICE_CEILING, RUNS, NamedRun
 from bko.evaluate.run import run
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -50,8 +47,19 @@ def test_e1_judges_bko_against_every_method():
         "bko-population": Definition.POPULATION,
         "bko-frequency": Definition.FREQUENCY,
     }
-    assert E1.replica_arms == (*(m.value for m in Method if m.adds_rows), *BKO_ARMS)
+    assert E1.replica_arms == ("smote", "adasyn", "ctgan", "tvae", *BKO_ARMS)
     assert len(set(E1.holdout_seeds)) == len(E1.holdout_seeds) >= 2
+
+
+def test_e3_is_its_stated_configuration():
+    methods = ("none", "class-weight", "smote", "adasyn", "ctgan", "tvae")
+    assert E3.arms == (*methods, "bko", "bko-population", "bko-frequency", "real")
+    assert E3.comparators == methods
+    assert E3.replica_arms == ("smote", "adasyn", "ctgan", "tvae", *BKO_ARMS)
+    assert E3.removal == Removal((">=65", "female", 1), 0.9)
+    assert E3.decontaminate is False
+    assert E3.spend_ceiling == pytest.approx(65.0)
+    assert E3.criteria == ()
 
 
 def test_e1_is_its_stated_configuration():

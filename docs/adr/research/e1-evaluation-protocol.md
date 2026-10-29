@@ -40,7 +40,7 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
   rows match, their flagged-cell fingerprints match when both files hold one, and no arm in either
   file copied a test record, unless the experiment keeps copies. A variant is a named run:
-  `bko.evaluate.experiment.RUNS` maps a run name to its `Experiment`, generator `Settings` and
+  `bko.evaluate.named_runs.RUNS` maps a run name to its `Experiment`, generator `Settings` and
   dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take
   the name as a positional. A named run is a value fixed in code and committed, so it replays at its
   commit as E1 does, and

@@ -22,8 +22,8 @@ from bko.datasets.uci import FRAME_COLUMNS, NUMERIC, UCI_FRAME
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import RUNS, NamedRun
 from bko.evaluate.holdout_candidates import read
+from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.rehearse import (
     INPUT_PER_RECORD,
     OUTPUT_PER_RECORD,

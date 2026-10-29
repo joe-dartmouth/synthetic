@@ -124,7 +124,7 @@ spends nothing. Inside `.venv`, writing to the run's folder under the gitignored
 `score` and `compare` take an optional run name before their other arguments, as in
 `score <run> --log ...` and `compare <run> runs/<run-id>/scores.csv`; the default is `e1`. `launch`
 takes it after the run id, and there it defaults to the run id's entry. A named run is a value of
-`bko.evaluate.experiment.RUNS`. A run's folder under `runs/` is named by any
+`bko.evaluate.named_runs.RUNS`. A run's folder under `runs/` is named by any
 `bko.datasets.run_folders.RUN_ID`: `<entry>-<n>` with an optional suffix (ADR
 [`tooling/run-folders`](adr/tooling/run-folders.md)).
 
@@ -356,7 +356,7 @@ log); `crash` (F5 crash); `rehearsal`; `name` (the run id's resume folder name i
 the signal's number for a child a signal killed, or 2 when a resume is refused, a segment cannot
 start or the supervisor cannot run.
 
-- **What `score` does**: the named run's dataset (`bko.evaluate.experiment.NamedRun.dataset`)
+- **What `score` does**: the named run's dataset (`bko.evaluate.named_runs.NamedRun.dataset`)
   decides what it loads, as one `bko.evaluate.data.Data` every stage reads; for UCI it fetches UCI
   Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
   data with that seed and gives every arm the split's training rows and the request that fills
@@ -500,7 +500,7 @@ start or the supervisor cannot run.
   `level=`, `source=`, `measure=`, `scope=`, `reason=absent` or `reason=undefined`, `defined=`); a
   refused reading logs its `beside flagged` lines and the counts line alone. An experiment copies them into its Runs row in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
-- **Where the configuration lives**: `bko.evaluate.experiment.RUNS`. It holds `E1` as `e1`, `G2`
+- **Where the configuration lives**: `bko.evaluate.named_runs.RUNS`. It holds `E1` as `e1`, `G2`
   as `g2` ([EVIDENCE.md](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb)), each
   guidance-level run as `g3-<level>` ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)), each
   effort-sweep run as `g4-low` and `g4-medium` ([EVIDENCE.md](EVIDENCE.md#g4-effort-at-summary)),

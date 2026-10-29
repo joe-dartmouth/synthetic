@@ -57,7 +57,7 @@ flowchart LR
 - **No flag changes a value of `E1`** (`bko.evaluate.experiment`; ADR
   [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) rules out
   flags for the readings or the holdout count), so a variant is a configuration fixed in code and
-  selected by name, a value of `bko.evaluate.experiment.RUNS`.
+  selected by name, a value of `bko.evaluate.named_runs.RUNS`.
 - **A paid run starts with `launch` and stops on the rules of `bko.evaluate.watch`**, the paid-run
   protocol of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation), which every paid unit
   cites.

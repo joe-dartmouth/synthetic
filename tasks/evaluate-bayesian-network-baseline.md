@@ -51,7 +51,7 @@ E3's arms, as `evaluate-classical-baselines` says.
   `evaluate-classical-baselines` builds (`METHOD_ARMS` and `ADDS_ROWS` pinned to explicit tuples of
   today's six methods, with a test pinning E1's and E3's arms). If this unit lands first, it builds
   that seam itself.
-- Free named runs (`bko.evaluate.experiment.RUNS`), with no criterion and no BKO arm, the network
+- Free named runs (`bko.evaluate.named_runs.RUNS`), with no criterion and no BKO arm, the network
   as the candidate: on E1's holdouts over UCI, read by `compare --beside` E1's judged run's scores
   with `--beside-arm bko` and G2's scores with `--beside-arm bko-direct`; on E3's holdouts,
   removal and copy rule over the Synthea frame, read beside E3's merged scores with `--beside-arm

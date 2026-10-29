@@ -31,7 +31,7 @@ against the judged run's level, bounds and effort, which
 - `bko.generate.spend.PRICES` gains Sonnet 5.5's and Opus 5.5's rates, read from the pricing page
   `PRICES`' docstring names on the day they are added, with `tests/test_generate_spend.py` pinning
   the three rows.
-- Two named runs (`bko.evaluate.experiment.RUNS`) with the baselines and the `bko` arm at the judged
+- Two named runs (`bko.evaluate.named_runs.RUNS`) with the baselines and the `bko` arm at the judged
   configuration's level, bounds and effort, `SETTINGS.model` at Sonnet 5.5 and then at Opus 5.5,
   each run's spend estimated before it from the judged run's tokens per record asked at the
   model's rates. The Opus estimate at `e1-4`'s tokens per record asked (300.535 input, 211.162 output) passes

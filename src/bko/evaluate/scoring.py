@@ -24,9 +24,10 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS, NamedRun
+from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
 from bko.evaluate.guided import Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
+from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
