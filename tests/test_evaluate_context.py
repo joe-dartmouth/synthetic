@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import argparse
 import dataclasses
 import io
 
 import pytest
 
+import bko.evaluate.scoring as scoring_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.named_runs import NamedRun
-from bko.generate.local import LOCAL_MODELS
 from bko.generate.messages import SETTINGS, Call
+from bko.generate.weights import LOCAL_MODELS
 from tests._evaluate_bko_fixtures import NARROW, context, score_argv, scripted
 
 
@@ -41,7 +43,7 @@ def test_a_local_model_sends_through_the_local_factory(tmp_path):
 
     ctx, _ = context(refuse)
     run = NamedRun(NARROW, dataclasses.replace(SETTINGS, model=LOCAL))
-    ctx = dataclasses.replace(ctx, runs={"x1": run}, local_send=local)
+    ctx = dataclasses.replace(ctx, runs={"x1": run}, local_send=local, send=boom)
     argv = score_argv(tmp_path / "calls.jsonl", tmp_path, "x1")
     assert main(argv, context=ctx, out=io.StringIO()) == 0
     assert built == [LOCAL]
@@ -58,3 +60,25 @@ def test_an_api_model_never_reaches_the_local_factory(tmp_path):
     ctx = dataclasses.replace(ctx, local_send=local)
     assert main(score_argv(tmp_path / "calls.jsonl", tmp_path), context=ctx) == 0
     answers.assert_consumed()
+
+
+def boom():
+    pytest.fail("an API send was built for a local model's run")
+
+
+def test_a_resume_of_a_local_run_sends_through_the_local_factory(monkeypatch, tmp_path):
+    answers = scripted()
+    captured: list[object] = []
+
+    class Recorded:
+        def __init__(self, path, send) -> None:
+            captured.append(send)
+            raise SystemExit(0)
+
+    monkeypatch.setattr(scoring_module, "Resume", Recorded)
+    ctx, _ = context(answers)
+    ctx = dataclasses.replace(ctx, send=boom, local_send=lambda model: answers)
+    args = argparse.Namespace(replay=None, resume=tmp_path / "calls.jsonl")
+    with pytest.raises(SystemExit):
+        scoring_module._answers(args, ctx, LOCAL)
+    assert captured == [answers]

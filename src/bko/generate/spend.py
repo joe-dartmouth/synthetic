@@ -44,7 +44,7 @@ PRICES: Final = MappingProxyType(
 )
 """Each priced model's rates. Claude Haiku 5.5's were read 2026-10-19 from
 `platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, prompts up to 100,000
-tokens; a call's prompt is a few thousand). The local models (`bko.generate.local.LOCAL_MODELS`)
+tokens; a call's prompt is a few thousand). The local models (`bko.generate.weights.LOCAL_MODELS`)
 run on this machine and bill nothing."""
 
 

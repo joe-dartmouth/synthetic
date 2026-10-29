@@ -11,9 +11,9 @@ import pytest
 
 from bko.generate.calls import Batch, Generation
 from bko.generate.errors import GenerationError
-from bko.generate.local import LOCAL_MODELS
 from bko.generate.messages import SETTINGS, Usage
 from bko.generate.spend import PRICES, Price, cost, price_of
+from bko.generate.weights import LOCAL_MODELS
 from tests._generate_fixtures import CELL, reply
 
 

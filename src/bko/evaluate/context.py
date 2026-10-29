@@ -20,8 +20,9 @@ from bko.evaluate.rehearse import CannedSend, Rehearse
 from bko.evaluate.run import ARMS
 from bko.evaluate.supervise import Segment, run_segment
 from bko.generate.api import default_async_send
-from bko.generate.local import LOCAL_MODELS, local_send
+from bko.generate.local import local_send
 from bko.generate.messages import SETTINGS, AnySend, Settings
+from bko.generate.weights import LOCAL_MODELS
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -47,7 +48,7 @@ class Context:
         synthea_jar: The jar that population was generated with.
         send: Builds the send every BKO arm's call goes through, for an API model.
         local_send: Builds the send for an on-device model, given its id
-            (`bko.generate.local.LOCAL_MODELS`).
+            (`bko.generate.weights.LOCAL_MODELS`).
         rehearse: Builds the send a rehearsal answers every BKO call with.
         power: Whether the machine runs on battery, for `launch` and each `supervise` resume.
         start: Starts `launch`'s detached run.
@@ -81,7 +82,7 @@ class Context:
     def sender(self, model: str) -> Callable[[], AnySend]:
         """What builds the send for `model`'s calls.
 
-        `local_send` for an on-device model (`bko.generate.local.LOCAL_MODELS`), else `send`.
+        `local_send` for an on-device model (`bko.generate.weights.LOCAL_MODELS`), else `send`.
         """
         if model in LOCAL_MODELS:
             return lambda: self.local_send(model)

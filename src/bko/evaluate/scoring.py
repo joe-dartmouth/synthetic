@@ -33,7 +33,9 @@ from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
 from bko.generate.flight import Limits
+from bko.generate.local import SLOTS
 from bko.generate.replay import Answers, Replay, Resume
+from bko.generate.weights import LOCAL_MODELS
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -253,7 +255,9 @@ def _guided(
         origin=origin,
         send=context.sender(settings.model) if canned is None else lambda: canned,
         run=args.run,
-        limits=Limits(in_flight=args.in_flight, idle=experiment.idle_limit),
+        limits=Limits(
+            in_flight=_in_flight(args.in_flight, settings.model), idle=experiment.idle_limit
+        ),
         answers=answers,
         rehearsal=args.rehearse,
     ) as paid:
@@ -280,3 +284,14 @@ def _guided(
             on_holdout=paid.watch.holdout_done,
             frame=frame,
         )
+
+
+def _in_flight(asked: int, model: str) -> int:
+    """`asked` calls in flight, or at most the server's slots for an on-device model.
+
+    A call past the slots would queue inside the server while its idle limit ran.
+    """
+    if model not in LOCAL_MODELS or asked <= SLOTS:
+        return asked
+    logger.info("local in_flight=%d slots=%d asked=%d", SLOTS, SLOTS, asked)
+    return SLOTS

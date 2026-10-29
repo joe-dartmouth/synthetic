@@ -58,7 +58,16 @@ def test_generate_imports_no_release_loader():
 
 
 def test_generate_opens_no_other_network_client():
-    """`bko.generate.local` alone opens one: it posts to the loopback llama.cpp server and fetches
-    pinned weights over `bko.datasets.fetch.open_https`."""
+    """`bko.generate.local` alone opens one, `http.client` to the loopback llama.cpp server, and
+    parses its address with `urllib.parse`; `bko.generate.weights` names `http.client` for its
+    exceptions and downloads through `bko.datasets.fetch.open_https`."""
     clients = ("urllib", "http.client", "httpx2", "httpx", "requests")
-    assert _importers(*clients) == {Path("src/bko/generate/local.py")}
+    allowed = {Path("src/bko/generate/local.py"), Path("src/bko/generate/weights.py")}
+    assert _importers(*clients) == allowed
+    for path in allowed:
+        used = {
+            name
+            for name in _imported(REPO_ROOT / path)
+            if any(name == c or name.startswith(f"{c}.") for c in clients)
+        }
+        assert used <= {"http.client", "urllib.parse", "urllib.parse.urlsplit"}, path
