@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+import logging
 import math
 from datetime import date
 from fractions import Fraction
@@ -24,6 +25,7 @@ from bko.datasets.cells import cell_keys
 from bko.datasets.errors import DatasetError
 from bko.datasets.split import split
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
+from bko.datasets.synthea_run import RUN_RECORD_NAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.data import (
@@ -32,6 +34,9 @@ from bko.evaluate.data import (
     SYNTHEA_FRAME,
     SYNTHEA_INDICATORS,
     Data,
+    Dataset,
+    digest,
+    load,
 )
 from bko.evaluate.experiment import E3, RUNS, Removal
 from bko.evaluate.rehearse import CannedSend
@@ -99,12 +104,40 @@ def test_the_removal_thins_training_rows_only(tmp_path):
     assert none.empty
 
 
-def test_thinning_refuses_a_whole_fraction_or_an_empty_cell(tmp_path):
+@pytest.mark.parametrize("fraction", [1.0, 0.0, -0.1])
+def test_thinning_refuses_a_fraction_outside_0_and_1(tmp_path, fraction):
     train = split(_records(tmp_path), seed=0, edges=SYNTHEA_FRAME.edges).train
     with pytest.raises(DatasetError, match="must lie in"):
-        thinned(train, cell=REMOVED, edges=SYNTHEA_FRAME.edges, fraction=1.0, seed=0)
+        thinned(train, cell=REMOVED, edges=SYNTHEA_FRAME.edges, fraction=fraction, seed=0)
+
+
+def test_thinning_refuses_an_empty_cell(tmp_path):
+    train = split(_records(tmp_path), seed=0, edges=SYNTHEA_FRAME.edges).train
     with pytest.raises(DatasetError, match="holds no training row"):
         thinned(train, cell=("<40", "female", 1), edges=(40,), fraction=0.5, seed=0)
+
+
+def test_thinning_does_not_depend_on_the_rows_order(tmp_path):
+    train = split(_records(tmp_path), seed=0, edges=SYNTHEA_FRAME.edges).train
+    shuffled = train.sample(frac=1.0, random_state=7)
+    assert list(shuffled.index) != list(train.index)
+    options = {"cell": REMOVED, "edges": SYNTHEA_FRAME.edges, "fraction": 0.9, "seed": 5}
+    removed = thinned(train, **options)[1]
+    again = thinned(shuffled, **options)[1]
+    assert sorted(again.index) == sorted(removed.index)
+
+
+def _one_cell(rows: int) -> pd.DataFrame:
+    frame = pd.DataFrame({"age": [70] * rows, "sex": [0] * rows, "target": [1] * rows})
+    frame.index = pd.RangeIndex(1, rows + 1, name="record_id")
+    return frame
+
+
+@pytest.mark.parametrize(("fraction", "removed"), [(0.29, 29), (0.07, 7)])
+def test_thinning_counts_the_fraction_exactly_at_a_float_boundary(fraction, removed):
+    assert math.ceil(0.07 * 100) == 8, "the float product overshoots 7"
+    kept, out = thinned(_one_cell(100), cell=REMOVED, edges=(65,), fraction=fraction, seed=0)
+    assert (len(out), len(kept)) == (removed, 100 - removed)
 
 
 def test_a_removal_fraction_must_lie_strictly_between_0_and_1():
@@ -251,4 +284,38 @@ def test_canned_synthea_records_are_valid_in_cell_and_equal_no_real_record(tmp_p
         for train in trains:
             assert within_split(frame, train, frame=SYNTHEA_FRAME).all(axis=None)
         assert not real & set(frame.itertuples(index=False, name=None))
-    assert send.records < 5 * 20 + 1000
+    assert send.records == 5 * 20 + 3, "3 drawn records equal a real record and are skipped"
+
+
+def _loaded(data_dir: Path, caplog) -> Data:
+    with caplog.at_level(logging.INFO):
+        return load(Dataset.SYNTHEA, data_dir, _context())
+
+
+def test_loading_synthea_logs_its_data_line(tmp_path, caplog):
+    data = _loaded(_written(tmp_path), caplog)
+    expected = digest(_records(tmp_path / "again"))
+    assert data.digest == expected
+    lines = [m for m in caplog.messages if m.startswith("data ")]
+    assert lines == [f"data dataset=synthea frame=synthea records=310 digest={expected}"]
+
+
+def _written(tmp_path: Path) -> Path:
+    data_dir = tmp_path / "data"
+    write_population(data_dir)
+    return data_dir
+
+
+def test_loading_synthea_refuses_a_missing_population(tmp_path, caplog):
+    with pytest.raises(DatasetError, match="unreadable record"):
+        _loaded(tmp_path / "empty", caplog)
+
+
+def test_loading_synthea_refuses_a_stale_run_record(tmp_path, caplog):
+    data_dir = _written(tmp_path)
+    (record,) = data_dir.rglob(RUN_RECORD_NAME)
+    written = json.loads(record.read_text(encoding="utf-8"))
+    written["run"]["seed"] += 1
+    record.write_text(json.dumps(written), encoding="utf-8")
+    with pytest.raises(DatasetError, match="differs from this run in"):
+        _loaded(data_dir, caplog)

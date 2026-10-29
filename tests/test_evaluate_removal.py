@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from hashlib import sha256
 
 import pandas as pd
 import pytest
@@ -20,7 +19,14 @@ from bko.datasets.split import split
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.data import SYNTHEA_FRAME
 from bko.evaluate.experiment import E1, E3, REAL_ARM, Removal, flagged
-from bko.evaluate.run import held_out_ratio, method_arms, prepared, run, score_holdout
+from bko.evaluate.run import (
+    fingerprint,
+    held_out_ratio,
+    method_arms,
+    prepared,
+    run,
+    score_holdout,
+)
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source
 from tests._evaluate_fixtures import FAST_METHODS
 from tests._frame_fixtures import TOY, TOY_PARTS, toy_records
@@ -163,8 +169,23 @@ def test_the_real_arm_needs_no_runner():
     assert real == set(TOY_E3.holdout_seeds)
 
 
-def fingerprint(cells):
-    return float(int(sha256(repr(sorted(cells)).encode()).hexdigest()[:12], 16))
+REMOVED_FINGERPRINT = 24999450082532.0
+"""`fingerprint([REMOVED])`: `0x16bca3577ce4`, the first 12 hex digits of the sha256 of
+`[('>=70', 'female', 1)]`, as `printf %s ... | shasum -a 256` prints it."""
+
+
+@pytest.mark.parametrize(
+    ("cells", "expected"),
+    [
+        ([REMOVED], REMOVED_FINGERPRINT),
+        ([("<65", "male", 0), (">=65", "female", 1)], 99330652312041.0),
+        ([(">=65", "female", 1), ("<65", "male", 0)], 99330652312041.0),
+        ([], 87221350796331.0),
+    ],
+    ids=["one", "two", "two-reversed", "none"],
+)
+def test_the_fingerprint_of_fixed_cells(cells, expected):
+    assert fingerprint(cells) == expected
 
 
 def test_the_flagged_subgroup_is_the_removed_cells_subgroup():
@@ -175,10 +196,10 @@ def test_the_flagged_subgroup_is_the_removed_cells_subgroup():
         assert flagged(train, TOY_E3, edges=TOY.edges) == (REMOVED,)
         mine = [s for s in scores if s.holdout == seed]
         value = held_out(mine, Measure.FLAGGED_FINGERPRINT)
-        assert value == fingerprint([REMOVED])
+        assert value == REMOVED_FINGERPRINT
         assert value < 2**48
     unthinned = flagged(TOY_PARTS.train, TOY_E3, edges=TOY.edges)
-    assert fingerprint(unthinned) != fingerprint([REMOVED])
+    assert fingerprint(unthinned) != REMOVED_FINGERPRINT
 
 
 @pytest.mark.parametrize("decontaminate", [False, True])

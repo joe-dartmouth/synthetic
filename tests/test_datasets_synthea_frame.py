@@ -149,3 +149,31 @@ def test_indicator_names_must_be_unique_and_not_the_frames_own(labels, message):
     )
     with pytest.raises(ValueError, match=message):
         indicators(rows)
+
+
+def test_the_frame_pins_its_columns_and_age_range():
+    assert SYNTHEA_FRAME.columns == (
+        "age",
+        "sex",
+        "essential_hypertension",
+        "type_2_diabetes_mellitus",
+        "hyperlipidemia",
+        "myocardial_infarction",
+        "st_elevation_myocardial_infarction",
+        "stroke_disorder",
+        "target",
+    )
+    (age,) = SYNTHEA_FRAME.ranges
+    assert (age.field, age.unit, age.low, age.high) == ("age", "a", 40, 120)
+
+
+def test_the_frame_bytes_do_not_depend_on_the_patients_tables_order(tmp_path):
+    directory = write_population(tmp_path)
+    expected = digest(_frame(_population(tmp_path)))
+    table = directory / "csv" / "patients.csv"
+    header, *rows = table.read_text(encoding="utf-8").splitlines(keepends=True)
+    shuffled = rows[1::2] + rows[::2]
+    assert shuffled != rows
+    table.write_text("".join([header, *shuffled]), encoding="utf-8")
+    population = load_population(directory, snapshot_date=date(2026, 1, 1))
+    assert digest(_frame(population)) == expected
