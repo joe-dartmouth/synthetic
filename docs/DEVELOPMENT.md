@@ -157,8 +157,10 @@ scores file over the holdouts both hold, at the run's confidence with no verdict
 holds is not counted. A holdout pairs only when its held-out rows match, both files flagged the
 same cells there, and no arm in either file copied a test record there, since the test split loses
 every record any arm copied. A run that keeps copies (`e3` and its slices, whose experiment sets
-`decontaminate` false) scores every arm on the whole test split, so for it a copy excludes no
-holdout. Held-out rows match when both files record equal held-out summary scores on the holdout,
+`decontaminate` false) scores every arm on the whole test split and writes a `copies-kept`
+held-out row on each holdout, so in its reading a copy excludes no holdout where both files hold
+that row; beside a file without it, a copy in either file still excludes its holdout. Held-out
+rows match when both files record equal held-out summary scores on the holdout,
 and the flagged cells match when both files' `flagged-fingerprint` held-out scores are equal or
 either file lacks one; `bko.evaluate.beside.pairable` is the one home of the exact rule. The other
 shared holdouts are counted as excluded, split into copied and mismatched; a holdout whose flagged

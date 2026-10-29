@@ -173,7 +173,8 @@ def score_holdout(
 
     The holdout's training rows are `parts`' after the experiment's removal (`prepared`); the
     held-out ratio reads `parts` itself. `REAL_ARM` adds the removed rows, with no runner. The
-    held-out rows end with the flagged cells' `fingerprint`.
+    held-out rows end with the flagged cells' `fingerprint`, then, for an experiment that keeps
+    copies, `Measure.COPIES_KEPT`.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -231,6 +232,7 @@ def score_holdout(
             Measure.HELD_OUT_RATIO: held_out_ratio(whole, edges=frame.edges),
             **distances(parts.test, train, frame=frame),
             Measure.FLAGGED_FINGERPRINT: fingerprint(cells),
+            **({} if experiment.decontaminate else {Measure.COPIES_KEPT: 1.0}),
         },
     )
     for name in experiment.arms:

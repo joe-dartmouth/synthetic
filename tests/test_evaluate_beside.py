@@ -434,9 +434,19 @@ def test_beside_pairs_old_files_without_a_fingerprint():
     assert pairable(theirs, ours).holdouts == frozenset(range(4))
 
 
+def kept(rows):
+    """`rows` with a copies-kept held-out row on each of their holdouts, as a keeping run writes."""
+    holdouts = sorted({s.holdout for s in rows})
+    copies = Measure.COPIES_KEPT
+    return [
+        *rows,
+        *(Score(h, HELD_OUT_ARM, Source.HELD_OUT, copies, Scope.ALL, 1.0) for h in holdouts),
+    ]
+
+
 def test_pairable_allows_copies_for_a_run_that_keeps_them(tmp_path, caplog):
     ours = replaced(scores(range(4), shifts=OURS), 2, "smote", Source.ADDED, Measure.TEST_COPIES, 3)
-    theirs = scores(range(4), shifts=THEIRS)
+    ours, theirs = kept(ours), kept(scores(range(4), shifts=THEIRS))
     assert pairable(ours, theirs).copied == 1
     assert pairable(ours, theirs, allow_copies=True) == Pairing(
         frozenset(range(4)), shared=4, copied=0, mismatched=0
@@ -447,3 +457,22 @@ def test_pairable_allows_copies_for_a_run_that_keeps_them(tmp_path, caplog):
         code = main(["compare", str(paths[0]), "--beside", str(paths[1])], context=keeps)
     assert code == 0
     assert " shared=4 paired=4 excluded=0 copied=0 mismatched=0 " in caplog.text
+
+
+@pytest.mark.parametrize("copied", ["ours", "theirs"])
+def test_a_copy_beside_a_decontaminating_file_still_excludes_its_holdout(copied):
+    ours, theirs = kept(scores(range(4), shifts=OURS)), scores(range(4), shifts=THEIRS)
+    if copied == "ours":
+        ours = replaced(ours, 2, "smote", Source.ADDED, Measure.TEST_COPIES, 1.0)
+    else:
+        theirs = replaced(theirs, 2, "smote", Source.ADDED, Measure.TEST_COPIES, 1.0)
+    found = pairable(ours, theirs, allow_copies=True)
+    assert found == Pairing(frozenset({0, 1, 3}), shared=4, copied=1, mismatched=0)
+    assert pairable(theirs, ours, allow_copies=True) == found
+
+
+def test_the_copies_kept_row_is_not_a_held_out_score_to_match():
+    ours, theirs = kept(scores(range(4), shifts=OURS)), scores(range(4), shifts=THEIRS)
+    whole = Pairing(frozenset(range(4)), shared=4, copied=0, mismatched=0)
+    assert pairable(ours, theirs) == whole
+    assert pairable(ours, theirs, allow_copies=True) == whole

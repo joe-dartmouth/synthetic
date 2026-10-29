@@ -75,8 +75,11 @@ figure below is what the command beside it in Rationale prints against that popu
   ([C9]). The ablated cell's 13/5 = 2.6 is not used.
 - **Copies**: counted, not removed (`Experiment.decontaminate` is false for E3): a test record an
   arm copies stays in the test split every arm is scored on, and the `test-copies` scores and the
-  `test` log line still count it. `compare` calls `bko.evaluate.beside.pairable` with
-  `allow_copies` for such a run, so a copy excludes no holdout from a reading beside another file.
+  `test` log line still count it. Each holdout of such a run writes a `copies-kept` held-out row
+  (value 1.0), and a decontaminating run writes none. `compare` calls
+  `bko.evaluate.beside.pairable` with `allow_copies` for such a run, so a copy excludes no holdout
+  where both files hold `copies-kept`; beside a file that lacks it there, a copy in either file
+  excludes the holdout, since that file scored its arms on a split without the copied records.
 - **Privacy**: the distance-to-closest-record rows are reported with no verdict.
 - **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.

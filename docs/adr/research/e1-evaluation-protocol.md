@@ -172,8 +172,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   test record that some arm's added or replica rows copy in every column leaves the test split every
   arm's utility is then scored on. No classifier is then scored on a record it trained on, and the
   comparison stays paired. The held-out ratio and the test rows' distance to closest record read the
-  whole split. An experiment with `decontaminate` false keeps copied records in the split and
-  counts them only.
+  whole split. An experiment with `decontaminate` false keeps copied records in the split, counts
+  them only, and writes a `copies-kept` held-out row on each holdout so a scores file says which
+  rule scored it.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
