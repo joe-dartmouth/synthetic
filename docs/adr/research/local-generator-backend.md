@@ -88,6 +88,13 @@ a difference between them mixes the model with thinking; a local run takes hours
 time; the weights take tens of gigabytes under `data/models/`; `llama-server`'s build is logged per
 run (the `local server` line) rather than locked.
 
+**Measured 2026-10-29** with Homebrew `llama-server` 0.8.0 (build `b11960-8642541b2`) on an Apple M5
+Max: `fetch` verified each file against its entry, and `probe` against each served model, every
+`local server` line reading build `b11960-8642541b2` and four slots, decoded four of four records
+of `<55/female/1` ending `end_turn`: Olmo 3 7B Instruct 567 input and 466 output tokens in 9.3 s,
+Gemma 4 26B-A4B 584 and 554 in 10.8 s, Nemotron 3 Nano 30B-A3B 583 and 424 in 6.4 s (the `probe`
+lines in `scratchpad/probe-*.log`).
+
 ## Ruled Out
 
 | Idea | Why ruled out | When |
