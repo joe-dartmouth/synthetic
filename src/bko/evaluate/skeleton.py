@@ -21,6 +21,7 @@ import pandas as pd
 from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.fills import CURRENT_FILL
 from bko.gaps.observe import Cell
 from bko.generate.direct import label_only, sample
 from bko.generate.errors import SamplingError
@@ -46,6 +47,7 @@ def prescriber(knowledge: Knowledge) -> Prescribe:
 
     def prescribe(train: pd.DataFrame, request: Request) -> Lines:
         rows = knowledge.field_rows
+        fill = CURRENT_FILL.get()
         try:
             drawn = sample(
                 train,
@@ -55,6 +57,7 @@ def prescriber(knowledge: Knowledge) -> Prescribe:
                 name=knowledge.name,
                 seed=request.seed,
                 frame=request.frame,
+                tag=None if fill is None else (fill.holdout, fill.kind),
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc

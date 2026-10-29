@@ -21,7 +21,8 @@ in flight together never share a count, and
 `Attempts.handle` and `Attempts.handle_async` log each retryable status as a `retry` line naming
 the call (`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's
 `retry-after`. The SDK's own retry records, which a connection error or a timeout also produces,
-name the call through `CallTag`, which `install_call_tag` adds to the SDK's client logger.
+name the call through `CallTag`, which `default_send` and `default_async_send` add to the SDK's
+client logger (`install_call_tag`).
 """
 
 from __future__ import annotations
@@ -254,8 +255,9 @@ class CallTag(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Tag `record` when a call is in flight; never drop it."""
         number = CALL_NUMBER.get()
-        if number > 0:
+        if number > 0 and not getattr(record, "call_tagged", False):
             record.msg = f"{record.msg} call={number}"
+            record.call_tagged = True
         return True
 
 
@@ -306,6 +308,7 @@ def default_send() -> Send:
     through `Attempts`.
     """
     probe = Attempts()
+    install_call_tag()
     client = anthropic.Anthropic(middleware=[probe], max_retries=MAX_RETRIES, timeout=TIMEOUT)
     return send_with(client, attempts=probe)
 
@@ -354,6 +357,7 @@ def default_async_send() -> AsyncSend:
     The client retries `MAX_RETRIES` times within `TIMEOUT`, as `default_send`'s does, and
     registers `Attempts`.
     """
+    install_call_tag()
     client = anthropic.AsyncAnthropic(
         middleware=[Attempts()], max_retries=MAX_RETRIES, timeout=TIMEOUT
     )

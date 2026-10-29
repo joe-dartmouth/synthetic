@@ -110,9 +110,10 @@ class _Wave:
         answered: The numbers of the calls whose `reply` or `error` line is written.
         reserved: Each call still in flight's reservation in USD, by its number.
         idle: Each call's `IdleError`, by its number, once it has fired.
-        cause: What first stopped the wave's loop: an interrupt, as `KeyboardInterrupt` or as the
-            cancellation of the wave's own task by `asyncio.Runner`'s SIGINT handler, or another
-            `BaseException`; None while nothing has.
+        cause: What first stopped the wave's loop, or None while nothing has. An interrupt is
+            recorded as `KeyboardInterrupt`, whether raised as one or delivered as a cancellation
+            of the wave's own task, which `asyncio.Runner`'s SIGINT handler makes on the main
+            thread; any other `BaseException` is recorded as itself.
     """
 
     slots: asyncio.Semaphore
@@ -134,7 +135,7 @@ class _Wave:
 
         A cancellation an interrupt caused records `KeyboardInterrupt`; anything else, itself.
         """
-        interrupted = isinstance(self.cause, (KeyboardInterrupt, asyncio.CancelledError))
+        interrupted = isinstance(self.cause, KeyboardInterrupt)
         if isinstance(error, asyncio.CancelledError) and interrupted:
             return KeyboardInterrupt()
         return error
@@ -298,9 +299,13 @@ class Flight:
             stopped = exc
             await asyncio.gather(*wave.flying.values(), return_exceptions=True)
         except BaseException as exc:
-            # A cancellation here first is the SIGINT handler's: the flight cancels this task
-            # only in `_settle`, after it has recorded what stopped the loop.
-            wave.stop(exc)
+            # A cancellation of this task itself is an interrupt: the flight cancels it only in
+            # `_settle`, after recording what stopped the loop, so a first one is the SIGINT
+            # handler's. A call's own `CancelledError` re-raised below is not one.
+            current = asyncio.current_task()
+            external = current is not None and current.cancelling() > 0
+            cancelled = isinstance(exc, asyncio.CancelledError) and external
+            wave.stop(KeyboardInterrupt() if cancelled else exc)
             for task in wave.flying.values():
                 task.cancel()
             await asyncio.gather(*wave.flying.values(), return_exceptions=True)

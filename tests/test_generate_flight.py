@@ -587,6 +587,10 @@ def test_each_landed_line_carries_the_calls_in_flight(tmp_path, caplog):
     assert all(float(f[2]) >= STEP / 3 for f in found if f)
 
 
+@pytest.mark.skipif(
+    signal.getsignal(signal.SIGINT) is not signal.default_int_handler,
+    reason="asyncio.Runner installs its SIGINT handler only over the default one",
+)
 def test_a_real_sigint_records_keyboard_interrupt(tmp_path):
     def send(call: Call):
         number = _asked(call)
@@ -628,4 +632,20 @@ def test_a_non_interrupt_exit_still_cancels_with_cancelled_error(tmp_path):
     ):
         flight.wave(PLAN)
     errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
-    assert errors[1] == "CancelledError"
+    assert errors == {1: "CancelledError", 2: "SystemExit"}
+    assert [line["call"] for line in _lines(log) if line["kind"] == "reply"] == [3]
+
+
+def test_a_call_cancelled_on_its_own_is_no_interrupt(tmp_path):
+    """A send that ends in `CancelledError` of its own records it as itself, and the wave
+    raises it unchanged: nothing marks it an operator's interrupt."""
+    send = Delayed(fail={3: asyncio.CancelledError()})
+    log = _log(tmp_path)
+    with (
+        pytest.raises(asyncio.CancelledError),
+        log,
+        Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight,
+    ):
+        flight.wave(PLAN)
+    errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
+    assert errors == {3: "CancelledError"}

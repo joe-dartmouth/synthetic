@@ -24,7 +24,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from types import MappingProxyType
-from typing import Final, Literal
+from typing import Final
 
 import pandas as pd
 
@@ -47,7 +47,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.fidelity import fidelity
-from bko.evaluate.fills import CURRENT_FILL, Fill
+from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
@@ -286,7 +286,7 @@ def _fill(
     holdout: int,
     attempts: int,
     name: str,
-    kind: Literal["gap", "replica"],
+    kind: FillKind,
 ) -> Baseline:
     """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
 

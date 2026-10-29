@@ -17,6 +17,7 @@ import pytest
 import bko.generate.api as api_module
 from bko.generate.api import (
     MAX_RETRIES,
+    SDK_CLIENT_LOGGER,
     Attempts,
     CallTag,
     async_send_with,
@@ -505,8 +506,8 @@ def test_a_failure_is_retryable_when_the_api_caused_it(monkeypatch, build, retry
 
 
 def _retry_record() -> logging.LogRecord:
-    return logging.getLogger("anthropic._base_client").makeRecord(
-        "anthropic._base_client",
+    return logging.getLogger(SDK_CLIENT_LOGGER).makeRecord(
+        SDK_CLIENT_LOGGER,
         logging.INFO,
         __file__,
         0,
@@ -544,8 +545,34 @@ def test_concurrent_calls_tag_their_own_retry_records():
     assert [line.rsplit(" ", 1)[1] for line in asyncio.run(both())] == ["call=3", "call=4"]
 
 
+def test_a_record_tagged_twice_carries_one_tag():
+    record = _retry_record()
+    contextvars.Context().run(lambda: (CALL_NUMBER.set(5), _tagged(record), _tagged(record)))
+    assert record.getMessage().endswith("seconds call=5")
+
+
+@pytest.mark.parametrize("build", [api_module.default_send, api_module.default_async_send])
+def test_each_client_builder_tags_the_sdks_retry_records(build, monkeypatch, caplog):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    sdk = logging.getLogger(SDK_CLIENT_LOGGER)
+    before = list(sdk.filters)
+    try:
+        sdk.filters[:] = [f for f in sdk.filters if not isinstance(f, CallTag)]
+        build()
+
+        def retry() -> None:
+            CALL_NUMBER.set(9)
+            sdk.info("Retrying request to %s in %f seconds", "/v1/messages", 0.5)
+
+        with caplog.at_level(logging.INFO, logger=SDK_CLIENT_LOGGER):
+            contextvars.Context().run(retry)
+        assert "Retrying request to /v1/messages in 0.500000 seconds call=9" in caplog.messages
+    finally:
+        sdk.filters[:] = before
+
+
 def test_installing_the_call_tag_twice_installs_one_filter():
-    sdk = logging.getLogger("anthropic._base_client")
+    sdk = logging.getLogger(SDK_CLIENT_LOGGER)
     before = list(sdk.filters)
     try:
         install_call_tag()

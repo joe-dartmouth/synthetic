@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import io
 import json
+import logging
 import re
 from collections.abc import Mapping
 from functools import partial
@@ -30,6 +31,7 @@ from bko.evaluate.experiment import (
     RUNS,
     SKELETON_ARM,
 )
+from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.guided import GuidedArm, _committer, spendable
 from bko.evaluate.rehearse import CannedSend
 from bko.evaluate.scores import Measure, Source
@@ -247,6 +249,20 @@ def test_lines_are_drawn_once_per_request_and_equal_bko_directs_draw(tmp_path, m
         for text in _lines(send.calls[0])
     ]
     assert tuple(asked) == expected[YOUNG_SICK]
+
+
+def test_the_prescribe_draw_names_the_harness_fill(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger="bko.generate.direct")
+    known = knowledge(tmp_path / "data")
+    rows = train(tmp_path / "train")
+    token = CURRENT_FILL.set(Fill(4, "replica"))
+    try:
+        prescriber(known)(rows, REQUEST)
+    finally:
+        CURRENT_FILL.reset(token)
+    lines = [m for m in caplog.messages if m.startswith("direct holdout=")]
+    assert lines
+    assert all(m.startswith("direct holdout=4 fill=replica key=") for m in lines)
 
 
 def test_existing_arms_keep_their_attempt_line_and_measures(tmp_path):
