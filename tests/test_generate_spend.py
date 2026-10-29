@@ -56,10 +56,18 @@ def test_spend_sums_over_calls():
     assert Generation(batches).usd == pytest.approx(3 * (0.10 + 0.25))
 
 
-def test_the_priced_models_are_haiku_and_the_local_three():
+def test_the_priced_models_are_haiku_sonnet_and_the_local_three():
     assert SETTINGS.model == HAIKU
-    assert set(PRICES) == {HAIKU, *LOCAL_MODELS}
+    assert set(PRICES) == {HAIKU, "claude-sonnet-5-5", *LOCAL_MODELS}
     assert price_of(HAIKU) == Price(input=0.10, output=0.50, cache_write=0.125, cache_read=0.01)
+    assert price_of("claude-sonnet-5-5") == Price(
+        input=2.0, output=10.0, cache_write=2.5, cache_read=0.1
+    )
+
+
+def test_price_of_an_unpriced_model_raises():
+    with pytest.raises(GenerationError, match="no price for model claude-opus-5-5"):
+        price_of("claude-opus-5-5")
 
 
 def test_local_models_are_priced_at_zero():
