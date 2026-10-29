@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 
+import bko.fusion.__main__ as fusion_main
 import bko.gaps.__main__ as gaps_command
+from bko.bkb.errors import DocumentFormatError, FusionError, QueryError
 from bko.datasets.sources import Source
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME, load_uci
@@ -490,3 +492,20 @@ def test_the_header_line_logs_what_fusion_does_not_compare(tmp_path, caplog):
         message.startswith("header request=completeness definition=per-subgroup guidance=cell ")
         for message in messages(caplog)
     )
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [(QueryError("x"), 2), (FusionError("x"), 2), (DocumentFormatError("x"), 3)],
+)
+def test_a_bkb_error_is_a_logged_refusal(error, code, tmp_path, monkeypatch, caplog):
+    def raise_it(path, data_dir, context):
+        raise error
+
+    monkeypatch.setattr(fusion_main, "_run", raise_it)
+    out = io.StringIO()
+    argv = [str(tmp_path / "candidates.jsonl"), "--data-dir", str(tmp_path)]
+    with caplog.at_level(logging.ERROR):
+        assert main(argv, context=Context(), out=out) == code
+    assert out.getvalue() == ""
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR] == ["x"]

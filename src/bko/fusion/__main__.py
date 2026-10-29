@@ -37,6 +37,7 @@ from typing import Final, TextIO
 
 import pandas as pd
 
+from bko.bkb.errors import BKBError
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
@@ -91,7 +92,8 @@ def main(
         out: Where the report goes; stdout when omitted.
 
     Returns:
-        0 done, 2 the command could not run, 3 an input contradicts its contract, pin or schema.
+        0 done, 2 the command could not run, a BKB error included, 3 an input contradicts its
+            contract, pin or schema, a malformed BKB document included.
         Any other exception propagates, so the process exits 1.
     """
     args = _parser().parse_args(argv)
@@ -100,7 +102,7 @@ def main(
         rows = _run(args.candidates, data_dir, Context() if context is None else context)
         text = _csv(rows)
         (out or sys.stdout).write(text)
-    except DatasetError as exc:
+    except (DatasetError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code

@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, TextIO
 
+from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
@@ -115,7 +116,8 @@ def main(
         out: Where the report goes; stdout when omitted.
 
     Returns:
-        0 done, 2 the command could not run, 3 the data contradicts its pin or schema.
+        0 done, 2 the command could not run, a BKB error included, 3 the data contradicts its pin
+            or schema or a BKB document is malformed.
     """
     args = _parser().parse_args(argv)
     try:
@@ -128,7 +130,7 @@ def main(
             importlib.metadata.version("scipy"),
         )
         rows = command(data_dir, Context() if context is None else context)
-    except DatasetError as exc:
+    except (DatasetError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code
