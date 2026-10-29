@@ -3,7 +3,7 @@
 Every level carries the cell, its training record count and each numeric field's interval: its
 training-split minimum and maximum, age intersected with the cell's band. Higher levels add
 ontology findings, a profile of concept shares and numeric spreads. The numeric fields and the
-band edges are the frame's, UCI's by default. ADR `research/record-generation-design` records
+band edges are the frame's, a required keyword. ADR `research/record-generation-design` records
 the ladder.
 """
 

@@ -117,7 +117,8 @@ def main(
 
     Returns:
         0 done, 2 the command could not run, a BKB error included, 3 the data contradicts its pin
-            or schema or a BKB document is malformed.
+            or schema or a BKB document is malformed. Any other exception propagates, so the
+            process exits 1.
     """
     args = _parser().parse_args(argv)
     try:

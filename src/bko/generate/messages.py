@@ -8,7 +8,7 @@ each record's shape and codes: each coded field is an `enum` over its codebook, 
 and `target` are pinned to one value each, and the whole-number fields are `integer`. Structured
 outputs cannot bound a number, so the bounds (the user turn's, taken from the training split) and
 `oldpeak`'s one decimal are stated in the prompt; the system prompt holds no range. Each
-call carries its frame (`bko.datasets.frames.FrameSpec`), UCI's by default. ADR
+call carries its frame (`bko.datasets.frames.FrameSpec`), a required field. ADR
 `research/record-generation-design` records why.
 """
 

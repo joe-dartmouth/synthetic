@@ -20,12 +20,12 @@ from typing import Final
 
 import pandas as pd
 
-from bko.datasets.cells import AGE_BAND_EDGES, CELL_COLUMNS, cell_keys
+from bko.datasets.cells import CELL_COLUMNS, cell_keys
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import Source
-from bko.datasets.uci import load_uci
+from bko.datasets.uci import UCI_FRAME, load_uci
 
 
 logger = logging.getLogger("bko.datasets")
@@ -127,7 +127,7 @@ def uci_split(
         DatasetError: As `ensure` and `load_uci`.
     """
     ensure(source, data_dir, open_url=open_url)
-    parts = split(load_uci(data_dir, source=source), seed=seed, edges=AGE_BAND_EDGES)
+    parts = split(load_uci(data_dir, source=source), seed=seed, edges=UCI_FRAME.edges)
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
         parts.seed,

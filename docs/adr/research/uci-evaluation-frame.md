@@ -55,8 +55,9 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   The generate stage, the evaluate stage's scoring helpers and `bko.validate`'s entry points take
   the frame as a required keyword, the call log requires the frame's name, and the cell helpers
   (`bko.datasets.split.split`, `bko.datasets.cells.cell_keys` and `cell_counts`,
-  `bko.gaps.observe.record_cells`, `bko.fusion.join.join`) require the band edges, so no caller
-  holding another frame falls back to UCI's. The baselines take the frame on their `Request`.
+  `bko.gaps.observe.record_cells`, `bko.fusion.join.join`) require the band edges, so none of
+  them falls back to UCI's for a caller holding another frame. The baselines read the frame from
+  their `Request`, whose field defaults to `UCI_FRAME`.
 - **One frame value per named run**: `bko.evaluate.experiment.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name and the sha256 of its records), and every stage of `score` reads its frame from

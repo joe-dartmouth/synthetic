@@ -4,7 +4,7 @@ The criteria read a logistic regression (`Model.LR`); a histogram gradient boost
 (`Model.HGB`) is scored beside it with no verdict. Coded predictors are one-hot encoded over their
 codebook, so every fit has the same columns whatever codes its training rows hold; the regression
 also standardises measured predictors, which the trees split on as they are. The fields and
-codebook are the frame's, UCI's by default. The weights reach the model only, as
+codebook are the frame's, which every builder requires. The weights reach the model only, as
 `class_weight="balanced"` would. Every fit runs on one OpenMP thread. ADR
 `research/e1-evaluation-protocol` records why.
 """

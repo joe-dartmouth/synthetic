@@ -2,7 +2,8 @@
 
 The report's default thresholds leave out every column pair whose real correlation or association
 is weak, which on this frame drops most pairs and changes the set from split to split; both are set
-to 0, so the same pairs count every time. The table is named for the frame, UCI's by default.
+to 0, so the same pairs count every time. The table is named for the frame, which each function
+requires.
 """
 
 from __future__ import annotations
