@@ -136,11 +136,15 @@ makes no call log, so it refuses `--log`, `--replay`, `--resume` and `--rehearse
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score g2 --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
 
-Its stderr carries, from logger `bko.evaluate.direct`, a `direct arm=` line per attempt (`seed=`,
-`outcome=` and the attempt's counts) and the arm's `validity` sums at the end, as a BKO arm's;
-and from logger `bko.generate.direct`, for every fill, a `direct key=` line per cell (rows, the
-cell's records, its label group's records) and a `fallback` line per cell and field read from the
-label group. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
+Its stderr carries, from logger `bko.evaluate.direct`, a
+`direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s` line per attempt (the attempt's counts
+last) and the arm's `validity` sums at the end, as a BKO arm's; and from logger
+`bko.generate.direct`, for every fill, a
+`direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d` line per cell (rows, the
+cell's records, its label group's records) and a
+`fallback holdout=%d fill=%s key=%s field=%s draws=%d` line per cell and field read from the
+label group. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a
+harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone, since `G2` judges no criterion, and
 logs every criterion's intervals as `unjudged` lines.
 
 `merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
@@ -439,24 +443,29 @@ start or the supervisor cannot run.
   each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its
-  attempt ends, and, from logger `bko.generate.direct`, the `direct key=` and `fallback` lines of
+  attempt ends, and, from logger `bko.generate.direct`, the `direct holdout=` and `fallback` lines of
   each attempt's draw of its lines, as `g2` logs them. It logs a `spend` line before each BKO call
   with the run's spend so far and the ceiling, a
   `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call waits
   for the calls in flight because their reservations reach the ceiling, a `halt call=%d unsent=%d`
   line when a wave sends no more calls after a failure, naming the first call not sent and the
   planned calls left, a `stop rule=idle call=%d limit_seconds=%.1f` WARNING naming the lowest call
-  the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines,
+  the idle rule stopped, `bko.generate`'s `log` line (with `in_flight=`) and per-call lines (each landed call's
+`generate call=... request_id=%s elapsed_s=%.3f in_flight=%d` line gives its seconds from send to
+landing and the calls in flight when it landed),
   `bko.validate`'s line per batch it checks, `validated generated=%d passed=%d rejected=%d %s
   frame=%s` (the `%s` before `frame=` is each failed check's `<check>=<count>`, space-separated,
   or `none`), or for a batch with no candidates the WARNING `validated no candidates frame=%s, so
   validity is undefined`, a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
-  left, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
+  left, the SDK's own retry records from logger `anthropic._base_client`, which carry ` call=%d`
+while a call is in flight, the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test holdout=%d records=%d copied=%d kept=%s` line
   per holdout, `copied=` counting the test records some arm's added or replica row equals in every
   frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
-  `kept=true`), and at
+  `kept=true`), a `training holdout=%d arm=%s fill=%s rows=%d copies=%d` line per arm and fill
+  after it, `copies=` counting the arm's added rows that equal some training row in every frame
+  column, and at
   the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
@@ -466,8 +475,10 @@ start or the supervisor cannot run.
   for a cut final line it drops from the stopped log and one for each call it drops: the unanswered
   last call, or for a concurrent log every call from the first unanswered one. It logs a `resume
   live from call` line before its first live call. A fill that stops the run logs a `refused` or
-  `contract` error naming the holdout and arm. `compare` logs a `compare` line with the candidate,
-  whether it is a dry run and the scores file's sha256,
+  `contract` error naming the holdout and arm. `compare` logs a
+  `compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s` line with the candidate,
+  whether it is a dry run, the scores file's sha256, the run's name and its guidance level
+  (`none` for a run with no Messages arm),
   then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
   `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
   `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure
@@ -777,12 +788,15 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   409 or 429, or a status of 500 or above), `rate_limited` (whether any retry met a 429) and totals,
   `live_usd` among them, each call's whole request and response and its USD spend included. An
   interrupt or any other failure between a `request` line and its `reply` line writes the `error`
-  line. stderr gets the split line, each ontology fragment's size, the request's name, cells and
+  line: a call cancelled by an operator interrupt records `KeyboardInterrupt`, and one cancelled
+  because a sibling call failed records `CancelledError`. stderr gets the split line, each ontology fragment's size, the request's name, cells and
   rows, a `quota` line per asked cell, a `log` line (`log path=%s schema=%d model=%s effort=%s
   level=%s per_call=%d max_tokens=%d replay=%s resume=%s rehearsal=%s in_flight=%d`: the replayed
   log's sha256 or `none`, `resume=none`, `rehearsal=false` and `in_flight=1`), the
   plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a
-  `generate` line after it (or an ERROR `failed` line naming the call and cell), the run's totals
+  `generate call=... request_id=%s elapsed_s=%.3f in_flight=%d` line after it, with the call's
+  seconds from send to landing and the calls in flight when it landed (or an ERROR `failed` line
+  naming the call and cell), the run's totals
   and spend (`usd` and `live_usd`) with the replayed and resumed logs' sha256 or `none`,
   `rehearsal=false` and the log's path, and last the count of stdout's record lines (the header
   excluded) and the sha256 of stdout, its header included. Its WARNING lines: `served`, a call
@@ -791,7 +805,8 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   the prompt; `noreference`, a cell with no reference record, so no profile or summary; and the UCI
   loader's line naming the records it dropped for a missing value. The SDK client retries a failed
   attempt up to `bko.generate.api.MAX_RETRIES` times, backing off between tries, and logs each retry
-  at INFO between the call's `send` line and its result; each `reply` and `error` line records the
+  at INFO between the call's `send` line and its result, each retry record ending ` call=%d`;
+  each `reply` and `error` line records the
   call's `attempts`, and the `end` line counts the calls `retried`. A retried attempt can be billed,
   so logged spend is a lower bound when `retried` is above 0.
 - **Exit codes**: 0 the candidates are written; 1 an unexpected error, with its traceback; 2 the

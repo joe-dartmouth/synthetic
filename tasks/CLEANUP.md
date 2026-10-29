@@ -51,18 +51,6 @@ links to where its blocker is tracked.
   **What discharges it:** each takes the frame or requires `edges`.
   **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
 
-## docs
-
-- **`cleanup:docs/e3-squash-commit`: E3's Merge cell names no squash commit.** G5's Merge cell
-  records its squash commit and `git diff --stat 6109a94 d90a323 -- src` printing nothing; E3's
-  in `docs/EVIDENCE.md` records only PR #57 and `git diff --stat 8a50dc6 45a26d7 -- src`
-  printing nothing, since the squash commit exists only after the merge. *Filed 2026-10-29 by the
-  review of PR #57's evidence commit.*
-  **Why deferred.** The SHA does not exist until PR #57 merges.
-  **What discharges it:** E3's Merge cell records PR #57's squash commit and the output of
-  `git diff --stat 8a50dc6 <squash> -- src`.
-  **Trigger:** the next change to `docs/EVIDENCE.md` after PR #57 merges.
-
 ## evaluate
 
 - **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
