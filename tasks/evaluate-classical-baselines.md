@@ -1,8 +1,8 @@
 ---
 id: evaluate-classical-baselines
 title: Classical statistical baselines at small n
-status: blocked
-depends_on: evaluate-synthea-downstream
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -27,10 +27,10 @@ built for small samples: a Gaussian copula, the synthesizer of the Synthetic Dat
 synthpop runs it ([`nowok-2016`](../docs/literature.md#tabular-generators)). Neither calls an API,
 so both can be read beside the judged runs for free.
 
-It depends on `evaluate-synthea-downstream` for two reasons. Its E3 reading pairs with E3's
-recorded scores, which that unit writes. And E3's arms are `METHOD_ARMS` plus the BKO arms and
-`real` (`bko.evaluate.experiment.E3`), so a method that joined `METHOD_ARMS` before E3's paid run
-would change that run's configuration; landing after it keeps E3 as its ADR fixes it.
+Its E3 reading pairs with E3's recorded scores
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e3-synthea-downstream-augmentation)). E3's arms are
+`METHOD_ARMS` plus the BKO arms and `real` (`bko.evaluate.experiment.E3`), so a method that joins
+`METHOD_ARMS` would change E3's configuration; the seam below keeps E3 as its ADR fixes it.
 
 ## Scope
 

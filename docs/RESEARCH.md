@@ -53,9 +53,21 @@ from the generated population, which gives the detector a known set of removed c
 ADR [`research/synthea-ablation-design`](adr/research/synthea-ablation-design.md) fixes how the
 population is generated and what a removed case is.
 
-The two experiments are register entries
-[E1](EVIDENCE.md#e1-uci-heart-disease-augmentation) and
-[E2](EVIDENCE.md#e2-synthea-gap-detection-ablation).
+A downstream Synthea experiment runs E1's arms on a frame of that population's patients alive on
+the snapshot date and aged 40 and over. In each holdout, 0.9 of one cell's cases leave the training
+rows, and the recall each method recovers on that cell's held-out cases measures the augmentation.
+That recall is read at scope `flagged-subgroups`: recall counts only cases, and the removed cell's
+subgroup is the only flagged one, so it is the recall on the removed cell's test cases; AUC-PR at
+that scope covers the subgroup's test records of both labels. It is read with no criterion, each
+arm paired in-run against `real`, the un-ablated training split, and `none`, the ablated split
+unaugmented. ADR
+[`research/synthea-downstream-design`](adr/research/synthea-downstream-design.md) fixes the frame,
+the removal and the reference.
+
+The three experiments are register entries
+[E1](EVIDENCE.md#e1-uci-heart-disease-augmentation),
+[E2](EVIDENCE.md#e2-synthea-gap-detection-ablation) and
+[E3](EVIDENCE.md#e3-synthea-downstream-augmentation).
 
 ## 3. Approach
 
@@ -215,15 +227,17 @@ other rows are the brief's registry (D10), kept for reference.
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
 | UCI Diabetes 130-US Hospitals | Open | Larger; used in recent synthetic-data audit benchmarks | No |
 | NHANES | Open | Openly available national survey data | No |
-| Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation |
+| Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
 | MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training | Demo subsets of the credentialed datasets | No |
 | Full MIMIC-IV, MIMIC-IV-Note, MIMIC-IV-ED | Credentialed, on PhysioNet | Real EHR data | No |
 
 **Synthea's caveats.** Synthea has documented fidelity flaws: per the JAMIA 2018 paper it
 "incorrectly generated 20% of patients in the infant age group" and "failed to note diabetes onset
 after age 52". The brief therefore treats it as a development and prototyping substrate, not a
-gold-standard evaluation set. The plan uses it for the gap-detection ablation, where the ground
-truth is the set of deliberately removed cases rather than clinical fidelity.
+gold-standard evaluation set. The plan uses it for the gap-detection ablation and the downstream
+experiment, where the ground truth is the set of deliberately removed cases rather than clinical
+fidelity. The caveat applies to the downstream experiment's recall: it measures how well a method
+recovers Synthea's generated cases, not real patients.
 
 **Credentialed access.** The 2-pager plans no credentialed data. If a member wants real EHR data,
 full MIMIC-IV, MIMIC-IV-Note and MIMIC-IV-ED on PhysioNet require:

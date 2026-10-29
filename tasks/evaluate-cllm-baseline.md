@@ -1,8 +1,8 @@
 ---
 id: evaluate-cllm-baseline
 title: A CLLM-style arm, the LLM without the ontology
-status: blocked
-depends_on: evaluate-synthea-downstream
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -33,8 +33,8 @@ underrepresented subgroups as the brief cites them
 in-context records. The curation differs from `generate-bkb-curation`'s, which scores records by
 their likelihood under the fused BKB rather than by a classifier.
 
-It depends on `evaluate-synthea-downstream` for the reasons `evaluate-classical-baselines` gives:
-its E3 reading pairs with E3's recorded scores, and E3's paid run should not change under it.
+Its E3 reading pairs with E3's recorded scores, and E3's arms stay as its ADR fixes them, as
+`evaluate-classical-baselines` says.
 
 ## Scope
 

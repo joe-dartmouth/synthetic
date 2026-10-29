@@ -1,8 +1,8 @@
 ---
 id: evaluate-bayesian-network-baseline
 title: A learned Bayesian network against the expert structure
-status: blocked
-depends_on: evaluate-synthea-downstream
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe
@@ -27,9 +27,8 @@ from the fused BKB, whose structure the ontologies give, also with no API call. 
 other, the two isolate the expert structure; read against `bko`, the learned network isolates
 knowledge and the LLM together.
 
-It depends on `evaluate-synthea-downstream` for the reasons `evaluate-classical-baselines` gives:
-its E3 reading pairs with E3's recorded scores, and a method that joined `METHOD_ARMS` before
-E3's paid run would change that run's arms.
+Its E3 reading pairs with E3's recorded scores, and a method that joins `METHOD_ARMS` would change
+E3's arms, as `evaluate-classical-baselines` says.
 
 ## Scope
 
