@@ -33,7 +33,9 @@ from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
 from bko.generate.flight import Limits
+from bko.generate.local import SLOTS
 from bko.generate.replay import Answers, Replay, Resume
+from bko.generate.weights import LOCAL_MODELS
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -109,7 +111,7 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
             "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
             "not paid figures"
         )
-    return _answers(args, context)
+    return _answers(args, context, named.settings.model)
 
 
 def _data_dir(args: argparse.Namespace) -> Path:
@@ -182,13 +184,16 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
 
 
-def _answers(args: argparse.Namespace, context: Context) -> Answers | None:
-    """The source that answers the BKO calls, read before any download or log is made."""
+def _answers(args: argparse.Namespace, context: Context, model: str) -> Answers | None:
+    """The source that answers the BKO calls, read before any download or log is made.
+
+    A resume's live calls go to `model`'s send (`Context.sender`).
+    """
     if args.replay is not None:
         return Replay(args.replay)
     if args.resume is None:
         return None
-    resume = Resume(args.resume, context.send())
+    resume = Resume(args.resume, context.sender(model)())
     logger.info(
         "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
@@ -248,9 +253,11 @@ def _guided(
         log=args.log,
         candidates=args.candidates,
         origin=origin,
-        send=context.send if canned is None else lambda: canned,
+        send=context.sender(settings.model) if canned is None else lambda: canned,
         run=args.run,
-        limits=Limits(in_flight=args.in_flight, idle=experiment.idle_limit),
+        limits=Limits(
+            in_flight=_in_flight(args.in_flight, settings.model), idle=experiment.idle_limit
+        ),
         answers=answers,
         rehearsal=args.rehearse,
     ) as paid:
@@ -277,3 +284,14 @@ def _guided(
             on_holdout=paid.watch.holdout_done,
             frame=frame,
         )
+
+
+def _in_flight(asked: int, model: str) -> int:
+    """`asked` calls in flight, or at most the server's slots for an on-device model.
+
+    A call past the slots would queue inside the server while its idle limit ran.
+    """
+    if model not in LOCAL_MODELS or asked <= SLOTS:
+        return asked
+    logger.info("local in_flight=%d slots=%d asked=%d", SLOTS, SLOTS, asked)
+    return SLOTS

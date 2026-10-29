@@ -13,6 +13,7 @@ from bko.generate.calls import Batch, Generation
 from bko.generate.errors import GenerationError
 from bko.generate.messages import SETTINGS, Usage
 from bko.generate.spend import PRICES, Price, cost, price_of
+from bko.generate.weights import LOCAL_MODELS
 from tests._generate_fixtures import CELL, reply
 
 
@@ -55,7 +56,12 @@ def test_spend_sums_over_calls():
     assert Generation(batches).usd == pytest.approx(3 * (0.10 + 0.25))
 
 
-def test_the_settings_model_is_the_only_priced_model():
+def test_the_priced_models_are_haiku_and_the_local_three():
     assert SETTINGS.model == HAIKU
-    assert set(PRICES) == {HAIKU}
+    assert set(PRICES) == {HAIKU, *LOCAL_MODELS}
     assert price_of(HAIKU) == Price(input=0.10, output=0.50, cache_write=0.125, cache_read=0.01)
+
+
+def test_local_models_are_priced_at_zero():
+    for model in LOCAL_MODELS:
+        assert price_of(model) == Price(0, 0, 0, 0)
