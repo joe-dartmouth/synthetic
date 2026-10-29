@@ -30,6 +30,7 @@ from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, Experiment
+from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.run import Drain, run
@@ -94,10 +95,11 @@ class DirectArm:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
         attempt = Attempt(train, request, self._budget * request.rows)
+        fill = CURRENT_FILL.get()
         self._attempts += 1
         outcome = "failed"
         try:
-            self._draw(attempt, train, request)
+            self._draw(attempt, train, request, fill)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -108,8 +110,10 @@ class DirectArm:
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
             logger.info(
-                "direct arm=%s seed=%d outcome=%s %s",
+                "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s",
                 self.name,
+                -1 if fill is None else fill.holdout,
+                "none" if fill is None else fill.kind,
                 request.seed,
                 outcome,
                 attempt.line(),
@@ -141,8 +145,13 @@ class DirectArm:
         """Log the run's sums over every fill: the validity rate's counts, and every drop."""
         logger.info("validity arm=%s %s", self.name, self.totals.line())
 
-    def _draw(self, attempt: Attempt, train: pd.DataFrame, request: Request) -> None:
-        """Draw every requested row once; a draw copies training values, so none is dropped."""
+    def _draw(
+        self, attempt: Attempt, train: pd.DataFrame, request: Request, fill: Fill | None
+    ) -> None:
+        """Draw every requested row once; a draw copies training values, so none is dropped.
+
+        The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill.
+        """
         try:
             drawn = sample(
                 train,
@@ -152,6 +161,7 @@ class DirectArm:
                 name=self._dataset,
                 seed=request.seed,
                 frame=request.frame,
+                tag=None if fill is None else (fill.holdout, fill.kind),
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc

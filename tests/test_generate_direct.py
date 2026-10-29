@@ -105,8 +105,15 @@ def frame(records: Sequence[Mapping[str, object]]) -> pd.DataFrame:
     return data
 
 
-def draw(train: pd.DataFrame, quota: Mapping[Cell, int], seed: int = 0) -> dict[Cell, tuple]:
-    return sample(train, quota, rows=FIELD_MAPPINGS, ontologies=ONTOLOGIES, name=NAME, seed=seed)
+def draw(
+    train: pd.DataFrame,
+    quota: Mapping[Cell, int],
+    seed: int = 0,
+    tag: tuple[int, str] | None = None,
+) -> dict[Cell, tuple]:
+    return sample(
+        train, quota, rows=FIELD_MAPPINGS, ontologies=ONTOLOGIES, name=NAME, seed=seed, tag=tag
+    )
 
 
 def test_a_draw_on_shares_of_0_and_1_is_the_record_written_by_hand():
@@ -242,12 +249,21 @@ def test_a_field_the_cell_lacks_the_drawn_side_of_falls_back_and_is_logged(caplo
         [planted(age=40, sex=0, target=1, trestbps=120) for _ in range(5)]
         + [planted(age=63, sex=1, target=1, trestbps=150) for _ in range(15)]
     )
-    draws = draw(train, {YOUNG_WOMEN_1: 60})[YOUNG_WOMEN_1]
+    draws = draw(train, {YOUNG_WOMEN_1: 60}, tag=(0, "gap"))[YOUNG_WOMEN_1]
     high = [d for d in draws if "HP:0004421" in d.concepts]
     assert high, "a share above 0 drew no elevated pressure in 60 records"
     assert all(d.fallback == {"trestbps"} and d.record["trestbps"] == 150 for d in high)
     assert all(not d.fallback and d.record["trestbps"] == 120 for d in draws if d not in high)
-    assert f"fallback key=<55/female/1 field=trestbps draws={len(high)}" in caplog.messages
+    assert (
+        f"fallback holdout=0 fill=gap key=<55/female/1 field=trestbps draws={len(high)}"
+        in caplog.messages
+    )
+    assert "direct holdout=0 fill=gap key=<55/female/1 rows=60 records=5 group_records=20" in (
+        caplog.messages
+    )
+    caplog.clear()
+    draw(train, {YOUNG_WOMEN_1: 60})
+    assert any(m.startswith("fallback holdout=-1 fill=none key=") for m in caplog.messages)
 
 
 def test_a_draw_no_record_matches_refuses_the_attempt():

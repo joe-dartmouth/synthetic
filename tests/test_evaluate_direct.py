@@ -26,6 +26,7 @@ from bko.evaluate.experiment import (
     RUNS,
     NamedRun,
 )
+from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.holdout_candidates import KEPT, SCHEMA, read
 from bko.evaluate.scores import Source
 from bko.ontology.mapping import FIELD_MAPPINGS
@@ -179,10 +180,22 @@ def test_a_draw_no_record_matches_is_a_refusal_the_harness_may_retry(tmp_path, c
 
     arm = DirectArm(FIELD_MAPPINGS, {}, name=DIRECT_ARM, budget=3, sink=None, dataset="uci-test")
     request = Request(quota={("<55", "female", 1): 100}, strata=Strata.CELL, seed=0)
-    with pytest.raises(BaselineError, match=r"cannot draw cp\+exang"):
+    token = CURRENT_FILL.set(Fill(0, "gap"))
+    try:
+        with pytest.raises(BaselineError, match=r"cannot draw cp\+exang"):
+            arm(train, request)
+    finally:
+        CURRENT_FILL.reset(token)
+    assert any(
+        m.startswith(f"direct arm={DIRECT_ARM} holdout=0 fill=gap seed=0 outcome=refused asked=")
+        for m in caplog.messages
+    )
+    assert "direct holdout=0 fill=gap key=<55/female/1 rows=100" in caplog.text
+    caplog.clear()
+    with pytest.raises(BaselineError):
         arm(train, request)
     assert any(
-        m.startswith(f"direct arm={DIRECT_ARM} seed=0 outcome=refused asked=")
+        m.startswith(f"direct arm={DIRECT_ARM} holdout=-1 fill=none seed=0 outcome=refused")
         for m in caplog.messages
     )
 

@@ -51,26 +51,6 @@ links to where its blocker is tracked.
   **What discharges it:** each takes the frame or requires `edges`.
   **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
 
-## evaluate
-
-- **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
-  fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
-  `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
-  fallbacks comes only from `holdout-candidates.jsonl`. Evidence, the first lines of
-  `runs/g2-2/scores.log` (2026-10-27):
-
-  ```
-  INFO bko.evaluate.direct: direct arm=bko-direct seed=0 outcome=returned asked=20 generated=20 passed=20 dropped_range=0 dropped_cell=0 dropped_quota=0 kept=20
-  INFO bko.generate.direct: direct key=<55/female/1 rows=18 records=2 group_records=110
-  INFO bko.generate.direct: fallback key=<55/female/1 field=ca draws=11
-  ```
-
-  *Filed 2026-10-27 by the review of PR #47.*
-  **Why deferred.** Changing those lines moves the recorded digest of `runs/g2-2/scores.log`.
-  **What discharges it:** the attempt line and the sampler's `direct key=` and `fallback` lines
-  carry the holdout and the fill.
-  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
-
 ## gaps
 
 - **`cleanup:gaps/bkb-errors-unlogged`: a `BKBError` escapes `python -m bko.gaps` as a

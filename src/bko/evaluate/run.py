@@ -24,7 +24,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from types import MappingProxyType
-from typing import Final
+from typing import Final, Literal
 
 import pandas as pd
 
@@ -47,6 +47,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.fidelity import fidelity
+from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
@@ -158,7 +159,15 @@ def score_holdout(
     fills = {
         name: _real(removed, train, holdout=seed, seed=gap.seed, frame=frame)
         if name == REAL_ARM
-        else _fill(arms[name], train, gap, holdout=seed, attempts=experiment.attempts, name=name)
+        else _fill(
+            arms[name],
+            train,
+            gap,
+            holdout=seed,
+            attempts=experiment.attempts,
+            name=name,
+            kind="gap",
+        )
         for name in experiment.arms
     }
     gap_counts = {
@@ -172,6 +181,7 @@ def score_holdout(
             holdout=seed,
             attempts=experiment.attempts,
             name=f"{name}-replica",
+            kind="replica",
         ).added
         for name in experiment.replica_arms
     }
@@ -276,11 +286,12 @@ def _fill(
     holdout: int,
     attempts: int,
     name: str,
+    kind: Literal["gap", "replica"],
 ) -> Baseline:
     """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
 
     The runner gets a copy of `train` on every attempt, so one that changes its input changes
-    nothing the harness reads.
+    nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
 
     Raises:
         BaselineError: The last refusal, if every attempt is refused, or a contract break.
@@ -289,7 +300,7 @@ def _fill(
     first = request.seed
     for attempt in range(1, attempts + 1):
         try:
-            baseline = runner(train.copy(), request)
+            baseline = _call(runner, train, request, Fill(holdout, kind))
         except OutputContractError:
             # The context only; the caller logs the error itself, without a traceback.
             logger.error(  # ruff: ignore[error-instead-of-exception]
@@ -311,6 +322,15 @@ def _fill(
         return baseline
     msg = f"attempts {attempts}: an arm needs at least one attempt"
     raise EvaluationError(msg)
+
+
+def _call(runner: Runner, train: pd.DataFrame, request: Request, fill: Fill) -> Baseline:
+    """`runner` on a copy of `train`, with `CURRENT_FILL` set to `fill` for the call alone."""
+    token = CURRENT_FILL.set(fill)
+    try:
+        return runner(train.copy(), request)
+    finally:
+        CURRENT_FILL.reset(token)
 
 
 def _real(
