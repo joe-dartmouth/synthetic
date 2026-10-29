@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import io
 import logging
@@ -268,25 +269,53 @@ def test_compare_on_a_judged_run_logs_nothing_unjudged(tmp_path, caplog):
     assert not any(m.startswith("unjudged ") for m in caplog.messages)
 
 
-def test_compare_skips_an_unjudged_criterion_a_holdout_leaves_undefined(tmp_path, caplog):
+def blank_flagged_recall(tmp_path: Path) -> Path:
+    """Score `g2`, then blank every arm's flagged-subgroups recall on its first holdout."""
     code, out, _ = scored(tmp_path)
     assert code == 0
-    lines = out.splitlines(keepends=True)
-    first = lines[1].split(",")[0]
-    blanked = [
-        line.rsplit(",", 1)[0] + ",\n"
-        if line.startswith(f"{first},") and ",augmented,recall,flagged-subgroups," in line
-        else line
-        for line in lines
-    ]
-    assert blanked != lines
+    rows = list(csv.reader(io.StringIO(out)))
+    header, body = rows[0], rows[1:]
+    at = {name: i for i, name in enumerate(header)}
+    first = body[0][at["holdout"]]
+    blanked = 0
+    for row in body:
+        if (row[at["holdout"]], row[at["source"]], row[at["measure"]], row[at["scope"]]) == (
+            first,
+            "augmented",
+            "recall",
+            "flagged-subgroups",
+        ):
+            row[at["value"]] = ""
+            blanked += 1
+    assert blanked > 0
     path = tmp_path / "scores.csv"
-    path.write_text("".join(blanked), encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        csv.writer(handle, lineterminator="\n").writerows([header, *body])
+    return path
+
+
+def test_compare_skips_each_unjudged_contrast_a_holdout_leaves_undefined(tmp_path, caplog):
+    path = blank_flagged_recall(tmp_path)
     ctx, _ = g2_context()
     caplog.set_level(logging.INFO)
     assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 0
     skips = [m for m in caplog.messages if m.startswith("unjudged skip ")]
-    detail = "an interval needs 2 or more finite contrasts; got 1 of 2"
-    assert skips == [f"unjudged skip criterion=secondary reason=undefined detail={detail}"]
-    unjudged = {m.split()[1] for m in caplog.messages if m.startswith("unjudged criterion=")}
-    assert unjudged == {"criterion=primary", "criterion=privacy"}
+    assert skips
+    assert all(
+        m.startswith("unjudged skip criterion=secondary scope=flagged-subgroups arm=bko-direct ")
+        and " measure=recall reason=undefined defined=1 holdouts=2" in m
+        for m in skips
+    )
+    kept = [m for m in caplog.messages if m.startswith("unjudged criterion=secondary ")]
+    assert kept
+    assert all(" measure=auc-pr " in m for m in kept)
+    assert any(m.startswith("unjudged criterion=primary ") for m in caplog.messages)
+
+
+def test_a_judged_run_still_refuses_an_undefined_contrast(tmp_path, caplog):
+    path = blank_flagged_recall(tmp_path)
+    ctx, _ = g2_context()
+    judged = dataclasses.replace(SMALL_G2, criteria=("secondary",))
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(judged)})
+    assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 2
+    assert "an interval needs 2 or more finite contrasts; got 1 of 2" in caplog.text

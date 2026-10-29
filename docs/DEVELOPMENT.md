@@ -500,9 +500,10 @@ start or the supervisor cannot run.
   lacks them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
   judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
-  the header alone), or for a criterion some holdout leaves a contrast undefined, as when
-  decontamination leaves no positive test record in the flagged cells, one
-  `unjudged skip criterion=%s reason=undefined detail=%s` line in its place, and a `replica` line per replica arm, measure and scope. With `--beside`, it
+  the header alone) or, for a contrast some holdout leaves undefined (as when decontamination
+  leaves a holdout no positive test record in the flagged cells), an `unjudged skip` line
+  (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `reason=undefined`, `defined=`,
+  `holdouts=`), and a `replica` line per replica arm, measure and scope. With `--beside`, it
   then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
   excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
   `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,

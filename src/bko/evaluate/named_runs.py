@@ -129,8 +129,8 @@ G6_MODELS: Final[Mapping[str, tuple[str, float]]] = MappingProxyType(
     }
 )
 """Each generator-comparison run's model and spend ceiling in USD. Sonnet 5.5's covers 1.25 times
-its estimate. An on-device model bills nothing, so its $1.00 is the least ceiling an `Experiment`
-takes and never stops the run; `bko.evaluate.context.Context.sender` keeps its calls local."""
+its estimate. An on-device model bills nothing, so its ceiling never stops the run and $1.00
+serves as any ceiling above 0 would; `bko.evaluate.context.Context.sender` keeps its calls local."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,11 +189,11 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         ),
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
+        "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         **{
             name: NamedRun(replace(G6_BASE, spend_ceiling=ceiling), replace(SETTINGS, model=model))
             for name, (model, ceiling) in G6_MODELS.items()
         },
-        "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         "g5": NamedRun(
             G5,
             Settings(

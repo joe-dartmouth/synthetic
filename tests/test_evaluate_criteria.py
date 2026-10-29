@@ -27,6 +27,7 @@ from bko.evaluate.criteria import (
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.unjudged import unjudged
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -411,3 +412,26 @@ def test_the_boosting_contrasts_follow_the_criteria_the_experiment_holds():
     primary = dataclasses.replace(EXPERIMENT, criteria=("primary",))
     found = kept(reported_contrasts(boosted(GAIN, GAIN), primary))
     assert {r.criterion for r in found} == {"primary"}
+
+
+def test_unjudged_reads_judges_intervals_and_skips_an_undefined_contrast():
+    gain = [0.05, 0.06, 0.05, 0.06]
+    rows = [
+        dataclasses.replace(row, value=math.nan)
+        if (row.arm, row.measure, row.scope, row.holdout)
+        == ("bko", Measure.RECALL, Scope.FLAGGED, 0)
+        else row
+        for row in scored(gain)
+    ]
+    found = {(u.criterion, u.measure): u for u in unjudged(rows, EXPERIMENT)}
+    judged = {(c.criterion, c.measure): c for c in judge(scored(gain), EXPERIMENT)}
+    assert found.keys() == judged.keys()
+    skipped = found["secondary", Measure.RECALL]
+    assert (skipped.interval, skipped.defined, skipped.holdouts) == (None, 3, 4)
+    for key, u in found.items():
+        if key != ("secondary", Measure.RECALL):
+            assert (u.interval, u.differing, u.defined) == (
+                judged[key].interval,
+                judged[key].differing,
+                4,
+            )

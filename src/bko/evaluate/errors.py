@@ -16,14 +16,6 @@ class EvaluationError(Exception):
     exit_code: ClassVar[int] = 2
 
 
-class UndefinedIntervalError(EvaluationError):
-    """An interval's contrasts hold a value that is not finite: a holdout left a measure undefined.
-
-    `bko.evaluate.criteria.corrected_interval` raises it, as when decontamination leaves a holdout
-    no positive test record in the flagged cells.
-    """
-
-
 class ScoresFormatError(EvaluationError):
     """A scores file is not the CSV `python -m bko.evaluate score` writes."""
 

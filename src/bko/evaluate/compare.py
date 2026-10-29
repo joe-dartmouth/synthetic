@@ -18,7 +18,6 @@ from bko.evaluate.criteria import (
     BOOSTED,
     JUDGED,
     Absent,
-    Contrast,
     Reported,
     held_out_ratio_of,
     judge,
@@ -26,11 +25,12 @@ from bko.evaluate.criteria import (
     series_of,
     table,
 )
-from bko.evaluate.errors import EvaluationError, ScoresFormatError, UndefinedIntervalError
+from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import Score, Source, parse
+from bko.evaluate.unjudged import unjudged
 from bko.evaluate.validity import Validity, reported, validity, verdict
 
 
@@ -54,7 +54,8 @@ def compare(
     scores hold its rows; they never change the table, and a pair of arms either of which lacks
     them is logged as skipped. An experiment that judges no criterion, such as `g2`, has a table of
     its header alone; every interval of `CRITERION_NAMES` is then logged after the boosting
-    model's contrasts as an `unjudged` line, with no verdict.
+    model's contrasts as an `unjudged` line, with no verdict, or as an `unjudged skip` line when
+    some holdout leaves its contrast undefined.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -243,19 +244,26 @@ def _log_beside(
 def _log_unjudged(rows: Sequence[Score], experiment: Experiment, candidate: str) -> None:
     """Log each interval every criterion of `CRITERION_NAMES` reads, with no verdict.
 
-    A criterion whose contrasts some holdout leaves undefined is logged as one `unjudged skip`
-    line instead, and the others are still logged.
+    A contrast some holdout leaves undefined is logged as an `unjudged skip` line instead.
 
     Raises:
-        EvaluationError: As `judge`, for anything but an undefined contrast.
+        EvaluationError: As `unjudged`.
     """
-    found: list[Contrast] = []
-    for name in CRITERION_NAMES:
-        try:
-            found += judge(rows, replace(experiment, criteria=(name,)), candidate=candidate)
-        except UndefinedIntervalError as exc:
-            logger.info("unjudged skip criterion=%s reason=undefined detail=%s", name, exc)
-    for c in found:
+    every = replace(experiment, criteria=CRITERION_NAMES)
+    for c in unjudged(rows, every, candidate=candidate):
+        if c.interval is None:
+            logger.info(
+                "unjudged skip criterion=%s scope=%s arm=%s against=%s measure=%s "
+                "reason=undefined defined=%d holdouts=%d",
+                c.criterion,
+                c.scope,
+                c.arm,
+                c.against,
+                c.measure,
+                c.defined,
+                c.holdouts,
+            )
+            continue
         logger.info(
             "unjudged criterion=%s scope=%s arm=%s against=%s measure=%s mean=%.6f low=%.6f "
             "high=%.6f refuting_high=%.6f holdouts=%d differing=%d",
