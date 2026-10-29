@@ -48,10 +48,6 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 4. Generator comparison: Haiku, Sonnet and Opus 5.5 at the fixed configuration, since the earlier
    Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-5. Synthea downstream experiment: build a heart-disease prediction table from the Synthea
-   population, remove a known share of women with the disease from training, and measure how much
-   recall each method recovers; the large cells answer the power problem UCI cannot
-   ([`evaluate-synthea-downstream`](tasks/evaluate-synthea-downstream.md)).
 
 ## Setup
 
