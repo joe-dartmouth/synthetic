@@ -57,9 +57,10 @@ We will **make one Messages call per chunk of a cell's request, through a repo-o
 with the record's shape fixed by structured outputs and the guidance chosen from a six-level
 ladder.**
 
-- **On-device models.** A model in `bko.generate.local.LOCAL_MODELS` answers the same `Call`
+- **On-device models.** A model in `bko.generate.weights.LOCAL_MODELS` answers the same `Call`
   through a llama.cpp server on this machine rather than the Messages API (ADR
-  `research/local-generator-backend`); G6 reads three, and every judged run stays on Haiku 5.5.
+  `research/local-generator-backend`); the generator comparison reads three, and every run E1's
+  criteria judge generates with Haiku 5.5.
 - **The seam.** `Send = Callable[[Call], Reply]` in `bko.generate.messages`. `Call` and `Reply`
   are repo-owned values. `bko.generate.api` is the only module that imports `anthropic`: it reads
   an SDK message into a `Reply`, and turns an SDK failure into `GenerationError`, built from the
