@@ -294,7 +294,7 @@ def test_a_method_outside_the_comparison_set_joins_the_harness_alone(name):
         assert name not in experiment.arms
 
 
-def test_b1_runs_differ_from_their_base_in_arms_only():
+def test_b1_runs_are_their_stated_configurations():
     new = ("gaussian-copula", "cart")
     uci, synthea = RUNS["b1-uci"], RUNS["b1-synthea"]
     assert uci.experiment == dataclasses.replace(

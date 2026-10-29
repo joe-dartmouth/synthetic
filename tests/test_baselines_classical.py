@@ -7,10 +7,11 @@ import pandas as pd
 import pytest
 import torch
 
-from bko.baselines.classical import cart, gaussian_copula
+from bko.baselines.classical import _predictors, cart, gaussian_copula
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request, Strata, Stratum
-from tests._baselines_fixtures import QUOTA, assert_contract, full_records
+from bko.datasets.uci import UCI_FRAME
+from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 
 
@@ -86,3 +87,38 @@ def test_each_method_fills_the_toy_frame(method):
     added = method(TOY_TRAIN, request).added
     assert list(added.columns) == list(TOY.columns)
     assert len(added) == sum(quota.values())
+
+
+def test_cart_records_synthpops_settings_and_visit_order(cart_runs):
+    assert cart_runs[0].params == {
+        "seed": 3,
+        "visit": list(UCI_FRAME.columns),
+        "min_samples_leaf": 5,
+        "min_samples_split": 15,
+        "max_depth": 30,
+        "complexity": 1e-8,
+    }
+
+
+def test_cart_one_hot_codes_a_predictor_of_three_or_more_values():
+    rows = TRAIN.iloc[:6]
+    predictors = _predictors(rows, ["sex", "cp"], UCI_FRAME)
+    assert predictors.shape == (6, 1 + len(UCI_FRAME.codebook["cp"]))
+    assert (predictors[:, 1:].sum(axis=1) == 1).all()
+
+
+def test_cart_draws_the_first_column_from_its_training_values():
+    """Nine in ten `<55` rows are aged 44; drawing the first column from the distinct ages instead
+    of the training values would give 44 about half the `<55` rows."""
+    train = full_records(per_cell=30)
+    young = train.index[train["age"] == EDGE - 1]
+    train.loc[young.difference(young[::10]), "age"] = 44
+    quota: dict[Stratum, int] = {(f"<{EDGE}", "female", 1): 40, (f"<{EDGE}", "male", 0): 40}
+    ages = cart(train, Request(quota=quota, seed=0)).added["age"]
+    assert (ages == 44).mean() > 0.75
+
+
+def test_cart_copies_measured_values_from_training_rows(cart_runs):
+    added = cart_runs[0].added
+    for field in ("trestbps", "chol", "thalach", "oldpeak"):
+        assert set(added[field]) <= set(TRAIN[field])
