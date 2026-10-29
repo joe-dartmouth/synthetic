@@ -51,58 +51,20 @@ links to where its blocker is tracked.
   **What discharges it:** each takes the frame or requires `edges`.
   **Trigger:** the first non-UCI frame reaching `bko.gaps` or `bko.fusion`.
 
-## docs
-
-- **`cleanup:docs/e3-squash-commit`: E3's Merge cell names no squash commit.** G5's Merge cell
-  records its squash commit and `git diff --stat 6109a94 d90a323 -- src` printing nothing; E3's
-  in `docs/EVIDENCE.md` records only PR #57 and `git diff --stat 8a50dc6 45a26d7 -- src`
-  printing nothing, since the squash commit exists only after the merge. *Filed 2026-10-29 by the
-  review of PR #57's evidence commit.*
-  **Why deferred.** The SHA does not exist until PR #57 merges.
-  **What discharges it:** E3's Merge cell records PR #57's squash commit and the output of
-  `git diff --stat 8a50dc6 <squash> -- src`.
-  **Trigger:** the next change to `docs/EVIDENCE.md` after PR #57 merges.
-
 ## evaluate
 
-- **`cleanup:evaluate/direct-arm-log-attribution`: the direct arm's log lines name no holdout or
-  fill.** `bko.evaluate.direct`'s attempt line and `bko.generate.direct`'s `direct key=` and
-  `fallback` lines carry the seed and cell only, so a per-holdout or gap-versus-replica split of
-  fallbacks comes only from `holdout-candidates.jsonl`. Evidence, the first lines of
-  `runs/g2-2/scores.log` (2026-10-27):
-
-  ```
-  INFO bko.evaluate.direct: direct arm=bko-direct seed=0 outcome=returned asked=20 generated=20 passed=20 dropped_range=0 dropped_cell=0 dropped_quota=0 kept=20
-  INFO bko.generate.direct: direct key=<55/female/1 rows=18 records=2 group_records=110
-  INFO bko.generate.direct: fallback key=<55/female/1 field=ca draws=11
-  ```
-
-  *Filed 2026-10-27 by the review of PR #47.*
-  **Why deferred.** Changing those lines moves the recorded digest of `runs/g2-2/scores.log`.
-  **What discharges it:** the attempt line and the sampler's `direct key=` and `fallback` lines
-  carry the holdout and the fill.
-  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
-
-- **`cleanup:evaluate/direct-training-copies-count`: no log counts added rows that equal a training
-  row.** The direct arm copies training values by design, and nothing counts a drawn row that
-  equals a training row in every column. Evidence: the smallest `bko-direct` `added` `dcr-p5` in
-  `runs/g2-2/scores.csv` is 0.011978916663589707, above 0 on every holdout, which bounds such rows
-  at 1 of 20 per holdout at most (inferred from the 5th percentile, not counted). *Filed 2026-10-27
-  by the review of PR #47.*
-  **Why deferred.** The bound needs no new run, and a count moves the recorded logs.
-  **What discharges it:** `score` logs a zero-distance count of each arm's added and replica rows.
-  **Trigger:** the next change to `bko.evaluate.direct`, or the next G2 run.
-
-- **`cleanup:evaluate/compare-header-run-level`: `compare`'s judged output names no run and no
-  level.** The header log line, the `criterion=` lines and `criteria.csv` carry neither the run nor
-  its guidance level, so two judged runs at different levels read alike; only the `--beside` lines
-  name a run. Evidence: `bko.evaluate.compare` logs the header as `"compare candidate=%s dry_run=%s
-  scores_sha256=%s"`, with the candidate arm, the dry-run flag and the scores' sha256 only. *Filed
-  2026-10-28 by the diff review of PR #53.*
-  **Why deferred.** `bko.evaluate.compare` lies outside the change that set `SETTINGS` to
-  `summary`, which touches `SETTINGS` and its pins only.
-  **What discharges it:** the header line carries `run=` and `level=`, pinned by a test.
-  **Trigger:** the next change to `bko.evaluate.compare`.
+- **`cleanup:evaluate/fill-unnamed-in-arm-lines`: the guided, prescribed and baseline lines name
+  no holdout or fill.** The direct arm's and the sampler's lines name both (`holdout=`, `fill=`,
+  read from `bko.evaluate.fills.CURRENT_FILL`), but `guided arm=%s seed=%d outcome=...` and
+  `prescribed arm=%s seed=%d wave=%d ...` (`bko.evaluate.guided`) and `filled method=%s drawn=%d
+  added=%d` and `fit method=%s seconds=%.1f` (`bko.baselines.synthesizers`) carry neither, so a
+  reader joins them to the `arm holdout=` line by order. *Filed 2026-10-29 by the diff review of
+  PR #58.*
+  **Why deferred.** The entries PR #58 paid named the direct arm's lines only.
+  **What discharges it:** each of those lines names `holdout=` and `fill=` from `CURRENT_FILL`,
+  documented in `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the next change to `bko.evaluate.guided`'s attempt line or
+  `bko.baselines.synthesizers`' fill.
 
 ## gaps
 
@@ -120,38 +82,6 @@ links to where its blocker is tracked.
 
 ## generate
 
-- **`cleanup:generate/sdk-retries-unattributed`: retries without an HTTP response name no call.**
-  `Attempts.handle_async` in `bko.generate.api` logs `retry call=%d attempt=%d status=%s
-  retry_after=%s` only when a response with a retryable status reaches the middleware. A
-  connection error or client timeout that the SDK retries produces only the SDK's own log record,
-  which carries no call number, so with several calls in flight a reader cannot tie it to a call.
-  Evidence: the middleware has no exception path that logs (`api.py`, `_log_retry` is called after
-  `call_next` returns). *Filed 2026-10-27 by the review of PR #49.*
-  **Why deferred.** It needs a `logging.Filter` that tags SDK records with
-  `bko.generate.messages.CALL_NUMBER`, outside the review's fixes.
-  **What discharges it:** every SDK retry record carries the call number, pinned by a test.
-  **Trigger:** the next change to `bko.generate.api`, or a paid run whose stderr shows untagged
-  retries.
-
-- **`cleanup:generate/landed-line-latency`: the landed line gives no latency.**
-  `bko.generate.calls` logs `send call=` at dispatch and `generate call=` on landing with no
-  elapsed seconds or calls in flight, so a stalled call shows only as a `send` line with no later
-  `generate` line. *Filed 2026-10-27 by the review of PR #49.*
-  **Why deferred.** No stop rule or test depends on it.
-  **What discharges it:** the landed line carries `elapsed_s=` and `in_flight=`, documented in
-  `docs/DEVELOPMENT.md` (Evaluation).
-  **Trigger:** the next change to the `generate call=` line.
-
-- **`cleanup:generate/sigint-error-text`: a real Ctrl-C logs calls as `CancelledError`.**
-  Under `bko.generate.flight`, `asyncio.Runner`'s SIGINT handler cancels the run, so each call in
-  flight gets an `error` line reading `CancelledError` where a run at in-flight 1 wrote
-  `KeyboardInterrupt`; the `end` line still reads `interrupted`. Evidence: a SIGINT probe over a
-  three-call wave wrote `error 1 CancelledError`, `error 2 CancelledError`, `error 3
-  CancelledError`, `end None interrupted`. *Filed 2026-10-27 by the review of PR #49.*
-  **Why deferred.** Nothing in `src/` reads the error text, and the end status is right.
-  **What discharges it:** calls cancelled by an operator's interrupt record `KeyboardInterrupt`.
-  **Trigger:** the next change to `bko.generate.flight`'s interrupt path.
-
 - **`cleanup:generate/required-frame-on-send-path`: the send path falls back to UCI's frame.**
   `bko.generate.messages.Call`, `bko.generate.calls.request`, `ask` and `generate`,
   `bko.generate.flight`'s `wave` and `bko.generate.prompt.render` default `frame` to `UCI_FRAME`,
@@ -167,3 +97,26 @@ links to where its blocker is tracked.
   **What discharges it:** `frame` is a required keyword on each of those, and the default's pin
   in `tests/test_datasets_frame.py` goes.
   **Trigger:** the next change to `bko.generate`'s send path, or a second non-UCI caller of it.
+
+- **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
+  flight on a closed runner.** In `bko.generate.flight.Flight._run`'s persistent-runner branch,
+  `self._runner = asyncio.Runner()` runs after `self._settle(...)`, so if `_settle` raises (a
+  `fail` or call-log write error), `self._runner` stays the runner `_settle` closed and the next
+  `wave` raises `RuntimeError: Runner is closed` instead of the first error. *Filed 2026-10-29 by
+  the diff review of PR #58.*
+  **Why deferred.** It predates PR #58, which touched `_run` only to record what stopped the wave.
+  **What discharges it:** the replacement runner is made in a `finally` around `_settle`, pinned by
+  a test whose `fail` raises.
+  **Trigger:** the next change to `Flight._run` or `Flight._settle`.
+
+- **`cleanup:generate/sdk-debug-log-bodies`: SDK debug logging would write request bodies to
+  stderr.** Nothing holds logger `anthropic._base_client` at INFO or above, so `ANTHROPIC_LOG=debug`
+  makes the SDK log each request's options, prompt records included, to stderr, where
+  `bko.generate.api.CallTag` tags them like any other record. Evidence: the SDK's `_setup_logging`
+  sets that logger to DEBUG when `ANTHROPIC_LOG=debug`, and `HTTP_LOGGERS` lists only `httpx2`.
+  *Filed 2026-10-29 by the diff review of PR #58.*
+  **Why deferred.** It predates PR #58, and no documented command sets `ANTHROPIC_LOG`.
+  **What discharges it:** `install_call_tag` or `configure_logging` holds that logger at INFO, or
+  `docs/DEVELOPMENT.md` states what `ANTHROPIC_LOG=debug` writes.
+  **Trigger:** the next change to `bko.generate.api`'s logging, or a run that sets
+  `ANTHROPIC_LOG`.

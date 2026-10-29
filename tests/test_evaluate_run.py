@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import re
 from collections import Counter
 
 import numpy as np
@@ -11,13 +12,14 @@ import pytest
 
 import bko.evaluate.run as run_module
 from bko.baselines.errors import BaselineError, OutputContractError
-from bko.baselines.records import derived_seed
+from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, gap_request
-from bko.evaluate.run import held_out_ratio, run, score_holdout
+from bko.evaluate.prepare import held_out_ratio
+from bko.evaluate.run import run, score_holdout
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source, render
 from tests._baselines_fixtures import EDGE, cell_list
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL, Spy
@@ -350,3 +352,33 @@ def test_an_arm_filling_no_replica_is_drained_once_per_holdout_beside_one_that_d
         (1, "smote", Source.REPLICA_CANDIDATES): 4.0,
         (1, "tvae", Source.CANDIDATES): 2.0,
     }
+
+
+def test_training_copies_are_counted_per_arm_and_fill(caplog):
+    parts = split(GRADED, seed=0)
+    copying = dataclasses.replace(PAIR, replica_arms=("smote",))
+    asked: list[int] = []
+
+    def verbatim(train, request):
+        rows = sum(request.quota.values())
+        asked.append(rows)
+        added = number(train.loc[:, list(FRAME_COLUMNS)].iloc[:rows])
+        return Baseline(added=added, weights=unit_weights(train), params={})
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
+        score_holdout(parts, copying, {"none": FAST_ARMS["none"], "smote": verbatim})
+    gap, replica = asked
+    assert f"training holdout=0 arm=smote fill=gap rows={gap} copies={gap}" in caplog.text
+    assert (
+        f"training holdout=0 arm=smote fill=replica rows={replica} copies={replica}" in caplog.text
+    )
+    assert "training holdout=0 arm=none fill=gap rows=0 copies=0" in caplog.text
+
+
+def test_smote_rows_copy_fewer_training_rows_than_it_adds(caplog):
+    with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
+        score_holdout(split(GRADED, seed=0), PAIR, FAST_ARMS)
+    found = re.search(r"training holdout=0 arm=smote fill=gap rows=(\d+) copies=(\d+)", caplog.text)
+    assert found is not None
+    rows, copied = map(int, found.groups())
+    assert copied < rows

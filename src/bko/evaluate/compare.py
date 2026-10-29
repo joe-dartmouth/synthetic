@@ -64,8 +64,9 @@ def compare(
         candidate: The row-adding arm judged; the experiment's own when None.
         scores: The CSV that `score` wrote.
         out: Where the table goes.
-        run: The name of the run the scores belong to; the `beside` lines name it.
-        level: The guidance level of that run's settings; the `beside` lines name it.
+        run: The name of the run the scores belong to; the header and the `beside` lines name it.
+        level: The guidance level of that run's settings; the `beside` lines name it, and the
+            header does unless the run has no Messages arm, when it reads `none`.
         beside: Another scores file to read the judged arm beside.
         beside_arm: The arm of `beside` read; the judged arm when None.
 
@@ -80,10 +81,12 @@ def compare(
     text = _text(data)
     candidate = experiment.candidate if candidate is None else candidate
     logger.info(
-        "compare candidate=%s dry_run=%s scores_sha256=%s",
+        "compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s",
         candidate,
         candidate != experiment.candidate,
         hashlib.sha256(data).hexdigest(),
+        run,
+        level if any(arm in MESSAGES_ARMS for arm in experiment.arms) else "none",
     )
     rows = parse(text)
     contrasts = judge(rows, experiment, candidate=candidate)

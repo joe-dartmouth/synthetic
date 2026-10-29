@@ -39,8 +39,9 @@ from bko.evaluate.data import (
     load,
 )
 from bko.evaluate.experiment import E3, RUNS, Removal
+from bko.evaluate.prepare import prepared
 from bko.evaluate.rehearse import CannedSend
-from bko.evaluate.run import method_arms, prepared
+from bko.evaluate.run import method_arms
 from bko.evaluate.scores import parse
 from bko.gaps.detect import Statement
 from bko.generate.guidance import Basis, Finding, Guidance, Profile, Relationship, Share, Spread

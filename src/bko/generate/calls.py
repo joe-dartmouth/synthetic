@@ -14,6 +14,7 @@ order, so a run makes
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
@@ -150,13 +151,17 @@ def request(
     return Pending(index, guidance.cell, rows, call)
 
 
-def answer(pending: Pending, reply: Reply, *, log: CallLog) -> Batch:
+def answer(
+    pending: Pending, reply: Reply, *, log: CallLog, elapsed_s: float, in_flight: int
+) -> Batch:
     """Decode and price `pending`'s reply, and write its `reply` line.
 
     Args:
         pending: The call, as `request` returned it.
         reply: Its reply.
         log: The run's call log.
+        elapsed_s: The seconds from its send to its landing, which the `generate` line gives.
+        in_flight: The calls in flight when it landed, itself included.
 
     Returns:
         The call's outcome.
@@ -171,7 +176,7 @@ def answer(pending: Pending, reply: Reply, *, log: CallLog) -> Batch:
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(
         "generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s "
-        "input_tokens=%d output_tokens=%d usd=%.6f request_id=%s",
+        "input_tokens=%d output_tokens=%d usd=%.6f request_id=%s elapsed_s=%.3f in_flight=%d",
         index,
         key,
         settings.guidance,
@@ -183,6 +188,8 @@ def answer(pending: Pending, reply: Reply, *, log: CallLog) -> Batch:
         reply.usage.output_tokens,
         usd,
         reply.request_id,
+        elapsed_s,
+        in_flight,
     )
     if batch.undecoded:
         reason = next(c.reason for c in candidates if isinstance(c, Undecoded))
@@ -223,6 +230,7 @@ def ask(
     log: CallLog,
     settings: Settings | None = None,
     frame: FrameSpec = UCI_FRAME,
+    clock: Callable[[], float] = time.monotonic,
 ) -> Batch:
     """Make one call for `rows` records of `guidance`'s cell, and log it.
 
@@ -233,6 +241,7 @@ def ask(
         log: The run's call log.
         settings: How the call is made, its guidance level included; the log's when None.
         frame: The frame whose records the call asks for.
+        clock: Seconds on a monotonic clock, read before the send and once it lands.
 
     Returns:
         The call's outcome.
@@ -247,7 +256,9 @@ def ask(
     # The send's retry lines name the call; the name is the caller's again once it lands.
     token = CALL_NUMBER.set(pending.index)
     try:
-        return answer(pending, send(pending.call), log=log)
+        started = clock()
+        reply = send(pending.call)
+        return answer(pending, reply, log=log, elapsed_s=clock() - started, in_flight=1)
     except BaseException as exc:
         fail(pending, exc, log=log)
         raise
@@ -264,6 +275,7 @@ def generate(
     settings: Settings | None = None,
     on_batch: Callable[[Batch], None] | None = None,
     frame: FrameSpec = UCI_FRAME,
+    clock: Callable[[], float] = time.monotonic,
 ) -> Generation:
     """Ask for each cell's quota in chunks of `settings.per_call`, cells in quota order.
 
@@ -276,6 +288,7 @@ def generate(
         on_batch: Called with each call's outcome as it returns, before the next call, so a
             caller can write it out before a later call fails.
         frame: The frame whose records each call asks for.
+        clock: As `ask`'s.
 
     Returns:
         Every call's outcome, in call order.
@@ -306,7 +319,9 @@ def generate(
     )
     batches: list[Batch] = []
     for cell, chunk in planned:
-        batch = ask(guidance[cell], chunk, send=send, log=log, settings=settings, frame=frame)
+        batch = ask(
+            guidance[cell], chunk, send=send, log=log, settings=settings, frame=frame, clock=clock
+        )
         batches.append(batch)
         if on_batch is not None:
             on_batch(batch)

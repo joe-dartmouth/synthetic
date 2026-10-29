@@ -20,7 +20,9 @@ the SDK retries below 500 (`RETRIED`: 408, 409, 429) or a status of 500 or above
 in flight together never share a count, and
 `Attempts.handle` and `Attempts.handle_async` log each retryable status as a `retry` line naming
 the call (`bko.generate.messages.CALL_NUMBER`), its attempt, the status and the server's
-`retry-after`.
+`retry-after`. The SDK's own retry records, which a connection error or a timeout also produces,
+name the call through `CallTag`, which `default_send` and `default_async_send` add to the SDK's
+client logger (`install_call_tag`).
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from typing import Any, Final
+from typing import Any, Final, override
 
 import anthropic
 
@@ -47,6 +49,9 @@ from bko.generate.messages import (
 
 
 logger = logging.getLogger(__name__)
+
+SDK_CLIENT_LOGGER: Final = "anthropic._base_client"
+"""The logger the SDK writes its `Retrying request` records to."""
 
 HTTP_LOGGERS: Final = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
@@ -240,6 +245,29 @@ def _failure(
     return GenerationError(msg, attempts=attempts)
 
 
+class CallTag(logging.Filter):
+    """Appends ` call=<n>` to a record made while call n is in flight, so a retry names its call.
+
+    `CALL_NUMBER` is a `ContextVar`, so calls in flight together each tag their own records.
+    """
+
+    @override
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Tag `record` when a call is in flight; never drop it."""
+        number = CALL_NUMBER.get()
+        if number > 0 and not getattr(record, "call_tagged", False):
+            record.msg = f"{record.msg} call={number}"
+            record.call_tagged = True
+        return True
+
+
+def install_call_tag() -> None:
+    """Add a `CallTag` to the SDK's client logger, unless it holds one already."""
+    sdk = logging.getLogger(SDK_CLIENT_LOGGER)
+    if not any(isinstance(f, CallTag) for f in sdk.filters):
+        sdk.addFilter(CallTag())
+
+
 def send_with(client: anthropic.Anthropic, *, attempts: Attempts | None = None) -> Send:
     """Return a `Send` that makes each call through `client`.
 
@@ -280,6 +308,7 @@ def default_send() -> Send:
     through `Attempts`.
     """
     probe = Attempts()
+    install_call_tag()
     client = anthropic.Anthropic(middleware=[probe], max_retries=MAX_RETRIES, timeout=TIMEOUT)
     return send_with(client, attempts=probe)
 
@@ -328,6 +357,7 @@ def default_async_send() -> AsyncSend:
     The client retries `MAX_RETRIES` times within `TIMEOUT`, as `default_send`'s does, and
     registers `Attempts`.
     """
+    install_call_tag()
     client = anthropic.AsyncAnthropic(
         middleware=[Attempts()], max_retries=MAX_RETRIES, timeout=TIMEOUT
     )

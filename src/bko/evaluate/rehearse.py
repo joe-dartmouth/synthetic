@@ -29,7 +29,7 @@ from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, Removal
-from bko.evaluate.run import prepared
+from bko.evaluate.prepare import prepared
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
 from bko.generate.prompt import NO_FINDING
@@ -81,7 +81,7 @@ def safe_ranges(
     """Each of `frame`'s measured fields' range inside the training split of every one of `seeds`.
 
     Each split bands its cells by `frame`'s edges, and its training rows are those `removal`
-    leaves (`bko.evaluate.run.prepared`), as the harness's are.
+    leaves (`bko.evaluate.prepare.prepared`), as the harness's are.
 
     Raises:
         EvaluationError: If no value of a field lies inside every split's range.

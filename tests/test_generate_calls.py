@@ -138,12 +138,13 @@ def test_a_served_model_other_than_the_settings_model_warns(tmp_path, caplog):
 def test_a_short_call_warns_with_its_reason(tmp_path, caplog):
     send = ScriptedSend(reply([], stop_reason="refusal"))
     with caplog.at_level(logging.INFO), _log(tmp_path) as log:
-        ask(GUIDANCE, 2, send=send, log=log)
+        ask(GUIDANCE, 2, send=send, log=log, clock=iter([0.0, 2.5]).__next__)
     messages = [record.getMessage() for record in caplog.records]
     assert "short call=1 cell=<55/female/1 asked=2 undecoded=2 reason=refused" in messages
     assert (
         "generate call=1 cell=<55/female/1 level=summary asked=2 decoded=0 undecoded=2 "
-        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.000350 request_id=req_test"
+        "stop_reason=refusal input_tokens=1000 output_tokens=500 usd=0.000350 request_id=req_test "
+        "elapsed_s=2.500 in_flight=1"
     ) in messages
 
 

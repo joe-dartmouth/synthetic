@@ -199,6 +199,7 @@ def sample(
     name: str,
     seed: int,
     frame: FrameSpec = UCI_FRAME,
+    tag: tuple[int, str] | None = None,
 ) -> dict[Cell, tuple[Draw, ...]]:
     """Draw `quota` records per cell from the fused BKB's concept shares.
 
@@ -217,6 +218,8 @@ def sample(
         name: The dataset's source name, as `bko.gaps.observe.record_cells` takes it.
         seed: The generator's seed.
         frame: The frame the records belong to.
+        tag: The holdout and the fill the draw serves, which its `direct` and `fallback` lines
+            name; they read `holdout=-1 fill=none` when None.
 
     Returns:
         Each cell's draws, in quota order.
@@ -233,6 +236,7 @@ def sample(
     plan = _Plan(mappings, ontologies, frame)
     groups = _label_groups(train, keys, {int(cell[2]) for cell in quota}, mappings, name, frame)
     rng = np.random.default_rng(seed)
+    holdout, fill = (-1, "none") if tag is None else tag
     drawn: dict[Cell, tuple[Draw, ...]] = {}
     for cell, count in quota.items():
         group = groups[int(cell[2])]
@@ -247,7 +251,9 @@ def sample(
             ],
         )
         logger.info(
-            "direct key=%s rows=%d records=%d group_records=%d",
+            "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d",
+            holdout,
+            fill,
             cell_key(cell),
             count,
             len(sources.own),
@@ -255,7 +261,14 @@ def sample(
         )
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
-            logger.info("fallback key=%s field=%s draws=%d", cell_key(cell), field, times)
+            logger.info(
+                "fallback holdout=%d fill=%s key=%s field=%s draws=%d",
+                holdout,
+                fill,
+                cell_key(cell),
+                field,
+                times,
+            )
         drawn[cell] = draws
     return drawn
 

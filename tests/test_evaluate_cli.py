@@ -22,11 +22,20 @@ from bko.evaluate.__main__ import (
 )
 from bko.evaluate.classifier import MODELS
 from bko.evaluate.criteria import CONTRAST_COLUMNS
-from bko.evaluate.experiment import CRITERION_NAMES, DEFAULT_RUN, E1, E3, RUNS, NamedRun
+from bko.evaluate.experiment import (
+    CRITERION_NAMES,
+    DEFAULT_RUN,
+    E1,
+    E3,
+    MESSAGES_ARMS,
+    RUNS,
+    NamedRun,
+)
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.provenance import commit, log_experiment
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from bko.generate.api import default_async_send
+from bko.generate.messages import SETTINGS, Level
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
 from tests._datasets_fixtures import FakeOpener, archive, pin
@@ -173,6 +182,31 @@ def test_compare_logs_the_candidate_and_the_scores_digest(scores_file, caplog):
     digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
     assert f"compare candidate=tvae dry_run=True scores_sha256={digest}" in caplog.text
     assert "criterion=primary verdict=" in caplog.text
+
+
+def test_compare_header_names_the_run_and_its_level(scores_file, caplog):
+    digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
+    no_messages = dataclasses.replace(
+        SMALL,
+        arms=tuple(arm for arm in SMALL.arms if arm not in MESSAGES_ARMS),
+        replica_arms=tuple(arm for arm in SMALL.replica_arms if arm not in MESSAGES_ARMS),
+        candidate="tvae",
+        comparators=("none", "class-weight", "smote", "adasyn", "ctgan"),
+        criteria=(),
+    )
+    runs = {
+        "g3-cell": NamedRun(SMALL, dataclasses.replace(SETTINGS, guidance=Level.CELL)),
+        "x1": NamedRun(no_messages),
+    }
+    context = Context(experiment=SMALL, runs=runs)
+    with caplog.at_level(logging.INFO):
+        for run in ("e1", "g3-cell", "x1"):
+            main(["compare", run, str(scores_file), "--candidate", "tvae"], context=context)
+    for run, level in (("e1", "summary"), ("g3-cell", "cell"), ("x1", "none")):
+        assert (
+            f"compare candidate=tvae dry_run={run != 'x1'} scores_sha256={digest} "
+            f"run={run} level={level}"
+        ) in caplog.text
 
 
 def test_a_malformed_scores_file_exits_three(tmp_path):
