@@ -46,6 +46,6 @@ for it goes through [`docs/RESEARCH.md`](../docs/RESEARCH.md) and a new E1 confi
 
 ## Acceptance
 
-- Each model's run is recorded with its spend and replays byte for byte, or the entry states why a
-  local model was not run (a projected duration over 36 hours).
+- Each model's run is recorded with its spend and replays byte for byte, or the entry states that
+  a local model was not run under G6's duration rule (`docs/EVIDENCE.md`, G6, Configuration).
 - `make check`.

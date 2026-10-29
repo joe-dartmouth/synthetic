@@ -8,7 +8,7 @@ parallel_safe: true
 owner: Joe
 milestone: final-report
 paid: false
-adrs: --
+adrs: research/local-generator-backend
 ---
 
 # What thinking on costs the local generators
@@ -27,11 +27,13 @@ separates the model from thinking. A thinking-on run's duration, and whether rea
 
 **In.**
 
-- `python -m bko.generate.local probe <model>` with thinking on for each thinking model, recording
-  whether reasoning tokens appear and whether the records decode valid.
+- A thinking-on setting for `bko.generate.local` (its payload and server argv send
+  `enable_thinking` false for every model), with `python -m bko.generate.local probe <model>` run
+  with it for each thinking model, recording whether reasoning tokens appear and whether the
+  records decode valid.
 - One named run per model on holdouts 0 to 4 with thinking on.
 - Tokens and seconds per record asked, and the projected wall time of a 100-holdout run, recorded
-  as rows of G6.
+  in G6's Runs and Result rows as thinking-on rows beside its thinking-off runs.
 
 **Out.** A full thinking-on run; changing G6's runs.
 

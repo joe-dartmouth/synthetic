@@ -202,6 +202,19 @@ reads a posterior, with a hand-worked case to check it against, since pybkb has 
 
 **Sources.** pybkb at the commit the ADR names.
 
+## Opus 5.5 as a generator
+
+**What it is.** The generator comparison's runs at Opus 5.5: the baselines and the `bko` arm at the
+judged configuration with `SETTINGS.model` alone changed, as G6 runs Sonnet 5.5
+([EVIDENCE.md](EVIDENCE.md#g6-generator-model)).
+
+**Why it is not in the plan.** Not run in G6, by the project's choice: at the judged run's tokens per
+record asked its estimate is about twice Sonnet's, and G6 reads the model axis through Sonnet and
+three on-device models. Adopting it means a named run with its own spend ceiling, whose commit is
+the sign-off.
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694
@@ -216,16 +229,3 @@ reads a posterior, with a hand-worked case to check it against, since pybkb has 
 [solatorio-2023]: https://arxiv.org/abs/2302.02041
 [watson-2023]: https://arxiv.org/abs/2205.09435
 [zhang-2024]: https://arxiv.org/abs/2310.09656
-
-## Opus 5.5 as a generator
-
-**What it is.** The generator comparison's runs at Opus 5.5: the baselines and the `bko` arm at the
-judged configuration with `SETTINGS.model` alone changed, as G6 runs Sonnet 5.5
-([EVIDENCE.md](EVIDENCE.md#g6-generator-model)).
-
-**Why it is not in the plan.** Not run in G6, by the project's choice: at the judged run's tokens per
-record asked its estimate is about twice Sonnet's, and G6 reads the model axis through Sonnet and
-three on-device models. Adopting it means a named run with its own spend ceiling, whose commit is
-the sign-off.
-
-**Sources.** None in the brief or the 2-pager.

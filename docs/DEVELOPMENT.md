@@ -212,8 +212,9 @@ differ from the named run's, exit 2 before it claims a folder
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at the judged run e1-4's tokens per record priced at the named run's model's
-rates, so the stop rules and spend lines run for free; its spend is a wiring check, not an estimate; the call log's `run` line holds
-`"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
+rates, so the stop rules and spend lines run for free (a local model's rates are zero, so its
+rehearsal checks wiring and folder roles alone); its spend is a wiring check, not an estimate; the
+call log's `run` line holds `"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
 tokens per record. A replay of a rehearsal's log works, and the replay's own `run` line keeps
 `"rehearsal": true`. A rehearsal
 starts with `launch <run-id> [<run>] --rehearse`, which writes into the `rehearsal` folder inside
