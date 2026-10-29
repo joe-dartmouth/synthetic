@@ -88,14 +88,15 @@ figure below is what the command beside it in Rationale prints against that popu
   the training records outside the cell that share its label; no record's values are sent, and the
   rows are generated, so none describes a person
   ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation), What leaves the machine).
-- **Arms**: E1's arms (`METHOD_ARMS` and `BKO_ARMS`) plus `real`. Replica arms: the row-adding
+- **Arms**: E1's arms (`METHOD_ARMS`, the literal tuple of the six comparison methods, and
+  `BKO_ARMS`) plus `real`. Replica arms: the row-adding
   methods (`ADDS_ROWS`) and the three BKO arms. Neither `bko-direct` nor `bko-skeleton` runs.
 - **Settings**: `SETTINGS` itself (`claude-haiku-5-5`, effort `medium`, `max_tokens` 16000,
   `per_call` 20, level `summary`), the effort G4 chose
   ([G4](../../EVIDENCE.md#g4-effort-at-summary)).
 - **Criteria**: none; E3 is reported with no verdict, and its headline reads each arm beside
   `real` and `none`.
-- **Named runs and slices**: `e3` in `bko.evaluate.experiment.RUNS` holds the whole run over
+- **Named runs and slices**: `e3` in `bko.evaluate.named_runs.RUNS` holds the whole run over
   Synthea; `e3-a` holds holdouts 0 to 49 and `e3-b` holdouts 50 to 99, each with a ceiling of
   $32.50. The two slices run concurrently at 8 calls in flight each. `merge` joins their
   `scores.csv` files in seed order into the bytes one `e3` run writes, and `compare e3` reads the
@@ -512,7 +513,7 @@ from pathlib import Path
 
 from bko.evaluate.beside import Skipped, pair, pairable
 from bko.evaluate.criteria import held_out_ratio_of, series_of
-from bko.evaluate.experiment import E3
+from bko.evaluate.named_runs import E3
 from bko.evaluate.scores import parse
 
 s = parse(Path(sys.argv[1]).read_text())

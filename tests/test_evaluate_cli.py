@@ -22,16 +22,9 @@ from bko.evaluate.__main__ import (
 )
 from bko.evaluate.classifier import MODELS
 from bko.evaluate.criteria import CONTRAST_COLUMNS
-from bko.evaluate.experiment import (
-    CRITERION_NAMES,
-    DEFAULT_RUN,
-    E1,
-    E3,
-    MESSAGES_ARMS,
-    RUNS,
-    NamedRun,
-)
+from bko.evaluate.experiment import CRITERION_NAMES, E1, MESSAGES_ARMS
 from bko.evaluate.logs import log_copies, log_means
+from bko.evaluate.named_runs import DEFAULT_RUN, E3, RUNS, NamedRun
 from bko.evaluate.provenance import commit, log_experiment
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
 from bko.generate.api import default_async_send

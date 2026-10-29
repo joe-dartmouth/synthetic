@@ -18,7 +18,8 @@ from bko.datasets.cells import cell_counts
 from bko.datasets.split import split
 from bko.evaluate.classifier import Model, build
 from bko.evaluate.data import SYNTHEA_FRAME
-from bko.evaluate.experiment import E1, E3, REAL_ARM, Removal, flagged
+from bko.evaluate.experiment import E1, REAL_ARM, Removal, flagged
+from bko.evaluate.named_runs import E3
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared
 from bko.evaluate.run import method_arms, run, score_holdout
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Source

@@ -64,9 +64,10 @@ from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DEFAULT_RUN, MESSAGES_ARMS
+from bko.evaluate.experiment import MESSAGES_ARMS
 from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
 from bko.evaluate.merge import merge
+from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.scoring import score
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS

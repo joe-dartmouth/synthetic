@@ -16,8 +16,9 @@ from bko.evaluate.__main__ import _parser
 from bko.evaluate.context import Context
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import CandidatesFormatError, EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, RUNS, NamedRun
+from bko.evaluate.experiment import DIRECT_ARM
 from bko.evaluate.holdout_candidates import SCHEMA, CandidateFile, Origin, read
+from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.rehearse import CannedSend
 from bko.evaluate.scoring import _prepare, _score, score
 from bko.generate.errors import GenerationError

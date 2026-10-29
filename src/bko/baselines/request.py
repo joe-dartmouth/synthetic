@@ -40,7 +40,11 @@ type Stratum = tuple[str | int, ...]
 
 
 class Method(enum.StrEnum):
-    """The six comparison methods; the first two are the controls."""
+    """The comparison methods; the first two are the controls.
+
+    The first six are docs/RESEARCH.md section 4's comparison set; the classical synthesizers
+    follow (ADR `research/baseline-augmentation-design`).
+    """
 
     NONE = "none"
     CLASS_WEIGHT = "class-weight"
@@ -48,6 +52,8 @@ class Method(enum.StrEnum):
     ADASYN = "adasyn"
     CTGAN = "ctgan"
     TVAE = "tvae"
+    GAUSSIAN_COPULA = "gaussian-copula"
+    CART = "cart"
 
     @property
     def adds_rows(self) -> bool:

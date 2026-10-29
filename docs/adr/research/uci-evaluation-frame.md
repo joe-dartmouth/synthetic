@@ -58,7 +58,7 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   `bko.gaps.observe.record_cells`, `bko.fusion.join.join`) require the band edges, so none of
   them falls back to UCI's for a caller holding another frame. The baselines read the frame from
   their `Request`, whose field defaults to `UCI_FRAME`.
-- **One frame value per named run**: `bko.evaluate.experiment.NamedRun.dataset` chooses a
+- **One frame value per named run**: `bko.evaluate.named_runs.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name and the sha256 of its records), and every stage of `score` reads its frame from
   that value.

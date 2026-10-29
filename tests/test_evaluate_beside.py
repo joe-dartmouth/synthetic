@@ -13,7 +13,8 @@ from bko.evaluate.__main__ import Context, main
 from bko.evaluate.beside import Beside, Pairing, Skipped, pair, pairable
 from bko.evaluate.criteria import corrected_interval
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, NamedRun
+from bko.evaluate.experiment import E1
+from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
 from bko.generate.messages import SETTINGS, Level
 

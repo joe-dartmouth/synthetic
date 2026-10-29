@@ -2,14 +2,17 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-26
+updated: 2026-10-29
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
 ## Context
 
 E1 compares BKO-guided augmentation against no augmentation, class weighting, SMOTE, ADASYN, CTGAN
-and TVAE at equal row counts (`docs/RESEARCH.md` section 4). The 2-pager says neither what an equal
+and TVAE at equal row counts (`docs/RESEARCH.md` section 4). B1 reads two classical synthesizers
+beside them, SDV's Gaussian copula and sequential CART as synthpop runs it (`docs/EVIDENCE.md`,
+B1); they join the harness alone, never E1's or E3's comparison set (ADR
+`research/e1-evaluation-protocol`). The 2-pager says neither what an equal
 row count is for a method that adds no rows, nor which records added rows are drawn for, nor how a
 seed reaches a generator.
 
@@ -49,9 +52,27 @@ seed their sampling after every fit, and seed no fit.
 - **CTGAN and TVAE are SDV's synthesizers at SDV's defaults** on explicit metadata, on the CPU. Each
   draws unconditioned batches and keeps the rows whose own values fall in a stratum still short, until
   every quota is met or a cap on drawn rows refuses the run.
+- **The Gaussian copula is SDV's `GaussianCopulaSynthesizer` at its defaults**
+  ([`patki-2016`](../../literature.md#tabular-generators)), fit on the
+  training split and drawn unconditioned, rows kept by their own values as CTGAN's and TVAE's are.
+- **Sequential CART is synthpop's `syn.cart` (CRAN 1.9-3) on scikit-learn**
+  ([`nowok-2016`](../../literature.md#tabular-generators)). The columns are
+  visited in the frame's order; the first is drawn from its training values with replacement, and
+  each later one from a tree fit once on the columns before it: a classifier (Gini) for a coded
+  field or the label, a regressor (squared error) for a measured one. Predictors are the earlier
+  columns, a code with 3 or more values one-hot, so a tree splits such a code one value against the
+  rest where rpart may split it on any subset of its values; scikit-learn's trees have no subset
+  split. The trees take rpart's settings as synthpop sets
+  them: `min_samples_leaf` 5, `min_samples_split` 15, `max_depth` 30 and `min_impurity_decrease`
+  1e-8 times the root's impurity. A new row's value is copied from a uniformly chosen training row
+  in its leaf. Rows are kept by their own values until each quota is met.
 - **Seeds**: imbalanced-learn takes one seed per stratum, derived from the run's seed. CTGAN and TVAE
   fit with numpy's and torch's global generators seeded from it and one torch thread, all restored
-  afterwards; SDV seeds sampling itself after every fit.
+  afterwards; SDV seeds sampling itself after every fit. The Gaussian copula's fit draws nothing
+  at random and SDV fixes its sampling seed (`FIXED_RNG_SEED`), so the copula's rows do not move
+  with the seed, as the classifier's fit does not. Sequential CART seeds each tree with
+  `derived_seed(seed, "cart", column)` and every draw from `default_rng(derived_seed(seed, "cart"))`,
+  touching no global generator.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
   defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
@@ -59,7 +80,8 @@ seed their sampling after every fit, and seed no fit.
   one weight per training record. The command writes the training set they make to stdout
   as CSV and writes nothing under `data/` but the snapshot `bko.datasets` fetches.
 
-`bko.baselines.request`, `bko.baselines.oversample` and `bko.baselines.synthesizers` hold the values.
+`bko.baselines.request`, `bko.baselines.oversample`, `bko.baselines.synthesizers` and
+`bko.baselines.classical` hold the values.
 
 ## Rationale
 
@@ -81,6 +103,13 @@ a shortfall as a warning; drawing and classifying rows by their own values is th
 hard failure. Seeding the global generators is the only way to reach the fit without SDV's private
 methods, and one thread on the CPU removes the device and the reduction order from the result.
 
+The copula at SDV's defaults is the cited form, as CTGAN's and TVAE's are; its native conditioning
+cannot name an age band either. Sequential CART follows synthpop because synthpop is CART
+synthesis's reference implementation; rpart's complexity parameter is a split threshold, which
+`min_impurity_decrease` is and scikit-learn's cost-complexity pruning is not. Drawing every column
+in the frame's order and keeping rows by their values keeps the visit sequence synthpop uses;
+fixing a cell's columns first would reorder it.
+
 Writing files under `data/` would give the harness nothing it lacks: it calls `augment` per split.
 
 ## Consequences
@@ -91,7 +120,9 @@ refusals that name the method and the stratum.
 per-stratum density counts same-label records of other cells as the majority; SDV's defaults train
 for few steps on this split; cross-platform identity of CTGAN and TVAE output is not promised, so the
 command logs its output's sha256; `make setup` downloads `torch` on every machine; importing SDV
-creates SDV's user data directory.
+creates SDV's user data directory; the Gaussian copula gives the same rows at every seed, so its
+holdout-to-holdout spread comes from the split alone. SDV and the libraries it brings are
+BUSL-1.1 (ADR `tooling/gpl-3-license`).
 
 ## Ruled Out
 
@@ -103,17 +134,22 @@ creates SDV's user data directory.
 | SDV's `sample_from_conditions` | Rejection sampling that cannot name an age band and only warns on a shortfall | 2026-10-15 |
 | SDV's private `_set_random_state` for a per-run sampling seed | A private method; the fit seed already varies the rows | 2026-10-15 |
 | Cell-level balanced class weights | Weights the 2-record cell 238 / (8 * 2); not the class weighting the 2-pager names | 2026-10-15 |
-| scikit-learn's `compute_class_weight` | scikit-learn is declared only in `eval`, for a one-line formula | 2026-10-15 |
+| scikit-learn's `compute_class_weight` | A one-line formula; the stage computes it rather than call a library for it | 2026-10-29 |
 | Writing baseline datasets under `data/` | No consumer reads them; the harness calls `augment` per split | 2026-10-15 |
 | Tuning CTGAN and TVAE inside the stage | An inner split of 238 records leaves the 2-record cell nothing to validate on | 2026-10-15 |
 | Cross-platform byte identity | torch does not promise it across platforms | 2026-10-15 |
+| The synthpop R package for CART | An R runtime in the lock for one baseline; its algorithm is ported on scikit-learn instead | 2026-10-29 |
+| scikit-learn's `ccp_alpha` for rpart's `cp` | Cost-complexity post-pruning, not rpart's split threshold | 2026-10-29 |
+| The copula's native conditioning | Cannot name an age band, which is not a column | 2026-10-29 |
+| The `copulas` library or a scipy copula directly | Not the cited synthesizer; SDV's wraps `copulas` with the metadata the other synthesizers read | 2026-10-29 |
 
 ## Enforcement
 
 - Owner: `src/bko/baselines/`
 - Pinned by: `tests/test_baselines_request.py`, `tests/test_baselines_records.py`,
   `tests/test_baselines_methods.py`, `tests/test_baselines_cli.py`,
-  `tests/test_baselines_synthesizers.py`, `tests/test_baselines_oversample.py`
+  `tests/test_baselines_synthesizers.py`, `tests/test_baselines_oversample.py`,
+  `tests/test_baselines_classical.py`
 
 ## Reversal Conditions
 
@@ -130,4 +166,5 @@ record and `bko.baselines.synthesizers` change together.
 - [The UCI evaluation frame](uci-evaluation-frame.md)
 - [Python 3.14, without synthcity](../tooling/python-314-without-synthcity.md)
 - [uv, ruff and ty](../tooling/uv-ruff-ty.md)
+- [GPL-3.0-only for the repository's code](../tooling/gpl-3-license.md)
 - [src layout](../tooling/src-layout.md)

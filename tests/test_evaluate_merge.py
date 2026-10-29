@@ -11,7 +11,7 @@ import pytest
 
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
-from bko.evaluate.experiment import NamedRun
+from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import parse, render
 from tests._frame_fixtures import TOY, toy_records

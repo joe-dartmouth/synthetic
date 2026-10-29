@@ -8,6 +8,7 @@ from typing import Final
 
 import pandas as pd
 
+from bko.baselines.classical import cart, gaussian_copula
 from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.errors import BaselineError
 from bko.baselines.oversample import adasyn, smote
@@ -27,6 +28,8 @@ METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
         Method.ADASYN: adasyn,
         Method.CTGAN: ctgan,
         Method.TVAE: tvae,
+        Method.GAUSSIAN_COPULA: gaussian_copula,
+        Method.CART: cart,
     }
 )
 """Each built method's runner; the command offers exactly these."""

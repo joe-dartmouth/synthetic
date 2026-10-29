@@ -16,18 +16,10 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.direct import DirectArm
-from bko.evaluate.experiment import (
-    ADDS_ROWS,
-    CRITERION_NAMES,
-    DIRECT_ARM,
-    E1,
-    G2,
-    METHOD_ARMS,
-    RUNS,
-    NamedRun,
-)
+from bko.evaluate.experiment import ADDS_ROWS, CRITERION_NAMES, DIRECT_ARM, E1, METHOD_ARMS
 from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.holdout_candidates import KEPT, SCHEMA, read
+from bko.evaluate.named_runs import G2, RUNS, NamedRun
 from bko.evaluate.scores import Source
 from bko.ontology.mapping import FIELD_MAPPINGS
 from tests._datasets_fixtures import archive, cleveland_line, pin

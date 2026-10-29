@@ -37,8 +37,9 @@ from bko.evaluate.classifier import build
 from bko.evaluate.criteria import BOOSTED
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, METHOD_ARMS, RUNS
+from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
+from bko.evaluate.named_runs import RUNS
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
 from bko.gaps.definitions import Definition

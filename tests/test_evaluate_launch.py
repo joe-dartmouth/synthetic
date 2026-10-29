@@ -20,8 +20,9 @@ from bko.app.runs import ROLES
 from bko.evaluate import launch as launching
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1, RUNS, NamedRun
+from bko.evaluate.experiment import E1
 from bko.evaluate.launch import REHEARSAL, TAKEN, launch, on_battery, spawn
+from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Level
 

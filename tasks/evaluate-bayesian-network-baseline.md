@@ -27,8 +27,9 @@ from the fused BKB, whose structure the ontologies give, also with no API call. 
 other, the two isolate the expert structure; read against `bko`, the learned network isolates
 knowledge and the LLM together.
 
-Its E3 reading pairs with E3's recorded scores, and a method that joins `METHOD_ARMS` would change
-E3's arms, as `evaluate-classical-baselines` says.
+Its E3 reading pairs with E3's recorded scores, and E3's arms stay as its ADR fixes them: a new
+method joins `bko.evaluate.run.ARMS` alone, never the pinned `METHOD_ARMS` (ADR
+`research/e1-evaluation-protocol`).
 
 ## Scope
 
@@ -47,11 +48,10 @@ E3's arms, as `evaluate-classical-baselines` says.
   values), and the seeding, each with its reason.
 - A method under `bko.baselines` that fills a request exactly, stratum by stratum, on the training
   split only, seeded from the run's seed. E1, E3 and every run built from them keep their arms and
-  comparators: it joins the harness's arms (`bko.evaluate.run.ARMS`) alone, through the seam
-  `evaluate-classical-baselines` builds (`METHOD_ARMS` and `ADDS_ROWS` pinned to explicit tuples of
-  today's six methods, with a test pinning E1's and E3's arms). If this unit lands first, it builds
-  that seam itself.
-- Free named runs (`bko.evaluate.experiment.RUNS`), with no criterion and no BKO arm, the network
+  comparators: it joins the harness's arms (`bko.evaluate.run.ARMS`) alone, as
+  `bko.evaluate.experiment.METHOD_ARMS`, a literal tuple of the six comparison methods, requires
+  (`tests/test_evaluate_experiment.py` pins E1's and E3's arms).
+- Free named runs (`bko.evaluate.named_runs.RUNS`), with no criterion and no BKO arm, the network
   as the candidate: on E1's holdouts over UCI, read by `compare --beside` E1's judged run's scores
   with `--beside-arm bko` and G2's scores with `--beside-arm bko-direct`; on E3's holdouts,
   removal and copy rule over the Synthea frame, read beside E3's merged scores with `--beside-arm

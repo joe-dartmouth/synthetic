@@ -11,24 +11,22 @@ import pytest
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
     E1,
-    E3,
-    E3_SLICE_CEILING,
     METHOD_ARMS,
     REAL_ARM,
-    RUNS,
     Experiment,
-    NamedRun,
     Removal,
     flagged,
     gap_request,
     replica_request,
 )
-from bko.evaluate.run import run
+from bko.evaluate.named_runs import E3, E3_SLICE_CEILING, G2, G5, RUNS, SETTINGS_SWEEP, NamedRun
+from bko.evaluate.run import ARMS, run
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
@@ -50,8 +48,19 @@ def test_e1_judges_bko_against_every_method():
         "bko-population": Definition.POPULATION,
         "bko-frequency": Definition.FREQUENCY,
     }
-    assert E1.replica_arms == (*(m.value for m in Method if m.adds_rows), *BKO_ARMS)
+    assert E1.replica_arms == ("smote", "adasyn", "ctgan", "tvae", *BKO_ARMS)
     assert len(set(E1.holdout_seeds)) == len(E1.holdout_seeds) >= 2
+
+
+def test_e3_is_its_stated_configuration():
+    methods = ("none", "class-weight", "smote", "adasyn", "ctgan", "tvae")
+    assert E3.arms == (*methods, "bko", "bko-population", "bko-frequency", "real")
+    assert E3.comparators == methods
+    assert E3.replica_arms == ("smote", "adasyn", "ctgan", "tvae", *BKO_ARMS)
+    assert E3.removal == Removal((">=65", "female", 1), 0.9)
+    assert E3.decontaminate is False
+    assert E3.spend_ceiling == pytest.approx(65.0)
+    assert E3.criteria == ()
 
 
 def test_e1_is_its_stated_configuration():
@@ -88,6 +97,8 @@ def test_e1_is_its_stated_configuration():
 
 def test_every_run_name_is_pinned():
     assert set(RUNS) == {
+        "b1-synthea",
+        "b1-uci",
         "e1",
         "e3",
         "e3-a",
@@ -274,3 +285,32 @@ def test_the_spend_ceiling_covers_the_recorded_estimate_with_its_margin():
     assert estimate == pytest.approx(6.128, abs=0.001)
     assert E1.spend_ceiling == pytest.approx(25.0)
     assert E1.spend_ceiling >= 1.25 * estimate
+
+
+@pytest.mark.parametrize("name", sorted(set(Method) - set(METHOD_ARMS)))
+def test_a_method_outside_the_comparison_set_joins_the_harness_alone(name):
+    assert name in ARMS
+    for experiment in (E1, G2, G5, SETTINGS_SWEEP, E3):
+        assert name not in experiment.arms
+
+
+def test_b1_runs_are_their_stated_configurations():
+    new = ("gaussian-copula", "cart")
+    uci, synthea = RUNS["b1-uci"], RUNS["b1-synthea"]
+    assert uci.experiment == dataclasses.replace(
+        E1,
+        arms=(*METHOD_ARMS, *new),
+        candidate="gaussian-copula",
+        comparators=METHOD_ARMS,
+        replica_arms=(*ADDS_ROWS, *new),
+        criteria=(),
+    )
+    assert (uci.settings, uci.dataset) == (SETTINGS, Dataset.UCI)
+    assert synthea.experiment == dataclasses.replace(
+        E3,
+        arms=(*METHOD_ARMS, *new, "real"),
+        candidate="gaussian-copula",
+        comparators=METHOD_ARMS,
+        replica_arms=(*ADDS_ROWS, *new),
+    )
+    assert (synthea.settings, synthea.dataset) == (SETTINGS, Dataset.SYNTHEA)
