@@ -53,6 +53,20 @@ logger = logging.getLogger(__name__)
 SDK_CLIENT_LOGGER: Final = "anthropic._base_client"
 """The logger the SDK writes its `Retrying request` records to."""
 
+SDK_LOGGER: Final = "anthropic"
+"""The SDK's root logger. `ANTHROPIC_LOG=debug` sets it to DEBUG when the SDK is imported, and its
+client then logs each request's options, prompt and shown records included."""
+
+
+def hold_sdk_logger() -> None:
+    """Hold the SDK's loggers at INFO or above, so no setting makes them log a request's body."""
+    sdk = logging.getLogger(SDK_LOGGER)
+    if sdk.getEffectiveLevel() < logging.INFO:
+        sdk.setLevel(logging.INFO)
+
+
+hold_sdk_logger()
+
 HTTP_LOGGERS: Final = ("httpx2",)
 """The SDK's HTTP client logs each request at INFO; the call log already holds them."""
 

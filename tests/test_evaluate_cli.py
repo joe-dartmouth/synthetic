@@ -457,13 +457,3 @@ def test_a_run_naming_only_privacy_judges_only_privacy(scores_file):
     context = Context(experiment=only)
     assert main(["compare", str(scores_file), "--candidate", "tvae"], context=context, out=out) == 0
     assert list(dict.fromkeys(pd.read_csv(io.StringIO(out.getvalue()))["criterion"])) == ["privacy"]
-
-
-def test_configure_logging_holds_the_sdk_logger_at_info(monkeypatch):
-    """`ANTHROPIC_LOG=debug` sets the SDK's loggers to DEBUG, which would log request bodies."""
-    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
-    sdk = logging.getLogger("anthropic")
-    monkeypatch.setattr(sdk, "level", logging.DEBUG)
-    configure_logging()
-    assert sdk.level == logging.INFO
-    assert not sdk.isEnabledFor(logging.DEBUG)

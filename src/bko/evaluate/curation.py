@@ -11,6 +11,7 @@ batch and a replay keeps the same rows.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from itertools import islice
 from typing import Final
@@ -22,6 +23,8 @@ from threadpoolctl import threadpool_limits
 
 from bko.datasets.frames import FrameSpec
 
+
+logger = logging.getLogger(__name__)
 
 type Discard = Callable[[pd.DataFrame], pd.Series]
 """A curator: given added rows in a frame's columns, which to drop, by row, True to drop."""
@@ -68,8 +71,12 @@ def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
         A `Discard` that reads each row's confidence and aleatoric uncertainty over the first
         `STAGES` stages and marks the rows `discards` drops, indexed as the rows given.
 
+    Logs one `curator` line: the training rows, their count per label, the stages read and both
+    thresholds.
+
     Raises:
-        ValueError: If `train` holds one label only, which no classifier separates.
+        ValueError: If `train` holds one label only, which no classifier separates, or the fit
+            stops before every stage it reads.
     """
     features = list(frame.features)
     labels = train[frame.label].to_numpy()
@@ -78,6 +85,18 @@ def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
         raise ValueError(msg)
     with threadpool_limits(limits=1, user_api="openmp"):
         model = curator().fit(train.loc[:, features], labels)
+    if model.n_iter_ <= STAGES:
+        msg = f"the curator stopped after {model.n_iter_} stages; it reads {STAGES}"
+        raise ValueError(msg)
+    counts = dict(zip(*np.unique(labels, return_counts=True), strict=True))
+    logger.info(
+        "curator train=%d labels=%s stages=%d confidence_at_most=%s aleatoric_at_most=%s",
+        len(train),
+        ",".join(f"{label}:{count}" for label, count in sorted(counts.items())),
+        STAGES,
+        CONFIDENCE_AT_MOST,
+        ALEATORIC_AT_MOST,
+    )
     classes = list(model.classes_)
 
     def discard(rows: pd.DataFrame) -> pd.Series:

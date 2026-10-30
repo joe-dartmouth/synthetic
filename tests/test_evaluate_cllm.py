@@ -7,6 +7,7 @@ from functools import partial
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from bko.baselines.request import Request, Strata
 from bko.datasets.cells import cell_keys
@@ -131,20 +132,37 @@ def test_cllm_replays_byte_for_byte(tmp_path):
         second = again(train(), REQUEST)
     assert first.added.equals(second.added)
     assert replay.remaining == 0
-    requests = [
+    live_requests, replayed_requests = requests_of(log.path), requests_of(replayed.path)
+    assert len(live_requests) == len(replayed_requests) == 1
+    assert live_requests == replayed_requests
+    assert shown_in(live_requests[0])
+
+
+def requests_of(path: Path) -> list[dict[str, object]]:
+    """Each logged request's params, in call order."""
+    return [
         json.loads(line)["params"]
-        for path in (log.path, replayed.path)
         for line in path.read_text(encoding="utf-8").splitlines()
         if json.loads(line)["kind"] == "request"
     ]
-    assert requests[0] == requests[1]
 
 
-def test_every_messages_arm_of_every_run_sends_only_through_the_flight(tmp_path):
+def user_turn(params: dict[str, object]) -> str:
+    messages = params["messages"]
+    assert isinstance(messages, list)
+    return str(messages[0]["content"])
+
+
+def shown_in(params: dict[str, object]) -> list[dict[str, object]]:
+    """The JSON records a logged request's user turn lists."""
+    return [json.loads(line) for line in user_turn(params).splitlines() if line.startswith("{")]
+
+
+def test_guided_arms_builds_every_messages_arm_of_every_run(tmp_path):
     names = sorted(
         {arm for run in RUNS.values() for arm in run.experiment.arms} & set(MESSAGES_ARMS)
     )
-    names = sorted({*names, CLLM_ARM, CLLM_RAW_ARM})
+    assert {CLLM_ARM, CLLM_RAW_ARM} <= set(names)
     with guided_arms(
         names,
         Knowledge("uci", {}, (), ()),
@@ -166,3 +184,53 @@ def built_source() -> Source:
 
 def dropped(reason: str) -> Measure:
     return Measure(f"dropped-{reason}")
+
+
+@pytest.mark.parametrize("name", [CLLM_ARM, CLLM_RAW_ARM, "bko"])
+def test_a_cllm_arms_logged_request_shows_seeded_training_records_and_bkos_none(tmp_path, name):
+    rows = train()
+    built, log = arm(tmp_path, name, ScriptedSend(reply(records())))
+    with log:
+        built(rows, REQUEST)
+    [params] = requests_of(log.path)
+    listed = shown_in(params)
+    if name == "bko":
+        assert listed == []
+        return
+    expected = Shower(rows, frame=UCI_FRAME, seed=REQUEST.seed).take(YOUNG_SICK)
+    assert listed == [dict(record) for record in expected]
+    assert len(listed) == SHOW
+
+
+def small_train() -> pd.DataFrame:
+    """Five young sick women, three older sick women and 30 sick men: tier 3 is reached."""
+    rows = train()
+    keys = cells_of(rows)
+    own = rows[[key == YOUNG_SICK for key in keys]].head(5)
+    group = rows[[key == (">=55", "female", 1) for key in keys]].head(3)
+    men = rows[[key[1:] == ("male", 1) for key in keys]].head(30)
+    well = rows[[key[2] == 0 for key in keys]].head(10)
+    return pd.concat([own, group, men, well])
+
+
+def test_the_draw_reaches_the_other_sex_last_and_shows_each_value_in_its_type():
+    rows = small_train()
+    shown = Shower(rows, frame=UCI_FRAME, seed=3).take(YOUNG_SICK)
+    keys = cells_of(shown_frame(shown))
+    assert keys[:5] == [YOUNG_SICK] * 5
+    assert keys[5:8] == [(">=55", "female", 1)] * 3
+    assert [key[1:] for key in keys[8:]] == [("male", 1)] * (SHOW - 8)
+    for record in shown:
+        assert all(
+            type(record[name]) is (float if name in UCI_FRAME.fractional else int)
+            for name in UCI_FRAME.columns
+        )
+
+
+def test_a_cell_with_fewer_records_than_shown_shows_what_its_label_holds():
+    rows = small_train()
+    sick = [key[2] == 1 for key in cells_of(rows)]
+    shown = Shower(rows[sick].head(6), frame=UCI_FRAME, seed=3).take(YOUNG_SICK)
+    assert len(shown) == 6
+    empty = Shower(rows[[not s for s in sick]], frame=UCI_FRAME, seed=3).take(YOUNG_SICK)
+    assert empty == ()

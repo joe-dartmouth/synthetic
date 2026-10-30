@@ -396,7 +396,7 @@ def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
     ],
 )
 def test_an_inconsistent_messages_arm_is_refused(spec):
-    with pytest.raises(ValueError, match=r"over_ask|budget"):
+    with pytest.raises(ValueError, match=r"over_ask|budget|not both"):
         MessagesArm(Definition.SUBGROUP, **spec)
 
 

@@ -25,6 +25,15 @@ class Agreement:
     sending: str | None = None
 
 
+def permits_sending(agreement: Agreement | None) -> bool:
+    """Whether records held under `agreement` may go to a third-party API.
+
+    Open data may; data under an agreement may only when its `sending` names a permission that is
+    not blank.
+    """
+    return agreement is None or bool((agreement.sending or "").strip())
+
+
 @dataclass(frozen=True, slots=True)
 class Source:
     """One pinned download.

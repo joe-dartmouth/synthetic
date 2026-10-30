@@ -157,7 +157,8 @@ def request(
     call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
-    logger.info("send call=%d cell=%s asked=%d", index, cell_key(guidance.cell), rows)
+    shows = "" if shown is None else f" shown={len(shown)}"
+    logger.info("send call=%d cell=%s asked=%d%s", index, cell_key(guidance.cell), rows, shows)
     return Pending(index, guidance.cell, rows, call)
 
 

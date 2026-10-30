@@ -173,7 +173,8 @@ class Attempt:
             skeleton: The call's prescriptions; a record outside `cell` is dropped for its
                 cell, and one whose concepts match no line left unconsumed is dropped after its
                 cell and before the quota (`bko.baselines.records.assess`). None prescribes
-                nothing.
+                nothing. An attempt given a `discard` drops each row its curator marks after the
+                row's cell and concepts and before the quota.
 
         Returns:
             The positions among `skeleton`'s lines of those a kept record consumed; empty

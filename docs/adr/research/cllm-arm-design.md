@@ -62,9 +62,10 @@ prompt (their section 2.2).
   E3; they run in B3's named runs.
 - **The spec.** `bko.evaluate.experiment.MessagesArm(definition, prescribes, shows, curation,
   over_ask, budget)` describes every Messages arm: `definition` None guides by cell alone, `shows`
-  makes each call show training records, `curation` (`Curation.CLASSIFIER` or
-  `Curation.LIKELIHOOD`) curates the accepted rows, `over_ask` above 1 goes with likelihood
-  curation alone, and `budget` None reads `Experiment.budget`. `cllm` is
+  makes each call show training records, `curation` curates the accepted rows, and `budget` None
+  reads `Experiment.budget`; a spec that both prescribes and shows is refused.
+  `Curation.LIKELIHOOD` and `over_ask` (above 1 with likelihood curation alone) are reserved for
+  unit `generate-bkb-curation`, and no arm runs them. `cllm` is
   `MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET)` and
   `cllm-uncurated` the same with no curation. A `GuidedArm` refuses any curation but `classifier`,
   which no arm but `cllm` has.
@@ -125,8 +126,9 @@ prompt (their section 2.2).
 - **B3's runs.** `b3-uci` and `b3-synthea` in `bko.evaluate.named_runs.RUNS` hold `METHOD_ARMS`,
   `bko`, `cllm` and `cllm-uncurated` (`B3_ARMS`), every row-adding arm filling a replica too,
   `cllm` as the candidate, `METHOD_ARMS` as comparators and no criterion: `b3-uci` on E1's holdouts
-  over UCI with a $20.00 ceiling, `b3-synthea` with E3's removal, copy rule and Synthea frame, plus
-  `real`, with a $35.00 ceiling. The in-run `bko` keeps `Experiment.budget`.
+  over UCI, `b3-synthea` with E3's removal, copy rule and Synthea frame, plus `real`; their
+  ceilings and estimates are in [EVIDENCE](../../EVIDENCE.md#b3-cllm-arms). The in-run `bko` keeps
+  `Experiment.budget`.
 - **The readings.** `cllm` and `cllm-uncurated` are each read by `compare --candidate`. The
   ontology against in-context records is `cllm` read `--beside` the same run's `bko`, and curation
   is `cllm` read `--beside` the same run's `cllm-uncurated`; both pairs share every holdout, split
@@ -136,11 +138,14 @@ prompt (their section 2.2).
 - **Egress.** The CLLM arms send training records whole. Every `Source` in
   `bko.datasets.sources` names the data use agreement it is held under
   (`bko.datasets.sources.Agreement(name, sending)`), None for open data, and every pinned source's
-  is None. `bko.evaluate.data.Data.agreement` carries it into `score`, and
-  `bko.evaluate.guided.guided_arms` refuses data whose agreement records no `sending` permission,
-  for every Messages arm, with an `EvaluationError` naming the agreement, before the call log or
-  the candidates file exists. `python -m bko.evaluate` holds the SDK's `anthropic` logger at INFO
-  (`configure_logging`), so `ANTHROPIC_LOG=debug` logs no request body there.
+  is None. `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
+  `bko.evaluate.data.Data.agreement` carries it into `score` and the app, and
+  `bko.evaluate.guided.guided_arms` refuses data whose agreement permits no sending, for every
+  Messages arm, with an `EvaluationError` naming the agreement, before the call log or the
+  candidates file exists; `python -m bko.generate` refuses the same before its call log, since its
+  bounds and percentiles are training values too. Importing `bko.generate.api`, the one module
+  that imports the SDK, holds the SDK's `anthropic` logger at INFO (`hold_sdk_logger`), so
+  `ANTHROPIC_LOG=debug` logs no request body from any entry point.
 - **Departures from CLLM**, each on purpose:
   - each call shows its cell's records first and draws without replacement within a call, where
     CLLM draws 20 from the whole training set with replacement;
@@ -207,8 +212,6 @@ an agreement that grants no permission to send them.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.
 - The curator's fits are not XGBoost's: histogram boosting bins each feature, and its leaf bound
   counts rows.
-- Only `python -m bko.evaluate` holds the SDK's logger at INFO; other entry points leave it where
-  `ANTHROPIC_LOG` sets it.
 
 ## Ruled Out
 
@@ -233,7 +236,8 @@ an agreement that grants no permission to send them.
   `tests/test_evaluate_egress.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_skeleton.py` (curation's place among the drop reasons),
   `tests/test_evaluate_experiment.py`, `tests/test_generate_prompt.py`,
-  `tests/test_generate_guidance.py`, `tests/test_evaluate_cli.py` (the SDK logger held at INFO)
+  `tests/test_generate_guidance.py`, `tests/test_generate_api.py` (the SDK logger held at INFO),
+  `tests/test_generate_cli.py` (the generate command's refusal)
 
 ## Reversal Conditions
 

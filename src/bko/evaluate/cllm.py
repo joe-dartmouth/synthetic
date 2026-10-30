@@ -36,9 +36,15 @@ class Shower:
             frame: The frame whose columns are shown and whose band edges name the cells.
             seed: The attempt's seed; the draw takes `derived_seed(seed, "cllm")`.
         """
-        self._frame = frame
-        self._rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
-        keys = cell_keys(self._rows, edges=frame.edges)
+        rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
+        self._records = [
+            {
+                name: float(record[name]) if name in frame.fractional else int(record[name])
+                for name in frame.columns
+            }
+            for record in rows.to_dict("records")
+        ]
+        keys = cell_keys(rows, edges=frame.edges)
         self._cells = list(keys.itertuples(index=False, name=None))
         self._rng = np.random.default_rng(derived_seed(seed, "cllm"))
 
@@ -54,11 +60,4 @@ class Shower:
             at for at, key in enumerate(self._cells) if key[2] == cell[2] and key[1] != cell[1]
         ]
         order = [at for tier in (own, group, label) for at in self._rng.permutation(tier).tolist()]
-        return tuple(self._record(at) for at in order[:SHOW])
-
-    def _record(self, at: int) -> dict[str, int | float]:
-        row = self._rows.iloc[at]
-        return {
-            name: float(row[name]) if name in self._frame.fractional else int(row[name])
-            for name in self._frame.columns
-        }
+        return tuple(self._records[at] for at in order[:SHOW])

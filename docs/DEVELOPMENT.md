@@ -115,11 +115,12 @@ command per method, inside `.venv`:
 `bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every arm of E1 on its repeated
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
-its three BKO arms call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
+its Messages arms (E1's three BKO arms, and B3's CLLM arms beside `bko`) call the Anthropic
+Messages API, so it needs the `llm` extra and an Anthropic
 credential, and every call goes to the call log at `--log`, which must not exist; its `run` line
-names the run's frame under `frame`. Whenever a BKO arm runs, live, with `--replay`, with `--resume`
+names the run's frame under `frame`. Whenever a Messages arm runs, live, with `--replay`, with `--resume`
 or with `--rehearse`, `--candidates <path>` is required and must not exist either: the candidates
-file holds one line per candidate a BKO arm generated,
+file holds one line per candidate a Messages arm generated,
 with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome; a direct
 arm's lines (below) carry a null call. `compare`
 spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
@@ -387,7 +388,8 @@ start or the supervisor cannot run.
   arms also fill the training split's own cell counts; those rows alone train a classifier and are
   compared with the training split for fidelity. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
-  split's training rows' gaps under its definition, asks the API for each requested cell's
+  split's training rows' gaps under its definition (a CLLM arm reads none and shows training
+  records instead, ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)), asks the API for each requested cell's
   shortfall, in the gap request and the replica request alike, validates every reply with
   `bko.validate`, drops what `bko.baselines.records.check` would refuse, and keeps the rest. An
   attempt that cannot fill the request inside `E1`'s budget is refused and retried like a
@@ -460,7 +462,10 @@ start or the supervisor cannot run.
   `guided arm=%s seed=%d outcome=%s calls=%s asked=%d generated=%d passed=%d dropped_range=%d
   dropped_cell=%d dropped_concepts=%d dropped_quota=%d kept=%d requeued=%d usd=%.4f`, where
   `requeued=` counts the attempt's lines returned to their cell's queue; for the curating arm `cllm`
-  `dropped_curation=%d` stands before `dropped_quota=`. `bko-skeleton` also logs, after
+  `dropped_curation=%d` stands before `dropped_quota=`, and each attempt first logs its curator's
+  fit as `curator train=%d labels=%s stages=%d confidence_at_most=%s aleatoric_at_most=%s` (the
+  training rows, their count per label as `<label>:<count>` pairs, the stages read and both
+  thresholds). `bko-skeleton` also logs, after
   each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its
@@ -809,13 +814,14 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   to `bko.evaluate.cllm.SHOW` training records whole, every frame column: the cell's own first, then
   its sex-and-label group's, then its label group's. They send no finding, profile or summary. Per
   frame:
-  - UCI (every named run whose dataset is UCI, `bko.evaluate.named_runs.RUNS`, and this command):
+  - UCI (every named run with a Messages arm whose dataset is UCI, `bko.evaluate.named_runs.RUNS`,
+    and this command):
     every bound and quartile is a real training value of a de-identified patient record, and a
     small split or reference group exposes them together as a record; a CLLM call sends the
-    records themselves, under the archive's CC BY 4.0 licence. Every Messages arm refuses data held
-    under an agreement that records no permission to send it ([Data](#data), Agreements); check a
+    records themselves, under the archive's CC BY 4.0 license. Every Messages arm and this command
+    refuse data held under an agreement that records no permission to send it ([Data](#data), Agreements); check a
     DUA's terms before recording one ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
-  - Synthea (every named run whose dataset is Synthea): through the BKO arms, the study and cohort
+  - Synthea (every named run with a Messages arm whose dataset is Synthea): through the BKO arms, the study and cohort
     text, the codebook with each indicator's label, age's training-split bounds within the cell's
     band, the cell and its training record count, and the gap findings with their ontology chains;
     at `summary`, also the reference group's (the training records outside the cell that share its
@@ -866,7 +872,8 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   rows, a `quota` line per asked cell, a `log` line (`log path=%s schema=%d model=%s effort=%s
   level=%s per_call=%d max_tokens=%d replay=%s resume=%s rehearsal=%s in_flight=%d`: the replayed
   log's sha256 or `none`, `resume=none`, `rehearsal=false` and `in_flight=1`), the
-  plan (calls, level, and the most the output tokens can cost), a `send` line before each call and a
+  plan (calls, level, and the most the output tokens can cost), a `send call=%d cell=%s asked=%d`
+  line before each call (with ` shown=%d`, the records it shows, for a CLLM arm's call) and a
   `generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s
   input_tokens=%d output_tokens=%d usd=%.6f request_id=%s elapsed_s=%.3f in_flight=%d` line after
   it, ending with the call's seconds from send to landing and the calls in flight when it landed,
@@ -1196,8 +1203,8 @@ A targeted run while working:
   AppTest's `run` raises, and the guard's message goes to the thread's exception hook.
 - **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
   subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts, training
-  records included for a CLLM arm. `python -m bko.evaluate` holds the SDK's `anthropic` logger at
-  INFO, so it logs no request body there; nothing else holds it, a `live` test included.
+  records included for a CLLM arm. Importing `bko.generate.api` holds the SDK's `anthropic` logger
+  at INFO, so no entry point logs a request body.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

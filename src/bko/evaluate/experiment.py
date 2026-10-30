@@ -268,13 +268,16 @@ class MessagesArm:
     budget: int | None = None
 
     def __post_init__(self) -> None:
-        """Refuse an inconsistent over-ask or a budget under 1.
+        """Refuse an inconsistent over-ask, prescribing beside showing, or a budget under 1.
 
         Raises:
             ValueError: If the spec is inconsistent.
         """
         if self.over_ask < 1 or (self.over_ask > 1) != (self.curation is Curation.LIKELIHOOD):
             msg = f"over_ask {self.over_ask} needs likelihood curation and only it"
+            raise ValueError(msg)
+        if self.prescribes and self.shows:
+            msg = "a Messages arm prescribes concepts or shows records, not both"
             raise ValueError(msg)
         if self.budget is not None and self.budget < 1:
             msg = f"budget {self.budget} must be 1 or more"

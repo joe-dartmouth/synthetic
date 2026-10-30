@@ -40,6 +40,7 @@ from bko.baselines.records import Baseline, Drop, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
+from bko.datasets.sources import permits_sending
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.cllm import SHOW, Shower
 from bko.evaluate.curation import classifier_discard
@@ -391,7 +392,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             files are then removed.
     """
     agreement = origin.data.agreement
-    if agreement is not None and agreement.sending is None:
+    if agreement is not None and not permits_sending(agreement):
         msg = (
             f"{origin.data.name} is held under the agreement {agreement.name!r}, which grants no "
             "permission to send its records to the Messages API"
@@ -438,7 +439,8 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
                 shows=spec.shows,
                 curation=spec.curation,
             )
-            for name, spec in ((name, MESSAGES_ARMS[name]) for name in names)
+            for name in names
+            for spec in (MESSAGES_ARMS[name],)
         }
     except BaseException:
         call_log.discard()
