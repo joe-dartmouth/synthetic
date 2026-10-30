@@ -12,6 +12,20 @@ from typing import Final
 
 
 @dataclass(frozen=True, slots=True)
+class Agreement:
+    """The terms a dataset is held under, when it is held under a data use agreement.
+
+    Attributes:
+        name: The agreement's name.
+        sending: Where it permits sending records to a third-party API (a clause or a written
+            permission); None when it grants no such permission.
+    """
+
+    name: str
+    sending: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Source:
     """One pinned download.
 
@@ -21,6 +35,7 @@ class Source:
         filename: The file name inside a snapshot directory.
         size: The exact byte count.
         sha256: The lowercase hex sha256 of the bytes.
+        agreement: The data use agreement it is held under; None for open data.
     """
 
     name: str
@@ -28,6 +43,7 @@ class Source:
     filename: str
     size: int
     sha256: str
+    agreement: Agreement | None
 
 
 UCI_HEART_DISEASE: Final = Source(
@@ -36,6 +52,7 @@ UCI_HEART_DISEASE: Final = Source(
     filename="heart-disease.zip",
     size=128_894,
     sha256="b17cd273da9ce1caa4710fce80227ea454d4dbf9fcbc8e6a9121672751563adc",
+    agreement=None,
 )
 """UCI Heart Disease (CC BY 4.0); `bko.datasets.uci` reads its Cleveland file."""
 
@@ -48,6 +65,7 @@ SYNTHEA_JAR: Final = Source(
     filename="synthea-with-dependencies.jar",
     size=201_164_144,
     sha256="ed43c20ad40ba5c3bc724503a5af032715fe3c491620b766148e7c2361e6ecc1",
+    agreement=None,
 )
 """Synthea v4.0.0 (Apache-2.0); size and sha256 are GitHub's release asset metadata."""
 
@@ -57,6 +75,7 @@ MONDO: Final = Source(
     filename="mondo.obo",
     size=53_320_617,
     sha256="2631e8e165d41def1a46749adb1ce0a336c8aba7f6bc0978729592cee8fed60b",
+    agreement=None,
 )
 """MONDO release 2026-10-06 (CC BY 4.0); `bko.ontology.obo` reads it.
 
@@ -72,6 +91,7 @@ HPO: Final = Source(
     filename="hp.obo",
     size=10_863_613,
     sha256="93dace952fcb3ec4728818857f6ba76bc2d5312f4d83266519b8694b8e798f22",
+    agreement=None,
 )
 """HPO release 2026-09-01, under the HPO license; `bko.ontology.obo` reads it.
 
@@ -89,6 +109,7 @@ DO: Final = Source(
     filename="doid.obo",
     size=7_264_205,
     sha256="51e717b6b9f5d391f2793f9e16faf9c8629a661ab8f21c3a024458129f182ad2",
+    agreement=None,
 )
 """Human Disease Ontology release 2026-09-30 (CC0 1.0); `bko.ontology.santos` reads it.
 

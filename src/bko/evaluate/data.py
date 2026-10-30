@@ -24,7 +24,7 @@ import pandas as pd
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, RangeConstraint
-from bko.datasets.sources import Source
+from bko.datasets.sources import Agreement, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.uci import UCI_FRAME, load_uci
@@ -143,6 +143,8 @@ class Data:
         frame: Their frame.
         field_rows: The field mappings the BKO arms observe cells by.
         name: The dataset's source name; each cell's ontology fragment takes it.
+        agreement: The data use agreement the records are held under; None for open data. Every
+            Messages arm refuses records whose agreement grants no permission to send them.
         digest: The sha256 of `records` as `digest` renders them, computed from them when the
             value is made, which the candidates file's header names.
     """
@@ -151,6 +153,7 @@ class Data:
     frame: FrameSpec
     field_rows: tuple[FieldMapping, ...]
     name: str
+    agreement: Agreement | None
     digest: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -213,7 +216,9 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
         case Dataset.UCI:
             ensure(context.uci, data_dir, open_url=context.open_url)
             records = load_uci(data_dir, source=context.uci)
-            data = Data(records, UCI_FRAME, context.field_rows, context.uci.name)
+            data = Data(
+                records, UCI_FRAME, context.field_rows, context.uci.name, context.uci.agreement
+            )
         case Dataset.SYNTHEA:
             run = context.synthea
             directory = population_dir(run, data_dir, context.synthea_jar)
@@ -225,7 +230,7 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
                 indicators=SYNTHEA_INDICATORS,
                 adults_from=SYNTHEA_ADULTS_FROM,
             )
-            data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, SYNTHEA_NAME)
+            data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, SYNTHEA_NAME, None)
         case _:
             assert_never(dataset)
     logger.info(

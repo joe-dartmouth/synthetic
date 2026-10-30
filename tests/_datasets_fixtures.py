@@ -40,6 +40,7 @@ def pin(data: bytes, name: str = "uci-heart-disease") -> Source:
         filename=f"{name}.bin",
         size=len(data),
         sha256=hashlib.sha256(data).hexdigest(),
+        agreement=None,
     )
 
 

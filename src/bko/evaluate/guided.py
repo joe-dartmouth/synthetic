@@ -351,6 +351,8 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     refused. Each arm logs its validity sums on the way out, a stopped run included.
 
     Raises:
+        EvaluationError: If the data is held under an agreement that grants no permission to send
+            its records, before either file exists.
         ReplayError: If the body returns while `answers` holds calls it did not answer.
         GenerationError: As `CallLog`, if the settings model has no price, before `log` exists;
             the candidates file is then removed.
@@ -361,6 +363,13 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         Exception: Anything building `send()` or the arms raises, before the first call; both
             files are then removed.
     """
+    agreement = origin.data.agreement
+    if agreement is not None and agreement.sending is None:
+        msg = (
+            f"{origin.data.name} is held under the agreement {agreement.name!r}, which grants no "
+            "permission to send its records to the Messages API"
+        )
+        raise EvaluationError(msg)
     answered = None if answers is None else answers.answered
     rehearsal = rehearsal or (answers is not None and answers.rehearsal)
     kept = CandidateFile(candidates, origin, settings)

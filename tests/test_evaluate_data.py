@@ -38,7 +38,7 @@ def _digest(records) -> str:
 
 def _toy_data() -> Data:
     records = toy_records()
-    return Data(records, TOY, (), "toy")
+    return Data(records, TOY, (), "toy", None)
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -93,9 +93,9 @@ def test_uci_data_carries_frame_rows_name_and_digest(tmp_path, caplog):
 
 def test_a_datas_digest_is_computed_from_its_records():
     records = toy_records()
-    assert Data(records, TOY, (), "toy").digest == _digest(records)
+    assert Data(records, TOY, (), "toy", None).digest == _digest(records)
     with pytest.raises(TypeError):
-        Data(records, TOY, (), "toy", "ab" * 32)  # ty: ignore[too-many-positional-arguments]
+        Data(records, TOY, (), "toy", None, "ab" * 32)  # ty: ignore[too-many-positional-arguments]
 
 
 def test_load_refuses_a_dataset_it_does_not_know(tmp_path):

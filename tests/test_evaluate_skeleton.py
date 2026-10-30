@@ -326,7 +326,7 @@ SICK_GUIDANCE: Final = Guidance(
 
 
 def test_canned_records_show_their_prescribed_concepts():
-    data = Data(GRADED, UCI_FRAME, FIELD_MAPPINGS, "uci")
+    data = Data(GRADED, UCI_FRAME, FIELD_MAPPINGS, "uci", None)
     send = CannedSend(data, SMALL, SETTINGS)
     lines = (
         frozenset({"HP:0001681", "HP:0100749", "HP:0003124"}),
