@@ -47,16 +47,16 @@ from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Ori
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues, prescriber
 from bko.evaluate.watch import Watch
+from bko.evaluate.waves import committer, lines_requeued, next_wave, spendable
 from bko.gaps.definitions import Definition, gaps
-from bko.gaps.observe import Cell, cell_key, record_cells
-from bko.generate.calls import Batch
-from bko.generate.errors import IdleError, ReplayError, WaveError
+from bko.gaps.observe import Cell, record_cells
+from bko.generate.errors import IdleError, ReplayError
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, guide
 from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.generate.replay import Answers, Replay
-from bko.generate.skeleton import Skeleton, skeleton
+from bko.generate.skeleton import skeleton
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -170,7 +170,7 @@ class GuidedArm:
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
             last = self._log.calls
-            requeued = "" if self._prescribe is None else f" requeued={_requeued(queues)}"
+            requeued = "" if self._prescribe is None else f" requeued={lines_requeued(queues)}"
             logger.info(
                 "guided arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
                 self.name,
@@ -252,7 +252,7 @@ class GuidedArm:
                 raise BaselineError(msg)
             cells = list(short)
             while cells:
-                wave = _wave(cells, guidance)
+                wave = next_wave(cells, guidance)
                 cells = cells[len(wave) :]
                 # Read from committed state: the cells of one wave cannot change each other's.
                 rows = {cell: attempt.short().get(cell, 0) for cell in wave}
@@ -264,10 +264,10 @@ class GuidedArm:
                 ]
                 if not planned:
                     continue
-                commit = _committer(attempt, planned, queues)
+                commit = committer(attempt, planned, queues)
                 waves += 1
                 kept, concepts = sum(attempt.held().values()), attempt.tally.dropped[Drop.CONCEPTS]
-                requeued = _requeued(queues)
+                requeued = lines_requeued(queues)
                 try:
                     self._flight.wave(planned, frame=frame, on_batch=commit)
                 except IdleError as exc:
@@ -292,89 +292,6 @@ class GuidedArm:
             return Planned(guidance, rows)
         lines = queues.take(guidance.cell, rows)
         return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
-
-
-def _requeued(queues: Queues | None) -> int:
-    """The lines `queues` has given back, 0 for none."""
-    return 0 if queues is None else queues.requeued
-
-
-def _wave(cells: Sequence[Cell], guidance: Mapping[Cell, Guidance]) -> list[Cell]:
-    """The longest run of `cells` from the first whose (sex, label) chains are distinct."""
-    chains: set[tuple[int, int]] = set()
-    wave: list[Cell] = []
-    for cell in cells:
-        chain = (guidance[cell].sex, guidance[cell].label)
-        if chain in chains:
-            break
-        chains.add(chain)
-        wave.append(cell)
-    return wave
-
-
-def _committer(
-    attempt: Attempt, planned: Sequence[Planned], queues: Queues | None
-) -> Callable[[Batch], None]:
-    """Take a wave's batches, given in call order, refusing a row kept in a later group's cell.
-
-    Args:
-        attempt: The attempt the wave fills.
-        planned: Each planned call, in plan order; a group is one cell's calls.
-        queues: The attempt's lines not yet consumed, None for an arm that prescribes nothing;
-            each call's lines no kept record consumed go back to its cell's queue.
-
-    Returns:
-        The callable that takes each batch. It raises `EvaluationError` if a batch's cell is not
-        its planned call's, and `WaveError` if a batch keeps a row in a cell a later group of the
-        wave asked for, so a one-call-at-a-time run would have asked that group differently.
-    """
-    plan = [item.guidance.cell for item in planned]
-    groups = list(dict.fromkeys(plan))
-    taken: list[Batch] = []
-
-    def commit(batch: Batch) -> None:
-        first = batch.index - len(taken)
-        call = planned[len(taken)]
-        if batch.cell != call.guidance.cell:
-            msg = (
-                f"call {batch.index} answered cell {cell_key(batch.cell)}, but its planned call "
-                f"asked cell {cell_key(call.guidance.cell)}"
-            )
-            raise EvaluationError(msg)
-        prescription: Skeleton | None = call.skeleton
-        taken.append(batch)
-        before = attempt.held()
-        consumed = attempt.take(batch, skeleton=prescription)
-        if queues is not None and prescription is not None:
-            lines = prescription.lines
-            queues.give_back(
-                batch.cell, [line for at, line in enumerate(lines) if at not in consumed]
-            )
-        after = attempt.held()
-        for cell in groups[groups.index(batch.cell) + 1 :]:
-            if after.get(cell, 0) > before.get(cell, 0):
-                msg = (
-                    f"call {batch.index} kept a record in cell {cell_key(cell)}, which call "
-                    f"{first + plan.index(cell)} of the same wave already asked for: a reply "
-                    "crossed sex or label, so the wave changed the call plan"
-                )
-                raise WaveError(msg)
-
-    return commit
-
-
-def spendable(log: CallLog, ceiling: float) -> None:
-    """Log `log`'s spend against `ceiling`, and refuse the next call once it is reached.
-
-    Raises:
-        StopRuleError: If the spend reached the ceiling.
-    """
-    spent = log.usd
-    logger.info("spend usd=%.4f ceiling=%.2f", spent, ceiling)
-    if spent >= ceiling:
-        logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, ceiling)
-        msg = f"the run's spend {spent:.4f} USD reached its ceiling of {ceiling} USD"
-        raise StopRuleError(msg, "ceiling")
 
 
 @dataclass(frozen=True, slots=True)
