@@ -221,6 +221,48 @@ def judge(
             augmented scores of the candidate, leave it no comparator, hold no held-out ratio, or
             miss a series the criteria read.
     """
+    facts = checked(scores, experiment, candidate)
+    contrasts: list[Contrast] = []
+    for name, scope, pairs, factor, margin in families(facts, experiment):
+        contrasts += _criterion(
+            name,
+            scope,
+            pairs,
+            facts.series,
+            holdouts=facts.holdouts,
+            ratio=facts.ratio,
+            factor=factor,
+            margin=margin,
+            confidence=experiment.confidence,
+        )
+    return contrasts
+
+
+@dataclass(frozen=True, slots=True)
+class Checked:
+    """The scores' series and the pairs' common facts, once `judge`'s checks pass.
+
+    Attributes:
+        arm: The candidate.
+        others: Its comparators.
+        series: Each key's score by holdout.
+        ratio: The held-out ratio, n2/n1.
+        holdouts: The experiment's holdouts.
+    """
+
+    arm: str
+    others: list[str]
+    series: dict[Key, dict[int, float]]
+    ratio: float
+    holdouts: set[int]
+
+
+def checked(scores: Sequence[Score], experiment: Experiment, candidate: str | None) -> Checked:
+    """Check the scores as `judge` does and return what its contrasts read.
+
+    Raises:
+        EvaluationError: As `judge`, but for a missing series.
+    """
     arm = experiment.candidate if candidate is None else candidate
     holdouts = sorted({score.holdout for score in scores})
     if holdouts != sorted(experiment.holdout_seeds):
@@ -234,42 +276,33 @@ def judge(
         msg = f"the candidate {arm!r} has no comparator"
         raise EvaluationError(msg)
     series = series_of(scores)
-    ratio = held_out_ratio_of(series)
-    contrasts: list[Contrast] = []
-    for name, scope in CRITERIA:
-        if name not in experiment.criteria:
-            continue
-        contrasts += _criterion(
+    return Checked(arm, others, series, held_out_ratio_of(series), set(holdouts))
+
+
+def families(
+    facts: Checked, experiment: Experiment
+) -> list[tuple[str, Scope, list[tuple[Key, Key]], float, float]]:
+    """Each criterion the experiment holds: its name, scope, pairs, reference factor and margin."""
+    found = [
+        (
             name,
             scope,
-            _separation(arm, others, JUDGED, scope),
-            series,
-            holdouts=set(holdouts),
-            ratio=ratio,
-            factor=1.0,
-            margin=experiment.margin,
-            confidence=experiment.confidence,
+            _separation(facts.arm, facts.others, JUDGED, scope),
+            1.0,
+            experiment.margin,
         )
-    if "privacy" not in experiment.criteria:
-        return contrasts
-    privacy = [
-        (
-            Key(arm, Source.ADDED, Measure.DCR_P5, Scope.ALL),
-            Key(HELD_OUT_ARM, Source.HELD_OUT, Measure.DCR_P5, Scope.ALL),
-        )
+        for name, scope in CRITERIA
+        if name in experiment.criteria
     ]
-    contrasts += _criterion(
-        "privacy",
-        Scope.ALL,
-        privacy,
-        series,
-        holdouts=set(holdouts),
-        ratio=ratio,
-        factor=experiment.privacy_margin,
-        margin=0.0,
-        confidence=experiment.confidence,
-    )
-    return contrasts
+    if "privacy" in experiment.criteria:
+        privacy = [
+            (
+                Key(facts.arm, Source.ADDED, Measure.DCR_P5, Scope.ALL),
+                Key(HELD_OUT_ARM, Source.HELD_OUT, Measure.DCR_P5, Scope.ALL),
+            )
+        ]
+        found.append(("privacy", Scope.ALL, privacy, experiment.privacy_margin, 0.0))
+    return found
 
 
 def reported_contrasts(
@@ -316,9 +349,7 @@ def reported_contrasts(
             family=len(measures) * len(others),
         )
         found += [
-            Reported(
-                model, name, scope, left.arm, right.arm, left.measure, interval, _differing(*b)
-            )
+            Reported(model, name, scope, left.arm, right.arm, left.measure, interval, differing(*b))
             for (left, right), interval, b in zip(pairs, intervals, paired, strict=True)
         ]
     return found
@@ -383,7 +414,7 @@ def _criterion(
     outcome = verdict(intervals)
     return [
         Contrast(
-            name, scope, outcome, left.arm, right.arm, left.measure, interval, _differing(*both)
+            name, scope, outcome, left.arm, right.arm, left.measure, interval, differing(*both)
         )
         for (left, right), interval, both in zip(pairs, intervals, paired, strict=True)
     ]
@@ -401,7 +432,7 @@ def _intervals(
     family: int | None = None,
 ) -> tuple[list[tuple[list[float], list[float]]], list[Interval]]:
     """Each pair's scores by holdout and its interval, the family every pair unless given."""
-    paired = [_paired(series, left, right, holdouts) for left, right in pairs]
+    paired = [paired_scores(series, left, right, holdouts) for left, right in pairs]
     intervals = [
         corrected_interval(
             [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)],
@@ -414,11 +445,12 @@ def _intervals(
     return paired, intervals
 
 
-def _differing(ours: Sequence[float], theirs: Sequence[float]) -> int:
+def differing(ours: Sequence[float], theirs: Sequence[float]) -> int:
+    """The holdouts where the two scores differ."""
     return sum(a != b for a, b in zip(ours, theirs, strict=True))
 
 
-def _paired(
+def paired_scores(
     series: dict[Key, dict[int, float]], left: Key, right: Key, holdouts: set[int]
 ) -> tuple[list[float], list[float]]:
     """The left and right scores, holdout by holdout in seed order, each on every holdout."""

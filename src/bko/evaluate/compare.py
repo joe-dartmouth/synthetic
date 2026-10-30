@@ -30,6 +30,7 @@ from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import Score, Source, parse
+from bko.evaluate.unjudged import unjudged
 from bko.evaluate.validity import Validity, reported, validity, verdict
 
 
@@ -53,7 +54,8 @@ def compare(
     scores hold its rows; they never change the table, and a pair of arms either of which lacks
     them is logged as skipped. An experiment that judges no criterion, such as `g2`, has a table of
     its header alone; every interval of `CRITERION_NAMES` is then logged after the boosting
-    model's contrasts as an `unjudged` line, with no verdict.
+    model's contrasts as an `unjudged` line, with no verdict, or as an `unjudged skip` line when
+    some holdout leaves its contrast undefined.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -242,11 +244,26 @@ def _log_beside(
 def _log_unjudged(rows: Sequence[Score], experiment: Experiment, candidate: str) -> None:
     """Log each interval every criterion of `CRITERION_NAMES` reads, with no verdict.
 
+    A contrast some holdout leaves undefined is logged as an `unjudged skip` line instead.
+
     Raises:
-        EvaluationError: As `judge`.
+        EvaluationError: As `unjudged`.
     """
     every = replace(experiment, criteria=CRITERION_NAMES)
-    for c in judge(rows, every, candidate=candidate):
+    for c in unjudged(rows, every, candidate=candidate):
+        if c.interval is None:
+            logger.info(
+                "unjudged skip criterion=%s scope=%s arm=%s against=%s measure=%s "
+                "reason=undefined defined=%d holdouts=%d",
+                c.criterion,
+                c.scope,
+                c.arm,
+                c.against,
+                c.measure,
+                c.defined,
+                c.holdouts,
+            )
+            continue
         logger.info(
             "unjudged criterion=%s scope=%s arm=%s against=%s measure=%s mean=%.6f low=%.6f "
             "high=%.6f refuting_high=%.6f holdouts=%d differing=%d",

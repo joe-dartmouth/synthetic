@@ -211,9 +211,10 @@ differ from the named run's, exit 2 before it claims a folder
 (`bko.generate.replay.refuse_unresumable`). A log with no `stop` field predates it and resumes.
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
-training range, at the judged run e1-4's tokens per record, so the stop rules and spend lines run
-for free; its spend is a wiring check, not an estimate; the call log's `run` line holds
-`"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
+training range, at the judged run e1-4's tokens per record priced at the named run's model's
+rates, so the stop rules and spend lines run for free (a local model's rates are zero, so its
+rehearsal checks wiring and folder roles alone); its spend is a wiring check, not an estimate; the
+call log's `run` line holds `"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
 tokens per record. A replay of a rehearsal's log works, and the replay's own `run` line keeps
 `"rehearsal": true`. A rehearsal
 starts with `launch <run-id> [<run>] --rehearse`, which writes into the `rehearsal` folder inside
@@ -499,7 +500,10 @@ start or the supervisor cannot run.
   lacks them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
   judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
   holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
-  the header alone), and a `replica` line per replica arm, measure and scope. With `--beside`, it
+  the header alone) or, for a contrast some holdout leaves undefined (as when decontamination
+  leaves a holdout no positive test record in the flagged cells), an `unjudged skip` line
+  (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `reason=undefined`, `defined=`,
+  `holdouts=`), and a `replica` line per replica arm, measure and scope. With `--beside`, it
   then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
   excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
   `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,

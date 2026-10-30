@@ -3,7 +3,9 @@
 `RUNS` holds `e1`, G3's guidance-level runs, `g3-<level>`, one per level, `g3-summary` being E1's
 level (`docs/EVIDENCE.md`, G3), the effort sweep's runs, `g4-low` and `g4-medium` (G4), `g2`, the
 direct arm's run (`G2`), and `g5`, the prescribing arm's run (`G5`), and E3's runs over the Synthea
-frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`).
+frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`),
+B1's classical-baseline runs, `b1-uci` and `b1-synthea`, and G6's generator-comparison runs,
+`g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`.
 No command-line flag changes a value here.
 """
 
@@ -112,6 +114,25 @@ B1_SYNTHEA: Final = replace(
 (`docs/EVIDENCE.md`, B1)."""
 
 
+G6_BASE: Final = replace(
+    E1, arms=(*METHOD_ARMS, "bko"), replica_arms=(*ADDS_ROWS, "bko"), criteria=()
+)
+"""E1's methods and `bko` at `SETTINGS` but for the model, judged by no criterion: the experiment
+every generator-comparison run shares (`docs/EVIDENCE.md`, G6)."""
+
+G6_MODELS: Final[Mapping[str, tuple[str, float]]] = MappingProxyType(
+    {
+        "g6-sonnet": ("claude-sonnet-5-5", 90.0),
+        "g6-gemma": ("gemma-4-26b-a4b-q8_0", 1.0),
+        "g6-nemotron": ("nemotron-3-nano-30b-a3b-q8_0", 1.0),
+        "g6-olmo": ("olmo-3-7b-instruct-q8_0", 1.0),
+    }
+)
+"""Each generator-comparison run's model and spend ceiling in USD. Sonnet 5.5's covers 1.25 times
+its estimate. An on-device model bills nothing, so its ceiling never stops the run and $1.00
+serves as any ceiling above 0 would; `bko.evaluate.context.Context.sender` keeps its calls local."""
+
+
 @dataclass(frozen=True, slots=True)
 class NamedRun:
     """One run of the harness, fixed in code and selected by name.
@@ -169,6 +190,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
         "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
+        **{
+            name: NamedRun(replace(G6_BASE, spend_ceiling=ceiling), replace(SETTINGS, model=model))
+            for name, (model, ceiling) in G6_MODELS.items()
+        },
         "g5": NamedRun(
             G5,
             Settings(
@@ -186,7 +211,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
 `medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
 G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
-holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling. A
-variant adds its own entry in its own change, listing its arms, candidate, comparators, holdout
-seeds, fill target,
-ceiling and criteria."""
+holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
+`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
+its `G6_MODELS` model and ceiling (G6). A variant adds its own entry in its own change, listing
+its arms, candidate, comparators, holdout seeds, fill target, ceiling and criteria."""

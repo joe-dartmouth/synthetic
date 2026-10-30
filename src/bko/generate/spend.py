@@ -37,14 +37,16 @@ FREE: Final = Price(input=0.0, output=0.0, cache_write=0.0, cache_read=0.0)
 PRICES: Final = MappingProxyType(
     {
         "claude-haiku-5-5": Price(input=0.10, output=0.50, cache_write=0.125, cache_read=0.01),
+        "claude-sonnet-5-5": Price(input=2.0, output=10.0, cache_write=2.5, cache_read=0.10),
         "gemma-4-26b-a4b-q8_0": FREE,
         "nemotron-3-nano-30b-a3b-q8_0": FREE,
         "olmo-3-7b-instruct-q8_0": FREE,
     }
 )
-"""Each priced model's rates. Claude Haiku 5.5's were read 2026-10-19 from
-`platform.claude.com/docs/en/about-claude/pricing.md` (Model pricing, prompts up to 100,000
-tokens; a call's prompt is a few thousand). The local models (`bko.generate.weights.LOCAL_MODELS`)
+"""Each priced model's rates, from `platform.claude.com/docs/en/about-claude/pricing.md` (Model
+pricing): Claude Haiku 5.5's read 2026-10-19 (prompts up to 100,000 tokens; a call's prompt is a few
+thousand), Claude Sonnet 5.5's read 2026-10-29 (5-minute cache writes; one rate at every prompt
+length). The local models (`bko.generate.weights.LOCAL_MODELS`)
 run on this machine and bill nothing."""
 
 

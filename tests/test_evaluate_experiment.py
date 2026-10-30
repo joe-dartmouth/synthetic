@@ -25,11 +25,21 @@ from bko.evaluate.experiment import (
     gap_request,
     replica_request,
 )
-from bko.evaluate.named_runs import E3, E3_SLICE_CEILING, G2, G5, RUNS, SETTINGS_SWEEP, NamedRun
+from bko.evaluate.named_runs import (
+    E3,
+    E3_SLICE_CEILING,
+    G2,
+    G5,
+    G6_MODELS,
+    RUNS,
+    SETTINGS_SWEEP,
+    NamedRun,
+)
 from bko.evaluate.run import ARMS, run
 from bko.gaps.definitions import Definition
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
+from bko.generate.weights import LOCAL_MODELS
 from tests._baselines_fixtures import full_records
 from tests._evaluate_fixtures import FLAGGED, GRADED
 
@@ -113,6 +123,10 @@ def test_every_run_name_is_pinned():
         "g4-low",
         "g4-medium",
         "g5",
+        "g6-gemma",
+        "g6-nemotron",
+        "g6-olmo",
+        "g6-sonnet",
     }
 
 
@@ -314,3 +328,42 @@ def test_b1_runs_are_their_stated_configurations():
         replica_arms=(*ADDS_ROWS, *new),
     )
     assert (synthea.settings, synthea.dataset) == (SETTINGS, Dataset.SYNTHEA)
+
+
+@pytest.mark.parametrize(
+    ("name", "model", "ceiling"),
+    [
+        ("g6-sonnet", "claude-sonnet-5-5", 90.0),
+        ("g6-gemma", "gemma-4-26b-a4b-q8_0", 1.0),
+        ("g6-nemotron", "nemotron-3-nano-30b-a3b-q8_0", 1.0),
+        ("g6-olmo", "olmo-3-7b-instruct-q8_0", 1.0),
+    ],
+)
+def test_each_g6_run_differs_from_e1_settings_in_model_alone(name, model, ceiling):
+    run = RUNS[name]
+    assert run.settings == dataclasses.replace(SETTINGS, model=model)
+    assert run.dataset is Dataset.UCI
+    assert run.experiment == dataclasses.replace(
+        E1,
+        arms=(*METHOD_ARMS, "bko"),
+        replica_arms=(*ADDS_ROWS, "bko"),
+        criteria=(),
+        spend_ceiling=ceiling,
+    )
+
+
+def test_the_sonnet_ceiling_covers_its_estimate():
+    """e1-4's tokens per record asked (300.535 input, 211.162 output) over its 25829 records
+    asked, at Sonnet 5.5's rates: about $70, and the ceiling is at least 1.25 times that."""
+    price = price_of("claude-sonnet-5-5")
+    estimate = 25829 * (300.535 * price.input + 211.162 * price.output) / 1e6
+    ceiling = RUNS["g6-sonnet"].experiment.spend_ceiling
+    assert 1.25 * estimate <= ceiling <= 1.5 * estimate
+
+
+def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
+    assert {name for name in RUNS if name.startswith("g6-")} == set(G6_MODELS)
+    for name, (model, _) in G6_MODELS.items():
+        assert RUNS[name].settings.model == model
+        price_of(model)
+        assert (model in LOCAL_MODELS) == (name != "g6-sonnet"), name
