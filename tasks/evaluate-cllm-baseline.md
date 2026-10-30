@@ -3,7 +3,7 @@ id: evaluate-cllm-baseline
 title: A CLLM-style arm, the LLM without the ontology
 status: ready
 depends_on: --
-blocks: --
+blocks: evaluate-diabetes-subgroup-removal
 parallel_safe: true
 owner: Joe
 milestone: final-report

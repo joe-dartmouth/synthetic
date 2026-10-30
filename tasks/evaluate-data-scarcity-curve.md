@@ -3,7 +3,7 @@ id: evaluate-data-scarcity-curve
 title: Augmentation against training-set size
 status: ready
 depends_on: --
-blocks: --
+blocks: evaluate-diabetes-subgroup-removal
 parallel_safe: true
 owner: Joe
 milestone: final-report

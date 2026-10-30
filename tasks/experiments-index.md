@@ -25,6 +25,7 @@ the ROADMAP heading it serves.
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | ready | -- | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
+| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | blocked | `evaluate-cllm-baseline`, `generate-bkb-curation`, `evaluate-dose-response`, `evaluate-data-scarcity-curve`, `evaluate-bayesian-network-baseline` | Joe | final-report |
 
 ### Comparison methods
 
@@ -42,6 +43,11 @@ flowchart LR
     local_thinking[evaluate-local-thinking-cost]
     bn_baseline[evaluate-bayesian-network-baseline]
     cllm_baseline[evaluate-cllm-baseline]
+    cllm_baseline[evaluate-cllm-baseline] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
+    bkb_curation[generate-bkb-curation] --> diabetes_removal
+    dose_response[evaluate-dose-response] --> diabetes_removal
+    scarcity_curve[evaluate-data-scarcity-curve] --> diabetes_removal
+    bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal
 ```
 
 ## What every unit relies on

@@ -3,7 +3,7 @@ id: evaluate-dose-response
 title: Fill above the threshold
 status: ready
 depends_on: --
-blocks: --
+blocks: evaluate-diabetes-subgroup-removal
 parallel_safe: true
 owner: Joe
 milestone: final-report
