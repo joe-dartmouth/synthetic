@@ -41,8 +41,10 @@ from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
+from bko.evaluate.cllm import SHOW, Shower
+from bko.evaluate.curation import classifier_discard
 from bko.evaluate.errors import EvaluationError, StopRuleError
-from bko.evaluate.experiment import MESSAGES_ARMS, Experiment, MessagesArm
+from bko.evaluate.experiment import MESSAGES_ARMS, Curation, Experiment
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Origin, Seen
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues, prescriber
@@ -52,7 +54,7 @@ from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, record_cells
 from bko.generate.errors import IdleError, ReplayError
 from bko.generate.flight import Flight, Limits, Planned
-from bko.generate.guidance import Guidance, guide
+from bko.generate.guidance import Guidance, cell_guidance, guide
 from bko.generate.log import CallLog, utc_now
 from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.generate.replay import Answers, Replay
@@ -97,7 +99,7 @@ class GuidedArm:
     def __init__(
         self,
         name: str,
-        definition: Definition,
+        definition: Definition | None,
         knowledge: Knowledge,
         *,
         log: CallLog,
@@ -105,12 +107,15 @@ class GuidedArm:
         flight: Flight,
         candidates: CandidateFile | None = None,
         prescribe: Prescribe | None = None,
+        shows: bool = False,
+        curation: Curation | None = None,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
 
         Args:
             name: The arm's name.
-            definition: The gap definition that guides it.
+            definition: The gap definition that guides it; None guides each cell by itself alone
+                (`bko.generate.guidance.cell_guidance`), reading no gap and no ontology.
             knowledge: The run's releases and field mappings.
             log: The run's call log, shared by every BKO arm.
             budget: The records an attempt may ask for, as a multiple of the request's rows.
@@ -120,9 +125,20 @@ class GuidedArm:
             candidates: The run's candidates file, shared by every BKO arm; None keeps no lines.
             prescribe: Draws each attempt's lines, one per requested record, which its calls
                 carry; None for an arm that prescribes nothing.
+            shows: Whether each call shows training records (`bko.evaluate.cllm`).
+            curation: How each call's accepted rows are curated before they count
+                (`bko.evaluate.curation`); None keeps every one.
+
+        Raises:
+            EvaluationError: If `curation` names a curator no arm has yet.
         """
+        if curation is not None and curation is not Curation.CLASSIFIER:
+            msg = f"{name} names curation {curation}, which no arm has yet"
+            raise EvaluationError(msg)
         self.name = name
         self._prescribe = prescribe
+        self._shows = shows
+        self._curation = curation
         self.totals = self._tally()
         self.spent = 0.0
         self._definition = definition
@@ -150,7 +166,11 @@ class GuidedArm:
             raise EvaluationError(msg)
         guidance = self._guidance(train, request.frame)
         prescribing = self._prescribe is not None
-        attempt = Attempt(train, request, self._budget * request.rows, prescribing=prescribing)
+        discard = None if self._curation is None else classifier_discard(train, frame=request.frame)
+        attempt = Attempt(
+            train, request, self._budget * request.rows, prescribing=prescribing, discard=discard
+        )
+        shower = Shower(train, frame=request.frame, seed=request.seed) if self._shows else None
         self._attempts += 1
         first = self._log.calls + 1
         before = self._log.usd
@@ -158,7 +178,7 @@ class GuidedArm:
         queues: Queues | None = None
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
-            self._rounds(attempt, guidance, request.frame, queues)
+            self._rounds(attempt, guidance, request.frame, queues, shower)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -181,11 +201,15 @@ class GuidedArm:
                 requeued,
                 self._log.usd,
             )
-        params = {
-            "definition": self._definition.value,
+        params: dict[str, object] = {
+            "definition": None if self._definition is None else self._definition.value,
             "budget": self._budget,
             "calls": [first, self._log.calls],
         }
+        if self._shows:
+            params["shows"] = SHOW
+        if self._curation is not None:
+            params["curation"] = self._curation.value
         baseline = Baseline(attempt.rows(), unit_weights(train), params)
         check(baseline, train, request)
         return baseline
@@ -217,10 +241,15 @@ class GuidedArm:
         logger.info("validity arm=%s %s usd=%.4f", self.name, self.totals.line(), self.spent)
 
     def _tally(self) -> Tally:
-        return Attempt.tally_for(prescribing=self._prescribe is not None)
+        return Attempt.tally_for(
+            prescribing=self._prescribe is not None, curating=self._curation is not None
+        )
 
     def _guidance(self, train: pd.DataFrame, frame: FrameSpec) -> dict[Cell, Guidance]:
         known = self._knowledge
+        if self._definition is None:
+            cells = record_cells(train, (), name=known.name, edges=frame.edges)
+            return cell_guidance(train, cells, frame=frame)
         cells = record_cells(train, known.field_rows, name=known.name, edges=frame.edges)
         found = gaps(self._definition, known.fragments, cells)
         return guide(
@@ -240,6 +269,7 @@ class GuidedArm:
         guidance: Mapping[Cell, Guidance],
         frame: FrameSpec,
         queues: Queues | None,
+        shower: Shower | None = None,
     ) -> None:
         per_call = self._log.settings.per_call
         waves = 0
@@ -258,7 +288,9 @@ class GuidedArm:
                 rows = {cell: attempt.short().get(cell, 0) for cell in wave}
                 # Lines are taken in plan order, so every in-flight count asks the same calls.
                 planned = [
-                    self._planned(guidance[cell], min(per_call, count - start), frame, queues)
+                    self._planned(
+                        guidance[cell], min(per_call, count - start), frame, queues, shower
+                    )
                     for cell, count in rows.items()
                     for start in range(0, count, per_call)
                 ]
@@ -286,24 +318,19 @@ class GuidedArm:
                     )
 
     def _planned(
-        self, guidance: Guidance, rows: int, frame: FrameSpec, queues: Queues | None
+        self,
+        guidance: Guidance,
+        rows: int,
+        frame: FrameSpec,
+        queues: Queues | None,
+        shower: Shower | None,
     ) -> Planned:
+        if shower is not None:
+            return Planned(guidance, rows, shown=shower.take(guidance.cell))
         if queues is None:
             return Planned(guidance, rows)
         lines = queues.take(guidance.cell, rows)
         return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
-
-
-def _definition(name: str, spec: MessagesArm) -> Definition:
-    """The gap definition that guides arm `name`.
-
-    Raises:
-        EvaluationError: If its spec guides by cell alone, which no `GuidedArm` reads yet.
-    """
-    if spec.definition is None:
-        msg = f"the Messages arm {name!r} reads no gap definition, which a guided arm needs"
-        raise EvaluationError(msg)
-    return spec.definition
 
 
 @dataclass(frozen=True, slots=True)
@@ -401,13 +428,15 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         arms = {
             name: GuidedArm(
                 name,
-                _definition(name, spec),
+                spec.definition,
                 knowledge,
                 log=call_log,
                 budget=experiment.budget if spec.budget is None else spec.budget,
                 flight=flight,
                 candidates=kept,
                 prescribe=prescriber(knowledge) if spec.prescribes else None,
+                shows=spec.shows,
+                curation=spec.curation,
             )
             for name, spec in ((name, MESSAGES_ARMS[name]) for name in names)
         }

@@ -10,7 +10,8 @@ a direct arm's record, drawn with no call) and the cell it asked for, the candid
 position among the call's, then either the decoded `candidate` or the reason it is `undecoded`, its
 `outcome` and the checks it `failed`. The outcome
 is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
-`dropped-cell`, `dropped-concepts` (a prescribing arm's alone) or `dropped-quota` (by
+`dropped-cell`, `dropped-concepts` (a prescribing arm's alone), `dropped-curation` (a curating
+arm's alone) or `dropped-quota` (by
 `bko.baselines.records.drops`). Each (arm, holdout, fill)'s
 lines count what its candidate scores count.
 

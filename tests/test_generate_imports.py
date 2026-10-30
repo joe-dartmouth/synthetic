@@ -71,3 +71,24 @@ def test_generate_opens_no_other_network_client():
             if any(name == c or name.startswith(f"{c}.") for c in clients)
         }
         assert used <= {"http.client", "urllib.parse", "urllib.parse.urlsplit"}, path
+
+
+SOURCE = REPO_ROOT / "src"
+
+
+def test_only_api_imports_anthropic_anywhere_in_src():
+    """Every Messages arm, the CLLM arms included, reaches the SDK only through `bko.generate`."""
+    found = {
+        path.relative_to(REPO_ROOT)
+        for path in SOURCE.rglob("*.py")
+        if any(name == "anthropic" or name.startswith("anthropic.") for name in _imported(path))
+    }
+    assert found == {Path("src/bko/generate/api.py")}
+
+
+def test_the_src_walk_reads_every_package():
+    """The control: the walk above would also give one file if it read `bko.generate` alone."""
+    assert Path("src/bko/evaluate/cllm.py") in {
+        path.relative_to(REPO_ROOT) for path in SOURCE.rglob("*.py")
+    }
+    assert "bko.evaluate.cllm" in _imported(SOURCE / "bko" / "evaluate" / "guided.py")

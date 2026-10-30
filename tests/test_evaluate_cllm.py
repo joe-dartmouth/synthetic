@@ -1,0 +1,168 @@
+"""The CLLM arms: each call shows seeded training records, and `cllm` curates what comes back."""
+
+from __future__ import annotations
+
+import json
+from functools import partial
+from pathlib import Path
+
+import pandas as pd
+
+from bko.baselines.request import Request, Strata
+from bko.datasets.cells import cell_keys
+from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.cllm import SHOW, Shower
+from bko.evaluate.experiment import CLLM_ARM, CLLM_RAW_ARM, MESSAGES_ARMS
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
+from bko.evaluate.holdout_candidates import Origin
+from bko.evaluate.named_runs import RUNS
+from bko.evaluate.scores import Measure, Source
+from bko.evaluate.waves import spendable
+from bko.generate.flight import Flight, Limits
+from bko.generate.log import CallLog
+from bko.generate.messages import SETTINGS, AnySend
+from bko.generate.replay import Replay
+from bko.ontology.mapping import RELEASES
+from tests._evaluate_fixtures import GRADED_DATA, SMALL
+from tests._generate_fixtures import ScriptedSend, reply
+from tests.test_evaluate_curation import separable
+
+
+YOUNG_SICK = ("<55", "female", 1)
+QUOTA = 3
+
+
+def train() -> pd.DataFrame:
+    return separable().loc[:, list(UCI_FRAME.columns)]
+
+
+def cells_of(rows: pd.DataFrame) -> list[tuple[object, ...]]:
+    return list(cell_keys(rows, edges=UCI_FRAME.edges).itertuples(index=False, name=None))
+
+
+def shown_frame(shown) -> pd.DataFrame:
+    return pd.DataFrame(list(shown), columns=list(UCI_FRAME.columns))
+
+
+def test_the_prompt_shows_the_cells_records_first_then_its_group_at_one_seed():
+    rows = train()
+    first = Shower(rows, frame=UCI_FRAME, seed=7).take(YOUNG_SICK)
+    assert first == Shower(rows, frame=UCI_FRAME, seed=7).take(YOUNG_SICK)
+    assert first != Shower(rows, frame=UCI_FRAME, seed=8).take(YOUNG_SICK)
+    shown = shown_frame(first)
+    assert len(shown) == SHOW
+    assert not shown.duplicated().any()
+    own = sum(key == YOUNG_SICK for key in cells_of(rows))
+    keys = cells_of(shown)
+    assert all(key == YOUNG_SICK for key in keys[:own])
+    assert all(key[1:] == YOUNG_SICK[1:] for key in keys[own:])
+    assert all(tuple(record) == UCI_FRAME.columns for record in first)
+
+
+def test_each_call_of_an_attempt_draws_on():
+    shower = Shower(train(), frame=UCI_FRAME, seed=7)
+    assert shower.take(YOUNG_SICK) != shower.take(YOUNG_SICK)
+
+
+def records() -> list[object]:
+    """Four young sick women: typical, one the curator puts at the other label, then typical."""
+    rows = train()
+    template = rows[[key == YOUNG_SICK for key in cells_of(rows)]].iloc[0]
+    found: list[object] = []
+    for thalach in (100, 190, 105, 110):
+        record: dict[str, int | float] = {
+            name: float(template[name]) if name in UCI_FRAME.fractional else int(template[name])
+            for name in UCI_FRAME.columns
+        }
+        record["thalach"] = thalach
+        found.append(record)
+    return found
+
+
+def arm(directory: Path, name: str, send: AnySend) -> tuple[GuidedArm, CallLog]:
+    spec = MESSAGES_ARMS[name]
+    directory.mkdir(parents=True, exist_ok=True)
+    log = CallLog(directory / "calls.jsonl", SETTINGS, frame="uci")
+    flight = Flight(send, log, Limits(1, None), spendable=partial(spendable, log, 50.0))
+    built = GuidedArm(
+        name,
+        spec.definition,
+        Knowledge("uci", {}, (), ()),
+        log=log,
+        budget=spec.budget or 3,
+        flight=flight,
+        shows=spec.shows,
+        curation=spec.curation,
+    )
+    return built, log
+
+
+REQUEST = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+
+
+def test_cllm_keeps_an_exact_set_at_one_seed(tmp_path):
+    built, log = arm(tmp_path, CLLM_ARM, ScriptedSend(reply(records())))
+    with log:
+        baseline = built(train(), REQUEST)
+    assert baseline.added["thalach"].tolist() == [100, 105, 110]
+    assert baseline.params["curation"] == "classifier"
+    assert baseline.params["shows"] == SHOW
+    assert built.drain(0, built_source())[dropped("curation")] == 1
+
+
+def test_cllm_uncurated_keeps_the_first_quota_rows(tmp_path):
+    built, log = arm(tmp_path, CLLM_RAW_ARM, ScriptedSend(reply(records())))
+    with log:
+        baseline = built(train(), REQUEST)
+    assert baseline.added["thalach"].tolist() == [100, 190, 105]
+    assert "curation" not in baseline.params
+    measures = built.drain(0, built_source())
+    assert dropped("curation") not in measures
+    assert measures[dropped("quota")] == 1
+
+
+def test_cllm_replays_byte_for_byte(tmp_path):
+    live, log = arm(tmp_path / "live", CLLM_ARM, ScriptedSend(reply(records())))
+    with log:
+        first = live(train(), REQUEST)
+    replay = Replay(log.path)
+    again, replayed = arm(tmp_path / "replay", CLLM_ARM, replay)
+    with replayed:
+        second = again(train(), REQUEST)
+    assert first.added.equals(second.added)
+    assert replay.remaining == 0
+    requests = [
+        json.loads(line)["params"]
+        for path in (log.path, replayed.path)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if json.loads(line)["kind"] == "request"
+    ]
+    assert requests[0] == requests[1]
+
+
+def test_every_messages_arm_of_every_run_sends_only_through_the_flight(tmp_path):
+    names = sorted(
+        {arm for run in RUNS.values() for arm in run.experiment.arms} & set(MESSAGES_ARMS)
+    )
+    names = sorted({*names, CLLM_ARM, CLLM_RAW_ARM})
+    with guided_arms(
+        names,
+        Knowledge("uci", {}, (), ()),
+        SMALL,
+        log=tmp_path / "calls.jsonl",
+        candidates=tmp_path / "holdout-candidates.jsonl",
+        origin=Origin("e1", GRADED_DATA, RELEASES),
+        send=ScriptedSend,
+        run="e1",
+        limits=SEQUENTIAL,
+    ) as run:
+        assert sorted(run.arms) == names
+        assert all(isinstance(built, GuidedArm) for built in run.arms.values())
+
+
+def built_source() -> Source:
+    return Source.CANDIDATES
+
+
+def dropped(reason: str) -> Measure:
+    return Measure(f"dropped-{reason}")

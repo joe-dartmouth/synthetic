@@ -281,10 +281,24 @@ class MessagesArm:
             raise ValueError(msg)
 
 
+CLLM_ARM: Final = "cllm"
+"""The CLLM baseline (Seedat et al. 2024): each call shows training records of its cell's groups and
+reads no gap, and a classifier fit on the training rows drops what it confidently puts at the other
+label (`bko.evaluate.cllm`, `bko.evaluate.curation`)."""
+
+CLLM_RAW_ARM: Final = "cllm-uncurated"
+"""`cllm` with every accepted row kept: the same prompt, no curation."""
+
+CLLM_BUDGET: Final = 3
+"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
+pilot measured."""
+
 MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
     {
         **{name: MessagesArm(definition) for name, definition in BKO_ARMS.items()},
         SKELETON_ARM: MessagesArm(Definition.SUBGROUP, prescribes=True),
+        CLLM_ARM: MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET),
+        CLLM_RAW_ARM: MessagesArm(None, shows=True, budget=CLLM_BUDGET),
     }
 )
 """Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""

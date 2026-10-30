@@ -245,7 +245,10 @@ def _retries(text: str) -> int:
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
+    """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV.
+
+    The SDK's own loggers stay at INFO or above, so no setting makes them log a request's body.
+    """
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.INFO,
@@ -254,6 +257,8 @@ def configure_logging() -> None:
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
+    # `ANTHROPIC_LOG=debug` would log each request's body, training records included, to stderr.
+    logging.getLogger("anthropic").setLevel(logging.INFO)
 
 
 def _parser() -> argparse.ArgumentParser:

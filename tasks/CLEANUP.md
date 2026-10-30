@@ -93,15 +93,3 @@ links to where its blocker is tracked.
   **What discharges it:** the replacement runner is made in a `finally` around `_settle`, pinned by
   a test whose `fail` raises.
   **Trigger:** the next change to `Flight._run` or `Flight._settle`.
-
-- **`cleanup:generate/sdk-debug-log-bodies`: SDK debug logging would write request bodies to
-  stderr.** Nothing holds logger `anthropic._base_client` at INFO or above, so `ANTHROPIC_LOG=debug`
-  makes the SDK log each request's options, prompt records included, to stderr, where
-  `bko.generate.api.CallTag` tags them like any other record. Evidence: the SDK's `_setup_logging`
-  sets that logger to DEBUG when `ANTHROPIC_LOG=debug`, and `HTTP_LOGGERS` lists only `httpx2`.
-  *Filed 2026-10-29 by the diff review of PR #58.*
-  **Why deferred.** It predates PR #58, and no documented command sets `ANTHROPIC_LOG`.
-  **What discharges it:** `install_call_tag` or `configure_logging` holds that logger at INFO, or
-  `docs/DEVELOPMENT.md` states what `ANTHROPIC_LOG=debug` writes.
-  **Trigger:** the next change to `bko.generate.api`'s logging, or a run that sets
-  `ANTHROPIC_LOG`.

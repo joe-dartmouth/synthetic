@@ -16,6 +16,8 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
+    CLLM_ARM,
+    CLLM_RAW_ARM,
     E1,
     MESSAGES_ARMS,
     METHOD_ARMS,
@@ -404,5 +406,16 @@ def test_every_bko_arm_reads_the_experiments_budget_and_only_the_skeleton_arm_pr
     assert {name: spec.definition for name, spec in MESSAGES_ARMS.items() if name in BKO_ARMS} == (
         dict(BKO_ARMS)
     )
-    assert all(spec.budget is None and not spec.shows for spec in MESSAGES_ARMS.values())
+    assert all(
+        spec.budget is None and not spec.shows
+        for name, spec in MESSAGES_ARMS.items()
+        if name not in {CLLM_ARM, CLLM_RAW_ARM}
+    )
     assert {name for name, spec in MESSAGES_ARMS.items() if spec.prescribes} == {SKELETON_ARM}
+
+
+def test_the_cllm_arms_show_records_read_no_gap_and_differ_in_curation_alone():
+    cllm, raw = MESSAGES_ARMS[CLLM_ARM], MESSAGES_ARMS[CLLM_RAW_ARM]
+    assert (cllm.definition, cllm.shows, cllm.curation) == (None, True, Curation.CLASSIFIER)
+    assert dataclasses.replace(cllm, curation=None) == raw
+    assert not cllm.prescribes

@@ -4,7 +4,8 @@
 `Attempt` takes each call's or draw's candidates as they come,
 validates them (`bko.validate`), drops each accepted one that `check` would refuse
 (`bko.baselines.records.assess`), and for a prescribing call each one outside the call's cell or
-whose concepts match no line of the call left unconsumed (`bko.generate.skeleton`), keeps the rest
+whose concepts match no line of the call left unconsumed (`bko.generate.skeleton`), for a curating
+attempt each one its curator drops (`bko.evaluate.curation`), keeps the rest
 under the cell their own values name, and it
 records each candidate's outcome for the per-holdout candidates file
 (`bko.evaluate.holdout_candidates`). `Tally` counts candidates over some calls, and `DROPPED`
@@ -23,6 +24,7 @@ import pandas as pd
 
 from bko.baselines.records import Drop, Prescribed, assess, number
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
+from bko.evaluate.curation import Discard
 from bko.evaluate.holdout_candidates import KEPT, REJECTED, Seen
 from bko.evaluate.scores import Measure
 from bko.gaps.observe import Cell, cell_key
@@ -37,13 +39,15 @@ DROPPED: Final[Mapping[Drop, Measure]] = MappingProxyType(
         Drop.RANGE: Measure.DROPPED_RANGE,
         Drop.CELL: Measure.DROPPED_CELL,
         Drop.CONCEPTS: Measure.DROPPED_CONCEPTS,
+        Drop.CURATION: Measure.DROPPED_CURATION,
         Drop.QUOTA: Measure.DROPPED_QUOTA,
     }
 )
 """The measure each drop reason is counted under."""
 
 COMMON: Final = (Drop.RANGE, Drop.CELL, Drop.QUOTA)
-"""The drop reasons every arm counts; a prescribing arm also counts `Drop.CONCEPTS`."""
+"""The drop reasons every arm counts; a prescribing arm also counts `Drop.CONCEPTS`, and a curating
+arm `Drop.CURATION`."""
 
 
 @dataclass(slots=True)
@@ -97,25 +101,37 @@ class Attempt:
     """
 
     def __init__(
-        self, train: pd.DataFrame, request: Request, limit: int, *, prescribing: bool = False
+        self,
+        train: pd.DataFrame,
+        request: Request,
+        limit: int,
+        *,
+        prescribing: bool = False,
+        discard: Discard | None = None,
     ) -> None:
         """Start an attempt at `request` over `train` that may ask for `limit` records.
 
-        A `prescribing` attempt's calls carry each record's concepts, so its counts report every
-        drop reason; any other's report `COMMON`.
+        A `prescribing` attempt's calls carry each record's concepts, so its counts report
+        `Drop.CONCEPTS` beside `COMMON`; an attempt given a `discard` curates each call's accepted
+        rows with it, so its counts report `Drop.CURATION`.
         """
         self.train = train
         self.request = request
         self.limit = limit
         self.asked = 0
-        self.tally = self.tally_for(prescribing=prescribing)
+        self.discard = discard
+        self.tally = self.tally_for(prescribing=prescribing, curating=discard is not None)
         self.kept: dict[Stratum, list[pd.DataFrame]] = defaultdict(list)
         self.seen: list[Seen] = []
 
     @staticmethod
-    def tally_for(*, prescribing: bool) -> Tally:
-        """An empty tally reporting a `prescribing` attempt's drop reasons, or `COMMON`."""
-        return Tally(reasons=tuple(Drop) if prescribing else COMMON)
+    def tally_for(*, prescribing: bool, curating: bool = False) -> Tally:
+        """An empty tally of `COMMON` and the reasons a prescribing or curating attempt adds.
+
+        `Drop.CONCEPTS` joins if `prescribing` and `Drop.CURATION` if `curating`, in `Drop`'s order.
+        """
+        extra = {Drop.CONCEPTS: prescribing, Drop.CURATION: curating}
+        return Tally(reasons=tuple(d for d in Drop if d in COMMON or extra.get(d)))
 
     def held(self) -> dict[Stratum, int]:
         """Each cell's rows kept so far."""
@@ -181,7 +197,15 @@ class Attempt:
                 ),
             )
         )
-        assessed = assess(rows, self.train, self.request, held=self.held(), prescribed=prescribed)
+        curated = None if self.discard is None else tuple(self.discard(rows).tolist())
+        assessed = assess(
+            rows,
+            self.train,
+            self.request,
+            held=self.held(),
+            prescribed=prescribed,
+            curated=curated,
+        )
         reasons = assessed.reasons
         self.tally.dropped.update(reason for reason in reasons if reason is not None)
         outcomes = {
