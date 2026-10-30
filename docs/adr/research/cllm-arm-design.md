@@ -233,7 +233,7 @@ an agreement that grants no permission to send them.
   `tests/test_evaluate_egress.py`, `tests/test_generate_imports.py`,
   `tests/test_generate_skeleton.py` (curation's place among the drop reasons),
   `tests/test_evaluate_experiment.py`, `tests/test_generate_prompt.py`,
-  `tests/test_generate_guidance.py`
+  `tests/test_generate_guidance.py`, `tests/test_evaluate_cli.py` (the SDK logger held at INFO)
 
 ## Reversal Conditions
 
