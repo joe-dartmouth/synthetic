@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from fractions import Fraction
 from typing import Final
 
@@ -18,6 +19,7 @@ from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
     CLLM_ARM,
+    CLLM_BUDGET,
     CLLM_RAW_ARM,
     E1,
     MESSAGES_ARMS,
@@ -442,18 +444,21 @@ def test_b3_runs_hold_bko_and_both_cllm_arms():
 
 
 @pytest.mark.parametrize(
-    ("name", "per_arm", "calls", "tokens"),
+    ("name", "per_arm", "calls", "tokens", "asks"),
     [
-        ("b3-uci", 10.51 / 3, 5490 / 3, 60),
-        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100),
+        ("b3-uci", 10.51 / 3, 5490 / 3, 60, 1.1401),
+        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100, 1.4433),
     ],
     ids=["uci", "synthea"],
 )
-def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens):
-    """`e1-4`'s and `e3-4`'s Messages spend per arm, the pilot's least keep share 0.7765 for the
-    curated arm, and 20 shown records of `tokens` input tokens each per call at the model's input
-    rate; Synthea's calls per arm scale `e1-4`'s by the two runs' spend (`docs/EVIDENCE.md`, B3)."""
-    share = 0.7765
-    arms = per_arm * (1 + 1 / share + 1)
-    shown = calls * (1 / share + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
+def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens, asks):
+    """`docs/EVIDENCE.md` (B3) states the estimate: per arm, `e1-4`'s and `e3-4`'s Messages spend,
+    `asks` the pilot's records asked per requested row for the curated arm, and 20 shown records of
+    `tokens` input tokens each per call at the model's input rate."""
+    arms = per_arm * (1 + asks + 1)
+    shown = calls * (asks + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
     assert 1.25 * (arms + shown) <= RUNS[name].experiment.spend_ceiling
+
+
+def test_the_cllm_budget_covers_the_least_pilot_keep_share():
+    assert max(3, math.ceil(1.5 / 0.1734)) == CLLM_BUDGET

@@ -99,11 +99,13 @@ prompt (their section 2.2).
   measure and `dropped_curation=` in the `guided` and `validity` lines, for a curating arm alone.
   It counts as passed in the validity rate, as every drop after validation does.
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
-  `max(3, ceil(1.5 / s))` for the least curator keep share `s` the pilot measured: 3.
-- **The pilot**, a proxy: the curator applied, per holdout, to the `bko` candidates kept in
-  returned attempts in `runs/g5-1/holdout-candidates.jsonl`, each holdout's training rows rebuilt
-  by `bko.datasets.split.split` then `bko.evaluate.prepare.prepared` (2026-10-29). They are BKO
-  records, not records written from shown examples.
+  `max(3, ceil(1.5 / s))` for the least curator keep share `s` the two pilots measured: 9, from
+  Synthea's 0.1734.
+- **The pilot**, a proxy on each dataset: the curator applied, per holdout, to the `bko`
+  candidates kept in returned attempts, each holdout's training rows rebuilt by
+  `bko.datasets.split.split` then `bko.evaluate.prepare.prepared` (with E3's removal on Synthea).
+  They are BKO records, not records written from shown examples. On UCI, over
+  `runs/g5-1/holdout-candidates.jsonl` (2026-10-29, `scratchpad/cllm_pilot.py`):
 
   | Fill | Cell | Rows | Kept | Share |
   |---|---|---|---|---|
@@ -119,8 +121,27 @@ prompt (their section 2.2).
   | replica | `>=55/male/1` | 5784 | 5110 | 0.8835 |
   | all | | 25800 | 22694 | 0.8796 |
 
-  The least share is 0.7765, at the gap fill of `<55/female/1`, so `ceil(1.5 / 0.7765)` is 2 and
-  the budget is E1's 3.
+  On Synthea, over `e3-a`'s and `e3-b`'s `runs/e3-2/` and `runs/e3-3/` candidates files
+  (2026-10-30, `scratchpad/cllm_pilot_synthea.py`, after `b3-synthea`'s rehearsal ran out of a
+  budget of 3 on its first holdout):
+
+  | Fill | Cell | Rows | Kept | Share |
+  |---|---|---|---|---|
+  | gap | `>=65/female/1` | 1500 | 311 | 0.2073 |
+  | replica | `<65/female/0` | 25500 | 25495 | 0.9998 |
+  | replica | `<65/female/1` | 2301 | 399 | 0.1734 |
+  | replica | `<65/male/0` | 24200 | 24005 | 0.9919 |
+  | replica | `<65/male/1` | 4500 | 1446 | 0.3213 |
+  | replica | `>=65/female/0` | 5500 | 5481 | 0.9965 |
+  | replica | `>=65/female/1` | 499 | 102 | 0.2044 |
+  | replica | `>=65/male/0` | 2700 | 946 | 0.3504 |
+  | replica | `>=65/male/1` | 8900 | 8769 | 0.9853 |
+  | all | | 75600 | 66954 | 0.8856 |
+
+  UCI's least share, 0.7765, would ask for E1's 3; Synthea's, 0.1734 at the replica fill of
+  `<65/female/1`, asks for `ceil(1.5 / 0.1734)` = 9. On Synthea the curator drops about four of
+  five records in every sick women's cell, the flagged gap cell `>=65/female/1` included: a
+  classifier fit on its training rows confidently calls most sick women healthy.
 - **Sampling.** No temperature, `top_p` or `top_k` is sent, as for every Messages arm (ADR
   `research/record-generation-design`).
 - **B3's runs.** `b3-uci` and `b3-synthea` in `bko.evaluate.named_runs.RUNS` hold `METHOD_ARMS`,
@@ -183,8 +204,9 @@ confidence is c has a mean p(1 - p) of at most c(1 - c), so every row with confi
 kept by their aleatoric uncertainty.
 
 Curation sits before the quota so a dropped row costs budget, not a slot. An attempt needs about
-1/s records asked per row kept, so `1.5 / s` leaves half again for top-ups; the pilot's least share
-asks for less than E1's 3, which keeps the CLLM arms at `bko`'s budget. The pilot curates BKO
+1/s records asked per row kept, so `1.5 / s` leaves half again for top-ups. The budget only caps
+an attempt's asks before it refuses, so the UCI arm, whose least share needs less than 3, asks no
+more under 9. The pilot curates BKO
 records because no shown-record run exists before B3; B3's own `dropped-curation` counts measure
 the arm.
 

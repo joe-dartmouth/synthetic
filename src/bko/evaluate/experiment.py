@@ -292,9 +292,9 @@ label (`bko.evaluate.cllm`, `bko.evaluate.curation`)."""
 CLLM_RAW_ARM: Final = "cllm-uncurated"
 """`cllm` with every accepted row kept: the same prompt, no curation."""
 
-CLLM_BUDGET: Final = 3
+CLLM_BUDGET: Final = 9
 """The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
-pilot measured (ADR `research/cllm-arm-design`, The pilot)."""
+pilots measured over UCI and Synthea (ADR `research/cllm-arm-design`, The pilot)."""
 
 MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
     {
