@@ -119,6 +119,7 @@ class Attempt:
         self.request = request
         self.limit = limit
         self.asked = 0
+        self.asked_in: Counter[Stratum] = Counter()
         self.discard = discard
         self.tally = self.tally_for(prescribing=prescribing, curating=discard is not None)
         self.kept: dict[Stratum, list[pd.DataFrame]] = defaultdict(list)
@@ -181,6 +182,7 @@ class Attempt:
             without a skeleton.
         """
         self.asked += asked
+        self.asked_in[cell] += asked
         frame = self.request.frame
         checked = validate(candidates, frame=frame)
         self.tally.generated += checked.generated

@@ -101,10 +101,13 @@ prompt (their section 2.2).
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
   `max(3, ceil(1.5 / s))` for the least curator keep share `s` the two pilots measured: 9, from
   Synthea's 0.1734.
-- **Partial fill.** A curating arm whose budget cannot cover the rows still short returns the
-  rows it kept instead of refusing, with outcome `partial`, a `shortfall` line per cell left short
-  and `short` in its params; the rows are checked against what each cell kept. An arm that does
-  not curate still refuses. CLLM keeps whatever its curator passes, and a curator that rejects
+- **Partial fill.** A curating arm gives each cell its own budget, `budget` times the cell's
+  quota, and gives up a cell, with a `shortfall` line, once its records asked could not cover its
+  rows still short; the other cells go on, and the attempt returns the rows it kept with outcome
+  `partial` and `short` in its params, checked against what each cell kept. An arm that does not
+  curate still refuses once the attempt's budget cannot cover its short cells. A budget shared
+  across the attempt let one rejected cell ask the rest of it one record per call: `b3-synthea`'s
+  first launch reached call 3141 on its second holdout and was stopped at $1.64. CLLM keeps whatever its curator passes, and a curator that rejects
   nearly every record of a cell is the effect B3 measures: on Synthea's real `bko` records the
   curator kept none of `>=65/female/1`'s on 3 of 100 holdouts' gap fills and 29 of their replica
   fills (`scratchpad/cllm_pilot_synthea_holdouts.py`), so no budget fills that cell.
@@ -246,6 +249,7 @@ an agreement that grants no permission to send them.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| A curated arm's budget shared across its attempt's cells | One cell the curator rejects asks the rest of the attempt's budget one record per call (`b3-synthea`'s first launch, stopped at $1.64) | 2026-10-30 |
 | A curated arm that refuses past its budget, as every other arm does | On Synthea the curator keeps no record of `>=65/female/1` on many holdouts, so `b3-synthea` would stop partway (its rehearsal refused on holdout 2) | 2026-10-30 |
 | An arm-built `Call` outside the shared flight | Loses concurrent waves, the ceiling's reservations and the idle rule (Rationale) | 2026-10-29 |
 | Thresholds relative to a batch, such as CLLM's adaptive 0.75 times the aleatoric range | A row's fate depends on its batch, so a replay or another in-flight count keeps other rows | 2026-10-29 |

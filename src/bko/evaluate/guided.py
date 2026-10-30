@@ -51,7 +51,7 @@ from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Ori
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues, prescriber
 from bko.evaluate.watch import Watch
-from bko.evaluate.waves import committer, lines_requeued, next_wave, spendable
+from bko.evaluate.waves import committer, give_up, lines_requeued, next_wave, spendable
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.generate.errors import IdleError, ReplayError
@@ -287,29 +287,23 @@ class GuidedArm:
         """Ask for each short cell round by round until the quota is filled.
 
         Returns:
-            Each cell a curating arm leaves short once the rest of its budget cannot cover it,
-            empty when the quota is filled.
+            Each cell a curating arm leaves short, with its missing rows, once that cell's own
+            budget cannot cover them (`bko.evaluate.waves.give_up`); empty when the quota is filled.
 
         Raises:
-            BaselineError: Plain, for an arm that does not curate, when the rest of the budget
-                cannot cover the rows still short.
+            BaselineError: Plain, for an arm that does not curate, when the rest of the attempt's
+                budget cannot cover the rows still short.
         """
         per_call = self._log.settings.per_call
         waves = 0
-        while short := attempt.short():
-            if attempt.asked + sum(short.values()) > attempt.limit:
-                if self._curation is not None:
-                    for cell, rows in short.items():
-                        logger.info(
-                            "shortfall arm=%s seed=%d cell=%s short=%d asked=%d limit=%d",
-                            self.name,
-                            attempt.request.seed,
-                            cell_key(cell),
-                            rows,
-                            attempt.asked,
-                            attempt.limit,
-                        )
-                    return short
+        given_up: dict[Cell, int] = {}
+        while short := {c: n for c, n in attempt.short().items() if c not in given_up}:
+            if self._curation is not None:
+                given_up |= give_up(attempt, short, name=self.name, budget=self._budget)
+                short = {c: n for c, n in short.items() if c not in given_up}
+                if not short:
+                    return given_up
+            elif attempt.asked + sum(short.values()) > attempt.limit:
                 msg = (
                     f"{self.name} cannot fill {len(short)} cells inside its budget of "
                     f"{attempt.limit} records: {attempt.line()}"
@@ -351,7 +345,7 @@ class GuidedArm:
                         attempt.tally.dropped[Drop.CONCEPTS] - concepts,
                         queues.requeued - requeued,
                     )
-        return {}
+        return given_up
 
     def _planned(
         self,

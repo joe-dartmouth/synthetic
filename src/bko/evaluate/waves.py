@@ -107,3 +107,30 @@ def spendable(log: CallLog, ceiling: float) -> None:
         logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, ceiling)
         msg = f"the run's spend {spent:.4f} USD reached its ceiling of {ceiling} USD"
         raise StopRuleError(msg, "ceiling")
+
+
+def give_up(
+    attempt: Attempt, short: Mapping[Cell, int], *, name: str, budget: int
+) -> dict[Cell, int]:
+    """The short cells whose own budget, `budget` times the cell's quota, cannot cover them.
+
+    A curating arm gives each cell its own budget, so a cell its curator keeps almost nothing of
+    is given up without asking the rest of the attempt's budget one row at a time; each is logged
+    as a `shortfall` line naming arm `name`.
+    """
+    found: dict[Cell, int] = {}
+    for cell, rows in short.items():
+        limit = budget * attempt.request.quota[cell]
+        asked = attempt.asked_in[cell]
+        if asked + rows > limit:
+            found[cell] = rows
+            logger.info(
+                "shortfall arm=%s seed=%d cell=%s short=%d asked=%d limit=%d",
+                name,
+                attempt.request.seed,
+                cell_key(cell),
+                rows,
+                asked,
+                limit,
+            )
+    return found

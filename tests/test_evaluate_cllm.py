@@ -260,7 +260,7 @@ def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_pat
     request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
     send = shortfall_send([*records()[:1], *wrong_records(2)], QUOTA - 1)
     built, log = arm(tmp_path, CLLM_ARM, send)
-    caplog.set_level(logging.INFO, logger="bko.evaluate.guided")
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
     with log:
         baseline = built(train(), request)
     send.assert_consumed()
@@ -294,3 +294,46 @@ def test_an_uncurated_arm_still_refuses_past_its_budget(tmp_path):
     built, log = arm(tmp_path, CLLM_RAW_ARM, ScriptedSend(*[reply(out_of_cell)] * budget))
     with pytest.raises(BaselineError, match="budget"), log:
         built(train(), request)
+
+
+def test_a_cell_the_curator_rejects_is_given_up_at_its_own_budget(tmp_path, caplog):
+    """The rejected cell stops at `budget` times its quota; the other cell still fills."""
+    rows = train()
+    well_template = rows[[key == ("<55", "female", 0) for key in cells_of(rows)]].iloc[0]
+    well: dict[str, int | float] = {
+        name: float(well_template[name])
+        if name in UCI_FRAME.fractional
+        else int(well_template[name])
+        for name in UCI_FRAME.columns
+    }
+    well["thalach"] = 185
+    young_well = ("<55", "female", 0)
+    request = Request(quota={YOUNG_SICK: 2, young_well: 2}, strata=Strata.CELL, seed=0)
+    budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
+
+    class Keyed(ScriptedSend):
+        """Answers each call by its cell: the sick cell's records all curated away."""
+
+        def __call__(self, call):
+            self.calls.append(call)
+            asked = int(call.user.split("Write exactly ", 1)[1].split(" ", 1)[0])
+            rows_out: list[object] = wrong_records(asked) if call.label == 1 else [well] * asked
+            return reply(rows_out)
+
+    send = Keyed()
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    with log:
+        baseline = built(rows, request)
+    sick_asked = sum(
+        int(call.user.split("Write exactly ", 1)[1].split(" ", 1)[0])
+        for call in send.calls
+        if call.label == 1
+    )
+    assert sick_asked == budget * 2
+    assert baseline.params["short"] == {"<55/female/1": 2}
+    assert len(baseline.added) == 2
+    assert any(
+        m.startswith("shortfall arm=cllm seed=0 cell=<55/female/1 short=2 asked=18 limit=18")
+        for m in caplog.messages
+    )
