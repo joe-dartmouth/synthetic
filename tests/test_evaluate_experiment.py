@@ -11,6 +11,7 @@ import pytest
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.cllm import SHOW
 from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
@@ -115,6 +116,8 @@ def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "b1-synthea",
         "b1-uci",
+        "b3-synthea",
+        "b3-uci",
         "e1",
         "e3",
         "e3-a",
@@ -419,3 +422,38 @@ def test_the_cllm_arms_show_records_read_no_gap_and_differ_in_curation_alone():
     assert (cllm.definition, cllm.shows, cllm.curation) == (None, True, Curation.CLASSIFIER)
     assert dataclasses.replace(cllm, curation=None) == raw
     assert not cllm.prescribes
+
+
+def test_b3_runs_hold_bko_and_both_cllm_arms():
+    for name, base in (("b3-uci", E1), ("b3-synthea", E3)):
+        run = RUNS[name]
+        experiment = run.experiment
+        assert experiment.arms[: len(METHOD_ARMS)] == METHOD_ARMS
+        assert {"bko", CLLM_ARM, CLLM_RAW_ARM} <= set(experiment.arms)
+        assert {"bko", CLLM_ARM, CLLM_RAW_ARM} <= set(experiment.replica_arms)
+        assert (experiment.candidate, experiment.comparators, experiment.criteria) == (
+            CLLM_ARM,
+            METHOD_ARMS,
+            (),
+        )
+        assert (experiment.removal, experiment.decontaminate) == (base.removal, base.decontaminate)
+        assert run.settings == SETTINGS
+    assert REAL_ARM in RUNS["b3-synthea"].experiment.arms
+
+
+@pytest.mark.parametrize(
+    ("name", "per_arm", "calls", "tokens"),
+    [
+        ("b3-uci", 10.51 / 3, 5490 / 3, 60),
+        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100),
+    ],
+    ids=["uci", "synthea"],
+)
+def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens):
+    """`e1-4`'s and `e3-4`'s Messages spend per arm, the pilot's least keep share 0.7765 for the
+    curated arm, and 20 shown records of `tokens` input tokens each per call at the model's input
+    rate; Synthea's calls per arm scale `e1-4`'s by the two runs' spend (`docs/EVIDENCE.md`, B3)."""
+    share = 0.7765
+    arms = per_arm * (1 + 1 / share + 1)
+    shown = calls * (1 / share + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
+    assert 1.25 * (arms + shown) <= RUNS[name].experiment.spend_ceiling

@@ -21,6 +21,8 @@ from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
+    CLLM_ARM,
+    CLLM_RAW_ARM,
     DIRECT_ARM,
     E1,
     HOLDOUTS,
@@ -114,6 +116,33 @@ B1_SYNTHEA: Final = replace(
 (`docs/EVIDENCE.md`, B1)."""
 
 
+B3_ARMS: Final = ("bko", CLLM_ARM, CLLM_RAW_ARM)
+"""The Messages arms B3 reads together: `bko`, CLLM and its uncurated twin (`docs/EVIDENCE.md`,
+B3)."""
+
+B3_UCI: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, *B3_ARMS),
+    candidate=CLLM_ARM,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, *B3_ARMS),
+    criteria=(),
+    spend_ceiling=20.0,
+)
+"""E1's methods and B3's arms over UCI, CLLM as the candidate, no criterion, a $20.00 ceiling."""
+
+B3_SYNTHEA: Final = replace(
+    E3,
+    arms=(*METHOD_ARMS, *B3_ARMS, REAL_ARM),
+    candidate=CLLM_ARM,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, *B3_ARMS),
+    spend_ceiling=35.0,
+)
+"""E3's removal and copy rule with E3's methods, B3's arms and `real`, CLLM as the candidate, no
+criterion, a $35.00 ceiling."""
+
+
 G6_BASE: Final = replace(
     E1, arms=(*METHOD_ARMS, "bko"), replica_arms=(*ADDS_ROWS, "bko"), criteria=()
 )
@@ -190,6 +219,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
         "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
+        "b3-uci": NamedRun(B3_UCI),
+        "b3-synthea": NamedRun(B3_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         **{
             name: NamedRun(replace(G6_BASE, spend_ceiling=ceiling), replace(SETTINGS, model=model))
             for name, (model, ceiling) in G6_MODELS.items()
