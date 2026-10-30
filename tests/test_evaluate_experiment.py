@@ -17,9 +17,13 @@ from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
     E1,
+    MESSAGES_ARMS,
     METHOD_ARMS,
     REAL_ARM,
+    SKELETON_ARM,
+    Curation,
     Experiment,
+    MessagesArm,
     Removal,
     flagged,
     gap_request,
@@ -367,3 +371,38 @@ def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
         assert RUNS[name].settings.model == model
         price_of(model)
         assert (model in LOCAL_MODELS) == (name != "g6-sonnet"), name
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"over_ask": 0},
+        {"over_ask": 2},
+        {"over_ask": 2, "curation": Curation.CLASSIFIER},
+        {"curation": Curation.LIKELIHOOD},
+        {"budget": 0},
+    ],
+    ids=[
+        "no-ask",
+        "over-ask-uncurated",
+        "over-ask-classifier",
+        "ranked-without-over-ask",
+        "budget",
+    ],
+)
+def test_an_inconsistent_messages_arm_is_refused(spec):
+    with pytest.raises(ValueError, match=r"over_ask|budget"):
+        MessagesArm(Definition.SUBGROUP, **spec)
+
+
+def test_a_ranked_curation_with_its_over_ask_is_a_messages_arm():
+    arm = MessagesArm(None, shows=True, curation=Curation.LIKELIHOOD, over_ask=3, budget=6)
+    assert (arm.definition, arm.over_ask, arm.budget) == (None, 3, 6)
+
+
+def test_every_bko_arm_reads_the_experiments_budget_and_only_the_skeleton_arm_prescribes():
+    assert {name: spec.definition for name, spec in MESSAGES_ARMS.items() if name in BKO_ARMS} == (
+        dict(BKO_ARMS)
+    )
+    assert all(spec.budget is None and not spec.shows for spec in MESSAGES_ARMS.values())
+    assert {name for name, spec in MESSAGES_ARMS.items() if spec.prescribes} == {SKELETON_ARM}

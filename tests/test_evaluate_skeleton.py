@@ -366,7 +366,8 @@ def test_g5_is_e1_plus_the_skeleton_arm_with_literal_settings():
         guidance=Level.SUMMARY,
     )
     assert run.settings == SETTINGS
-    assert MESSAGES_ARMS[SKELETON_ARM] is Definition.SUBGROUP
+    assert MESSAGES_ARMS[SKELETON_ARM].definition is Definition.SUBGROUP
+    assert MESSAGES_ARMS[SKELETON_ARM].prescribes
 
 
 def test_a_call_keeps_reordered_records_and_drops_only_a_skipped_ones_line(tmp_path):

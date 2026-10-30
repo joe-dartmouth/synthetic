@@ -42,7 +42,7 @@ from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.errors import EvaluationError, StopRuleError
-from bko.evaluate.experiment import MESSAGES_ARMS, SKELETON_ARM, Experiment
+from bko.evaluate.experiment import MESSAGES_ARMS, Experiment, MessagesArm
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Origin, Seen
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues, prescriber
@@ -294,6 +294,18 @@ class GuidedArm:
         return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
 
 
+def _definition(name: str, spec: MessagesArm) -> Definition:
+    """The gap definition that guides arm `name`.
+
+    Raises:
+        EvaluationError: If its spec guides by cell alone, which no `GuidedArm` reads yet.
+    """
+    if spec.definition is None:
+        msg = f"the Messages arm {name!r} reads no gap definition, which a guided arm needs"
+        raise EvaluationError(msg)
+    return spec.definition
+
+
 @dataclass(frozen=True, slots=True)
 class GuidedRun:
     """A run's BKO arms over one call log and one candidates file.
@@ -380,15 +392,15 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         arms = {
             name: GuidedArm(
                 name,
-                MESSAGES_ARMS[name],
+                _definition(name, spec),
                 knowledge,
                 log=call_log,
-                budget=experiment.budget,
+                budget=experiment.budget if spec.budget is None else spec.budget,
                 flight=flight,
                 candidates=kept,
-                prescribe=prescriber(knowledge) if name == SKELETON_ARM else None,
+                prescribe=prescriber(knowledge) if spec.prescribes else None,
             )
-            for name in names
+            for name, spec in ((name, MESSAGES_ARMS[name]) for name in names)
         }
     except BaseException:
         call_log.discard()
