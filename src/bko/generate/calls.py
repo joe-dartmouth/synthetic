@@ -24,7 +24,7 @@ from bko.generate.decode import Undecoded, decode, undecoded_in
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import CALL_NUMBER, Call, Reply, Send, Settings
-from bko.generate.prompt import render
+from bko.generate.prompt import Shown, render, render_shown
 from bko.generate.skeleton import Skeleton
 from bko.generate.spend import cost, price_of
 
@@ -120,6 +120,7 @@ def request(
     settings: Settings | None = None,
     frame: FrameSpec,
     skeleton: Skeleton | None = None,
+    shown: Shown | None = None,
 ) -> Pending:
     """Render one call for `rows` records of `guidance`'s cell and write its `request` line.
 
@@ -130,19 +131,29 @@ def request(
         settings: How the call is made, its guidance level included; the log's when None.
         frame: The frame whose records the call asks for.
         skeleton: A prescribing request's lines, one per record asked; None asks for none.
+        shown: The training records the call shows (`bko.generate.prompt.render_shown`), which
+            reads no guidance level; None shows none.
 
     Returns:
         The call, numbered and logged, to send.
 
     Raises:
-        ValueError: Before the `request` line, if `settings` differ from the log's or the
-            skeleton's lines are not one per record asked.
+        ValueError: Before the `request` line, if `settings` differ from the log's, the
+            skeleton's lines are not one per record asked, or both a skeleton and shown records
+            are given.
     """
+    if skeleton is not None and shown is not None:
+        msg = "a request takes either a skeleton or shown records, not both"
+        raise ValueError(msg)
     if skeleton is not None and len(skeleton.lines) != rows:
         msg = f"the skeleton holds {len(skeleton.lines)} lines for {rows} records asked"
         raise ValueError(msg)
     settings = _settings(log, settings)
-    system, user = render(guidance, rows, settings.guidance, frame=frame, skeleton=skeleton)
+    system, user = (
+        render(guidance, rows, settings.guidance, frame=frame, skeleton=skeleton)
+        if shown is None
+        else render_shown(guidance, rows, shown, frame=frame)
+    )
     call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
     index = log.request(guidance.cell, rows, call)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.

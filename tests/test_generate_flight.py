@@ -15,7 +15,7 @@ import pytest
 
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
-from bko.evaluate.guided import spendable
+from bko.evaluate.waves import spendable
 from bko.generate.calls import request
 from bko.generate.errors import GenerationError, IdleError
 from bko.generate.flight import OVERHEAD_TOKENS, Flight, Limits, Planned, _reservation
@@ -654,3 +654,21 @@ def test_a_call_cancelled_on_its_own_is_no_interrupt(tmp_path):
         flight.wave(PLAN, frame=UCI_FRAME)
     errors = {line["call"]: line["error"] for line in _lines(log) if line["kind"] == "error"}
     assert errors == {3: "CancelledError"}
+
+
+def test_a_planned_request_with_shown_records_sends_them(tmp_path):
+    shown = (dict.fromkeys(UCI_FRAME.columns, 1),)
+    send = Delayed()
+    with _log(tmp_path) as log:
+        flight = Flight(send, log, Limits(1, None), spendable=lambda: None)
+        flight.wave((Planned(GUIDANCE, 1, shown=shown),), frame=UCI_FRAME)
+    assert json.dumps(shown[0]) in send.calls[0].user
+
+
+def test_request_refuses_both_skeleton_and_shown(tmp_path):
+    lines = Skeleton((), (frozenset(),))
+    shown = (dict.fromkeys(UCI_FRAME.columns, 1),)
+    with _log(tmp_path) as log:
+        with pytest.raises(ValueError, match="not both"):
+            request(GUIDANCE, 1, log=log, frame=UCI_FRAME, skeleton=lines, shown=shown)
+        assert log.calls == 0

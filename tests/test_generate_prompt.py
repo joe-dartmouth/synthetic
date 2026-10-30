@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import pytest
 
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.split import ranges
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS, UCI_FRAME
+from bko.evaluate.rehearse import PROMPT, RECORD_LINE
 from bko.gaps.detect import Statement
 from bko.generate.guidance import (
     Basis,
@@ -21,7 +23,7 @@ from bko.generate.guidance import (
     intervals,
 )
 from bko.generate.messages import LEVELS, Level
-from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render, system
+from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render, render_shown, system
 from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
 from bko.ontology.schema import FieldMapping
 from tests._frame_fixtures import TOY
@@ -373,3 +375,26 @@ def test_each_level_adds_exactly_its_own_block():
     assert render(bare, 2, Level.SUMMARY, frame=UCI_FRAME) == render(
         bare, 2, Level.COHERENT, frame=UCI_FRAME
     )
+
+
+def shown_rows(count: int) -> tuple[dict[str, int | float], ...]:
+    rows = TRAIN_A.loc[:, list(UCI_FRAME.columns)].head(count)
+    return tuple(
+        {name: (float(value) if name in UCI_FRAME.numeric else int(value)) for name, value in row}
+        for row in (
+            zip(rows.columns, values, strict=True) for values in rows.itertuples(index=False)
+        )
+    )
+
+
+def test_render_shown_opens_with_the_render_sentence_and_lists_json_lines():
+    shown = shown_rows(3)
+    system_text, user = render_shown(GUIDANCE, 5, shown, frame=UCI_FRAME)
+    assert system_text == SYSTEM
+    assert PROMPT.match(user)
+    assert RECORD_LINE.search(user) is None
+    listed = [json.loads(line) for line in user.splitlines() if line.startswith("{")]
+    assert listed == list(shown)
+    assert all(tuple(record) == UCI_FRAME.columns for record in listed)
+    first = render(GUIDANCE, 5, Level.CELL, frame=UCI_FRAME)[1].split("\n\n")
+    assert user.split("\n\n")[:2] == first[:2]

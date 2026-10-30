@@ -44,6 +44,7 @@ from bko.generate.errors import IdleError
 from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply, Tries
+from bko.generate.prompt import Shown
 from bko.generate.skeleton import Skeleton
 from bko.generate.spend import price_of
 
@@ -90,11 +91,13 @@ class Planned:
         rows: The records it asks for.
         skeleton: A prescribing request's lines, one per record asked; None for an arm that
             prescribes none.
+        shown: The training records the call shows; None for an arm that shows none.
     """
 
     guidance: Guidance
     rows: int
     skeleton: Skeleton | None = None
+    shown: Shown | None = None
 
 
 @dataclass(eq=False, slots=True)
@@ -362,7 +365,14 @@ class Flight:
         if wave.failed.is_set():
             return None
         self._spendable()
-        return request(item.guidance, item.rows, log=self.log, frame=frame, skeleton=item.skeleton)
+        return request(
+            item.guidance,
+            item.rows,
+            log=self.log,
+            frame=frame,
+            skeleton=item.skeleton,
+            shown=item.shown,
+        )
 
     async def _afford(self, wave: _Wave) -> None:
         """Wait for the calls in flight if the spend plus their reservations reaches the ceiling."""
