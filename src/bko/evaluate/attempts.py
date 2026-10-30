@@ -22,7 +22,7 @@ from typing import Final
 
 import pandas as pd
 
-from bko.baselines.records import Drop, Prescribed, assess, number
+from bko.baselines.records import Drop, Prescribed, assess, no_rows, number
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
 from bko.evaluate.curation import Discard
 from bko.evaluate.holdout_candidates import KEPT, REJECTED, Seen
@@ -238,7 +238,7 @@ class Attempt:
     def rows(self) -> pd.DataFrame:
         """The kept rows, cell by cell in the quota's order, in generation order within one."""
         frames = [frame for cell in self.request.quota for frame in self.kept[cell]]
-        return number(pd.concat(frames))
+        return number(pd.concat(frames)) if frames else no_rows(self.request.frame)
 
     def line(self) -> str:
         """The attempt's counts as `key=value` pairs for a log line."""

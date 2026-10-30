@@ -465,7 +465,10 @@ start or the supervisor cannot run.
   `dropped_curation=%d` stands before `dropped_quota=`, and each attempt first logs its curator's
   fit as `curator train=%d labels=%s stages=%d confidence_at_most=%s aleatoric_at_most=%s` (the
   training rows, their count per label as `<label>:<count>` pairs, the stages read and both
-  thresholds). `bko-skeleton` also logs, after
+  thresholds). A curating arm whose budget cannot cover the rows still short returns the rows it
+  kept, with outcome `partial`, instead of refusing: it logs a `shortfall arm=%s seed=%d cell=%s
+  short=%d asked=%d limit=%d` line per cell left short, its params carry `short` (each such cell's
+  missing rows), and its rows are checked against what each cell kept. `bko-skeleton` also logs, after
   each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its

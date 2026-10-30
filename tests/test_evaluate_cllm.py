@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import partial
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
+from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
@@ -234,3 +236,61 @@ def test_a_cell_with_fewer_records_than_shown_shows_what_its_label_holds():
     assert len(shown) == 6
     empty = Shower(rows[[not s for s in sick]], frame=UCI_FRAME, seed=3).take(YOUNG_SICK)
     assert empty == ()
+
+
+def wrong_records(count: int) -> list[object]:
+    """`count` young sick women the curator puts at the other label."""
+    found = records()
+    wrong = found[1]
+    return [wrong] * count
+
+
+def shortfall_send(first: list[object], short: int) -> ScriptedSend:
+    """`first`, then a reply of `short` rows the curator drops for every round the budget allows.
+
+    Each round asks for the cell's shortfall, so after `first` the arm asks `short` per call
+    until the next ask would pass `QUOTA` times its budget.
+    """
+    budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
+    rounds = (QUOTA * budget - QUOTA) // short
+    return ScriptedSend(reply(first), *[reply(wrong_records(short))] * rounds)
+
+
+def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_path, caplog):
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    send = shortfall_send([*records()[:1], *wrong_records(2)], QUOTA - 1)
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    caplog.set_level(logging.INFO, logger="bko.evaluate.guided")
+    with log:
+        baseline = built(train(), request)
+    send.assert_consumed()
+    assert baseline.added["thalach"].tolist() == [100]
+    assert baseline.params["short"] == {"<55/female/1": QUOTA - 1}
+    assert any(
+        m.startswith("shortfall arm=cllm seed=0 cell=<55/female/1 short=2 ")
+        for m in caplog.messages
+    )
+    assert any(" outcome=partial " in m for m in caplog.messages if m.startswith("guided arm=cllm"))
+
+
+def test_a_curated_arm_that_keeps_nothing_adds_no_rows(tmp_path):
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    send = shortfall_send(wrong_records(QUOTA), QUOTA)
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    with log:
+        baseline = built(train(), request)
+    send.assert_consumed()
+    assert baseline.added.empty
+    assert list(baseline.added.columns) == list(UCI_FRAME.columns)
+    assert baseline.params["short"] == {"<55/female/1": QUOTA}
+
+
+def test_an_uncurated_arm_still_refuses_past_its_budget(tmp_path):
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    record = records()[0]
+    assert isinstance(record, dict)
+    out_of_cell: list[object] = [{**record, "age": 63}] * 20
+    budget = MESSAGES_ARMS[CLLM_RAW_ARM].budget or 0
+    built, log = arm(tmp_path, CLLM_RAW_ARM, ScriptedSend(*[reply(out_of_cell)] * budget))
+    with pytest.raises(BaselineError, match="budget"), log:
+        built(train(), request)

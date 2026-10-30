@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-10-29
+updated: 2026-10-30
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -101,6 +101,13 @@ prompt (their section 2.2).
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
   `max(3, ceil(1.5 / s))` for the least curator keep share `s` the two pilots measured: 9, from
   Synthea's 0.1734.
+- **Partial fill.** A curating arm whose budget cannot cover the rows still short returns the
+  rows it kept instead of refusing, with outcome `partial`, a `shortfall` line per cell left short
+  and `short` in its params; the rows are checked against what each cell kept. An arm that does
+  not curate still refuses. CLLM keeps whatever its curator passes, and a curator that rejects
+  nearly every record of a cell is the effect B3 measures: on Synthea's real `bko` records the
+  curator kept none of `>=65/female/1`'s on 3 of 100 holdouts' gap fills and 29 of their replica
+  fills (`scratchpad/cllm_pilot_synthea_holdouts.py`), so no budget fills that cell.
 - **The pilot**, a proxy on each dataset: the curator applied, per holdout, to the `bko`
   candidates kept in returned attempts, each holdout's training rows rebuilt by
   `bko.datasets.split.split` then `bko.evaluate.prepare.prepared` (with E3's removal on Synthea).
@@ -239,6 +246,7 @@ an agreement that grants no permission to send them.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| A curated arm that refuses past its budget, as every other arm does | On Synthea the curator keeps no record of `>=65/female/1` on many holdouts, so `b3-synthea` would stop partway (its rehearsal refused on holdout 2) | 2026-10-30 |
 | An arm-built `Call` outside the shared flight | Loses concurrent waves, the ceiling's reservations and the idle rule (Rationale) | 2026-10-29 |
 | Thresholds relative to a batch, such as CLLM's adaptive 0.75 times the aleatoric range | A row's fate depends on its batch, so a replay or another in-flight count keeps other rows | 2026-10-29 |
 | Ranking a batch's rows and keeping the most confident | Not CLLM's rule | 2026-10-29 |

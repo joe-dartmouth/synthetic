@@ -23,6 +23,7 @@ call log and one candidates file, for the evaluate command and the app alike.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
@@ -52,7 +53,7 @@ from bko.evaluate.skeleton import Prescribe, Queues, prescriber
 from bko.evaluate.watch import Watch
 from bko.evaluate.waves import committer, lines_requeued, next_wave, spendable
 from bko.gaps.definitions import Definition, gaps
-from bko.gaps.observe import Cell, record_cells
+from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.generate.errors import IdleError, ReplayError
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, cell_guidance, guide
@@ -179,8 +180,8 @@ class GuidedArm:
         queues: Queues | None = None
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
-            self._rounds(attempt, guidance, request.frame, queues, shower)
-            outcome = "returned"
+            short = self._rounds(attempt, guidance, request.frame, queues, shower)
+            outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
             raise
@@ -202,6 +203,12 @@ class GuidedArm:
                 requeued,
                 self._log.usd,
             )
+        return self._baseline(attempt, train, first, short)
+
+    def _baseline(
+        self, attempt: Attempt, train: pd.DataFrame, first: int, short: Mapping[Cell, int]
+    ) -> Baseline:
+        """The attempt's rows as a `Baseline`, checked against the rows each cell kept if short."""
         params: dict[str, object] = {
             "definition": None if self._definition is None else self._definition.value,
             "budget": self._budget,
@@ -211,8 +218,13 @@ class GuidedArm:
             params["shows"] = SHOW
         if self._curation is not None:
             params["curation"] = self._curation.value
+        if short:
+            params["short"] = {cell_key(cell): rows for cell, rows in short.items()}
+        request = attempt.request
         baseline = Baseline(attempt.rows(), unit_weights(train), params)
-        check(baseline, train, request)
+        held = attempt.held()
+        filled = {cell: held[cell] for cell in request.quota if held.get(cell, 0)}
+        check(baseline, train, dataclasses.replace(request, quota=filled) if short else request)
         return baseline
 
     def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
@@ -271,11 +283,33 @@ class GuidedArm:
         frame: FrameSpec,
         queues: Queues | None,
         shower: Shower | None = None,
-    ) -> None:
+    ) -> dict[Cell, int]:
+        """Ask for each short cell round by round until the quota is filled.
+
+        Returns:
+            Each cell a curating arm leaves short once the rest of its budget cannot cover it,
+            empty when the quota is filled.
+
+        Raises:
+            BaselineError: Plain, for an arm that does not curate, when the rest of the budget
+                cannot cover the rows still short.
+        """
         per_call = self._log.settings.per_call
         waves = 0
         while short := attempt.short():
             if attempt.asked + sum(short.values()) > attempt.limit:
+                if self._curation is not None:
+                    for cell, rows in short.items():
+                        logger.info(
+                            "shortfall arm=%s seed=%d cell=%s short=%d asked=%d limit=%d",
+                            self.name,
+                            attempt.request.seed,
+                            cell_key(cell),
+                            rows,
+                            attempt.asked,
+                            attempt.limit,
+                        )
+                    return short
                 msg = (
                     f"{self.name} cannot fill {len(short)} cells inside its budget of "
                     f"{attempt.limit} records: {attempt.line()}"
@@ -317,6 +351,7 @@ class GuidedArm:
                         attempt.tally.dropped[Drop.CONCEPTS] - concepts,
                         queues.requeued - requeued,
                     )
+        return {}
 
     def _planned(
         self,
