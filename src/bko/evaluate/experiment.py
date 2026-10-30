@@ -291,7 +291,7 @@ CLLM_RAW_ARM: Final = "cllm-uncurated"
 
 CLLM_BUDGET: Final = 3
 """The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
-pilot measured."""
+pilot measured (ADR `research/cllm-arm-design`, The pilot)."""
 
 MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
     {

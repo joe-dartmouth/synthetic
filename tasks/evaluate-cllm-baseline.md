@@ -8,7 +8,7 @@ parallel_safe: true
 owner: Joe
 milestone: final-report
 paid: true
-adrs: --
+adrs: research/cllm-arm-design
 ---
 
 # A CLLM-style arm, the LLM without the ontology

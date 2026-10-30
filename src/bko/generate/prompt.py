@@ -5,7 +5,7 @@ codes or its unit, with no range, and asks for new patients. The user turn state
 record count and each numeric field's training-split bounds, then adds one component per level
 reached, and for a prescribing request (`bko.generate.skeleton`) one line per asked record naming
 the concepts it must show. Both read the frame given, a required keyword. The BKO prompts hold no
-record; `render_shown` shows training records to the CLLM arms.
+record; `render_shown` shows training records to the CLLM arms (ADR `research/cllm-arm-design`).
 ADR `research/record-generation-design` records what each level sends.
 """
 

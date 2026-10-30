@@ -215,8 +215,10 @@ What the literature says about relative performance, per the brief:
 - **CLLM** "empirically demonstrate[s] on 7 real-world datasets that CLLM enables superior
   downstream performance compared to 6 widely used tabular data generative models" (including
   CTGAN, TVAE, TabDDPM, SMOTE and GReaT), with gains "especially noticeable in the low-data regime
-  (n<100)" and "for underrepresented subgroups". The brief calls this the single most important
-  finding for the team; its code is public.
+  (i.e. n < 100)" and "for underrepresented subgroups" (the paper's words; the brief writes the
+  first as "(n<100)"). The brief calls this the single most important finding for the team; its
+  code is public. The plan runs it as a comparison arm
+  ([IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators)).
 - **"Why LLMs Are Bad at Synthetic Table Generation"** argues that in-context LLM generation has
   real failure modes and proposes fine-tuning fixes. The brief recommends citing it for balance.
 - **A prosumer-hardware benchmark** (CODATA Data Science Journal 2025) gives head-to-head
@@ -237,7 +239,7 @@ The brief (B6) names four failure modes:
 |---|---|---|---|
 | Model collapse | Training successively on synthetic output loses the distribution's tails and eventually degenerates (Shumailov et al., Nature 631:755–759, 2024) | Always mix real and synthetic data rather than training on synthetic alone; Gerstgrasser et al. (2024) show that accumulating real data alongside synthetic avoids collapse | Augmentation adds records to the real training data ([RESEARCH.md](RESEARCH.md#3-approach)) |
 | Mode collapse in GANs | A GAN covers only part of the distribution | CTGAN's conditional vector and "packing", and CTAB-GAN+'s log-probability conditional vector, target this for imbalanced data | Applies to the CTGAN baseline |
-| LLM hallucination | Clinically implausible records, such as negative lab values or impossible code combinations | Ontology or SHACL validation after generation; CLLM-style curation that filters generated rows by predictive confidence or aleatoric uncertainty | Numeric range constraints and validation of each record before augmentation ([RESEARCH.md](RESEARCH.md#3-approach)) |
+| LLM hallucination | Clinically implausible records, such as negative lab values or impossible code combinations | Ontology or SHACL validation after generation; CLLM-style curation that drops a generated row a classifier fit on the real records gives both low predictive confidence and low aleatoric uncertainty | Numeric range constraints and validation of each record before augmentation ([RESEARCH.md](RESEARCH.md#3-approach)) |
 | Memorization and leakage | Synthetic records copy real ones | Measure with DCR and membership inference, and report it as a feature rather than an afterthought | The privacy criterion ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
 
 The brief says the model-collapse result justifies the team's "keep a human-expert / real-data loop"

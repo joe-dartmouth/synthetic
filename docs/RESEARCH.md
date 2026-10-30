@@ -259,13 +259,16 @@ level), that reference group's record count and each mapped concept's share of i
 `profile` block, which `summary` includes), and ontology guidance to the Anthropic Messages API.
 Every run at `SETTINGS`' level, `summary`, sends them. A `bko-skeleton` call also sends each asked
 record's drawn concept names: ontology labels drawn at the fused BKB's aggregate shares, never a
-record's values. No call carries a record, but every bound
+record's values. No BKO call carries a record, but every bound
 and percentile is a real training value: two per numeric field leave on each call, three more per
 field at `summary`. Their exposure grows as the split or a reference group shrinks, since
 a group of one record sends that record's values and a split of identical records sends a whole
-record. Data held under a DUA must not reach that API or any other third-party service unless the
-DUA permits it, bounds and percentiles included; check its current terms before any such run. E3's
-Synthea frame sends the same kinds of quantity, but its rows are generated, so none describes a
+record. The CLLM arms, a comparison baseline, send training records whole (ADR
+[`research/cllm-arm-design`](adr/research/cllm-arm-design.md)). Data held under a DUA must not
+reach that API or any other third-party service unless the DUA permits it, bounds and percentiles
+included: every Messages arm refuses data whose source's `Agreement` (`bko.datasets.sources`)
+records no `sending` permission; check the DUA's current terms before recording one. E3's Synthea
+frame sends the same kinds of quantity, but its rows are generated, so none describes a
 person ([`DEVELOPMENT.md`](DEVELOPMENT.md#generation), What leaves the machine).
 
 ## 7. Augmentation versus resampling

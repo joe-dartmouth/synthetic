@@ -60,6 +60,13 @@ root or to see the module's own code, run it directly:
   and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
   snapshot date and aged 40 and over, and the sha256 of its records is the `digest` of the
   `data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs.
+- **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
+  download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
+  that allows sending its records to a third-party API), None for open data; every pinned source's
+  is None. `score` carries it in `bko.evaluate.data.Data.agreement`, and every Messages arm
+  refuses, exit 2, data whose agreement records no `sending` permission, before the call log or the
+  candidates file exists (ADR
+  [`research/cllm-arm-design`](adr/research/cllm-arm-design.md), Egress).
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
@@ -402,7 +409,8 @@ start or the supervisor cannot run.
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
   attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
   `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell`,
-  `dropped-concepts`, a prescribing arm's alone, or `dropped-quota`) and the `failed` checks of a
+  `dropped-concepts`, a prescribing arm's alone, `dropped-curation`, a curating arm's alone, or
+  `dropped-quota`) and the `failed` checks of a
   rejected one. Lines are written when the harness drains a holdout: after every arm's gap fill,
   then after every replica fill. A stopped run's file
   holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
@@ -451,7 +459,8 @@ start or the supervisor cannot run.
   any call, and `usd=` the run's spend so far); for the prescribing arm `bko-skeleton` it reads
   `guided arm=%s seed=%d outcome=%s calls=%s asked=%d generated=%d passed=%d dropped_range=%d
   dropped_cell=%d dropped_concepts=%d dropped_quota=%d kept=%d requeued=%d usd=%.4f`, where
-  `requeued=` counts the attempt's lines returned to their cell's queue. That arm also logs, after
+  `requeued=` counts the attempt's lines returned to their cell's queue; for the curating arm `cllm`
+  `dropped_curation=%d` stands before `dropped_quota=`. `bko-skeleton` also logs, after
   each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its
@@ -480,10 +489,15 @@ start or the supervisor cannot run.
   column, and at
   the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
-  usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm: its counts
+  usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm and
+  `dropped_curation=%d` there for a curating arm: its counts
   over both fills and its own spend in USD, the sum of each of its attempts' change in the call
   log's spend. A concept-drop rate reads `dropped_concepts` over `passed` from that line, since
-  only a candidate that passed validation can be dropped for its concepts. A resume logs a WARNING
+  only a candidate that passed validation can be dropped for its concepts. For `cllm`, the rows
+  that reach its curator are `passed` less `dropped_range` and `dropped_cell`, and those its
+  curator keeps are those less `dropped_curation`. Its keep share in one fill and cell asked reads
+  its candidates-file lines of that `fill` and `cell`: the `kept` and `dropped-quota` lines over
+  those lines and the `dropped-curation` lines together. A resume logs a WARNING
   for a cut final line it drops from the stopped log and one for each call it drops: the unanswered
   last call, or for a concurrent log every call from the first unanswered one. It logs a `resume
   live from call` line before its first live call. A fill that stops the run logs a `refused` or
@@ -527,7 +541,11 @@ start or the supervisor cannot run.
   [EVIDENCE.md](EVIDENCE.md#e3-synthea-downstream-augmentation)). It holds B1's runs, `b1-uci`
   (E1's methods beside the Gaussian copula and sequential CART) and `b1-synthea` (E3's methods,
   both and `real` under E3's removal), each with no BKO arm and no criterion
-  ([EVIDENCE.md](EVIDENCE.md#b1-classical-baselines)). No flag
+  ([EVIDENCE.md](EVIDENCE.md#b1-classical-baselines)), and B3's, `b3-uci` (E1's methods, `bko`
+  and the CLLM arms `cllm` and `cllm-uncurated`) and `b3-synthea` (E3's methods, those three and
+  `real` under E3's removal), each with `cllm` as the candidate and no criterion (ADR
+  [`research/cllm-arm-design`](adr/research/cllm-arm-design.md);
+  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -535,7 +553,8 @@ start or the supervisor cannot run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
-  existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a direct arm
+  existing call log or candidates file, data held under an agreement that grants no permission to
+  send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a direct arm
   with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
   `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
@@ -784,17 +803,25 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   group's record count and each mapped concept's share of it in percent (the `profile` block).
   Every `SETTINGS` run sends them. A `bko-skeleton` request also sends each asked record's drawn
   concept names: ontology labels drawn at the fused BKB's aggregate shares, never a record's values.
-  No record is sent. Per frame:
-  - UCI (`e1`, `g3-<level>`, `g4-low`, `g4-medium`, `g5`, and this command): every bound and
-    quartile is a real training value of a de-identified patient record, and a small split or
-    reference group exposes them together as a record. Check a DUA's terms for them
-    ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
-  - Synthea (`e3`, `e3-a`, `e3-b`, through the BKO arms): the study and cohort text, the codebook
-    with each indicator's label, age's training-split bounds within the cell's band, the cell and
-    its training record count, and the gap findings with their ontology chains; at `summary`, also
-    the reference group's (the training records outside the cell that share its label) record
-    count, each mapped concept's share of it and its age quartiles. Its rows are generated by
-    Synthea from a pinned seed, so no bound, quartile or share describes a person.
+  No BKO arm sends a record. The CLLM arms (`cllm`, `cllm-uncurated`; ADR
+  [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)) send, on each call, the system
+  text, the cell, its training record count and each numeric field's training-split bounds, then up
+  to `bko.evaluate.cllm.SHOW` training records whole, every frame column: the cell's own first, then
+  its sex-and-label group's, then its label group's. They send no finding, profile or summary. Per
+  frame:
+  - UCI (every named run whose dataset is UCI, `bko.evaluate.named_runs.RUNS`, and this command):
+    every bound and quartile is a real training value of a de-identified patient record, and a
+    small split or reference group exposes them together as a record; a CLLM call sends the
+    records themselves, under the archive's CC BY 4.0 licence. Every Messages arm refuses data held
+    under an agreement that records no permission to send it ([Data](#data), Agreements); check a
+    DUA's terms before recording one ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
+  - Synthea (every named run whose dataset is Synthea): through the BKO arms, the study and cohort
+    text, the codebook with each indicator's label, age's training-split bounds within the cell's
+    band, the cell and its training record count, and the gap findings with their ontology chains;
+    at `summary`, also the reference group's (the training records outside the cell that share its
+    label) record count, each mapped concept's share of it and its age quartiles; through the CLLM
+    arms, whole training records too. Its rows are generated by Synthea from a pinned seed, so no
+    bound, quartile, share or record describes a person.
 
   A run whose settings name a model in `bko.generate.weights.LOCAL_MODELS` sends each call to the
   llama.cpp server on `127.0.0.1` instead (Local models below), so nothing leaves the machine.
@@ -1168,7 +1195,9 @@ A targeted run while working:
   script thread is refused too: the refusal kills the script thread, so the test fails on what
   AppTest's `run` raises, and the guard's message goes to the thread's exception hook.
 - **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
-  subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts.
+  subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts, training
+  records included for a CLLM arm. `python -m bko.evaluate` holds the SDK's `anthropic` logger at
+  INFO, so it logs no request body there; nothing else holds it, a `live` test included.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

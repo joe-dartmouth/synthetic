@@ -268,7 +268,7 @@ def cell_guidance(train: pd.DataFrame, cells: Cells, *, frame: FrameSpec) -> dic
     """Each cell's guidance by the cell alone: its record count and bounds, no gap and no ontology.
 
     The CLLM arms read it: their prompt shows training records in place of any finding, profile
-    or summary.
+    or summary (ADR `research/cllm-arm-design`).
 
     Args:
         train: The training split `cells` was observed from.

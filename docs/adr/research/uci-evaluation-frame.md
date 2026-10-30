@@ -60,8 +60,13 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   their `Request`, whose field defaults to `UCI_FRAME`.
 - **One frame value per named run**: `bko.evaluate.named_runs.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
-  dataset's name and the sha256 of its records), and every stage of `score` reads its frame from
-  that value.
+  dataset's name, the data use agreement it is held under and the sha256 of its records), and
+  every stage of `score` reads its frame from that value.
+- **The source's agreement**: each `bko.datasets.sources.Source` names the data use agreement its
+  download is held under (`Agreement`, with the `sending` permission it grants, if any), None for
+  open data; UCI Heart Disease's is None, and Synthea's frame carries None. Every Messages arm
+  refuses data whose agreement records no `sending` permission (ADR
+  [`research/cllm-arm-design`](cllm-arm-design.md), Egress).
 
 `bko.datasets.uci`, `bko.datasets.cells`, `bko.datasets.frames` and `bko.datasets.split` hold the
 values.
@@ -116,6 +121,9 @@ unchanged. Choosing the data by named run fixes a run's frame in code beside its
 settings, so `score <run>` reads the same records every time, and one `Data` value hands every
 stage the same frame, records and digest, which the run's logs then name.
 
+The agreement sits on the `Source`, beside the archive's size and sha256, so a dataset's terms have
+one home, and `Data` hands them to the stage that sends records' values to the API.
+
 ## Consequences
 
 **Gained**: a gap list that is the same for every seed; a frame with no missing values and no label
@@ -143,12 +151,13 @@ criteria, and no other frame from this archive adds records of women with heart 
 | A keyword defaulting to `UCI_FRAME` on the generate stage, the scoring helpers and the cell helpers | A caller holding the Synthea frame that omits it sends a UCI prompt and schema, or bands by UCI's edges, with no error | 2026-10-29 |
 | A frame field on `Settings` | Every call log's header records the settings, and a run is refused when they differ from its log's, so the field would change what a logged run reads as | 2026-10-26 |
 | The name `Frame` | The package calls a pandas DataFrame a frame throughout | 2026-10-26 |
+| A map from dataset to its terms | A second home for a dataset's terms beside its `Source` | 2026-10-29 |
 
 ## Enforcement
 
 - Owner: `src/bko/datasets/`
 - Pinned by: `tests/test_datasets_cells.py`, `tests/test_datasets_uci.py`,
-  `tests/test_datasets_frame.py`, `tests/test_evaluate_frame.py`
+  `tests/test_datasets_frame.py`, `tests/test_evaluate_frame.py`, `tests/test_evaluate_egress.py`
 
 ## Reversal Conditions
 
@@ -165,3 +174,4 @@ dropped, show how far the other sites fall short.
 
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [src layout](../tooling/src-layout.md)
+- [The CLLM arms and the egress guard](cllm-arm-design.md)

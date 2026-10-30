@@ -115,22 +115,26 @@ and clinician review appears only in the concept-to-field mapping
 
 **What it is.** The brief's recommended generators: prompt-based CLLM [`seedat-2024`][seedat-2024]
 or fine-tuned GReaT [`borisov-2023`][borisov-2023]. CLLM shows a model real training records as
-in-context examples and curates the generated rows by predictive confidence or aleatoric
-uncertainty; the brief cites its gains in the low-data regime (n<100) and for underrepresented
-subgroups, and its code is public. GReaT fine-tunes a language model on the table and is costly to
-train (~9h10m in its paper, against 0:46 for TVAE). REaLTabFormer [`solatorio-2023`][solatorio-2023]
-also trains a transformer on the table.
+in-context examples and drops each generated row that a classifier fit on the training records
+gives both low confidence in its label and low aleatoric uncertainty: a conjunction that acts
+almost as a confidence threshold (ADR
+[`research/cllm-arm-design`](adr/research/cllm-arm-design.md), Rationale). The brief cites its
+gains in the low-data regime (n<100) and for underrepresented subgroups, and its code is public.
+GReaT fine-tunes a language model on the table and is costly to train (~9h10m in its paper,
+against 0:46 for TVAE). REaLTabFormer [`solatorio-2023`][solatorio-2023] also trains a transformer
+on the table.
 
-**Status.** CLLM, as a comparison arm with its curation, is scheduled as the task unit
-[`evaluate-cllm-baseline`](../tasks/evaluate-cllm-baseline.md). GReaT and REaLTabFormer are ruled
-out: each trains a model on the table, a training cost the brief's GReaT figures show and the
-plan's other arms do not pay, and the CLLM arm already asks an LLM for records without the
-ontology.
+**Status.** CLLM is built as two comparison arms, `cllm` with its curation and `cllm-uncurated`
+without it (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)); their runs, B3,
+are the task unit [`evaluate-cllm-baseline`](../tasks/evaluate-cllm-baseline.md). GReaT and
+REaLTabFormer are ruled out: each trains a model on the table, a training cost the brief's GReaT
+figures show and the plan's other arms do not pay, and the CLLM arms already ask an LLM for
+records without the ontology.
 
 **Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the
-CLLM arm runs in its own named runs with no verdict rather than among E1's comparators. For
-balance, the brief also cites "Why LLMs Are Bad at Synthetic Table Generation"
+CLLM arms run in B3's named runs, `b3-uci` and `b3-synthea`, with no verdict rather than among
+E1's comparators. For balance, the brief also cites "Why LLMs Are Bad at Synthetic Table Generation"
 [`llms-2024`][llms-2024] on the failure modes of in-context generation, which the Messages API
 approach is.
 
