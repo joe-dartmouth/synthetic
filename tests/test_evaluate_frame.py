@@ -215,7 +215,7 @@ def test_a_toy_experiment_runs_end_to_end():
 
 def test_a_rehearsal_answers_in_its_own_frame():
     records = toy_records()
-    send = CannedSend(Data(records, TOY, (), "toy"), TOY_EXPERIMENT, SETTINGS)
+    send = CannedSend(Data(records, TOY, (), "toy", None), TOY_EXPERIMENT, SETTINGS)
     cell = SHORT[0]
     interval = intervals(cell, TOY_TRAIN, frame=TOY)
     guidance = Guidance(cell=cell, sex=0, label=1, records=3, interval=interval)

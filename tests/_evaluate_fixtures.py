@@ -64,7 +64,7 @@ GRADED = graded()
 
 def uci_data(records: pd.DataFrame, name: str = "uci") -> Data:
     """`records` as UCI's `Data`, with no field rows."""
-    return Data(records, UCI_FRAME, (), name)
+    return Data(records, UCI_FRAME, (), name, None)
 
 
 GRADED_DATA = uci_data(GRADED)

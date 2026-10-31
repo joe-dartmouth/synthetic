@@ -49,7 +49,7 @@ from bko.bkb.structure import BKB
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
-from bko.datasets.sources import UCI_HEART_DISEASE, Source
+from bko.datasets.sources import UCI_HEART_DISEASE, Source, permits_sending
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition, completeness_request, gaps
 from bko.gaps.detect import count_gaps
@@ -236,6 +236,13 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, writer: _Wr
     # exclusively, so a log made in between is never overwritten.
     if args.log.exists():
         raise FileExistsError(errno.EEXIST, "the call log exists", str(args.log))
+    agreement = context.uci.agreement
+    if agreement is not None and not permits_sending(agreement):
+        msg = (
+            f"{context.uci.name} is held under the agreement {agreement.name!r}, which grants no "
+            "permission to send what is read from it to the Messages API"
+        )
+        raise GenerationError(msg)
     scope = load_uci_scope(
         data_dir,
         uci=context.uci,

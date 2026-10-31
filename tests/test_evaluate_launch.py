@@ -571,7 +571,7 @@ def test_the_command_refuses_a_run_with_no_bko_arm(tmp_path, caplog):
     context = Context(experiment=unpaid, power=lambda: False, runs_dir=tmp_path, start=start)
     with caplog.at_level(logging.ERROR):
         assert main(["launch", "e1-4"], context=context, out=io.StringIO()) == 2
-    assert "has no BKO arm" in caplog.text
+    assert "has no Messages arm" in caplog.text
     assert start.commands == []
     assert not (tmp_path / "e1-4").exists()
 
@@ -630,7 +630,7 @@ def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder
 ):
     context = named(tmp_path, RUNS)
     assert main(argv, context=context, out=io.StringIO()) == 2
-    assert "the run 'g2' has no BKO arm, so it spends nothing to launch" in caplog.text
+    assert "the run 'g2' has no Messages arm, so it spends nothing to launch" in caplog.text
     assert isinstance(context.start, Starts)
     assert context.start.commands == []
     assert not (tmp_path / "g2-3").exists()

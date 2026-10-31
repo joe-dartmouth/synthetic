@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from bko.datasets.sources import Agreement
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.definitions import Definition
@@ -558,3 +559,13 @@ def test_a_split_without_a_cells_ages_exits_3_with_one_line(tmp_path, caplog):
     assert [record.getMessage() for record in caplog.records if record.levelno >= 40] == [
         "age band '>=55' does not overlap the split's ages 40 to 40"
     ]
+
+
+def test_the_command_refuses_data_under_an_agreement_without_permission(tmp_path):
+    send = ScriptedSend()
+    held = dataclasses.replace(pin(UCI), agreement=Agreement("toy DUA"))
+    code, out, log = run(tmp_path, make_context(send, uci=held))
+    assert code != 0
+    assert out == ""
+    assert send.calls == []
+    assert not log.exists()

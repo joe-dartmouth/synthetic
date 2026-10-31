@@ -13,7 +13,7 @@ from __future__ import annotations
 import enum
 import hashlib
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -34,7 +34,8 @@ class Drop(enum.StrEnum):
     """Why an added row is dropped, in the order `drops` tests each reason.
 
     `check` refuses a row for every reason but `CONCEPTS`, which holds only for a request that
-    prescribes each row's concepts (`bko.generate.skeleton`).
+    prescribes each row's concepts (`bko.generate.skeleton`), and `CURATION`, which holds only for
+    an arm that curates its rows (`bko.evaluate.curation`).
     """
 
     RANGE = "range"
@@ -44,6 +45,9 @@ class Drop(enum.StrEnum):
     call's own cell."""
     CONCEPTS = "concepts"
     """The row's concepts equal no line of its call that an earlier kept row left unconsumed."""
+    CURATION = "curation"
+    """The arm's curator drops it: a classifier fit on the training rows confidently puts it at
+    the other label."""
     QUOTA = "quota"
     """Its cell already holds every row the request asks of it."""
 
@@ -175,6 +179,7 @@ def assess(
     *,
     held: Mapping[Stratum, int] | None = None,
     prescribed: Prescribed | None = None,
+    curated: Sequence[bool] | None = None,
 ) -> Assessed:
     """Each row's first drop reason and, for a prescribing call, the line each kept row consumed.
 
@@ -184,13 +189,18 @@ def assess(
     call's own cell is dropped for its cell, and after its cell and before the quota a row is
     matched by concept set: it matches the first line, in the call's order, that equals its
     concepts and no earlier kept row consumed, and it is dropped for its concepts if none does. A
-    row kept consumes its match; a row dropped consumes nothing.
+    row kept consumes its match; a row dropped consumes nothing. With `curated`, a row its curator
+    drops is dropped for curation after its concepts and before the quota.
 
     Raises:
-        ValueError: If `prescribed` does not hold one concept set per row.
+        ValueError: If `prescribed` does not hold one concept set per row, or `curated` one flag
+            per row.
     """
     if prescribed is not None and len(prescribed.shows) != len(rows):
         msg = f"prescribed holds {len(prescribed.shows)} concept sets for {len(rows)} rows"
+        raise ValueError(msg)
+    if curated is not None and len(curated) != len(rows):
+        msg = f"curated holds {len(curated)} flags for {len(rows)} rows"
         raise ValueError(msg)
     frame = request.frame
     inside = within_split(rows, train, frame).all(axis="columns").tolist()
@@ -207,6 +217,8 @@ def assess(
             reason = Drop.CELL
         elif prescribed is not None and match is None:
             reason = Drop.CONCEPTS
+        elif curated is not None and curated[row]:
+            reason = Drop.CURATION
         elif taken[key] >= request.quota[key]:
             reason = Drop.QUOTA
         else:

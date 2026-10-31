@@ -3,7 +3,7 @@ id: evaluate-bayesian-network-baseline
 title: A learned Bayesian network against the expert structure
 status: ready
 depends_on: --
-blocks: --
+blocks: evaluate-diabetes-subgroup-removal
 parallel_safe: true
 owner: Joe
 milestone: final-report

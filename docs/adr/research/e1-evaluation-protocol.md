@@ -100,7 +100,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   `bko.baselines.records.drops`, which tests: - a numeric value outside the training split's minimum
   and maximum, with the rule `check` uses; - then a cell the request does not ask for, or, in a
   call that carries prescriptions, any cell but the call's own; - then, in such a call, a record
-  whose concepts match no line of the call left unconsumed; - then a row past its cell's quota. A
+  whose concepts match no line of the call left unconsumed; - then, for a curating arm (ADR
+  `research/cllm-arm-design`), a row its curator drops; - then a row past its cell's quota. A
   candidate counts toward the cell its own values name, as `check` reads it. The prescribing arm
   `bko-skeleton` draws each attempt's lines once, with `bko.generate.direct.sample` at the
   request's seed, keeps them in a queue per cell and assigns them at wave planning, in plan order.
@@ -141,7 +142,8 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   both. A refused attempt returns no `Baseline`, so the arm keeps its counts itself; the harness
   drains them after the gap fills and again after the replica fills, and writes them per holdout as
   `candidates` and `replica-candidates` scores (`generated`, `passed`, and one count per drop
-  reason; `dropped-concepts` only for a prescribing arm). `compare` sums both over the holdouts
+  reason; `dropped-concepts` only for a prescribing arm, `dropped-curation` only for a curating
+  arm). `compare` sums both over the holdouts
   for the rate, refuses a replica arm's scores without its replica counts, and logs each fill's
   counts and rate apart, with no verdict on a fill.
   The criterion reads `bko`'s rate: it is met when the rate reaches `E1`'s validity threshold, read

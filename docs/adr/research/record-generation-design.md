@@ -50,7 +50,10 @@ columns, codebook, descriptions, label meanings and `RANGES`.
   fake and no test spends money by accident.
 * **Must spend paid records on what E1 measures**, not on shape or code slips.
 * **Must make the guidance an ablation axis**, so a run can say which component helps.
-* **Must never show the model a training record**, since a copy fails E1's privacy share.
+* **Must never show a BKO arm's model a training record**, since a copy fails E1's privacy share.
+  The CLLM arms, a comparison baseline, show training records on purpose (ADR
+  [`research/cllm-arm-design`](cllm-arm-design.md)). The driver still holds for every BKO arm:
+  E1's privacy criterion judges `bko`, and no criterion judges the CLLM arms.
 * **Should send no parameter the model rejects.**
 
 ## Decision
@@ -128,7 +131,9 @@ ladder.**
   - the cell and its training record count;
   - an instruction to invent new patients.
 
-  No level sends a record. A request for a prescribing arm (`bko-skeleton`) carries, per asked
+  No level sends a record. The CLLM arms' prompt, outside the ladder, shows training records
+  (`bko.generate.prompt.render_shown`; ADR [`research/cllm-arm-design`](cllm-arm-design.md)). A
+  request for a prescribing arm (`bko-skeleton`) carries, per asked
   record, the concepts the sampler drew present (label-only ones left out), one line per record
   after the level's components (`bko.generate.skeleton`). Its first sentence says the lines take
   precedence over the level's findings; then it names every concept a line may hold, with its
@@ -266,7 +271,7 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
   values; on the UCI split the reference group is the rest of the cell's label group.
 - Two training values per numeric field leave on every call (the split's minimum and maximum), and
   `summary` adds three more, plus the reference group's record count and each concept's share of it
-  in percent (the `profile` block); every `SETTINGS` run sends them. No record is sent, but their exposure grows as the split or a
+  in percent (the `profile` block); every `SETTINGS` run sends them. No BKO arm sends a record, but their exposure grows as the split or a
   reference group shrinks, to a whole record for identical records. A dataset under a DUA needs its
   terms checked for them.
 - A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test
@@ -289,7 +294,7 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | Findings from the whole dataset's concepts | They describe other groups, not the cell asked for | 2026-10-18 |
 | The reference group of the same label and sex | Too few records in the smallest cells, such as older women with the condition | 2026-10-18 |
 | The whole split as the reference group | It mixes the label the cell is pinned to with the other | 2026-10-18 |
-| Few-shot rows | A copied record fails E1's privacy share | 2026-10-18 |
+| Few-shot rows for the BKO arms | A copied record fails E1's privacy share; the CLLM arms show them as the baseline the BKO arms are read beside (ADR `research/cllm-arm-design`) | 2026-10-18 |
 | `None` as the placeholder | Collides with a decoded `null` (Rationale) | 2026-10-18 |
 | Salvaging truncated output | Its last records may be cut mid-value (Rationale) | 2026-10-18 |
 | One JSON log written at the end of a run | A failure or a kill loses every paid call's record (Rationale) | 2026-10-18 |
@@ -339,3 +344,4 @@ per-check counts.
 - [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [A session-wide guard on the Anthropic SDK's request sink](../tooling/paid-api-request-guard.md)
 - [On-device generators](local-generator-backend.md)
+- [The CLLM arms](cllm-arm-design.md)

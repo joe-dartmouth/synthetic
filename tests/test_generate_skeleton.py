@@ -172,7 +172,7 @@ def test_drops_a_record_whose_concepts_differ_after_cell_before_quota():
     assert found.lines == (0, None, None, None, None)
     assert drops(rows, train, asked, prescribed=lined) == found.reasons
     assert drops(rows, train, asked) == (None, Drop.QUOTA, Drop.RANGE, Drop.CELL, Drop.QUOTA)
-    assert list(Drop) == [Drop.RANGE, Drop.CELL, Drop.CONCEPTS, Drop.QUOTA]
+    assert list(Drop) == [Drop.RANGE, Drop.CELL, Drop.CONCEPTS, Drop.CURATION, Drop.QUOTA]
     with pytest.raises(ValueError, match="2 concept sets for 5 rows"):
         drops(rows, train, asked, prescribed=dataclasses.replace(lined, shows=(one, one)))
 
@@ -200,3 +200,22 @@ def test_a_prescribed_record_kept_in_another_asked_cell_is_dropped_for_its_cell(
     assert found.reasons == (Drop.CELL, None)
     assert found.lines == (None, 0)
     assert drops(rows, train, asked) == (None, None)
+
+
+def test_drops_a_curated_record_after_its_cell_and_before_the_quota():
+    train = frame([planted(age=40, sex=0, target=1), planted(age=70, sex=1, target=0)])
+    rows = frame(
+        [
+            planted(age=41, sex=0, target=1),
+            planted(age=41, sex=0, target=1, chol=999),
+            planted(age=63, sex=0, target=1),
+            planted(age=40, sex=0, target=1),
+            planted(age=42, sex=0, target=1),
+        ]
+    )
+    asked = Request(quota={CELL: 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
+    curated = (True, True, True, False, False)
+    found = assess(rows, train, asked, curated=curated)
+    assert found.reasons == (Drop.CURATION, Drop.RANGE, Drop.CELL, None, Drop.QUOTA)
+    with pytest.raises(ValueError, match="2 flags for 5 rows"):
+        assess(rows, train, asked, curated=(True, False))

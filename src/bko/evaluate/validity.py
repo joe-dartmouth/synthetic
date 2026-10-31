@@ -31,8 +31,9 @@ COUNTS: Final = (
 )
 """The `candidates` measures, each summed over the holdouts."""
 
-OPTIONAL: Final = (Measure.DROPPED_CONCEPTS,)
-"""The `candidates` measures only a prescribing arm writes, each summed when the arm holds it."""
+OPTIONAL: Final = (Measure.DROPPED_CONCEPTS, Measure.DROPPED_CURATION)
+"""The `candidates` measures only a prescribing or a curating arm writes, each summed when the arm
+holds it."""
 
 
 FILLS: Final = MappingProxyType({Source.CANDIDATES: "gap", Source.REPLICA_CANDIDATES: "replica"})

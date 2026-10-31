@@ -36,9 +36,9 @@ live, all into NEW. `score --rehearse` answers every BKO call with canned record
 FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log or candidates file, BKO arms with no `--log` or `--candidates`, a
-direct arm with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm
-to build, `--candidates` with no BKO or direct arm, one
+including an existing call log or candidates file, Messages arms with no `--log` or `--candidates`,
+a direct arm with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no
+Messages arm to build, `--candidates` with no Messages or direct arm, one
 path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a call with no
 response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
 `launch` on battery power or into a folder that holds a run, and scores whose validity cannot be
@@ -136,7 +136,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     The named run defaults to the run id's entry, so `launch e1-4` launches `e1`.
 
     Raises:
-        EvaluationError: If the run id is not a run id of record, the run has no BKO arm, so
+        EvaluationError: If the run id is not a run id of record, the run has no Messages arm, so
             `score --log` would refuse it, or as `launch`.
     """
     match = RUN_ID.fullmatch(args.run_id)
@@ -146,7 +146,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     name = args.run or match["entry"]
     context = _named(name, context)
     if not set(context.experiment.arms) & set(MESSAGES_ARMS):
-        msg = f"the run {name!r} has no BKO arm, so it spends nothing to launch"
+        msg = f"the run {name!r} has no Messages arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.resume is not None and args.resume.is_file():
         resumable(args.resume, context.settings)

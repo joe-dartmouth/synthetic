@@ -10,7 +10,8 @@ import anthropic
 import pytest
 
 from bko.baselines.request import Request
-from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, spendable
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
+from bko.evaluate.waves import spendable
 from bko.gaps.definitions import Definition
 from bko.generate.api import send_with
 from bko.generate.flight import Flight

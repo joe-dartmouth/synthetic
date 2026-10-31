@@ -7,6 +7,7 @@ command-line flag changes a value here.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
@@ -235,10 +236,75 @@ REAL_ARM: Final = "real"
 """The reference arm: its added rows are the training rows the experiment's removal took, so its
 augmented training set is the un-ablated training split. It has no runner and no `check`."""
 
-MESSAGES_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
-    {**BKO_ARMS, SKELETON_ARM: Definition.SUBGROUP}
+
+class Curation(enum.StrEnum):
+    """How a Messages arm curates its accepted rows before they count toward its quota."""
+
+    CLASSIFIER = "classifier"
+    LIKELIHOOD = "likelihood"
+
+
+@dataclass(frozen=True, slots=True)
+class MessagesArm:
+    """How a Messages arm builds its requests and keeps its rows.
+
+    Attributes:
+        definition: The gap definition that guides it; None for guidance by cell alone, which
+            reads no gap.
+        prescribes: Whether each request carries every record's concepts drawn from the fused BKB
+            (`bko.evaluate.skeleton`).
+        shows: Whether each request shows training records.
+        curation: How accepted rows are curated before they count; None keeps every one.
+        over_ask: The multiple of a cell's shortfall a ranked curation asks for.
+        budget: The records an attempt may ask for, as a multiple of the request's rows; None reads
+            `Experiment.budget`.
+    """
+
+    definition: Definition | None
+    prescribes: bool = False
+    shows: bool = False
+    curation: Curation | None = None
+    over_ask: int = 1
+    budget: int | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse an inconsistent over-ask, prescribing beside showing, or a budget under 1.
+
+        Raises:
+            ValueError: If the spec is inconsistent.
+        """
+        if self.over_ask < 1 or (self.over_ask > 1) != (self.curation is Curation.LIKELIHOOD):
+            msg = f"over_ask {self.over_ask} needs likelihood curation and only it"
+            raise ValueError(msg)
+        if self.prescribes and self.shows:
+            msg = "a Messages arm prescribes concepts or shows records, not both"
+            raise ValueError(msg)
+        if self.budget is not None and self.budget < 1:
+            msg = f"budget {self.budget} must be 1 or more"
+            raise ValueError(msg)
+
+
+CLLM_ARM: Final = "cllm"
+"""The CLLM baseline (Seedat et al. 2024): each call shows training records of its cell's groups and
+reads no gap, and a classifier fit on the training rows drops what it confidently puts at the other
+label (`bko.evaluate.cllm`, `bko.evaluate.curation`)."""
+
+CLLM_RAW_ARM: Final = "cllm-uncurated"
+"""`cllm` with every accepted row kept: the same prompt, no curation."""
+
+CLLM_BUDGET: Final = 9
+"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
+pilots measured over UCI and Synthea (ADR `research/cllm-arm-design`, The pilot)."""
+
+MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
+    {
+        **{name: MessagesArm(definition) for name, definition in BKO_ARMS.items()},
+        SKELETON_ARM: MessagesArm(Definition.SUBGROUP, prescribes=True),
+        CLLM_ARM: MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET),
+        CLLM_RAW_ARM: MessagesArm(None, shows=True, budget=CLLM_BUDGET),
+    }
 )
-"""Every arm that calls the Messages API, each with the gap definition that guides it."""
+"""Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""
 
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),

@@ -19,9 +19,11 @@ from bko.datasets.uci import UCI_FRAME
 from bko.generate.api import (
     MAX_RETRIES,
     SDK_CLIENT_LOGGER,
+    SDK_LOGGER,
     Attempts,
     CallTag,
     async_send_with,
+    hold_sdk_logger,
     install_call_tag,
     reply_of,
     send_with,
@@ -581,3 +583,15 @@ def test_installing_the_call_tag_twice_installs_one_filter():
         assert sum(isinstance(f, CallTag) for f in sdk.filters) == 1
     finally:
         sdk.filters[:] = before
+
+
+def test_the_sdk_logger_is_held_at_info_whatever_anthropic_log_sets(monkeypatch):
+    """`ANTHROPIC_LOG=debug` sets the SDK's logger to DEBUG, which would log request bodies."""
+    sdk = logging.getLogger(SDK_LOGGER)
+    monkeypatch.setattr(sdk, "level", logging.DEBUG)
+    hold_sdk_logger()
+    assert sdk.level == logging.INFO
+    assert not logging.getLogger(SDK_CLIENT_LOGGER).isEnabledFor(logging.DEBUG)
+    monkeypatch.setattr(sdk, "level", logging.WARNING)
+    hold_sdk_logger()
+    assert sdk.level == logging.WARNING

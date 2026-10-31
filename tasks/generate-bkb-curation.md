@@ -3,7 +3,7 @@ id: generate-bkb-curation
 title: Curate LLM candidates by their likelihood under the BKO
 status: ready
 depends_on: --
-blocks: --
+blocks: evaluate-diabetes-subgroup-removal
 parallel_safe: true
 owner: Shirley
 milestone: final-report

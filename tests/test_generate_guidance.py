@@ -21,6 +21,7 @@ from bko.generate.guidance import (
     Relationship,
     Share,
     Spread,
+    cell_guidance,
     guide,
     intervals,
 )
@@ -28,6 +29,7 @@ from bko.ontology.obo import parse_obo
 from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology
 from tests._gaps_fixtures import ANGINA, LADDER_HPO, STENOSIS, parse_ladders
+from tests._generate_fixtures import TRAIN_A
 from tests._ontology_fixtures import write_obo
 from tests._validate_fixtures import BASE
 
@@ -442,3 +444,20 @@ def test_a_training_frame_other_than_the_one_observed_is_refused(ladders):
     with pytest.raises(ValueError, match=r"5 reference rows .* 4 reference records"):
         guided(other, cells, (), ladders, rows=PROFILE_ROWS)
     assert guided(train, cells, (), ladders, rows=PROFILE_ROWS)[YOUNG_SICK].profile is not None
+
+
+def test_cell_guidance_reads_no_ontology():
+    train = TRAIN_A
+    cells = record_cells(train, (), name="uci", edges=UCI_FRAME.edges)
+    found = cell_guidance(train, cells, frame=UCI_FRAME)
+    assert list(found) == list(cells.each)
+    for cell, guidance in found.items():
+        records = cells.each[cell]
+        assert (guidance.records, guidance.label) == (records.observed.records, records.label)
+        assert guidance.interval == intervals(cell, train, frame=UCI_FRAME)
+        assert (guidance.basis, guidance.findings, guidance.profile, guidance.summary) == (
+            Basis.NONE,
+            (),
+            None,
+            None,
+        )

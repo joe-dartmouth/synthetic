@@ -4,13 +4,15 @@ The system text opens with the frame's study and cohort, names every column with
 codes or its unit, with no range, and asks for new patients. The user turn states the cell, the
 record count and each numeric field's training-split bounds, then adds one component per level
 reached, and for a prescribing request (`bko.generate.skeleton`) one line per asked record naming
-the concepts it must show. Both read the frame given, a required keyword. No prompt holds a record.
+the concepts it must show. Both read the frame given, a required keyword. The BKO prompts hold no
+record; `render_shown` shows training records to the CLLM arms (ADR `research/cllm-arm-design`).
 ADR `research/record-generation-design` records what each level sends.
 """
 
 from __future__ import annotations
 
 import functools
+import json
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
@@ -25,6 +27,12 @@ from bko.ontology.schema import Clause, Codes, FieldMapping
 if TYPE_CHECKING:
     from bko.generate.skeleton import Skeleton
 
+
+type Shown = tuple[Mapping[str, int | float], ...]
+"""Training records a request shows, each a value per frame column in the frame's order."""
+
+SHOWN: Final = "These records from the training data are examples of real patients, one per line:"
+"""The sentence that opens a shown request's list of training records."""
 
 UNITS: Final = {
     "a": "years",
@@ -256,21 +264,7 @@ def render(
         The system prompt and the user turn. Each bound is written with `:g`, six significant
         digits, so a bound needing more would state a value the drop rule does not enforce.
     """
-    units = field_units(frame)
-    low, high = guidance.interval["age"]
-    within = "; ".join(
-        f"{name} {guidance.interval[name][0]:g} to {guidance.interval[name][1]:g} {units[name]}"
-        for name in frame.numeric
-    )
-    parts = [
-        (
-            f"Write exactly {rows} records of patients in this group: sex {guidance.sex} "
-            f"({_codes('sex', frame)[guidance.sex]}), {frame.label} {guidance.label} "
-            f"({frame.label_meanings[guidance.label]}), age {low:g} to {high:g} "
-            f"{units['age']}. The training data holds {guidance.records} records of this group."
-        ),
-        f"Keep each numeric field within: {within}.",
-    ]
+    parts = _opening(guidance, rows, frame)
     if reaches(level, Level.COHERENT):
         parts.append(COHERENCE)
     if reaches(level, Level.FINDINGS) and guidance.basis is not Basis.NONE and guidance.findings:
@@ -284,3 +278,46 @@ def render(
     if skeleton is not None:
         parts.append(_prescribed(skeleton, frame))
     return system(frame), "\n\n".join(parts)
+
+
+def render_shown(
+    guidance: Guidance, rows: int, shown: Shown, *, frame: FrameSpec
+) -> tuple[str, str]:
+    """Render one call's prompt that shows training records, as the CLLM arms ask.
+
+    Args:
+        guidance: What the request says about the cell; only its cell, record count and bounds
+            are read.
+        rows: The records the call asks for.
+        shown: The training records shown, each a JSON object on its own line in the frame's
+            column order.
+        frame: The frame whose fields, codes, units and decimals the prompt states.
+
+    Returns:
+        The system prompt and the user turn: `render`'s first sentence and bounds, then the shown
+        records.
+    """
+    listed = "\n".join(
+        json.dumps({name: record[name] for name in frame.columns}) for record in shown
+    )
+    parts = [*_opening(guidance, rows, frame), f"{SHOWN}\n{listed}"]
+    return system(frame), "\n\n".join(parts)
+
+
+def _opening(guidance: Guidance, rows: int, frame: FrameSpec) -> list[str]:
+    """Every user turn's first two components: the cell and its record count, then the bounds."""
+    units = field_units(frame)
+    low, high = guidance.interval["age"]
+    within = "; ".join(
+        f"{name} {guidance.interval[name][0]:g} to {guidance.interval[name][1]:g} {units[name]}"
+        for name in frame.numeric
+    )
+    return [
+        (
+            f"Write exactly {rows} records of patients in this group: sex {guidance.sex} "
+            f"({_codes('sex', frame)[guidance.sex]}), {frame.label} {guidance.label} "
+            f"({frame.label_meanings[guidance.label]}), age {low:g} to {high:g} "
+            f"{units['age']}. The training data holds {guidance.records} records of this group."
+        ),
+        f"Keep each numeric field within: {within}.",
+    ]

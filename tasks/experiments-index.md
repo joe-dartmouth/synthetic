@@ -25,23 +25,22 @@ the ROADMAP heading it serves.
 | [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | ready | -- | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
+| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | blocked | `generate-bkb-curation`, `evaluate-dose-response`, `evaluate-data-scarcity-curve`, `evaluate-bayesian-network-baseline` | Joe | final-report |
 
 ### Comparison methods
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`evaluate-bayesian-network-baseline`](evaluate-bayesian-network-baseline.md) | ready | -- | Joe | final-report |
-| [`evaluate-cllm-baseline`](evaluate-cllm-baseline.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
-    bkb_curation[generate-bkb-curation]
-    dose_response[evaluate-dose-response]
-    scarcity_curve[evaluate-data-scarcity-curve]
     generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
-    bn_baseline[evaluate-bayesian-network-baseline]
-    cllm_baseline[evaluate-cllm-baseline]
+    bkb_curation[generate-bkb-curation] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
+    dose_response[evaluate-dose-response] --> diabetes_removal
+    scarcity_curve[evaluate-data-scarcity-curve] --> diabetes_removal
+    bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal
 ```
 
 ## What every unit relies on

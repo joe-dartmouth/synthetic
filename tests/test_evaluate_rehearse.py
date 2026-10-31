@@ -34,7 +34,7 @@ from bko.evaluate.rehearse import (
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
-from bko.generate.prompt import COHERENCE, render
+from bko.generate.prompt import COHERENCE, render, render_shown
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, GRADED_DATA, SMALL, uci_data
@@ -297,3 +297,12 @@ def test_rehearsal_safe_ranges_use_the_frames_edges():
         low = max(float(train[name].min()) for train in trains)
         high = min(float(train[name].max()) for train in trains)
         assert found[name] == (low, high)
+
+
+def test_canned_send_answers_a_shown_prompt():
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
+    shown = (dict.fromkeys(UCI_FRAME.columns, 1),)
+    call = Call(SETTINGS, 0, 1, *render_shown(GUIDANCE, 4, shown, frame=UCI_FRAME), frame=UCI_FRAME)
+    records = json.loads(send(call).text or "")["records"]
+    assert len(records) == 4
+    assert validate(records, frame=UCI_FRAME).passed == 4

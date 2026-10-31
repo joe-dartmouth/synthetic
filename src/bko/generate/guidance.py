@@ -264,6 +264,40 @@ def guide(
     return guided
 
 
+def cell_guidance(train: pd.DataFrame, cells: Cells, *, frame: FrameSpec) -> dict[Cell, Guidance]:
+    """Each cell's guidance by the cell alone: its record count and bounds, no gap and no ontology.
+
+    The CLLM arms read it: their prompt shows training records in place of any finding, profile
+    or summary (ADR `research/cllm-arm-design`).
+
+    Args:
+        train: The training split `cells` was observed from.
+        cells: The training split, observed whole and per cell.
+        frame: The frame whose numeric fields and band edges are read.
+
+    Returns:
+        One guidance per cell, in grid order.
+
+    Raises:
+        ValueError: If a cell carries no label.
+        ContractError: As `intervals`.
+    """
+    sexes = {meaning: code for code, meaning in SEXES.items()}
+    guided: dict[Cell, Guidance] = {}
+    for cell, records in cells.each.items():
+        if records.label is None:
+            msg = f"cell {cell!r} carries no label"
+            raise ValueError(msg)
+        guided[cell] = Guidance(
+            cell=cell,
+            sex=sexes[str(cell[1])],
+            label=records.label,
+            records=records.observed.records,
+            interval=intervals(cell, train, frame=frame),
+        )
+    return guided
+
+
 def _reference(
     train: pd.DataFrame,
     keys: pd.DataFrame,

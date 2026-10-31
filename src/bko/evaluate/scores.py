@@ -71,6 +71,8 @@ class Measure(enum.StrEnum):
     DROPPED_CONCEPTS = "dropped-concepts"
     """A prescribing arm's candidates dropped for showing other concepts than their line; no
     other arm writes it."""
+    DROPPED_CURATION = "dropped-curation"
+    """A curating arm's candidates its curator dropped; no other arm writes it."""
     DROPPED_QUOTA = "dropped-quota"
     TEST_COPIES = "test-copies"
 

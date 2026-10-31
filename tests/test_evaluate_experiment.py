@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from fractions import Fraction
 from typing import Final
 
@@ -11,15 +12,23 @@ import pytest
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.cllm import SHOW
 from bko.evaluate.data import Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     ADDS_ROWS,
     BKO_ARMS,
+    CLLM_ARM,
+    CLLM_BUDGET,
+    CLLM_RAW_ARM,
     E1,
+    MESSAGES_ARMS,
     METHOD_ARMS,
     REAL_ARM,
+    SKELETON_ARM,
+    Curation,
     Experiment,
+    MessagesArm,
     Removal,
     flagged,
     gap_request,
@@ -109,6 +118,8 @@ def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "b1-synthea",
         "b1-uci",
+        "b3-synthea",
+        "b3-uci",
         "e1",
         "e3",
         "e3-a",
@@ -367,3 +378,87 @@ def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
         assert RUNS[name].settings.model == model
         price_of(model)
         assert (model in LOCAL_MODELS) == (name != "g6-sonnet"), name
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"over_ask": 0},
+        {"over_ask": 2},
+        {"over_ask": 2, "curation": Curation.CLASSIFIER},
+        {"curation": Curation.LIKELIHOOD},
+        {"budget": 0},
+    ],
+    ids=[
+        "no-ask",
+        "over-ask-uncurated",
+        "over-ask-classifier",
+        "ranked-without-over-ask",
+        "budget",
+    ],
+)
+def test_an_inconsistent_messages_arm_is_refused(spec):
+    with pytest.raises(ValueError, match=r"over_ask|budget|not both"):
+        MessagesArm(Definition.SUBGROUP, **spec)
+
+
+def test_a_ranked_curation_with_its_over_ask_is_a_messages_arm():
+    arm = MessagesArm(None, shows=True, curation=Curation.LIKELIHOOD, over_ask=3, budget=6)
+    assert (arm.definition, arm.over_ask, arm.budget) == (None, 3, 6)
+
+
+def test_every_bko_arm_reads_the_experiments_budget_and_only_the_skeleton_arm_prescribes():
+    assert {name: spec.definition for name, spec in MESSAGES_ARMS.items() if name in BKO_ARMS} == (
+        dict(BKO_ARMS)
+    )
+    assert all(
+        spec.budget is None and not spec.shows
+        for name, spec in MESSAGES_ARMS.items()
+        if name not in {CLLM_ARM, CLLM_RAW_ARM}
+    )
+    assert {name for name, spec in MESSAGES_ARMS.items() if spec.prescribes} == {SKELETON_ARM}
+
+
+def test_the_cllm_arms_show_records_read_no_gap_and_differ_in_curation_alone():
+    cllm, raw = MESSAGES_ARMS[CLLM_ARM], MESSAGES_ARMS[CLLM_RAW_ARM]
+    assert (cllm.definition, cllm.shows, cllm.curation) == (None, True, Curation.CLASSIFIER)
+    assert dataclasses.replace(cllm, curation=None) == raw
+    assert not cllm.prescribes
+
+
+def test_b3_runs_hold_bko_and_both_cllm_arms():
+    for name, base in (("b3-uci", E1), ("b3-synthea", E3)):
+        run = RUNS[name]
+        experiment = run.experiment
+        assert experiment.arms[: len(METHOD_ARMS)] == METHOD_ARMS
+        assert {"bko", CLLM_ARM, CLLM_RAW_ARM} <= set(experiment.arms)
+        assert {"bko", CLLM_ARM, CLLM_RAW_ARM} <= set(experiment.replica_arms)
+        assert (experiment.candidate, experiment.comparators, experiment.criteria) == (
+            CLLM_ARM,
+            METHOD_ARMS,
+            (),
+        )
+        assert (experiment.removal, experiment.decontaminate) == (base.removal, base.decontaminate)
+        assert run.settings == SETTINGS
+    assert REAL_ARM in RUNS["b3-synthea"].experiment.arms
+
+
+@pytest.mark.parametrize(
+    ("name", "per_arm", "calls", "tokens", "asks"),
+    [
+        ("b3-uci", 10.51 / 3, 5490 / 3, 60, 1.1401),
+        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100, 1.4432),
+    ],
+    ids=["uci", "synthea"],
+)
+def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens, asks):
+    """`docs/EVIDENCE.md` (B3) states the estimate: per arm, `e1-4`'s and `e3-4`'s Messages spend,
+    `asks` the pilot's records asked per requested row for the curated arm, and 20 shown records of
+    `tokens` input tokens each per call at the model's input rate."""
+    arms = per_arm * (1 + asks + 1)
+    shown = calls * (asks + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
+    assert 1.25 * (arms + shown) <= RUNS[name].experiment.spend_ceiling
+
+
+def test_the_cllm_budget_covers_the_least_pilot_keep_share():
+    assert max(3, math.ceil(1.5 / 0.1734)) == CLLM_BUDGET

@@ -37,7 +37,7 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.evaluate score [--in-flight N] --log runs/<run-id>/calls.jsonl --candidates runs/<run-id>/holdout-candidates.jsonl > runs/<run-id>/scores.csv`,
   then `uv run --no-sync python -m bko.evaluate compare runs/<run-id>/scores.csv`: score every E1 arm
   on E1's holdouts, keeping every candidate a BKO arm generates per holdout, then judge `bko`
-  against E1's criteria. `score` spends money through the three BKO arms and needs an Anthropic
+  against E1's criteria. `score` spends money through its Messages arms and needs an Anthropic
   credential
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command and says what
   `--candidate` judges); `score --replay` rereads a paid run's call log for free, and

@@ -9,7 +9,8 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import Request, Strata
-from bko.evaluate.guided import GuidedArm, Knowledge, spendable
+from bko.evaluate.guided import GuidedArm, Knowledge
+from bko.evaluate.waves import spendable
 from bko.gaps.definitions import Definition
 from bko.gaps.scope import load_scope
 from bko.generate.flight import Flight, Limits

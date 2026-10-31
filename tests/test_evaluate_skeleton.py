@@ -25,12 +25,13 @@ from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import ADDS_ROWS, E1, MESSAGES_ARMS, METHOD_ARMS, SKELETON_ARM
 from bko.evaluate.fills import CURRENT_FILL, Fill
-from bko.evaluate.guided import GuidedArm, _committer, spendable
+from bko.evaluate.guided import GuidedArm
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.rehearse import CannedSend
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Queues, prescriber
 from bko.evaluate.validity import validity
+from bko.evaluate.waves import committer, spendable
 from bko.gaps.definitions import Definition
 from bko.generate.calls import Batch
 from bko.generate.decode import Reason, Undecoded
@@ -325,7 +326,7 @@ SICK_GUIDANCE: Final = Guidance(
 
 
 def test_canned_records_show_their_prescribed_concepts():
-    data = Data(GRADED, UCI_FRAME, FIELD_MAPPINGS, "uci")
+    data = Data(GRADED, UCI_FRAME, FIELD_MAPPINGS, "uci", None)
     send = CannedSend(data, SMALL, SETTINGS)
     lines = (
         frozenset({"HP:0001681", "HP:0100749", "HP:0003124"}),
@@ -365,7 +366,8 @@ def test_g5_is_e1_plus_the_skeleton_arm_with_literal_settings():
         guidance=Level.SUMMARY,
     )
     assert run.settings == SETTINGS
-    assert MESSAGES_ARMS[SKELETON_ARM] is Definition.SUBGROUP
+    assert MESSAGES_ARMS[SKELETON_ARM].definition is Definition.SUBGROUP
+    assert MESSAGES_ARMS[SKELETON_ARM].prescribes
 
 
 def test_a_call_keeps_reordered_records_and_drops_only_a_skipped_ones_line(tmp_path):
@@ -437,7 +439,7 @@ def test_a_batch_answering_another_cell_than_its_planned_call_is_refused(tmp_pat
     planned = [
         Planned(SICK_GUIDANCE, 1, skeleton((frozenset(),), (ANGINA, STENOSIS), frame=UCI_FRAME))
     ]
-    commit = _committer(attempt, planned, Queues({YOUNG_SICK: ()}))
+    commit = committer(attempt, planned, Queues({YOUNG_SICK: ()}))
     batch = Batch(1, YOUNG_WELL, 1, (young(0, cp=2),), reply([young(0, cp=2)]), 0.0)
     with pytest.raises(EvaluationError, match="answered cell <55/female/0, but its planned call"):
         commit(batch)

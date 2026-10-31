@@ -14,7 +14,7 @@ import pytest
 
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
-from bko.evaluate.guided import spendable
+from bko.evaluate.waves import spendable
 from bko.generate.calls import ask
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.guidance import Guidance

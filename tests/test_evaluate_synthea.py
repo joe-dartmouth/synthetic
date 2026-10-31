@@ -265,7 +265,7 @@ def test_synthea_prompts_name_no_uci_column():
 
 def test_canned_synthea_records_are_valid_in_cell_and_equal_no_real_record(tmp_path):
     records = _records(tmp_path)
-    data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, "synthea")
+    data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, "synthea", None)
     send = CannedSend(data, TWO, SETTINGS)
     trains = [
         prepared(split(records, seed=seed, edges=SYNTHEA_FRAME.edges), E3.removal, edges=(65,))[

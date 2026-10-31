@@ -81,6 +81,76 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.evaluate.guided`'s attempt line or
   `bko.baselines.synthesizers`' fill.
 
+- **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
+  not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
+  `assess` reads it, so the candidates file says `dropped-curation` but not by what margin, and a
+  threshold sweep needs a refit on the holdout's training rows. *Filed 2026-10-30 by the pre-run
+  diff review of PR6.*
+  **Why deferred.** Adding fields to `Seen` and the candidates schema after the review would move
+  the run commit for a reading B3 does not need; the fit is deterministic (`random_state` 0, one
+  thread), so a refit reproduces the scores.
+  **What discharges it:** each curated candidate line carries its two scores, documented in
+  `docs/DEVELOPMENT.md` (Evaluation), or a refit command that prints them.
+  **Trigger:** a threshold sweep, or the next change to the candidates schema.
+
+- **`cleanup:evaluate/shown-draw-in-flight-test`: no test runs a CLLM arm above one call in
+  flight.** `bko.evaluate.cllm` and ADR `research/cllm-arm-design` say every in-flight count shows
+  the same records; `Shower.take` runs only while a wave is planned, before the flight sends, but
+  `tests/test_evaluate_cllm.py` runs one call at a time. *Filed 2026-10-30 by the pre-run diff
+  review of PR6.*
+  **Why deferred.** The claim follows from where `take` is called, and the replay test checks each
+  request against the log.
+  **What discharges it:** a test that runs a several-call CLLM attempt at in-flight 1 and 4 and
+  finds the same logged requests.
+  **Trigger:** the next change to `GuidedArm._planned` or `bko.evaluate.cllm`.
+
+- **`cleanup:evaluate/data-line-agreement`: the `data` line names no agreement.** The `data
+  dataset=... records=... digest=...` line (`bko.evaluate.data.load`) does not say which agreement
+  the records are held under, so a run's log cannot show what permitted its sends. *Filed
+  2026-10-30 by the pre-run diff review of PR6.*
+  **Why deferred.** Every pinned source is open data (`tests/test_evaluate_egress.py`).
+  **What discharges it:** the line carries `agreement=` (`none` for open data), documented in
+  `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the first source held under an agreement.
+
+- **`cleanup:evaluate/cllm-budget-remeasure`: `CLLM_BUDGET` comes from a proxy pilot that B3's
+  run undercut.** ADR `research/cllm-arm-design` sets the budget from the least keep share of a
+  pilot over BKO records (Synthea's 0.1734, giving 9). B3's `cllm` on Synthea kept 0.5370 of the
+  rows reaching its curator against the pilot's 0.8856, and under half in five fills and cells,
+  the least replica `<65/female/1` at 0.0707 (1437 of 20314;
+  `runs/b3-3/holdout-candidates.jsonl`, the rows kept or dropped for the quota over those plus the
+  rows dropped by curation), so the ADR's reversal condition holds and its rule gives
+  `ceil(1.5 / 0.0707)` = 22. *Filed 2026-10-31 by the diff review of PR #63.*
+  **Why deferred.** B3 ran at 9; changing the constant now would make the merge carry a budget no
+  run used.
+  **What discharges it:** `CLLM_BUDGET` re-derived from shown-record keep shares (B3's
+  `dropped-curation` counts), the ADR's Budget and The pilot updated, and the B3 estimate test
+  moved with it.
+  **Trigger:** the next run of a curated arm.
+
+- **`cleanup:evaluate/replica-one-label-guard`: a partial replica fill can leave the replica one
+  label.** A curated arm's partial replica fill whose given-up cells leave rows of one label, or
+  no rows, reaches `bko.evaluate.run._replica_scores`, which fits the logistic regression on the
+  replica alone through `bko.evaluate.classifier.probabilities`; scikit-learn's fit then raises a
+  plain `ValueError` mid-holdout, which the harness does not retry. It is latent on `b3-3`, whose
+  replica kept rows of the positive class on every holdout. *Filed 2026-10-31 by the diff review
+  of PR #63.*
+  **Why deferred.** No run of record reaches it, and the fix touches the scoring path `b3-3` ran.
+  **What discharges it:** a replica with fewer than two labels is scored as undefined or refused
+  with an `EvaluationError` before the fit, with a test, documented in `docs/DEVELOPMENT.md`
+  (Evaluation).
+  **Trigger:** the next curated run on a frame with fewer positive cells (Diabetes 130).
+
+- **`cleanup:evaluate/curated-one-record-calls`: the per-cell cap bounds records, not calls.** A
+  curated arm's cell budget caps the records a cell asks, but a cell short by one asks one record
+  per call, each paying the full prompt and shown records: 7745 of `b3-3`'s 28438 calls asked for
+  one record (the `asked` field of `runs/b3-3/calls.jsonl`'s `request` lines). *Filed 2026-10-31
+  by the diff review of PR #63.*
+  **Why deferred.** The cap ends the runaway `b3-2` showed, and `b3-3` finished under its ceiling.
+  **What discharges it:** a minimum ask per call, or a per-attempt cap on calls or USD, with a
+  test, documented in ADR `research/cllm-arm-design` (Partial fill).
+  **Trigger:** the next curated run.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
@@ -94,14 +164,14 @@ links to where its blocker is tracked.
   a test whose `fail` raises.
   **Trigger:** the next change to `Flight._run` or `Flight._settle`.
 
-- **`cleanup:generate/sdk-debug-log-bodies`: SDK debug logging would write request bodies to
-  stderr.** Nothing holds logger `anthropic._base_client` at INFO or above, so `ANTHROPIC_LOG=debug`
-  makes the SDK log each request's options, prompt records included, to stderr, where
-  `bko.generate.api.CallTag` tags them like any other record. Evidence: the SDK's `_setup_logging`
-  sets that logger to DEBUG when `ANTHROPIC_LOG=debug`, and `HTTP_LOGGERS` lists only `httpx2`.
-  *Filed 2026-10-29 by the diff review of PR #58.*
-  **Why deferred.** It predates PR #58, and no documented command sets `ANTHROPIC_LOG`.
-  **What discharges it:** `install_call_tag` or `configure_logging` holds that logger at INFO, or
-  `docs/DEVELOPMENT.md` states what `ANTHROPIC_LOG=debug` writes.
-  **Trigger:** the next change to `bko.generate.api`'s logging, or a run that sets
-  `ANTHROPIC_LOG`.
+- **`cleanup:generate/anthropic-log-root-handler`: `ANTHROPIC_LOG` silences the bko INFO lines.**
+  With `ANTHROPIC_LOG` set, importing the SDK runs its own `logging.basicConfig`, which installs a
+  root handler first, so each command's `configure_logging` `basicConfig` does nothing and the
+  root logger stays at WARNING: every `spend`, `guided` and `validity` line is lost. Evidence: the
+  SDK's `anthropic/_utils/_logs.py` `_basic_config`. *Filed 2026-10-30 by the pre-run diff review
+  of PR6.*
+  **Why deferred.** It predates PR6, and no documented command sets `ANTHROPIC_LOG`
+  (`docs/DEVELOPMENT.md` says never to set it to `debug`).
+  **What discharges it:** each `configure_logging` passes `force=True`, pinned by a test that
+  imports the SDK with `ANTHROPIC_LOG` set.
+  **Trigger:** the next change to a `configure_logging`, or a run that sets `ANTHROPIC_LOG`.

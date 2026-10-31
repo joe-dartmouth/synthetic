@@ -146,7 +146,7 @@ def test_the_ceiling_is_read_before_every_call_of_a_cell(tmp_path, caplog):
     spent = cost(first.usage, SETTINGS.model)
     arm, log = guided(tmp_path, ScriptedSend(first), ceiling=spent)
     request = Request(quota={YOUNG_SICK: SETTINGS.per_call + 1}, strata=Strata.CELL, seed=0)
-    caplog.set_level(logging.INFO, logger="bko.evaluate.guided")
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
     with pytest.raises(EvaluationError, match="ceiling"), log:
         arm(train(tmp_path / "train"), request)
     assert asked(log.path) == [SETTINGS.per_call]
