@@ -65,7 +65,9 @@ prompt (their section 2.2).
   makes each call show training records, `curation` curates the accepted rows, and `budget` None
   reads `Experiment.budget`; a spec that both prescribes and shows is refused.
   `Curation.LIKELIHOOD` and `over_ask` (above 1 with likelihood curation alone) are reserved for
-  unit `generate-bkb-curation`, and no arm runs them. `cllm` is
+  a curated `bko` arm that `docs/IDEAS.md` holds unscheduled (ADR
+  [`research/bkb-candidate-curation`](bkb-candidate-curation.md)), and no arm runs them
+  (`cleanup:evaluate/likelihood-curation-unused`). `cllm` is
   `MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET)` and
   `cllm-uncurated` the same with no curation. A `GuidedArm` refuses any curation but `classifier`,
   which no arm but `cllm` has.

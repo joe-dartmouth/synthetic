@@ -16,6 +16,7 @@ from typing import Final
 import pandas as pd
 import pytest
 
+from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.uci import load_uci
 from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
@@ -384,3 +385,28 @@ def test_a_candidates_file_whose_setup_fails_is_removed(tmp_path, monkeypatch, f
     with pytest.raises(OSError, match="disk full"):
         CandidateFile(path, Origin("e1", GRADED_DATA, {}), SETTINGS)
     assert not path.exists()
+
+
+SCHEMA_1_HEADER: Final = {
+    "kind": "header",
+    "releases": {"HP": "a" * 64, "MONDO": "b" * 64},
+    "run": "e1",
+    "schema": 1,
+    "settings": dataclasses.asdict(SETTINGS) | {"guidance": str(SETTINGS.guidance)},
+    "uci": UCI_HEART_DISEASE.sha256,
+}
+"""A schema-1 header, as the judged run `e1-4` wrote: UCI's archive digest in place of a frame."""
+
+
+def test_a_schema_1_file_reads_with_its_uci_digest_checked():
+    head = json.dumps(SCHEMA_1_HEADER).encode() + b"\n"
+    found = read(head + json.dumps(LINE).encode() + b"\n")
+    assert found.header["schema"] == 1
+    assert found.header["uci"] == UCI_HEART_DISEASE.sha256
+    assert len(found.candidates) == 1
+    wrong = json.dumps({**SCHEMA_1_HEADER, "uci": "c" * 64}).encode() + b"\n"
+    with pytest.raises(CandidatesFormatError, match="uci"):
+        read(wrong)
+    extra = json.dumps({**SCHEMA_1_HEADER, "frame": "uci"}).encode() + b"\n"
+    with pytest.raises(CandidatesFormatError, match="header"):
+        read(extra)

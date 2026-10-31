@@ -32,23 +32,17 @@ representation. The pipeline:
 These follow the first full evaluation. Each is one task unit, and the set's graph and status
 board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
-**Generation**
-
-1. BKO-curated LLM records: score each LLM candidate by its likelihood under the fused BKB and keep
-   the best; first measure whether the score separates records that match the real cell, then run
-   it as an arm ([`generate-bkb-curation`](tasks/generate-bkb-curation.md)).
-
 **Evaluation**
 
-2. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
+1. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
    method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-3. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+2. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-4. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
+3. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
    fixed configuration, since the earlier Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-5. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
+4. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
    full run would take ([`evaluate-local-thinking-cost`](tasks/evaluate-local-thinking-cost.md)).
 
 ## Setup

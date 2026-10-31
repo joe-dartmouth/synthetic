@@ -77,7 +77,7 @@ def score(args: argparse.Namespace, context: Context) -> str:
     named = NamedRun(context.experiment, context.settings, context.dataset)
     with interrupted_by_termination():
         answers = _prepare(args, named, context)
-        data = load(named.dataset, _data_dir(args), context)
+        data = load(named.dataset, data_dir(args), context)
         return _score(data, named, args, context, answers)
 
 
@@ -114,7 +114,8 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     return _answers(args, context, named.settings.model)
 
 
-def _data_dir(args: argparse.Namespace) -> Path:
+def data_dir(args: argparse.Namespace) -> Path:
+    """The `--data-dir` given, resolved, else the repository's data root."""
     return args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
 
 
@@ -224,7 +225,7 @@ def _guided(
     rows = data.field_rows
     ontologies, fragments = load_scope(
         {row.concept for row in rows},
-        _data_dir(args),
+        data_dir(args),
         releases=context.releases,
         open_url=context.open_url,
     )

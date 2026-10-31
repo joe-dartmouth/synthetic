@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-29
+updated: 2026-10-31
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -132,7 +132,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   arm of ADR `research/bkb-direct-generation`, which makes none), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
   single candidates needs no new run; its header, schema 2, names the frame and the sha256 of the
-  run's data, and a run with no Messages arm writes no settings; a stopped run's file lacks the
+  run's data, and a run with no Messages arm writes no settings; the reader also takes a schema 1
+  file, written before frames, whose header names the UCI snapshot's sha256 instead and is checked
+  against it, so `e1-4`'s own file is read as written; a stopped run's file lacks the
   stopped holdout's undrained fills, whose candidates live only in its call log; `score` requires
   the file whenever a BKO arm
   runs, and a replay rewrites it byte for byte.

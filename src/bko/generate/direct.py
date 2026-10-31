@@ -2,11 +2,11 @@
 
 The fused BKB holds, per mapped concept, a prior from the cell's dataset fragment and one from its
 label group's (`bko.gaps.observe.dataset_fragment`), and every `is_a` S-node at probability 1, so
-what a sampler can draw is each concept's presence. `shares` reads a concept's share from the two
-priors; `sample` draws each concept present at its share, records the drawn set's closure upward
-under `is_a`, and reads field values back from training records that show exactly the drawn
-concepts of each field group. Draws come from one `numpy.random.default_rng(seed)`, consumed in
-quota, record and column order, so `bko.bkb` stays standard-library only. ADR
+what a sampler can draw is each concept's presence. `bko.gaps.shares.shares` reads a concept's share
+from the two priors; `sample` draws each concept present at its share, records the drawn set's
+closure upward under `is_a`, and reads field values back from training records that show exactly the
+drawn concepts of each field group. Draws come from one `numpy.random.default_rng(seed)`, consumed
+in quota, record and column order, so `bko.bkb` stays standard-library only. ADR
 `research/bkb-direct-generation` records each decision and its reasons.
 """
 
@@ -18,32 +18,20 @@ from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Final
 
 import numpy as np
 import pandas as pd
 
-from bko.bkb.structure import BKB
-from bko.datasets.cells import SEXES, UNDERREPRESENTED_BELOW, cell_keys
+from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.frames import FrameSpec
-from bko.gaps.observe import (
-    Cell,
-    CellRecords,
-    Observed,
-    cell_key,
-    dataset_fragment,
-    observe_records,
-    record_cells,
-)
+from bko.gaps.observe import Cell, Observed, by_concept, cell_key, observe_records, record_cells
+from bko.gaps.shares import label_only, nested, shares
 from bko.generate.errors import SamplingError
-from bko.ontology.schema import Codes, FieldMapping
+from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
 
 logger = logging.getLogger(__name__)
-
-GROUP_WEIGHT: Final = UNDERREPRESENTED_BELOW
-"""The label group's weight in a share, in records: a cell this small weighs as its group does."""
 
 type Record = Mapping[str, int | float]
 
@@ -85,71 +73,6 @@ class FieldGroup:
     concepts: tuple[str, ...]
 
 
-def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
-    """Each mapped concept's share: `(n_c p_c + GROUP_WEIGHT p_g) / (n_c + GROUP_WEIGHT)`.
-
-    `p_c` is the cell's dataset-fragment prior and `p_g` its label group's, each 0 where the
-    fragment holds no S-node for the concept; `n_c` is the cell's record count.
-
-    Args:
-        cell: The cell's records.
-        group: The records of the cell's label, observed over the same rows.
-
-    Returns:
-        The share of every concept `group` counts, in its sorted order.
-    """
-    mine = _priors(dataset_fragment(cell.observed))
-    theirs = _priors(dataset_fragment(group))
-    records = cell.observed.records
-    return {
-        concept: (records * mine.get(concept, 0.0) + GROUP_WEIGHT * theirs.get(concept, 0.0))
-        / (records + GROUP_WEIGHT)
-        for concept in group.holders
-    }
-
-
-def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> frozenset[str]:
-    """The concepts every row of which reads only the label: they follow the cell's label."""
-    return frozenset(
-        concept
-        for concept, mapped in _by_concept(rows).items()
-        if all(clause.field == frame.label for row in mapped for clause in row.when)
-    )
-
-
-def nested(rows: Sequence[FieldMapping]) -> dict[str, str]:
-    """Each concept whose one row's codes lie strictly inside another's, on one field, to it.
-
-    On UCI, `HP:0001712` (`restecg` 2) to `HP:0003115` (`restecg` 1 or 2): a record showing the
-    first shows the second, so the second is drawn given the first. Only one level is drawn.
-
-    Raises:
-        ValueError: If a concept lies inside more than one other, so a chain of nesting, or holds
-            more than one.
-    """
-    single = {
-        concept: mapped[0].when[0]
-        for concept, mapped in _by_concept(rows).items()
-        if len(mapped) == 1 and len(mapped[0].when) == 1 and isinstance(mapped[0].when[0], Codes)
-    }
-    pairs = [
-        (inner, outer)
-        for inner, small in single.items()
-        for outer, large in single.items()
-        if isinstance(small, Codes)
-        and isinstance(large, Codes)
-        and small.field == large.field
-        and small.codes < large.codes
-    ]
-    for side, word in ((0, "lies inside"), (1, "holds")):
-        counts = Counter(pair[side] for pair in pairs)
-        for concept, times in sorted(counts.items()):
-            if times > 1:
-                msg = f"{concept} {word} {times} concepts; only one level of nesting is drawn"
-                raise ValueError(msg)
-    return dict(pairs)
-
-
 def field_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[FieldGroup, ...]:
     """The fields the rows read, joined when one concept's rows read both, in column order.
 
@@ -163,7 +86,7 @@ def field_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[Fie
         return field
 
     reads: dict[str, set[str]] = {}
-    for concept, mapped in _by_concept(rows).items():
+    for concept, mapped in by_concept(rows).items():
         fields = {c.field for row in mapped for c in row.when if c.field != frame.label}
         if not fields:
             continue
@@ -311,7 +234,7 @@ class _Plan:
         self, rows: Sequence[FieldMapping], ontologies: Mapping[str, Ontology], frame: FrameSpec
     ) -> None:
         self._frame = frame
-        self._by_concept = _by_concept(rows)
+        self._by_concept = by_concept(rows)
         self._label_only = label_only(rows, frame=frame)
         self._inner_of = {outer: inner for inner, outer in nested(rows).items()}
         self._order = sorted(
@@ -451,14 +374,3 @@ def _records(frame: pd.DataFrame, spec: FrameSpec) -> list[dict[str, float]]:
         dict(zip(columns, values, strict=True))
         for values in frame[columns].itertuples(index=False, name=None)
     ]
-
-
-def _priors(fragment: BKB) -> dict[str, float]:
-    return {snode.head[0]: snode.prob for snode in fragment.snodes}
-
-
-def _by_concept(rows: Sequence[FieldMapping]) -> dict[str, list[FieldMapping]]:
-    by_concept: dict[str, list[FieldMapping]] = {}
-    for row in rows:
-        by_concept.setdefault(row.concept, []).append(row)
-    return by_concept

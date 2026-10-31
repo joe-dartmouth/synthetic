@@ -27,6 +27,8 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "rehearsal": "`python -m bko.evaluate launch --rehearse`'s directory of the run's roles",
         "criteria.csv": "`python -m bko.evaluate compare`'s stdout",
         "criteria.log": "its stderr",
+        "likelihood.csv": "`python -m bko.evaluate likelihood`'s stdout",
+        "likelihood.log": "its stderr",
         "candidates.jsonl": "`python -m bko.generate`'s stdout",
         "candidates.log": "its stderr",
         "draws.jsonl": "`python -m bko.generate direct`'s draw log",

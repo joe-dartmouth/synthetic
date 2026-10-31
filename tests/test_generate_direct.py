@@ -14,17 +14,8 @@ from bko.datasets.cells import LABEL
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.detect import ontology_fragments
 from bko.gaps.observe import Cell, dataset_fragment, observe_records, record_cells
-from bko.generate.direct import (
-    GROUP_WEIGHT,
-    Draw,
-    FieldGroup,
-    draw_line,
-    field_groups,
-    label_only,
-    nested,
-    sample,
-    shares,
-)
+from bko.gaps.shares import GROUP_WEIGHT, label_only, nested, shares
+from bko.generate.direct import Draw, FieldGroup, draw_line, field_groups, sample
 from bko.generate.errors import SamplingError
 from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import Codes, FieldMapping

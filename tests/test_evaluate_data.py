@@ -220,9 +220,16 @@ def test_the_candidates_header_names_frame_and_data_and_is_schema_2(tmp_path):
     assert "settings" not in read(direct.read_bytes()).header
     older = {key: value for key, value in header.items() if key not in {"frame", "data"}}
     schema_1 = {**older, "schema": 1, "uci": "ab" * 32}
-    with pytest.raises(CandidatesFormatError, match="schema is 1, not 2"):
+    with pytest.raises(
+        CandidatesFormatError, match="schema-1 header's uci digest is not the pinned"
+    ):
         read((json.dumps(schema_1) + "\n").encode())
-    with pytest.raises(CandidatesFormatError, match="header"):
+    for schema in (3, [1], 1.0, True):
+        with pytest.raises(CandidatesFormatError, match=r"not one of \[1, 2\]"):
+            read((json.dumps({**header, "schema": schema}) + "\n").encode())
+    with pytest.raises(
+        CandidatesFormatError, match="schema-2 candidates file's header has the keys"
+    ):
         read((json.dumps({**older, "uci": "ab" * 32}) + "\n").encode())
     for missing in ("frame", "data"):
         partial = {key: value for key, value in header.items() if key != missing}
