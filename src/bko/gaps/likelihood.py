@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import by_concept
@@ -35,12 +35,20 @@ class Likelihood:
     shares: Mapping[str, float]
     rows: tuple[FieldMapping, ...]
     frame: FrameSpec
+    _mapped: Mapping[str, list[FieldMapping]] = field(init=False, repr=False)
+    _following: frozenset[str] = field(init=False, repr=False)
+    _inner_of: Mapping[str, str] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Read the concepts, the label-only ones and the nested pairs from the rows once."""
+        nesting = nested(self.rows)
+        object.__setattr__(self, "_mapped", by_concept(self.rows))
+        object.__setattr__(self, "_following", label_only(self.rows, frame=self.frame))
+        object.__setattr__(self, "_inner_of", {outer: inner for inner, outer in nesting.items()})
 
     def __call__(self, record: Mapping[str, float]) -> float:
         """The log-probability of `record`'s drawn concepts, minus infinity if undrawable."""
-        mapped = by_concept(self.rows)
-        following = label_only(self.rows, frame=self.frame)
-        inner_of = {outer: inner for inner, outer in nested(self.rows).items()}
+        mapped, following, inner_of = self._mapped, self._following, self._inner_of
         shows = {
             concept: any(row.applies(record) for row in concept_rows)
             for concept, concept_rows in mapped.items()

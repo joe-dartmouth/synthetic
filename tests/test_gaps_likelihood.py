@@ -131,3 +131,28 @@ def test_a_contradicting_share_scores_minus_infinity():
     found = score(record, {**SHARES, "HP:0003074": 0.0})
     assert math.isinf(found)
     assert found < 0
+
+
+def test_an_absent_concept_at_share_1_scores_minus_infinity():
+    record = planted(fbs=0)
+    assert score(record, {**SHARES, "HP:0003074": 1.0}) == -math.inf
+
+
+def test_an_inner_share_of_1_makes_its_outer_certain():
+    shares = {**SHARES, "HP:0001712": 1.0}
+    inner = planted(restecg=2)
+    assert shown(inner, "HP:0001712")
+    assert shown(inner, "HP:0003115")
+    others = sum(math.log(SHARES[c] if shown(inner, c) else 1 - SHARES[c]) for c in CONCEPTS)
+    assert score(inner, shares) == pytest.approx(others)
+    assert score(planted(restecg=0), shares) == -math.inf
+
+
+def test_one_record_scores_its_hand_computed_value():
+    record = planted(cp=4, exang=0, chol=200, fbs=0, restecg=0, trestbps=120, thalach=150)
+    present = {c for c in (*CONCEPTS, "HP:0001712", "HP:0003115") if shown(record, c)}
+    assert "HP:0001712" not in present
+    assert "HP:0003115" not in present
+    hand = sum(math.log(SHARES[c] if c in present else 1 - SHARES[c]) for c in CONCEPTS)
+    hand += math.log(0.9) + math.log(1 - (0.4 - 0.1) / 0.9)
+    assert score(record) == pytest.approx(hand)

@@ -3,7 +3,8 @@
 The file is JSONL. Its first line is the header, `kind` `header`: the schema, the named run, the
 name of its `frame`, the sha256 of its records under `data` (`bko.evaluate.data.Data.digest`), the
 sha256 of each ontology release, and the generator settings, which a run with no Messages arm
-omits. Every other line
+omits. A schema-1 file, written before frames, names the UCI snapshot's sha256 under `uci` in place
+of `frame` and `data`, and `read` checks it against the pinned archive. Every other line
 is one candidate, `kind` `candidate`: the holdout, the arm, the fill (`gap` or `replica`), the
 attempt within that fill counted from 1 and whether it `returned` or was refused, the call (null for
 a direct arm's record, drawn with no call) and the cell it asked for, the candidate's 0-based
@@ -309,7 +310,7 @@ def read(data: bytes) -> HoldoutCandidates:
         raise CandidatesFormatError(msg)
     # The schema first, so an older file says its schema rather than its keys.
     schema = first.get("schema")
-    if isinstance(schema, bool) or schema not in _HEADERS:
+    if type(schema) is not int or schema not in _HEADERS:
         msg = f"the candidates file's schema is {schema!r}, not one of {sorted(_HEADERS)}"
         raise CandidatesFormatError(msg)
     keys = _HEADERS[schema]

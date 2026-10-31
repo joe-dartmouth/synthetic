@@ -8,7 +8,8 @@ split at the cell's median score, ties at the median in the order of
 halves, so both carry the training cell mix. The tops' and bottoms' fidelity against the training
 rows (quality, column shapes, column pair trends; `bko.evaluate.fidelity`) are paired over the
 holdouts, and the gate is separated when every top-minus-bottom corrected interval
-(`bko.evaluate.criteria.corrected_interval`) lies above zero.
+(`bko.evaluate.criteria.corrected_interval`, at the largest held-out ratio as the criteria take it)
+lies above zero.
 """
 
 from __future__ import annotations
@@ -83,18 +84,23 @@ class _Tally:
     """What the gate sums over the holdouts: each measure's contrasts and each side's concepts."""
 
     rows: tuple[FieldMapping, ...]
+    mapped: dict[str, list[FieldMapping]] = field(init=False)
     contrasts: dict[str, list[float]] = field(default_factory=dict)
     present: dict[str, Counter[str]] = field(default_factory=dict)
     totals: Counter[str] = field(default_factory=Counter)
     ratios: list[float] = field(default_factory=list)
     lines: list[tuple[object, ...]] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        """Group the rows by concept once."""
+        self.mapped = by_concept(self.rows)
+
     def add_sides(self, sides: Mapping[str, Sequence[Values]]) -> None:
         """Count each mapped concept's records on each side."""
         for side, records in sides.items():
             self.totals[side] += len(records)
             counts = self.present.setdefault(side, Counter())
-            for concept, concept_rows in by_concept(self.rows).items():
+            for concept, concept_rows in self.mapped.items():
                 counts[concept] += sum(any(row.applies(r) for row in concept_rows) for r in records)
 
 
@@ -104,13 +110,23 @@ def likelihood(
     """Write the per-cell CSV to `sink`, log the paired measures and the gate, and return it.
 
     Raises:
-        EvaluationError: If a holdout of the experiment holds no scored record, or the file names
-            a cell the holdout's training rows do not hold.
+        EvaluationError: If a holdout of the experiment holds no scored record or no cell of two,
+            a scored line has no record of the frame's finite values, or the file names a cell the
+            holdout's training rows do not hold.
     """
     pool: dict[int, list[Candidate]] = {}
     for line in candidates.candidates:
         if (line.arm, line.fill) == (ARM, FILL) and line.outcome in COUNTED:
             pool.setdefault(line.holdout, []).append(line)
+    seeds = set(experiment.holdout_seeds)
+    logger.info(
+        "likelihood pool arm=%s fill=%s lines=%d scored=%d outside=%d",
+        ARM,
+        FILL,
+        len(candidates.candidates),
+        sum(len(v) for k, v in pool.items() if k in seeds),
+        sum(len(v) for k, v in pool.items() if k not in seeds),
+    )
     tally = _Tally(data.field_rows)
     for seed in experiment.holdout_seeds:
         _holdout(seed, pool.get(seed, []), experiment, data, tally)
@@ -141,6 +157,9 @@ def _holdout(
         msg = f"holdout {seed} holds no {ARM} {FILL} record to score"
         raise EvaluationError(msg)
     tops, bottoms, cell_lines = _split(seed, lines, train, data)
+    if not tops:
+        msg = f"holdout {seed} holds no cell with two {ARM} {FILL} records to split"
+        raise EvaluationError(msg)
     tally.lines += cell_lines
     found_top = fidelity(train, _frame(tops, data), frame=frame)
     found_bottom = fidelity(train, _frame(bottoms, data), frame=frame)
@@ -153,7 +172,7 @@ def _holdout(
 
 def _log_gate(tally: _Tally, experiment: Experiment) -> bool:
     """Log each measure's corrected interval, each concept's shares and the gate; return it."""
-    ratio = statistics.fmean(tally.ratios)
+    ratio = max(tally.ratios)
     separated = True
     for measure, values in tally.contrasts.items():
         interval = corrected_interval(
@@ -169,7 +188,7 @@ def _log_gate(tally: _Tally, experiment: Experiment) -> bool:
             interval.high,
             interval.holdouts,
         )
-    for concept in by_concept(tally.rows):
+    for concept in tally.mapped:
         shares_of = (
             tally.present[side][concept] / tally.totals[side]
             for side in ("top", "bottom", "training")
@@ -230,18 +249,44 @@ def _scored(
         )
         for label in sorted({int(cell[2]) for cell in cells.each})
     }
+    scorers: dict[Cell, Likelihood] = {}
     by_cell: dict[Cell, list[_Scored]] = {}
     for line in lines:
         cell = by_key.get(line.cell)
-        if cell is None or not isinstance(line.candidate, Mapping):
-            msg = f"holdout {seed} has no training cell {line.cell!r}, or a line with no record"
+        if cell is None:
+            msg = f"holdout {seed} has no training cell {line.cell!r} (call {line.call})"
             raise EvaluationError(msg)
-        record = {str(k): float(v) for k, v in line.candidate.items()}
-        share = shares(cells.each[cell], groups[int(cell[2])])
-        score = Likelihood(share, data.field_rows, frame)(record)
+        record = _record(line, frame.columns)
+        if cell not in scorers:
+            share = shares(cells.each[cell], groups[int(cell[2])])
+            scorers[cell] = Likelihood(share, data.field_rows, frame)
+        score = scorers[cell](record)
         tie = hashlib.sha256(f"{seed}:{line.call}:{line.position}".encode()).hexdigest()
         by_cell.setdefault(cell, []).append(_Scored(record, score, tie))
     return by_cell
+
+
+def _record(line: Candidate, columns: Sequence[str]) -> Values:
+    """`line`'s record as the frame's columns' finite values.
+
+    Raises:
+        EvaluationError: If the record is missing, lacks a column or holds a non-finite value.
+    """
+    found = line.candidate
+    if not isinstance(found, Mapping) or not set(columns) <= set(found):
+        msg = f"holdout {line.holdout} call {line.call} position {line.position} has no record"
+        raise EvaluationError(msg)
+    values = {column: found[column] for column in columns}
+    if not all(
+        isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+        for v in values.values()
+    ):
+        msg = (
+            f"holdout {line.holdout} call {line.call} position {line.position} holds a value "
+            f"that is not a finite number: {values!r}"
+        )
+        raise EvaluationError(msg)
+    return {column: float(v) for column, v in values.items()}
 
 
 def _number(value: float) -> str:
