@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-29
+updated: 2026-10-31
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -51,7 +51,9 @@ seed their sampling after every fit, and seed no fit.
   deviation for the neighbour search; restored values round to the archive's precision.
 - **CTGAN and TVAE are SDV's synthesizers at SDV's defaults** on explicit metadata, on the CPU. Each
   draws unconditioned batches and keeps the rows whose own values fall in a stratum still short, until
-  every quota is met or a cap on drawn rows refuses the run.
+  every quota is met or a cap on drawn rows is reached; at the cap the method refuses, and the
+  evaluation harness scores a gap fill's last attempt as the rows it kept (ADR
+  [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
 - **The Gaussian copula is SDV's `GaussianCopulaSynthesizer` at its defaults**
   ([`patki-2016`](../../literature.md#tabular-generators)), fit on the
   training split and drawn unconditioned, rows kept by their own values as CTGAN's and TVAE's are.

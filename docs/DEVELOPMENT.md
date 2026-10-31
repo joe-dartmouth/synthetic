@@ -380,7 +380,8 @@ start or the supervisor cannot run.
   decides what it loads, as one `bko.evaluate.data.Data` every stage reads; for UCI it fetches UCI
   Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
   data with that seed and gives every arm the split's training rows and the request that fills
-  each underrepresented cell up to the threshold. A classifier fit on the
+  each cell under the threshold up to the fill target (`Experiment.threshold` and
+  `Experiment.fill_to`, both 20 in `E1`). A classifier fit on the
   real rows, weighted as the arm says, and the added rows is scored on the test split, then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
@@ -440,7 +441,7 @@ start or the supervisor cannot run.
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
   under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
-  removal=%s decontaminate=%s arms=%s replica=%s fill_to=%d budget=%d validity=%s
+  removal=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d budget=%d validity=%s
   spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
   the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
   `false`), and a
@@ -454,7 +455,12 @@ start or the supervisor cannot run.
   comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
   the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
-  `params={}`), a `retry` warning for each refused attempt before the last, and a
+  `params={}`), a `retry` warning for each refused attempt before the last, a
+  `shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d` warning per short cell
+  when CTGAN or TVAE still lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt
+  (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
+  scores the rows it kept; a short replica fill, or a Gaussian copula or CART fill, still refuses,
+  and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
   per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
@@ -557,13 +563,17 @@ start or the supervisor cannot run.
   and the CLLM arms `cllm` and `cllm-uncurated`) and `b3-synthea` (E3's methods, those three and
   `real` under E3's removal), each with `cllm` as the candidate and no criterion (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md);
-  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). No flag
+  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
+  `e4-eighty` (`E4_TARGETS`: E1's methods and `bko` filling each flagged cell to 30, 40 or 80 at
+  E1's threshold, a $10.00 ceiling and no criterion;
+  [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
   per run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
-  does not converge, a method that refuses a request on every attempt or scores that cannot be
+  does not converge, a method that refuses a request on every attempt (but a generator short at
+  its row limit, which fills partially) or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
   send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a direct arm

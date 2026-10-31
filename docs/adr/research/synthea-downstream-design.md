@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-28
-updated: 2026-10-28
+updated: 2026-10-31
 ---
 # The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference
 
@@ -62,7 +62,8 @@ figure below is what the command beside it in Rationale prints against that popu
   fraction (ADR [`research/synthea-ablation-design`](synthea-ablation-design.md)): 47 of 52
   removed, 5 kept, and the cell's 13 test cases untouched ([C8], [C10]). The test split is never
   thinned.
-- **Fill**: E1's `fill_to` of 20, so each arm is asked for 15 rows of the removed cell.
+- **Fill**: E1's threshold and fill target, both 20, so each arm is asked for 15 rows of the removed
+  cell.
 - **Headline**: recall at scope `flagged-subgroups`. With every other training cell at 23 or more
   ([C9]), `(>=65, female)` is the only flagged subgroup, and its positive test records are the
   removed cell's test cases, so the scope's recall is the recall on those cases. Each holdout

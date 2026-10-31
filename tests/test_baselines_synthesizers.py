@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 
-from bko.baselines.errors import BaselineError
+import bko.baselines.synthesizers as synth_module
+from bko.baselines.errors import BaselineError, ShortfallError
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request
 from bko.baselines.synthesizers import (
@@ -66,9 +69,15 @@ def test_fill_takes_a_stratums_first_matches_in_draw_order():
 
 def test_fill_refuses_a_stratum_the_model_never_reaches():
     model = FakeModel(TRAIN.loc[TRAIN["sex"] == 1])
-    with pytest.raises(BaselineError, match="fake asked for 200 rows and still lacks"):
+    with pytest.raises(ShortfallError, match="fake asked for 200 rows and still lacks") as caught:
         fill(model, Request(quota=QUOTA), method="fake", batch=50, limit=200)
     assert model.calls == [50, 50, 50, 50]
+    error = caught.value
+    assert error.baseline is None
+    assert set(error.short) == {"/".join(map(str, s)) for s in QUOTA if s[1] == "female"}
+    kept = {"/".join(map(str, s)) for s in cell_list(error.added)}
+    assert kept.isdisjoint(error.short)
+    assert len(error.added) == sum(QUOTA.values()) - sum(error.short.values())
 
 
 def test_fill_tolerates_a_short_batch():
@@ -158,3 +167,35 @@ def test_seeded_restores_the_generators_when_the_body_raises():
     after = np.random.random()
     np.random.seed(11)
     assert (after, torch.get_num_threads()) == (np.random.random(), threads)
+
+
+class ShortSynthesizer:
+    """A synthesizer whose draws hold men alone, so every women's stratum stays short."""
+
+    def __init__(self) -> None:
+        self.model = FakeModel(TRAIN.loc[TRAIN["sex"] == 1])
+
+    def fit(self, rows: pd.DataFrame) -> None:
+        pass
+
+    def get_parameters(self) -> dict[str, object]:
+        return {"epochs": 1}
+
+    def sample(self, num_rows: int) -> pd.DataFrame:
+        return self.model(num_rows)
+
+
+def test_a_synthesizer_short_at_its_limit_hands_back_its_rows_as_a_baseline(monkeypatch):
+    monkeypatch.setattr(synth_module, "build_synthesizer", lambda *args: ShortSynthesizer())
+    capped = functools.partial(fill, batch=50, limit=200)
+    monkeypatch.setattr(synth_module, "fill", capped)
+    with pytest.raises(ShortfallError) as caught:
+        tvae(TRAIN, Request(quota=QUOTA, seed=3), parameters=TINY_TVAE)
+    error = caught.value
+    assert error.baseline is not None
+    assert error.baseline.added.equals(error.added)
+    pd.testing.assert_series_equal(error.baseline.weights, unit_weights(TRAIN))
+    params = error.baseline.params
+    assert params["short"] == dict(error.short)
+    assert {"epochs", "torch_threads"} <= set(params)
+    assert set(error.short) == {"/".join(map(str, s)) for s in QUOTA if s[1] == "female"}

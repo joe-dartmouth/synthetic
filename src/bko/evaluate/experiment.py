@@ -62,7 +62,9 @@ class Experiment:
         candidate: The arm the criteria judge.
         comparators: The arms the candidate must beat.
         replica_arms: The row-adding arms also asked for a replica of the training split's cells.
-        fill_to: Each cell holding fewer training records than this is filled up to it.
+        threshold: Each cell holding fewer training records than this is flagged (`docs/RESEARCH.md`
+            section 2); it decides the flagged subgroups the measures read.
+        fill_to: The training records each flagged cell is filled up to; at least `threshold`.
         margin: What the candidate must beat each comparator by, in the measure's own units.
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
             reach.
@@ -89,6 +91,7 @@ class Experiment:
     candidate: str
     comparators: tuple[str, ...]
     replica_arms: tuple[str, ...]
+    threshold: int = UNDERREPRESENTED_BELOW
     fill_to: int = UNDERREPRESENTED_BELOW
     margin: float = 0.0
     privacy_margin: float = 0.9
@@ -108,13 +111,14 @@ class Experiment:
 
         Raises:
             ValueError: If there are fewer than 2 holdout seeds, a seed repeats or leaves
-                `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an
-                arm, a replica arm adds no rows, the candidate is not an arm or is among its
-                comparators, the confidence is not in (0, 1), there is no attempt, the budget is
-                below 1, the validity is not in (0, 1], the spend ceiling is not above 0 USD, a
-                criterion is unknown or named twice, the projection is not read after at least one
-                holdout, the idle limit is not above 0 seconds, or `REAL_ARM` is an arm with no
-                removal, a replica arm, or an arm of an experiment that removes copies.
+                `[0, SEED_LIMIT)`, an arm is named twice, a comparator or replica arm is not an arm,
+                a replica arm adds no rows, the candidate is not an arm or is among its comparators,
+                the confidence is not in (0, 1), there is no attempt, the fill target is below the
+                threshold, the budget is below 1, the validity is not in (0, 1], the spend ceiling
+                is not above 0 USD, a criterion is unknown or named twice, the projection is not
+                read after at least one holdout, the idle limit is not above 0 seconds, or
+                `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
+                removes copies.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -148,9 +152,7 @@ class Experiment:
         if self.attempts < 1:
             msg = f"attempts {self.attempts}: an arm needs at least one attempt"
             raise ValueError(msg)
-        if self.budget < 1:
-            msg = f"budget {self.budget}: an attempt must be able to ask for its request's rows"
-            raise ValueError(msg)
+        self._check_fill()
         if not 0 < self.validity <= 1:
             msg = f"validity {self.validity} must lie in (0, 1]"
             raise ValueError(msg)
@@ -182,6 +184,14 @@ class Experiment:
             raise ValueError(msg)
         if self.decontaminate:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
+            raise ValueError(msg)
+
+    def _check_fill(self) -> None:
+        if self.fill_to < self.threshold:
+            msg = f"fill target {self.fill_to} is below the threshold {self.threshold}"
+            raise ValueError(msg)
+        if self.budget < 1:
+            msg = f"budget {self.budget}: an attempt must be able to ask for its request's rows"
             raise ValueError(msg)
 
     def _check_stop_rules(self) -> None:
@@ -319,7 +329,7 @@ E1: Final = Experiment(
 def flagged(
     train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
 ) -> tuple[Stratum, ...]:
-    """The cells under `edges` holding fewer than `experiment.fill_to` records, in grid order."""
+    """The cells under `edges` holding fewer than `experiment.threshold` records, in grid order."""
     return tuple(_short(train, experiment, edges=edges))
 
 
@@ -328,12 +338,15 @@ def gap_request(
 ) -> Request:
     """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
 
+    A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
+    further.
+
     Raises:
         EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
     """
     quota = _short(train, experiment, edges=frame.edges)
     if not quota:
-        msg = f"no cell holds fewer than {experiment.fill_to} training records; nothing to fill"
+        msg = f"no cell holds fewer than {experiment.threshold} training records; nothing to fill"
         raise EvaluationError(msg)
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
@@ -349,7 +362,7 @@ def _short(
 ) -> dict[Stratum, int]:
     return {
         cell: experiment.fill_to - count
-        for cell, count, short in _cells(train, experiment.fill_to, edges=edges)
+        for cell, count, short in _cells(train, experiment.threshold, edges=edges)
         if short
     }
 

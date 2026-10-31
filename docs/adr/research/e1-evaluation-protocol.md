@@ -30,7 +30,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 ## Decision
 
 - **Configuration in code.** `bko.evaluate.experiment.E1` holds the holdout seeds, the arms, the
-  candidate (`bko`), the comparators, the replica arms, the fill level, the two margins, the
+  candidate (`bko`), the comparators, the replica arms, the threshold that flags a cell and the
+  fill target each flagged cell is filled up to (both 20 in `E1`; a target below the threshold is
+  refused), the two margins, the
   confidence, the attempts per fill, the BKO arms' budget per attempt, the validity threshold and
   the run's spend ceiling. It refuses a candidate that is not one of its arms, and a replica arm
   that adds no rows. `docs/EVIDENCE.md` (E1) states how each criterion is read. No flag changes a
@@ -85,8 +87,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
-- **The gap request.** Every arm is asked to fill each cell under the threshold up to it, the same
-  quota on every holdout; a control adds no rows. Three BKO arms fill the same request, one per gap
+- **The gap request.** Every arm is asked to fill each cell under the threshold up to the fill
+  target, the same quota on every holdout; the threshold alone decides which cells are flagged, so
+  a dose run that raises the target (E4) fills the same cells further and its flagged scopes pair
+  with `E1`'s; a control adds no rows. Three BKO arms fill the same request, one per gap
   definition of ADR `research/bko-formal-gap-definition`: each runs its pipeline on each holdout's
   training rows and returns exactly the requested rows per cell, guided by its definition's gaps.
   `bko`, guided by per-subgroup gaps, is the candidate. `bko-population` and `bko-frequency` are
@@ -321,8 +325,14 @@ request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling d
 and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
 a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
 third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
-the same; dropping the holdout would select splits on how one generator behaved. The run still stops
-when every attempt is refused.
+the same; dropping the holdout would select splits on how one generator behaved. CTGAN or TVAE
+still short of a gap fill at its row limit on the last attempt fills partially
+(`bko.evaluate.shortfall`): it keeps the rows it drew, checked against the quota less the
+shortfall, each short cell gets a `shortfall` line and its `arm` line's params name the shortfall,
+and the holdout stays paired at fewer rows for that arm alone. A replica fill still refuses, since
+its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
+2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
+not one holdout. Any other refusal on every attempt still stops the run.
 
 Paid generation has copied archive records in every column: in the completeness run of 2026-10-19, 5
 of 20 records of one cell, 3 of them test records of that run's split. A copied test record would be

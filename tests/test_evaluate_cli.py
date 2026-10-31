@@ -343,6 +343,10 @@ def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_pa
             dataclasses.replace(E3, holdout_seeds=tuple(range(50, 100))),
             "holdouts=50 seeds=50-99 removal=>=65/female/1@0.9 decontaminate=false ",
         ),
+        (
+            dataclasses.replace(E1, fill_to=30),
+            "holdouts=100 seeds=0-99 removal=none decontaminate=true ",
+        ),
     ],
 )
 def test_the_experiment_line_names_the_seeds_removal_and_copy_rule(caplog, experiment, fields):
@@ -350,6 +354,7 @@ def test_the_experiment_line_names_the_seeds_removal_and_copy_rule(caplog, exper
         log_experiment("x", experiment, ["lr"], frame="f")
     line = next(m for m in caplog.messages if m.startswith("experiment "))
     assert line.startswith(f"experiment run=x frame=f {fields}arms={','.join(experiment.arms)} ")
+    assert f" threshold={experiment.threshold} fill_to={experiment.fill_to} " in line
 
 
 def test_the_commit_is_unknown_without_git(monkeypatch):

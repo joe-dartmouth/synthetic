@@ -50,6 +50,7 @@ from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.shortfall import partial_fill, shortfall_kept
 from bko.evaluate.utility import utility
 
 
@@ -289,6 +290,10 @@ def _fill(
 ) -> Baseline:
     """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
 
+    On a gap fill, a generator still short at its row limit on the last attempt returns the rows
+    it kept (`bko.evaluate.shortfall.partial_fill`) rather than refusing; a replica fill still
+    refuses, since its scores read it as a copy of every training cell.
+
     The runner gets a copy of `train` on every attempt, so one that changes its input changes
     nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
 
@@ -307,6 +312,11 @@ def _fill(
             )
             raise
         except BaselineError as exc:
+            kept = shortfall_kept(exc) if attempt == attempts and kind == "gap" else None
+            if kept is not None:
+                baseline = partial_fill(*kept, train, request, fill=(holdout, name, attempt))
+                _log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)
+                return baseline
             if attempt == attempts:
                 logger.error(  # ruff: ignore[error-instead-of-exception]
                     "refused holdout=%d arm=%s attempts=%d", holdout, name, attempts

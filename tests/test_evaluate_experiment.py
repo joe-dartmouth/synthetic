@@ -10,6 +10,7 @@ from typing import Final
 import pytest
 
 from bko.baselines.request import Method, Strata, plan
+from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.cllm import SHOW
@@ -37,6 +38,7 @@ from bko.evaluate.experiment import (
 from bko.evaluate.named_runs import (
     E3,
     E3_SLICE_CEILING,
+    E4_TARGETS,
     G2,
     G5,
     G6_MODELS,
@@ -93,6 +95,7 @@ def test_e1_is_its_stated_configuration():
             *("smote", "adasyn", "ctgan", "tvae"),
             *("bko", "bko-population", "bko-frequency"),
         ),
+        "threshold": 20,
         "fill_to": 20,
         "margin": 0.0,
         "privacy_margin": 0.9,
@@ -124,6 +127,9 @@ def test_every_run_name_is_pinned():
         "e3",
         "e3-a",
         "e3-b",
+        "e4-eighty",
+        "e4-forty",
+        "e4-thirty",
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -199,8 +205,45 @@ def test_the_gap_request_is_what_the_baselines_command_asks_for():
 
 def test_a_cell_at_the_threshold_is_not_filled():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
-    lower = dataclasses.replace(E1, fill_to=18)
+    lower = dataclasses.replace(E1, threshold=18, fill_to=18)
     assert dict(gap_request(train, lower, seed=0, frame=UCI_FRAME).quota) == {FLAGGED[0]: 16}
+
+
+def test_a_target_above_the_threshold_flags_by_the_threshold_and_fills_to_the_target():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    dosed = dataclasses.replace(E1, fill_to=30)
+    assert dict(gap_request(train, dosed, seed=0, frame=UCI_FRAME).quota) == {
+        FLAGGED[0]: 28,
+        FLAGGED[1]: 12,
+    }
+    edges = UCI_FRAME.edges
+    assert flagged(train, dosed, edges=edges) == flagged(train, E1, edges=edges)
+
+
+def test_e1_requests_are_unchanged():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    assert (E1.threshold, E1.fill_to) == (UNDERREPRESENTED_BELOW, UNDERREPRESENTED_BELOW)
+    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == {
+        FLAGGED[0]: 18,
+        FLAGGED[1]: 2,
+    }
+
+
+def test_a_target_below_the_threshold_is_refused():
+    with pytest.raises(ValueError, match="fill target 19 is below the threshold 20"):
+        dataclasses.replace(E1, fill_to=19)
+
+
+def test_the_attempt_limit_scales_with_the_target():
+    """An attempt may ask `budget` times its request's rows (`bko.evaluate.guided`)."""
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    rows = {
+        target: gap_request(
+            train, dataclasses.replace(E1, fill_to=target), seed=0, frame=UCI_FRAME
+        ).rows
+        for target in (20, 30)
+    }
+    assert rows == {20: 20, 30: 40}
 
 
 def test_nothing_to_fill_is_refused():
@@ -424,6 +467,23 @@ def test_the_cllm_arms_show_records_read_no_gap_and_differ_in_curation_alone():
     assert (cllm.definition, cllm.shows, cllm.curation) == (None, True, Curation.CLASSIFIER)
     assert dataclasses.replace(cllm, curation=None) == raw
     assert not cllm.prescribes
+
+
+def test_e4_runs_differ_from_e1_in_arms_target_ceiling_and_criteria_alone():
+    assert dict(E4_TARGETS) == {"e4-thirty": 30, "e4-forty": 40, "e4-eighty": 80}
+    for name, target in E4_TARGETS.items():
+        named = RUNS[name]
+        assert named.settings == SETTINGS
+        assert named.dataset is Dataset.UCI
+        assert named.experiment == dataclasses.replace(
+            E1,
+            arms=(*METHOD_ARMS, "bko"),
+            replica_arms=(*ADDS_ROWS, "bko"),
+            fill_to=target,
+            spend_ceiling=10.0,
+            criteria=(),
+        )
+        assert named.experiment.threshold == E1.threshold
 
 
 def test_b3_runs_hold_bko_and_both_cllm_arms():

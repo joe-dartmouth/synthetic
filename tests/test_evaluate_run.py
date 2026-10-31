@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import bko.evaluate.run as run_module
-from bko.baselines.errors import BaselineError, OutputContractError
+from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
@@ -170,6 +170,108 @@ def test_a_refusing_arm_stops_the_run_after_every_attempt():
     with pytest.raises(BaselineError, match="refused"):
         run(GRADED, SMALL, {**FAST_ARMS, "smote": refuse}, frame=UCI_FRAME)
     assert len(calls) == SMALL.attempts
+
+
+ONLY_SMOTE = dataclasses.replace(
+    SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=()
+)
+
+
+def shorting(calls, *, dropped=None, claimed=None, key=None, until=None, replica_only=False):
+    """A runner that keeps SMOTE's rows but `dropped` of its first cell's and reports a shortfall.
+
+    `dropped` None drops the whole cell; `claimed` is the shortfall it reports (`dropped` by
+    default) under `key` (the cell's by default). From attempt `until` on, or on a gap request when
+    `replica_only`, it returns SMOTE's whole fill.
+    """
+
+    def short(train, request):
+        calls.append(request.seed)
+        full = FAST_ARMS["smote"](train, request)
+        if (until is not None and len(calls) >= until) or (replica_only and request.rows < 50):
+            return full
+        cell, *_ = request.quota
+        cut = request.quota[cell] if dropped is None else dropped
+        strata = cell_list(full.added)
+        positions = [i for i, s in enumerate(strata) if s == cell][-cut:]
+        keep = [i not in positions for i in range(len(strata))]
+        missing = {key or "/".join(map(str, cell)): cut if claimed is None else claimed}
+        kept = Baseline(number(full.added.loc[keep]), full.weights, {"short": missing})
+        msg = f"short of {missing}"
+        raise ShortfallError(msg, missing, kept.added, kept)
+
+    return short
+
+
+def test_a_generator_short_at_its_limit_on_the_last_attempt_fills_partially(caplog):
+    assert SMALL.attempts > 1
+    calls = []
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        scores = run(GRADED, ONLY_SMOTE, {"smote": shorting(calls)}, frame=UCI_FRAME)
+    assert len(calls) == SMALL.attempts * len(SMALL.holdout_seeds)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert [m.split()[1] for m in lines] == [f"holdout={seed}" for seed in SMALL.holdout_seeds]
+    assert all(
+        re.fullmatch(
+            rf"shortfall holdout=\d+ arm=smote attempt={SMALL.attempts} cell=\S+ "
+            r"short=(\d+) quota=\1",
+            m,
+        )
+        for m in lines
+    )
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert len(arms) == len(SMALL.holdout_seeds)
+    assert all(f" attempt={SMALL.attempts} " in m and '"short": {' in m for m in arms)
+
+
+def test_a_partly_filled_cell_is_checked_against_what_it_kept(caplog):
+    calls = []
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        run(GRADED, ONLY_SMOTE, {"smote": shorting(calls, dropped=1)}, frame=UCI_FRAME)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert lines
+    assert all(" short=1 quota=" in m and not m.endswith(" quota=1") for m in lines)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [({"dropped": 2, "claimed": 1}, "rows"), ({"key": "nowhere"}, "does not fit its quota")],
+    ids=["kept-rows-disagree", "unknown-cell"],
+)
+def test_a_shortfall_that_breaks_the_contract_is_refused_and_logged(caplog, change, message):
+    with (
+        caplog.at_level(logging.INFO, logger="bko.evaluate"),
+        pytest.raises(OutputContractError, match=message),
+    ):
+        run(GRADED, ONLY_SMOTE, {"smote": shorting([], **change)}, frame=UCI_FRAME)
+    assert any(m.startswith("contract holdout=0 arm=smote attempt=") for m in caplog.messages)
+    assert not any(m.startswith("shortfall ") for m in caplog.messages)
+
+
+def test_a_shortfall_before_the_last_attempt_is_retried(caplog):
+    calls = []
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        run(GRADED, ONLY_SMOTE, {"smote": shorting(calls, until=2)}, frame=UCI_FRAME)
+    assert any(m.startswith("retry holdout=0 arm=smote attempt=1 ") for m in caplog.messages)
+    assert not any(m.startswith("shortfall ") for m in caplog.messages)
+
+
+def test_a_replica_short_at_its_limit_still_refuses(caplog):
+    replica = dataclasses.replace(ONLY_SMOTE, replica_arms=("smote",))
+    calls = []
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"), pytest.raises(ShortfallError):
+        run(GRADED, replica, {"smote": shorting(calls, replica_only=True)}, frame=UCI_FRAME)
+    assert any(m.startswith("refused holdout=0 arm=smote-replica ") for m in caplog.messages)
+
+
+def test_a_shortfall_with_no_rows_built_still_refuses():
+    def short(train, request):
+        msg = "short"
+        raise ShortfallError(msg, {"x": 1}, number(train.iloc[:0]))
+
+    with pytest.raises(ShortfallError, match="short"):
+        run(GRADED, SMALL, {**FAST_ARMS, "smote": short}, frame=UCI_FRAME)
 
 
 def test_a_refusal_is_retried_with_a_derived_seed():
