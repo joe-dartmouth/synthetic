@@ -35,12 +35,8 @@ the ROADMAP heading it serves.
 
 ```mermaid
 flowchart LR
-    bkb_curation[generate-bkb-curation]
-    dose_response[evaluate-dose-response]
-    scarcity_curve[evaluate-data-scarcity-curve]
     generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
-    bn_baseline[evaluate-bayesian-network-baseline]
     bkb_curation[generate-bkb-curation] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
     dose_response[evaluate-dose-response] --> diabetes_removal
     scarcity_curve[evaluate-data-scarcity-curve] --> diabetes_removal

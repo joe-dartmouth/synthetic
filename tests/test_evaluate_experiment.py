@@ -447,7 +447,7 @@ def test_b3_runs_hold_bko_and_both_cllm_arms():
     ("name", "per_arm", "calls", "tokens", "asks"),
     [
         ("b3-uci", 10.51 / 3, 5490 / 3, 60, 1.1401),
-        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100, 1.4433),
+        ("b3-synthea", 20.46 / 3, 5490 / 3 * (20.46 / 10.51), 100, 1.4432),
     ],
     ids=["uci", "synthea"],
 )

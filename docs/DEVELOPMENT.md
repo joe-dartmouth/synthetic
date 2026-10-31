@@ -393,12 +393,13 @@ start or the supervisor cannot run.
   shortfall, in the gap request and the replica request alike, validates every reply with
   `bko.validate`, drops what `bko.baselines.records.check` would refuse, and keeps the rest. An
   attempt that cannot fill the request inside `E1`'s budget is refused and retried like a
-  baseline's. Every arm fills before any is scored. A test record that some arm's rows copy in every
-  column leaves the test split each arm's utility is scored on. With `--replay`, every BKO call is
-  answered from that call log instead of the API. A call that differs from the log's, or a logged
-  call left unplayed, stops the run. A replay reproduces the scores, and their sha256, only at the
-  commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row per
-  holdout, and a run that keeps copies a `copies-kept` row per holdout, so a run scored at a
+  baseline's; a curating arm instead gives each cell its own budget and returns a `partial` attempt
+  (What it logs, below). Every arm fills before any is scored. A test record that some arm's rows
+  copy in every column leaves the test split each arm's utility is scored on. With `--replay`, every
+  BKO call is answered from that call log instead of the API. A call that differs from the log's, or
+  a logged call left unplayed, stops the run. A replay reproduces the scores, and their sha256, only
+  at the commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row
+  per holdout, and a run that keeps copies a `copies-kept` row per holdout, so a run scored at a
   commit without those rows does not reproduce its scores' sha256 when replayed at a later commit.
   Replay each run at its own commit (its `versions` line names it). With `--resume`, the stopped
   log's answered calls come first, answered from it, then live calls. With `--rehearse`,
@@ -408,11 +409,11 @@ start or the supervisor cannot run.
   header line (`kind` `header`, `schema` 2, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
   no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
-  `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (false for a refused
-  attempt), `call`, the `cell` asked, `position` in the call's reply, the decoded `candidate` or the
-  `undecoded` reason, `outcome` (`kept`, `rejected`, `dropped-range`, `dropped-cell`,
-  `dropped-concepts`, a prescribing arm's alone, `dropped-curation`, a curating arm's alone, or
-  `dropped-quota`) and the `failed` checks of a
+  `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (true for a returned or
+  partial attempt, false for a refused or failed one), `call`, the `cell` asked, `position` in
+  the call's reply, the decoded `candidate` or the `undecoded` reason, `outcome` (`kept`,
+  `rejected`, `dropped-range`, `dropped-cell`, `dropped-concepts`, a prescribing arm's alone,
+  `dropped-curation`, a curating arm's alone, or `dropped-quota`) and the `failed` checks of a
   rejected one. Lines are written when the harness drains a holdout: after every arm's gap fill,
   then after every replica fill. A stopped run's file
   holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
@@ -467,11 +468,12 @@ start or the supervisor cannot run.
   training rows, their count per label as `<label>:<count>` pairs, the stages read and both
   thresholds). A curating arm gives each cell its own budget, its budget times the cell's quota:
   once a cell's records asked could not cover its rows still short, the cell is given up with a
-  `shortfall arm=%s seed=%d cell=%s short=%d asked=%d limit=%d` line (the cell's records asked
-  and its limit) and the other cells go on; an attempt that leaves a cell short returns the rows
-  it kept, with outcome `partial`, instead of refusing, its params carry `short` (each such cell's
-  missing rows), and its rows are checked against what each cell kept. `bko-skeleton` also logs, after
-  each wave, `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
+  `shortfall arm=%s seed=%d cell=%s short=%d quota=%d asked=%d limit=%d` line (the cell's
+  quota, its records asked and its limit) and the other cells go on; an attempt that leaves a
+  cell short returns the rows it kept, with outcome `partial`, instead of refusing, its params
+  carry `short` (each such cell's missing rows), and its rows are checked against its quota less
+  each given-up cell's missing rows. `bko-skeleton` also logs, after each wave,
+  `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its
   attempt ends, and, from logger `bko.generate.direct`, the `direct holdout=` and `fallback` lines of

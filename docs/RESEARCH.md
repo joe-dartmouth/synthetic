@@ -231,37 +231,6 @@ other rows are the brief's registry (D10), kept for reference.
 | MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training | Demo subsets of the credentialed datasets | No |
 | Full MIMIC-IV, MIMIC-IV-Note, MIMIC-IV-ED | Credentialed, on PhysioNet | Real EHR data | No |
 
-### Limits of UCI Heart Disease as the evaluation frame
-
-UCI Heart Disease cannot tell the arms apart, so a null result on it says little about knowledge
-guidance:
-
-- **Too few test records move a reading.** Each holdout holds out 59 of its 297 records, so the
-  flagged subgroups' recall changes on a handful of holdouts: in the judged run it differs from
-  the non-generative comparators' on 1 to 6 of 100 holdouts, and every primary and secondary
-  interval contains zero with upper bounds up to about +0.06
-  ([E1](EVIDENCE.md#e1-uci-heart-disease-augmentation), Read against). An effect smaller than
-  that cannot be read.
-- **Its thin cells carry no missing signal.** The flagged cells are thin by count, but a
-  classifier learns the label from 13 strong features over the whole split, so added rows that
-  follow the training rows change little: every guidance level, from the cell and its bounds alone
-  to the ontology chains and the reference group's summary, lands within about 0.005 of the others
-  on recall and AUC-PR ([G3](EVIDENCE.md#g3-guidance-level)).
-- **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied 457
-  of 5900 held-out test records word for word over 98 holdouts, where Haiku 5.5's copied 1, so
-  decontamination shrinks each holdout's test split and a cross-run pairing loses its holdouts
-  (unit [`evaluate-generator-comparison`](../tasks/evaluate-generator-comparison.md)); a
-  generator's knowledge here is partly recall of this dataset.
-
-A frame that can read a difference needs a subgroup with enough test positives per holdout to
-move an interval, a gap that leaves count-based methods little or nothing to copy (a subgroup's
-training positives removed, as E3 does on Synthea), coded features the ontology can inform, and
-records the generators have not memorized under terms that permit sending them. E3 tests the
-removal on generated patients; unit
-[`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) runs it
-on UCI Diabetes 130-US Hospitals' real encounters, with a power calculation fixing its design
-before the first paid run. UCI stays the judged frame for E1's criteria.
-
 **Synthea's caveats.** Synthea has documented fidelity flaws: per the JAMIA 2018 paper it
 "incorrectly generated 20% of patients in the infant age group" and "failed to note diabetes onset
 after age 52". The brief therefore treats it as a development and prototyping substrate, not a
@@ -301,6 +270,38 @@ included: every Messages arm refuses data whose source's `Agreement` (`bko.datas
 records no `sending` permission; check the DUA's current terms before recording one. E3's Synthea
 frame sends the same kinds of quantity, but its rows are generated, so none describes a
 person ([`DEVELOPMENT.md`](DEVELOPMENT.md#generation), What leaves the machine).
+
+### Limits of UCI Heart Disease as the evaluation frame
+
+UCI Heart Disease cannot tell the arms apart, so a null result on it says little about knowledge
+guidance:
+
+- **Too few test records move a reading.** Each holdout holds out 59 of its 297 records, so the
+  flagged subgroups' recall changes on a handful of holdouts: in the judged run it differs from
+  the non-generative comparators' on 1 to 6 of 100 holdouts, and every primary and secondary
+  interval contains zero with upper bounds up to about +0.06
+  ([E1](EVIDENCE.md#e1-uci-heart-disease-augmentation), Result). An effect smaller than
+  that cannot be read.
+- **Its thin cells carry no missing signal.** The flagged cells are thin by count, but a
+  classifier learns the label from 13 strong features over the whole split, so added rows that
+  follow the training rows change little: every guidance level, from the cell and its bounds alone
+  to the ontology chains and the reference group's summary, gives the logistic regression a mean
+  recall and AUC-PR over all records within about 0.005 of each other's, and a flagged-subgroup
+  recall within about 0.008 ([G3](EVIDENCE.md#g3-guidance-level), Result).
+- **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied 457
+  of 5900 held-out test records word for word, in 98 of 100 holdouts, where Haiku 5.5's copied 1, so
+  decontamination shrinks each holdout's test split and a cross-run pairing loses its holdouts
+  (unit [`evaluate-generator-comparison`](../tasks/evaluate-generator-comparison.md)); a
+  generator's knowledge here is partly recall of this dataset.
+
+A frame that can read a difference needs a subgroup with enough test positives per holdout to
+move an interval, a gap that leaves count-based methods little or nothing to copy (a subgroup's
+training positives removed, as E3 does on Synthea), coded features the ontology can inform, and
+records the generators have not memorized under terms that permit sending them. E3 tests the
+removal on generated patients; unit
+[`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) runs it
+on UCI Diabetes 130-US Hospitals' real encounters, with a power calculation fixing its design
+before the first paid run. UCI stays the judged frame for E1's criteria.
 
 ## 7. Augmentation versus resampling
 

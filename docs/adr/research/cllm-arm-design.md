@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-10-30
+updated: 2026-10-31
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -102,14 +102,15 @@ prompt (their section 2.2).
   `max(3, ceil(1.5 / s))` for the least curator keep share `s` the two pilots measured: 9, from
   Synthea's 0.1734.
 - **Partial fill.** A curating arm gives each cell its own budget, `budget` times the cell's
-  quota, and gives up a cell, with a `shortfall` line, once its records asked could not cover its
-  rows still short; the other cells go on, and the attempt returns the rows it kept with outcome
-  `partial` and `short` in its params, checked against what each cell kept. An arm that does not
-  curate still refuses once the attempt's budget cannot cover its short cells. A budget shared
-  across the attempt let one rejected cell ask the rest of it one record per call: `b3-synthea`'s
-  first launch reached call 3159 on its second holdout and was stopped at $1.64. CLLM keeps whatever its curator passes, and a curator that rejects
-  nearly every record of a cell is the effect B3 measures: on Synthea's real `bko` records the
-  curator kept none of `>=65/female/1`'s on 3 of 100 holdouts' gap fills and 29 of their replica
+  quota, and gives up a cell, with a `shortfall` line naming its `quota=`, once its records asked
+  could not cover its rows still short; the other cells go on, and the attempt returns the rows it
+  kept with outcome `partial` and `short` in its params, checked against its quota less each
+  given-up cell's missing rows. An arm that does not curate still refuses once the attempt's
+  budget cannot cover its short cells. A budget shared across the attempt let one rejected cell ask
+  the rest of it one record per call: `b3-synthea`'s first launch reached call 3159 on its second
+  holdout and was stopped at $1.64. CLLM keeps whatever its curator passes, and a curator that
+  rejects nearly every record of a cell is the effect B3 measures: on Synthea's real `bko` records
+  the curator kept none of `>=65/female/1`'s on 3 of 100 holdouts' gap fills and 29 of their replica
   fills (`scratchpad/cllm_pilot_synthea_holdouts.py`), so no budget fills that cell.
 - **The pilot**, a proxy on each dataset: the curator applied, per holdout, to the `bko`
   candidates kept in returned attempts, each holdout's training rows rebuilt by
@@ -132,8 +133,7 @@ prompt (their section 2.2).
   | all | | 25800 | 22694 | 0.8796 |
 
   On Synthea, over `e3-a`'s and `e3-b`'s `runs/e3-2/` and `runs/e3-3/` candidates files
-  (2026-10-30, `scratchpad/cllm_pilot_synthea.py`, after `b3-synthea`'s rehearsal ran out of a
-  budget of 3 on its first holdout):
+  (2026-10-30, `scratchpad/cllm_pilot_synthea.py`):
 
   | Fill | Cell | Rows | Kept | Share |
   |---|---|---|---|---|
@@ -150,8 +150,10 @@ prompt (their section 2.2).
 
   UCI's least share, 0.7765, would ask for E1's 3; Synthea's, 0.1734 at the replica fill of
   `<65/female/1`, asks for `ceil(1.5 / 0.1734)` = 9. On Synthea the curator drops about four of
-  five records in every sick women's cell, the flagged gap cell `>=65/female/1` included: a
-  classifier fit on its training rows confidently calls most sick women healthy.
+  five records in every sick women's cell, the flagged gap cell `>=65/female/1` included (1189 of
+  1500, 1902 of 2301 and 397 of 499 above): each dropped record is one to whose own label, sick,
+  the curator gives a mean probability of at most 0.2. The pilot measures the drops, not why the
+  fit makes them.
 - **Sampling.** No temperature, `top_p` or `top_k` is sent, as for every Messages arm (ADR
   `research/record-generation-design`).
 - **B3's runs.** `b3-uci` and `b3-synthea` in `bko.evaluate.named_runs.RUNS` hold `METHOD_ARMS`,
@@ -214,9 +216,10 @@ confidence is c has a mean p(1 - p) of at most c(1 - c), so every row with confi
 kept by their aleatoric uncertainty.
 
 Curation sits before the quota so a dropped row costs budget, not a slot. An attempt needs about
-1/s records asked per row kept, so `1.5 / s` leaves half again for top-ups. The budget only caps
-an attempt's asks before it refuses, so the UCI arm, whose least share needs less than 3, asks no
-more under 9. The pilot curates BKO
+1/s records asked per row kept, so `1.5 / s` leaves half again for top-ups. For an arm that does
+not curate, the budget only caps an attempt's asks before it refuses; for `cllm` it caps each
+cell's asks before the cell is given up. Either way it is a cap, not a target, so the UCI arm,
+whose least share needs less than 3, asks no more under 9. The pilot curates BKO
 records because no shown-record run exists before B3; B3's own `dropped-curation` counts measure
 the arm.
 
@@ -240,7 +243,14 @@ an agreement that grants no permission to send them.
 - A model shown records can copy them; the `training` lines count an arm's rows equal to a
   training row and the `copies` lines its rows equal to a test record, as for every arm.
 - The curator is fit on the same training rows the shown records come from.
-- The budget comes from a proxy pilot.
+- The budget comes from a proxy pilot, and B3's `cllm` on Synthea kept less than it
+  (`runs/b3-3/holdout-candidates.jsonl`; each share is the rows kept or dropped for the quota over
+  those plus the rows dropped by curation): 0.5370 overall against the pilot's 0.8856, and under
+  half in five fills and cells, replica `<65/female/1` 0.0707 (1437 of 20314), replica
+  `>=65/female/1` 0.0976 (366 of 3750), gap `>=65/female/1` 0.1276 (1348 of 10564), replica
+  `>=65/male/0` 0.1543 (2666 of 17276) and replica `<65/male/1` 0.2074 (4504 of 21718). The
+  budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22. `CLLM_BUDGET` is 9, the budget
+  B3 ran; the re-measure is `cleanup:evaluate/cllm-budget-remeasure`.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.
 - The curator's fits are not XGBoost's: histogram boosting bins each feature, and its leaf bound
   counts rows.
@@ -277,7 +287,7 @@ an agreement that grants no permission to send them.
 
 **The budget is re-measured if B3's `cllm` keeps under half of the rows that reach its curator in
 any fill and cell**, where `1.5 / s` passes 3; the candidates file's `dropped-curation` lines
-against its `kept` and `dropped-quota` lines show it.
+against its `kept` and `dropped-quota` lines show it. B3's Synthea run meets it (Consequences).
 
 **The thresholds follow CLLM's code if `notebooks/compute_downstream.ipynb` changes
 `curation_ythresh` or `curation_xthresh`** in a later commit of its repository.

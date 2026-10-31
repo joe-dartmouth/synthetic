@@ -18,8 +18,9 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 ## Why this unit exists
 
 UCI Heart Disease cannot separate the arms: its test splits are too small for the flagged
-subgroups to move an interval, its thin cells carry no signal the training rows lack, and it is
-memorized by the generator models ([`docs/RESEARCH.md`](../docs/RESEARCH.md#limits-of-uci-heart-disease-as-the-evaluation-frame)).
+subgroups to move an interval, its thin cells carry no signal the training rows lack, and Sonnet
+5.5 copied its test records word for word where Haiku 5.5 copied one
+([`docs/RESEARCH.md`](../docs/RESEARCH.md#limits-of-uci-heart-disease-as-the-evaluation-frame)).
 E3 shows the removal design on Synthea, whose patients are generated. This unit runs the same
 design on real patients with enough subgroup records to read a difference: UCI Diabetes
 130-US Hospitals, about a hundred thousand inpatient encounters with ICD-9 diagnoses and a
@@ -35,7 +36,10 @@ at once.
   (`bko.datasets.frames.FrameSpec`) with one encounter per patient, the readmission label, age,
   sex and race, the measured fields, and indicator columns for the diagnosis groups the ontology
   maps; and a mapping from those ICD-9 groups to MONDO and HPO concepts checked against the pinned
-  releases, as the UCI and Synthea field rows are (`python -m bko.ontology check`).
+  releases, as the UCI and Synthea field rows are (`python -m bko.ontology check`). The CLLM
+  arms send training records whole, so before any Messages arm runs the unit checks the archive's
+  terms against [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#generation) (What leaves the
+  machine).
 - **Power first.** Before any run, a power calculation fixes the holdout count, the test split's
   size and the subgroup removed: the smallest effect on the subgroup's recall that the design can
   read, from the subgroup's test positives per holdout and E1's corrected interval, stated in the

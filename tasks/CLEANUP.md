@@ -113,6 +113,44 @@ links to where its blocker is tracked.
   `docs/DEVELOPMENT.md` (Evaluation).
   **Trigger:** the first source held under an agreement.
 
+- **`cleanup:evaluate/cllm-budget-remeasure`: `CLLM_BUDGET` comes from a proxy pilot that B3's
+  run undercut.** ADR `research/cllm-arm-design` sets the budget from the least keep share of a
+  pilot over BKO records (Synthea's 0.1734, giving 9). B3's `cllm` on Synthea kept 0.5370 of the
+  rows reaching its curator against the pilot's 0.8856, and under half in five fills and cells,
+  the least replica `<65/female/1` at 0.0707 (1437 of 20314;
+  `runs/b3-3/holdout-candidates.jsonl`, the rows kept or dropped for the quota over those plus the
+  rows dropped by curation), so the ADR's reversal condition holds and its rule gives
+  `ceil(1.5 / 0.0707)` = 22. *Filed 2026-10-31 by the diff review of PR #63.*
+  **Why deferred.** B3 ran at 9; changing the constant now would make the merge carry a budget no
+  run used.
+  **What discharges it:** `CLLM_BUDGET` re-derived from shown-record keep shares (B3's
+  `dropped-curation` counts), the ADR's Budget and The pilot updated, and the B3 estimate test
+  moved with it.
+  **Trigger:** the next run of a curated arm.
+
+- **`cleanup:evaluate/replica-one-label-guard`: a partial replica fill can leave the replica one
+  label.** A curated arm's partial replica fill whose given-up cells leave rows of one label, or
+  no rows, reaches `bko.evaluate.run._replica_scores`, which fits the logistic regression on the
+  replica alone through `bko.evaluate.classifier.probabilities`; scikit-learn's fit then raises a
+  plain `ValueError` mid-holdout, which the harness does not retry. It is latent on `b3-3`, whose
+  replica kept rows of the positive class on every holdout. *Filed 2026-10-31 by the diff review
+  of PR #63.*
+  **Why deferred.** No run of record reaches it, and the fix touches the scoring path `b3-3` ran.
+  **What discharges it:** a replica with fewer than two labels is scored as undefined or refused
+  with an `EvaluationError` before the fit, with a test, documented in `docs/DEVELOPMENT.md`
+  (Evaluation).
+  **Trigger:** the next curated run on a frame with fewer positive cells (Diabetes 130).
+
+- **`cleanup:evaluate/curated-one-record-calls`: the per-cell cap bounds records, not calls.** A
+  curated arm's cell budget caps the records a cell asks, but a cell short by one asks one record
+  per call, each paying the full prompt and shown records: 7745 of `b3-3`'s 28438 calls asked for
+  one record (the `asked` field of `runs/b3-3/calls.jsonl`'s `request` lines). *Filed 2026-10-31
+  by the diff review of PR #63.*
+  **Why deferred.** The cap ends the runaway `b3-2` showed, and `b3-3` finished under its ceiling.
+  **What discharges it:** a minimum ask per call, or a per-attempt cap on calls or USD, with a
+  test, documented in ADR `research/cllm-arm-design` (Partial fill).
+  **Trigger:** the next curated run.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
