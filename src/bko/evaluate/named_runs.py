@@ -71,6 +71,13 @@ the runs that vary only the settings, every guidance-level run (`docs/EVIDENCE.m
 effort-sweep run (G4)."""
 
 
+E4_TARGETS: Final[Mapping[str, int]] = MappingProxyType(
+    {"e4-thirty": 30, "e4-forty": 40, "e4-eighty": 80}
+)
+"""Each dose run's fill target: `SETTINGS_SWEEP` filling every flagged cell past E1's threshold of
+20, the threshold unchanged so the same cells are flagged; `docs/EVIDENCE.md` (E4) names them."""
+
+
 E3: Final = replace(
     E1,
     arms=(*METHOD_ARMS, *BKO_ARMS, REAL_ARM),
@@ -216,6 +223,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             SETTINGS,
             Dataset.SYNTHEA,
         ),
+        **{
+            name: NamedRun(replace(SETTINGS_SWEEP, fill_to=target))
+            for name, target in E4_TARGETS.items()
+        },
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
         "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),

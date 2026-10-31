@@ -38,6 +38,7 @@ from bko.evaluate.experiment import (
 from bko.evaluate.named_runs import (
     E3,
     E3_SLICE_CEILING,
+    E4_TARGETS,
     G2,
     G5,
     G6_MODELS,
@@ -126,6 +127,9 @@ def test_every_run_name_is_pinned():
         "e3",
         "e3-a",
         "e3-b",
+        "e4-eighty",
+        "e4-forty",
+        "e4-thirty",
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -463,6 +467,23 @@ def test_the_cllm_arms_show_records_read_no_gap_and_differ_in_curation_alone():
     assert (cllm.definition, cllm.shows, cllm.curation) == (None, True, Curation.CLASSIFIER)
     assert dataclasses.replace(cllm, curation=None) == raw
     assert not cllm.prescribes
+
+
+def test_e4_runs_differ_from_e1_in_arms_target_ceiling_and_criteria_alone():
+    assert dict(E4_TARGETS) == {"e4-thirty": 30, "e4-forty": 40, "e4-eighty": 80}
+    for name, target in E4_TARGETS.items():
+        named = RUNS[name]
+        assert named.settings == SETTINGS
+        assert named.dataset is Dataset.UCI
+        assert named.experiment == dataclasses.replace(
+            E1,
+            arms=(*METHOD_ARMS, "bko"),
+            replica_arms=(*ADDS_ROWS, "bko"),
+            fill_to=target,
+            spend_ceiling=10.0,
+            criteria=(),
+        )
+        assert named.experiment.threshold == E1.threshold
 
 
 def test_b3_runs_hold_bko_and_both_cllm_arms():
