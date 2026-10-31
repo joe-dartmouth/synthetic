@@ -174,19 +174,24 @@ class Tied:
         return 0.0
 
 
+def bounds(caplog, side: str) -> list[float]:
+    """Each `likelihood measure=` line's `low=` or `high=` value."""
+    return [
+        float(found.group(1))
+        for m in caplog.messages
+        if m.startswith("likelihood measure=") and (found := re.search(rf" {side}=(\S+)", m))
+    ]
+
+
 def test_a_score_that_ranks_real_records_first_separates(caplog, monkeypatch):
     monkeypatch.setattr(likelihood_module, "Likelihood", Ranked)
     many = dataclasses.replace(SMALL, holdout_seeds=tuple(range(6)))
     caplog.set_level(logging.INFO, logger="bko.evaluate.likelihood")
     data = candidates(seeds=many.holdout_seeds, bad=True)
     assert likelihood(many, DATA, read(data), io.StringIO())
-    means = [
-        float(re.search(r" mean=(\S+) low=(\S+)", m).group(2))
-        for m in caplog.messages
-        if m.startswith("likelihood measure=")
-    ]
-    assert len(means) == 3
-    assert all(low > 0 for low in means)
+    lows = bounds(caplog, "low")
+    assert len(lows) == 3
+    assert all(low > 0 for low in lows)
     assert "gate separated=True" in caplog.messages
 
 
@@ -201,11 +206,8 @@ def test_reversed_ranks_do_not_separate(caplog, monkeypatch):
     assert not likelihood(
         many, DATA, read(candidates(seeds=many.holdout_seeds, bad=True)), io.StringIO()
     )
-    highs = [
-        float(re.search(r" high=(\S+)", m).group(1))
-        for m in caplog.messages
-        if m.startswith("likelihood measure=")
-    ]
+    highs = bounds(caplog, "high")
+    assert len(highs) == 3
     assert all(high < 0 for high in highs)
 
 
