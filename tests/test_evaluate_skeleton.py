@@ -33,9 +33,10 @@ from bko.evaluate.skeleton import Queues, prescriber
 from bko.evaluate.validity import validity
 from bko.evaluate.waves import committer, spendable
 from bko.gaps.definitions import Definition
+from bko.gaps.shares import label_only
 from bko.generate.calls import Batch
 from bko.generate.decode import Reason, Undecoded
-from bko.generate.direct import label_only, sample
+from bko.generate.direct import sample
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.log import CallLog

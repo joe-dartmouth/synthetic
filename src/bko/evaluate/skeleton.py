@@ -23,7 +23,8 @@ from bko.baselines.request import Request
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.fills import CURRENT_FILL
 from bko.gaps.observe import Cell
-from bko.generate.direct import label_only, sample
+from bko.gaps.shares import label_only
+from bko.generate.direct import sample
 from bko.generate.errors import SamplingError
 
 

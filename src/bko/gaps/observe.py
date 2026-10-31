@@ -251,7 +251,7 @@ def _record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: st
     ]
     shows = [shown(record, mappings) for record in records]
     columns = {
-        concept: [concept in one for one in shows] for concept in sorted(_by_concept(mappings))
+        concept: [concept in one for one in shows] for concept in sorted(by_concept(mappings))
     }
     return pd.DataFrame(columns, index=pd.RangeIndex(len(records)), dtype=bool)
 
@@ -292,7 +292,8 @@ def _grid(people: pd.DataFrame, edges: Sequence[int]) -> tuple[tuple[str, str, i
     )
 
 
-def _by_concept(rows: Iterable[FieldMapping]) -> dict[str, list[FieldMapping]]:
+def by_concept(rows: Iterable[FieldMapping]) -> dict[str, list[FieldMapping]]:
+    """`rows` grouped by concept, in first-seen order."""
     by_concept: dict[str, list[FieldMapping]] = {}
     for row in rows:
         by_concept.setdefault(row.concept, []).append(row)
@@ -303,7 +304,7 @@ def _only_other_labels(rows: Sequence[FieldMapping], label: int) -> frozenset[st
     """The concepts every row naming which reads the label and admits no record of `label`."""
     return frozenset(
         concept
-        for concept, mapped in _by_concept(rows).items()
+        for concept, mapped in by_concept(rows).items()
         if all(
             any(clause.field == LABEL and not clause.holds(label) for clause in row.when)
             for row in mapped

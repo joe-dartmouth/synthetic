@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from bko.datasets.frames import FrameSpec
-from bko.generate.direct import label_only
+from bko.gaps.shares import label_only
 from bko.ontology.schema import FieldMapping, shown
 
 
