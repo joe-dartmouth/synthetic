@@ -39,6 +39,7 @@ from bko.evaluate.named_runs import (
     E3,
     E3_SLICE_CEILING,
     E4_TARGETS,
+    E5_FRACTIONS,
     G2,
     G5,
     G6_MODELS,
@@ -131,6 +132,9 @@ def test_every_run_name_is_pinned():
         "e4-eighty",
         "e4-forty",
         "e4-thirty",
+        "e5-half",
+        "e5-quarter",
+        "e5-threequarters",
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -485,6 +489,26 @@ def test_e4_runs_differ_from_e1_in_arms_target_ceiling_and_criteria_alone():
             criteria=(),
         )
         assert named.experiment.threshold == E1.threshold
+
+
+def test_e5_runs_differ_from_e1_in_arms_fraction_ceiling_and_criteria_alone():
+    assert dict(E5_FRACTIONS) == {
+        "e5-quarter": Fraction(1, 4),
+        "e5-half": Fraction(1, 2),
+        "e5-threequarters": Fraction(3, 4),
+    }
+    for name, fraction in E5_FRACTIONS.items():
+        named = RUNS[name]
+        assert named.settings == SETTINGS
+        assert named.dataset is Dataset.UCI
+        assert named.experiment == dataclasses.replace(
+            E1,
+            arms=(*METHOD_ARMS, "bko"),
+            replica_arms=(*ADDS_ROWS, "bko"),
+            training_fraction=fraction,
+            spend_ceiling=10.0,
+            criteria=(),
+        )
 
 
 def test_b3_runs_hold_bko_and_both_cllm_arms():
