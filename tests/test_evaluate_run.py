@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 import bko.evaluate.run as run_module
-from bko.baselines.errors import BaselineError, OutputContractError
+from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
@@ -170,6 +170,44 @@ def test_a_refusing_arm_stops_the_run_after_every_attempt():
     with pytest.raises(BaselineError, match="refused"):
         run(GRADED, SMALL, {**FAST_ARMS, "smote": refuse}, frame=UCI_FRAME)
     assert len(calls) == SMALL.attempts
+
+
+def test_a_generator_short_at_its_limit_on_the_last_attempt_fills_partially(caplog):
+    calls = []
+
+    def short(train, request):
+        calls.append(request.seed)
+        full = FAST_ARMS["smote"](train, request)
+        cell, *_ = request.quota
+        key = "/".join(map(str, cell))
+        keep = [s != cell for s in cell_list(full.added)]
+        missing = {key: request.quota[cell]}
+        kept = Baseline(number(full.added.loc[keep]), full.weights, {"short": missing})
+        msg = f"short of {key}"
+        raise ShortfallError(msg, missing, kept.added, kept)
+
+    experiment = dataclasses.replace(
+        SMALL, arms=("smote",), candidate="smote", comparators=(), replica_arms=()
+    )
+    with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
+        scores = run(GRADED, experiment, {"smote": short}, frame=UCI_FRAME)
+    assert len(calls) == SMALL.attempts * len(SMALL.holdout_seeds)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert [m.split()[1] for m in lines] == [f"holdout={seed}" for seed in SMALL.holdout_seeds]
+    assert all(" arm=smote cell=" in m for m in lines)
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert arms
+    assert all(f" attempt={SMALL.attempts} " in m and "short" in m for m in arms)
+
+
+def test_a_shortfall_with_no_rows_built_still_refuses():
+    def short(train, request):
+        msg = "short"
+        raise ShortfallError(msg, {"x": 1}, number(train.iloc[:0]))
+
+    with pytest.raises(ShortfallError, match="short"):
+        run(GRADED, SMALL, {**FAST_ARMS, "smote": short}, frame=UCI_FRAME)
 
 
 def test_a_refusal_is_retried_with_a_derived_seed():

@@ -26,8 +26,8 @@ import torch
 from sdv.metadata import Metadata
 from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 
-from bko.baselines.errors import BaselineError
-from bko.baselines.records import Baseline, number, unit_weights, whole
+from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.records import Baseline, no_rows, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
@@ -132,8 +132,9 @@ def fill(
     Each stratum keeps its first matching rows in draw order; the strata follow the quota's order.
 
     Raises:
-        BaselineError: If the request exceeds `limit`, or `limit` rows are asked for before
-            every quota is met.
+        BaselineError: If the request exceeds `limit`.
+        ShortfallError: If `limit` rows are asked for before every quota is met, holding the
+            rows kept and no baseline: the caller builds it.
     """
     if request.rows > limit:
         msg = f"{method} cannot add {request.rows} rows; it draws at most {limit}"
@@ -143,11 +144,10 @@ def fill(
     drawn = 0
     while any(needed.values()):
         if drawn >= limit:
-            short = ", ".join(
-                f"{'/'.join(map(str, stratum))}={n}" for stratum, n in needed.items() if n
-            )
-            msg = f"{method} asked for {drawn} rows and still lacks {short}"
-            raise BaselineError(msg)
+            short = {"/".join(map(str, stratum)): n for stratum, n in needed.items() if n}
+            lacks = ", ".join(f"{key}={n}" for key, n in short.items())
+            msg = f"{method} asked for {drawn} rows and still lacks {lacks}"
+            raise ShortfallError(msg, short, _joined(kept, request))
         rows = whole(draw(batch), request.frame)
         drawn += batch
         keys = stratum_keys(rows, request.strata, edges=request.frame.edges)
@@ -157,7 +157,13 @@ def fill(
                 kept[stratum].append(hits)
                 needed[stratum] = need - len(hits)
     logger.info("filled method=%s drawn=%d added=%d", method, drawn, request.rows)
-    return number(pd.concat([frame for frames in kept.values() for frame in frames]))
+    return _joined(kept, request)
+
+
+def _joined(kept: Mapping[Stratum, list[pd.DataFrame]], request: Request) -> pd.DataFrame:
+    """The kept rows in quota order, numbered; the frame's empty table when none was kept."""
+    frames = [frame for frames in kept.values() for frame in frames]
+    return number(pd.concat(frames)) if frames else no_rows(request.frame)
 
 
 def _synthesize(
@@ -173,6 +179,10 @@ def _synthesize(
         start = time.perf_counter()
         synthesizer.fit(train.loc[:, list(request.frame.columns)])
         logger.info("fit method=%s seconds=%.1f", method, time.perf_counter() - start)
-        added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)
-    params = {**synthesizer.get_parameters(), "torch_threads": TORCH_THREADS}
+        params = {**synthesizer.get_parameters(), "torch_threads": TORCH_THREADS}
+        try:
+            added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)
+        except ShortfallError as exc:
+            kept = Baseline(exc.added, unit_weights(train), {**params, "short": dict(exc.short)})
+            raise ShortfallError(str(exc), exc.short, exc.added, kept) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)

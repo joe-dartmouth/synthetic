@@ -325,8 +325,12 @@ request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling d
 and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
 a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
 third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
-the same; dropping the holdout would select splits on how one generator behaved. The run still stops
-when every attempt is refused.
+the same; dropping the holdout would select splits on how one generator behaved. A generator still
+short at its row limit on the last attempt fills partially: it keeps the rows it drew, each short
+cell gets a `shortfall` line and its `arm` line's params name the shortfall, and the holdout stays
+paired at fewer rows for that arm alone. E4's fill targets of 40 and 80 ask TVAE for more rows of a
+2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
+not one holdout. Any other refusal on every attempt still stops the run.
 
 Paid generation has copied archive records in every column: in the completeness run of 2026-10-19, 5
 of 20 records of one cell, 3 of them test records of that run's split. A copied test record would be

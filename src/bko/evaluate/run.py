@@ -28,9 +28,16 @@ from typing import Final
 
 import pandas as pd
 
-from bko.baselines.errors import BaselineError, OutputContractError
+from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
 from bko.baselines.methods import METHODS, Runner, augment
-from bko.baselines.records import Baseline, derived_seed, number, training_set, unit_weights
+from bko.baselines.records import (
+    Baseline,
+    check,
+    derived_seed,
+    number,
+    training_set,
+    unit_weights,
+)
 from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
@@ -289,6 +296,9 @@ def _fill(
 ) -> Baseline:
     """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
 
+    A generator still short at its row limit on the last attempt returns the rows it kept, a
+    partial fill (`_partial`), rather than refusing.
+
     The runner gets a copy of `train` on every attempt, so one that changes its input changes
     nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
 
@@ -307,6 +317,10 @@ def _fill(
             )
             raise
         except BaselineError as exc:
+            if attempt == attempts and isinstance(exc, ShortfallError) and exc.baseline:
+                return _partial(
+                    exc.baseline, exc.short, train, request, fill=(holdout, name, attempt)
+                )
             if attempt == attempts:
                 logger.error(  # ruff: ignore[error-instead-of-exception]
                     "refused holdout=%d arm=%s attempts=%d", holdout, name, attempts
@@ -321,6 +335,35 @@ def _fill(
         return baseline
     msg = f"attempts {attempts}: an arm needs at least one attempt"
     raise EvaluationError(msg)
+
+
+def _partial(
+    baseline: Baseline,
+    short: Mapping[str, int],
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    fill: tuple[int, str, int],
+) -> Baseline:
+    """`baseline`, the rows a generator kept `short` of `request`, checked against what it filled.
+
+    `fill` is the holdout, the arm's name and the attempt. Logs one `shortfall` line per short
+    cell, then the `arm` line, whose params name the shortfall under `short`.
+
+    Raises:
+        OutputContractError: If the kept rows break the contract for the cells they fill.
+    """
+    holdout, name, attempt = fill
+    filled = {
+        cell: rows - short.get("/".join(map(str, cell)), 0) for cell, rows in request.quota.items()
+    }
+    check(
+        baseline, train, dataclasses.replace(request, quota={c: n for c, n in filled.items() if n})
+    )
+    for cell, rows in short.items():
+        logger.warning("shortfall holdout=%d arm=%s cell=%s short=%d", holdout, name, cell, rows)
+    _log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)
+    return baseline
 
 
 def _call(runner: Runner, train: pd.DataFrame, request: Request, fill: Fill) -> Baseline:
