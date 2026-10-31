@@ -156,8 +156,13 @@ class GuidedArm:
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """Fill `request` from the API, guided by `train`'s gaps under the arm's definition.
 
+        A curating arm may return fewer rows than the quota: it gives up a cell its own budget
+        cannot cover, logs the attempt as `partial` and records each such cell's missing rows
+        under `short` in the params.
+
         Raises:
-            BaselineError: Plain, when the rest of the budget cannot cover the rows still short.
+            BaselineError: Plain, for an arm that does not curate, when the rest of the budget
+                cannot cover the rows still short.
             EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
                 reached the ceiling, or if a call got no reply within the idle limit.
             GenerationError: As `bko.generate.flight.Flight.wave`: a call with no response.
@@ -189,7 +194,7 @@ class GuidedArm:
             self._pending.add(attempt.tally)
             self.totals.add(attempt.tally)
             self.spent += self._log.usd - before
-            returned = outcome == "returned"
+            returned = outcome in {"returned", "partial"}
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
             last = self._log.calls
             requeued = "" if self._prescribe is None else f" requeued={lines_requeued(queues)}"
@@ -208,7 +213,7 @@ class GuidedArm:
     def _baseline(
         self, attempt: Attempt, train: pd.DataFrame, first: int, short: Mapping[Cell, int]
     ) -> Baseline:
-        """The attempt's rows as a `Baseline`, checked against the rows each cell kept if short."""
+        """The attempt's rows as a `Baseline`, checked against its quota less `short`."""
         params: dict[str, object] = {
             "definition": None if self._definition is None else self._definition.value,
             "budget": self._budget,
@@ -222,8 +227,11 @@ class GuidedArm:
             params["short"] = {cell_key(cell): rows for cell, rows in short.items()}
         request = attempt.request
         baseline = Baseline(attempt.rows(), unit_weights(train), params)
-        held = attempt.held()
-        filled = {cell: held[cell] for cell in request.quota if held.get(cell, 0)}
+        filled = {
+            cell: rows - short.get(cell, 0)
+            for cell, rows in request.quota.items()
+            if rows > short.get(cell, 0)
+        }
         check(baseline, train, dataclasses.replace(request, quota=filled) if short else request)
         return baseline
 
@@ -299,10 +307,13 @@ class GuidedArm:
         given_up: dict[Cell, int] = {}
         while short := {c: n for c, n in attempt.short().items() if c not in given_up}:
             if self._curation is not None:
+                if self._budget * attempt.request.rows != attempt.limit:
+                    msg = f"{self.name}'s cell budgets do not sum to its limit {attempt.limit}"
+                    raise EvaluationError(msg)
                 given_up |= give_up(attempt, short, name=self.name, budget=self._budget)
                 short = {c: n for c, n in short.items() if c not in given_up}
                 if not short:
-                    return given_up
+                    break
             elif attempt.asked + sum(short.values()) > attempt.limit:
                 msg = (
                     f"{self.name} cannot fill {len(short)} cells inside its budget of "
@@ -345,7 +356,8 @@ class GuidedArm:
                         attempt.tally.dropped[Drop.CONCEPTS] - concepts,
                         queues.requeued - requeued,
                     )
-        return given_up
+        # A row kept in a given-up cell from another cell's call shrinks its shortfall.
+        return {cell: rows for cell, rows in attempt.short().items() if cell in given_up}
 
     def _planned(
         self,

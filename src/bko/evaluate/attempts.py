@@ -238,7 +238,10 @@ class Attempt:
         return frozenset(line for line in assessed.lines if line is not None)
 
     def rows(self) -> pd.DataFrame:
-        """The kept rows, cell by cell in the quota's order, in generation order within one."""
+        """The kept rows, cell by cell in the quota's order, in generation order within one.
+
+        An added frame with no rows when none was kept.
+        """
         frames = [frame for cell in self.request.quota for frame in self.kept[cell]]
         return number(pd.concat(frames)) if frames else no_rows(self.request.frame)
 

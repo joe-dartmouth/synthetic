@@ -125,11 +125,12 @@ def give_up(
         if asked + rows > limit:
             found[cell] = rows
             logger.info(
-                "shortfall arm=%s seed=%d cell=%s short=%d asked=%d limit=%d",
+                "shortfall arm=%s seed=%d cell=%s short=%d quota=%d asked=%d limit=%d",
                 name,
                 attempt.request.seed,
                 cell_key(cell),
                 rows,
+                attempt.request.quota[cell],
                 asked,
                 limit,
             )

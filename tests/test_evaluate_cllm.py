@@ -266,10 +266,12 @@ def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_pat
     send.assert_consumed()
     assert baseline.added["thalach"].tolist() == [100]
     assert baseline.params["short"] == {"<55/female/1": QUOTA - 1}
-    assert any(
-        m.startswith("shortfall arm=cllm seed=0 cell=<55/female/1 short=2 ")
-        for m in caplog.messages
+    budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
+    cap = QUOTA * budget
+    expected = (
+        f"shortfall arm=cllm seed=0 cell=<55/female/1 short=2 quota={QUOTA} asked={cap} limit={cap}"
     )
+    assert expected in caplog.messages
     assert any(" outcome=partial " in m for m in caplog.messages if m.startswith("guided arm=cllm"))
 
 
@@ -333,7 +335,90 @@ def test_a_cell_the_curator_rejects_is_given_up_at_its_own_budget(tmp_path, capl
     assert sick_asked == budget * 2
     assert baseline.params["short"] == {"<55/female/1": 2}
     assert len(baseline.added) == 2
-    assert any(
-        m.startswith("shortfall arm=cllm seed=0 cell=<55/female/1 short=2 asked=18 limit=18")
-        for m in caplog.messages
+    cap = budget * 2
+    expected = (
+        f"shortfall arm=cllm seed=0 cell=<55/female/1 short=2 quota=2 asked={cap} limit={cap}"
     )
+    assert expected in caplog.messages
+
+
+def asked_of(call) -> int:
+    """The records a call's user turn asks for."""
+    return int(call.user.split("Write exactly ", 1)[1].split(" ", 1)[0])
+
+
+def sick_woman(age: int, thalach: int) -> dict[str, int | float]:
+    """A sick woman of `age` from `records()`'s template; thalach 190 the curator drops, 100 not."""
+    record = records()[0]
+    assert isinstance(record, dict)
+    return {**record, "age": age, "thalach": thalach}
+
+
+class ByCell(ScriptedSend):
+    """Answers each call from a per-age-band script: a list of replies, the last one repeated."""
+
+    def __init__(self, script: dict[str, list[list[object]]]) -> None:
+        super().__init__()
+        self._bands = script
+        self._at: dict[str, int] = {}
+
+    def __call__(self, call):
+        self.calls.append(call)
+        band = "<55" if "age 44 to 54" in call.user or "age 0 to 54" in call.user else ">=55"
+        replies = self._bands[band]
+        at = self._at.get(band, 0)
+        self._at[band] = at + 1
+        template = replies[min(at, len(replies) - 1)]
+        return reply([template[i % len(template)] for i in range(asked_of(call))])
+
+
+def test_a_partial_attempts_candidates_are_marked_returned(tmp_path):
+    send = shortfall_send([*records()[:1], *wrong_records(2)], QUOTA - 1)
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    with log:
+        built(train(), Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0))
+    assert built._seen
+    assert all(returned for _, returned, _ in built._seen)
+
+
+def test_a_cell_is_given_up_once_the_next_ask_passes_its_limit_by_one(tmp_path, caplog):
+    """Quota 4 keeping 1 leaves asks of 3 from 4 records asked: 34 asked, and 37 passes 36."""
+    budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
+    quota = 4
+    limit = budget * quota
+    rounds = (limit - quota) // (quota - 1)
+    first = [*records()[:1], *wrong_records(quota - 1)]
+    send = ScriptedSend(reply(first), *[reply(wrong_records(quota - 1))] * rounds)
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    with log:
+        built(train(), Request(quota={YOUNG_SICK: quota}, strata=Strata.CELL, seed=0))
+    send.assert_consumed()
+    asked = quota + rounds * (quota - 1)
+    assert asked + quota - 1 == limit + 1
+    expected = (
+        f"shortfall arm=cllm seed=0 cell=<55/female/1 short={quota - 1} quota={quota} "
+        f"asked={asked} limit={limit}"
+    )
+    assert expected in caplog.messages
+
+
+def test_two_cells_given_up_in_different_rounds_are_each_logged_once(tmp_path, caplog):
+    old_sick = (">=55", "female", 1)
+    send = ByCell(
+        {
+            "<55": [[sick_woman(44, 190)]],
+            ">=55": [
+                [sick_woman(63, 100), sick_woman(63, 190), sick_woman(63, 190)],
+                [sick_woman(63, 190)],
+            ],
+        }
+    )
+    built, log = arm(tmp_path, CLLM_ARM, send)
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    request = Request(quota={YOUNG_SICK: 2, old_sick: 3}, strata=Strata.CELL, seed=0)
+    with log:
+        baseline = built(train(), request)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert [m.split()[3] for m in lines] == ["cell=<55/female/1", "cell=>=55/female/1"]
+    assert baseline.params["short"] == {"<55/female/1": 2, ">=55/female/1": 2}
