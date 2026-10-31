@@ -54,7 +54,8 @@ def gaussian_copula(train: pd.DataFrame, request: Request) -> Baseline:
     The request's seed reaches nothing: SDV fixes the copula's sampling seed itself.
 
     Raises:
-        BaselineError: As `fill`, if the copula's draws cannot meet the quota.
+        BaselineError: As `fill`, if the copula's draws cannot meet the quota; its shortfall holds
+            no baseline, so the harness refuses it rather than filling partially.
     """
     frame = request.frame
     tables = Metadata.load_from_dict(dict(metadata(frame)))
@@ -73,7 +74,8 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
     global generator is read or moved.
 
     Raises:
-        BaselineError: As `fill`, if the draws cannot meet the quota.
+        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
+            baseline, so the harness refuses it rather than filling partially.
     """
     frame = request.frame
     columns = list(frame.columns)
