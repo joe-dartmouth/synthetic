@@ -34,6 +34,7 @@ from types import MappingProxyType, TracebackType
 from typing import Final, NoReturn, Self, TextIO
 
 from bko.baselines.records import Drop
+from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.sources import Source as Download
 from bko.evaluate.data import Data
 from bko.evaluate.errors import CandidatesFormatError
@@ -58,7 +59,15 @@ REJECTED: Final = "rejected"
 OUTCOMES: Final = (KEPT, REJECTED, *(f"dropped-{drop}" for drop in Drop))
 """Every outcome a line names."""
 
-_HEADER: Final = frozenset({"kind", "schema", "run", "frame", "data", "releases"})
+_HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
+    {
+        1: frozenset({"kind", "schema", "run", "uci", "releases"}),
+        SCHEMA: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
+    }
+)
+"""Each readable schema's header keys besides `settings`: schema 1, the judged run's, names UCI's
+archive digest under `uci`; schema 2 names the frame and the records' digest."""
+
 _SETTINGS: Final = "settings"
 
 _LINE: Final = frozenset(
@@ -295,19 +304,24 @@ def read(data: bytes) -> HoldoutCandidates:
         msg = "a candidates file starts with its header line; this one is empty"
         raise CandidatesFormatError(msg)
     first, *rest = lines
-    header_msg = (
-        f"a candidates file's first line is its header, with the keys {sorted(_HEADER)} "
-        f"and, for a run with a Messages arm, {_SETTINGS!r}"
-    )
     if not isinstance(first, dict) or first.get("kind") != "header":
-        raise CandidatesFormatError(header_msg)
+        msg = "a candidates file's first line is its header"
+        raise CandidatesFormatError(msg)
     # The schema first, so an older file says its schema rather than its keys.
     schema = first.get("schema")
-    if isinstance(schema, bool) or schema != SCHEMA:
-        msg = f"the candidates file's schema is {schema!r}, not {SCHEMA}"
+    if isinstance(schema, bool) or schema not in _HEADERS:
+        msg = f"the candidates file's schema is {schema!r}, not one of {sorted(_HEADERS)}"
         raise CandidatesFormatError(msg)
-    if set(first) - {_SETTINGS} != _HEADER:
-        raise CandidatesFormatError(header_msg)
+    keys = _HEADERS[schema]
+    if set(first) - {_SETTINGS} != keys:
+        msg = (
+            f"a schema-{schema} candidates file's header has the keys {sorted(keys)} "
+            f"and, for a run with a Messages arm, {_SETTINGS!r}"
+        )
+        raise CandidatesFormatError(msg)
+    if schema == 1 and first["uci"] != UCI_HEART_DISEASE.sha256:
+        msg = f"the schema-1 header's uci digest is not the pinned archive's: {first['uci']!r}"
+        raise CandidatesFormatError(msg)
     return HoldoutCandidates(
         MappingProxyType(first),
         tuple(starmap(_candidate, enumerate(rest, start=2))),

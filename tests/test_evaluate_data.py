@@ -220,8 +220,10 @@ def test_the_candidates_header_names_frame_and_data_and_is_schema_2(tmp_path):
     assert "settings" not in read(direct.read_bytes()).header
     older = {key: value for key, value in header.items() if key not in {"frame", "data"}}
     schema_1 = {**older, "schema": 1, "uci": "ab" * 32}
-    with pytest.raises(CandidatesFormatError, match="schema is 1, not 2"):
+    with pytest.raises(CandidatesFormatError, match="uci digest"):
         read((json.dumps(schema_1) + "\n").encode())
+    with pytest.raises(CandidatesFormatError, match=r"schema is 3, not one of \[1, 2\]"):
+        read((json.dumps({**header, "schema": 3}) + "\n").encode())
     with pytest.raises(CandidatesFormatError, match="header"):
         read((json.dumps({**older, "uci": "ab" * 32}) + "\n").encode())
     for missing in ("frame", "data"):
