@@ -143,8 +143,9 @@ def _holdout(
     """Score one holdout's records, split each cell at its median, and add the paired contrasts."""
     frame = data.frame
     parts = split(data.records, seed=seed, edges=frame.edges)
-    tally.ratios.append(held_out_ratio(parts, edges=frame.edges))
-    ablated, _ = prepared(parts, experiment.removal, edges=frame.edges)
+    ready = prepared(parts, experiment, edges=frame.edges)
+    tally.ratios.append(held_out_ratio(ready.sized, edges=frame.edges))
+    ablated = ready.ablated
     train = ablated.train
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",

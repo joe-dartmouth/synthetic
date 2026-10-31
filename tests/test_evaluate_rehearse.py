@@ -22,6 +22,7 @@ from bko.datasets.uci import FRAME_COLUMNS, NUMERIC, UCI_FRAME
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import E1
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.rehearse import (
@@ -74,7 +75,7 @@ def test_the_prompt_regex_reads_the_bounded_first_sentence():
 
 
 def test_the_safe_ranges_lie_inside_every_holdouts_training_range():
-    ranges = safe_ranges(GRADED, SMALL.holdout_seeds, frame=UCI_FRAME)
+    ranges = safe_ranges(GRADED, SMALL, frame=UCI_FRAME)
     assert set(ranges) == set(NUMERIC)
     for seed in SMALL.holdout_seeds:
         train = split(GRADED, seed=seed, edges=UCI_FRAME.edges).train
@@ -240,7 +241,9 @@ def test_the_safe_range_is_the_highest_minimum_to_the_lowest_maximum():
     maxes = [split(GRADED, seed=seed, edges=UCI_FRAME.edges).train["chol"].max() for seed in (2, 3)]
     assert len(set(mins)) == 2
     assert len(set(maxes)) == 2
-    assert safe_ranges(GRADED, (2, 3), frame=UCI_FRAME)["chol"] == (max(mins), min(maxes))
+    assert safe_ranges(GRADED, dataclasses.replace(SMALL, holdout_seeds=(2, 3)), frame=UCI_FRAME)[
+        "chol"
+    ] == (max(mins), min(maxes))
 
 
 def _one(send: CannedSend) -> dict:
@@ -267,9 +270,7 @@ def _with(record: dict) -> pd.DataFrame:
 def test_a_canned_record_equal_to_a_real_one_is_skipped(monkeypatch):
     first = _one(CannedSend(GRADED_DATA, SMALL, SETTINGS))
     frame = _with(first)
-    assert safe_ranges(frame, SMALL.holdout_seeds, frame=UCI_FRAME) == safe_ranges(
-        GRADED, SMALL.holdout_seeds, frame=UCI_FRAME
-    )
+    assert safe_ranges(frame, SMALL, frame=UCI_FRAME) == safe_ranges(GRADED, SMALL, frame=UCI_FRAME)
     send = CannedSend(uci_data(frame), SMALL, SETTINGS)
     assert _one(send) != first
     assert send.records == 2
@@ -290,7 +291,7 @@ def test_every_candidate_of_a_rehearsal_is_kept(tmp_path):
 def test_rehearsal_safe_ranges_use_the_frames_edges():
     records = toy_records()
     seeds = (0, 1)
-    found = safe_ranges(records, seeds, frame=TOY)
+    found = safe_ranges(records, dataclasses.replace(E1, holdout_seeds=seeds), frame=TOY)
     trains = [split(records, seed=seed, edges=TOY.edges).train for seed in seeds]
     assert set(found) == set(TOY.numeric)
     for name in TOY.numeric:

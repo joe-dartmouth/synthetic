@@ -109,6 +109,7 @@ def test_e1_is_its_stated_configuration():
         "idle_limit": 900.0,
         "removal": None,
         "decontaminate": True,
+        "training_fraction": Fraction(1),
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1

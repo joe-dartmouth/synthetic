@@ -132,10 +132,10 @@ def score_holdout(
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
-    The holdout's training rows are `parts`' after the experiment's removal (`prepared`); the
-    held-out ratio reads `parts` itself. `REAL_ARM` adds the removed rows, with no runner. The
-    held-out rows end with the flagged cells' `fingerprint`, then, for an experiment that keeps
-    copies, `Measure.COPIES_KEPT`.
+    The holdout's training rows are `parts`' sized by the experiment's training fraction, then
+    thinned by its removal (`prepared`); the held-out ratio reads the sized split. `REAL_ARM`
+    adds the removed rows, with no runner. The held-out rows end with the flagged cells'
+    `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -143,7 +143,8 @@ def score_holdout(
         DatasetError: As `prepared`, if the removal's cell holds no training row.
     """
     _require_regression(models)
-    ablated, removed = prepared(parts, experiment.removal, edges=frame.edges)
+    ready = prepared(parts, experiment, edges=frame.edges)
+    ablated = ready.ablated
     train, test, seed = ablated.train, ablated.test, ablated.seed
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
@@ -157,7 +158,7 @@ def score_holdout(
     cells = flagged(train, experiment, edges=frame.edges)
     logger.info("flagged holdout=%d cells=%s", seed, ",".join("/".join(map(str, c)) for c in cells))
     fills = {
-        name: _real(removed, train, holdout=seed, seed=gap.seed, frame=frame)
+        name: _real(ready.removed, train, holdout=seed, seed=gap.seed, frame=frame)
         if name == REAL_ARM
         else _fill(
             arms[name],
@@ -204,7 +205,7 @@ def score_holdout(
         HELD_OUT_ARM,
         Source.HELD_OUT,
         {
-            Measure.HELD_OUT_RATIO: held_out_ratio(parts, edges=frame.edges),
+            Measure.HELD_OUT_RATIO: held_out_ratio(ready.sized, edges=frame.edges),
             **distances(test, train, frame=frame),
             Measure.FLAGGED_FINGERPRINT: fingerprint(cells),
             **({} if experiment.decontaminate else {Measure.COPIES_KEPT: 1.0}),

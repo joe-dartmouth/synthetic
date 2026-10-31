@@ -40,7 +40,8 @@ def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, 
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
     logger.info(
-        "experiment run=%s frame=%s holdouts=%d seeds=%d-%d removal=%s decontaminate=%s arms=%s "
+        "experiment run=%s frame=%s holdouts=%d seeds=%d-%d removal=%s training_fraction=%s "
+        "decontaminate=%s arms=%s "
         "replica=%s threshold=%d fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s "
         "models=%s",
         name,
@@ -49,6 +50,7 @@ def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, 
         seeds[0],
         seeds[-1],
         "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}",
+        experiment.training_fraction,
         "true" if experiment.decontaminate else "false",
         ",".join(experiment.arms),
         ",".join(experiment.replica_arms),
