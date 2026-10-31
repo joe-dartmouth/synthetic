@@ -39,12 +39,12 @@ concept shares, not the ontology's structure: closure is recorded and never read
 1. **Share.** A concept's share in a cell is `s(c) = (n_c p_c + w p_g) / (n_c + w)`: `p_c` is
    the cell's dataset-fragment prior, `p_g` its label group's (every training record of the
    cell's label), each 0 where the fragment holds no S-node for the concept, `n_c` the cell's
-   record count, and `w` is `bko.generate.direct.GROUP_WEIGHT`, which is `UNDERREPRESENTED_BELOW`.
+   record count, and `w` is `bko.gaps.shares.GROUP_WEIGHT`, which is `UNDERREPRESENTED_BELOW`.
 2. **Concepts are drawn independently, except a nested pair's.** Each concept but the label-only
    ones is drawn present when a uniform draw falls below its share. The order is sorted by name,
    with each concept that holds a nested one after the rest, so the nested one is drawn first. The
    nesting is read from the rows: one concept whose one row's codes lie strictly inside another's
-   on the same field (`bko.generate.direct.nested`); on UCI it pairs the two `restecg` rows,
+   on the same field (`bko.gaps.shares.nested`); on UCI it pairs the two `restecg` rows,
    `HP:0001712` inside `HP:0003115`. The inner is drawn at its share; the outer is present when
    the inner is, and otherwise drawn at `(s_outer - s_inner) / (1 - s_inner)`, present outright
    when `s_inner = 1`. Only one level is drawn: a concept inside two others, or holding two, is
@@ -141,7 +141,7 @@ draw refuses the attempt.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/direct.py`
+- Owner: `src/bko/generate/direct.py`, with the shares in `src/bko/gaps/shares.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
   `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`
 

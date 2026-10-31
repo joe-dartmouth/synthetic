@@ -6,7 +6,8 @@ present and absent, at the cell's shares (`bko.gaps.shares.shares`). Each concep
 label-only nor unmapped adds the log of its share when the record shows it, by any of its rows, and
 of one less its share when not; the outer concept of a nested pair is drawn given its inner one, at
 `(s_o - s_i) / (1 - s_i)`, and is certain once the inner is present. A record the draw cannot make
-scores minus infinity.
+scores minus infinity. ADR `research/bkb-candidate-curation` fixes the score and the gate that reads
+it.
 """
 
 from __future__ import annotations
