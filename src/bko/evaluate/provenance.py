@@ -41,7 +41,8 @@ def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, 
     seeds, removal = experiment.holdout_seeds, experiment.removal
     logger.info(
         "experiment run=%s frame=%s holdouts=%d seeds=%d-%d removal=%s decontaminate=%s arms=%s "
-        "replica=%s fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s",
+        "replica=%s threshold=%d fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s "
+        "models=%s",
         name,
         frame,
         len(seeds),
@@ -51,6 +52,7 @@ def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, 
         "true" if experiment.decontaminate else "false",
         ",".join(experiment.arms),
         ",".join(experiment.replica_arms),
+        experiment.threshold,
         experiment.fill_to,
         experiment.budget,
         experiment.validity,

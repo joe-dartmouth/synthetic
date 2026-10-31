@@ -10,6 +10,7 @@ from typing import Final
 import pytest
 
 from bko.baselines.request import Method, Strata, plan
+from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.cllm import SHOW
@@ -93,6 +94,7 @@ def test_e1_is_its_stated_configuration():
             *("smote", "adasyn", "ctgan", "tvae"),
             *("bko", "bko-population", "bko-frequency"),
         ),
+        "threshold": 20,
         "fill_to": 20,
         "margin": 0.0,
         "privacy_margin": 0.9,
@@ -199,8 +201,45 @@ def test_the_gap_request_is_what_the_baselines_command_asks_for():
 
 def test_a_cell_at_the_threshold_is_not_filled():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
-    lower = dataclasses.replace(E1, fill_to=18)
+    lower = dataclasses.replace(E1, threshold=18, fill_to=18)
     assert dict(gap_request(train, lower, seed=0, frame=UCI_FRAME).quota) == {FLAGGED[0]: 16}
+
+
+def test_a_target_above_the_threshold_flags_by_the_threshold_and_fills_to_the_target():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    dosed = dataclasses.replace(E1, fill_to=30)
+    assert dict(gap_request(train, dosed, seed=0, frame=UCI_FRAME).quota) == {
+        FLAGGED[0]: 28,
+        FLAGGED[1]: 12,
+    }
+    edges = UCI_FRAME.edges
+    assert flagged(train, dosed, edges=edges) == flagged(train, E1, edges=edges)
+
+
+def test_e1_requests_are_unchanged():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    assert (E1.threshold, E1.fill_to) == (UNDERREPRESENTED_BELOW, UNDERREPRESENTED_BELOW)
+    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == {
+        FLAGGED[0]: 18,
+        FLAGGED[1]: 2,
+    }
+
+
+def test_a_target_below_the_threshold_is_refused():
+    with pytest.raises(ValueError, match="fill target 19 is below the threshold 20"):
+        dataclasses.replace(E1, fill_to=19)
+
+
+def test_the_attempt_limit_scales_with_the_target():
+    """An attempt may ask `budget` times its request's rows (`bko.evaluate.guided`)."""
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    rows = {
+        target: gap_request(
+            train, dataclasses.replace(E1, fill_to=target), seed=0, frame=UCI_FRAME
+        ).rows
+        for target in (20, 30)
+    }
+    assert rows == {20: 20, 30: 40}
 
 
 def test_nothing_to_fill_is_refused():

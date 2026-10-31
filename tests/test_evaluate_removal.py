@@ -1,7 +1,7 @@
 """E3's rules on the toy frame with a removal: the ratio, the copy rule, `real` and the fingerprint.
 
 The toy split holds 20 training records per cell but 5 in each `45-69` cell with the condition;
-removing 0.9 of `>=70 female 1` leaves 2, and at `fill_to` 5 that cell alone is flagged.
+removing 0.9 of `>=70 female 1` leaves 2, and at `threshold` 5 that cell alone is flagged.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ TOY_E3 = dataclasses.replace(
     candidate=REAL_ARM,
     comparators=("none",),
     replica_arms=(),
+    threshold=5,
     fill_to=5,
     criteria=(),
     removal=Removal(REMOVED, 0.9),
