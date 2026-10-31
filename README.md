@@ -34,15 +34,13 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Evaluation**
 
-1. Dose-response: fill underrepresented cells to 30 and 40 rows instead of 20, every row-adding
-   method at equal row counts ([`evaluate-dose-response`](tasks/evaluate-dose-response.md)).
-2. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
+1. Data-scarcity curve: train on 25, 50 and 75% of the training rows with the test split fixed, to
    see whether augmentation pays when data is scarcer than UCI
    ([`evaluate-data-scarcity-curve`](tasks/evaluate-data-scarcity-curve.md)).
-3. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
+2. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
    fixed configuration, since the earlier Opus and Haiku runs differed in more than the model
    ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-4. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
+3. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
    full run would take ([`evaluate-local-thinking-cost`](tasks/evaluate-local-thinking-cost.md)).
 
 ## Setup
