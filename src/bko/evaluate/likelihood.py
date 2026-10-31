@@ -1,0 +1,259 @@
+"""G7's free gate: does the BKB likelihood separate the judged arm's records by fidelity?
+
+`likelihood` reads a run's per-holdout candidates file and scores every record of `bko`'s replica
+fill that counted toward a cell (`kept` or `dropped-quota`) by its BKB likelihood
+(`bko.gaps.likelihood`) at its cell's shares on that holdout's training rows. Each cell's records
+split at the cell's median score, ties at the median in the order of
+`sha256(f"{holdout}:{call}:{position}")`, and the cells' top halves pooled against their bottom
+halves, so both carry the training cell mix. The tops' and bottoms' fidelity against the training
+rows (quality, column shapes, column pair trends; `bko.evaluate.fidelity`) are paired over the
+holdouts, and the gate is separated when every top-minus-bottom corrected interval
+(`bko.evaluate.criteria.corrected_interval`) lies above zero.
+"""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import logging
+import math
+import statistics
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import TextIO
+
+import pandas as pd
+
+from bko.datasets.split import split
+from bko.evaluate.criteria import corrected_interval
+from bko.evaluate.data import Data
+from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import Experiment
+from bko.evaluate.fidelity import MEASURES, fidelity
+from bko.evaluate.holdout_candidates import KEPT, Candidate, HoldoutCandidates
+from bko.evaluate.prepare import held_out_ratio, prepared
+from bko.gaps.likelihood import Likelihood
+from bko.gaps.observe import Cell, by_concept, cell_key, observe_records, record_cells
+from bko.gaps.shares import shares
+from bko.ontology.schema import FieldMapping
+
+
+logger = logging.getLogger(__name__)
+
+ARM = "bko"
+"""The arm whose records the gate scores: the judged one."""
+
+FILL = "replica"
+"""The fill scored: the replica asks every cell, so every cell has records."""
+
+COUNTED = frozenset({KEPT, "dropped-quota"})
+"""The outcomes of a record that passed every check before the quota."""
+
+CSV_COLUMNS = (
+    "holdout",
+    "cell",
+    "records",
+    "minimum",
+    "median",
+    "maximum",
+    "at_minimum",
+    "at_median",
+    "top",
+    "bottom",
+)
+"""The per-cell CSV's columns, in order."""
+
+
+type Values = dict[str, float]
+"""A record's value per column."""
+
+
+@dataclass(frozen=True, slots=True)
+class _Scored:
+    """One candidate record with its score and its tie order."""
+
+    record: Values
+    score: float
+    tie: str
+
+
+@dataclass(slots=True)
+class _Tally:
+    """What the gate sums over the holdouts: each measure's contrasts and each side's concepts."""
+
+    rows: tuple[FieldMapping, ...]
+    contrasts: dict[str, list[float]] = field(default_factory=dict)
+    present: dict[str, Counter[str]] = field(default_factory=dict)
+    totals: Counter[str] = field(default_factory=Counter)
+    ratios: list[float] = field(default_factory=list)
+    lines: list[tuple[object, ...]] = field(default_factory=list)
+
+    def add_sides(self, sides: Mapping[str, Sequence[Values]]) -> None:
+        """Count each mapped concept's records on each side."""
+        for side, records in sides.items():
+            self.totals[side] += len(records)
+            counts = self.present.setdefault(side, Counter())
+            for concept, concept_rows in by_concept(self.rows).items():
+                counts[concept] += sum(any(row.applies(r) for row in concept_rows) for r in records)
+
+
+def likelihood(
+    experiment: Experiment, data: Data, candidates: HoldoutCandidates, sink: TextIO
+) -> bool:
+    """Write the per-cell CSV to `sink`, log the paired measures and the gate, and return it.
+
+    Raises:
+        EvaluationError: If a holdout of the experiment holds no scored record, or the file names
+            a cell the holdout's training rows do not hold.
+    """
+    pool: dict[int, list[Candidate]] = {}
+    for line in candidates.candidates:
+        if (line.arm, line.fill) == (ARM, FILL) and line.outcome in COUNTED:
+            pool.setdefault(line.holdout, []).append(line)
+    tally = _Tally(data.field_rows)
+    for seed in experiment.holdout_seeds:
+        _holdout(seed, pool.get(seed, []), experiment, data, tally)
+    separated = _log_gate(tally, experiment)
+    writer = csv.writer(sink, lineterminator="\n")
+    writer.writerow(CSV_COLUMNS)
+    writer.writerows(tally.lines)
+    return separated
+
+
+def _holdout(
+    seed: int, lines: Sequence[Candidate], experiment: Experiment, data: Data, tally: _Tally
+) -> None:
+    """Score one holdout's records, split each cell at its median, and add the paired contrasts."""
+    frame = data.frame
+    parts = split(data.records, seed=seed, edges=frame.edges)
+    tally.ratios.append(held_out_ratio(parts, edges=frame.edges))
+    ablated, _ = prepared(parts, experiment.removal, edges=frame.edges)
+    train = ablated.train
+    logger.info(
+        "split seed=%d train=%d test=%d fingerprint=%s",
+        seed,
+        len(train),
+        len(ablated.test),
+        ablated.fingerprint,
+    )
+    if not lines:
+        msg = f"holdout {seed} holds no {ARM} {FILL} record to score"
+        raise EvaluationError(msg)
+    tops, bottoms, cell_lines = _split(seed, lines, train, data)
+    tally.lines += cell_lines
+    found_top = fidelity(train, _frame(tops, data), frame=frame)
+    found_bottom = fidelity(train, _frame(bottoms, data), frame=frame)
+    for measure in MEASURES:
+        tally.contrasts.setdefault(str(measure), []).append(
+            found_top[measure] - found_bottom[measure]
+        )
+    tally.add_sides({"top": tops, "bottom": bottoms, "training": _values(train)})
+
+
+def _log_gate(tally: _Tally, experiment: Experiment) -> bool:
+    """Log each measure's corrected interval, each concept's shares and the gate; return it."""
+    ratio = statistics.fmean(tally.ratios)
+    separated = True
+    for measure, values in tally.contrasts.items():
+        interval = corrected_interval(
+            values, ratio=ratio, confidence=experiment.confidence, family=len(MEASURES)
+        )
+        separated = separated and interval.low > 0
+        logger.info(
+            "likelihood measure=%s arm=%s mean=%.6f low=%.6f high=%.6f holdouts=%d",
+            measure,
+            ARM,
+            interval.mean,
+            interval.low,
+            interval.high,
+            interval.holdouts,
+        )
+    for concept in by_concept(tally.rows):
+        shares_of = (
+            tally.present[side][concept] / tally.totals[side]
+            for side in ("top", "bottom", "training")
+        )
+        logger.info("likelihood concept=%s top=%.4f bottom=%.4f training=%.4f", concept, *shares_of)
+    logger.info("gate separated=%s", separated)
+    return separated
+
+
+def _split(
+    seed: int, lines: Sequence[Candidate], train: pd.DataFrame, data: Data
+) -> tuple[list[Values], list[Values], list[tuple[object, ...]]]:
+    """Each cell's records split at its median: the tops, the bottoms and the cell's CSV row."""
+    tops: list[Values] = []
+    bottoms: list[Values] = []
+    rows: list[tuple[object, ...]] = []
+    by_cell = _scored(seed, lines, train, data)
+    for cell in sorted(by_cell):
+        scored = sorted(by_cell[cell], key=lambda s: (-s.score, s.tie))
+        half = len(scored) // 2
+        tops += [s.record for s in scored[:half]]
+        bottoms += [s.record for s in scored[len(scored) - half :]]
+        values = [s.score for s in scored]
+        middle, least = statistics.median(values), min(values)
+        rows.append(
+            (
+                seed,
+                cell_key(cell),
+                len(values),
+                _number(least),
+                _number(middle),
+                _number(max(values)),
+                f"{sum(v == least for v in values) / len(values):.6f}",
+                f"{sum(v == middle for v in values) / len(values):.6f}",
+                half,
+                half,
+            )
+        )
+    return tops, bottoms, rows
+
+
+def _scored(
+    seed: int, lines: Sequence[Candidate], train: pd.DataFrame, data: Data
+) -> dict[Cell, list[_Scored]]:
+    """Each record scored at its cell's shares on `train`, by cell.
+
+    Raises:
+        EvaluationError: If a record names a cell `train` does not hold, or holds no record.
+    """
+    frame = data.frame
+    cells = record_cells(train, data.field_rows, name=data.name, edges=frame.edges)
+    by_key = {cell_key(cell): cell for cell in cells.each}
+    groups = {
+        label: observe_records(
+            train.loc[train[frame.label].eq(label)],
+            data.field_rows,
+            name=f"{data.name}/{frame.label}={label}",
+        )
+        for label in sorted({int(cell[2]) for cell in cells.each})
+    }
+    by_cell: dict[Cell, list[_Scored]] = {}
+    for line in lines:
+        cell = by_key.get(line.cell)
+        if cell is None or not isinstance(line.candidate, Mapping):
+            msg = f"holdout {seed} has no training cell {line.cell!r}, or a line with no record"
+            raise EvaluationError(msg)
+        record = {str(k): float(v) for k, v in line.candidate.items()}
+        share = shares(cells.each[cell], groups[int(cell[2])])
+        score = Likelihood(share, data.field_rows, frame)(record)
+        tie = hashlib.sha256(f"{seed}:{line.call}:{line.position}".encode()).hexdigest()
+        by_cell.setdefault(cell, []).append(_Scored(record, score, tie))
+    return by_cell
+
+
+def _number(value: float) -> str:
+    return "-inf" if math.isinf(value) else f"{value:.6f}"
+
+
+def _frame(records: Sequence[Values], data: Data) -> pd.DataFrame:
+    columns = list(data.frame.columns)
+    return pd.DataFrame([[r[c] for c in columns] for r in records], columns=columns).astype(
+        dict(data.frame.dtypes)
+    )
+
+
+def _values(train: pd.DataFrame) -> list[Values]:
+    return [{str(k): float(v) for k, v in r.items()} for r in train.to_dict("records")]

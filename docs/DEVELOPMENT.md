@@ -582,6 +582,23 @@ start or the supervisor cannot run.
   scores and the candidates file byte for byte from it. A resumed run's own log is its record: its
   paid spend is `live_usd`, while `usd` counts the whole run and is what the ceiling reads.
 
+**Likelihood.** `likelihood` reads a run's candidates file and asks whether a candidate's
+log-probability under the BKB's concept draw (`bko.gaps.likelihood.Likelihood`) separates fidelity,
+the question G7's curated arm rests on. It makes no API call:
+
+    test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates runs/<source-run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log </dev/null
+
+Per holdout, it scores the `bko` arm's replica records that were kept or dropped by the quota,
+splits each cell's records at that cell's median score (ties in `sha256` order of holdout, call and
+position), and scores the pooled top halves and the pooled bottom halves against the training rows.
+The CSV holds one row per holdout and cell: the score's spread, its median, how many records tie at
+the minimum and the median, and the two halves' sizes. The log holds each holdout's `split` line,
+one `likelihood measure=` line per fidelity measure with the top-minus-bottom corrected interval
+over the holdouts, one `likelihood concept=` line per concept with its share in the top half, the
+bottom half and the training rows, and `gate separated=`, true when every measure's interval lies
+above 0. A schema-2 file's data digest must match the loaded data; a schema-1 file's `uci` digest
+must match UCI Heart Disease's.
+
 ## BKB fixtures
 
 `bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
@@ -1027,6 +1044,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `rehearsal` | `python -m bko.evaluate launch --rehearse`'s directory of the run's roles |
 | `criteria.csv` | `python -m bko.evaluate compare`'s stdout |
 | `criteria.log` | its stderr |
+| `likelihood.csv` | `python -m bko.evaluate likelihood`'s stdout |
+| `likelihood.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
 | `draws.jsonl` | `python -m bko.generate direct`'s draw log |

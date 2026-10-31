@@ -63,12 +63,15 @@ from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
+from bko.evaluate.data import load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import MESSAGES_ARMS
+from bko.evaluate.holdout_candidates import read
 from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
+from bko.evaluate.likelihood import likelihood
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
-from bko.evaluate.scoring import score
+from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
@@ -125,6 +128,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_launch(args, context))
     elif args.command == "merge":
         sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
+    elif args.command == "likelihood":
+        _likelihood(args, context, sink)
     else:
         _compare(args, context, sink)
     return 0
@@ -198,6 +203,23 @@ def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
         beside=args.beside,
         beside_arm=args.beside_arm,
     )
+
+
+def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
+    """Score the run's candidates by their BKB likelihood, write the per-cell CSV, log the gate.
+
+    Raises:
+        EvaluationError: If a schema-2 file's data digest is not the run's data's.
+        CandidatesFormatError: If the file is not a candidates file.
+    """
+    named = _named(args.run, context)
+    candidates = read(args.candidates.read_bytes())
+    data = load(named.dataset, data_dir(args), named)
+    header = candidates.header
+    if header["schema"] != 1 and header["data"] != data.digest:
+        msg = f"the candidates file's data digest {header['data']} is not the run's {data.digest}"
+        raise EvaluationError(msg)
+    likelihood(named.experiment, data, candidates, sink)
 
 
 def _named(name: str, context: Context) -> Context:
@@ -366,6 +388,16 @@ def _parser() -> argparse.ArgumentParser:
     )
     comparing.add_argument(
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
+    )
+    liking = commands.add_parser(
+        "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
+    )
+    liking.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
+    liking.add_argument(
+        "--candidates", type=Path, required=True, help="the run's holdout-candidates.jsonl"
+    )
+    liking.add_argument(
+        "--data-dir", type=Path, default=None, help="the data root; default: the repository's"
     )
     return parser
 
