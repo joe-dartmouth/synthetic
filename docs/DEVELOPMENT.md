@@ -440,7 +440,7 @@ start or the supervisor cannot run.
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
   under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
-  removal=%s decontaminate=%s arms=%s replica=%s fill_to=%d budget=%d validity=%s
+  removal=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d budget=%d validity=%s
   spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
   the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
   `false`), and a
@@ -557,7 +557,10 @@ start or the supervisor cannot run.
   and the CLLM arms `cllm` and `cllm-uncurated`) and `b3-synthea` (E3's methods, those three and
   `real` under E3's removal), each with `cllm` as the candidate and no criterion (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md);
-  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). No flag
+  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
+  `e4-eighty` (`E4_TARGETS`: E1's methods and `bko` filling each flagged cell to 30, 40 or 80 at
+  E1's threshold, a $10.00 ceiling and no criterion;
+  [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`

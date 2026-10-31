@@ -18,7 +18,7 @@ The set's graph is [`experiments-index.md`](experiments-index.md).
 ## Why this unit exists
 
 E1 fills each underrepresented cell up to the threshold of 20, so the `bko` arm adds about 20 rows
-to 238, and a 20-row dose bounds any effect it can show. Filling to 30 and 40 rows per cell, every
+to 238, and a 20-row dose bounds any effect it can show. Filling to 30, 40 and 80 rows per cell, every
 row-adding arm at the same quota, shows whether more rows move recall and AUC-PR, and in which
 direction.
 
@@ -30,7 +30,7 @@ direction.
   [`docs/RESEARCH.md`](../docs/RESEARCH.md#2-intended-users-and-evaluation-setting) and decides
   the flagged subgroups, and a fill target each flagged cell is filled up to, the threshold by
   default; a test pins that `E1`'s flagged set and requests are unchanged.
-- Two named runs (`bko.evaluate.named_runs.RUNS`) on the judged configuration, targets 30 and 40, each with
+- Three named runs (`bko.evaluate.named_runs.RUNS`) on the judged configuration, targets 30, 40 and 80, each with
   the baselines and the `bko` arm, its gap and replica fills live, since replay pairs calls by
   order and a changed gap request differs at the first call. Spend estimate per run: one arm's
   share of the judged run's spend, its gap-fill part scaled by the rows the target asks over the
