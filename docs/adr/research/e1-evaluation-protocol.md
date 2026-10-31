@@ -87,6 +87,12 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   run's Runs row when `SETTINGS.model` or its `bko.generate.spend.PRICES` row changes.
 - **Repeated holdouts.** Each of `E1`'s seeds gives one cell-stratified split from
   `bko.datasets.split`; every request on that split takes the same seed.
+- **A training fraction.** An experiment may keep a share of each cell's training rows before any
+  arm runs (`Experiment.training_fraction`, 1 in `E1`; `bko.datasets.split.subsampled`): per cell,
+  the fraction of its rows rounded half up exactly, never below 2 nor above the cell, ranked by
+  `sha256(f"{seed}:train-fraction:{record_id}")` so a smaller fraction's rows nest in a larger
+  one's. The test split is never thinned. A fraction below 1 and a removal cannot both thin the
+  training rows, so each run varies one. E5 reads the curve this draws.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to the fill
   target, the same quota on every holdout; the threshold alone decides which cells are flagged, so
   a dose run that raises the target (E4) fills the same cells further and its flagged scopes pair
@@ -192,7 +198,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **Intervals.** Every contrast is paired by holdout and gets Nadeau and Bengio's corrected
   resampled t interval ([`nadeau-2003`](../../literature.md#evaluation-and-failure-modes)), the
   variance of the mean being (1/J + n2/n1) S^2, with n2/n1 the largest held-out-to-training ratio
-  of any cell.
+  of any cell, read after the training fraction and before any removal. A smaller fraction trains
+  each classifier on fewer rows, so its ratio grows and its intervals widen as the correction asks;
+  a removal thins one cell to make a gap, not the training set, so E3 reads the ratio before it.
 - **Criteria.** Validity is read as above; the rest read intervals. Primary: in both recall and
   AUC-PR over the whole test split, the candidate minus each comparator has an interval above zero
   (`E1`'s margin is zero). Secondary: the same over the flagged subgroups. Privacy: the candidate's

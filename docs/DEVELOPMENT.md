@@ -441,14 +441,16 @@ start or the supervisor cannot run.
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
   under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
-  removal=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d budget=%d validity=%s
+  removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d budget=%d validity=%s
   spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
   the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
   `false`), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
-  per holdout the split line `cells` prints, for a run with a removal (`e3` and its slices) a
+  per holdout, for a run with a training fraction below 1 (the `e5-*` runs) a
+  `subsample holdout=%d fraction=%s train=%d kept=%d` line (the training rows before and kept),
+  the split line `cells` prints, for a run with a removal (`e3` and its slices) a
   `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
   before the removal, those it removed and those it kept), one `quota` line per stratum, a
   `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
@@ -566,7 +568,10 @@ start or the supervisor cannot run.
   [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
   `e4-eighty` (`E4_TARGETS`: E1's methods and `bko` filling each flagged cell to 30, 40 or 80 at
   E1's threshold, a $10.00 ceiling and no criterion;
-  [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)). No flag
+  [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)), and E5's scarcity runs, `e5-quarter`,
+  `e5-half` and `e5-threequarters` (`E5_FRACTIONS`: the same methods and ceiling, each holdout
+  keeping a quarter, half or three quarters of each cell's training rows;
+  [EVIDENCE.md](EVIDENCE.md#e5-augmentation-against-training-set-size)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
