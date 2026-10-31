@@ -4,7 +4,9 @@ Every stage before Evaluate reads `Split.train`, and only `bko.evaluate` reads `
 convention ADR `research/uci-evaluation-frame` records and no code enforces. Stratifying on the full
 cell keeps each cell's training count a fixed function of its size, so the underrepresented cells
 are the same for every seed. Records are ranked by `sha256(f"{seed}:{record_id}")`, which no
-library upgrade can change. `uci_split` fetches UCI Heart Disease through `ensure`, loads and
+library upgrade can change. `subsampled` keeps a share of each cell's training rows for a
+scarcity run, ranked the same way under its own tag so a smaller share nests in a larger one.
+`uci_split` fetches UCI Heart Disease through `ensure`, loads and
 splits it, and logs the split; `split` never fetches.
 """
 
@@ -15,6 +17,7 @@ import logging
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import Final
 
@@ -89,6 +92,36 @@ def split(frame: pd.DataFrame, *, seed: int = SPLIT_SEED, edges: Sequence[int]) 
     return Split(train=frame.loc[~is_test].copy(), test=frame.loc[is_test].copy(), seed=seed)
 
 
+def kept_count(cell_size: int, fraction: Fraction) -> int:
+    """How many of a cell's training rows a subsample keeps: `fraction` of them, rounded half up.
+
+    Exact on the fraction, never below 2 so a cell keeps a spread, and never above the cell.
+    """
+    return min(cell_size, max(2, math.floor(fraction * cell_size + Fraction(1, 2))))
+
+
+def subsampled(
+    train: pd.DataFrame, fraction: Fraction, *, seed: int, edges: Sequence[int]
+) -> pd.DataFrame:
+    """`kept_count` of each cell's rows of `train`, those ranked lowest by hash.
+
+    Records are ranked by `sha256(f"{seed}:train-fraction:{record_id}")`, so one seed's
+    subsamples nest: every record a smaller fraction keeps, a larger one keeps too. A fraction of
+    1 keeps every row.
+
+    Raises:
+        ValueError: If `fraction` is not in (0, 1].
+    """
+    if not 0 < fraction <= 1:
+        msg = f"training fraction {fraction} must lie in (0, 1]"
+        raise ValueError(msg)
+    kept: list[int] = []
+    for records in cell_keys(train, edges=edges).groupby(list(CELL_COLUMNS)).groups.values():
+        ranked = sorted(records, key=lambda record: _rank(seed, f"train-fraction:{record}"))
+        kept.extend(ranked[: kept_count(len(ranked), fraction)])
+    return train.loc[train.index.isin(kept)].copy()
+
+
 def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, float]]:
     """Each of `frame`'s numeric fields' minimum and maximum over the training split.
 
@@ -114,7 +147,7 @@ def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, floa
     return found
 
 
-def _rank(seed: int, record: int) -> bytes:
+def _rank(seed: int, record: int | str) -> bytes:
     return hashlib.sha256(f"{seed}:{record}".encode("ascii")).digest()
 
 
