@@ -584,7 +584,8 @@ start or the supervisor cannot run.
 
 **Likelihood.** `likelihood` reads a run's candidates file and asks whether a candidate's
 log-probability under the BKB's concept draw (`bko.gaps.likelihood.Likelihood`) separates fidelity,
-the question G7's curated arm rests on. It makes no API call:
+the question G7's curated arm rests on
+([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). It makes no API call:
 
     test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates runs/<source-run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log </dev/null
 

@@ -81,6 +81,17 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.evaluate.guided`'s attempt line or
   `bko.baselines.synthesizers`' fill.
 
+- **`cleanup:evaluate/likelihood-curation-unused`: `Curation.LIKELIHOOD` and `over_ask` have no
+  arm.** `bko.evaluate.experiment.MessagesArm` accepts `curation=Curation.LIKELIHOOD` with an
+  `over_ask` above 1, and `tests/test_evaluate_experiment.py` pins both, but the curated arm they
+  were reserved for does not run: G7's gate read `gate separated=False`
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)), and `docs/IDEAS.md` holds
+  the arm unscheduled. *Filed 2026-10-31 by PR7's landing.*
+  **Why deferred.** Removing them changes the Messages arm spec, outside PR7's docs-only landing.
+  **What discharges it:** `Curation.LIKELIHOOD`, `over_ask` and their tests removed, with ADR
+  `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
+  **Trigger:** the next change to `bko.evaluate.experiment.MessagesArm`.
+
 - **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
   not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
   `assess` reads it, so the candidates file says `dropped-curation` but not by what margin, and a

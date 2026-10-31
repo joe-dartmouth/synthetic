@@ -131,6 +131,11 @@ REaLTabFormer are ruled out: each trains a model on the table, a training cost t
 figures show and the plan's other arms do not pay, and the CLLM arms already ask an LLM for
 records without the ontology.
 
+A curated `bko` arm, keeping each cell's highest-scoring records by their likelihood under the
+fused BKB in place of a classifier's confidence, is unscheduled: its free gate, fixed in ADR
+[`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), did not separate
+fidelity on the judged run's candidates ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation) G7).
+
 **Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the
 CLLM arms run in B3's named runs, `b3-uci` and `b3-synthea`, with no verdict rather than among
