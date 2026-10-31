@@ -107,7 +107,7 @@ prompt (their section 2.2).
   `partial` and `short` in its params, checked against what each cell kept. An arm that does not
   curate still refuses once the attempt's budget cannot cover its short cells. A budget shared
   across the attempt let one rejected cell ask the rest of it one record per call: `b3-synthea`'s
-  first launch reached call 3141 on its second holdout and was stopped at $1.64. CLLM keeps whatever its curator passes, and a curator that rejects
+  first launch reached call 3159 on its second holdout and was stopped at $1.64. CLLM keeps whatever its curator passes, and a curator that rejects
   nearly every record of a cell is the effect B3 measures: on Synthea's real `bko` records the
   curator kept none of `>=65/female/1`'s on 3 of 100 holdouts' gap fills and 29 of their replica
   fills (`scratchpad/cllm_pilot_synthea_holdouts.py`), so no budget fills that cell.

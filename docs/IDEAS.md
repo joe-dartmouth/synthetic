@@ -125,8 +125,8 @@ against 0:46 for TVAE). REaLTabFormer [`solatorio-2023`][solatorio-2023] also tr
 on the table.
 
 **Status.** CLLM is built as two comparison arms, `cllm` with its curation and `cllm-uncurated`
-without it (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)); their runs, B3,
-are the task unit [`evaluate-cllm-baseline`](../tasks/evaluate-cllm-baseline.md). GReaT and
+without it (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)); their runs and
+measures are [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms) B3. GReaT and
 REaLTabFormer are ruled out: each trains a model on the table, a training cost the brief's GReaT
 figures show and the plan's other arms do not pay, and the CLLM arms already ask an LLM for
 records without the ontology.
