@@ -48,7 +48,7 @@ import it (ADR `tooling/agent-config-single-home`).
   `<run>` writes, refusing overlapping or missing holdouts and slices of other code or
   configuration; `compare <run>` reads the result. It
   makes no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
-- `test ! -e runs/<run-id>/likelihood.csv && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
+- `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes
   no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).

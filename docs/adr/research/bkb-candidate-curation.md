@@ -53,7 +53,7 @@ all three measures**.
 - **Gate.** Quality, column shapes and column pair trends (`bko.evaluate.fidelity`) of the pooled
   tops and of the pooled bottoms against the holdout's training rows, paired top minus bottom over
   E1's 100 holdouts, each with the corrected interval of `bko.evaluate.criteria` at `E1.confidence`
-  (family 3). The gate is separated when all three intervals lie above 0. A failure reads as "the
+  (family 3) and the largest held-out ratio, as the criteria take it. The gate is separated when all three intervals lie above 0. A failure reads as "the
   score does not separate fidelity at the median", and a curated arm does not run.
 - **Diagnostic.** Each concept's share in the top half, the bottom half and the training rows,
   logged beside the gate.
@@ -62,7 +62,7 @@ all three measures**.
   `holdout_candidates`, `split`, `prepared` and `fidelity`, and `bko.generate` already imports
   `bko.gaps`.
 - **Input.** `runs/e1-4/holdout-candidates.jsonl` as written: `holdout_candidates.read` accepts
-  schema 1, checking its `uci` digest against UCI Heart Disease's.
+  schema 1 beside schema 2, checking a schema-1 file's `uci` digest against UCI Heart Disease's.
 
 ## Rationale
 

@@ -592,13 +592,16 @@ the question G7's curated arm rests on
 Per holdout, it scores the `bko` arm's replica records that were kept or dropped by the quota,
 splits each cell's records at that cell's median score (ties in `sha256` order of holdout, call and
 position), and scores the pooled top halves and the pooled bottom halves against the training rows.
-The CSV holds one row per holdout and cell: the score's spread, its median, how many records tie at
-the minimum and the median, and the two halves' sizes. The log holds each holdout's `split` line,
-one `likelihood measure=` line per fidelity measure with the top-minus-bottom corrected interval
-over the holdouts, one `likelihood concept=` line per concept with its share in the top half, the
+The CSV holds one row per holdout and cell: the score's spread, its median, the share of records
+at the minimum and at the median, and the two halves' sizes (equal; an odd cell's middle record sits
+in neither). The log holds the `experiment` and `versions` lines, a `candidates` line with the
+file's path, schema and sha256, a `likelihood pool` line counting the file's lines and the scored
+ones, each holdout's `split` line, one `likelihood measure=` line per fidelity measure with the
+top-minus-bottom corrected interval over the holdouts at the largest held-out ratio, one `likelihood concept=` line per concept with its share in the top half, the
 bottom half and the training rows, and `gate separated=`, true when every measure's interval lies
-above 0. A schema-2 file's data digest must match the loaded data; a schema-1 file's `uci` digest
-must match UCI Heart Disease's.
+above 0. The file's `run` must be the named run; a schema-2 file's data digest must match the
+loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, for a run that
+scores it.
 
 ## BKB fixtures
 
