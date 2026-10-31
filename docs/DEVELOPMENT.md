@@ -380,7 +380,8 @@ start or the supervisor cannot run.
   decides what it loads, as one `bko.evaluate.data.Data` every stage reads; for UCI it fetches UCI
   Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
   data with that seed and gives every arm the split's training rows and the request that fills
-  each underrepresented cell up to the threshold. A classifier fit on the
+  each cell under the threshold up to the fill target (`Experiment.threshold` and
+  `Experiment.fill_to`, both 20 in `E1`). A classifier fit on the
   real rows, weighted as the arm says, and the added rows is scored on the test split, then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
@@ -455,9 +456,11 @@ start or the supervisor cannot run.
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
   the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
   `params={}`), a `retry` warning for each refused attempt before the last, a
-  `shortfall holdout=%d arm=%s cell=%s short=%d` warning per short cell when CTGAN or TVAE still
-  lacks rows at `MAX_DRAWN_ROWS` drawn on the last attempt (its `arm` line then names the cell's
-  missing rows under `short` in the params, and the arm scores the rows it kept), and a
+  `shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d` warning per short cell
+  when CTGAN or TVAE still lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt
+  (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
+  scores the rows it kept; a short replica fill, or a Gaussian copula or CART fill, still refuses,
+  and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
   per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
