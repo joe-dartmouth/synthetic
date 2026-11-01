@@ -45,7 +45,7 @@ from bko.datasets.uci import UCI_FRAME
 from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
-from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, record_schema
+from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, record_schema, text_of
 from bko.generate.prompt import render
 from bko.generate.weights import LOCAL_MODELS, fetch, model_path
 
@@ -123,8 +123,6 @@ def reply_of(body: object) -> Reply:
     choices = body.get("choices")
     first = choices[0] if isinstance(choices, list) and choices else {}
     first = first if isinstance(first, dict) else {}
-    message = first.get("message")
-    text = message.get("content") if isinstance(message, dict) else None
     finish = first.get("finish_reason")
     usage = body.get("usage")
     counts = usage if isinstance(usage, dict) else {}
@@ -133,7 +131,7 @@ def reply_of(body: object) -> Reply:
         request_id=request_id if isinstance(request_id, str) else None,
         model=str(body.get("model", "")),
         stop_reason=STOP_REASONS.get(finish, finish) if isinstance(finish, str) else None,
-        text=text if isinstance(text, str) else None,
+        text=text_of(body),
         usage=Usage(
             input_tokens=_count(counts, "prompt_tokens"),
             output_tokens=_count(counts, "completion_tokens"),
