@@ -52,6 +52,20 @@ links to where its blocker is tracked.
 
 ## baselines
 
+- **`cleanup:baselines/bayes-net-vectorize`: the Bayesian network draws and learns row by row in
+  Python.** `bko.baselines.bayes_net.draw` makes one `rng.choice` per row per field for the state
+  and another for the donor, and `mutual_information` and `_node` loop over rows; a `bayes-net
+  --rows 200` command took 4.3 s for one 10000-row batch (measured by the diff review of PR #67),
+  and B2's runs took about 20 s a holdout on UCI and Synthea. *Filed 2026-10-31 by the diff review
+  of PR #67.*
+  **Why deferred.** B2's sizes run in minutes, and vectorizing changes the seeded draw, so B2's
+  recorded bytes would move.
+  **What discharges it:** the draw grouped by parent configuration and by state, with donor arrays
+  built once per field, and the counts by `np.bincount` over a mixed-radix index, with B2 rerun and
+  recorded.
+  **Trigger:** the Diabetes 130 run of unit `evaluate-diabetes-subgroup-removal`, whose frame is
+  hundreds of times larger.
+
 - **`cleanup:baselines/classical-fit-line-and-docstrings`: the classical synthesizers log no fit
   time, and three docstrings overstate them.** CTGAN and TVAE log `fit method=%s seconds=%.1f`
   (`bko.baselines.synthesizers`), but `bko.baselines.classical.gaussian_copula` and `cart` log no

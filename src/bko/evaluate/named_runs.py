@@ -4,7 +4,8 @@
 level (`docs/EVIDENCE.md`, G3), the effort sweep's runs, `g4-low` and `g4-medium` (G4), `g2`, the
 direct arm's run (`G2`), and `g5`, the prescribing arm's run (`G5`), and E3's runs over the Synthea
 frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`),
-B1's classical-baseline runs, `b1-uci` and `b1-synthea`, and G6's generator-comparison runs,
+B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network runs, `b2-uci` and
+`b2-synthea`, and G6's generator-comparison runs,
 `g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`.
 No command-line flag changes a value here.
 """

@@ -36,28 +36,32 @@ BIC hill climb, not PrivBayes' GreedyBayes.
 We will build **an in-house GreedyBayes learner, `bko.baselines.bayes_net`**, run as the method
 `bayes-net`:
 
-- **States.** Each measured field is cut at its 5 equal-frequency quantiles of the training rows
-  (`BINS`), with each age band edge added for `age`, then each cut that would leave a bin empty
-  removed; a coded field, the label included, keeps its codes.
+- **States.** Each measured field is cut at the 4 interior quantiles of its training rows, 5
+  equal-frequency bins (`BINS`), with each age band edge added for `age`, then each cut that would
+  leave a bin empty removed, so every state holds a training row and each age state's rows lie in
+  one band; a coded field, the label included, keeps as states the codes its training rows hold,
+  so no state lacks a donor.
 - **Structure.** GreedyBayes: the first field is
   `frame.columns[derived_seed(seed, "bayes-net") % len(frame.columns)]`; each next field is the
   one, with the parent set of `min(k, placed)` fields already placed, of the largest empirical
-  mutual information, ties to the first in the frame's order; `k` is 2 (`K`).
+  mutual information, ties to the first field in the frame's order and then the first parent set in
+  placement order; `k` is 2 (`K`).
 - **Tables.** Each field given its parents is the BDeu posterior mean at equivalent sample size 1
   (`ESS`); a parent configuration no training row shows gets the uniform prior.
 - **Draw.** Fields are drawn in the learned order from `default_rng(derived_seed(seed,
   "bayes-net"))`, and each field's value is copied from a uniformly chosen training row whose state
   for that field is the drawn one; `fill` keeps each stratum's first matching rows, as for every
   generator.
-- **Params.** The `arm` line names the seed, the first field, `k`, the bins, the equivalent sample
-  size and the learned edges.
+- **Params.** The `arm` line names the request's seed, the first field, `k`, `BINS`, the
+  equivalent sample size, each field's number of states and the learned edges as `[parent, child]`
+  in drawing order; a `fit method=bayes-net seconds=` line times the binning and the search.
 
 ## Rationale
 
 GreedyBayes is the structure search PrivBayes runs; pgmpy's hill climb under BIC is another one,
 and a B2 that ran it would read a different generator under PrivBayes' name. With two parents of
-five bins each, a configuration holds 25 cells, about 9 training records apiece at 238, which keeps
-the tables estimable; a larger `k` empties most of them. BDeu at a small equivalent sample size
+five bins each, a field has 25 parent configurations, about 9 training records apiece at 238,
+which keeps the tables estimable; a larger `k` empties most of them. BDeu at a small equivalent sample size
 keeps every configuration drawable without moving a well-counted one far from its counts. Copying
 each value from a training row in its bin keeps every value on the archive's precision and range,
 as sequential CART's donors do.

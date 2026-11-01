@@ -21,12 +21,13 @@ G7 asked whether a candidate's log-probability under the fused BKB's concept dra
 fidelity, so that keeping each cell's highest-scoring records would be worth a paid arm. On UCI
 Heart Disease the gate did not separate: quality and column shapes did, column pair trends' interval
 held 0 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)). UCI's small test
-splits and its 12 mapped concepts may be why
-([`docs/RESEARCH.md`](../docs/RESEARCH.md#limits-of-uci-heart-disease-as-the-evaluation-frame)).
-Diabetes 130 has far more records per subgroup and more mapped concepts, so the same free gate can
-be read again there before any curated arm is built. The score, the gate command and the arm's
-reserved spec fields (`Curation.LIKELIHOOD`, `over_ask`; `cleanup:evaluate/likelihood-curation-unused`)
-already exist.
+splits
+([`docs/RESEARCH.md`](../docs/RESEARCH.md#limits-of-uci-heart-disease-as-the-evaluation-frame)) and
+the few concepts its field rows map (one line per concept in G7's diagnostic) may be why. Diabetes
+130 holds far more records per subgroup, and its mapping is a deliverable of its own unit, so the
+same free gate can be read again there before any curated arm is built. The score, the gate command
+and the arm's reserved spec fields (`Curation.LIKELIHOOD`, `over_ask`;
+`cleanup:evaluate/likelihood-curation-unused`) already exist.
 
 ## Scope
 

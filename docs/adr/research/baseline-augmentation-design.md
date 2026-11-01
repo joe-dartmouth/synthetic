@@ -77,7 +77,8 @@ seed their sampling after every fit, and seed no fit.
   at random and SDV fixes its sampling seed (`FIXED_RNG_SEED`), so the copula's rows do not move
   with the seed, as the classifier's fit does not. Sequential CART seeds each tree with
   `derived_seed(seed, "cart", column)` and every draw from `default_rng(derived_seed(seed, "cart"))`,
-  touching no global generator.
+  touching no global generator; the Bayesian network draws from
+  `default_rng(derived_seed(seed, "bayes-net"))` the same way.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
   defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
@@ -154,7 +155,7 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
 - Pinned by: `tests/test_baselines_request.py`, `tests/test_baselines_records.py`,
   `tests/test_baselines_methods.py`, `tests/test_baselines_cli.py`,
   `tests/test_baselines_synthesizers.py`, `tests/test_baselines_oversample.py`,
-  `tests/test_baselines_classical.py`
+  `tests/test_baselines_classical.py`, `tests/test_baselines_bayes_net.py`
 
 ## Reversal Conditions
 
