@@ -89,10 +89,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   `bko.datasets.split`; every request on that split takes the same seed.
 - **A training fraction.** An experiment may keep a share of each cell's training rows before any
   arm runs (`Experiment.training_fraction`, 1 in `E1`; `bko.datasets.split.subsampled`): per cell,
-  the fraction of its rows rounded half up exactly, never below 2 nor above the cell, ranked by
-  `sha256(f"{seed}:train-fraction:{record_id}")` so a smaller fraction's rows nest in a larger
-  one's. The test split is never thinned. A fraction below 1 and a removal cannot both thin the
-  training rows, so each run varies one. E5 reads the curve this draws.
+  the fraction of its rows rounded half up exactly, never below 2 nor above the cell, ranked by the
+  sha256 of the seed, the tag `train-fraction` and the record id, so a smaller fraction's rows nest
+  in a larger one's. The test split is never thinned. A fraction below 1 and a removal cannot both
+  thin the training rows, so each run varies one. E5 reads the curve this draws.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to the fill
   target, the same quota on every holdout; the threshold alone decides which cells are flagged, so
   a dose run that raises the target (E4) fills the same cells further and its flagged scopes pair

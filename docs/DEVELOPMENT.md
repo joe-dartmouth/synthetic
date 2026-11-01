@@ -441,15 +441,17 @@ start or the supervisor cannot run.
   loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
   frame, its record count, and the sha256 of its records that the candidates file's header names
   under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
-  removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d budget=%d validity=%s
-  spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last holdout seed, `removal=`
-  the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`, `decontaminate=` `true` or
+  removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
+  budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
+  holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
+  `training_fraction=` an exact fraction such as `1/4`, or `1`, `decontaminate=` `true` or
   `false`), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
   per holdout, for a run with a training fraction below 1 (the `e5-*` runs) a
-  `subsample holdout=%d fraction=%s train=%d kept=%d` line (the training rows before and kept),
+  `subsample holdout=%d fraction=%s train=%d kept=%d ratio=%.6f` line (the training rows before
+  and kept, and the held-out ratio the holdout's intervals read),
   the split line `cells` prints, for a run with a removal (`e3` and its slices) a
   `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
   before the removal, those it removed and those it kept), one `quota` line per stratum, a
@@ -522,9 +524,9 @@ start or the supervisor cannot run.
   last call, or for a concurrent log every call from the first unanswered one. It logs a `resume
   live from call` line before its first live call. A fill that stops the run logs a `refused` or
   `contract` error naming the holdout and arm. `compare` logs a
-  `compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s` line with the candidate,
-  whether it is a dry run, the scores file's sha256, the run's name and its guidance level
-  (`none` for a run with no Messages arm),
+  `compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s training_fraction=%s` line
+  with the candidate, whether it is a dry run, the scores file's sha256, the run's name, its
+  guidance level (`none` for a run with no Messages arm) and its training fraction,
   then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
   `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
   `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure

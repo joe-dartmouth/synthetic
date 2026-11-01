@@ -37,6 +37,19 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
+## app
+
+- **`cleanup:app/gap-analysis-raw-split`: the app's gap analysis reads the raw training split,
+  not the prepared one.** `bko.app.steps.analyze` counts cells and finds gaps on
+  `split(...).train`, while its score step prepares each holdout through
+  `bko.evaluate.run.score_holdout`, which applies the experiment's training fraction and removal
+  (`bko.evaluate.prepare.prepared`). The app's experiment is `E1`, with neither, so the two agree
+  today. *Filed 2026-10-31 by the diff review of PR #66.*
+  **Why deferred.** No app run varies either today; changing the app's analysis is outside PR #66.
+  **What discharges it:** `analyze` reads `prepared(...).ablated.train`, or the app refuses an
+  experiment with a training fraction below 1 or a removal.
+  **Trigger:** the app taking a named run other than `e1`.
+
 ## baselines
 
 - **`cleanup:baselines/classical-fit-line-and-docstrings`: the classical synthesizers log no fit
@@ -91,6 +104,17 @@ links to where its blocker is tracked.
   **What discharges it:** `Curation.LIKELIHOOD`, `over_ask` and their tests removed, with ADR
   `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
   **Trigger:** the next change to `bko.evaluate.experiment.MessagesArm`.
+
+- **`cleanup:evaluate/merge-configuration-check`: `merge` says it refuses slices of other
+  configuration, but it compares score keys alone.** `bko.evaluate.merge`'s docstring says slices
+  scored under different code or configuration are refused; it compares each slice's (arm, source,
+  measure, scope) keys and holdouts, so two slices run at a different `training_fraction` or
+  removal fraction share keys and merge. *Filed 2026-10-31 by the diff review of PR #66.*
+  **Why deferred.** No run of a training fraction or removal fraction is sliced; the check predates
+  PR #66.
+  **What discharges it:** `merge` compares each slice's `experiment` line (or a configuration
+  digest the scores carry), or its docstring says what it checks.
+  **Trigger:** the next sliced run, or the next change to `bko.evaluate.merge`.
 
 - **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
   not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
