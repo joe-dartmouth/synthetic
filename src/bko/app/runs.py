@@ -22,6 +22,7 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "calls.jsonl": "the call log of a run that calls the Messages API",
         "scores.csv": "`python -m bko.evaluate score`'s stdout",
         "scores.log": "its stderr",
+        "server.log": "the local model server's output, written by the operator's serve command",
         "holdout-candidates.jsonl": "every candidate a run's BKO arms generated, per holdout",
         "launch.log": "`python -m bko.evaluate launch`'s record of the power reading and command",
         "rehearsal": "`python -m bko.evaluate launch --rehearse`'s directory of the run's roles",
