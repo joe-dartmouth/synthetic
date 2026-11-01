@@ -80,7 +80,7 @@ def test_every_case_stratum_keeps_two_training_rows_on_every_holdout():
     records = c8_records()
     for seed in range(100):
         parts = split(records, seed=seed, edges=SYNTHEA_FRAME.edges)
-        train = prepared(parts, E3.removal, edges=SYNTHEA_FRAME.edges)[0].train
+        train = prepared(parts, E3, edges=SYNTHEA_FRAME.edges).ablated.train
         counts = cell_counts(train, edges=SYNTHEA_FRAME.edges)
         cases = counts.loc[counts["target"] == 1, "count"]
         assert (cases >= 2).all(), (seed, counts)
@@ -99,7 +99,7 @@ def held_out(scores, measure):
 
 def test_the_held_out_ratio_ignores_the_removal():
     scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
-    thinned = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)[0]
+    thinned = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).ablated
     expected = held_out_ratio(TOY_PARTS, edges=TOY.edges)
     assert held_out(scores, Measure.HELD_OUT_RATIO) == expected
     assert expected != held_out_ratio(thinned, edges=TOY.edges)
@@ -146,7 +146,7 @@ def test_copies_are_counted_not_removed_when_decontaminate_is_false(monkeypatch,
 def test_the_real_arm_adds_back_the_removed_rows(monkeypatch):
     seen = fits_on(monkeypatch)
     scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
-    removed = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)[1]
+    removed = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).removed
     asked = TOY_E3.fill_to - 2
     assert len(removed) > asked
     rows = {(s.arm, s.measure): s.value for s in scores if s.source is Source.ADDED}
@@ -188,7 +188,7 @@ def test_the_flagged_subgroup_is_the_removed_cells_subgroup():
     scores = run(toy_records(), TOY_E3, ARMS, models=LR, frame=TOY)
     for seed in TOY_E3.holdout_seeds:
         parts = split(toy_records(), seed=seed, edges=TOY.edges)
-        train = prepared(parts, TOY_E3.removal, edges=TOY.edges)[0].train
+        train = prepared(parts, TOY_E3, edges=TOY.edges).ablated.train
         assert flagged(train, TOY_E3, edges=TOY.edges) == (REMOVED,)
         mine = [s for s in scores if s.holdout == seed]
         value = held_out(mine, Measure.FLAGGED_FINGERPRINT)
@@ -219,7 +219,8 @@ def _lines(caplog, prefix):
 def test_each_holdout_logs_its_removal_and_flagged_cells(caplog):
     with caplog.at_level(logging.INFO):
         score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
-    kept, removed = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)
+    ready = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges)
+    kept, removed = ready.ablated, ready.removed
     whole = len(TOY_PARTS.train)
     line = (
         f"removal holdout={TOY_PARTS.seed} cell=>=70/female/1 fraction=0.9 train={whole} "
@@ -231,14 +232,14 @@ def test_each_holdout_logs_its_removal_and_flagged_cells(caplog):
 
 def test_no_removal_logs_no_removal_line(caplog):
     with caplog.at_level(logging.INFO):
-        prepared(TOY_PARTS, None, edges=TOY.edges)
+        prepared(TOY_PARTS, E1, edges=TOY.edges)
     assert not _lines(caplog, "removal ")
 
 
 def test_the_real_arms_line_reads_attempt_1_the_gap_seed_and_no_params(caplog):
     with caplog.at_level(logging.INFO):
         score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
-    removed = prepared(TOY_PARTS, TOY_E3.removal, edges=TOY.edges)[1]
+    removed = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).removed
     (line,) = _lines(caplog, f"arm holdout={TOY_PARTS.seed} arm={REAL_ARM} ")
     assert line.startswith(
         f"arm holdout={TOY_PARTS.seed} arm={REAL_ARM} attempt=1 seed={TOY_PARTS.seed} "

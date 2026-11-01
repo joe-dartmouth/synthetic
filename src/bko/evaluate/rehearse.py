@@ -28,7 +28,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import Experiment, Removal
+from bko.evaluate.experiment import Experiment
 from bko.evaluate.prepare import prepared
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
@@ -72,23 +72,22 @@ settings."""
 
 
 def safe_ranges(
-    records: pd.DataFrame,
-    seeds: Sequence[int],
-    *,
-    frame: FrameSpec,
-    removal: Removal | None = None,
+    records: pd.DataFrame, experiment: Experiment, *, frame: FrameSpec
 ) -> dict[str, tuple[float, float]]:
-    """Each of `frame`'s measured fields' range inside the training split of every one of `seeds`.
+    """Each of `frame`'s measured fields' range inside every holdout's training rows.
 
-    Each split bands its cells by `frame`'s edges, and its training rows are those `removal`
-    leaves (`bko.evaluate.prepare.prepared`), as the harness's are.
+    Each split bands its cells by `frame`'s edges, and its training rows are those the
+    experiment's training fraction and removal leave (`bko.evaluate.prepare.prepared`), as the
+    harness's are.
 
     Raises:
         EvaluationError: If no value of a field lies inside every split's range.
     """
     trains = [
-        prepared(split(records, seed=seed, edges=frame.edges), removal, edges=frame.edges)[0].train
-        for seed in seeds
+        prepared(
+            split(records, seed=seed, edges=frame.edges), experiment, edges=frame.edges
+        ).ablated.train
+        for seed in experiment.holdout_seeds
     ]
     ranges: dict[str, tuple[float, float]] = {}
     for name in frame.numeric:
@@ -141,9 +140,7 @@ class CannedSend:
         """
         frame = data.frame
         self._frame = frame
-        ranges = safe_ranges(
-            data.records, experiment.holdout_seeds, frame=frame, removal=experiment.removal
-        )
+        ranges = safe_ranges(data.records, experiment, frame=frame)
         self._grids = {name: _grid(*ranges[name], name, frame) for name in frame.numeric}
         self._steps = {
             name: STEPS.get(name, FALLBACK_STEPS[position % len(FALLBACK_STEPS)])

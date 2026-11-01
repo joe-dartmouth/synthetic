@@ -38,7 +38,7 @@ from bko.evaluate.data import (
     digest,
     load,
 )
-from bko.evaluate.experiment import Removal
+from bko.evaluate.experiment import E1, Removal
 from bko.evaluate.named_runs import E3, RUNS
 from bko.evaluate.prepare import prepared
 from bko.evaluate.rehearse import CannedSend
@@ -88,7 +88,8 @@ def _in_cell(frame: pd.DataFrame) -> pd.Series:
 def test_the_removal_thins_training_rows_only(tmp_path):
     records = _records(tmp_path)
     parts = split(records, seed=3, edges=SYNTHEA_FRAME.edges)
-    kept, removed = prepared(parts, E3.removal, edges=SYNTHEA_FRAME.edges)
+    ready = prepared(parts, E3, edges=SYNTHEA_FRAME.edges)
+    kept, removed = ready.ablated, ready.removed
     pd.testing.assert_frame_equal(kept.test, parts.test)
     assert kept.seed == parts.seed
     selected = parts.train.index[_in_cell(parts.train).to_numpy()].sort_values()
@@ -101,9 +102,10 @@ def test_the_removal_thins_training_rows_only(tmp_path):
     again, out = thinned(parts.train, cell=REMOVED, edges=SYNTHEA_FRAME.edges, fraction=0.9, seed=3)
     pd.testing.assert_frame_equal(again, kept.train)
     pd.testing.assert_frame_equal(out, removed)
-    unthinned, none = prepared(parts, None, edges=SYNTHEA_FRAME.edges)
-    assert unthinned is parts
-    assert none.empty
+    whole = prepared(parts, E1, edges=SYNTHEA_FRAME.edges)
+    assert whole.ablated is parts
+    assert whole.sized is parts
+    assert whole.removed.empty
 
 
 @pytest.mark.parametrize("fraction", [1.0, 0.0, -0.1])
@@ -268,9 +270,9 @@ def test_canned_synthea_records_are_valid_in_cell_and_equal_no_real_record(tmp_p
     data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, "synthea", None)
     send = CannedSend(data, TWO, SETTINGS)
     trains = [
-        prepared(split(records, seed=seed, edges=SYNTHEA_FRAME.edges), E3.removal, edges=(65,))[
-            0
-        ].train
+        prepared(
+            split(records, seed=seed, edges=SYNTHEA_FRAME.edges), E3, edges=(65,)
+        ).ablated.train
         for seed in TWO.holdout_seeds
     ]
     real = set(records.loc[:, list(SYNTHEA_FRAME.columns)].itertuples(index=False, name=None))

@@ -15,10 +15,9 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-data-scarcity-curve`](evaluate-data-scarcity-curve.md) | ready | -- | Joe | final-report |
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
-| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | blocked | `evaluate-data-scarcity-curve`, `evaluate-bayesian-network-baseline` | Joe | final-report |
+| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | blocked | `evaluate-bayesian-network-baseline` | Joe | final-report |
 
 ### Comparison methods
 
@@ -30,8 +29,7 @@ the ROADMAP heading it serves.
 flowchart LR
     generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
-    scarcity_curve[evaluate-data-scarcity-curve] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
-    bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal
+    bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
 ```
 
 ## What every unit relies on

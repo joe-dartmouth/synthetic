@@ -84,6 +84,8 @@ class Experiment:
         removal: The training rows each holdout loses before any arm runs; None removes none.
         decontaminate: Whether the test records an arm copies leave the test split (E1's rule);
             E3 keeps them and counts them.
+        training_fraction: The share of each cell's training rows every holdout keeps before any
+            arm runs (`bko.datasets.split.subsampled`); 1 keeps them all.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -105,6 +107,7 @@ class Experiment:
     idle_limit: float = 900.0
     removal: Removal | None = None
     decontaminate: bool = True
+    training_fraction: Fraction = Fraction(1)
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -116,7 +119,8 @@ class Experiment:
                 the confidence is not in (0, 1), there is no attempt, the fill target is below the
                 threshold, the budget is below 1, the validity is not in (0, 1], the spend ceiling
                 is not above 0 USD, a criterion is unknown or named twice, the projection is not
-                read after at least one holdout, the idle limit is not above 0 seconds, or
+                read after at least one holdout, the idle limit is not above 0 seconds, the
+                training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies.
         """
@@ -153,6 +157,7 @@ class Experiment:
             msg = f"attempts {self.attempts}: an arm needs at least one attempt"
             raise ValueError(msg)
         self._check_fill()
+        self._check_training()
         if not 0 < self.validity <= 1:
             msg = f"validity {self.validity} must lie in (0, 1]"
             raise ValueError(msg)
@@ -184,6 +189,15 @@ class Experiment:
             raise ValueError(msg)
         if self.decontaminate:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
+            raise ValueError(msg)
+
+    def _check_training(self) -> None:
+        fraction = self.training_fraction
+        if not isinstance(fraction, Fraction | int) or not 0 < fraction <= 1:
+            msg = f"training fraction {fraction!r} must be a Fraction in (0, 1]"
+            raise ValueError(msg)
+        if self.training_fraction < 1 and self.removal is not None:
+            msg = "a training fraction below 1 and a removal cannot both thin the training rows"
             raise ValueError(msg)
 
     def _check_fill(self) -> None:

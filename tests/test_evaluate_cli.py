@@ -11,6 +11,7 @@ import subprocess
 import sys
 import urllib.error
 import warnings
+from fractions import Fraction
 
 import pandas as pd
 import pytest
@@ -174,6 +175,7 @@ def test_compare_logs_the_candidate_and_the_scores_digest(scores_file, caplog):
         )
     digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
     assert f"compare candidate=tvae dry_run=True scores_sha256={digest}" in caplog.text
+    assert " training_fraction=1\n" in caplog.text
     assert "criterion=primary verdict=" in caplog.text
 
 
@@ -337,15 +339,28 @@ def test_the_versions_line_names_the_commit_and_whether_the_tree_is_dirty(tmp_pa
 @pytest.mark.parametrize(
     ("experiment", "fields"),
     [
-        (E1, "holdouts=100 seeds=0-99 removal=none decontaminate=true "),
-        (E3, "holdouts=100 seeds=0-99 removal=>=65/female/1@0.9 decontaminate=false "),
+        (E1, "holdouts=100 seeds=0-99 removal=none training_fraction=1 decontaminate=true "),
+        (
+            E3,
+            (
+                "holdouts=100 seeds=0-99 removal=>=65/female/1@0.9 training_fraction=1 "
+                "decontaminate=false "
+            ),
+        ),
         (
             dataclasses.replace(E3, holdout_seeds=tuple(range(50, 100))),
-            "holdouts=50 seeds=50-99 removal=>=65/female/1@0.9 decontaminate=false ",
+            (
+                "holdouts=50 seeds=50-99 removal=>=65/female/1@0.9 training_fraction=1 "
+                "decontaminate=false "
+            ),
         ),
         (
             dataclasses.replace(E1, fill_to=30),
-            "holdouts=100 seeds=0-99 removal=none decontaminate=true ",
+            "holdouts=100 seeds=0-99 removal=none training_fraction=1 decontaminate=true ",
+        ),
+        (
+            dataclasses.replace(E1, training_fraction=Fraction(1, 4)),
+            "holdouts=100 seeds=0-99 removal=none training_fraction=1/4 decontaminate=true ",
         ),
     ],
 )

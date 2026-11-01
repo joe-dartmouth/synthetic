@@ -1,4 +1,4 @@
-"""Each holdout's training rows: its split after the experiment's removal, and what it reads.
+"""Each holdout's training rows: its split sized by the training fraction, after the removal.
 
 The harness (`bko.evaluate.run`) and the rehearsal (`bko.evaluate.rehearse`) both prepare a
 holdout here, so their training rows agree.
@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
+from fractions import Fraction
 from hashlib import sha256
 
 import pandas as pd
@@ -16,26 +18,66 @@ from bko.baselines.request import Stratum
 from bko.datasets.ablation import thinned
 from bko.datasets.cells import SEXES, age_band_labels, cell_counts
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import Split
+from bko.datasets.split import Split, subsampled
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import Removal
+from bko.evaluate.experiment import Experiment, Removal
 
 
 logger = logging.getLogger(__name__)
 
 
-def prepared(
-    parts: Split, removal: Removal | None, *, edges: Sequence[int]
-) -> tuple[Split, pd.DataFrame]:
-    """`parts` with `removal`'s rows gone from its training rows, and the rows removed.
+@dataclass(frozen=True, slots=True, eq=False)
+class Prepared:
+    """One holdout's split at each step of its preparation.
 
-    The draw takes the split's seed (`bko.datasets.ablation.thinned`), and the test rows are
-    `parts`' own. With no removal, `parts` itself and no row. A removal logs one `removal` line:
-    the holdout, the cell, the fraction, and the training rows before, removed and kept.
+    Attributes:
+        sized: The split with the experiment's training fraction of each cell's training rows;
+            the held-out ratio reads it.
+        ablated: `sized` after the experiment's removal; every arm and score reads it.
+        removed: The training rows the removal took.
+    """
+
+    sized: Split
+    ablated: Split
+    removed: pd.DataFrame
+
+
+def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> Prepared:
+    """`parts` sized by `experiment.training_fraction`, then thinned by `experiment.removal`.
+
+    Both draws take the split's seed (`bko.datasets.split.subsampled`,
+    `bko.datasets.ablation.thinned`), and the test rows are `parts`' own. A fraction below 1 logs
+    one `subsample` line (the holdout, the fraction, and the training rows before and kept), and a
+    removal one `removal` line.
 
     Raises:
         DatasetError: As `thinned`, if the removal's cell holds no training row.
     """
+    sized = _sized(parts, experiment.training_fraction, edges=edges)
+    ablated, removed = _ablated(sized, experiment.removal, edges=edges)
+    return Prepared(sized, ablated, removed)
+
+
+def _sized(parts: Split, fraction: Fraction, *, edges: Sequence[int]) -> Split:
+    if fraction == 1:
+        return parts
+    sized = Split(
+        subsampled(parts.train, fraction, seed=parts.seed, edges=edges), parts.test, parts.seed
+    )
+    logger.info(
+        "subsample holdout=%d fraction=%s train=%d kept=%d ratio=%.6f",
+        parts.seed,
+        fraction,
+        len(parts.train),
+        len(sized.train),
+        held_out_ratio(sized, edges=edges),
+    )
+    return sized
+
+
+def _ablated(
+    parts: Split, removal: Removal | None, *, edges: Sequence[int]
+) -> tuple[Split, pd.DataFrame]:
     if removal is None:
         return parts, parts.train.iloc[:0]
     kept, removed = thinned(
@@ -57,7 +99,9 @@ def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     """Nadeau and Bengio's n2/n1: the largest ratio of held-out to training records in a cell.
 
     Taking the largest keeps every scope's interval at least as wide as its own cells need. The
-    harness reads it from the split before any removal, so a thinned cell does not set it.
+    harness reads it from the sized split (`Prepared.sized`): after the training fraction, which
+    shrinks every training cell and so widens every interval, and before any removal, so one
+    thinned cell does not set it.
     """
     kept = cell_counts(parts.train, edges=edges)["count"].tolist()
     held = cell_counts(parts.test, edges=edges)["count"].tolist()

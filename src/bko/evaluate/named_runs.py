@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
 
@@ -76,6 +77,18 @@ E4_TARGETS: Final[Mapping[str, int]] = MappingProxyType(
 )
 """Each dose run's fill target: `SETTINGS_SWEEP` filling every flagged cell past E1's threshold of
 20, the threshold unchanged so the same cells are flagged; `docs/EVIDENCE.md` (E4) names them."""
+
+
+E5_FRACTIONS: Final[Mapping[str, Fraction]] = MappingProxyType(
+    {
+        "e5-quarter": Fraction(1, 4),
+        "e5-half": Fraction(1, 2),
+        "e5-threequarters": Fraction(3, 4),
+    }
+)
+"""Each scarcity run's training fraction: E1's methods and `bko` at `SETTINGS`, every holdout
+keeping that share of each cell's training rows, a $10.00 ceiling and no criterion;
+`docs/EVIDENCE.md` (E5) names them."""
 
 
 E3: Final = replace(
@@ -226,6 +239,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **{
             name: NamedRun(replace(SETTINGS_SWEEP, fill_to=target))
             for name, target in E4_TARGETS.items()
+        },
+        **{
+            name: NamedRun(replace(SETTINGS_SWEEP, training_fraction=fraction))
+            for name, fraction in E5_FRACTIONS.items()
         },
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),

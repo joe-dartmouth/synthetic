@@ -83,12 +83,13 @@ def compare(
     text = _text(data)
     candidate = experiment.candidate if candidate is None else candidate
     logger.info(
-        "compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s",
+        "compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s training_fraction=%s",
         candidate,
         candidate != experiment.candidate,
         hashlib.sha256(data).hexdigest(),
         run,
         level if any(arm in MESSAGES_ARMS for arm in experiment.arms) else "none",
+        experiment.training_fraction,
     )
     rows = parse(text)
     contrasts = judge(rows, experiment, candidate=candidate)
