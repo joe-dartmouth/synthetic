@@ -13,7 +13,7 @@ import logging
 import os
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -43,6 +43,8 @@ class LocalModel:
         sha256: The file's lowercase hex sha256.
         template: A built-in llama.cpp chat template the server uses in place of the file's own,
             or None to render the file's template with thinking off.
+        thinking: Whether the model is served with its reasoning on.
+        weights: The id of the model whose file this one serves, or None for its own.
     """
 
     repo: str
@@ -50,6 +52,8 @@ class LocalModel:
     size: int
     sha256: str
     template: str | None = None
+    thinking: bool = False
+    weights: str | None = None
 
     @property
     def url(self) -> str:
@@ -57,19 +61,28 @@ class LocalModel:
         return f"https://huggingface.co/{self.repo}/resolve/main/{self.filename}"
 
 
+_GEMMA: Final = LocalModel(
+    repo="ggml-org/gemma-4-26B-A4B-it-GGUF",
+    filename="gemma-4-26B-A4B-it-Q8_0.gguf",
+    size=26_859_860_992,
+    sha256="b5108fd13147d1c866bb595295bc9d56f5fe744d7209f18421031d0cc47009c6",
+)
+_NEMOTRON: Final = LocalModel(
+    repo="ggml-org/NVIDIA-Nemotron-3-Nano-30B-A3B-GGUF",
+    filename="NVIDIA-Nemotron-3-Nano-30B-A3B-Q8_0.gguf",
+    size=33_585_500_064,
+    sha256="0d869d64174e82fcd6fc99fcc3c63449bb4064c4896da89ec8f0e3b7f2b58e02",
+)
+
 LOCAL_MODELS: Final[Mapping[str, LocalModel]] = MappingProxyType(
     {
-        "gemma-4-26b-a4b-q8_0": LocalModel(
-            repo="ggml-org/gemma-4-26B-A4B-it-GGUF",
-            filename="gemma-4-26B-A4B-it-Q8_0.gguf",
-            size=26_859_860_992,
-            sha256="b5108fd13147d1c866bb595295bc9d56f5fe744d7209f18421031d0cc47009c6",
+        "gemma-4-26b-a4b-q8_0": _GEMMA,
+        "gemma-4-26b-a4b-q8_0-thinking": replace(
+            _GEMMA, thinking=True, weights="gemma-4-26b-a4b-q8_0"
         ),
-        "nemotron-3-nano-30b-a3b-q8_0": LocalModel(
-            repo="ggml-org/NVIDIA-Nemotron-3-Nano-30B-A3B-GGUF",
-            filename="NVIDIA-Nemotron-3-Nano-30B-A3B-Q8_0.gguf",
-            size=33_585_500_064,
-            sha256="0d869d64174e82fcd6fc99fcc3c63449bb4064c4896da89ec8f0e3b7f2b58e02",
+        "nemotron-3-nano-30b-a3b-q8_0": _NEMOTRON,
+        "nemotron-3-nano-30b-a3b-q8_0-thinking": replace(
+            _NEMOTRON, thinking=True, weights="nemotron-3-nano-30b-a3b-q8_0"
         ),
         "olmo-3-7b-instruct-q8_0": LocalModel(
             repo="unsloth/Olmo-3-7B-Instruct-GGUF",
@@ -84,13 +97,17 @@ LOCAL_MODELS: Final[Mapping[str, LocalModel]] = MappingProxyType(
 publisher's own GGUF repository, else `ggml-org`'s, else `unsloth`'s. Olmo 3 7B Instruct's file
 template pipes an undefined `tools` into `tojson`, which llama.cpp's template parser refuses; for a
 system and a user turn with no tools it renders ChatML, so the server uses its built-in `chatml`.
-Olmo 3 7B Instruct has no thinking mode."""
+Olmo 3 7B Instruct has no thinking mode. A `-thinking` id serves its base's file with reasoning
+on, so the two share one download."""
 
 
 def model_path(model: str, data_dir: Path) -> Path:
-    """Where `model`'s weights live under `data_dir`: `models/<model>/<sha16>/<file>`."""
+    """Where `model`'s weights live under `data_dir`: `models/<model>/<sha16>/<file>`.
+
+    A thinking variant's path is its base's.
+    """
     pin = LOCAL_MODELS[model]
-    return data_dir / "models" / model / pin.sha256[:16] / pin.filename
+    return data_dir / "models" / (pin.weights or model) / pin.sha256[:16] / pin.filename
 
 
 def _mismatch(path: Path, size: int, sha256: str, pin: LocalModel) -> None:

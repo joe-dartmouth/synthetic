@@ -36,6 +36,8 @@ from tests._generate_fixtures import GUIDANCE
 
 
 MODEL = "olmo-3-7b-instruct-q8_0"
+BASE = "gemma-4-26b-a4b-q8_0"
+THINKING = "gemma-4-26b-a4b-q8_0-thinking"
 CALL = Call(dataclasses.replace(SETTINGS, model=MODEL), 0, 1, "sys", "usr", frame=UCI_FRAME)
 RECORD: dict[str, int | float] = {
     "age": 45,
@@ -61,7 +63,18 @@ PROPS: dict[str, object] = {
 }
 
 
-def completion(records: list[dict[str, int | float]], finish: str = "stop") -> dict[str, object]:
+def completion(
+    records: list[dict[str, int | float]],
+    finish: str = "stop",
+    reasoning_content: object = None,
+    content: str | None = None,
+) -> dict[str, object]:
+    message: dict[str, object] = {
+        "role": "assistant",
+        "content": json.dumps({"records": records}) if content is None else content,
+    }
+    if reasoning_content is not None:
+        message["reasoning_content"] = reasoning_content
     return {
         "id": "chatcmpl-1",
         "model": MODEL,
@@ -69,7 +82,7 @@ def completion(records: list[dict[str, int | float]], finish: str = "stop") -> d
             {
                 "index": 0,
                 "finish_reason": finish,
-                "message": {"role": "assistant", "content": json.dumps({"records": records})},
+                "message": message,
             }
         ],
         "usage": {"prompt_tokens": 900, "completion_tokens": 120},
@@ -399,3 +412,78 @@ def test_a_local_log_replays_its_text_and_decodes_as_logged(tmp_path):
         ask(GUIDANCE, 2, send=Replay(path), log=again, frame=UCI_FRAME)
     assert (again.decoded, again.undecoded) == logged
     assert len(batch.candidates) == 2
+
+
+THINKING_CALL = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=THINKING))
+
+
+def test_the_thinking_payload_differs_from_the_plain_one_in_model_and_thinking_alone():
+    plain = payload(dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE)))
+    thinking = payload(THINKING_CALL)
+    assert plain["chat_template_kwargs"] == {"enable_thinking": False}
+    assert thinking["chat_template_kwargs"] == {"enable_thinking": True}
+    assert {k: v for k, v in thinking.items() if k not in {"model", "chat_template_kwargs"}} == {
+        k: v for k, v in plain.items() if k not in {"model", "chat_template_kwargs"}
+    }
+    assert (plain["model"], thinking["model"]) == (BASE, THINKING)
+
+
+def test_the_thinking_argv_differs_in_alias_and_reasoning_flags_alone(tmp_path):
+    plain = serve_command(BASE, tmp_path)
+    thinking = serve_command(THINKING, tmp_path)
+    flags = ["--jinja", "--reasoning", "on", "--reasoning-format", "deepseek"]
+    assert thinking[-5:] == flags
+    assert plain[-3:] == ["--jinja", "--chat-template-kwargs", '{"enable_thinking":false}']
+    assert [BASE if a == THINKING else a for a in thinking[:-5]] == plain[:-3]
+    assert thinking == [
+        "llama-server",
+        "-m",
+        str(model_path(BASE, tmp_path)),
+        "--alias",
+        THINKING,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8081",
+        "-np",
+        "4",
+        "-c",
+        "81920",
+        "--jinja",
+        "--reasoning",
+        "on",
+        "--reasoning-format",
+        "deepseek",
+    ]
+
+
+def test_a_base_alias_server_is_refused_for_the_variant_before_any_post():
+    props = {**PROPS, "model_alias": BASE, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with (
+        Server([(200, completion([RECORD]))], props=props) as fake,
+        pytest.raises(GenerationError, match="the run names") as caught,
+    ):
+        asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    assert not caught.value.retryable
+    assert fake.requests == []
+
+
+def test_the_probe_logs_reasoning_chars(caplog):
+    caplog.set_level("INFO")
+    body = completion([RECORD], reasoning_content="think hard")
+    with Server([(200, body), (200, completion([RECORD]))]) as fake:
+        assert probe(MODEL, url=fake.url, rows=1) == 1
+        assert probe(MODEL, url=fake.url, rows=1) == 1
+    lines = [m for m in caplog.messages if m.startswith("probe model=")]
+    assert "reasoning_chars=10" in lines[0]
+    assert "reasoning_chars=0" in lines[1]
+
+
+def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(monkeypatch, caplog):
+    tagged = "<think>plan</think>" + json.dumps({"records": [RECORD]})
+    with Server([(200, completion([RECORD], content=tagged))]) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        monkeypatch.setattr(local_module, "LOCAL_URL", fake.url)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        assert main(["probe", MODEL]) == 2

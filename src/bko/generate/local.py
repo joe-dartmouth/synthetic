@@ -3,7 +3,8 @@
 `local_send` posts each `Call` to `llama-server`'s OpenAI-compatible `/v1/chat/completions` on
 `127.0.0.1`, over `http.client` (no proxy, no redirect), with the call's system and user turns, its
 `max_tokens`, sampling fixed at temperature 1.0 and top-p 1.0 (the Messages API's default
-temperature), the call's `record_schema` as a `json_schema` response format, and thinking off.
+temperature), the call's `record_schema` as a `json_schema` response format, and thinking off
+unless the model's id is a `-thinking` variant.
 Nothing leaves the machine. Its first call reads the server's `/props` and refuses a server whose
 alias or weights file is not the model's, logging the server's build and file. A cancelled call,
 by the idle rule or an interrupt, shuts its socket so the worker thread and the server's slot are
@@ -82,7 +83,7 @@ RETRYABLE_STATUS: Final = 500
 
 
 def payload(call: Call) -> dict[str, object]:
-    """The chat-completions request body for `call`."""
+    """The chat-completions request body for `call`; thinking follows the model's pin."""
     return {
         "model": call.settings.model,
         "messages": [
@@ -100,7 +101,7 @@ def payload(call: Call) -> dict[str, object]:
                 "schema": record_schema(call.sex, call.label, frame=call.frame),
             },
         },
-        "chat_template_kwargs": {"enable_thinking": False},
+        "chat_template_kwargs": {"enable_thinking": LOCAL_MODELS[call.settings.model].thinking},
     }
 
 
@@ -272,13 +273,17 @@ def _abort(connection: http.client.HTTPConnection) -> None:
 
 
 def serve_command(model: str, data_dir: Path) -> list[str]:
-    """The `llama-server` argv that serves `model` on `LOCAL_URL` with thinking off.
+    """The `llama-server` argv that serves `model` on `LOCAL_URL`, thinking off unless a variant.
 
+    A thinking variant is served with reasoning on, its thoughts split into `reasoning_content`.
     A model with a built-in `template` is served with it; any other renders its file's template.
     """
-    template = LOCAL_MODELS[model].template
+    pin = LOCAL_MODELS[model]
+    template = pin.template
     rendering = (
-        ["--chat-template", template]
+        ["--jinja", "--reasoning", "on", "--reasoning-format", "deepseek"]
+        if pin.thinking
+        else ["--chat-template", template]
         if template is not None
         else [
             "--jinja",
@@ -334,6 +339,15 @@ def wait_ready(
         sleep(1.0)
 
 
+def reasoning_chars(reply: Reply) -> int:
+    """The characters of the reply's `reasoning_content`, 0 when absent or not text."""
+    choices = reply.raw.get("choices")
+    first = choices[0] if isinstance(choices, list) and choices else None
+    message = first.get("message") if isinstance(first, dict) else None
+    thoughts = message.get("reasoning_content") if isinstance(message, dict) else None
+    return len(thoughts) if isinstance(thoughts, str) else 0
+
+
 def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
     """Send one call for `rows` records of `PROBE_CELL` and log what decodes and how fast.
 
@@ -356,13 +370,14 @@ def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
     decoded = len(candidates) - undecoded_in(candidates)
     logger.info(
         "probe model=%s asked=%d decoded=%d stop_reason=%s input_tokens=%d output_tokens=%d "
-        "elapsed_s=%.1f request_id=%s",
+        "reasoning_chars=%d elapsed_s=%.1f request_id=%s",
         model,
         rows,
         decoded,
         reply.stop_reason,
         reply.usage.input_tokens,
         reply.usage.output_tokens,
+        reasoning_chars(reply),
         elapsed,
         reply.request_id,
     )
