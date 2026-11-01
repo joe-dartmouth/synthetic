@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-10-28
+updated: 2026-11-01
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -33,7 +33,10 @@ rows in `docs/EVIDENCE.md`).
   written as calls land, and batches are committed in call order. Call i must send the
   parameters of the log's i-th `request` line, compared as JSON. Its answer is one of two things:
   - that call's `reply` line, rebuilt as a `Reply`, its text read from the logged response by
-    `bko.generate.messages.text_of`, the function `reply_of` also uses;
+    `bko.generate.messages.text_of`, the function `bko.generate.api.reply_of` and
+    `bko.generate.local.reply_of` also use. It reads by shape: a Messages body's text blocks
+    joined, thinking blocks ignored, or a chat-completions body's first choice's
+    `message.content`, reasoning ignored; None when there is none;
   - or that call's `error` line, raised again as `GenerationError`.
 
   `ReplayError` (exit 3) is raised for:
@@ -80,6 +83,11 @@ rows in `docs/EVIDENCE.md`).
 - `bko.app` answers a BKO fill from the call log of an earlier fill by that arm, with the same
   refusals, and writes its own log naming the replayed log's sha256.
 - Order, not content, pairs a call with its answer.
+- A replay runs at the run's commit (its `versions` line names it), or at a replay commit: the
+  run's commit plus changes to the reply-text reader alone, so
+  `git diff --stat <run commit> <replay commit> -- src` lists only `src/bko/generate/messages.py`
+  and `src/bko/generate/local.py`. A replay commit carries a tag `replay/<name>` pushed to
+  origin; G6's local runs replay at `replay/g6-local`.
 
 ## Rationale
 
@@ -98,12 +106,18 @@ top-up into a refusal, instead of a silently different reading.
 A resumed run's log holds every call, replayed and live, in one file, so its scores replay from
 one log as any paid run's do.
 
+One reader for both reply shapes gives a local run's replay the text its live run decoded, since a
+chat-completions body has no `content` list. The reader runs before decoding and changes no
+request, so a replay commit that differs from the run's commit in the reader alone answers the same
+calls and rewrites the same bytes; the `diff --stat` guard shows that nothing else moved. The
+replay commit sits off `main`, and the tag keeps it reachable.
+
 ## Consequences
 
 **Gained**: E1's BKO scores regenerate byte for byte from the paid run's log at its commit, with no
-API call, and a fix to a free reading re-records for nothing.
+API call, and a local run's from its log at its replay commit, and a fix to a free reading re-records for nothing.
 **Accepted**: a change to a prompt, a quota, a drop rule that moves a top-up, or the settings makes
-a log unreplayable and needs a new paid run; replay holds on one machine at the run's commit, data
+a log unreplayable and needs a new paid run; replay holds on one machine at the run's commit or replay commit, data
 and releases, as E1's baselines do. Decontamination makes every arm's scores depend on every arm's
 rows, so byte-identical replay also needs the seeded baselines to repeat, as they do on one
 machine. A resume pays its stopped calls again: one for a sequential run, a stopped wave's for a
@@ -122,12 +136,13 @@ settings show at the first live or replayed call.
 | Rerunning a stopped run from scratch | Repays every answered call; finishing e1-2 that way would have cost about 12.82 USD against 2.15 USD | 2026-10-22 |
 | Appending to the stopped log | A paid log is created exclusively and never extended, and the stopped log stays the record of the stopped run | 2026-10-22 |
 | A resumed log holding only its live calls | Its scores would replay from no single file | 2026-10-22 |
+| Rerunning the paid runs to reproduce them at a later commit | Repeats runs whose results exist and draws new rows; a replay commit replays their logs for free | 2026-11-01 |
 
 ## Enforcement
 
 - Owner: `src/bko/generate/replay.py`
 - Pinned by: `tests/test_generate_replay.py`, `tests/test_evaluate_bko_cli.py`,
-  `tests/test_app_steps.py`
+  `tests/test_app_steps.py`, `tests/test_generate_local.py`
 
 ## Reversal Conditions
 

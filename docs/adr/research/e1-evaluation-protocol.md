@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-31
+updated: 2026-11-01
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -41,7 +41,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   another arm as a dry run, never as E1's verdict, and `compare --beside` reads an arm beside
   another run's arm, a reading with no verdict, over the holdouts both files hold where the held-out
   rows match, their flagged-cell fingerprints match when both files hold one, and no arm in either
-  file copied a test record, unless the experiment keeps copies. A variant is a named run:
+  file copied a test record, unless the experiment keeps copies or both files hold equal
+  `shared-split` rows there, each scored on the split neither run copies (ADR
+  `research/shared-test-split-reading`). A variant is a named run:
   `bko.evaluate.named_runs.RUNS` maps a run name to its `Experiment`, generator `Settings` and
   dataset, `e1` being `E1` at `SETTINGS` over UCI and the default, and `score` and `compare` take
   the name as a positional. E1's comparison set is the literal `METHOD_ARMS` in

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-10-29
+updated: 2026-11-01
 ---
 # On-device generators: a llama.cpp server on the loopback interface, weights fixed by digest
 
@@ -43,7 +43,8 @@ with the same structured-output schema, and the run's spend gates still have to 
   its socket, so the thread returns and the server stops generating for it. A failed connection,
   a broken response or a status of 500 or above raises `GenerationError(retryable=True)`, as the
   API's connection errors do; another status, or a body that is not a JSON object, raises one that
-  is not.
+  is not. `reply_of` reads the reply's text with `bko.generate.messages.text_of`, the reader replay
+  uses (ADR `research/call-log-replay`): the first choice's `message.content`, reasoning ignored.
 - **Server check.** The first call reads the server's `/props` and refuses a server whose alias or
   weights file is not the run's model, before any call is posted, and logs one
   `local server model=%s path=%s build=%s slots=%s sha256=%s` line: the served file, the server's
