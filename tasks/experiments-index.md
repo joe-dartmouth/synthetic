@@ -11,6 +11,12 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
+### Generation
+
+| Unit | Status | Depends on | Owner | Milestone |
+|---|---|---|---|---|
+| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | blocked | `evaluate-diabetes-subgroup-removal` | Shirley | final-report |
+
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
@@ -30,6 +36,7 @@ flowchart LR
     generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
     bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
+    diabetes_removal --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
 ```
 
 ## What every unit relies on

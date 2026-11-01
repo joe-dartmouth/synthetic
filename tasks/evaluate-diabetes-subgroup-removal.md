@@ -3,7 +3,7 @@ id: evaluate-diabetes-subgroup-removal
 title: Subgroup removal on Diabetes 130-US Hospitals
 status: blocked
 depends_on: evaluate-bayesian-network-baseline
-blocks: --
+blocks: generate-bkb-curation-diabetes
 parallel_safe: false
 owner: Joe
 milestone: final-report

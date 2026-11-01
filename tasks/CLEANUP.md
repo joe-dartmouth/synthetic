@@ -98,12 +98,14 @@ links to where its blocker is tracked.
   arm.** `bko.evaluate.experiment.MessagesArm` accepts `curation=Curation.LIKELIHOOD` with an
   `over_ask` above 1, and `tests/test_evaluate_experiment.py` pins both, but the curated arm they
   were reserved for does not run: G7's gate read `gate separated=False`
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)), and `docs/IDEAS.md` holds
-  the arm unscheduled. *Filed 2026-10-31 by PR7's landing.*
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)), and the arm waits on
+  the gate's reading on Diabetes 130. *Filed 2026-10-31 by PR7's landing.*
+  **Blocked on** unit [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md), which
+  either runs them or finds the gate fails again.
   **Why deferred.** Removing them changes the Messages arm spec, outside PR7's docs-only landing.
   **What discharges it:** `Curation.LIKELIHOOD`, `over_ask` and their tests removed, with ADR
   `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
-  **Trigger:** the next change to `bko.evaluate.experiment.MessagesArm`.
+  **Trigger:** unit `generate-bkb-curation-diabetes`'s phase 1 verdict.
 
 - **`cleanup:evaluate/merge-configuration-check`: `merge` says it refuses slices of other
   configuration, but it compares score keys alone.** `bko.evaluate.merge`'s docstring says slices
