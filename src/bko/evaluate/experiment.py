@@ -192,8 +192,9 @@ class Experiment:
             raise ValueError(msg)
 
     def _check_training(self) -> None:
-        if not 0 < self.training_fraction <= 1:
-            msg = f"training fraction {self.training_fraction} must lie in (0, 1]"
+        fraction = self.training_fraction
+        if not isinstance(fraction, Fraction | int) or not 0 < fraction <= 1:
+            msg = f"training fraction {fraction!r} must be a Fraction in (0, 1]"
             raise ValueError(msg)
         if self.training_fraction < 1 and self.removal is not None:
             msg = "a training fraction below 1 and a removal cannot both thin the training rows"

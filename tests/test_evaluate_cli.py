@@ -175,6 +175,7 @@ def test_compare_logs_the_candidate_and_the_scores_digest(scores_file, caplog):
         )
     digest = hashlib.sha256(scores_file.read_bytes()).hexdigest()
     assert f"compare candidate=tvae dry_run=True scores_sha256={digest}" in caplog.text
+    assert " training_fraction=1\n" in caplog.text
     assert "criterion=primary verdict=" in caplog.text
 
 

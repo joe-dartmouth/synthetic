@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 from fractions import Fraction
 
+import pandas as pd
 import pytest
 
-from bko.datasets.cells import cell_counts
+from bko.datasets.cells import cell_counts, cell_keys
 from bko.datasets.split import kept_count, split, subsampled
 from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import full_records
@@ -72,5 +74,40 @@ def test_the_test_rows_are_untouched():
 
 @pytest.mark.parametrize("fraction", [Fraction(0), Fraction(5, 4)])
 def test_a_fraction_outside_zero_to_one_is_refused(fraction):
-    with pytest.raises(ValueError, match="must lie in"):
+    with pytest.raises(ValueError, match="must be a Fraction in"):
         subsampled(TRAIN, fraction, seed=0, edges=EDGES)
+
+
+def test_the_draw_is_per_cell_on_unequal_cells():
+    sizes = {(44, 0): 1, (44, 1): 3, (63, 0): 10, (63, 1): 23}
+    rows = []
+    for (age, sex), size in sizes.items():
+        rows += [{"age": age, "sex": sex, "target": 1}] * size
+    frame = pd.DataFrame(rows)
+    kept = subsampled(frame, Fraction(1, 4), seed=0, edges=EDGES)
+    found = sorted(cell_counts(kept, edges=EDGES)["count"].tolist())
+    assert [n for n in found if n] == sorted(kept_count(n, Fraction(1, 4)) for n in sizes.values())
+
+
+def test_the_subsample_ranks_apart_from_the_split():
+    """The draw's own tag keeps it from being the first rows of the split's ranking."""
+    for seed in range(5):
+        kept = set(subsampled(TRAIN, Fraction(1, 4), seed=seed, edges=EDGES).index)
+        ranked = sorted(TRAIN.index, key=lambda r: hashlib.sha256(f"{seed}:{r}".encode()).digest())
+        cells = cell_keys(TRAIN, edges=EDGES)
+        firsts = set()
+        for _, group in cells.groupby(list(cells.columns)):
+            members = [r for r in ranked if r in set(group.index)]
+            firsts |= set(members[: kept_count(len(members), Fraction(1, 4))])
+        assert kept != firsts
+
+
+@pytest.mark.parametrize("fraction", [0.25, "1/4"])
+def test_a_fraction_that_is_not_a_fraction_is_refused(fraction):
+    with pytest.raises(ValueError, match="must be a Fraction"):
+        subsampled(TRAIN, fraction, seed=0, edges=EDGES)
+
+
+def test_a_duplicate_index_is_refused():
+    with pytest.raises(ValueError, match="unique record index"):
+        subsampled(pd.concat([TRAIN, TRAIN.iloc[:1]]), Fraction(1, 2), seed=0, edges=EDGES)

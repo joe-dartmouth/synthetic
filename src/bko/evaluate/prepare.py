@@ -61,15 +61,18 @@ def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> P
 def _sized(parts: Split, fraction: Fraction, *, edges: Sequence[int]) -> Split:
     if fraction == 1:
         return parts
-    kept = subsampled(parts.train, fraction, seed=parts.seed, edges=edges)
+    sized = Split(
+        subsampled(parts.train, fraction, seed=parts.seed, edges=edges), parts.test, parts.seed
+    )
     logger.info(
-        "subsample holdout=%d fraction=%s train=%d kept=%d",
+        "subsample holdout=%d fraction=%s train=%d kept=%d ratio=%.6f",
         parts.seed,
         fraction,
         len(parts.train),
-        len(kept),
+        len(sized.train),
+        held_out_ratio(sized, edges=edges),
     )
-    return Split(kept, parts.test, parts.seed)
+    return sized
 
 
 def _ablated(

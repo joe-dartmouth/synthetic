@@ -15,7 +15,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -81,13 +81,7 @@ def split(frame: pd.DataFrame, *, seed: int = SPLIT_SEED, edges: Sequence[int]) 
     Raises:
         ValueError: If the index has a duplicate.
     """
-    if not frame.index.is_unique:
-        msg = "split needs a unique record index"
-        raise ValueError(msg)
-    held_out: list[int] = []
-    for records in cell_keys(frame, edges=edges).groupby(list(CELL_COLUMNS)).groups.values():
-        ranked = sorted(records, key=lambda record: _rank(seed, record))
-        held_out.extend(ranked[: held_out_count(len(ranked))])
+    held_out = _lowest(frame, held_out_count, tag="", seed=seed, edges=edges)
     is_test = frame.index.isin(held_out)
     return Split(train=frame.loc[~is_test].copy(), test=frame.loc[is_test].copy(), seed=seed)
 
@@ -105,20 +99,20 @@ def subsampled(
 ) -> pd.DataFrame:
     """`kept_count` of each cell's rows of `train`, those ranked lowest by hash.
 
-    Records are ranked by `sha256(f"{seed}:train-fraction:{record_id}")`, so one seed's
-    subsamples nest: every record a smaller fraction keeps, a larger one keeps too. A fraction of
-    1 keeps every row.
+    Records are ranked by the sha256 of `seed`, the tag `train-fraction` and the record id, an
+    order apart from the split's own, so one seed's subsamples nest: every record a smaller
+    fraction keeps, a larger one keeps too. A fraction of 1 keeps every row.
 
     Raises:
-        ValueError: If `fraction` is not in (0, 1].
+        ValueError: If `fraction` is not a `Fraction` (or an int) in (0, 1], or the index has a
+            duplicate.
     """
-    if not 0 < fraction <= 1:
-        msg = f"training fraction {fraction} must lie in (0, 1]"
+    if not isinstance(fraction, Fraction | int) or not 0 < fraction <= 1:
+        msg = f"training fraction {fraction!r} must be a Fraction in (0, 1]"
         raise ValueError(msg)
-    kept: list[int] = []
-    for records in cell_keys(train, edges=edges).groupby(list(CELL_COLUMNS)).groups.values():
-        ranked = sorted(records, key=lambda record: _rank(seed, f"train-fraction:{record}"))
-        kept.extend(ranked[: kept_count(len(ranked), fraction)])
+    kept = _lowest(
+        train, lambda n: kept_count(n, fraction), tag="train-fraction:", seed=seed, edges=edges
+    )
     return train.loc[train.index.isin(kept)].copy()
 
 
@@ -147,7 +141,30 @@ def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, floa
     return found
 
 
-def _rank(seed: int, record: int | str) -> bytes:
+def _lowest(
+    frame: pd.DataFrame,
+    count: Callable[[int], int],
+    *,
+    tag: str,
+    seed: int,
+    edges: Sequence[int],
+) -> list[int]:
+    """Each cell's `count(cell size)` records ranked lowest by `sha256(f"{seed}:{tag}{record}")`.
+
+    Raises:
+        ValueError: If the index has a duplicate.
+    """
+    if not frame.index.is_unique:
+        msg = "a per-cell draw needs a unique record index"
+        raise ValueError(msg)
+    chosen: list[int] = []
+    for records in cell_keys(frame, edges=edges).groupby(list(CELL_COLUMNS)).groups.values():
+        ranked = sorted(records, key=lambda record: _rank(seed, f"{tag}{record}"))
+        chosen.extend(ranked[: count(len(ranked))])
+    return chosen
+
+
+def _rank(seed: int, record: str) -> bytes:
     return hashlib.sha256(f"{seed}:{record}".encode("ascii")).digest()
 
 
