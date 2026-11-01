@@ -132,9 +132,11 @@ figures show and the plan's other arms do not pay, and the CLLM arms already ask
 records without the ontology.
 
 A curated `bko` arm, keeping each cell's highest-scoring records by their likelihood under the
-fused BKB in place of a classifier's confidence, is unscheduled: its free gate, fixed in ADR
+fused BKB in place of a classifier's confidence, waits on its free gate: the gate, fixed in ADR
 [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), did not separate
-fidelity on the judged run's candidates ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation) G7).
+fidelity on UCI's judged run's candidates ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)
+G7), and unit [`generate-bkb-curation-diabetes`](../tasks/generate-bkb-curation-diabetes.md) reads
+it again on Diabetes 130 and builds the arm only if it separates there.
 
 **Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the

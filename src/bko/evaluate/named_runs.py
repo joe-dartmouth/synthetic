@@ -4,7 +4,8 @@
 level (`docs/EVIDENCE.md`, G3), the effort sweep's runs, `g4-low` and `g4-medium` (G4), `g2`, the
 direct arm's run (`G2`), and `g5`, the prescribing arm's run (`G5`), and E3's runs over the Synthea
 frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`),
-B1's classical-baseline runs, `b1-uci` and `b1-synthea`, and G6's generator-comparison runs,
+B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network runs, `b2-uci` and
+`b2-synthea`, and G6's generator-comparison runs,
 `g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`.
 No command-line flag changes a value here.
 """
@@ -135,6 +136,30 @@ B1_SYNTHEA: Final = replace(
 """E3's removal and copy rule with E3's methods, the classical synthesizers and `real`, no BKO arm
 (`docs/EVIDENCE.md`, B1)."""
 
+BAYES_NET: Final = str(Method.BAYES_NET)
+"""The Bayesian network baseline's arm (ADR `research/bayesian-network-baseline`)."""
+
+B2_UCI: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, BAYES_NET),
+    candidate=BAYES_NET,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, BAYES_NET),
+    criteria=(),
+)
+"""E1's methods and the Bayesian network as the candidate, no BKO arm and no criterion, so it makes
+no API call (`docs/EVIDENCE.md`, B2)."""
+
+B2_SYNTHEA: Final = replace(
+    E3,
+    arms=(*METHOD_ARMS, BAYES_NET, REAL_ARM),
+    candidate=BAYES_NET,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, BAYES_NET),
+)
+"""E3's removal and copy rule with E3's methods, the Bayesian network and `real`, no BKO arm
+(`docs/EVIDENCE.md`, B2)."""
+
 
 B3_ARMS: Final = ("bko", CLLM_ARM, CLLM_RAW_ARM)
 """The Messages arms B3 reads together: `bko`, CLLM and its uncurated twin (`docs/EVIDENCE.md`,
@@ -247,6 +272,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
         "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
+        "b2-uci": NamedRun(B2_UCI),
+        "b2-synthea": NamedRun(B2_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         "b3-uci": NamedRun(B3_UCI),
         "b3-synthea": NamedRun(B3_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         **{

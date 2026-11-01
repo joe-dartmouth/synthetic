@@ -90,7 +90,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart|bayes-net> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -99,8 +99,8 @@ command per method, inside `.venv`:
   `bko.baselines.request`.
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
   with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
-  row counts and the output's sha256, the fit and fill lines of CTGAN and TVAE, the fill line of
-  the Gaussian copula and sequential CART, and the method's
+  row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE and the Bayesian
+  network, the fill line of the Gaussian copula and sequential CART, and the method's
   parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
@@ -108,7 +108,8 @@ command per method, inside `.venv`:
   method whose output breaks the contract.
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN and
   TVAE promise no more, so the logged sha256 is the record. The Gaussian copula gives the same rows
-  at every seed, since SDV fixes its sampling seed; sequential CART's rows follow the seed alone.
+  at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian network's
+  rows follow the seed alone.
 
 ## Evaluation
 
@@ -157,7 +158,8 @@ group. Each names the holdout and the fill (`gap` or `replica`) it serves; outsi
 they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone, since `G2`
 judges no criterion, and logs every criterion's intervals as `unjudged` lines.
 
-A run with neither a BKO arm nor the direct arm, such as `b1-uci` and `b1-synthea`, makes no call
+A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
+`b2-synthea`, makes no call
 and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`, `--resume` and
 `--rehearse`:
 
@@ -567,7 +569,11 @@ start or the supervisor cannot run.
   and the CLLM arms `cllm` and `cllm-uncurated`) and `b3-synthea` (E3's methods, those three and
   `real` under E3's removal), each with `cllm` as the candidate and no criterion (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md);
-  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
+  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)), and B2's, `b2-uci` (E1's methods and the Bayesian
+  network `bayes-net` as the candidate) and `b2-synthea` (E3's methods, `bayes-net` and `real`
+  under E3's removal), each with no BKO arm and no criterion (ADR
+  [`research/bayesian-network-baseline`](adr/research/bayesian-network-baseline.md);
+  [EVIDENCE.md](EVIDENCE.md#b2-bayesian-network-baseline)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
   `e4-eighty` (`E4_TARGETS`: E1's methods and `bko` filling each flagged cell to 30, 40 or 80 at
   E1's threshold, a $10.00 ceiling and no criterion;
   [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)), and E5's scarcity runs, `e5-quarter`,

@@ -45,6 +45,7 @@ ARGS = {
     Method.TVAE: ["--rows", "5"],
     Method.GAUSSIAN_COPULA: ["--rows", "5"],
     Method.CART: ["--rows", "5"],
+    Method.BAYES_NET: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
 

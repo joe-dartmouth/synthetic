@@ -11,25 +11,25 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
+### Generation
+
+| Unit | Status | Depends on | Owner | Milestone |
+|---|---|---|---|---|
+| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | blocked | `evaluate-diabetes-subgroup-removal` | Shirley | final-report |
+
 ### Evaluation power
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
-| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | blocked | `evaluate-bayesian-network-baseline` | Joe | final-report |
-
-### Comparison methods
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`evaluate-bayesian-network-baseline`](evaluate-bayesian-network-baseline.md) | ready | -- | Joe | final-report |
+| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
     generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
-    bn_baseline[evaluate-bayesian-network-baseline] --> diabetes_removal[evaluate-diabetes-subgroup-removal]
+    diabetes_removal[evaluate-diabetes-subgroup-removal] --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
 ```
 
 ## What every unit relies on

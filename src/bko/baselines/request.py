@@ -43,7 +43,8 @@ class Method(enum.StrEnum):
     """The comparison methods; the first two are the controls.
 
     The first six are docs/RESEARCH.md section 4's comparison set; the classical synthesizers
-    follow (ADR `research/baseline-augmentation-design`).
+    follow (ADR `research/baseline-augmentation-design`), then the Bayesian network (ADR
+    `research/bayesian-network-baseline`).
     """
 
     NONE = "none"
@@ -54,6 +55,7 @@ class Method(enum.StrEnum):
     TVAE = "tvae"
     GAUSSIAN_COPULA = "gaussian-copula"
     CART = "cart"
+    BAYES_NET = "bayes-net"
 
     @property
     def adds_rows(self) -> bool:
