@@ -9,16 +9,22 @@ import pandas as pd
 import pytest
 
 from bko.baselines.bayes_net import (
+    BINS,
     ESS,
     Bins,
+    K,
     Network,
+    bayes_net,
     discretize,
     draw,
     learn,
     mutual_information,
 )
+from bko.baselines.records import derived_seed, unit_weights
+from bko.baselines.request import Request, Strata, Stratum
 from bko.datasets.uci import UCI_FRAME
-from tests._baselines_fixtures import full_records
+from tests._baselines_fixtures import QUOTA, assert_contract, full_records
+from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 
 
 def states_of(**columns) -> Bins:
@@ -135,3 +141,48 @@ def test_the_same_rng_draws_the_same_rows():
 def test_an_unknown_first_field_is_refused():
     with pytest.raises(ValueError, match="first field"):
         learn(planted_chain(), first="nowhere")
+
+
+def _run(ambient: int, seed: int, train: pd.DataFrame = TRAIN, quota=QUOTA):
+    np.random.seed(ambient)
+    return bayes_net(train, Request(quota=quota, seed=seed))
+
+
+@pytest.fixture(scope="module")
+def runs():
+    return _run(1, 3), _run(2, 3), _run(1, 4)
+
+
+def test_the_network_meets_the_contract(runs):
+    assert_contract(runs[0].added, TRAIN, QUOTA)
+    pd.testing.assert_series_equal(runs[0].weights, unit_weights(TRAIN))
+
+
+def test_the_rows_depend_on_the_seed_alone(runs):
+    pd.testing.assert_frame_equal(runs[0].added, runs[1].added)
+    assert not runs[0].added.equals(runs[2].added)
+
+
+def test_the_ambient_generator_is_left_alone():
+    np.random.seed(9)
+    expected = np.random.random()
+    np.random.seed(9)
+    bayes_net(TRAIN, Request(quota=QUOTA, seed=3))
+    assert np.random.random() == expected
+
+
+def test_the_params_name_the_first_field_and_the_learned_edges(runs):
+    params = runs[0].params
+    seed = derived_seed(3, "bayes-net")
+    assert params["first"] == UCI_FRAME.columns[seed % len(UCI_FRAME.columns)]
+    assert (params["k"], params["bins"], params["ess"]) == (K, BINS, ESS)
+    network = learn(discretize(TRAIN.reset_index(drop=True), UCI_FRAME), first=params["first"])
+    assert params["edges"] == [list(edge) for edge in network.edges]
+
+
+def test_the_network_fills_the_toy_frame():
+    quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
+    request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
+    added = bayes_net(TOY_TRAIN, request).added
+    assert list(added.columns) == list(TOY.columns)
+    assert len(added) == sum(quota.values())

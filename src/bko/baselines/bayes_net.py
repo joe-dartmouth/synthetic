@@ -23,6 +23,9 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from bko.baselines.records import Baseline, derived_seed, unit_weights
+from bko.baselines.request import Request
+from bko.baselines.synthesizers import fill
 from bko.datasets.frames import FrameSpec
 
 
@@ -180,6 +183,39 @@ def draw(
         }
         out[field] = [rng.choice(donors[state]) for state in drawn[field]]
     return out.astype(dict(frame.dtypes))
+
+
+def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
+    """The network learned on `train`, records drawn until each stratum holds its quota.
+
+    The first field is `frame.columns[derived_seed(seed, "bayes-net") % len(frame.columns)]`, and
+    every draw reads `default_rng(derived_seed(seed, "bayes-net"))`, so the seed alone decides the
+    rows and no global generator is read or moved. The params name the first field, `k`, the bins
+    and the learned edges.
+
+    Raises:
+        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
+            baseline, so the harness refuses it rather than filling partially.
+    """
+    frame = request.frame
+    rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
+    seed = derived_seed(request.seed, "bayes-net")
+    first = frame.columns[seed % len(frame.columns)]
+    bins = discretize(rows, frame)
+    network = learn(bins, first=first)
+    rng = np.random.default_rng(seed)
+    added = fill(
+        lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
+    )
+    params = {
+        "seed": request.seed,
+        "first": first,
+        "k": K,
+        "bins": BINS,
+        "ess": ESS,
+        "edges": [list(edge) for edge in network.edges],
+    }
+    return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
 def _occupied(values: np.ndarray, cuts: list[float]) -> tuple[float, ...]:
