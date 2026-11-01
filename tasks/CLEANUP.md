@@ -202,6 +202,43 @@ links to where its blocker is tracked.
   test, documented in ADR `research/cllm-arm-design` (Partial fill).
   **Trigger:** the next curated run.
 
+- **`cleanup:evaluate/score-candidates-sha`: `score` logs no sha256 of the candidates file it
+  writes.** `bko.evaluate.scoring` logs the scores' digest (`scores rows=%d sha256=%s`) but none
+  for `holdout-candidates.jsonl`: `grep -c candidates runs/g6-2/scores.log` prints 0. G6's Runs
+  rows state each candidates file's sha256 from the file on disk, not from the run's own log, while
+  `likelihood` already logs the file it reads (`candidates path=%s schema=%d sha256=%s`,
+  `bko.evaluate.__main__`). *Filed 2026-11-01 by G6's landing.*
+  **Why deferred.** G6's landing is docs only, and the change touches the scoring path every run
+  of record ran.
+  **What discharges it:** `score` logs the candidates file's path and sha256 after it closes the
+  file, with a test, documented in `docs/DEVELOPMENT.md` (Evaluation).
+  **Trigger:** the next change to `bko.evaluate.scoring`.
+
+- **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
+  `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time
+  with no offset, so a `scores.log` stamp names no zone; `launch.log`'s stamps end in `Z`. The
+  ambiguity bites across a clock change: `runs/g6-1-selfcheck/scores.log` begins
+  `2026-11-01 13:37:13`, in EST, after commit `2a2a405` at `2026-11-01 13:36:55 -0500`, while the
+  G6 runs' stamps of 2026-10-29 and 2026-10-30 are EDT. *Filed 2026-11-01 by G6's landing.*
+  **Why deferred.** G6's landing is docs only, and the stamp format is shared by every stage's
+  entry point.
+  **What discharges it:** every `configure_logging` stamps ISO 8601 with its UTC offset (or UTC
+  with `Z`), with a test, documented in `docs/DEVELOPMENT.md`.
+  **Trigger:** the next change to a `configure_logging`.
+
+- **`cleanup:evaluate/removal-log-test-order`: a removal test fails after the CLI tests in one
+  process.** `uv run --no-sync pytest tests/test_evaluate_cli.py tests/test_evaluate_removal.py -q
+  -p no:cacheprovider --no-cov` fails
+  `tests/test_evaluate_removal.py::test_each_holdout_logs_its_removal_and_flagged_cells` with a
+  duplicate `removal` line: an earlier CLI test leaves a `bko` logger at INFO, and the test calls
+  `prepared` again after its `caplog.at_level` block exits. `make test` spreads the files over
+  workers and passes. *Filed 2026-11-01 by G6's landing.*
+  **Why deferred.** The failure predates G6's changes and sits outside its files.
+  **What discharges it:** the test reads only the records its own `caplog.at_level` block
+  captured, or the CLI tests restore the logger levels they set, with the two files passing in
+  one process.
+  **Trigger:** the next change to `tests/test_evaluate_removal.py` or to a CLI test's logging.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the

@@ -34,10 +34,7 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Evaluation**
 
-1. Generator comparison: Haiku 5.5, Sonnet 5.5 and three open models run on this machine at the
-   fixed configuration, since the earlier Opus and Haiku runs differed in more than the model
-   ([`evaluate-generator-comparison`](tasks/evaluate-generator-comparison.md)).
-2. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
+1. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
    full run would take ([`evaluate-local-thinking-cost`](tasks/evaluate-local-thinking-cost.md)).
 
 ## Setup

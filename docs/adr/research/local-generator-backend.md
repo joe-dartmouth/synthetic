@@ -8,7 +8,7 @@ updated: 2026-11-01
 
 ## Context
 
-The generator comparison (unit `evaluate-generator-comparison`) varies the generator model alone,
+The generator comparison ([G6](../../EVIDENCE.md#g6-generator-model)) varies the generator model alone,
 beside Haiku 5.5 and Sonnet 5.5, with three open models run on this machine: Gemma 4 26B-A4B, Nemotron 3 Nano 30B-A3B and Olmo 3 7B
 Instruct. Every call goes through `bko.generate.flight` as a `Send`, logged, replayable and priced
 (ADR `research/record-generation-design`), so an on-device model has to answer the same `Call`
