@@ -1,8 +1,8 @@
 ---
 id: evaluate-diabetes-subgroup-removal
 title: Subgroup removal on Diabetes 130-US Hospitals
-status: blocked
-depends_on: evaluate-bayesian-network-baseline
+status: ready
+depends_on: --
 blocks: generate-bkb-curation-diabetes
 parallel_safe: false
 owner: Joe
@@ -24,8 +24,8 @@ subgroups to move an interval, its thin cells carry no signal the training rows 
 E3 shows the removal design on Synthea, whose patients are generated. This unit runs the same
 design on real patients with enough subgroup records to read a difference: UCI Diabetes
 130-US Hospitals, about a hundred thousand inpatient encounters with ICD-9 diagnoses and a
-readmission label. It waits for the plan's other arms and readings so it compares every method
-at once.
+readmission label. Every arm and reading the plan holds is built, so it compares every method at
+once.
 
 ## Scope
 
