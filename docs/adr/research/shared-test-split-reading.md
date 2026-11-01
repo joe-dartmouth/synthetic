@@ -58,8 +58,8 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
   3. Each holdout's `split seed= train= test= fingerprint=` line is equal.
   4. Each rebuilt BKO arm row set, and each regenerated baseline row set, reproduces its logged
      `arm ... sha256=`, attempt, seed and params (a BKO arm's params are read from its line);
-     each `--with` folder's rebuilt BKO row set reproduces its logged attempt, row count and
-     sha256.
+     each `--with` folder's `experiment` line's BKO gap and replica fills each have an `arm`
+     line, and each rebuilt BKO row set reproduces its logged attempt, row count and sha256.
   5. The `--with` folders' non-BKO `arm` lines equal the folder's own.
   6. Scoring goes through `run.score_holdout`.
   7. Self-reproduction holds: with no `--with`, the output equals the folder's `scores.csv`. For
@@ -84,7 +84,8 @@ cost, from files already on disk; the plain `--beside` reading stays beside it.
 **Accepted**: each pair's test split differs from the next pair's, so readings of two pairs are
 not on one split; the rescore holds on one machine at the run's data, releases and a commit whose
 scoring writes the run's bytes, as replay does; a run whose candidates file lacks its kept rows
-cannot be rescored.
+cannot be rescored; nor can a run with a shortfall's partial fill, whose lines hold no returned
+attempt, so the file does not mark the rows the run kept.
 
 ## Ruled Out
 

@@ -21,9 +21,11 @@ from bko.datasets.uci import FRAME_COLUMNS, UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.beside import Pairing, pairable
 from bko.evaluate.context import Context
+from bko.evaluate.experiment import REAL_ARM, Experiment, Removal
 from bko.evaluate.run import score_holdout
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
-from tests._evaluate_bko_fixtures import REPLICAS, context, replica_script, scripted
+from bko.evaluate.shared import BKO
+from tests._evaluate_bko_fixtures import NARROW, REPLICAS, context, replica_script, scripted
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 from tests._generate_fixtures import ScriptedSend
 
@@ -127,18 +129,27 @@ FORMAT = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
 """The line format `configure_logging` gives a run folder's `scores.log`."""
 
 
-def run_folder(tmp_path: Path, name: str, caplog, *, replicas: bool = False) -> Path:
+def run_folder(
+    tmp_path: Path,
+    name: str,
+    caplog,
+    *,
+    replicas: bool = False,
+    experiment: Experiment | None = None,
+) -> Path:
     """A paid run's folder: `scores.csv`, `scores.log` and `holdout-candidates.jsonl`.
 
     The run is `NARROW` over `scripted()` replies, or `REPLICAS` over `replica_script()`, whose
-    replica rows copy test records on each holdout.
+    replica rows copy test records on each holdout, or `experiment` over `scripted()` replies.
     """
-    ctx = rescorer(replicas=replicas, send=replica_script() if replicas else scripted())
+    send = replica_script() if replicas else scripted()
+    ctx = rescorer(replicas=replicas, experiment=experiment, send=send)
     folder = tmp_path / name
     folder.mkdir()
-    argv = ["score", "--log", str(folder / "calls.jsonl")]
-    argv += ["--candidates", str(folder / "holdout-candidates.jsonl")]
-    argv += ["--data-dir", str(tmp_path / "data")]
+    argv = ["score", "--data-dir", str(tmp_path / "data")]
+    if BKO & set(ctx.experiment.arms):
+        argv += ["--log", str(folder / "calls.jsonl")]
+        argv += ["--candidates", str(folder / "holdout-candidates.jsonl")]
     out = io.StringIO()
     caplog.set_level(logging.INFO)
     caplog.clear()
@@ -150,20 +161,41 @@ def run_folder(tmp_path: Path, name: str, caplog, *, replicas: bool = False) -> 
     return folder
 
 
-def rescorer(*, replicas: bool = False, send: ScriptedSend | None = None) -> Context:
+def rescorer(
+    *,
+    replicas: bool = False,
+    experiment: Experiment | None = None,
+    send: ScriptedSend | None = None,
+) -> Context:
     """The run's context; with no `send`, any call fails, so a rescore that called would show."""
     ctx, _ = context(send or ScriptedSend())
-    return dataclasses.replace(ctx, experiment=REPLICAS) if replicas else ctx
+    chosen = REPLICAS if replicas else experiment
+    return ctx if chosen is None else dataclasses.replace(ctx, experiment=chosen)
 
 
-def shared(tmp_path: Path, folder: Path, *others: Path, replicas: bool = False) -> tuple[int, str]:
+def shared(
+    tmp_path: Path,
+    folder: Path,
+    *others: Path,
+    replicas: bool = False,
+    experiment: Experiment | None = None,
+) -> tuple[int, str]:
     """Run `shared` over `folder` with `others` as `--with`; return its exit code and stdout."""
     argv = ["shared", "--folder", str(folder), "--data-dir", str(tmp_path / "data")]
     for other in others:
         argv += ["--with", str(other)]
     out = io.StringIO()
-    code = main(argv, context=rescorer(replicas=replicas), out=out)
+    ctx = rescorer(replicas=replicas, experiment=experiment)
+    code = main(argv, context=ctx, out=out)
     return code, out.getvalue()
+
+
+def refused(tmp_path: Path, caplog, folder: Path, *others: Path) -> str:
+    """Run `shared` as `shared` does, assert it exits 3 with no output, and return its error."""
+    caplog.clear()
+    assert shared(tmp_path, folder, *others) == (3, "")
+    (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    return error
 
 
 def edit_log(folder: Path, prefix: str, edit) -> None:
@@ -173,6 +205,14 @@ def edit_log(folder: Path, prefix: str, edit) -> None:
     index = next(i for i, line in enumerate(lines) if f": {prefix}" in line)
     lines[index] = edit(lines[index])
     path.write_text("".join(lines), encoding="utf-8")
+
+
+def edit_candidates(folder: Path, edit) -> None:
+    """Rewrite each line of the candidates file, parsed, through `edit`, header first."""
+    path = folder / "holdout-candidates.jsonl"
+    lines = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    text = "".join(json.dumps(edit(line), sort_keys=True) + "\n" for line in lines)
+    path.write_text(text, encoding="utf-8")
 
 
 def markers(text: str) -> dict[int, float]:
@@ -223,15 +263,83 @@ def test_a_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
     edited = tmp_path / "edited"
     shutil.copytree(folder, edited)
     edit_log(edited, "arm holdout=0 arm=bko ", lambda line: line.replace("sha256=", "sha256=0"))
-    code, text = shared(tmp_path, edited)
-    assert (code, text) == (3, "")
-    assert "arm holdout=0 arm=bko " in caplog.text
+    error = refused(tmp_path, caplog, edited)
+    assert re.fullmatch(
+        r"rescored 'arm holdout=0 arm=bko .* sha256=[0-9a-f]+ .*' differs from the logged "
+        r"'arm holdout=0 arm=bko .* sha256=0[0-9a-f]+ .*'",
+        error,
+    )
     path = folder / "holdout-candidates.jsonl"
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
     kept = next(i for i, line in enumerate(lines) if '"outcome": "kept"' in line)
     lines[kept] = lines[kept].replace('"outcome": "kept"', '"outcome": "dropped-quota"')
     path.write_text("".join(lines), encoding="utf-8")
-    assert shared(tmp_path, folder) == (3, "")
+    error = refused(tmp_path, caplog, folder)
+    assert re.fullmatch(r"rescored 'arm holdout=0 arm=bko .*' differs from the logged '.*'", error)
+
+
+def test_a_with_folders_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    edit_log(other, "arm holdout=0 arm=bko ", lambda line: line.replace("sha256=", "sha256=0"))
+    error = refused(tmp_path, caplog, folder, other)
+    assert error.startswith(f"{other}'s rebuilt rows (")
+    assert "differ from its line 'arm holdout=0 arm=bko " in error
+
+
+def test_a_with_folder_missing_a_bko_arm_line_is_refused(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    log = other / "scores.log"
+    lines = log.read_text(encoding="utf-8").splitlines(keepends=True)
+    kept = [line for line in lines if ": arm holdout=1 arm=bko " not in line]
+    assert len(kept) == len(lines) - 1
+    log.write_text("".join(kept), encoding="utf-8")
+    error = refused(tmp_path, caplog, folder, other)
+    assert error == f"{other / 'scores.log'} logs no arm line for holdout 1's bko"
+
+
+def test_a_fill_with_no_returned_attempt_is_refused_as_a_shortfall(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+
+    def unreturned(line):
+        if line["kind"] == "candidate" and (line["holdout"], line["fill"]) == (0, "gap"):
+            line["returned"] = False
+        return line
+
+    edit_candidates(folder, unreturned)
+    error = refused(tmp_path, caplog, folder)
+    assert error == (
+        "holdout 0's bko gap fill has no returned attempt: a shortfall's partial fill, "
+        "whose rows a rescore does not rebuild"
+    )
+
+
+def test_malformed_params_are_refused_with_exit_3(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    edit_log(folder, "arm holdout=0 arm=bko ", lambda line: line.replace("params={", "params={,"))
+    error = refused(tmp_path, caplog, folder)
+    assert re.fullmatch(
+        r"the params of 'arm holdout=0 arm=bko .* params=\{,.*' are not a JSON object", error
+    )
+
+
+def test_a_run_with_the_real_arm_rescores_its_bytes(tmp_path, caplog):
+    real = dataclasses.replace(
+        NARROW,
+        arms=("none", REAL_ARM),
+        candidate=REAL_ARM,
+        comparators=("none",),
+        criteria=(),
+        removal=Removal(("<55", "female", 1), 0.5),
+        decontaminate=False,
+    )
+    folder = run_folder(tmp_path, "run", caplog, experiment=real)
+    code, text = shared(tmp_path, folder, experiment=real)
+    assert code == 0
+    assert text == (folder / "scores.csv").read_text(encoding="utf-8")
 
 
 def test_a_schema_1_file_rescores_like_schema_2(tmp_path, caplog):
@@ -250,23 +358,55 @@ def test_a_schema_1_file_rescores_like_schema_2(tmp_path, caplog):
     assert text == (folder / "scores.csv").read_text(encoding="utf-8")
 
 
+def test_other_data_is_refused_with_exit_3(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    ours = json.loads((folder / "holdout-candidates.jsonl").read_text().split("\n", 1)[0])["data"]
+    edit_log(other, "data ", lambda line: line.replace("digest=", "digest=0", 1))
+    edit_candidates(other, lambda line: line | {"data": "0" + ours} if "data" in line else line)
+    expected = f"{other} holds the data digest 0{ours}, not the loaded data's {ours}"
+    assert refused(tmp_path, caplog, folder, other) == expected
+    assert refused(tmp_path, caplog, other) == expected
+
+
 @pytest.mark.parametrize(
-    ("prefix", "old", "new"),
+    ("prefix", "old", "new", "beside", "alone"),
     [
-        ("data ", "digest=", "digest=0"),
-        ("split seed=1 ", "fingerprint=", "fingerprint=0"),
-        ("arm holdout=1 arm=none ", "seed=", "seed=9"),
-        ("experiment ", "fill_to=20", "fill_to=21"),
+        (
+            "split seed=1 ",
+            "fingerprint=",
+            "fingerprint=0",
+            r"\S+'s split lines differ from \S+'s",
+            r"holdout 1's split lines \['split seed=1 .*'\] differ from \S+'s 'split seed=1 .*'",
+        ),
+        (
+            "arm holdout=1 arm=none ",
+            "seed=",
+            "seed=9",
+            r"\S+'s baseline arm lines differ from \S+'s: .*",
+            r"rescored 'arm holdout=1 arm=none .*' differs from the logged 'arm holdout=1 .*'",
+        ),
+        (
+            "experiment ",
+            "fill_to=20",
+            "fill_to=21",
+            r"the experiment lines of \S+ and \S+ differ: \{'fill_to': \('20', '21'\)\}",
+            (
+                r"the experiment lines of \S+ and the run 'e1' now differ: "
+                r"\{'fill_to': \('21', '20'\)\}"
+            ),
+        ),
     ],
-    ids=["data", "split", "baseline", "experiment"],
+    ids=["split", "baseline", "experiment"],
 )
-def test_other_data_or_holdouts_are_refused_with_exit_3(tmp_path, caplog, prefix, old, new):
+def test_other_holdouts_are_refused_with_exit_3(tmp_path, caplog, prefix, old, new, beside, alone):
     folder = run_folder(tmp_path, "run", caplog)
     other = tmp_path / "other"
     shutil.copytree(folder, other)
     edit_log(other, prefix, lambda line: line.replace(old, new, 1))
-    assert shared(tmp_path, folder, other) == (3, "")
-    assert shared(tmp_path, other) == (3, "")
+    assert re.fullmatch(beside, refused(tmp_path, caplog, folder, other))
+    assert re.fullmatch(alone, refused(tmp_path, caplog, other))
 
 
 @pytest.mark.parametrize("missing", ["scores.log", "holdout-candidates.jsonl"])

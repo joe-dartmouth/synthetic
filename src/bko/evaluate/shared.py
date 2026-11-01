@@ -21,13 +21,15 @@ import hashlib
 import json
 import logging
 import re
+import sys
 import time
 from collections import Counter, defaultdict
 from collections.abc import Generator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
+from logging.handlers import BufferingHandler
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 import pandas as pd
 
@@ -44,6 +46,7 @@ from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARM,
     MESSAGES_ARMS,
+    REAL_ARM,
     Experiment,
     gap_request,
     replica_request,
@@ -105,9 +108,12 @@ class Folder:
     arms: Mapping[Key, str]
     lines: Mapping[tuple[int, str, str], Sequence[Candidate]]
 
-    def bko_arms(self) -> list[str]:
-        """The BKO arms the `arm` lines name, gap fills only, in first-seen order."""
-        return list(dict.fromkeys(arm for _, arm in self.arms if arm in BKO))
+    def bko_fills(self) -> list[tuple[str, str, str]]:
+        """Each BKO fill the `experiment` line asks for: its `arm` line's arm, its arm and fill."""
+        asked = self.experiment.get
+        gaps = [(arm, arm, "gap") for arm in asked("arms", "").split(",")]
+        copy = [(f"{arm}-replica", arm, "replica") for arm in asked("replica", "").split(",")]
+        return [fill for fill in (*gaps, *copy) if fill[1] in BKO]
 
     def baselines(self) -> dict[Key, str]:
         """The `arm` lines of every arm but the BKO arms, their replica fills included."""
@@ -150,7 +156,7 @@ def read_folder(path: Path) -> Folder:
     if any(_base(arm) in BKO for _, arm in arms):
         candidates = read((path / CANDIDATES).read_bytes())
         header = candidates.header
-        schema = int(str(header["schema"]))
+        schema = cast(int, header["schema"])  # `read` refuses a schema that is not an int
         if schema != 1:
             if data is not None and header["data"] != data:
                 msg = f"{path}'s candidates header names data {header['data']}, its log {data}"
@@ -190,8 +196,17 @@ def _base(arm: str) -> str:
 
 
 def returned_attempt(lines: Sequence[Candidate]) -> int:
-    """The last attempt whose lines read `returned`; 1 when none does."""
-    return max((line.attempt for line in lines if line.returned), default=1)
+    """The last attempt whose lines read `returned`; 1 for a fill with no lines.
+
+    Raises:
+        IdentityError: If none does: a shortfall's partial fill, whose rows the file does not mark.
+    """
+    returned = [line.attempt for line in lines if line.returned]
+    if lines and not returned:
+        msg = f"holdout {lines[0].holdout}'s {lines[0].arm} {lines[0].fill} fill has no returned"
+        msg += " attempt: a shortfall's partial fill, whose rows a rescore does not rebuild"
+        raise IdentityError(msg)
+    return max(returned, default=1)
 
 
 def rebuilt(lines: Sequence[Candidate], request: Request) -> pd.DataFrame:
@@ -201,7 +216,7 @@ def rebuilt(lines: Sequence[Candidate], request: Request) -> pd.DataFrame:
     request's grid order, and the rows in generation order within one.
 
     Raises:
-        IdentityError: If a kept candidate no longer passes validation.
+        IdentityError: As `returned_attempt`, or if a kept candidate no longer passes validation.
     """
     attempt = returned_attempt(lines)
     kept = [line.candidate for line in lines if line.attempt == attempt and line.outcome == KEPT]
@@ -248,6 +263,7 @@ class StoredArm:
 
         Raises:
             BaselineError: On an attempt the run's fill did not return.
+            IdentityError: As `returned_attempt`, or if its params are not a JSON object.
             EvaluationError: Outside a harness fill.
         """
         fill = CURRENT_FILL.get()
@@ -262,7 +278,7 @@ class StoredArm:
             raise BaselineError(msg)
         arm = self.name if fill.kind == "gap" else f"{self.name}-replica"
         logged = self._folder.arms.get((fill.holdout, arm))
-        params = {} if logged is None else json.loads(_fields(logged)["params"])
+        params = {} if logged is None else _params(logged)
         return Baseline(rebuilt(lines, request), unit_weights(train), params)
 
     def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
@@ -271,14 +287,16 @@ class StoredArm:
         return tally(lines, self._template).measures()
 
 
+def _params(line: str) -> dict[str, object]:
+    with suppress(ValueError):
+        if isinstance(params := json.loads(_fields(line)["params"]), dict):
+            return params
+    msg = f"the params of {line!r} are not a JSON object"
+    raise IdentityError(msg)
+
+
 def check_folders(
-    folder: Folder,
-    others: Sequence[Folder],
-    *,
-    run: str,
-    current: str,
-    data: Data,
-    uci: bool,
+    folder: Folder, others: Sequence[Folder], *, run: str, current: str, data: Data, uci: bool
 ) -> None:
     """Identity checks 1, 2, 3 and 5 across `folder` and `others`, before anything is scored.
 
@@ -336,69 +354,54 @@ def excluded(
     """Every BKO gap and replica row set of `others` on `holdout`, each checked by its `arm` line.
 
     Raises:
-        IdentityError: If a rebuilt row set's attempt, rows or sha256 is not its `arm` line's.
+        IdentityError: If a fill its `experiment` line asks for has no `arm` line, or a rebuilt
+            row set's attempt, rows or sha256 is not its `arm` line's.
     """
     found: list[pd.DataFrame] = []
     for other in others:
-        for name in other.bko_arms():
-            for arm, kind, request in ((name, "gap", gap), (f"{name}-replica", "replica", replica)):
-                logged = other.arms.get((holdout, arm))
-                if logged is None:
-                    continue
-                lines = other.lines.get((holdout, name, kind), ())
-                rows = rebuilt(lines, request)
-                expected = _fields(logged)
-                got = (str(returned_attempt(lines)), str(len(rows)), digest(rows))
-                if got != (expected["attempt"], expected["added"], expected["sha256"]):
-                    msg = f"{other.path}'s rebuilt rows {got} differ from its line {logged!r}"
-                    raise IdentityError(msg)
-                found.append(rows)
+        for arm, name, kind in other.bko_fills():
+            logged = other.arms.get((holdout, arm))
+            if logged is None:
+                msg = f"{other.path / SCORES_LOG} logs no arm line for holdout {holdout}'s {arm}"
+                raise IdentityError(msg)
+            lines = other.lines.get((holdout, name, kind), ())
+            rows = rebuilt(lines, gap if kind == "gap" else replica)
+            got = (str(returned_attempt(lines)), str(len(rows)), digest(rows))
+            if got != _fields(logged).group("attempt", "added", "sha256"):
+                msg = f"{other.path}'s rebuilt rows {got} differ from its line {logged!r}"
+                raise IdentityError(msg)
+            found.append(rows)
     return found
 
 
-class _Kept(logging.Handler):
-    """A handler that keeps every message it is given."""
-
-    def __init__(self) -> None:
-        super().__init__(logging.INFO)
-        self.seen: list[str] = []
-
-    def emit(self, record: logging.LogRecord) -> None:
-        """Keep the record's message."""
-        self.seen.append(record.getMessage())
-
-
 @contextmanager
-def captured(name: str) -> Generator[list[str]]:
-    """Every message the logger `name` logs while the body runs, INFO lines included."""
+def captured(name: str) -> Generator[list[logging.LogRecord]]:
+    """Every record the logger `name` logs while the body runs, INFO records included."""
     target = logging.getLogger(name)
-    handler, level = _Kept(), target.level
+    handler, level = BufferingHandler(sys.maxsize), target.level
     target.addHandler(handler)
     if target.getEffectiveLevel() > logging.INFO:
         target.setLevel(logging.INFO)
     try:
-        yield handler.seen
+        yield handler.buffer
     finally:
         target.removeHandler(handler)
         target.setLevel(level)
 
 
-def _check_holdout(folder: Folder, holdout: int, logged: Sequence[str]) -> None:
+def _check_holdout(folder: Folder, holdout: int, records: Sequence[logging.LogRecord]) -> None:
     """Identity checks 3 and 4 for one rescored holdout: its `split` and `arm` lines are logged.
 
     Raises:
         IdentityError: If a line differs from the folder's, or one is missing.
     """
+    logged = [record.getMessage() for record in records]
     splits = [m for m in logged if _SPLIT.match(m)]
     theirs = folder.splits.get(holdout)
     if splits != [theirs]:
         msg = f"holdout {holdout}'s split lines {splits} differ from {folder.path}'s {theirs!r}"
         raise IdentityError(msg)
-    arms = {
-        (int(found["holdout"]), found["arm"]): m
-        for m in logged
-        if (found := _ARM.fullmatch(m)) is not None
-    }
+    arms = {(int(f["holdout"]), f["arm"]): m for m in logged if (f := _ARM.fullmatch(m))}
     logged_arms = {key: line for key, line in folder.arms.items() if key[0] == holdout}
     for key in sorted(set(arms) | set(logged_arms)):
         if arms.get(key) != logged_arms.get(key):
@@ -437,18 +440,12 @@ def rescore(
     """
     frame = data.frame
     names = [m.value for m in models]
-    check_folders(
-        folder,
-        others,
-        run=run,
-        current=experiment_line(run, experiment, names, frame=frame.name),
-        data=data,
-        uci=uci,
-    )
+    current = experiment_line(run, experiment, names, frame=frame.name)
+    check_folders(folder, others, run=run, current=current, data=data, uci=uci)
     require_cell(experiment.removal, frame)
     stored = {name: StoredArm(name, folder) for name in experiment.arms if name in BKO}
     runners = {**arms, **stored}
-    missing = sorted(set(experiment.arms) - set(runners))
+    missing = sorted(set(experiment.arms) - set(runners) - {REAL_ARM})
     if missing:
         msg = f"no runner for arms {missing}"
         raise EvaluationError(msg)
