@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -122,3 +125,18 @@ def test_cart_copies_measured_values_from_training_rows(cart_runs):
     added = cart_runs[0].added
     for field in ("trestbps", "chol", "thalach", "oldpeak"):
         assert set(added[field]) <= set(TRAIN[field])
+
+
+@pytest.mark.parametrize(
+    ("method", "name"),
+    [(gaussian_copula, "gaussian-copula"), (cart, "cart")],
+    ids=["copula", "cart"],
+)
+def test_each_classical_method_logs_a_fit_line_in_ctgans_format(method, name, caplog):
+    quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
+    request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
+    with caplog.at_level(logging.INFO):
+        method(TOY_TRAIN, request)
+    fits = [r.getMessage() for r in caplog.records if r.getMessage().startswith("fit ")]
+    assert len(fits) == 1
+    assert re.fullmatch(rf"fit method={name} seconds=\d+\.\d", fits[0])

@@ -42,7 +42,9 @@ from bko.evaluate.named_runs import (
     E5_FRACTIONS,
     G2,
     G5,
+    G6_BASE,
     G6_MODELS,
+    G6_THINKING,
     RUNS,
     SETTINGS_SWEEP,
     NamedRun,
@@ -148,7 +150,9 @@ def test_every_run_name_is_pinned():
         "g4-medium",
         "g5",
         "g6-gemma",
+        "g6-gemmathink",
         "g6-nemotron",
+        "g6-nemotronthink",
         "g6-olmo",
         "g6-sonnet",
     }
@@ -422,8 +426,28 @@ def test_the_sonnet_ceiling_covers_its_estimate():
     assert 1.25 * estimate <= ceiling <= 1.5 * estimate
 
 
+@pytest.mark.parametrize(
+    ("name", "model"),
+    [
+        ("g6-gemmathink", "gemma-4-26b-a4b-q8_0-thinking"),
+        ("g6-nemotronthink", "nemotron-3-nano-30b-a3b-q8_0-thinking"),
+    ],
+)
+def test_each_thinking_run_is_g6_base_on_holdouts_0_to_4(name, model):
+    run = RUNS[name]
+    assert G6_THINKING[name] == model
+    assert run.settings == dataclasses.replace(SETTINGS, model=model)
+    assert run.dataset is Dataset.UCI
+    assert run.experiment.holdout_seeds == tuple(range(5))
+    assert run.experiment == dataclasses.replace(
+        G6_BASE, holdout_seeds=tuple(range(5)), spend_ceiling=1.0, idle_limit=1700.0
+    )
+    assert model in LOCAL_MODELS
+    price_of(model)
+
+
 def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
-    assert {name for name in RUNS if name.startswith("g6-")} == set(G6_MODELS)
+    assert {name for name in RUNS if name.startswith("g6-")} == set(G6_MODELS) | set(G6_THINKING)
     for name, (model, _) in G6_MODELS.items():
         assert RUNS[name].settings.model == model
         price_of(model)
