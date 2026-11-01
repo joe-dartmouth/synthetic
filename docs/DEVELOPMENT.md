@@ -202,26 +202,35 @@ or that fewer than two paired holdouts define, is skipped with a `beside skip` l
 `shared` rescores a run's folder on the test split that no arm of it or of any `--with` folder
 copies, so `--beside` can pair holdouts a copy would exclude (ADR
 [`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md), which holds its
-identity checks). It makes no API call. It reads the folder's `scores.log` and
-`holdout-candidates.jsonl`, rebuilds each BKO arm's rows from its last returned attempt's `kept`
-candidates, regenerates each baseline, and checks each row set against its logged `arm` line; each
-`--with` folder's rows leave the test split too, and every holdout is scored through
-`run.score_holdout`. With `--with`, each holdout writes a `shared-split` held-out row, the first 12
-hex digits of the sha256 of its kept test record ids, and logs
+identity checks and what self-reproduction admits). It makes no API call. It reads the folder's
+`scores.log` and `holdout-candidates.jsonl`, rebuilds each BKO arm's rows from its last returned
+attempt's `kept` candidates, regenerates each baseline, and checks each row set against its logged
+`arm` line; each `--with` folder's rows leave the test split too, and every holdout is scored
+through `run.score_holdout`.
+
+With `--with`, each holdout writes a `shared-split` held-out row, the first 12 hex digits of the
+sha256 of its kept test record ids, and logs
 `shared holdout=%d records=%d copied=%d foreign=%d fingerprint=%s`; `--beside` pairs a copied
-holdout when both files hold equal `shared-split` rows there. With no `--with`, it rewrites the
-folder's `scores.csv` (a run scored before the `flagged-fingerprint` row gains only those rows).
-Its stdout is a `scores.csv` and its stderr a `scores.log`. A run is read in a pair with one
-compared run, `<base-id>` (`e1-4` for G6), in four folders named after the run: `<run-id>-selfcheck` (no `--with`),
-`<run-id>-shared` (the run with the compared run), `<run-id>-sharedbase` (the compared run with the
-run) and `<run-id>-sharedjudged` (`compare`'s reading of the two):
+holdout when both files hold equal `shared-split` rows there. `--with` on a run that keeps copied
+test records (`decontaminate=false`) is refused. With no `--with`, it rewrites the folder's
+`scores.csv`. Its stdout is a `scores.csv` and its stderr a `scores.log`, which opens with one
+`shared folder=<path> role=folder|with log_sha256=... candidates_sha256=...` line per input folder
+and ends with `scores rows=%d sha256=%s matches_folder=true|false`, comparing the output's sha256
+with the one the folder's own `scores` line logs.
+
+A run is read in a pair with one compared run. `<run-id>` and `<run>` are the read run's folder
+and named run, `<base-id>` and `<base-run>` the compared run's, and the four output folders are
+named after the read run: `<run-id>-selfcheck` (no `--with`), `<run-id>-shared` (the run with the
+compared run), `<run-id>-sharedbase` (the compared run with the run) and `<run-id>-sharedjudged`
+(`compare`'s reading of the two):
 
     mkdir -p runs/<run-id>-selfcheck && test ! -e runs/<run-id>-selfcheck/scores.csv && test ! -e runs/<run-id>-selfcheck/scores.log && uv run --no-sync python -m bko.evaluate shared <run> --folder runs/<run-id> > runs/<run-id>-selfcheck/scores.csv 2> runs/<run-id>-selfcheck/scores.log </dev/null
     mkdir -p runs/<run-id>-shared && test ! -e runs/<run-id>-shared/scores.csv && test ! -e runs/<run-id>-shared/scores.log && uv run --no-sync python -m bko.evaluate shared <run> --folder runs/<run-id> --with runs/<base-id> > runs/<run-id>-shared/scores.csv 2> runs/<run-id>-shared/scores.log </dev/null
     mkdir -p runs/<run-id>-sharedbase && test ! -e runs/<run-id>-sharedbase/scores.csv && test ! -e runs/<run-id>-sharedbase/scores.log && uv run --no-sync python -m bko.evaluate shared <base-run> --folder runs/<base-id> --with runs/<run-id> > runs/<run-id>-sharedbase/scores.csv 2> runs/<run-id>-sharedbase/scores.log </dev/null
     mkdir -p runs/<run-id>-sharedjudged && test ! -e runs/<run-id>-sharedjudged/criteria.csv && test ! -e runs/<run-id>-sharedjudged/criteria.log && uv run --no-sync python -m bko.evaluate compare <run> runs/<run-id>-shared/scores.csv --candidate bko --beside runs/<run-id>-sharedbase/scores.csv --beside-arm bko > runs/<run-id>-sharedjudged/criteria.csv 2> runs/<run-id>-sharedjudged/criteria.log </dev/null
 
-`shared` exits 2 on a missing input and 3 when an identity check fails.
+`shared` exits 2 on a missing input or an arm with no runner, and 3 when an identity check fails
+or `--with` is refused.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new

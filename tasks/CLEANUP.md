@@ -50,6 +50,17 @@ links to where its blocker is tracked.
   experiment with a training fraction below 1 or a removal.
   **Trigger:** the app taking a named run other than `e1`.
 
+- **`cleanup:app/shared-split-in-app-means`: the app averages the `shared-split` marker.**
+  `Measure.SHARED_SPLIT` is a held-out row whose value is a split's fingerprint read as an integer,
+  not a quantity. The browse view's `bko.app.views.arm_means` averages it with the other held-out
+  rows of a `shared` output's `scores.csv`, such as `runs/g6-1-shared/scores.csv`, and `merge`
+  joins it as any other score; no test reads it in either. *Filed 2026-11-01 by G6's landing.*
+  **Why deferred.** No judged reading uses the mean: `compare` judges other measures, and the
+  browse view only displays it.
+  **What discharges it:** `arm_means` leaves `shared-split` out of its means, and a `merge` test
+  shows the row passes through unchanged, each with a test.
+  **Trigger:** the next change to the app's means or to `merge`.
+
 ## baselines
 
 - **`cleanup:baselines/bayes-net-vectorize`: the Bayesian network draws and learns row by row in
@@ -226,6 +237,18 @@ links to where its blocker is tracked.
   with `Z`), with a test, documented in `docs/DEVELOPMENT.md`.
   **Trigger:** the next change to a `configure_logging`.
 
+- **`cleanup:evaluate/shared-capture-is-process-global`: `shared` captures the harness's log
+  lines by changing a process-global logger.** `bko.evaluate.shared.captured` adds a handler to
+  the `bko.evaluate.run` logger and lowers its level to INFO while a holdout is scored, then
+  restores both, so two rescores in one process at once would read each other's `split` and `arm`
+  lines, and a logger a caller disabled or stopped propagating surfaces as a check 3 or 4
+  mismatch. The CLI rescores once per process. *Filed 2026-11-01 by G6's landing.*
+  **Why deferred.** No caller rescores twice in one process or concurrently.
+  **What discharges it:** `score_holdout` returns or yields the `split` and `arm` lines it logs (or
+  takes a sink for them), and `rescore` checks those instead of a logger handler, with a test that
+  runs two rescores in one process.
+  **Trigger:** `rescore` called in-process twice or concurrently.
+
 - **`cleanup:evaluate/removal-log-test-order`: a removal test fails after the CLI tests in one
   process.** `uv run --no-sync pytest tests/test_evaluate_cli.py tests/test_evaluate_removal.py -q
   -p no:cacheprovider --no-cov` fails
@@ -233,7 +256,8 @@ links to where its blocker is tracked.
   duplicate `removal` line: an earlier CLI test leaves a `bko` logger at INFO, and the test calls
   `prepared` again after its `caplog.at_level` block exits. `make test` spreads the files over
   workers and passes. *Filed 2026-11-01 by G6's landing.*
-  **Why deferred.** The failure predates G6's changes and sits outside its files.
+  **Why deferred.** The two files fail the same way in one process on `origin/main` at `2f5ab89`,
+  so the failure sits outside G6's changes and its files.
   **What discharges it:** the test reads only the records its own `caplog.at_level` block
   captured, or the CLI tests restore the logger levels they set, with the two files passing in
   one process.

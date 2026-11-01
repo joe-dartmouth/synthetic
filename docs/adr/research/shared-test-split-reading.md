@@ -37,8 +37,9 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
   `holdout-candidates.jsonl` (the last returned attempt's `kept` lines, grouped by each row's own
   cell in grid order), regenerates each baseline with its runner, and passes the `--with` folders'
   BKO rows, rebuilt the same way, to `bko.evaluate.run.score_holdout` as `exclude`; their baselines'
-  rows are the folder's own (check 5), so they would exclude nothing more. It writes a `scores.csv` to stdout and a
-  `scores.log` to stderr.
+  rows are the folder's own (check 5), so they would exclude nothing more. It writes a
+  `scores.csv` to stdout and a `scores.log` to stderr, which names each input folder and the
+  sha256s of its `scores.log` and candidates file on a `shared folder=` line.
 - A holdout scored with `exclude` writes a held-out `shared-split` row (`Measure.SHARED_SPLIT`)
   whose value is the first 12 hex digits of the sha256 of its kept test record ids, sorted, and
   logs `shared holdout=%d records=%d copied=%d foreign=%d fingerprint=%s`. With no `exclude`, a
@@ -46,25 +47,37 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
 - `bko.evaluate.beside.pairable` pairs a holdout an arm copied when both files hold bitwise-equal
   `shared-split` rows there; a file with the row never pairs a copied holdout with a file without
   it.
-- The split is read per pair: a run is rescored with one compared run (`e1-4` for G6), and the
-  compared run with it, so one run's copies never shrink another pair's split.
-- Seven identity checks hold, or the command exits 3:
+- The split is read per pair: a run is rescored with one compared run, and the compared run with
+  it, so one run's copies never shrink another pair's split.
+- `--with` on a run that keeps copied test records (`Experiment.decontaminate` false) exits 3: its
+  arms score on the whole split, copies included, so no other run's copies can leave it one split
+  with that run. A folder given twice, as `--folder` and `--with` or as two `--with`, exits 3.
+- Seven identity checks hold; the command runs checks 1 to 5 and exits 3 when one fails:
   1. The data digest is equal across the folder and every `--with` folder (from the `data` line or
      a schema-1 `uci` header).
-  2. The `experiment` line's shared keys are equal: the folder's line names the rescored run and
-     equals that run's line now on every key both name, and each `--with` folder's equals the
-     folder's on every key both name but the run's own (`run`, `arms`, `replica`,
-     `spend_ceiling`, `criteria`).
-  3. Each holdout's `split seed= train= test= fingerprint=` line is equal.
-  4. Each rebuilt BKO arm row set, and each regenerated baseline row set, reproduces its logged
-     `arm ... sha256=`, attempt, seed and params (a BKO arm's params are read from its line);
-     each `--with` folder's `experiment` line's BKO gap and replica fills each have an `arm`
-     line, and each rebuilt BKO row set reproduces its logged attempt, row count and sha256.
+  2. The `experiment` lines are equal: the folder's line names the rescored run and equals that
+     run's line now on every key, and each `--with` folder's equals the folder's on every key but
+     the run's own (`run`, `arms`, `replica`, `spend_ceiling`, `criteria`). A line written before
+     a key existed may lack it only if the key has an assumed value
+     (`bko.evaluate.run_folder.ASSUMED`: `frame` `uci`, `removal` `none`, `training_fraction` `1`,
+     `decontaminate` `true`, `threshold` `20`, and `seeds` `0-<holdouts - 1>`); the other line must
+     hold that value. Any other missing key exits 3.
+  3. Each folder logs a `split seed= train= test= fingerprint=` line per holdout its `experiment`
+     line counts, and each holdout's line is equal across the folders and to the rescore's.
+  4. Each folder logs, on each holdout, an `arm` line for each arm and replica fill its
+     `experiment` line names and no other, so a line format that drifts is refused rather than
+     skipped. Each rebuilt BKO arm row set, and each regenerated baseline row set, reproduces its
+     logged `arm ... sha256=`, attempt, seed and params (a BKO arm's params are read from its
+     line); each `--with` folder's rebuilt BKO gap and replica row sets reproduce their logged
+     attempt, row count and sha256.
   5. The `--with` folders' non-BKO `arm` lines equal the folder's own.
   6. Scoring goes through `run.score_holdout`.
-  7. Self-reproduction holds: with no `--with`, the output equals the folder's `scores.csv`. For
-     `e1-4`, every original row is reproduced and the only extra rows are `flagged-fingerprint`.
-- A missing input exits 2.
+  7. Self-reproduction holds: with no `--with`, the output equals the folder's `scores.csv`, and
+     the `scores` line logs `matches_folder=true`. The one exception is a held-out measure added to
+     the harness after the run was scored: the output then holds every original row and that
+     measure's rows besides, and the line logs `matches_folder=false`. The tests pin this check;
+     the command logs it and does not refuse.
+- A missing input, or an arm with no runner, exits 2.
 
 ## Rationale
 
@@ -73,9 +86,11 @@ so every holdout where both runs' other rows match can pair. The fingerprint ove
 ids lets `beside` check that the two files were scored on that one split rather than trust the
 command line. Rebuilding rows from the folder, checked against the logged sha256 of each arm's
 rows, reads the run as it ran; scoring through `run.score_holdout` keeps one scoring path, and
-self-reproduction with nothing removed shows that path still writes the run's bytes. `e1-4` was
-scored by code that wrote no `flagged-fingerprint` row, so its self-reproduction admits those rows
-alone. Reading per pair keeps each pair's split as large as its two runs allow.
+self-reproduction with nothing removed shows that path still writes the run's bytes. A held-out
+measure added after a run was scored is new output, not a moved score, so self-reproduction admits
+its rows and no other difference. An assumed value reads an older `experiment` line at the setting
+its run used, so the line is checked key by key rather than on the keys both lines happen to
+name. Reading per pair keeps each pair's split as large as its two runs allow.
 
 ## Consequences
 
@@ -98,8 +113,8 @@ attempt, so the file does not mark the rows the run kept.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/shared.py` (the command), `src/bko/evaluate/shared_split.py` (the
-  marker)
+- Owner: `src/bko/evaluate/shared.py` (the command), `src/bko/evaluate/run_folder.py` (the
+  folder's reading and checks 1, 2, 3 and 5), `src/bko/evaluate/shared_split.py` (the marker)
 - Pinned by: `tests/test_evaluate_shared.py`, `tests/test_evaluate_beside.py`,
   `tests/test_evaluate_run.py`
 
