@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from hashlib import sha256
 
 import pandas as pd
 
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.copies import decontaminated
+from bko.evaluate.prepare import sorted_digest
 from bko.evaluate.scores import Measure
 
 
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def split_fingerprint(kept: pd.DataFrame) -> str:
-    """The first 12 hex digits of the sha256 of `kept`'s sorted integer record ids' `repr`."""
-    return sha256(repr(sorted(int(i) for i in kept.index)).encode()).hexdigest()[:12]
+    """`bko.evaluate.prepare.sorted_digest` of `kept`'s integer record ids."""
+    return sorted_digest(int(i) for i in kept.index)
 
 
 def marker(kept: pd.DataFrame) -> dict[Measure, float]:

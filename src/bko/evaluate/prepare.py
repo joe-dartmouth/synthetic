@@ -7,7 +7,7 @@ holdout here, so their training rows agree.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from hashlib import sha256
@@ -108,12 +108,17 @@ def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     return max(out / into for out, into in zip(held, kept, strict=True) if out)
 
 
-def fingerprint(cells: Sequence[Stratum]) -> float:
-    """`cells` as a number: the first 12 hex digits of the sha256 of their sorted list's `repr`.
+def sorted_digest(items: Iterable[Stratum] | Iterable[int]) -> str:
+    """The first 12 hex digits of the sha256 of `items`' sorted list's `repr`.
 
-    The value is below 2**48, so a float holds it exactly.
+    Read as an integer, it is below 2**48, so a float holds it exactly.
     """
-    return float(int(sha256(repr(sorted(cells)).encode()).hexdigest()[:12], 16))
+    return sha256(repr(sorted(items)).encode()).hexdigest()[:12]
+
+
+def fingerprint(cells: Sequence[Stratum]) -> float:
+    """`cells` as a number: `sorted_digest` of them, read as an integer."""
+    return float(int(sorted_digest(cells), 16))
 
 
 def require_cell(removal: Removal | None, frame: FrameSpec) -> None:

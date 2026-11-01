@@ -76,8 +76,9 @@ from bko.evaluate.likelihood import likelihood
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
+from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
-from bko.evaluate.shared import add_parser, read_folder, rescore
+from bko.evaluate.shared import add_parser, rescore
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError

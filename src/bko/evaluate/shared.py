@@ -10,8 +10,11 @@ are rebuilt the same way and passed as `exclude`, so every record any of the run
 the test split and each holdout writes a `shared-split` row (`bko.evaluate.shared_split`). Their
 baselines' rows are the folder's own, which identity check 5 holds, so they exclude nothing more.
 
-Seven identity checks hold or the command stops with `IdentityError` (exit 3); ADR
-`research/shared-test-split-reading` lists them. A missing file is an `OSError` (exit 2).
+ADR `research/shared-test-split-reading` lists seven identity checks. The command holds checks 1
+to 5 (`bko.evaluate.run_folder.check_folders`, `excluded` and `_check_holdout`) and stops with
+`IdentityError` (exit 3) when one fails; check 6 is its scoring path, and check 7 is pinned by its
+tests and logged as `matches_folder=` on the `scores` line. `--with` on a run that keeps copied
+test records is refused too (exit 3). A missing file is an `OSError` (exit 2).
 """
 
 from __future__ import annotations
@@ -20,16 +23,13 @@ import argparse
 import hashlib
 import json
 import logging
-import re
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from logging.handlers import BufferingHandler
 from pathlib import Path
-from typing import Final, cast
 
 import pandas as pd
 
@@ -44,7 +44,6 @@ from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.data import Data, digest
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
-    DIRECT_ARM,
     MESSAGES_ARMS,
     REAL_ARM,
     Experiment,
@@ -52,147 +51,18 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.fills import CURRENT_FILL
-from bko.evaluate.holdout_candidates import FILLS, KEPT, REJECTED, Candidate, read
+from bko.evaluate.holdout_candidates import FILLS, KEPT, REJECTED, Candidate
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, require_cell
 from bko.evaluate.provenance import experiment_line, log_experiment
+from bko.evaluate.run import logger as harness_logger
 from bko.evaluate.run import score_holdout
+from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
 from bko.evaluate.scores import Measure, Score, Source, render
 from bko.validate.checks import validate
 
 
 logger = logging.getLogger("bko.evaluate")
-
-SCORES_LOG: Final = "scores.log"
-CANDIDATES: Final = "holdout-candidates.jsonl"
-
-BKO: Final = frozenset({*MESSAGES_ARMS, DIRECT_ARM})
-"""The arms whose rows a candidates file holds."""
-
-OWN_KEYS: Final = frozenset({"run", "arms", "replica", "spend_ceiling", "criteria"})
-"""The `experiment` keys that name a run's own arms and budget, which two compared runs may differ
-in; their baselines are held equal by their `arm` lines instead."""
-
-_LINE: Final = re.compile(r"^\S+ \S+ [A-Z]+ [\w.]+: (?P<message>.*)$")
-_ARM: Final = re.compile(
-    r"arm holdout=(?P<holdout>\d+) arm=(?P<arm>\S+) attempt=(?P<attempt>\d+) seed=\d+ "
-    r"added=(?P<added>\d+) sha256=(?P<sha256>\S+) params=(?P<params>.*)"
-)
-_SPLIT: Final = re.compile(r"split seed=(?P<seed>\d+) ")
-_DIGEST: Final = re.compile(r"data dataset=\S+ .*digest=(?P<digest>\w+)")
-
-type Key = tuple[int, str]
-"""A holdout's seed and a name: an arm's, or a fill's."""
-
-
-@dataclass(frozen=True, slots=True)
-class Folder:
-    """What a run folder's `scores.log` and candidates file say its scores were built from.
-
-    Attributes:
-        path: The folder.
-        experiment: The `experiment` line's keys and values.
-        data: The `data` line's digest, or the schema-2 candidates header's; None when neither
-            names one, as for a schema-1 run.
-        schema: The candidates file's schema; None with no candidates file.
-        splits: Each holdout's `split` line, by seed.
-        arms: Each `arm` line, by holdout and arm (a replica fill's arm ends `-replica`).
-        lines: Each BKO arm's candidate lines, by holdout, arm and fill, in file order.
-    """
-
-    path: Path
-    experiment: Mapping[str, str]
-    data: str | None
-    schema: int | None
-    splits: Mapping[int, str]
-    arms: Mapping[Key, str]
-    lines: Mapping[tuple[int, str, str], Sequence[Candidate]]
-
-    def bko_fills(self) -> list[tuple[str, str, str]]:
-        """Each BKO fill the `experiment` line asks for: its `arm` line's arm, its arm and fill."""
-        asked = self.experiment.get
-        gaps = [(arm, arm, "gap") for arm in asked("arms", "").split(",")]
-        copy = [(f"{arm}-replica", arm, "replica") for arm in asked("replica", "").split(",")]
-        return [fill for fill in (*gaps, *copy) if fill[1] in BKO]
-
-    def baselines(self) -> dict[Key, str]:
-        """The `arm` lines of every arm but the BKO arms, their replica fills included."""
-        return {key: line for key, line in self.arms.items() if _base(key[1]) not in BKO}
-
-
-def read_folder(path: Path) -> Folder:
-    """Read a run folder's `scores.log` and, when it names a BKO arm, its candidates file.
-
-    Raises:
-        OSError: If a file is missing or cannot be read.
-        IdentityError: If the log holds no `experiment` line or more than one, or two different
-            lines for one split or arm.
-        CandidatesFormatError: If the candidates file is not one.
-    """
-    messages = [
-        found["message"]
-        for line in (path / SCORES_LOG).read_text(encoding="utf-8").splitlines()
-        if (found := _LINE.match(line)) is not None
-    ]
-    experiments = {m for m in messages if m.startswith("experiment run=")}
-    if len(experiments) != 1:
-        msg = f"{path / SCORES_LOG} holds {len(experiments)} distinct experiment lines, not 1"
-        raise IdentityError(msg)
-    splits: dict[int, str] = {}
-    arms: dict[Key, str] = {}
-    digests: set[str] = set()
-    for message in messages:
-        if (found := _SPLIT.match(message)) is not None:
-            _put(splits, int(found["seed"]), message, path)
-        elif (found := _ARM.fullmatch(message)) is not None:
-            _put(arms, (int(found["holdout"]), found["arm"]), message, path)
-        elif (found := _DIGEST.match(message)) is not None:
-            digests.add(found["digest"])
-    if len(digests) > 1:
-        msg = f"{path / SCORES_LOG} names the data digests {sorted(digests)}"
-        raise IdentityError(msg)
-    data = next(iter(digests), None)
-    schema, lines = None, {}
-    if any(_base(arm) in BKO for _, arm in arms):
-        candidates = read((path / CANDIDATES).read_bytes())
-        header = candidates.header
-        schema = cast(int, header["schema"])  # `read` refuses a schema that is not an int
-        if schema != 1:
-            if data is not None and header["data"] != data:
-                msg = f"{path}'s candidates header names data {header['data']}, its log {data}"
-                raise IdentityError(msg)
-            data = str(header["data"])
-        grouped: defaultdict[tuple[int, str, str], list[Candidate]] = defaultdict(list)
-        for line in candidates.candidates:
-            grouped[line.holdout, line.arm, line.fill].append(line)
-        lines = dict(grouped)
-    pairs = next(iter(experiments)).split()[1:]
-    experiment = dict(pair.split("=", 1) for pair in pairs)
-    return Folder(path, experiment, data, schema, splits, arms, lines)
-
-
-def _put[K](found: dict[K, str], key: K, message: str, path: Path) -> None:
-    if found.setdefault(key, message) != message:
-        msg = f"{path / SCORES_LOG} logs two different lines for {key}: {found[key]!r}, {message!r}"
-        raise IdentityError(msg)
-
-
-def _fields(line: str) -> re.Match[str]:
-    """An `arm` line's fields.
-
-    Raises:
-        IdentityError: If `line` is not an `arm` line.
-    """
-    found = _ARM.fullmatch(line)
-    if found is None:
-        msg = f"not an arm line: {line!r}"
-        raise IdentityError(msg)
-    return found
-
-
-def _base(arm: str) -> str:
-    """An `arm` line's arm without a replica fill's `-replica` suffix."""
-    return arm.removesuffix("-replica")
 
 
 def returned_attempt(lines: Sequence[Candidate]) -> int:
@@ -209,14 +79,20 @@ def returned_attempt(lines: Sequence[Candidate]) -> int:
     return max(returned, default=1)
 
 
-def rebuilt(lines: Sequence[Candidate], request: Request) -> pd.DataFrame:
+def rebuilt(lines: Sequence[Candidate], request: Request, *, where: str) -> pd.DataFrame:
     """The rows a fill's last returned attempt kept, as `bko.evaluate.attempts.Attempt.rows` does.
 
     Each kept candidate counts toward the cell its own values name; the cells come in the
     request's grid order, and the rows in generation order within one.
 
+    Args:
+        lines: The fill's candidate lines.
+        request: The request the fill answered.
+        where: The fill, as a refusal names it.
+
     Raises:
-        IdentityError: As `returned_attempt`, or if a kept candidate no longer passes validation.
+        IdentityError: As `returned_attempt`, or if a kept candidate no longer passes validation
+            or falls in no cell the request asks for.
     """
     attempt = returned_attempt(lines)
     kept = [line.candidate for line in lines if line.attempt == attempt and line.outcome == KEPT]
@@ -225,15 +101,23 @@ def rebuilt(lines: Sequence[Candidate], request: Request) -> pd.DataFrame:
         return no_rows(frame)
     rows = validate(kept, frame=frame).accepted
     if len(rows) != len(kept):
-        msg = f"{len(kept) - len(rows)} kept candidates no longer pass validation"
+        msg = f"{where}: {len(kept) - len(rows)} kept candidates no longer pass validation"
         raise IdentityError(msg)
     keys = stratum_keys(rows, Strata.CELL, edges=frame.edges)
     frames = [rows.loc[[key == cell for key in keys]] for cell in request.quota]
+    placed = sum(len(part) for part in frames)
+    if placed != len(rows):
+        msg = f"{where}: {len(rows) - placed} kept rows fall in no cell its request asks for"
+        raise IdentityError(msg)
     return number(pd.concat([part for part in frames if len(part)]))
 
 
 def tally(lines: Sequence[Candidate], template: Tally) -> Tally:
-    """`template`'s reasons, counting `lines`: every line generated, every unrejected one passed."""
+    """`template`'s reasons, counting `lines`: every line generated, every unrejected one passed.
+
+    Each `dropped-` outcome names a `Drop`, since `bko.evaluate.holdout_candidates.read` refuses
+    any other outcome.
+    """
     passed = [line for line in lines if line.outcome != REJECTED]
     dropped = Counter(
         Drop(line.outcome.removeprefix("dropped-")) for line in passed if line.outcome != KEPT
@@ -263,7 +147,8 @@ class StoredArm:
 
         Raises:
             BaselineError: On an attempt the run's fill did not return.
-            IdentityError: As `returned_attempt`, or if its params are not a JSON object.
+            IdentityError: As `rebuilt`, or if its `arm` line is missing or its params are not a
+                JSON object.
             EvaluationError: Outside a harness fill.
         """
         fill = CURRENT_FILL.get()
@@ -273,13 +158,19 @@ class StoredArm:
         key = (fill.holdout, fill.kind)
         self._tries[key] += 1
         lines = self._folder.lines.get((fill.holdout, self.name, fill.kind), ())
-        if self._tries[key] != returned_attempt(lines):
-            msg = f"{self.name}'s stored attempt {self._tries[key]} did not return"
+        expected = returned_attempt(lines)
+        if self._tries[key] != expected:
+            msg = f"{self.name}'s stored attempt {self._tries[key]} did not return; holdout"
+            msg += f" {fill.holdout}'s {fill.kind} fill returned attempt {expected}"
             raise BaselineError(msg)
         arm = self.name if fill.kind == "gap" else f"{self.name}-replica"
         logged = self._folder.arms.get((fill.holdout, arm))
-        params = {} if logged is None else _params(logged)
-        return Baseline(rebuilt(lines, request), unit_weights(train), params)
+        if logged is None:
+            msg = f"{self._folder.path / SCORES_LOG} logs no arm line for holdout"
+            msg += f" {fill.holdout}'s {arm}, so its params are unknown"
+            raise IdentityError(msg)
+        where = f"{self._folder.path}'s holdout {fill.holdout} {self.name} {fill.kind} fill"
+        return Baseline(rebuilt(lines, request, where=where), unit_weights(train), _params(logged))
 
     def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
         """The fill's candidate counts, read from its lines."""
@@ -288,64 +179,12 @@ class StoredArm:
 
 
 def _params(line: str) -> dict[str, object]:
+    # `json.JSONDecodeError` is a `ValueError`: malformed params fall through to the refusal.
     with suppress(ValueError):
-        if isinstance(params := json.loads(_fields(line)["params"]), dict):
+        if isinstance(params := json.loads(fields(line)["params"]), dict):
             return params
     msg = f"the params of {line!r} are not a JSON object"
     raise IdentityError(msg)
-
-
-def check_folders(
-    folder: Folder, others: Sequence[Folder], *, run: str, current: str, data: Data, uci: bool
-) -> None:
-    """Identity checks 1, 2, 3 and 5 across `folder` and `others`, before anything is scored.
-
-    Args:
-        folder: The rescored run's folder.
-        others: The `--with` folders.
-        run: The named run rescored; the folder's `experiment` line names it.
-        current: The `experiment` line the named run logs now.
-        data: The loaded data; every folder's digest is its digest.
-        uci: Whether the named run scores UCI Heart Disease, which a schema-1 candidates file
-            holds (`bko.evaluate.holdout_candidates.read` checks its archive digest).
-
-    Raises:
-        IdentityError: If a check fails.
-    """
-    for each in (folder, *others):
-        found = each.data
-        if found is None and each.schema == 1 and uci:
-            found = data.digest
-        if found != data.digest:
-            msg = f"{each.path} holds the data digest {found}, not the loaded data's {data.digest}"
-            raise IdentityError(msg)
-    if folder.experiment.get("run") != run:
-        msg = f"{folder.path} is run {folder.experiment.get('run')!r}'s, not {run!r}'s"
-        raise IdentityError(msg)
-    now = dict(pair.split("=", 1) for pair in current.split()[1:])
-    _same_keys(folder.experiment, now, set(), f"{folder.path} and the run {run!r} now")
-    for other in others:
-        _same_keys(folder.experiment, other.experiment, OWN_KEYS, f"{folder.path} and {other.path}")
-        if other.splits != folder.splits:
-            msg = f"{other.path}'s split lines differ from {folder.path}'s"
-            raise IdentityError(msg)
-        if other.baselines() != folder.baselines():
-            differing = sorted(set(other.baselines().items()) ^ set(folder.baselines().items()))
-            msg = f"{other.path}'s baseline arm lines differ from {folder.path}'s: {differing[:2]}"
-            raise IdentityError(msg)
-
-
-def _same_keys(
-    ours: Mapping[str, str], theirs: Mapping[str, str], skip: set[str] | frozenset[str], where: str
-) -> None:
-    differing = {
-        key: (ours[key], theirs[key])
-        for key in sorted((set(ours) & set(theirs)) - skip)
-        if ours[key] != theirs[key]
-    }
-    if differing:
-        msg = f"the experiment lines of {where} differ: {differing}"
-        raise IdentityError(msg)
 
 
 def excluded(
@@ -365,9 +204,10 @@ def excluded(
                 msg = f"{other.path / SCORES_LOG} logs no arm line for holdout {holdout}'s {arm}"
                 raise IdentityError(msg)
             lines = other.lines.get((holdout, name, kind), ())
-            rows = rebuilt(lines, gap if kind == "gap" else replica)
+            where = f"{other.path}'s holdout {holdout} {name} {kind} fill"
+            rows = rebuilt(lines, gap if kind == "gap" else replica, where=where)
             got = (str(returned_attempt(lines)), str(len(rows)), digest(rows))
-            if got != _fields(logged).group("attempt", "added", "sha256"):
+            if got != fields(logged).group("attempt", "added", "sha256"):
                 msg = f"{other.path}'s rebuilt rows {got} differ from its line {logged!r}"
                 raise IdentityError(msg)
             found.append(rows)
@@ -396,17 +236,26 @@ def _check_holdout(folder: Folder, holdout: int, records: Sequence[logging.LogRe
         IdentityError: If a line differs from the folder's, or one is missing.
     """
     logged = [record.getMessage() for record in records]
-    splits = [m for m in logged if _SPLIT.match(m)]
+    splits = [m for m in logged if SPLIT.match(m)]
     theirs = folder.splits.get(holdout)
     if splits != [theirs]:
-        msg = f"holdout {holdout}'s split lines {splits} differ from {folder.path}'s {theirs!r}"
+        msg = f"holdout {holdout}'s split lines {splits} differ from {folder.path}'s"
+        msg += f" {_shown(theirs)}"
         raise IdentityError(msg)
-    arms = {(int(f["holdout"]), f["arm"]): m for m in logged if (f := _ARM.fullmatch(m))}
+    arms = {(int(f["holdout"]), f["arm"]): m for m in logged if (f := ARM.fullmatch(m))}
     logged_arms = {key: line for key, line in folder.arms.items() if key[0] == holdout}
     for key in sorted(set(arms) | set(logged_arms)):
         if arms.get(key) != logged_arms.get(key):
-            msg = f"rescored {arms.get(key)!r} differs from the logged {logged_arms.get(key)!r}"
+            msg = f"{folder.path}'s holdout {holdout} arm {key[1]}: rescored"
+            msg += (
+                f" {_shown(arms.get(key))} differs from the logged {_shown(logged_arms.get(key))}"
+            )
             raise IdentityError(msg)
+
+
+def _shown(line: str | None) -> str:
+    """A log line as a refusal quotes it; `no line` for a missing one."""
+    return "no line" if line is None else repr(line)
 
 
 def _exclude(
@@ -417,6 +266,27 @@ def _exclude(
     train, seed = ablated.train, ablated.seed
     gap = gap_request(train, experiment, seed=seed, frame=frame)
     return excluded(others, seed, gap, replica_request(train, seed=seed, frame=frame))
+
+
+def _admit(folder: Folder, others: Sequence[Folder], *, run: str, experiment: Experiment) -> None:
+    """Log each input folder's `shared folder=` line, then refuse `--with` on a copy-keeping run.
+
+    Raises:
+        IdentityError: If `others` are given and `experiment` keeps copied test records, whose
+            split no other run's copies can share.
+    """
+    for each, role in ((folder, "folder"), *((other, "with") for other in others)):
+        logger.info(
+            "shared folder=%s role=%s log_sha256=%s candidates_sha256=%s",
+            each.path,
+            role,
+            each.log_sha256,
+            each.candidates_sha256 or "none",
+        )
+    if others and not experiment.decontaminate:
+        msg = f"run {run!r} keeps copied test records (decontaminate=false), so no --with folder"
+        msg += " can share its test split"
+        raise IdentityError(msg)
 
 
 def rescore(
@@ -432,12 +302,17 @@ def rescore(
 ) -> str:
     """Score `folder`'s run again, less every record `others` copy, and return the scores CSV.
 
-    With no `others`, no holdout is marked, so the CSV is the bytes the run wrote.
+    With no `others`, no holdout is marked, so the CSV is the bytes the run wrote; the `scores`
+    line's `matches_folder=` says whether its sha256 is the one the folder's `scores` line logs.
+    A run scored before a held-out row joined the harness gains that row, so it reads false
+    without failing.
 
     Raises:
-        IdentityError: As `check_folders`, `excluded` and `_check_holdout`.
+        IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are
+            given for a run that keeps copied test records.
         EvaluationError, BaselineError: As `bko.evaluate.run.run`.
     """
+    _admit(folder, others, run=run, experiment=experiment)
     frame = data.frame
     names = [m.value for m in models]
     current = experiment_line(run, experiment, names, frame=frame.name)
@@ -445,10 +320,7 @@ def rescore(
     require_cell(experiment.removal, frame)
     stored = {name: StoredArm(name, folder) for name in experiment.arms if name in BKO}
     runners = {**arms, **stored}
-    missing = sorted(set(experiment.arms) - set(runners) - {REAL_ARM})
-    if missing:
-        msg = f"no runner for arms {missing}"
-        raise EvaluationError(msg)
+    _require_runners(experiment, runners)
     drains = {name: arm.drain for name, arm in stored.items()}
     log_experiment(run, experiment, names, frame=frame.name)
     scores: list[Score] = []
@@ -457,7 +329,7 @@ def rescore(
         started = time.perf_counter()
         parts = split(data.records, seed=seed, edges=frame.edges)
         exclude = None if not others else _exclude(others, parts, experiment, frame)
-        with captured("bko.evaluate.run") as logged:
+        with captured(harness_logger.name) as logged:
             scores += score_holdout(
                 parts,
                 experiment,
@@ -471,10 +343,27 @@ def rescore(
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
     text = render(scores)
-    logger.info(
-        "scores rows=%d sha256=%s", text.count("\n") - 1, hashlib.sha256(text.encode()).hexdigest()
-    )
+    _log_scores(text, folder)
     return text
+
+
+def _require_runners(experiment: Experiment, runners: Mapping[str, Runner]) -> None:
+    """Refuse an experiment arm with no runner but the real arm, which has none.
+
+    Raises:
+        EvaluationError: If an arm has no runner.
+    """
+    missing = sorted(set(experiment.arms) - set(runners) - {REAL_ARM})
+    if missing:
+        msg = f"no runner for arms {missing}"
+        raise EvaluationError(msg)
+
+
+def _log_scores(text: str, folder: Folder) -> None:
+    """Log the `scores` line: rows, sha256 and whether it is the folder's logged sha256."""
+    sha = hashlib.sha256(text.encode()).hexdigest()
+    matches = "true" if sha == folder.scores_sha256 else "false"
+    logger.info("scores rows=%d sha256=%s matches_folder=%s", text.count("\n") - 1, sha, matches)
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

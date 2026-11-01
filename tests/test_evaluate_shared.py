@@ -17,17 +17,30 @@ import pytest
 import bko.evaluate.run as run_module
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
-from bko.datasets.uci import FRAME_COLUMNS, UCI_FRAME
+from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.beside import Pairing, pairable
 from bko.evaluate.context import Context
-from bko.evaluate.experiment import REAL_ARM, Experiment, Removal
+from bko.evaluate.errors import EvaluationError, IdentityError
+from bko.evaluate.experiment import REAL_ARM, Experiment, Removal, gap_request
+from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run import score_holdout
-from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
-from bko.evaluate.shared import BKO
-from tests._evaluate_bko_fixtures import NARROW, REPLICAS, context, replica_script, scripted
-from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
-from tests._generate_fixtures import ScriptedSend
+from bko.evaluate.run_folder import BKO, check_folders, read_folder
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, parse, render
+from bko.evaluate.shared import StoredArm
+from tests._baselines_fixtures import EDGE, cell_list
+from tests._evaluate_bko_fixtures import (
+    BAD,
+    NARROW,
+    REPLICAS,
+    context,
+    replica_script,
+    scripted,
+)
+from tests._evaluate_fixtures import FAST_ARMS, GRADED, GRADED_DATA, SMALL
+from tests._fusion_fixtures import young
+from tests._generate_fixtures import ScriptedSend, reply
+from tests._validate_fixtures import PLANTED, planted
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -136,13 +149,15 @@ def run_folder(
     *,
     replicas: bool = False,
     experiment: Experiment | None = None,
+    send: ScriptedSend | None = None,
 ) -> Path:
     """A paid run's folder: `scores.csv`, `scores.log` and `holdout-candidates.jsonl`.
 
     The run is `NARROW` over `scripted()` replies, or `REPLICAS` over `replica_script()`, whose
-    replica rows copy test records on each holdout, or `experiment` over `scripted()` replies.
+    replica rows copy test records on each holdout, or `experiment` over `scripted()` replies;
+    `send` replaces the replies.
     """
-    send = replica_script() if replicas else scripted()
+    send = send or (replica_script() if replicas else scripted())
     ctx = rescorer(replicas=replicas, experiment=experiment, send=send)
     folder = tmp_path / name
     folder.mkdir()
@@ -245,17 +260,42 @@ def test_the_shared_split_matches_a_joint_run(tmp_path, caplog, monkeypatch):
     joint = run_folder(tmp_path, "joint", caplog, replicas=True)
     monkeypatch.setattr(run_module, "probabilities", real)
     narrow = run_folder(tmp_path, "narrow", caplog)
+    monkeypatch.setattr(run_module, "probabilities", spy)
+    # The fingerprint recipe is written out here, not read from `split_fingerprint`: a format pin.
     expected = {
         holdout: float(int(sha256(repr(sorted(index)).encode()).hexdigest()[:12], 16))
         for holdout, index in zip(SMALL.holdout_seeds, seen, strict=True)
     }
+    joint_split = list(seen)
+    seen.clear()
     code, ours = shared(tmp_path, narrow, joint)
     assert code == 0
+    assert seen == joint_split
     assert markers(ours) == expected
     assert re.search(r"shared holdout=0 records=\d+ copied=0 foreign=[1-9]", caplog.text)
+    seen.clear()
     code, theirs = shared(tmp_path, joint, narrow, replicas=True)
     assert code == 0
+    assert seen == joint_split
     assert markers(theirs) == expected
+
+
+def test_two_shared_outputs_pair_every_holdout_a_copy_excludes(tmp_path, caplog):
+    joint = run_folder(tmp_path, "joint", caplog, replicas=True)
+    narrow = run_folder(tmp_path, "narrow", caplog)
+    plain = pairable(
+        parse((narrow / "scores.csv").read_text(encoding="utf-8")),
+        parse((joint / "scores.csv").read_text(encoding="utf-8")),
+    )
+    assert plain.copied == len(SMALL.holdout_seeds)
+    assert plain.holdouts == frozenset()
+    code, ours = shared(tmp_path, narrow, joint)
+    assert code == 0
+    code, theirs = shared(tmp_path, joint, narrow, replicas=True)
+    assert code == 0
+    pairing = pairable(parse(ours), parse(theirs))
+    assert pairing.holdouts == frozenset(SMALL.holdout_seeds)
+    assert (pairing.copied, pairing.mismatched) == (0, 0)
 
 
 def test_a_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
@@ -265,7 +305,8 @@ def test_a_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
     edit_log(edited, "arm holdout=0 arm=bko ", lambda line: line.replace("sha256=", "sha256=0"))
     error = refused(tmp_path, caplog, edited)
     assert re.fullmatch(
-        r"rescored 'arm holdout=0 arm=bko .* sha256=[0-9a-f]+ .*' differs from the logged "
+        rf"{re.escape(str(edited))}'s holdout 0 arm bko: rescored "
+        r"'arm holdout=0 arm=bko .* sha256=[0-9a-f]+ .*' differs from the logged "
         r"'arm holdout=0 arm=bko .* sha256=0[0-9a-f]+ .*'",
         error,
     )
@@ -275,7 +316,9 @@ def test_a_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
     lines[kept] = lines[kept].replace('"outcome": "kept"', '"outcome": "dropped-quota"')
     path.write_text("".join(lines), encoding="utf-8")
     error = refused(tmp_path, caplog, folder)
-    assert re.fullmatch(r"rescored 'arm holdout=0 arm=bko .*' differs from the logged '.*'", error)
+    assert re.fullmatch(
+        r"\S+'s holdout 0 arm bko: rescored '.*' differs from the logged '.*'", error
+    )
 
 
 def test_a_with_folders_rebuilt_arm_must_equal_its_logged_sha256(tmp_path, caplog):
@@ -298,7 +341,10 @@ def test_a_with_folder_missing_a_bko_arm_line_is_refused(tmp_path, caplog):
     assert len(kept) == len(lines) - 1
     log.write_text("".join(kept), encoding="utf-8")
     error = refused(tmp_path, caplog, folder, other)
-    assert error == f"{other / 'scores.log'} logs no arm line for holdout 1's bko"
+    assert error == (
+        f"{other / 'scores.log'} logs the arms ['none'] on holdout 1, "
+        "not its experiment line's ['bko', 'none']"
+    )
 
 
 def test_a_fill_with_no_returned_attempt_is_refused_as_a_shortfall(tmp_path, caplog):
@@ -385,7 +431,10 @@ def test_other_data_is_refused_with_exit_3(tmp_path, caplog):
             "seed=",
             "seed=9",
             r"\S+'s baseline arm lines differ from \S+'s: .*",
-            r"rescored 'arm holdout=1 arm=none .*' differs from the logged 'arm holdout=1 .*'",
+            (
+                r"\S+'s holdout 1 arm none: rescored 'arm holdout=1 arm=none .*' differs from the "
+                r"logged 'arm holdout=1 .*'"
+            ),
         ),
         (
             "experiment ",
@@ -418,3 +467,305 @@ def test_a_missing_file_exits_2(tmp_path, caplog, missing):
     assert shared(tmp_path, other) == (2, "")
     assert shared(tmp_path, folder, other) == (2, "")
     assert shared(tmp_path, folder, tmp_path / "absent") == (2, "")
+
+
+def test_an_arm_copy_and_a_foreign_copy_are_logged_apart(monkeypatch, caplog):
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    cells = cell_list(parts.test)
+    copied = parts.test[[cell == (f">={EDGE}", "female", 1) for cell in cells]].iloc[[0]]
+    others = parts.test.drop(index=copied.index)
+    foreigns = [others.iloc[[i]].loc[:, list(FRAME_COLUMNS)].reset_index(drop=True) for i in (0, 1)]
+
+    def copier(train, request):
+        baseline = FAST_ARMS["smote"](train, request)
+        added = baseline.added.copy()
+        added.loc[-19, list(FRAME_COLUMNS)] = copied.loc[:, list(FRAME_COLUMNS)].to_numpy()[0]
+        return dataclasses.replace(baseline, added=added.astype(dict(FRAME_DTYPES)))
+
+    arms = {"none": FAST_ARMS["none"], "smote": copier}
+    gone = {copied.index[0], others.index[0], others.index[1]}
+    for keep, dropped in ((False, gone), (True, gone - {copied.index[0]})):
+        experiment = dataclasses.replace(PAIR, decontaminate=not keep)
+        seen = fits_on(monkeypatch)
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+            scores = score_holdout(parts, experiment, arms, frame=UCI_FRAME, exclude=foreigns)
+        expected = sorted(int(i) for i in parts.test.index if i not in dropped)
+        assert seen
+        assert all(index == expected for index in seen)
+        assert f"records={len(parts.test)} copied=1 foreign=2 " in caplog.text
+        measures = {s.measure for s in scores if s.source is Source.HELD_OUT}
+        assert Measure.SHARED_SPLIT in measures
+        assert (Measure.COPIES_KEPT in measures) is keep
+
+
+def test_beside_reads_markers_under_allow_copies_and_on_some_holdouts_alone():
+    markers = dict.fromkeys(range(4), 123456.0)
+    ours, theirs = scored({1}, markers), scored({2}, markers)
+    assert pairable(ours, theirs, allow_copies=True).holdouts == frozenset(range(4))
+    partial = scored({2}, {0: 123456.0, 1: 123456.0})
+    pairing = pairable(ours, partial)
+    assert pairing.holdouts == frozenset({0, 1})
+    assert (pairing.copied, pairing.mismatched) == (1, 1)
+
+
+def retried_script() -> ScriptedSend:
+    """`NARROW`'s replies where holdout 1's first attempt drops every record and is refused."""
+    holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
+    refused = (reply([BAD] * 12), reply([BAD] * 16)) * 3
+    return ScriptedSend(*holdout, *refused, *holdout)
+
+
+def test_a_fill_returned_on_a_later_attempt_rescores_the_runs_bytes(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog, send=retried_script())
+    log = (folder / "scores.log").read_text(encoding="utf-8")
+    assert "retry holdout=1 arm=bko attempt=1 " in log
+    code, text = shared(tmp_path, folder)
+    assert code == 0
+    assert text == (folder / "scores.csv").read_text(encoding="utf-8")
+
+
+def test_a_stored_attempt_that_did_not_return_is_retried_and_named(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+
+    def later(line):
+        if line["kind"] == "candidate" and (line["holdout"], line["fill"]) == (0, "gap"):
+            line["attempt"] = 2
+        return line
+
+    edit_candidates(folder, later)
+    error = refused(tmp_path, caplog, folder)
+    assert (
+        "retry holdout=0 arm=bko attempt=1 reason=bko's stored attempt 1 did not return; "
+        "holdout 0's gap fill returned attempt 2"
+    ) in caplog.text
+    assert re.fullmatch(r"\S+'s holdout 0 arm bko: rescored '.*attempt=2 .*' differs .*", error)
+
+
+def test_each_input_and_whether_the_output_matches_the_folder_are_logged(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    digests = {
+        path: (
+            sha256((path / "scores.log").read_bytes()).hexdigest(),
+            sha256((path / "holdout-candidates.jsonl").read_bytes()).hexdigest(),
+        )
+        for path in (folder, other)
+    }
+    caplog.clear()
+    assert shared(tmp_path, folder)[0] == 0
+    log, candidates = digests[folder]
+    line = f"shared folder={folder} role=folder log_sha256={log} candidates_sha256={candidates}"
+    assert line in caplog.messages
+    assert re.search(r"scores rows=\d+ sha256=[0-9a-f]+ matches_folder=true", caplog.text)
+    caplog.clear()
+    assert shared(tmp_path, folder, other)[0] == 0
+    for path, role in ((folder, "folder"), (other, "with")):
+        log, candidates = digests[path]
+        line = f"shared folder={path} role={role} log_sha256={log} candidates_sha256={candidates}"
+        assert line in caplog.messages
+    assert re.search(r"scores rows=\d+ sha256=[0-9a-f]+ matches_folder=false", caplog.text)
+
+
+def test_several_with_folders_and_repeated_folders(tmp_path, caplog):
+    joint = run_folder(tmp_path, "joint", caplog, replicas=True)
+    narrow = run_folder(tmp_path, "narrow", caplog)
+    again = tmp_path / "again"
+    shutil.copytree(joint, again)
+    code, once = shared(tmp_path, narrow, joint)
+    assert code == 0
+    code, twice = shared(tmp_path, narrow, joint, again)
+    assert code == 0
+    assert markers(twice) == markers(once)
+    (tmp_path / "up").mkdir()
+    roundabout = tmp_path / "up" / ".." / "joint"
+    for folders in ((narrow, narrow), (narrow, joint, joint), (narrow, roundabout, joint)):
+        error = refused(tmp_path, caplog, *folders)
+        assert error.endswith("is read twice: a --with folder repeats --folder or another --with")
+
+
+def test_with_on_a_run_that_keeps_copies_is_refused(tmp_path, caplog):
+    keeping = dataclasses.replace(
+        NARROW,
+        arms=("none", REAL_ARM),
+        candidate=REAL_ARM,
+        comparators=("none",),
+        criteria=(),
+        removal=Removal(("<55", "female", 1), 0.5),
+        decontaminate=False,
+    )
+    folder = run_folder(tmp_path, "run", caplog, experiment=keeping)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    caplog.clear()
+    assert shared(tmp_path, folder, other, experiment=keeping) == (3, "")
+    (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert error == (
+        "run 'e1' keeps copied test records (decontaminate=false), so no --with folder can "
+        "share its test split"
+    )
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "outcome"),
+    [
+        ("decontaminate=true ", "", None),
+        ("frame=uci ", "", None),
+        ("seeds=0-1 ", "", None),
+        ("fill_to=20 ", "", "only one names fill_to, which has no assumed value"),
+        ("fill_to=20 ", "fill_to20 ", "holds 'fill_to20', which is not key=value"),
+    ],
+    ids=["decontaminate", "frame", "seeds", "unlisted", "token"],
+)
+def test_an_older_experiment_line_lacks_only_keys_with_an_assumed_value(
+    tmp_path, caplog, old, new, outcome
+):
+    folder = run_folder(tmp_path, "run", caplog)
+    edit_log(folder, "experiment ", lambda line: line.replace(old, new, 1))
+    if outcome is None:
+        code, text = shared(tmp_path, folder)
+        assert code == 0
+        assert text == (folder / "scores.csv").read_text(encoding="utf-8")
+    else:
+        assert outcome in refused(tmp_path, caplog, folder)
+
+
+def test_an_assumed_value_must_equal_the_other_lines(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    edit_log(folder, "experiment ", lambda line: line.replace("decontaminate=true ", "", 1))
+    edit_log(
+        other, "experiment ", lambda line: line.replace("decontaminate=true", "decontaminate=false")
+    )
+    error = refused(tmp_path, caplog, folder, other)
+    assert error.endswith("differ: {'decontaminate': ('true', 'false')}")
+
+
+def appended(marker: str, old: str, new: str):
+    """An edit of a log's lines that appends a copy of the first line holding `marker`, edited."""
+
+    def edit(lines: list[str]) -> list[str]:
+        line = next(line for line in lines if marker in line)
+        return [*lines, line.replace(old, new)]
+
+    return edit
+
+
+@pytest.mark.parametrize(
+    ("edit", "expected"),
+    [
+        (
+            lambda lines: [line.replace("run=e1 ", "run=x ") for line in lines],
+            r"\S+ is run 'x''s, not 'e1''s",
+        ),
+        (
+            appended(": experiment ", "=20 ", "=21 "),
+            r"\S+scores.log holds 2 distinct experiment lines, not 1",
+        ),
+        (
+            lambda lines: [line for line in lines if ": experiment " not in line],
+            r"\S+scores.log holds 0 distinct experiment lines, not 1",
+        ),
+        (
+            appended(": data ", "digest=", "digest=0"),
+            r"\S+scores.log names the data digests \['0\w+', '\w+'\]",
+        ),
+        (
+            appended(": split seed=1 ", "test=", "test=9"),
+            r"\S+scores.log logs two different lines for 1: 'split seed=1 .*', 'split seed=1 .*'",
+        ),
+        (
+            lambda lines: [line.replace(" added=", " rows=") for line in lines],
+            r"\S+scores.log logs the arms \[\] on holdout 0, not its experiment line's .*",
+        ),
+        (
+            lambda lines: [line for line in lines if ": split seed=1 " not in line],
+            r"\S+scores.log logs split lines for 1 holdouts, not its experiment line's 2",
+        ),
+    ],
+    ids=["run", "two", "none", "digests", "put", "drift", "holdouts"],
+)
+def test_a_log_that_contradicts_itself_is_refused(tmp_path, caplog, edit, expected):
+    folder = run_folder(tmp_path, "run", caplog)
+    path = folder / "scores.log"
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    path.write_text("".join(edit(lines)), encoding="utf-8")
+    assert re.fullmatch(expected, refused(tmp_path, caplog, folder))
+
+
+def test_a_candidates_header_must_name_the_logs_data(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    edit_candidates(
+        folder, lambda line: line | {"data": "0" + line["data"]} if "data" in line else line
+    )
+    assert re.fullmatch(
+        r"\S+'s candidates header names data 0(\w+), its log \1", refused(tmp_path, caplog, folder)
+    )
+
+
+@pytest.mark.parametrize(
+    ("candidate", "expected"),
+    [
+        (PLANTED["code:cp"], "1 kept candidates no longer pass validation"),
+        (planted(age=63, sex=0, target=1), "1 kept rows fall in no cell its request asks for"),
+    ],
+    ids=["invalid", "cell"],
+)
+def test_a_kept_candidate_must_rebuild_its_rows(tmp_path, caplog, candidate, expected):
+    folder = run_folder(tmp_path, "run", caplog)
+    first = []
+
+    def spoiled(line):
+        if line["kind"] == "candidate" and line["outcome"] == "kept" and not first:
+            first.append(line)
+            line["candidate"] = dict(candidate)
+        return line
+
+    edit_candidates(folder, spoiled)
+    error = refused(tmp_path, caplog, folder)
+    assert error == f"{folder}'s holdout 0 bko gap fill: {expected}"
+
+
+def test_a_schema_1_file_outside_uci_names_no_data(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    path = folder / "holdout-candidates.jsonl"
+    first, rest = path.read_text(encoding="utf-8").split("\n", 1)
+    header = json.loads(first)
+    del header["frame"], header["data"]
+    header |= {"schema": 1, "uci": UCI_HEART_DISEASE.sha256}
+    path.write_text(json.dumps(header, sort_keys=True) + "\n" + rest, encoding="utf-8")
+    log = folder / "scores.log"
+    lines = log.read_text(encoding="utf-8").splitlines(keepends=True)
+    log.write_text("".join(line for line in lines if ": data " not in line), encoding="utf-8")
+    read = read_folder(folder)
+    current = experiment_line("e1", NARROW, ["lr", "hgb"], frame="uci")
+    with pytest.raises(IdentityError, match="holds the data digest None, not the loaded data's"):
+        check_folders(read, [], run="e1", current=current, data=GRADED_DATA, uci=False)
+
+
+def test_a_run_whose_baseline_has_no_runner_exits_2(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    argv = ["shared", "--folder", str(folder), "--data-dir", str(tmp_path / "data")]
+    ctx = dataclasses.replace(rescorer(), arms={})
+    caplog.clear()
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert "no runner for arms ['none']" in caplog.text
+
+
+def test_a_stored_arm_answers_inside_a_harness_fill_only(tmp_path, caplog):
+    folder = read_folder(run_folder(tmp_path, "run", caplog))
+    with pytest.raises(EvaluationError, match="the stored arm bko runs inside a harness fill only"):
+        StoredArm("bko", folder)(GRADED, gap_request(GRADED, NARROW, seed=0, frame=UCI_FRAME))
+
+
+def test_the_experiment_line_keeps_its_format():
+    keeping = dataclasses.replace(
+        NARROW, removal=Removal(("<55", "female", 1), 0.5), decontaminate=False, criteria=()
+    )
+    assert experiment_line("x", keeping, ["lr"], frame="uci") == (
+        "experiment run=x frame=uci holdouts=2 seeds=0-1 removal=<55/female/1@0.5 "
+        "training_fraction=1 decontaminate=false arms=none,bko replica= threshold=20 fill_to=20 "
+        "budget=3 validity=19/20 spend_ceiling=25.00 criteria=none models=lr"
+    )
