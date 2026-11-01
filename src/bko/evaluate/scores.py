@@ -67,8 +67,8 @@ class Measure(enum.StrEnum):
     SHARED_SPLIT = "shared-split"
     """A holdout scored on a split shared with other runs, which drops the test records their
     rows copy: the first 12 hex digits of the sha256 of the sorted kept record ids' `repr`, read
-    as an integer (`bko.evaluate.shared.marker`). `compare --beside` lets a copy pair a holdout
-    when both files hold bitwise-equal rows there."""
+    as an integer (`bko.evaluate.shared_split.marker`). `compare --beside` lets a copy pair a
+    holdout when both files hold bitwise-equal rows there."""
     GENERATED = "generated"
     PASSED = "passed"
     DROPPED_RANGE = "dropped-range"

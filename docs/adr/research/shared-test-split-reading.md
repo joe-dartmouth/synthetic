@@ -36,7 +36,8 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
   an arm of the folder or of a `--with` folder copies. It rebuilds each BKO arm's rows from its
   `holdout-candidates.jsonl` (the last returned attempt's `kept` lines, grouped by each row's own
   cell in grid order), regenerates each baseline with its runner, and passes the `--with` folders'
-  rows to `bko.evaluate.run.score_holdout` as `exclude`. It writes a `scores.csv` to stdout and a
+  BKO rows, rebuilt the same way, to `bko.evaluate.run.score_holdout` as `exclude`; their baselines'
+  rows are the folder's own (check 5), so they would exclude nothing more. It writes a `scores.csv` to stdout and a
   `scores.log` to stderr.
 - A holdout scored with `exclude` writes a held-out `shared-split` row (`Measure.SHARED_SPLIT`)
   whose value is the first 12 hex digits of the sha256 of its kept test record ids, sorted, and
@@ -50,10 +51,15 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
 - Seven identity checks hold, or the command exits 3:
   1. The data digest is equal across the folder and every `--with` folder (from the `data` line or
      a schema-1 `uci` header).
-  2. The `experiment` line's shared keys are equal.
+  2. The `experiment` line's shared keys are equal: the folder's line names the rescored run and
+     equals that run's line now on every key both name, and each `--with` folder's equals the
+     folder's on every key both name but the run's own (`run`, `arms`, `replica`,
+     `spend_ceiling`, `criteria`).
   3. Each holdout's `split seed= train= test= fingerprint=` line is equal.
   4. Each rebuilt BKO arm row set, and each regenerated baseline row set, reproduces its logged
-     `arm ... sha256=`, attempt, seed and params.
+     `arm ... sha256=`, attempt, seed and params (a BKO arm's params are read from its line);
+     each `--with` folder's rebuilt BKO row set reproduces its logged attempt, row count and
+     sha256.
   5. The `--with` folders' non-BKO `arm` lines equal the folder's own.
   6. Scoring goes through `run.score_holdout`.
   7. Self-reproduction holds: with no `--with`, the output equals the folder's `scores.csv`. For
@@ -91,8 +97,10 @@ cannot be rescored.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/`
-- Pinned by: `tests/test_evaluate_beside.py`, `tests/test_evaluate_run.py`
+- Owner: `src/bko/evaluate/shared.py` (the command), `src/bko/evaluate/shared_split.py` (the
+  marker)
+- Pinned by: `tests/test_evaluate_shared.py`, `tests/test_evaluate_beside.py`,
+  `tests/test_evaluate_run.py`
 
 ## Reversal Conditions
 

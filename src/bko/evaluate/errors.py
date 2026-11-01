@@ -1,7 +1,7 @@
 """Why `python -m bko.evaluate` stops; the exit codes follow `bko.datasets.errors`.
 
 2 means the command could not run, a stop rule included, and 3 that a scores or candidates file
-breaks its format. Exit 1
+breaks its format or a run folder fails a `shared` identity check. Exit 1
 is left to Python, so a traceback still means a defect.
 """
 
@@ -27,6 +27,12 @@ class CandidatesFormatError(EvaluationError):
 
     `bko.evaluate.holdout_candidates.read` raises it.
     """
+
+    exit_code: ClassVar[int] = 3
+
+
+class IdentityError(EvaluationError):
+    """A run folder `bko.evaluate.shared` rescores fails one of its identity checks."""
 
     exit_code: ClassVar[int] = 3
 

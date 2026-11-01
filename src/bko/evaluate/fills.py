@@ -1,7 +1,8 @@
 """The holdout and the fill a runner call serves, for log attribution only.
 
 The harness sets `CURRENT_FILL` around each runner call (`bko.evaluate.run`), so an arm can name
-both in its log lines without a parameter on `Runner`. Nothing a score reads depends on it. An arm
+both in its log lines without a parameter on `Runner`. A score reads it only through
+`bko.evaluate.shared`'s stored arms, which answer each fill from the run's candidates file. An arm
 reads it synchronously when called, as `bko.evaluate.direct` and `bko.evaluate.skeleton` do: a
 task on an event loop started earlier, or a thread pool, would not see the value.
 """

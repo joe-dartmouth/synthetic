@@ -50,7 +50,7 @@ from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
-from bko.evaluate.shared import marked, marker
+from bko.evaluate.shared_split import marked, marker
 from bko.evaluate.shortfall import partial_fill, shortfall_kept
 from bko.evaluate.utility import utility
 
@@ -138,7 +138,7 @@ def score_holdout(
     thinned by its removal (`prepared`); the held-out ratio reads the sized split. `REAL_ARM`
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
-    `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared.marker`).
+    `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`).
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.

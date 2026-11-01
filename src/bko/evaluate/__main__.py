@@ -1,6 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `launch` and `supervise`.
+The subcommands are `score`, `compare`, `merge`, `shared`, `likelihood`, `launch` and
+`supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -17,6 +18,8 @@ and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is inter
 which starts it: it runs `score` into the claimed folder and resumes API-caused stops
 (`bko.evaluate.supervise`), and exits with the last segment's code, 128 plus the signal's number
 for a child a signal killed, or 2 when it or a resume cannot run.
+`shared RUN --folder FOLDER [--with FOLDER]...` rescores the run in FOLDER from its own files,
+less every record a `--with` folder's arms copy, to stdout (`bko.evaluate.shared`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, or whose holdouts hold different scores' keys.
@@ -43,7 +46,7 @@ path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a
 response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
 `launch` on battery power or into a folder that holds a run, and scores whose validity cannot be
 read; 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be
-resumed contradicts its contract.
+resumed contradicts its contract, or a `shared` run folder fails an identity check.
 """
 
 from __future__ import annotations
@@ -74,6 +77,7 @@ from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.scoring import data_dir, score
+from bko.evaluate.shared import add_parser, read_folder, rescore
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
@@ -132,6 +136,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
     elif args.command == "likelihood":
         _likelihood(args, context, sink)
+    elif args.command == "shared":
+        sink.write(_shared(args, context))
     else:
         _compare(args, context, sink)
     return 0
@@ -236,6 +242,24 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
         hashlib.sha256(body).hexdigest(),
     )
     likelihood(named.experiment, data, candidates, sink)
+
+
+def _shared(args: argparse.Namespace, context: Context) -> str:
+    """Rescore the folder's run less every `--with` folder's copies; read every file first."""
+    named = _named(args.run, context)
+    folder, others = read_folder(args.folder), [read_folder(path) for path in args.others]
+    data = load(named.dataset, data_dir(args), named)
+    uci = named.dataset is Dataset.UCI
+    return rescore(
+        folder,
+        others,
+        run=args.run,
+        experiment=named.experiment,
+        data=data,
+        arms=named.arms,
+        models=named.models,
+        uci=uci,
+    )
 
 
 def _named(name: str, context: Context) -> Context:
@@ -405,6 +429,7 @@ def _parser() -> argparse.ArgumentParser:
     comparing.add_argument(
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
+    add_parser(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
     )
