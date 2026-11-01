@@ -90,7 +90,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart|bayes-net> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -567,7 +567,11 @@ start or the supervisor cannot run.
   and the CLLM arms `cllm` and `cllm-uncurated`) and `b3-synthea` (E3's methods, those three and
   `real` under E3's removal), each with `cllm` as the candidate and no criterion (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md);
-  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
+  [EVIDENCE.md](EVIDENCE.md#b3-cllm-arms)), and B2's, `b2-uci` (E1's methods and the Bayesian
+  network `bayes-net` as the candidate) and `b2-synthea` (E3's methods, `bayes-net` and `real`
+  under E3's removal), each with no BKO arm and no criterion (ADR
+  [`research/bayesian-network-baseline`](adr/research/bayesian-network-baseline.md);
+  [EVIDENCE.md](EVIDENCE.md#b2-bayesian-network-baseline)). It holds E4's dose runs, `e4-thirty`, `e4-forty` and
   `e4-eighty` (`E4_TARGETS`: E1's methods and `bko` filling each flagged cell to 30, 40 or 80 at
   E1's threshold, a $10.00 ceiling and no criterion;
   [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)), and E5's scarcity runs, `e5-quarter`,
