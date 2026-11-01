@@ -135,6 +135,30 @@ B1_SYNTHEA: Final = replace(
 """E3's removal and copy rule with E3's methods, the classical synthesizers and `real`, no BKO arm
 (`docs/EVIDENCE.md`, B1)."""
 
+BAYES_NET: Final = str(Method.BAYES_NET)
+"""The Bayesian network baseline's arm (ADR `research/bayesian-network-baseline`)."""
+
+B2_UCI: Final = replace(
+    E1,
+    arms=(*METHOD_ARMS, BAYES_NET),
+    candidate=BAYES_NET,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, BAYES_NET),
+    criteria=(),
+)
+"""E1's methods and the Bayesian network as the candidate, no BKO arm and no criterion, so it makes
+no API call (`docs/EVIDENCE.md`, B2)."""
+
+B2_SYNTHEA: Final = replace(
+    E3,
+    arms=(*METHOD_ARMS, BAYES_NET, REAL_ARM),
+    candidate=BAYES_NET,
+    comparators=METHOD_ARMS,
+    replica_arms=(*ADDS_ROWS, BAYES_NET),
+)
+"""E3's removal and copy rule with E3's methods, the Bayesian network and `real`, no BKO arm
+(`docs/EVIDENCE.md`, B2)."""
+
 
 B3_ARMS: Final = ("bko", CLLM_ARM, CLLM_RAW_ARM)
 """The Messages arms B3 reads together: `bko`, CLLM and its uncurated twin (`docs/EVIDENCE.md`,
@@ -247,6 +271,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         "g2": NamedRun(G2),
         "b1-uci": NamedRun(B1_UCI),
         "b1-synthea": NamedRun(B1_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
+        "b2-uci": NamedRun(B2_UCI),
+        "b2-synthea": NamedRun(B2_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         "b3-uci": NamedRun(B3_UCI),
         "b3-synthea": NamedRun(B3_SYNTHEA, SETTINGS, Dataset.SYNTHEA),
         **{

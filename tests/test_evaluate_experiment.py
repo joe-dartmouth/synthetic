@@ -123,6 +123,8 @@ def test_every_run_name_is_pinned():
     assert set(RUNS) == {
         "b1-synthea",
         "b1-uci",
+        "b2-synthea",
+        "b2-uci",
         "b3-synthea",
         "b3-uci",
         "e1",
@@ -509,6 +511,24 @@ def test_e5_runs_differ_from_e1_in_arms_fraction_ceiling_and_criteria_alone():
             spend_ceiling=10.0,
             criteria=(),
         )
+
+
+def test_b2_runs_hold_the_network_beside_each_frames_methods():
+    uci, synthea = RUNS["b2-uci"], RUNS["b2-synthea"]
+    assert uci.experiment == dataclasses.replace(
+        E1,
+        arms=(*METHOD_ARMS, "bayes-net"),
+        candidate="bayes-net",
+        comparators=METHOD_ARMS,
+        replica_arms=(*ADDS_ROWS, "bayes-net"),
+        criteria=(),
+    )
+    assert uci.dataset is Dataset.UCI
+    assert synthea.dataset is Dataset.SYNTHEA
+    assert synthea.experiment.arms == (*METHOD_ARMS, "bayes-net", REAL_ARM)
+    assert synthea.experiment.removal == E3.removal
+    assert synthea.experiment.criteria == E3.criteria
+    assert not any(arm in MESSAGES_ARMS for arm in (*uci.experiment.arms, *synthea.experiment.arms))
 
 
 def test_b3_runs_hold_bko_and_both_cllm_arms():
