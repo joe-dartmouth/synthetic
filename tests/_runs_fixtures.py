@@ -108,6 +108,8 @@ def every_kind(root: Path) -> Path:
     write(root / "e2-5", "gaps-synthea.csv", GAPS_SYNTHEA)
     write(root / "e2-5", "gaps-uci.csv", GAPS_UCI)
     write(root / "r1-2", "reproduction.csv", REPRODUCTION)
+    write(root / "g6-2", "scores.csv", render(SCORES))
+    write(root / "g6-2", "server.log", "llama-server: listening\n")
     write(root / DEMO, "scores.csv", render(SCORES[:4]))
     write(root / DEMO, "training.csv", "record_id,age\n-1,40\n")
     (root / "notes").mkdir()

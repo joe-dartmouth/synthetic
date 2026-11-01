@@ -112,7 +112,8 @@ class Reply:
         request_id: The API's request id, when the SDK set one.
         model: The model that served the call.
         stop_reason: Why the model stopped.
-        text: The text blocks joined, or None when there are none.
+        text: The reply text as `text_of` reads it (Messages text blocks or chat-completions
+            message content), or None when there is none.
         usage: The billed tokens.
         raw: The whole message as JSON values.
         attempts: The HTTP requests the SDK made for the call, retries included; None when
@@ -168,17 +169,26 @@ class Call:
 
 
 def text_of(raw: Mapping[str, object]) -> str | None:
-    """A message's text blocks joined, thinking blocks ignored; None when there are none."""
+    """A response's text, or None when there is none.
+
+    A Messages body's text blocks are joined, thinking blocks ignored. A chat-completions body's
+    first choice's `message.content` is returned, reasoning ignored.
+    """
     content = raw.get("content")
-    blocks = content if isinstance(content, list) else []
-    texts = [
-        block["text"]
-        for block in blocks
-        if isinstance(block, dict)
-        and block.get("type") == "text"
-        and isinstance(block.get("text"), str)
-    ]
-    return "".join(texts) if texts else None
+    if isinstance(content, list):
+        texts = [
+            block["text"]
+            for block in content
+            if isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
+        ]
+        return "".join(texts) if texts else None
+    choices = raw.get("choices")
+    first = choices[0] if isinstance(choices, list) and choices else None
+    message = first.get("message") if isinstance(first, dict) else None
+    text = message.get("content") if isinstance(message, dict) else None
+    return text if isinstance(text, str) else None
 
 
 type Send = Callable[[Call], Reply]

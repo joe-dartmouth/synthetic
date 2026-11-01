@@ -199,6 +199,39 @@ cells differ counts as mismatched. Fewer than two paired holdouts, or an arm eit
 refused before the table is written, so a refusal leaves stdout empty. A series either arm lacks,
 or that fewer than two paired holdouts define, is skipped with a `beside skip` line.
 
+`shared` rescores a run's folder on the test split that no arm of it or of any `--with` folder
+copies, so `--beside` can pair holdouts a copy would exclude (ADR
+[`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md), which holds its
+identity checks and what self-reproduction admits). It makes no API call. It reads the folder's
+`scores.log` and `holdout-candidates.jsonl`, rebuilds each BKO arm's rows from its last returned
+attempt's `kept` candidates, regenerates each baseline, and checks each row set against its logged
+`arm` line; each `--with` folder's rows leave the test split too, and every holdout is scored
+through `run.score_holdout`.
+
+With `--with`, each holdout writes a `shared-split` held-out row, the first 12 hex digits of the
+sha256 of its kept test record ids, and logs
+`shared holdout=%d records=%d copied=%d foreign=%d fingerprint=%s`; `--beside` pairs a copied
+holdout when both files hold equal `shared-split` rows there. `--with` on a run that keeps copied
+test records (`decontaminate=false`) is refused. With no `--with`, it rewrites the folder's
+`scores.csv`. Its stdout is a `scores.csv` and its stderr a `scores.log`, which opens with one
+`shared folder=<path> role=folder|with log_sha256=... candidates_sha256=...` line per input folder
+and ends with `scores rows=%d sha256=%s matches_folder=true|false`, comparing the output's sha256
+with the one the folder's own `scores` line logs.
+
+A run is read in a pair with one compared run. `<run-id>` and `<run>` are the read run's folder
+and named run, `<base-id>` and `<base-run>` the compared run's, and the four output folders are
+named after the read run: `<run-id>-selfcheck` (no `--with`), `<run-id>-shared` (the run with the
+compared run), `<run-id>-sharedbase` (the compared run with the run) and `<run-id>-sharedjudged`
+(`compare`'s reading of the two):
+
+    mkdir -p runs/<run-id>-selfcheck && test ! -e runs/<run-id>-selfcheck/scores.csv && test ! -e runs/<run-id>-selfcheck/scores.log && uv run --no-sync python -m bko.evaluate shared <run> --folder runs/<run-id> > runs/<run-id>-selfcheck/scores.csv 2> runs/<run-id>-selfcheck/scores.log </dev/null
+    mkdir -p runs/<run-id>-shared && test ! -e runs/<run-id>-shared/scores.csv && test ! -e runs/<run-id>-shared/scores.log && uv run --no-sync python -m bko.evaluate shared <run> --folder runs/<run-id> --with runs/<base-id> > runs/<run-id>-shared/scores.csv 2> runs/<run-id>-shared/scores.log </dev/null
+    mkdir -p runs/<run-id>-sharedbase && test ! -e runs/<run-id>-sharedbase/scores.csv && test ! -e runs/<run-id>-sharedbase/scores.log && uv run --no-sync python -m bko.evaluate shared <base-run> --folder runs/<base-id> --with runs/<run-id> > runs/<run-id>-sharedbase/scores.csv 2> runs/<run-id>-sharedbase/scores.log </dev/null
+    mkdir -p runs/<run-id>-sharedjudged && test ! -e runs/<run-id>-sharedjudged/criteria.csv && test ! -e runs/<run-id>-sharedjudged/criteria.log && uv run --no-sync python -m bko.evaluate compare <run> runs/<run-id>-shared/scores.csv --candidate bko --beside runs/<run-id>-sharedbase/scores.csv --beside-arm bko > runs/<run-id>-sharedjudged/criteria.csv 2> runs/<run-id>-sharedjudged/criteria.log </dev/null
+
+`shared` exits 2 on a missing input or an arm with no runner, and 3 when an identity check fails
+or `--with` is refused.
+
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
@@ -404,7 +437,11 @@ start or the supervisor cannot run.
   at the commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row
   per holdout, and a run that keeps copies a `copies-kept` row per holdout, so a run scored at a
   commit without those rows does not reproduce its scores' sha256 when replayed at a later commit.
-  Replay each run at its own commit (its `versions` line names it). With `--resume`, the stopped
+  Replay each run at its own commit (its `versions` line names it), or at a replay commit whose
+  `git diff --stat <run commit> <replay commit> -- src` lists only the reply-text reader's
+  files, `src/bko/generate/messages.py` and `src/bko/generate/local.py`, named by a pushed
+  `replay/<name>` tag; G6's local runs replay at `replay/g6-local` (ADR
+  [`research/call-log-replay`](adr/research/call-log-replay.md)). With `--resume`, the stopped
   log's answered calls come first, answered from it, then live calls. With `--rehearse`,
   `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
   its billed spend as live.
@@ -885,10 +922,11 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 - **Local models**: an on-device model answers a run's calls through `llama-server` (Homebrew
   `llama.cpp`) on `http://127.0.0.1:8081` (ADR
   [`research/local-generator-backend`](adr/research/local-generator-backend.md)). Fetch and verify
-  its pinned weights into `data/models/`, serve it, probe it, and stop the server when the run ends:
+  its pinned weights into `data/models/`, serve it with its output in the run's folder
+  (`server.log`, [Runs](#runs)), probe it, and stop the server when the run ends:
 
       uv run --no-sync python -m bko.generate.local fetch <model> [--data-dir <dir>]
-      eval "$(uv run --no-sync python -m bko.generate.local serve-command <model> [--data-dir <dir>])" >> scratchpad/<model>-server.log 2>&1 &
+      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/server.log && eval "$(uv run --no-sync python -m bko.generate.local serve-command <model> [--data-dir <dir>])" > runs/<run-id>/server.log 2>&1 &
       uv run --no-sync python -m bko.generate.local probe <model>
       pkill -f "llama-server .*--alias <model>"
 
@@ -1066,6 +1104,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `calls.jsonl` | the call log of a run that calls the Messages API |
 | `scores.csv` | `python -m bko.evaluate score`'s stdout |
 | `scores.log` | its stderr |
+| `server.log` | the local model server's output, written by the operator's serve command |
 | `holdout-candidates.jsonl` | every candidate a run's BKO arms generated, per holdout |
 | `launch.log` | `python -m bko.evaluate launch`'s record of the power reading and command |
 | `rehearsal` | `python -m bko.evaluate launch --rehearse`'s directory of the run's roles |

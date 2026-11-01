@@ -33,38 +33,33 @@ VERSIONED: Final = (
 
 
 def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> None:
-    """Log the run's configuration, frame and models, then the commit and libraries it ran with.
+    """Log the run's `experiment_line`, then the commit and libraries it ran with."""
+    logger.info("%s", experiment_line(name, experiment, models, frame=frame))
+    head, dirty = commit()
+    logger.info(
+        "versions commit=%s dirty=%s %s", head, dirty, json.dumps(versions(), sort_keys=True)
+    )
+
+
+def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> str:
+    """The run's configuration, frame and models, as the `experiment` log line's message.
 
     `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
     band, sex and label joined by `/`, then `@` and the fraction, or `none`.
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
-    logger.info(
-        "experiment run=%s frame=%s holdouts=%d seeds=%d-%d removal=%s training_fraction=%s "
-        "decontaminate=%s arms=%s "
-        "replica=%s threshold=%d fill_to=%d budget=%d validity=%s spend_ceiling=%.2f criteria=%s "
-        "models=%s",
-        name,
-        frame,
-        len(seeds),
-        seeds[0],
-        seeds[-1],
-        "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}",
-        experiment.training_fraction,
-        "true" if experiment.decontaminate else "false",
-        ",".join(experiment.arms),
-        ",".join(experiment.replica_arms),
-        experiment.threshold,
-        experiment.fill_to,
-        experiment.budget,
-        experiment.validity,
-        experiment.spend_ceiling,
-        ",".join(experiment.criteria) or "none",
-        ",".join(models),
+    removed = (
+        "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}"
     )
-    head, dirty = commit()
-    logger.info(
-        "versions commit=%s dirty=%s %s", head, dirty, json.dumps(versions(), sort_keys=True)
+    return (
+        f"experiment run={name} frame={frame} holdouts={len(seeds)} seeds={seeds[0]}-{seeds[-1]} "
+        f"removal={removed} training_fraction={experiment.training_fraction} "
+        f"decontaminate={'true' if experiment.decontaminate else 'false'} "
+        f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} "
+        f"threshold={experiment.threshold} fill_to={experiment.fill_to} "
+        f"budget={experiment.budget} validity={experiment.validity} "
+        f"spend_ceiling={experiment.spend_ceiling:.2f} "
+        f"criteria={','.join(experiment.criteria) or 'none'} models={','.join(models)}"
     )
 
 

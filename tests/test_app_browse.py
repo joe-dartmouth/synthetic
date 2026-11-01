@@ -14,7 +14,7 @@ from tests._fusion_fixtures import young
 from tests._runs_fixtures import DEMO, SCORES, every_kind
 
 
-NAMES = [DEMO, "c1-2", "c1-2-closure", "e1-3", "e2-5", "r1-2"]
+NAMES = [DEMO, "c1-2", "c1-2-closure", "e1-3", "e2-5", "g6-2", "r1-2"]
 
 SECTIONS = {
     DEMO: {"Means over the holdouts", "Training set"},
@@ -22,6 +22,7 @@ SECTIONS = {
     "c1-2-closure": {"Gaps before and after the join"},
     "e1-3": {"Call log totals", "Means over the holdouts", "E1's criteria", "Validity"},
     "e2-5": {"UCI gap listing", "E2 gap readings"},
+    "g6-2": {"Means over the holdouts"},
     "r1-2": {"Reproduction"},
 }
 

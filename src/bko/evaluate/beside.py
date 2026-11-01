@@ -7,8 +7,11 @@ rule), and no arm in either file copied a test record there: under E1's rule `sc
 copied record from the test split, so a copy in either run would put the two arms' classifiers on
 different test records. A run that keeps copies (`Experiment.decontaminate` false) scores every arm
 on the whole split and writes a `copies-kept` held-out row per holdout, so a copy excludes nothing
-on a holdout where both files hold that row. A series either arm lacks, or that fewer than 2
-paired holdouts define, is skipped rather than refused.
+on a holdout where both files hold that row. A holdout scored on a split shared with other runs
+(`bko.evaluate.shared`) writes a `shared-split` held-out row, and a copy excludes nothing on a
+holdout where both files hold bitwise-equal ones: both scored every arm on the same records. A
+series either arm lacks, or that fewer than 2 paired holdouts define, is skipped rather than
+refused.
 """
 
 from __future__ import annotations
@@ -92,8 +95,9 @@ class Pairing:
         copied: The shared holdouts excluded because an arm in either file copied a test record.
         mismatched: The other excluded shared holdouts, whose held-out rows or flagged cells do
             not match.
-        copies_excluded: False when a copy excludes no shared holdout under the rule, since
-            `allow_copies` is set and both files hold `copies-kept` on every one of them.
+        copies_excluded: False when a copy excludes no shared holdout under the rule, since on
+            every one of them both files hold equal `shared-split` rows, or `allow_copies` is set
+            and both hold `copies-kept`.
         flagged: Each mismatched holdout whose two `flagged-fingerprint` scores differ, with ours
             and theirs read as integers, in holdout order.
     """
@@ -126,7 +130,10 @@ def pairable(
     0; NaN counts as a copy. With `allow_copies`, a copy excludes nothing on a holdout where both
     files hold a `copies-kept` row, since both scored every arm on the whole test split there; on
     any other holdout a copy excludes it as without `allow_copies`, since the file that does not
-    keep copies scored its arms on a split without the copied records.
+    keep copies scored its arms on a split without the copied records. A copy also excludes
+    nothing on a holdout where both files hold bitwise-equal `shared-split` rows, whatever
+    `allow_copies` says; the row is a held-out score to match, so a file that holds it never
+    pairs with one that does not.
 
     Returns:
         The holdouts that pair, the shared holdouts excluded for a copy and for a mismatch,
@@ -139,6 +146,7 @@ def pairable(
         s.holdout for s in (*ours, *theirs) if s.measure is Measure.TEST_COPIES and s.value != 0
     }
     kept = _keeps(held_ours) & _keeps(held_theirs) if allow_copies else set()
+    kept |= _sharing(held_ours, held_theirs)
     copied -= kept
     paired = frozenset(
         holdout
@@ -250,14 +258,31 @@ _FINGERPRINT: Final = (Measure.FLAGGED_FINGERPRINT, Scope.ALL)
 
 _KEPT: Final = (Measure.COPIES_KEPT, Scope.ALL)
 
+_SHARED: Final = (Measure.SHARED_SPLIT, Scope.ALL)
+
 _UNMATCHED: Final = frozenset({_FINGERPRINT, _KEPT})
 """The held-out keys left out of the summaries' equality: the fingerprint is compared on its own,
-and `copies-kept` says how the arms were scored, not which split they were scored on."""
+and `copies-kept` says how the arms were scored, not which split they were scored on.
+`shared-split` stays in: it names the split."""
 
 
 def _keeps(held: dict[int, dict[tuple[Measure, Scope], float]]) -> set[int]:
     """The holdouts whose held-out rows hold a `copies-kept` row."""
     return {holdout for holdout, values in held.items() if _KEPT in values}
+
+
+def _sharing(
+    ours: dict[int, dict[tuple[Measure, Scope], float]],
+    theirs: dict[int, dict[tuple[Measure, Scope], float]],
+) -> set[int]:
+    """The holdouts where both files hold bitwise-equal `shared-split` rows."""
+    return {
+        holdout
+        for holdout, values in ours.items()
+        if _SHARED in values
+        and _SHARED in theirs.get(holdout, {})
+        and _bitwise(values[_SHARED], theirs[holdout][_SHARED])
+    }
 
 
 def _same(a: dict[tuple[Measure, Scope], float], b: dict[tuple[Measure, Scope], float]) -> bool:

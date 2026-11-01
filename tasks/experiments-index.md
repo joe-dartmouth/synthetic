@@ -21,13 +21,11 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-generator-comparison`](evaluate-generator-comparison.md) | ready | -- | Shirley | final-report |
 | [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
 | [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
-    generator_comparison[evaluate-generator-comparison]
     local_thinking[evaluate-local-thinking-cost]
     diabetes_removal[evaluate-diabetes-subgroup-removal] --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
 ```

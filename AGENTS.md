@@ -48,6 +48,10 @@ import it (ADR `tooling/agent-config-single-home`).
   `<run>` writes, refusing overlapping or missing holdouts and slices of other code or
   configuration; `compare <run>` reads the result. It
   makes no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
+- `mkdir -p runs/<run-id>-shared && test ! -e runs/<run-id>-shared/scores.csv && test ! -e runs/<run-id>-shared/scores.log && uv run --no-sync python -m bko.evaluate shared <run> --folder runs/<run-id> [--with runs/<base-id>]... > runs/<run-id>-shared/scores.csv 2> runs/<run-id>-shared/scores.log`:
+  rescore a run's folder from its own files on the test split that no arm of it or of a `--with`
+  folder copies, so `compare --beside` pairs the holdouts a copy would exclude. It makes no API
+  call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded commands).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes

@@ -67,11 +67,22 @@ def test_run_folders_are_gitignored():
 
 def test_discover_lists_run_folders_with_their_roles(tmp_path):
     runs = discover(every_kind(tmp_path))
-    assert [run.name for run in runs] == [DEMO, "c1-2", "c1-2-closure", "e1-3", "e2-5", "r1-2"]
-    assert [run.entry for run in runs] == ["app", "c1", "c1", "e1", "e2", "r1"]
+    assert [run.name for run in runs] == [
+        DEMO,
+        "c1-2",
+        "c1-2-closure",
+        "e1-3",
+        "e2-5",
+        "g6-2",
+        "r1-2",
+    ]
+    assert [run.entry for run in runs] == ["app", "c1", "c1", "e1", "e2", "g6", "r1"]
     e1 = next(run for run in runs if run.name == "e1-3")
     assert list(e1.roles) == ["calls.jsonl", "scores.csv", "criteria.csv"]
     assert e1.roles["scores.csv"] == tmp_path / "e1-3" / "scores.csv"
+    g6 = next(run for run in runs if run.name == "g6-2")
+    assert list(g6.roles) == ["scores.csv", "server.log"]
+    assert g6.roles["server.log"] == tmp_path / "g6-2" / "server.log"
 
 
 def test_discover_finds_nothing_without_a_root(tmp_path):
