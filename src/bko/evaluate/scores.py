@@ -64,6 +64,11 @@ class Measure(enum.StrEnum):
     """1.0 on a holdout of a run that keeps copies (`Experiment.decontaminate` false), whose arms
     are scored on the whole test split; a decontaminating run writes no such row. `compare
     --beside` lets a copy pair a holdout only when both files hold it there."""
+    SHARED_SPLIT = "shared-split"
+    """A holdout scored on a split shared with other runs, which drops the test records their
+    rows copy: the first 12 hex digits of the sha256 of the sorted kept record ids' `repr`, read
+    as an integer (`bko.evaluate.shared.marker`). `compare --beside` lets a copy pair a holdout
+    when both files hold bitwise-equal rows there."""
     GENERATED = "generated"
     PASSED = "passed"
     DROPPED_RANGE = "dropped-range"

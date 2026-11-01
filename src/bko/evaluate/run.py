@@ -50,6 +50,7 @@ from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.shared import marked, marker
 from bko.evaluate.shortfall import partial_fill, shortfall_kept
 from bko.evaluate.utility import utility
 
@@ -129,13 +130,15 @@ def score_holdout(
     models: Mapping[Model, Factory] = MODELS,
     drains: Mapping[str, Drain] = MappingProxyType({}),
     frame: FrameSpec,
+    exclude: Sequence[pd.DataFrame] | None = None,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
     The holdout's training rows are `parts`' sized by the experiment's training fraction, then
     thinned by its removal (`prepared`); the held-out ratio reads the sized split. `REAL_ARM`
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
-    `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`.
+    `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
+    `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared.marker`).
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -195,6 +198,7 @@ def score_holdout(
         keep_copies=not experiment.decontaminate,
         holdout=seed,
         frame=frame,
+        exclude=exclude,
     )
     for name in experiment.arms:
         _log_training(seed, name, "gap", fills[name].added, train, frame=frame)
@@ -209,6 +213,7 @@ def score_holdout(
             **distances(test, train, frame=frame),
             Measure.FLAGGED_FINGERPRINT: fingerprint(cells),
             **({} if experiment.decontaminate else {Measure.COPIES_KEPT: 1.0}),
+            **({} if exclude is None else marker(clean)),
         },
     )
     for name in experiment.arms:
@@ -233,12 +238,13 @@ def _scored_split(
     keep_copies: bool,
     holdout: int,
     frame: FrameSpec,
+    exclude: Sequence[pd.DataFrame] | None,
 ) -> pd.DataFrame:
     """The test records every arm is scored on, after logging how many some arm's rows copy.
 
     A test record is copied when some arm's added or replica row equals it in every one of
     `frame`'s columns. E1's rule drops each copied record; with `keep_copies` the whole split is
-    scored, and the `test` line reads `kept=true`.
+    scored, and the `test` line reads `kept=true`. A set `exclude` goes through `marked`.
     """
     clean = decontaminated(test, added, frame=frame)
     logger.info(
@@ -248,7 +254,11 @@ def _scored_split(
         len(test) - len(clean),
         "true" if keep_copies else "false",
     )
-    return test if keep_copies else clean
+    scored = test if keep_copies else clean
+    if exclude is None:
+        return scored
+    copied = len(test) - len(clean)
+    return marked(scored, exclude, records=len(test), copied=copied, holdout=holdout, frame=frame)
 
 
 def _log_training(
