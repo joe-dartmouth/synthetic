@@ -135,3 +135,29 @@ def test_text_of_joins_text_blocks_and_ignores_thinking():
 
 def test_text_of_gives_none_without_a_text_block():
     assert text_of({"content": []}) is None
+
+
+def test_text_of_reads_a_chat_completions_body():
+    raw = {"choices": [{"message": {"role": "assistant", "content": '{"records": []}'}}]}
+    assert text_of(raw) == '{"records": []}'
+
+
+def test_text_of_ignores_reasoning_content():
+    message = {"reasoning_content": "think", "content": "{}"}
+    assert text_of({"choices": [{"message": message}]}) == "{}"
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"choices": []}, None),
+        ({"choices": [{}]}, None),
+        ({"choices": [{"message": {}}]}, None),
+        ({"choices": [{"message": {"content": 3}}]}, None),
+        ({}, None),
+        ({"content": []}, None),
+        ({"content": [{"type": "text", "text": "a"}]}, "a"),
+    ],
+)
+def test_text_of_returns_none_for_bodies_without_text(body, expected):
+    assert text_of(body) == expected

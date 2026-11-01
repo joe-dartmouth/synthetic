@@ -15,6 +15,7 @@ import pytest
 import bko.generate.local as local_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scoring import _in_flight
+from bko.generate.calls import ask
 from bko.generate.errors import GenerationError
 from bko.generate.local import (
     SLOTS,
@@ -27,8 +28,11 @@ from bko.generate.local import (
     serve_command,
     wait_ready,
 )
-from bko.generate.messages import SETTINGS, Call, record_schema
+from bko.generate.log import CallLog
+from bko.generate.messages import SETTINGS, Call, Reply, record_schema
+from bko.generate.replay import Replay
 from bko.generate.weights import LOCAL_MODELS, model_path
+from tests._generate_fixtures import GUIDANCE
 
 
 MODEL = "olmo-3-7b-instruct-q8_0"
@@ -372,3 +376,26 @@ def test_a_local_run_keeps_at_most_the_servers_slots_in_flight(caplog):
     assert "local in_flight=4 slots=4 asked=8" in caplog.messages
     assert _in_flight(2, MODEL) == 2
     assert _in_flight(8, SETTINGS.model) == 8
+
+
+def test_a_local_log_replays_its_text_and_decodes_as_logged(tmp_path):
+    settings = dataclasses.replace(SETTINGS, model=MODEL)
+    sent: list[Call] = []
+    body = completion([RECORD, RECORD])
+
+    def send(call: Call) -> Reply:
+        sent.append(call)
+        return reply_of(body)
+
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, settings, frame="uci") as log:
+        batch = ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
+    logged = (log.decoded, log.undecoded)
+    assert logged == (2, 0)
+    replayed = Replay(path)(sent[0])
+    assert replayed.text is not None
+    assert replayed.text == json.dumps({"records": [RECORD, RECORD]})
+    with CallLog(tmp_path / "again.jsonl", settings, frame="uci") as again:
+        ask(GUIDANCE, 2, send=Replay(path), log=again, frame=UCI_FRAME)
+    assert (again.decoded, again.undecoded) == logged
+    assert len(batch.candidates) == 2
