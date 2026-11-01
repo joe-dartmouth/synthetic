@@ -1,10 +1,11 @@
 """A Bayesian network learned from the training rows and sampled ancestrally: PrivBayes, no noise.
 
-Each measured field is cut into `BINS` equal-frequency bins, with every age band edge forced as a
-cut so a sampled age bin names one band; a coded field (the label included) keeps its codes as its
-states. GreedyBayes (Zhang et al. 2014) orders the fields: the first is given, and each next field
-is the one whose best parent set, `min(k, placed)` fields already placed, shares the most mutual
-information with it; ties fall to the first in the frame's order. Each field's distribution given
+Each measured field is cut into `BINS` equal-frequency bins, with every age band edge offered as a
+cut, so each age state's training rows lie in one band; a coded field (the label included) keeps
+as its states the codes its training rows hold. GreedyBayes (Zhang et al. 2014) orders the fields:
+the first is given, and each next field is the one whose best parent set, `min(k, placed)` fields
+already placed, shares the most mutual information with it; ties fall to the first field in the
+frame's order, then to the first parent set in placement order. Each field's distribution given
 its parents is the BDeu posterior mean at equivalent sample size `ESS`, so a parent configuration
 no training row shows gets the uniform prior. A record is drawn field by field in that order, and
 each field's value is copied from a training row whose state for that field is the drawn one. ADR
@@ -14,10 +15,14 @@ each field's value is copied from a training row whose state for that field is t
 from __future__ import annotations
 
 import itertools
+import logging
 import math
+import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from operator import itemgetter
+from types import MappingProxyType
 from typing import Final
 
 import numpy as np
@@ -29,6 +34,8 @@ from bko.baselines.synthesizers import fill
 from bko.datasets.frames import FrameSpec
 
 
+logger = logging.getLogger(__name__)
+
 BINS: Final = 5
 """The equal-frequency bins of a measured field, before the band edges are forced."""
 
@@ -39,7 +46,7 @@ K: Final = 2
 """The most parents a field takes."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Bins:
     """Each field's states over the training rows.
 
@@ -61,7 +68,7 @@ class Bins:
         return len(self.cuts[field]) + 1
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Node:
     """One field of the network: its parents and its distribution given each of their states.
 
@@ -82,7 +89,7 @@ class Node:
         return self.table.get(given, tuple([1.0 / self.arity] * self.arity))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Network:
     """The learned network, its nodes in drawing order."""
 
@@ -97,16 +104,18 @@ class Network:
 def discretize(train: pd.DataFrame, frame: FrameSpec) -> Bins:
     """Each field of `frame` cut into states over `train`: bins when measured, codes when coded.
 
-    A measured field's cuts are its `BINS`-quantile values, with each of `frame.edges` added for
-    `age`, then the cuts that would leave a bin empty removed, so every state holds a training row.
+    A measured field's cuts are its `BINS - 1` interior quantiles, with each of `frame.edges` added
+    for `age`, then each cut that would leave a bin empty removed; a coded field's states are the
+    codes, in the frame's order, that `train` holds. Every state holds a training row, and each
+    age state's rows lie in one band.
     """
     cuts: dict[str, tuple[float, ...]] = {}
     codes: dict[str, tuple[int, ...]] = {}
     for field in frame.columns:
-        if field == frame.label:
-            codes[field] = tuple(frame.label_codes)
-        elif field in frame.categorical:
-            codes[field] = tuple(frame.codebook[field])
+        if field == frame.label or field in frame.categorical:
+            known = frame.label_codes if field == frame.label else tuple(frame.codebook[field])
+            present = set(train[field].astype(int))
+            codes[field] = tuple(code for code in known if code in present)
         else:
             values = train[field].to_numpy(dtype="float64")
             quantiles = np.quantile(values, [i / BINS for i in range(1, BINS)])
@@ -116,13 +125,11 @@ def discretize(train: pd.DataFrame, frame: FrameSpec) -> Bins:
         {field: _states(train[field], field, cuts, codes) for field in frame.columns},
         index=train.index,
     )
-    return Bins(cuts, codes, states)
+    return Bins(MappingProxyType(cuts), MappingProxyType(codes), states)
 
 
 def mutual_information(states: pd.DataFrame, field: str, parents: Sequence[str]) -> float:
     """The empirical mutual information, in nats, between `field` and the joint `parents`."""
-    if not parents:
-        return 0.0
     rows = len(states)
     child = states[field].to_numpy()
     joint = [tuple(row) for row in states.loc[:, list(parents)].to_numpy()]
@@ -145,17 +152,16 @@ def learn(bins: Bins, *, k: int = K, first: str) -> Network:
     placed = [first]
     chosen: list[tuple[str, tuple[str, ...]]] = [(first, ())]
     while len(placed) < len(fields):
-        best: tuple[float, str, tuple[str, ...]] | None = None
-        for field in (f for f in fields if f not in placed):
-            for parents in itertools.combinations(placed, min(k, len(placed))):
-                score = mutual_information(bins.states, field, parents)
-                if best is None or score > best[0]:
-                    best = (score, field, parents)
-        if best is None:
-            msg = "no field is left to place"
-            raise ValueError(msg)
-        placed.append(best[1])
-        chosen.append((best[1], best[2]))
+        candidates = [
+            (mutual_information(bins.states, field, parents), field, parents)
+            for field in fields
+            if field not in placed
+            for parents in itertools.combinations(placed, min(k, len(placed)))
+        ]
+        # The first of the largest: frame order of fields, then placement order of parent sets.
+        _, field, parents = max(candidates, key=itemgetter(0))
+        placed.append(field)
+        chosen.append((field, parents))
     return Network(tuple(_node(bins, field, parents) for field, parents in chosen))
 
 
@@ -190,8 +196,9 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
 
     The first field is `frame.columns[derived_seed(seed, "bayes-net") % len(frame.columns)]`, and
     every draw reads `default_rng(derived_seed(seed, "bayes-net"))`, so the seed alone decides the
-    rows and no global generator is read or moved. The params name the first field, `k`, the bins
-    and the learned edges.
+    rows and no global generator is read or moved. Logs one `fit method=bayes-net seconds=%.1f`
+    line. The params name the request's seed, the first field, `k`, `BINS`, the equivalent sample
+    size, each field's states and the learned edges, each `[parent, child]` in drawing order.
 
     Raises:
         BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
@@ -201,8 +208,10 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
     rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
     seed = derived_seed(request.seed, "bayes-net")
     first = frame.columns[seed % len(frame.columns)]
+    start = time.perf_counter()
     bins = discretize(rows, frame)
     network = learn(bins, first=first)
+    logger.info("fit method=bayes-net seconds=%.1f", time.perf_counter() - start)
     rng = np.random.default_rng(seed)
     added = fill(
         lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
@@ -213,6 +222,7 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
         "k": K,
         "bins": BINS,
         "ess": ESS,
+        "states": {field: bins.arity(field) for field in frame.columns},
         "edges": [list(edge) for edge in network.edges],
     }
     return Baseline(added=added, weights=unit_weights(train), params=params)

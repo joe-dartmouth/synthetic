@@ -14,6 +14,8 @@ from bko.baselines.bayes_net import (
     Bins,
     K,
     Network,
+    Node,
+    _occupied,
     bayes_net,
     discretize,
     draw,
@@ -135,7 +137,6 @@ def test_the_same_rng_draws_the_same_rows():
     first = draw(network, bins, TRAIN, 50, np.random.default_rng(4), UCI_FRAME)
     second = draw(network, bins, TRAIN, 50, np.random.default_rng(4), UCI_FRAME)
     assert first.equals(second)
-    assert isinstance(network, Network)
 
 
 def test_an_unknown_first_field_is_refused():
@@ -175,7 +176,8 @@ def test_the_params_name_the_first_field_and_the_learned_edges(runs):
     params = runs[0].params
     seed = derived_seed(3, "bayes-net")
     assert params["first"] == UCI_FRAME.columns[seed % len(UCI_FRAME.columns)]
-    assert (params["k"], params["bins"], params["ess"]) == (K, BINS, ESS)
+    assert (params["seed"], params["k"], params["bins"], params["ess"]) == (3, K, BINS, ESS)
+    assert params["states"] == {f: discretize(TRAIN, UCI_FRAME).arity(f) for f in UCI_FRAME.columns}
     network = learn(discretize(TRAIN.reset_index(drop=True), UCI_FRAME), first=params["first"])
     assert params["edges"] == [list(edge) for edge in network.edges]
 
@@ -186,3 +188,84 @@ def test_the_network_fills_the_toy_frame():
     added = bayes_net(TOY_TRAIN, request).added
     assert list(added.columns) == list(TOY.columns)
     assert len(added) == sum(quota.values())
+
+
+def test_a_code_no_training_row_holds_is_no_state_and_draws_no_crash():
+    train = TRAIN.loc[TRAIN["restecg"] != 1]
+    bins = discretize(train, UCI_FRAME)
+    assert 1 not in bins.codes["restecg"]
+    assert bins.arity("restecg") == len(UCI_FRAME.codebook["restecg"]) - 1
+    rows = draw(learn(bins, first="restecg"), bins, train, 500, np.random.default_rng(0), UCI_FRAME)
+    assert 1 not in set(rows["restecg"])
+
+
+def forced(field: str, state: int, bins: Bins) -> Network:
+    """A network whose every field is drawn alone, `field` always in `state`."""
+    nodes = []
+    for name in bins.states.columns:
+        arity = bins.arity(name)
+        if name == field:
+            chances = tuple(1.0 if s == state else 0.0 for s in range(arity))
+        else:
+            chances = tuple([1.0 / arity] * arity)
+        nodes.append(Node(name, (), {(): chances}, arity))
+    return Network(tuple(nodes))
+
+
+def test_each_value_is_copied_from_a_donor_in_the_drawn_state():
+    bins = discretize(TRAIN, UCI_FRAME)
+    for field, state in (("chol", 0), ("chol", bins.arity("chol") - 1), ("cp", 2)):
+        rows = draw(
+            forced(field, state, bins), bins, TRAIN, 200, np.random.default_rng(2), UCI_FRAME
+        )
+        donors = set(TRAIN[field][bins.states[field] == state])
+        assert set(rows[field]) <= donors, (field, state)
+        others = set(TRAIN[field][bins.states[field] != state])
+        assert set(rows[field]).isdisjoint(others - donors)
+
+
+def test_the_band_edge_is_a_cut_where_no_quantile_falls_on_it():
+    edge = UCI_FRAME.edges[0]
+    ages = [30, 31, 32, 33, 34, edge - 2, edge + 3, 70, 71, 72, 73, 74, 75, 76, 77]
+    train = pd.concat([TRAIN.iloc[[i % len(TRAIN)]] for i in range(len(ages))], ignore_index=True)
+    train["age"] = ages
+    bins = discretize(train, UCI_FRAME)
+    quantiles = np.quantile(np.asarray(ages, dtype=float), [0.2, 0.4, 0.6, 0.8])
+    assert float(edge) not in set(quantiles)
+    assert float(edge) in bins.cuts["age"]
+    for field in UCI_FRAME.numeric:
+        if field != "age":
+            assert float(edge) not in bins.cuts[field] or float(edge) in set(
+                np.quantile(train[field].to_numpy(dtype=float), [0.2, 0.4, 0.6, 0.8])
+            )
+
+
+def test_each_age_state_lies_in_one_band():
+    bins = discretize(TRAIN, UCI_FRAME)
+    bands = np.searchsorted(np.asarray(UCI_FRAME.edges), TRAIN["age"].to_numpy(), side="right")
+    for state in set(bins.states["age"]):
+        assert len(set(bands[bins.states["age"] == state])) == 1
+
+
+def test_a_cut_at_the_largest_value_is_dropped():
+    values = np.asarray([1.0, 2.0, 3.0, 4.0])
+    assert _occupied(values, [2.0, 4.0]) == (2.0, 4.0)
+    assert _occupied(values, [2.0, 5.0]) == (2.0,)
+    assert _occupied(values, [1.0, 2.0]) == (2.0,)
+
+
+def test_a_measured_field_of_distinct_values_gets_bins_states():
+    train = pd.concat([TRAIN] * 5, ignore_index=True)
+    train["chol"] = np.arange(150, 150 + len(train))
+    bins = discretize(train, UCI_FRAME)
+    assert bins.arity("chol") == BINS
+    counts = np.bincount(bins.states["chol"])
+    assert counts.max() - counts.min() <= 1
+
+
+def test_a_tie_falls_to_the_first_field_in_the_frames_order():
+    rng = np.random.default_rng(3)
+    a = rng.integers(0, 2, 400)
+    network = learn(states_of(a=a, b=a.copy(), c=a.copy()), k=1, first="a")
+    assert [node.field for node in network.nodes] == ["a", "b", "c"]
+    assert network.nodes[2].parents == ("a",)
