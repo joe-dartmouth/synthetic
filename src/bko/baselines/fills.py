@@ -5,6 +5,8 @@ both in its log lines without a parameter on `Runner`. A score reads it only thr
 `bko.evaluate.shared`'s stored arms, which answer each fill from the run's candidates file. An arm
 reads it synchronously when called, as `bko.evaluate.direct` and `bko.evaluate.skeleton` do: a
 task on an event loop started earlier, or a thread pool, would not see the value.
+It lives in `bko.baselines` so a baseline method can name its fill without importing
+`bko.evaluate`.
 """
 
 from __future__ import annotations

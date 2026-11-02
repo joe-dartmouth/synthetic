@@ -23,6 +23,7 @@ from types import MappingProxyType
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, check, unit_weights
 from bko.baselines.request import Request, Strata
@@ -31,7 +32,6 @@ from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, Experiment
-from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.run import Drain, run

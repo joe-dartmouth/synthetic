@@ -15,6 +15,7 @@ from typing import Final
 import pytest
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import Drop
 from bko.baselines.request import Request, Strata
 from bko.datasets.uci import UCI_FRAME
@@ -24,7 +25,6 @@ from bko.evaluate.attempts import COMMON, Attempt
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import ADDS_ROWS, E1, MESSAGES_ARMS, METHOD_ARMS, SKELETON_ARM
-from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.guided import GuidedArm
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.rehearse import CannedSend

@@ -29,6 +29,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.errors import BaselineError, OutputContractError
+from bko.baselines.fills import CURRENT_FILL, Fill, FillKind
 from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, derived_seed, number, training_set, unit_weights
 from bko.baselines.request import Method, Request, Stratum
@@ -40,7 +41,6 @@ from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
-from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
