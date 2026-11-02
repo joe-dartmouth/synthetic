@@ -11,6 +11,7 @@ from typing import BinaryIO, cast
 import pytest
 
 from bko.datasets.fetch import ensure
+from bko.datasets.sources import Agreement
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.__main__ import _parser
 from bko.evaluate.context import Context
@@ -24,6 +25,7 @@ from bko.evaluate.scoring import _prepare, _score, score
 from bko.generate.errors import GenerationError
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend, Call
+from bko.ontology.schema import Codes, FieldMapping
 from bko.validate.checks import failures, validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context
 from tests._evaluate_fixtures import FAST_ARMS
@@ -86,7 +88,10 @@ def test_uci_data_carries_frame_rows_name_and_digest(tmp_path, caplog):
     assert data.name == ctx.uci.name
     assert data.records.equals(records)
     assert data.digest == _digest(records)
-    line = f"data dataset=uci frame=uci records={len(records)} digest={_digest(records)}"
+    line = (
+        f"data dataset=uci frame=uci records={len(records)} digest={_digest(records)} "
+        "agreement=none"
+    )
     assert line in [record.getMessage() for record in caplog.records]
     ensure(ctx.uci, tmp_path, open_url=_refusing_opener)
 
@@ -160,18 +165,41 @@ def test_a_method_only_toy_run_asks_for_the_toy_cells(tmp_path):
     assert {cell[0] for cell in cells} <= TOY_BANDS
 
 
-def test_the_direct_arm_is_refused_on_a_non_uci_dataset_before_any_load(tmp_path):
+def test_the_direct_arm_is_refused_on_a_nesting_chain_before_any_load(tmp_path):
     candidates = tmp_path / "candidates.jsonl"
     args = _parser().parse_args(
         ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
     )
     named = RUNS["g2"]
     assert DIRECT_ARM in named.experiment.arms
-    other = cast("Dataset", "toy")
-    with pytest.raises(EvaluationError, match="direct arm"):
-        score(args, _toy_context(experiment=named.experiment, dataset=other))
+    chain = tuple(
+        FieldMapping(
+            when=(Codes("cp", frozenset(codes)),),
+            concept=f"HP:900000{len(codes)}",
+            label=f"chain {len(codes)}",
+            source="uci-heart-disease",
+            limits="test",
+        )
+        for codes in ({1}, {1, 2}, {1, 2, 3})
+    )
+    with pytest.raises(EvaluationError, match=r"direct arm.*HP:9000001 lies inside 2 concepts"):
+        score(args, _toy_context(experiment=named.experiment, field_rows=chain))
     assert not candidates.exists()
     assert not (tmp_path / "data").exists()
+
+
+def test_the_data_line_names_the_agreement(tmp_path, caplog):
+    ctx, _ = context(ScriptedSend())
+    agreed = dataclasses.replace(
+        ctx, uci=dataclasses.replace(ctx.uci, agreement=Agreement("toy DUA", sending="ok"))
+    )
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        load(Dataset.UCI, tmp_path / "open", ctx)
+        load(Dataset.UCI, tmp_path / "agreed", agreed)
+    lines = [message for message in caplog.messages if message.startswith("data ")]
+    assert len(lines) == 2
+    assert lines[0].endswith(" agreement=none")
+    assert lines[1].endswith(' agreement="toy DUA"')
 
 
 def test_the_call_log_run_line_names_the_frame(tmp_path):

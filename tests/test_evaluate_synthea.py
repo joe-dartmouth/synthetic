@@ -301,7 +301,9 @@ def test_loading_synthea_logs_its_data_line(tmp_path, caplog):
     expected = digest(_records(tmp_path / "again"))
     assert data.digest == expected
     lines = [m for m in caplog.messages if m.startswith("data ")]
-    assert lines == [f"data dataset=synthea frame=synthea records=310 digest={expected}"]
+    assert lines == [
+        f"data dataset=synthea frame=synthea records=310 digest={expected} agreement=none"
+    ]
 
 
 def _written(tmp_path: Path) -> Path:

@@ -32,7 +32,7 @@ from bko.evaluate.experiment import Experiment
 from bko.evaluate.prepare import prepared
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
-from bko.generate.prompt import NO_FINDING
+from bko.generate.prompt import NO_FINDING, field_units
 from bko.generate.skeleton import Named, skeleton
 from bko.ontology.schema import AtLeast, FieldMapping, shown
 
@@ -46,9 +46,10 @@ OUTPUT_PER_RECORD: Final = 211  # 16362315 / 77487
 PROMPT: Final = re.compile(
     r"Write exactly (?P<rows>\d+) records of patients in this group: "
     r"sex (?P<sex>\d) \([a-z]+\), target (?P<label>\d) \([^)]*\), "
-    r"age (?P<low>\d+(?:\.\d+)?) to (?P<high>\d+(?:\.\d+)?) years\."
+    r"age (?P<low>\d+(?:\.\d+)?) to (?P<high>\d+(?:\.\d+)?) (?P<unit>[a-z]+(?: [a-z]+)*)\."
 )
-"""The first sentence of every user turn `bko.generate.prompt.render` writes, at every level."""
+"""The first sentence of every user turn `bko.generate.prompt.render` writes, at every level; `unit`
+is age's unit as the prompt writes it for the call's frame (`bko.generate.prompt.field_units`)."""
 
 RECORD_LINE: Final = re.compile(r"^Record (?P<number>\d+): (?P<labels>.*)$", re.MULTILINE)
 """A prescribing user turn's line for one record: its number from 1, then its concepts' labels."""
@@ -165,7 +166,8 @@ class CannedSend:
 
         Raises:
             GenerationError: If the call is for another frame than the run's, or its user turn
-                does not read as the prompt renders it or names another cell than the call's.
+                does not read as the prompt renders it, gives age in another unit than the
+                frame's, or names another cell than the call's.
             EvaluationError: If no canned record of the cell's ages fits the safe ranges, or
                 `SKIPS` in a row equal real records.
         """
@@ -178,6 +180,10 @@ class CannedSend:
         found = PROMPT.match(call.user)
         if found is None:
             msg = f"the user turn does not read as the prompt renders it: {call.user[:200]!r}"
+            raise GenerationError(msg)
+        unit = field_units(self._frame)["age"]
+        if found["unit"] != unit:
+            msg = f"the user turn gives age in {found['unit']}, not the frame's {unit}"
             raise GenerationError(msg)
         if (int(found["sex"]), int(found["label"])) != (call.sex, call.label):
             msg = f"the user turn names sex {found['sex']} target {found['label']}, not the call's"

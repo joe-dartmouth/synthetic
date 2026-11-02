@@ -59,7 +59,8 @@ root or to see the module's own code, run it directly:
   pinned population `DEFAULT_RUN` names: `score e3` checks it against its `run.json` with no Java
   and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
   snapshot date and aged 40 and over, and the sha256 of its records is the `digest` of the
-  `data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs.
+  `data dataset=synthea frame=synthea records=<n> digest=<sha256> agreement=none` line `score`
+  logs.
 - **The Diabetes frame**: `bko.datasets.diabetes` reads `diabetic_data.csv` and
   `IDS_mapping.csv` from the verified `uci-diabetes-130` snapshot without extracting it. It keeps
   each patient's first encounter (the lowest `encounter_id`), then drops encounters discharged
@@ -72,7 +73,10 @@ root or to see the module's own code, run it directly:
   not missing), the eight drug columns most often given, `change`, `diabetesMed`, and one
   indicator per mapped ICD-9 category, set when any of `diag_1` to `diag_3` falls in it;
   `record_id` is the record's 1-based position in encounter order. `encounter_id` and
-  `patient_nbr` never enter the frame.
+  `patient_nbr` never enter the frame. `bko.evaluate.diabetes` holds its `FrameSpec`: age in
+  decades (UCUM `10.a`), band edges 4 and 8, each coded column's meanings the archive's own state
+  strings, and one field row per ICD-9 and lab row of `bko.ontology.icd9`; `score` refuses records
+  whose columns or codes the frame lacks.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -490,9 +494,10 @@ start or the supervisor cannot run.
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
-  loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
-  frame, its record count, and the sha256 of its records that the candidates file's header names
-  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
+  loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the
+  dataset, its frame, its record count, the sha256 of its records that the candidates file's
+  header names under `data`, and the data use agreement the records are held under: `none` for
+  open data, else the agreement's name in double quotes ([Data](#data), Agreements)), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
@@ -648,7 +653,7 @@ start or the supervisor cannot run.
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
   send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a direct arm
-  with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
+  with no `--candidates` or over field rows that nest in a chain (`bko.gaps.shares.nested`), `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
   `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or

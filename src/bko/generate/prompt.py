@@ -40,8 +40,16 @@ UNITS: Final = {
     "mg/dL": "mg/dL",
     "/min": "beats per minute",
     "mm": "mm",
+    "d": "days",
+    "10.a": "decades",
+    "{tests}": "lab tests",
+    "{procedures}": "procedures",
+    "{medications}": "medications",
+    "{visits}": "visits",
+    "{diagnoses}": "diagnoses",
 }
-"""Each range constraint's UCUM unit as the prompt writes it."""
+"""Each range constraint's UCUM unit as the prompt writes it; a count's unit is a UCUM annotation
+naming what it counts."""
 
 COHERENCE: Final = (
     "Keep each record clinically coherent: its values should fit the patient's disease status, "

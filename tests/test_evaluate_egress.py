@@ -8,12 +8,18 @@ import pytest
 
 from bko.datasets import sources as pinned
 from bko.datasets.sources import Agreement, Source, permits_sending
+from bko.evaluate.context import Context
+from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.ontology.mapping import RELEASES
+from tests._diabetes_fixtures import pin, toy_archive
+from tests._evaluate_bko_fixtures import PIN as UCI_PIN
+from tests._evaluate_bko_fixtures import UCI_E1
 from tests._evaluate_fixtures import GRADED_DATA, SMALL
 from tests._generate_fixtures import ScriptedSend
+from tests._ontology_fixtures import RoutingOpener
 
 
 def refusing():
@@ -59,3 +65,19 @@ def test_every_pinned_source_is_open_data():
     assert {source.name for source in sources} >= {"uci-heart-disease", "uci-diabetes-130"}
     assert all(source.agreement is None for source in sources)
     assert all(permits_sending(source.agreement) for source in sources)
+
+
+@pytest.mark.parametrize("dataset", [Dataset.UCI, Dataset.DIABETES])
+def test_load_carries_each_sources_agreement(tmp_path, dataset):
+    agreement = Agreement("toy DUA", sending="ok")
+    archive = toy_archive()
+    uci = dataclasses.replace(UCI_PIN, agreement=agreement)
+    diabetes = dataclasses.replace(pin(archive, "uci-diabetes-130"), agreement=agreement)
+    context = Context(
+        open_url=RoutingOpener({uci.url: UCI_E1, diabetes.url: archive}),
+        uci=uci,
+        diabetes=diabetes,
+    )
+    data = load(dataset, tmp_path, context)
+    assert data.agreement == agreement
+    assert data.name == (uci if dataset is Dataset.UCI else diabetes).name

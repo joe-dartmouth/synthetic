@@ -151,15 +151,6 @@ links to where its blocker is tracked.
   finds the same logged requests.
   **Trigger:** the next change to `GuidedArm._planned` or `bko.evaluate.cllm`.
 
-- **`cleanup:evaluate/data-line-agreement`: the `data` line names no agreement.** The `data
-  dataset=... records=... digest=...` line (`bko.evaluate.data.load`) does not say which agreement
-  the records are held under, so a run's log cannot show what permitted its sends. *Filed
-  2026-10-30 by the pre-run diff review of PR6.*
-  **Why deferred.** Every pinned source is open data (`tests/test_evaluate_egress.py`).
-  **What discharges it:** the line carries `agreement=` (`none` for open data), documented in
-  `docs/DEVELOPMENT.md` (Evaluation).
-  **Trigger:** the first source held under an agreement.
-
 - **`cleanup:evaluate/cllm-budget-remeasure`: `CLLM_BUDGET` comes from a proxy pilot that B3's
   run undercut.** ADR `research/cllm-arm-design` sets the budget from the least keep share of a
   pilot over BKO records (Synthea's 0.1734, giving 9). B3's `cllm` on Synthea kept 0.5370 of the

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from bko.baselines.methods import Runner
 from bko.datasets.fetch import UrlOpener, open_https
-from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
+from bko.datasets.sources import DIABETES_130, SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import MODELS, Factory, Model
@@ -46,6 +46,8 @@ class Context:
         synthea: The pinned Synthea population's run, which a Synthea run's records are
             read from (`bko.evaluate.data.load`).
         synthea_jar: The jar that population was generated with.
+        diabetes: The pinned Diabetes 130 archive, which a Diabetes 130 run's records are read
+            from (`bko.evaluate.data.load`).
         send: Builds the send every BKO arm's call goes through, for an API model.
         local_send: Builds the send for an on-device model, given its id
             (`bko.generate.weights.LOCAL_MODELS`).
@@ -70,6 +72,7 @@ class Context:
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     synthea: SyntheaRun = SYNTHEA_RUN
     synthea_jar: Source = SYNTHEA_JAR
+    diabetes: Source = DIABETES_130
     send: Callable[[], AnySend] = default_async_send
     local_send: Callable[[str], AnySend] = local_send
     rehearse: Rehearse = CannedSend

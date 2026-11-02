@@ -4,12 +4,14 @@
 candidates file, so each reads the same records, frame, field mappings and digest, and the run's
 logs name the frame. ADR `research/uci-evaluation-frame` records why the run, not a flag, chooses
 it. The Synthea frame, its indicators and its field rows are defined here, from
-`bko.ontology.mapping.CODE_MAPPINGS` (ADR `research/synthea-downstream-design`).
+`bko.ontology.mapping.CODE_MAPPINGS` (ADR `research/synthea-downstream-design`); the Diabetes 130
+frame's are in `bko.evaluate.diabetes`.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from collections.abc import Mapping, Sequence
@@ -22,12 +24,20 @@ from typing import Final, Protocol, assert_never
 import pandas as pd
 
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
+from bko.datasets.diabetes import load_diabetes
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, RangeConstraint
 from bko.datasets.sources import Agreement, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.uci import UCI_FRAME, load_uci
+from bko.evaluate.diabetes import (
+    DIABETES_FIELD_ROWS,
+    DIABETES_FRAME,
+    DIABETES_INDICATORS,
+    DIABETES_NAME,
+    check_records,
+)
 from bko.ontology.mapping import CODE_MAPPINGS
 from bko.ontology.schema import CodeMapping, Codes, FieldMapping
 
@@ -40,6 +50,7 @@ class Dataset(StrEnum):
 
     UCI = "uci"
     SYNTHEA = "synthea"
+    DIABETES = DIABETES_NAME
 
 
 SYNTHEA_NAME: Final = "synthea"
@@ -189,6 +200,11 @@ class Reach(Protocol):
         """The jar the pinned Synthea population was generated with."""
         ...
 
+    @property
+    def diabetes(self) -> Source:
+        """The pinned Diabetes 130 archive."""
+        ...
+
 
 def digest(records: pd.DataFrame) -> str:
     """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
@@ -198,27 +214,47 @@ def digest(records: pd.DataFrame) -> str:
     return hashlib.sha256(records.to_csv(lineterminator="\n").encode()).hexdigest()
 
 
-def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
-    """Load `dataset` from `data_dir`, fetching UCI Heart Disease if the data root lacks it.
+def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
+    """The field rows `load` gives `dataset`'s data, read with no data loaded.
 
-    Synthea's records are the pinned population's, checked against its `run.json` with no Java
-    and never generated (`make synthea` generates it), kept from `SYNTHEA_ADULTS_FROM`; its field
-    rows are `SYNTHEA_FIELD_ROWS`, whatever the context's. Logs one `data` line naming the
-    dataset, its frame, its record count and its digest, the records' sha256.
+    UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS` and Diabetes 130's
+    `DIABETES_FIELD_ROWS`, whatever the context's.
+    """
+    match dataset:
+        case Dataset.UCI:
+            return context.field_rows
+        case Dataset.SYNTHEA:
+            return SYNTHEA_FIELD_ROWS
+        case Dataset.DIABETES:
+            return DIABETES_FIELD_ROWS
+        case _:
+            assert_never(dataset)
+
+
+def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
+    """Load `dataset` from `data_dir`, fetching a pinned archive the data root lacks.
+
+    UCI's records are read from UCI Heart Disease. Synthea's are the pinned population's, checked
+    against its `run.json` with no Java and never generated (`make synthea` generates it), kept
+    from `SYNTHEA_ADULTS_FROM`. Diabetes 130's are `bko.datasets.diabetes.load_diabetes`'s over
+    `DIABETES_INDICATORS`, checked against `DIABETES_FRAME` (`check_records`). Each takes
+    `field_rows(dataset, context)`, and a fetched source's data carries the source's agreement.
+    Logs one `data` line naming the dataset, its frame, its record count, its digest (the
+    records' sha256) and its agreement: `none` for open data, else the agreement's name quoted.
 
     Raises:
-        DatasetError: As `bko.datasets.fetch.ensure` and `bko.datasets.uci.load_uci`, or as
+        DatasetError: As `bko.datasets.fetch.ensure`, `bko.datasets.uci.load_uci` and
+            `bko.datasets.diabetes.load_diabetes`, as `check_records`, or as
             `bko.datasets.synthea_run.check_population` and
             `bko.datasets.synthea.load_population`.
         OSError: If the data root cannot be written.
     """
+    rows = field_rows(dataset, context)
     match dataset:
         case Dataset.UCI:
             ensure(context.uci, data_dir, open_url=context.open_url)
             records = load_uci(data_dir, source=context.uci)
-            data = Data(
-                records, UCI_FRAME, context.field_rows, context.uci.name, context.uci.agreement
-            )
+            data = Data(records, UCI_FRAME, rows, context.uci.name, context.uci.agreement)
         case Dataset.SYNTHEA:
             run = context.synthea
             directory = population_dir(run, data_dir, context.synthea_jar)
@@ -230,14 +266,22 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
                 indicators=SYNTHEA_INDICATORS,
                 adults_from=SYNTHEA_ADULTS_FROM,
             )
-            data = Data(records, SYNTHEA_FRAME, SYNTHEA_FIELD_ROWS, SYNTHEA_NAME, None)
+            data = Data(records, SYNTHEA_FRAME, rows, SYNTHEA_NAME, None)
+        case Dataset.DIABETES:
+            source = context.diabetes
+            ensure(source, data_dir, open_url=context.open_url)
+            records = load_diabetes(data_dir, indicators=DIABETES_INDICATORS, source=source)
+            check_records(records)
+            data = Data(records, DIABETES_FRAME, rows, source.name, source.agreement)
         case _:
             assert_never(dataset)
+    agreement = data.agreement
     logger.info(
-        "data dataset=%s frame=%s records=%d digest=%s",
+        "data dataset=%s frame=%s records=%d digest=%s agreement=%s",
         dataset,
         data.frame.name,
         len(data.records),
         data.digest,
+        "none" if agreement is None else json.dumps(agreement.name),
     )
     return data
