@@ -71,7 +71,7 @@ def test_a_resume_of_a_local_run_sends_through_the_local_factory(monkeypatch, tm
     captured: list[object] = []
 
     class Recorded:
-        def __init__(self, path, send) -> None:
+        def __init__(self, path, send, *, ceiling) -> None:
             captured.append(send)
             raise SystemExit(0)
 
@@ -79,6 +79,7 @@ def test_a_resume_of_a_local_run_sends_through_the_local_factory(monkeypatch, tm
     ctx, _ = context(answers)
     ctx = dataclasses.replace(ctx, send=boom, local_send=lambda model: answers)
     args = argparse.Namespace(replay=None, resume=tmp_path / "calls.jsonl")
+    run = NamedRun(NARROW, dataclasses.replace(SETTINGS, model=LOCAL))
     with pytest.raises(SystemExit):
-        scoring_module._answers(args, ctx, LOCAL)
+        scoring_module._answers(args, ctx, run)
     assert captured == [answers]

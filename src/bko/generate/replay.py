@@ -12,11 +12,12 @@ in flight together, so it drops every call from the first one not answered by ex
 line, and carries the dropped calls' spend into the resumed run's (`Answered.carried_usd`). At
 any in-flight, what the stopped log itself carried is carried too, so a resume of a resume keeps
 the whole run's spend. It refuses a log with a failed call before its last, a replay's log, a
-rehearsal's log, whose replies are canned, a run the projection or the ceiling stopped, which is
-reported rather than resumed, and a resumed log that stopped before its replayed calls ran out.
-`refuse_unresumable` holds the checks on the `run` and `end` lines, and `log_ends` reads those two
-lines alone, so `launch --resume` refuses before it claims a folder. ADR `research/call-log-replay`
-records the design.
+rehearsal's log, whose replies are canned, and a resumed log that stopped before its replayed calls
+ran out. A run the projection or the ceiling stopped resumes only under the named run's current
+`Ceiling`, and only when that ceiling is above the stopped run's own projection: its logged spend
+over the holdouts it finished (at least one), scaled to every holdout, never below the spend
+itself. `bko.generate.resume_guard` holds the checks on the `run` and `end` lines. ADR
+`research/call-log-replay` records the design.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from typing import Any, Final, NamedTuple
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import SCHEMA, Answered
 from bko.generate.messages import AnySend, Call, Reply, Usage, text_of
+from bko.generate.resume_guard import Ceiling, refuse_unresumable
 
 
 logger = logging.getLogger(__name__)
@@ -52,66 +54,6 @@ class _Log(NamedTuple):
     end: dict[str, Any] | None
     carried_usd: float = 0.0
     dropped: int = 0
-
-
-UNRESUMABLE: Final = frozenset({"projection", "ceiling"})
-"""The stop rules whose runs are reported, never resumed: resuming would spend past the rule."""
-
-TAIL: Final = 1 << 16
-"""Bytes read from a call log's end to find its `end` line."""
-
-
-def refuse_unresumable(path: Path, run: Mapping[str, Any], end: Mapping[str, Any] | None) -> None:
-    """Refuse a stopped log whose `run` or `end` line says it must not be resumed.
-
-    Raises:
-        ReplayError: If the log replays another, is a rehearsal's, or ended on a stop rule in
-            `UNRESUMABLE`.
-    """
-    source = run.get("replay")
-    if source is not None:
-        msg = f"{path} replays the log with sha256 {source}; replay that log instead"
-        raise ReplayError(msg)
-    if run.get("rehearsal"):
-        msg = f"{path} is a rehearsal's log, whose replies are canned; a resume sends live"
-        raise ReplayError(msg)
-    stop = end.get("stop") if end is not None else None
-    if stop in UNRESUMABLE:
-        msg = (
-            f"{path} was stopped by the {stop} rule, so it is reported, not resumed; "
-            "a rerun needs a new run id"
-        )
-        raise ReplayError(msg)
-
-
-def log_ends(path: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """The `run` line of the call log at `path` and its `end` line, or None when it has none.
-
-    Only the first line and the last `TAIL` bytes are read, so a paid log of hundreds of MB costs
-    nothing to check.
-
-    Raises:
-        ReplayError: If the first line is not a schema `SCHEMA` `run` line.
-        OSError: If the log cannot be read.
-    """
-    with path.open("rb") as handle:
-        first = handle.readline()
-        size = handle.seek(0, 2)
-        handle.seek(max(0, size - TAIL))
-        tail = [line for line in handle.read().splitlines() if line.strip()]
-    try:
-        run = json.loads(first)
-    except ValueError:
-        run = None
-    if not isinstance(run, dict) or run.get("kind") != "run" or run.get("schema") != SCHEMA:
-        msg = f"{path} is not a schema {SCHEMA} call log"
-        raise ReplayError(msg)
-    try:
-        last = json.loads(tail[-1]) if tail else None
-    except ValueError:
-        last = None
-    end = last if isinstance(last, dict) and last.get("kind") == "end" else None
-    return run, end
 
 
 class _Logged:
@@ -203,10 +145,14 @@ class Resume(_Logged):
     Attributes:
         digest: The stopped log's sha256, which the resumed run's log records under `resume`.
         dropped: The logged calls it dropped, to send again.
+        raised: The ceiling or projection stop it resumes under a raised ceiling, or None.
     """
 
-    def __init__(self, path: Path, send: AnySend) -> None:
+    def __init__(self, path: Path, send: AnySend, *, ceiling: Ceiling | None = None) -> None:
         """Read the stopped log at `path`; calls past its answered ones go through `send`.
+
+        `ceiling` is the named run's spend rule, which a ceiling or projection stop resumes
+        under (`refuse_unresumable`).
 
         Raises:
             ReplayError: As `Replay`, past a dropped last call; or if a call before the last
@@ -215,7 +161,7 @@ class Resume(_Logged):
             OSError: If the log cannot be read.
         """
         log = _read(path, stopped=True)
-        refuse_unresumable(path, log.run, log.end)
+        self.raised = refuse_unresumable(path, log.run, log.end, ceiling)
         prior = log.run.get("resume")
         if prior is not None:
             calls = prior.get("calls") if isinstance(prior, dict) else None
@@ -234,8 +180,16 @@ class Resume(_Logged):
 
     @property
     def answered(self) -> Answered:
-        """What the resumed run's own log records about this source, the spend it carries too."""
-        return Answered("resume", self.digest, self._total, self._carried)
+        """What the resumed run's own log records about this source, the spend it carries too.
+
+        A resume of a ceiling or projection stop records the rule and the ceiling it runs under.
+        """
+        raised = self.raised
+        if raised is None:
+            return Answered("resume", self.digest, self._total, self._carried)
+        return Answered(
+            "resume", self.digest, self._total, self._carried, raised.stop, raised.ceiling
+        )
 
     def __call__(self, call: Call) -> Reply | Awaitable[Reply]:
         """Answer from the stopped log while it holds calls, then send live, awaitably or not."""

@@ -39,7 +39,7 @@ from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.errors import EvaluationError
 from bko.generate.errors import ReplayError
 from bko.generate.messages import Settings
-from bko.generate.replay import log_ends, refuse_unresumable
+from bko.generate.resume_guard import Ceiling, log_ends, refuse_unresumable
 
 
 logger = logging.getLogger(__name__)
@@ -306,16 +306,19 @@ def check_folder(
     return battery
 
 
-def resumable(path: Path, settings: Settings) -> None:
+def resumable(path: Path, settings: Settings, ceiling: Ceiling | None = None) -> None:
     """Refuse a stopped log a resume cannot resume, before any folder is claimed.
 
+    `ceiling` is the named run's spend rule, under which a ceiling or projection stop resumes; a
+    supervisor's resume passes none, since it never resumes those stops.
+
     Raises:
-        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
+        EvaluationError: As `bko.generate.resume_guard.refuse_unresumable`, or if the log's settings
             differ from `settings`, the named run's, so its first replayed call would differ.
     """
     try:
         run_line, end = log_ends(path)
-        refuse_unresumable(path, run_line, end)
+        refuse_unresumable(path, run_line, end, ceiling)
     except ReplayError as exc:
         raise EvaluationError(str(exc)) from exc
     expected = json.loads(json.dumps(asdict(settings)))

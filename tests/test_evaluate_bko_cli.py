@@ -394,6 +394,48 @@ def test_the_projection_stops_a_live_run_between_holdouts(tmp_path, caplog):
     assert "reached its ceiling" not in caplog.text
 
 
+def test_a_projection_stop_resumes_under_a_raised_ceiling_to_the_uninterrupted_bytes(
+    tmp_path, caplog
+):
+    _, _, text = paid_run(tmp_path / "paid", caplog)
+    spent = cost(reply([]).usage, SETTINGS.model)
+    ctx, _ = context(scripted())
+    rules = dataclasses.replace(NARROW, projection_after=1, spend_ceiling=3 * spent)
+    stopped = tmp_path / "stopped.jsonl"
+    argv = score_argv(stopped, tmp_path)
+    assert main(argv, context=dataclasses.replace(ctx, experiment=rules), out=io.StringIO()) == 2
+    end = _end(stopped)
+    assert (end["stop"], end["holdouts"]) == ("projection", 1)
+    held = tmp_path / "held.jsonl"
+    argv = score_argv(held, tmp_path, "--resume", str(stopped))
+    assert main(argv, context=dataclasses.replace(ctx, experiment=rules)) == 3
+    assert "does not cover it" in caplog.text
+    assert not held.exists()
+    caplog.clear()
+    holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
+    send = ScriptedSend(*holdout)
+    ceiling = 5 * spent
+    raised = dataclasses.replace(
+        ctx, send=lambda: send, experiment=dataclasses.replace(rules, spend_ceiling=ceiling)
+    )
+    resumed = tmp_path / "resumed.jsonl"
+    out = io.StringIO()
+    argv = score_argv(resumed, tmp_path, "--resume", str(stopped))
+    assert main(argv, context=raised, out=out) == 0
+    send.assert_consumed()
+    assert out.getvalue() == text
+    lines = [json.loads(line) for line in resumed.read_text(encoding="utf-8").splitlines()]
+    digest = hashlib.sha256(stopped.read_bytes()).hexdigest()
+    record = {"sha256": digest, "calls": 2, "stop": "projection", "ceiling": ceiling}
+    assert (lines[0]["resume"], lines[-1]["resume"]) == (record, record)
+    assert lines[-1]["usd"] == pytest.approx(4 * spent)
+    assert lines[-1]["live_usd"] == pytest.approx(2 * spent)
+    assert (
+        f"resume stop=projection usd={2 * spent:.4f} holdouts=1 projected_usd={4 * spent:.4f} "
+        f"ceiling={ceiling:.2f}"
+    ) in caplog.messages
+
+
 def test_a_failure_mid_run_keeps_the_calls_before_it_in_the_sums(tmp_path, caplog):
     holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
     failure = GenerationError("the API could not be reached: APIConnectionError")

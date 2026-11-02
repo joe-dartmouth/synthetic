@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-10-29
+updated: 2026-11-02
 ---
 # A round's independent calls go out as concurrent waves that keep the call plan
 
@@ -54,7 +54,7 @@ ceiling stop lands elsewhere.
   bill. A reservation bounds one attempt: an SDK retry after a timeout the server billed can bill
   past it. The log sums spend in landing order, so its total can differ from a call-order sum in
   the last float digits. A ceiling stop outranks a call in flight that then fails, so the call
-  log's `end` line still names `ceiling` and the run is not resumed.
+  log's `end` line still names `ceiling` and the supervisor does not resume the run.
 - **Idle.** `asyncio.timeout(idle_limit)` wraps each awaited send, retries included. On expiry the
   call's error line carries its attempt count, and the run sends no later call. The calls already
   in flight land under their own idle limits, at most one more limit of wall time, so the replies

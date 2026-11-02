@@ -112,7 +112,12 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         raise
     try:
         sender = answers if answers is not None else send()
-        watch = Watch(experiment, lambda: call_log.usd, projecting=not isinstance(answers, Replay))
+        watch = Watch(
+            experiment,
+            lambda: call_log.usd,
+            projecting=not isinstance(answers, Replay),
+            on_done=call_log.holdout_done,
+        )
         ceiling = experiment.spend_ceiling
         flight = Flight(
             sender,

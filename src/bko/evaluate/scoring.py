@@ -37,6 +37,7 @@ from bko.gaps.shares import nested
 from bko.generate.flight import Limits
 from bko.generate.local import SLOTS
 from bko.generate.replay import Answers, Replay, Resume
+from bko.generate.resume_guard import Ceiling
 from bko.generate.weights import LOCAL_MODELS
 
 
@@ -116,7 +117,7 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
             "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
             "not paid figures"
         )
-    return _answers(args, context, named.settings.model)
+    return _answers(args, context, named)
 
 
 def data_dir(args: argparse.Namespace) -> Path:
@@ -200,16 +201,19 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
 
 
-def _answers(args: argparse.Namespace, context: Context, model: str) -> Answers | None:
+def _answers(args: argparse.Namespace, context: Context, named: NamedRun) -> Answers | None:
     """The source that answers the BKO calls, read before any download or log is made.
 
-    A resume's live calls go to `model`'s send (`Context.sender`).
+    A resume's live calls go to the named run's model's send (`Context.sender`), and a ceiling or
+    projection stop resumes under the named run's current ceiling.
     """
     if args.replay is not None:
         return Replay(args.replay)
     if args.resume is None:
         return None
-    resume = Resume(args.resume, context.sender(model)())
+    experiment = named.experiment
+    ceiling = Ceiling(experiment.spend_ceiling, len(experiment.holdout_seeds))
+    resume = Resume(args.resume, context.sender(named.settings.model)(), ceiling=ceiling)
     logger.info(
         "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
@@ -218,6 +222,16 @@ def _answers(args: argparse.Namespace, context: Context, model: str) -> Answers 
         resume.dropped,
         resume.answered.carried_usd,
     )
+    raised = resume.raised
+    if raised is not None:
+        logger.info(
+            "resume stop=%s usd=%.4f holdouts=%d projected_usd=%.4f ceiling=%.2f",
+            raised.stop,
+            raised.usd,
+            raised.holdouts,
+            raised.projected,
+            raised.ceiling,
+        )
     return resume
 
 

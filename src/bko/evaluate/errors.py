@@ -41,7 +41,8 @@ class StopRuleError(EvaluationError):
     """A paid run's stop rule fired: `ceiling`, `projection` or `idle`.
 
     The call log's `end` line records `stop_rule` under `stop` (`bko.generate.log`), so a resume
-    can refuse a run the projection or the ceiling stopped, and `retryable` under `retryable`.
+    takes a run the projection or the ceiling stopped only under a raised ceiling, and
+    `retryable` under `retryable`.
 
     Attributes:
         stop_rule: The rule that fired.

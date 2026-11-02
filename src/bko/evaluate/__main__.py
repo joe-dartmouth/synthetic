@@ -87,6 +87,7 @@ from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
 from bko.generate.flight import IN_FLIGHT
+from bko.generate.resume_guard import Ceiling
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -167,7 +168,9 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         msg = f"the run {name!r} has no Messages arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.resume is not None and args.resume.is_file():
-        resumable(args.resume, context.settings)
+        experiment = context.experiment
+        ceiling = Ceiling(experiment.spend_ceiling, len(experiment.holdout_seeds))
+        resumable(args.resume, context.settings, ceiling)
     found = launch(
         args.run_id,
         name,

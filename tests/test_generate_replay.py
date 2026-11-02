@@ -22,6 +22,7 @@ from bko.generate.log import Answered, CallLog
 from bko.generate.messages import SETTINGS, Call, Reply
 from bko.generate.prompt import render
 from bko.generate.replay import Replay, Resume
+from bko.generate.resume_guard import Ceiling, Raised
 from tests._fusion_fixtures import young
 from tests._generate_fixtures import GUIDANCE, ScriptedSend, reply
 
@@ -317,10 +318,90 @@ def _stopped_by(tmp_path: Path, rule: str | None) -> Path:
     return rewritten(path, edit)
 
 
+def _spent(
+    path: Path, *, usd: float = 2.0, live_usd: float = 1.5, holdouts: int | None = 4
+) -> Path:
+    """`path` with its end line's spend and its finished holdouts set, or none when None."""
+
+    def edit(lines: list[dict]) -> None:
+        lines[-1].update(usd=usd, live_usd=live_usd)
+        if holdouts is not None:
+            lines[-1]["holdouts"] = holdouts
+
+    return rewritten(path, edit)
+
+
 @pytest.mark.parametrize("rule", ["projection", "ceiling"])
-def test_resume_refuses_a_run_the_projection_or_the_ceiling_stopped(tmp_path, rule):
-    with pytest.raises(ReplayError, match="reported, not resumed"):
-        Resume(_stopped_by(tmp_path, rule), ScriptedSend())
+def test_resume_refuses_a_spend_stop_with_no_ceiling_to_read(tmp_path, rule):
+    with pytest.raises(ReplayError, match="resumes only under the named run's ceiling"):
+        Resume(_spent(_stopped_by(tmp_path, rule)), ScriptedSend())
+
+
+@pytest.mark.parametrize("rule", ["projection", "ceiling"])
+def test_resume_takes_a_spend_stop_whose_raised_ceiling_covers_its_projection(tmp_path, rule):
+    # 2.0 USD over 4 of 10 holdouts projects to 5.0 USD; a ceiling above that resumes.
+    resume = Resume(_spent(_stopped_by(tmp_path, rule)), ScriptedSend(), ceiling=Ceiling(5.01, 10))
+    assert resume.raised == Raised(rule, 2.0, 1.5, 4, 5.0, 5.01)
+    assert (resume.answered.stop, resume.answered.ceiling) == (rule, 5.01)
+    assert resume.remaining == 1
+
+
+@pytest.mark.parametrize("rule", ["projection", "ceiling"])
+def test_resume_refuses_a_spend_stop_whose_ceiling_does_not_cover_its_projection(tmp_path, rule):
+    path = _spent(_stopped_by(tmp_path, rule))
+    message = (
+        f"{path} was stopped by the {rule} rule at a logged spend of 2.0000 USD "
+        "(live 1.5000 USD) over 4 holdouts, which projects to 5.0000 USD over 10; the named "
+        "run's ceiling of 5.00 USD does not cover it, so raise the ceiling past the projection"
+    )
+    with pytest.raises(ReplayError) as raised:
+        Resume(path, ScriptedSend(), ceiling=Ceiling(5.0, 10))
+    assert str(raised.value) == message
+
+
+def test_a_ceiling_stop_inside_its_first_holdout_projects_from_one(tmp_path):
+    path = _spent(_stopped_by(tmp_path, "ceiling"), holdouts=0)
+    with pytest.raises(ReplayError, match=r"projects to 20\.0000 USD over 10"):
+        Resume(path, ScriptedSend(), ceiling=Ceiling(19.0, 10))
+    raised = Resume(path, ScriptedSend(), ceiling=Ceiling(21.0, 10)).raised
+    assert raised is not None
+    assert raised.projected == pytest.approx(20.0)
+
+
+def test_a_spend_stop_never_projects_below_its_logged_spend(tmp_path):
+    path = _spent(_stopped_by(tmp_path, "ceiling"), holdouts=12)
+    with pytest.raises(ReplayError, match=r"projects to 2\.0000 USD over 10"):
+        Resume(path, ScriptedSend(), ceiling=Ceiling(2.0, 10))
+
+
+@pytest.mark.parametrize("rule", ["projection", "ceiling"])
+def test_resume_refuses_a_spend_stop_that_records_no_holdouts(tmp_path, rule):
+    path = _spent(_stopped_by(tmp_path, rule), holdouts=None)
+    with pytest.raises(ReplayError, match="records no finished holdouts"):
+        Resume(path, ScriptedSend(), ceiling=Ceiling(100.0, 10))
+
+
+def test_a_raised_ceiling_never_resumes_a_rehearsal_or_a_replay(tmp_path):
+    path = tmp_path / "rehearsal.jsonl"
+    with CallLog(path, SETTINGS, rehearsal=True, frame="uci") as log:
+        ask(GUIDANCE, 2, send=ScriptedSend(answer()), log=log, frame=UCI_FRAME)
+
+    def stop(lines: list[dict]) -> None:
+        lines[-1].update(status="failed", stop="ceiling", holdouts=1)
+
+    rewritten(path, stop)
+    with pytest.raises(ReplayError, match="rehearsal's log"):
+        Resume(path, ScriptedSend(), ceiling=Ceiling(1000.0, 10))
+    replaying = rewritten(path, lambda lines: lines[0].update(rehearsal=False, replay="cd" * 32))
+    with pytest.raises(ReplayError, match="replays the log"):
+        Resume(replaying, ScriptedSend(), ceiling=Ceiling(1000.0, 10))
+
+
+@pytest.mark.parametrize("rule", ["idle", None])
+def test_another_stop_resumes_with_no_raised_record(tmp_path, rule):
+    resume = Resume(_stopped_by(tmp_path, rule), ScriptedSend(), ceiling=Ceiling(1.0, 10))
+    assert resume.raised is None
+    assert resume.answered == Answered("resume", resume.digest, 1)
 
 
 @pytest.mark.parametrize("rule", ["idle", None])

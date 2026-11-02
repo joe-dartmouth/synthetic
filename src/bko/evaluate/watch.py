@@ -35,6 +35,7 @@ class Watch:
         spend: Callable[[], float],
         *,
         projecting: bool = True,
+        on_done: Callable[[], None] | None = None,
     ) -> None:
         """Hold the rules' values.
 
@@ -43,12 +44,15 @@ class Watch:
             spend: The run's whole spend in USD: carried, replayed and live, so a resume scales
                 the spend of every holdout it has done, replayed ones included.
             projecting: Whether the projection rule applies; a replay's does not.
+            on_done: Called at each finished holdout before the projection is read, so the call
+                log counts the holdouts a ceiling or projection stop records.
         """
         self._holdouts = len(experiment.holdout_seeds)
         self._after = experiment.projection_after
         self._ceiling = experiment.spend_ceiling
         self._idle = experiment.idle_limit
         self._spend = spend
+        self._on_done = on_done
         self.projecting = projecting and self._after < self._holdouts
         self._done = 0
         logger.info(
@@ -69,6 +73,8 @@ class Watch:
             StopRuleError: If the projection reaches the spend ceiling.
         """
         self._done += 1
+        if self._on_done is not None:
+            self._on_done()
         if not self.projecting or self._done != self._after:
             return
         spent = self._spend()

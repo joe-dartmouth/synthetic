@@ -62,7 +62,8 @@ new entry, not an E2 row (ADR
   or its `PRICES` row changes (ADR `research/e1-evaluation-protocol`).
 - The ceiling reads the whole run's `usd`, replayed and resumed calls included
   ([`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation)), so an estimate for a resumed run
-  adds the resumed log's spend, and a run stopped at the ceiling cannot resume.
+  adds the resumed log's spend, and a run stopped at the ceiling resumes only once its ceiling is
+  raised past its projection.
 - A named run carries its own ceiling in its `Experiment`. A unit whose estimate passes that
   ceiling stops and reports before running; raising a ceiling is a commit, and that commit is the
   sign-off.

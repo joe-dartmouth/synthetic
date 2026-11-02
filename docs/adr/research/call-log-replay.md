@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-11-01
+updated: 2026-11-02
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -54,13 +54,21 @@ rows in `docs/EVIDENCE.md`).
   - for a resume only: an `error` line before the stopped log's last call; a stopped log whose
     `run` line names `replay`; a stopped log whose `run` line reads `rehearsal: true`, since its
     replies are canned and a resume sends the rest live; a stopped log whose `end` line reads
-    `stop` `projection` or `ceiling`, since such a run is reported, not resumed, and a rerun takes
-    a new run id (a log with no `stop` field predates it and resumes); a resumed log that holds
-    fewer answered calls than it resumed. `bko.generate.replay.refuse_unresumable` holds the
-    checks on the `run` and `end` lines, and `launch --resume` runs them on those two lines alone
-    before it claims a folder.
+    `stop` `projection` or `ceiling` and either records no finished `holdouts` or whose named
+    run's current spend ceiling is not above its projection (below); a resumed log that holds
+    fewer answered calls than it resumed. A log with no `stop` field predates it and resumes.
+    `bko.generate.resume_guard.refuse_unresumable` holds the checks on the `run` and `end` lines,
+    and `launch --resume` runs them on those two lines alone before it claims a folder.
 
   Every check but the first two runs when the log is read, before any call.
+- A ceiling or projection stop resumes once its named run's `spend_ceiling` is raised past the
+  stopped run's own projection: the `end` line's `usd` over its `holdouts` (at least 1), scaled to
+  the named run's holdouts, and never below `usd`, as `bko.evaluate.watch` scales a run's spend.
+  The `end` line of such a stop records `holdouts`, the holdouts finished. A refusal names the
+  logged spend, its live part, the projection and the ceiling. The resumed run's log adds `stop`
+  and `ceiling` to its `resume` field, and `score` logs a `resume stop=` line. The supervisor
+  never resumes these stops; an operator's `launch --resume` does, after the commit that raises
+  the ceiling.
 - `bko.generate.replay.Resume` answers a stopped log's answered calls as `Replay` does; after
   them, it sends live. It reads the stopped log in stopped mode: it drops a final segment with no
   newline, and drops a last call whose answer is not exactly one `reply` line. For a log whose
@@ -121,8 +129,9 @@ a log unreplayable and needs a new paid run; replay holds on one machine at the 
 and releases, as E1's baselines do. Decontamination makes every arm's scores depend on every arm's
 rows, so byte-identical replay also needs the seeded baselines to repeat, as they do on one
 machine. A resume pays its stopped calls again: one for a sequential run, a stopped wave's for a
-concurrent one. The spend ceiling counts replayed spend, so a run stopped at the ceiling cannot
-resume. A stop that recurs after the last call recurs on resume, at
+concurrent one. The spend ceiling counts replayed spend, so a run stopped at the ceiling resumes
+only under a raised ceiling, and the resumed run's projection is read again over the whole run. A
+stop that recurs after the last call recurs on resume, at
 CPU cost only. Nothing locks a log another process still writes. A missing credential and drifted
 settings show at the first live or replayed call.
 
@@ -137,11 +146,13 @@ settings show at the first live or replayed call.
 | Appending to the stopped log | A paid log is created exclusively and never extended, and the stopped log stays the record of the stopped run | 2026-10-22 |
 | A resumed log holding only its live calls | Its scores would replay from no single file | 2026-10-22 |
 | Rerunning the paid runs to reproduce them at a later commit | Repeats runs whose results exist and draws new rows; a replay commit replays their logs for free | 2026-11-01 |
+| Never resuming a ceiling or projection stop, a rerun taking a new run id | User decision for E6's capped slices: a resume under a raised ceiling recovers the calls already paid for, and the projection check keeps the raise above the run's own projection | 2026-11-02 |
 
 ## Enforcement
 
-- Owner: `src/bko/generate/replay.py`
+- Owner: `src/bko/generate/replay.py`, `src/bko/generate/resume_guard.py`
 - Pinned by: `tests/test_generate_replay.py`, `tests/test_evaluate_bko_cli.py`,
+  `tests/test_evaluate_launch.py`,
   `tests/test_app_steps.py`, `tests/test_generate_local.py`
 
 ## Reversal Conditions

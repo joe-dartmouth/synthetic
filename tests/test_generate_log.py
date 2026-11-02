@@ -400,6 +400,44 @@ def test_the_end_line_names_the_stop_rule_that_ended_the_run(tmp_path, raised, s
     assert _lines(path)[-1]["stop"] == stop
 
 
+@pytest.mark.parametrize("rule", ["ceiling", "projection"])
+def test_a_spend_stops_end_line_records_the_holdouts_finished(tmp_path, rule):
+    path = tmp_path / "calls.jsonl"
+    log = CallLog(path, SETTINGS, now=_now, frame="uci")
+    log.holdout_done()
+    log.holdout_done()
+    log.__exit__(StoppedError, StoppedError(rule), None)
+    assert _lines(path)[-1]["holdouts"] == 2
+
+
+@pytest.mark.parametrize("raised", [StoppedError("idle"), ValueError("x"), None])
+def test_any_other_end_line_holds_no_holdouts(tmp_path, raised):
+    path = tmp_path / "calls.jsonl"
+    with contextlib.suppress(Exception), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
+        log.holdout_done()
+        if raised is not None:
+            raise raised
+    assert "holdouts" not in _lines(path)[-1]
+
+
+def test_a_resume_of_a_spend_stop_records_the_rule_and_its_ceiling(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    answered = Answered("resume", "ab" * 32, 3, 0.5, stop="ceiling", ceiling=40.0)
+    with CallLog(path, SETTINGS, answered=answered, now=_now, frame="uci"):
+        pass
+    lines = _lines(path)
+    expected = {"sha256": "ab" * 32, "calls": 3, "stop": "ceiling", "ceiling": 40.0}
+    assert lines[0]["resume"] == expected
+    assert lines[-1]["resume"] == expected
+
+
+def test_a_resume_of_another_stop_records_no_rule(tmp_path):
+    path = tmp_path / "calls.jsonl"
+    with CallLog(path, SETTINGS, answered=Answered("resume", "ab" * 32, 3), frame="uci"):
+        pass
+    assert _lines(path)[0]["resume"] == {"sha256": "ab" * 32, "calls": 3}
+
+
 def test_a_complete_runs_end_line_names_no_stop(tmp_path):
     path = tmp_path / "calls.jsonl"
     with CallLog(path, SETTINGS, now=_now, frame="uci"):

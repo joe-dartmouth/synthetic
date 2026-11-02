@@ -53,8 +53,9 @@ from bko.evaluate.launch import (
 from bko.evaluate.stopping import STOP_FILE, OperatorStop
 from bko.generate.errors import ReplayError
 from bko.generate.flight import IN_FLIGHT
+from bko.generate.log import SPEND_STOPS
 from bko.generate.messages import Settings
-from bko.generate.replay import UNRESUMABLE, log_ends
+from bko.generate.resume_guard import log_ends
 
 
 logger = logging.getLogger(__name__)
@@ -181,7 +182,7 @@ def outcome(log: Path, code: int) -> Outcome:
         return Outcome("none", None, retryable=code < 0, rate_limited=False)
     stop = end.get("stop")
     status = str(end.get("status"))
-    retryable = status == "failed" and end.get("retryable") is True and stop not in UNRESUMABLE
+    retryable = status == "failed" and end.get("retryable") is True and stop not in SPEND_STOPS
     return Outcome(
         status,
         stop if isinstance(stop, str) else None,
@@ -319,7 +320,7 @@ class _Plan:
         checks = (
             (found.status == "complete", "complete"),
             (self.operator.stopping or found.status == "interrupted", "operator"),
-            (found.stop in UNRESUMABLE, "stop"),
+            (found.stop in SPEND_STOPS, "stop"),
             (found.status == "none" and not found.retryable, "crash"),
             (not found.retryable, "unresumable"),
             (self.rehearse, "rehearsal"),

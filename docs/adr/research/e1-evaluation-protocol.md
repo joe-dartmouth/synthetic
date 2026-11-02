@@ -74,10 +74,11 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   and its spend is not in the call log, so the ceiling does not count it; each automatic resume can
   repeat that exposure, bounded by the calls in flight per segment and by `--retries`.
   `launch --resume STOPPED` resumes a run the idle rule stopped into a new folder under the same
-  checks; a run the projection or the ceiling stopped is reported, not resumed, since resuming would
-  spend past the rule that stopped it. A guard holds this: each rule raises a `StopRuleError` naming
-  it, the call log's `end` line records it under `stop`, and a resume refuses a `projection` or
-  `ceiling` stop (ADR `research/call-log-replay`); `launch --resume` also refuses a log whose
+  checks; a run the projection or the ceiling stopped resumes only once its named run's ceiling is
+  raised past the run's own projection, since otherwise resuming would spend past the rule that
+  stopped it. A guard holds this: each rule raises a `StopRuleError` naming it, the call log's
+  `end` line records it under `stop`, and a resume refuses a `projection` or `ceiling` stop whose
+  current ceiling does not cover its projection (ADR `research/call-log-replay`); `launch --resume` also refuses a log whose
   settings differ from the named run's, before it claims a folder. `launch --rehearse` first runs
   the whole run on canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal`
   directory, so the stop rules, the spend lines and the folder roles are checked for free before any
