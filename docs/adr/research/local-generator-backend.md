@@ -29,26 +29,38 @@ with the same structured-output schema, and the run's spend gates still have to 
 - **Backend.** `llama.cpp`'s `llama-server` (Homebrew), one model per process, on
   `bko.generate.local.LOCAL_URL` with the model id as its alias, `SLOTS` parallel slots sharing a
   `CONTEXT`-token context, and `--jinja --chat-template-kwargs '{"enable_thinking":false}'`
-  (`serve_command`).
+  (`serve_command`). A `-thinking` id serves with `--jinja --reasoning on --reasoning-format deepseek`
+  in place of the chat-template kwargs, so the server parses the reasoning out of the reply's
+  content.
   Olmo 3 7B Instruct is served with llama.cpp's built-in `--chat-template chatml` instead: its
   file's template pipes an undefined `tools` into `tojson`, which llama.cpp's template parser
   refuses at start, and for a system and a user turn with no tools that template renders ChatML.
   Olmo 3 7B Instruct has no thinking mode.
+- **Thinking variants.** `gemma-4-26b-a4b-q8_0-thinking` and
+  `nemotron-3-nano-30b-a3b-q8_0-thinking` are `LOCAL_MODELS` entries whose `LocalModel.thinking`
+  is true and whose `LocalModel.weights` names their base model, so a variant shares the base's
+  repository, file, byte count, sha256 and path under `data/models/`, and fetching it fetches
+  nothing when the base's file is present. Olmo 3 7B Instruct has no variant. A base id's argv and
+  payload are independent of its variant.
 - **Send.** `bko.generate.local.local_send(model)` posts each call to `/v1/chat/completions` with its
   system and user turns, its `max_tokens`, `temperature` 1.0 and `top_p` 1.0 (the Messages API's
   default temperature), the call's `record_schema` as a strict `json_schema` response format, and
-  `chat_template_kwargs.enable_thinking` false. It uses stdlib `http.client` in `asyncio.to_thread`,
-  so no proxy setting and no redirect applies, and refuses any address but a bare
+  `chat_template_kwargs.enable_thinking` false, or true for a `-thinking` id. It uses stdlib
+  `http.client` in `asyncio.to_thread`, so no proxy setting and no redirect applies, and refuses
+  any address but a bare
   `http://127.0.0.1:<port>` (`loopback`). A cancelled call, by the idle rule or an interrupt, shuts
   its socket, so the thread returns and the server stops generating for it. A failed connection,
   a broken response or a status of 500 or above raises `GenerationError(retryable=True)`, as the
   API's connection errors do; another status, or a body that is not a JSON object, raises one that
   is not. `reply_of` reads the reply's text with `bko.generate.messages.text_of`, the reader replay
   uses (ADR `research/call-log-replay`): the first choice's `message.content`, reasoning ignored.
-- **Server check.** The first call reads the server's `/props` and refuses a server whose alias or
-  weights file is not the run's model, before any call is posted, and logs one
-  `local server model=%s path=%s build=%s slots=%s sha256=%s` line: the served file, the server's
-  build and the file's pinned digest.
+- **Server check.** The first call reads the server's `/props` and refuses a server whose alias is
+  not the run's model or whose weights file name is not its pin's, before any call is posted, so a
+  server under a base id's alias is refused for its variant and the reverse. It then logs one
+  `local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s` line: the model, whether
+  it thinks, the served file, the server's build and the file's pinned digest. The check reads
+  names, not the server's reasoning setting, so `probe` is what shows a thinking id served without
+  its flags.
 - **Calls in flight.** A local run keeps at most `SLOTS` calls in flight, whatever `--in-flight`
   asks (`bko.evaluate.scoring`), since a call past the slots would queue inside the server while its
   idle limit ran.
@@ -65,10 +77,25 @@ with the same structured-output schema, and the run's spend gates still have to 
   them to `data/models/<model>/<sha256[:16]>/<file>` (`bko.generate.weights`), verifying size and
   sha256 before use and removing a download that fails them.
 - **Probe.** `python -m bko.generate.local probe <model>` waits for the server's `/health`, sends
-  one call for four records of `<55/female/1`, and logs what decodes and how long it took; a probe
-  that decodes no record exits 2.
-- **Thinking off.** Every local run turns thinking off, the project's choice for the generator
-  comparison; thinking on is a measurement of its own.
+  one call for four records of `<55/female/1`, and logs what decodes, how long it took and the
+  reply's `reasoning_content` length as `reasoning_chars=`; a probe that decodes no record exits 2,
+  so a reply whose content holds unparsed think tags exits 2.
+- **Thinking.** G6's runs turn thinking off, the project's choice for the generator comparison;
+  the `-thinking` ids measure thinking on, as the named runs `g6-gemmathink` and
+  `g6-nemotronthink` on holdouts 0 to 4. G6's thinking-off runs on the same holdouts are the
+  comparison, so no thinking-off control run is made.
+- **Compute.** A local run's cost is read in tokens and in FLOPs, 2 x active parameters x tokens
+  computed, never in wall time. The tokens computed are the prompt tokens less those the server's
+  usage reports as cached, plus the generated tokens, reasoning included. Each pinned GGUF header
+  holds the experts used and their total in `<arch>.expert_used_count` and `<arch>.expert_count`
+  (read from the pinned files: `gemma4` 8 of 128, `nemotron_h_moe` 6 of 128). The parameter
+  figures are not among the header's metadata fields, and no field checked here derives them:
+
+  | Model | Active parameters / total | Experts used |
+  |-------|---------------------------|--------------|
+  | Gemma 4 26B-A4B | 3.823B / 25.233B | 8 of 128 |
+  | Nemotron 3 Nano 30B-A3B | 3.580B / 31.578B | 6 of 128 |
+  | Olmo 3 7B Instruct | 7.298B, dense | n/a |
 
 ## Rationale
 
@@ -84,8 +111,9 @@ lets a cancelled call hang up. The server check ties each run's log to the file 
 
 **Gained**: G6 can read three open models through the same harness, logs and replay as the API
 models, offline.
-**Accepted**: thinking off separates these models from the API models, which think adaptively, so
-a difference between them mixes the model with thinking; a local run takes hours, one model at a
+**Accepted**: thinking off separates G6's local runs from the API models, which think adaptively,
+so a difference between them mixes the model with thinking, and the `-thinking` runs measure what
+thinking on costs on five holdouts alone; a local run takes hours, one model at a
 time; the weights take tens of gigabytes under `data/models/`; `llama-server`'s build is logged per
 run (the `local server` line) rather than locked.
 
@@ -106,12 +134,17 @@ lines in `scratchpad/probe-*.log`).
 | BF16 weights | Larger and slower to run than Q8_0 | 2026-10-29 |
 | Changing `Context.send`'s signature to take the model | Rewrites every test's fake send | 2026-10-29 |
 | Olmo's file template with `tools` set to null | llama.cpp's template parser still refuses it at start (measured 2026-10-29, `llama-server` 0.8.0 build 11960) | 2026-10-29 |
+| A `Settings.thinking` field | A model id already selects the send, the price and the weights; a variant id keeps thinking out of every API run's settings | 2026-11-01 |
+| A `NamedRun` field for thinking | The same: the run's model id carries it | 2026-11-01 |
+| Wall-time cost | The user's decision: wall time depends on the machine, so compute cost is tokens and FLOPs | 2026-11-01 |
+| Thinking-off control runs on holdouts 0 to 4 | `g6-2` and `g6-3` hold that result | 2026-11-01 |
 
 ## Enforcement
 
 - Owner: `src/bko/generate/`
 - Pinned by: `tests/test_generate_local.py`, `tests/test_generate_weights.py`,
-  `tests/test_evaluate_context.py`, `tests/test_generate_spend.py`
+  `tests/test_evaluate_context.py`, `tests/test_evaluate_experiment.py`,
+  `tests/test_generate_spend.py`
 
 ## Reversal Conditions
 

@@ -16,6 +16,7 @@ import bko.generate.local as local_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scoring import _in_flight
 from bko.generate.calls import ask
+from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.local import (
     SLOTS,
@@ -24,6 +25,7 @@ from bko.generate.local import (
     main,
     payload,
     probe,
+    reasoning_chars,
     reply_of,
     serve_command,
     wait_ready,
@@ -36,6 +38,8 @@ from tests._generate_fixtures import GUIDANCE
 
 
 MODEL = "olmo-3-7b-instruct-q8_0"
+BASE = "gemma-4-26b-a4b-q8_0"
+THINKING = "gemma-4-26b-a4b-q8_0-thinking"
 CALL = Call(dataclasses.replace(SETTINGS, model=MODEL), 0, 1, "sys", "usr", frame=UCI_FRAME)
 RECORD: dict[str, int | float] = {
     "age": 45,
@@ -61,7 +65,18 @@ PROPS: dict[str, object] = {
 }
 
 
-def completion(records: list[dict[str, int | float]], finish: str = "stop") -> dict[str, object]:
+def completion(
+    records: list[dict[str, int | float]],
+    finish: str = "stop",
+    reasoning_content: object = None,
+    content: str | None = None,
+) -> dict[str, object]:
+    message: dict[str, object] = {
+        "role": "assistant",
+        "content": json.dumps({"records": records}) if content is None else content,
+    }
+    if reasoning_content is not None:
+        message["reasoning_content"] = reasoning_content
     return {
         "id": "chatcmpl-1",
         "model": MODEL,
@@ -69,7 +84,7 @@ def completion(records: list[dict[str, int | float]], finish: str = "stop") -> d
             {
                 "index": 0,
                 "finish_reason": finish,
-                "message": {"role": "assistant", "content": json.dumps({"records": records})},
+                "message": message,
             }
         ],
         "usage": {"prompt_tokens": 900, "completion_tokens": 120},
@@ -200,8 +215,8 @@ def test_the_send_checks_the_server_once_and_posts_the_payload(caplog):
     lines = [m for m in caplog.messages if m.startswith("local server ")]
     assert lines == [
         (
-            f"local server model={MODEL} path={PROPS['model_path']} build=b1-test slots=4 "
-            f"sha256={LOCAL_MODELS[MODEL].sha256}"
+            f"local server model={MODEL} thinking=false path={PROPS['model_path']} "
+            f"build=b1-test slots=4 sha256={LOCAL_MODELS[MODEL].sha256}"
         )
     ]
 
@@ -399,3 +414,150 @@ def test_a_local_log_replays_its_text_and_decodes_as_logged(tmp_path):
         ask(GUIDANCE, 2, send=Replay(path), log=again, frame=UCI_FRAME)
     assert (again.decoded, again.undecoded) == logged
     assert len(batch.candidates) == 2
+
+
+THINKING_CALL = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=THINKING))
+
+
+def test_the_thinking_payload_differs_from_the_plain_one_in_model_and_thinking_alone():
+    plain = payload(dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE)))
+    thinking = payload(THINKING_CALL)
+    assert plain["chat_template_kwargs"] == {"enable_thinking": False}
+    assert thinking["chat_template_kwargs"] == {"enable_thinking": True}
+    assert {k: v for k, v in thinking.items() if k not in {"model", "chat_template_kwargs"}} == {
+        k: v for k, v in plain.items() if k not in {"model", "chat_template_kwargs"}
+    }
+    assert (plain["model"], thinking["model"]) == (BASE, THINKING)
+
+
+def test_the_thinking_argv_differs_in_alias_and_reasoning_flags_alone(tmp_path):
+    plain = serve_command(BASE, tmp_path)
+    thinking = serve_command(THINKING, tmp_path)
+    flags = ["--jinja", "--reasoning", "on", "--reasoning-format", "deepseek"]
+    assert thinking[-5:] == flags
+    assert plain[-3:] == ["--jinja", "--chat-template-kwargs", '{"enable_thinking":false}']
+    assert [BASE if a == THINKING else a for a in thinking[:-5]] == plain[:-3]
+    assert thinking == [
+        "llama-server",
+        "-m",
+        str(model_path(BASE, tmp_path)),
+        "--alias",
+        THINKING,
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8081",
+        "-np",
+        "4",
+        "-c",
+        "81920",
+        "--jinja",
+        "--reasoning",
+        "on",
+        "--reasoning-format",
+        "deepseek",
+    ]
+
+
+def test_a_base_alias_server_is_refused_for_the_variant_before_any_post():
+    props = {**PROPS, "model_alias": BASE, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with (
+        Server([(200, completion([RECORD]))], props=props) as fake,
+        pytest.raises(GenerationError, match="the run names") as caught,
+    ):
+        asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    assert not caught.value.retryable
+    assert fake.requests == []
+
+
+def test_the_probe_logs_reasoning_chars(caplog):
+    caplog.set_level("INFO")
+    body = completion([RECORD], reasoning_content="think hard")
+    with Server([(200, body), (200, completion([RECORD]))]) as fake:
+        assert probe(MODEL, url=fake.url, rows=1) == 1
+        assert probe(MODEL, url=fake.url, rows=1) == 1
+    lines = [m for m in caplog.messages if m.startswith("probe model=")]
+    assert "reasoning_chars=10" in lines[0]
+    assert "reasoning_chars=0" in lines[1]
+
+
+def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(monkeypatch):
+    tagged = "<think>plan</think>" + json.dumps({"records": [RECORD]})
+    with Server([(200, completion([RECORD], content=tagged))]) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        assert main(["probe", MODEL]) == 2
+
+
+def test_the_server_line_names_thinking_for_a_variant(caplog):
+    caplog.set_level("INFO")
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    lines = [m for m in caplog.messages if m.startswith("local server ")]
+    assert [m.split()[:4] for m in lines] == [
+        ["local", "server", f"model={THINKING}", "thinking=true"]
+    ]
+
+
+def test_a_thinking_server_alias_is_refused_for_a_base_run():
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    base_call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE))
+    with (
+        Server([(200, completion([RECORD]))], props=props) as fake,
+        pytest.raises(GenerationError, match="the run names") as caught,
+    ):
+        asyncio.run(local_send(BASE, url=fake.url)(base_call))
+    assert not caught.value.retryable
+    assert fake.requests == []
+
+
+def test_an_unlisted_model_has_no_payload():
+    call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model="no-such-model"))
+    with pytest.raises(GenerationError, match="no-such-model") as caught:
+        payload(call)
+    assert not caught.value.retryable
+
+
+def test_a_thinking_reply_cut_at_the_budget_decodes_nothing_and_keeps_its_tokens():
+    body = completion([RECORD], finish="length", reasoning_content="t" * 50, content="")
+    reply = reply_of(body)
+    assert (reply.stop_reason, reply.text) == ("max_tokens", "")
+    assert reply.usage.output_tokens == 120
+    assert reasoning_chars(reply) == 50
+    candidates = decode(reply, 1)
+    assert len(candidates) - undecoded_in(candidates) == 0
+
+
+def test_a_thinking_reply_decodes_from_content_alone():
+    reply = reply_of(completion([RECORD], reasoning_content="not json {"))
+    candidates = decode(reply, 1)
+    assert candidates[: len(candidates) - undecoded_in(candidates)] == (RECORD,)
+
+
+@pytest.mark.parametrize("thoughts", [7, ["a"], {"a": 1}, True])
+def test_reasoning_that_is_not_text_counts_zero(thoughts):
+    assert reasoning_chars(reply_of(completion([RECORD], reasoning_content=thoughts))) == 0
+
+
+def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, caplog):
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        with caplog.at_level("INFO"):
+            assert main(["probe", THINKING]) == 2
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("reasoning_chars=0" in m and THINKING in m for m in warnings)
+
+
+def test_a_thinking_probe_with_reasoning_exits_zero(monkeypatch):
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    body = completion([RECORD], reasoning_content="think")
+    with Server([(200, body)], props=props) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        assert main(["probe", THINKING]) == 0

@@ -39,7 +39,9 @@ PRICES: Final = MappingProxyType(
         "claude-haiku-5-5": Price(input=0.10, output=0.50, cache_write=0.125, cache_read=0.01),
         "claude-sonnet-5-5": Price(input=2.0, output=10.0, cache_write=2.5, cache_read=0.10),
         "gemma-4-26b-a4b-q8_0": FREE,
+        "gemma-4-26b-a4b-q8_0-thinking": FREE,
         "nemotron-3-nano-30b-a3b-q8_0": FREE,
+        "nemotron-3-nano-30b-a3b-q8_0-thinking": FREE,
         "olmo-3-7b-instruct-q8_0": FREE,
     }
 )

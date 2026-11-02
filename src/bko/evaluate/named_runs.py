@@ -6,7 +6,8 @@ direct arm's run (`G2`), and `g5`, the prescribing arm's run (`G5`), and E3's ru
 frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`),
 B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network runs, `b2-uci` and
 `b2-synthea`, and G6's generator-comparison runs,
-`g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`.
+`g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`, and the two thinking-cost runs,
+`g6-gemmathink` and `g6-nemotronthink`.
 No command-line flag changes a value here.
 """
 
@@ -206,6 +207,16 @@ G6_MODELS: Final[Mapping[str, tuple[str, float]]] = MappingProxyType(
 its estimate. An on-device model bills nothing, so its ceiling never stops the run and $1.00
 serves as any ceiling above 0 would; `bko.evaluate.context.Context.sender` keeps its calls local."""
 
+G6_THINKING: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "g6-gemmathink": "gemma-4-26b-a4b-q8_0-thinking",
+        "g6-nemotronthink": "nemotron-3-nano-30b-a3b-q8_0-thinking",
+    }
+)
+"""Each thinking-cost run's model: an on-device model's pin that lets it reason before it replies.
+Each run is `G6_BASE` on holdouts 0 to 4 at a $1.00 ceiling and an idle limit of 1700 seconds, a
+liveness guard below `bko.generate.local.TIMEOUT_SECONDS`, not a measurement."""
+
 
 @dataclass(frozen=True, slots=True)
 class NamedRun:
@@ -280,6 +291,15 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             name: NamedRun(replace(G6_BASE, spend_ceiling=ceiling), replace(SETTINGS, model=model))
             for name, (model, ceiling) in G6_MODELS.items()
         },
+        **{
+            name: NamedRun(
+                replace(
+                    G6_BASE, holdout_seeds=tuple(range(5)), spend_ceiling=1.0, idle_limit=1700.0
+                ),
+                replace(SETTINGS, model=model),
+            )
+            for name, model in G6_THINKING.items()
+        },
         "g5": NamedRun(
             G5,
             Settings(
@@ -298,6 +318,9 @@ E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with 
 `medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
 G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
 holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
-`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
-its `G6_MODELS` model and ceiling (G6). A variant adds its own entry in its own change, listing
-its arms, candidate, comparators, holdout seeds, fill target, ceiling and criteria."""
+`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, `b2-uci` and `b2-synthea` are `B2_UCI` and
+`B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
+its `G6_MODELS` model and ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with
+its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling. A variant adds its own entry in its
+own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and
+criteria."""

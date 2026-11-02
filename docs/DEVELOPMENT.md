@@ -99,9 +99,9 @@ command per method, inside `.venv`:
   `bko.baselines.request`.
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
   with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
-  row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE and the Bayesian
-  network, the fill line of the Gaussian copula and sequential CART, and the method's
-  parameters. An experiment copies them into its configuration in
+  row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, the Bayesian
+  network, the Gaussian copula and sequential CART (`fit method=<name> seconds=<s>`, each method's
+  own name), and the method's parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
@@ -616,7 +616,14 @@ start or the supervisor cannot run.
   [EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)), and E5's scarcity runs, `e5-quarter`,
   `e5-half` and `e5-threequarters` (`E5_FRACTIONS`: the same methods and ceiling, each holdout
   keeping a quarter, half or three quarters of each cell's training rows;
-  [EVIDENCE.md](EVIDENCE.md#e5-augmentation-against-training-set-size)). No flag
+  [EVIDENCE.md](EVIDENCE.md#e5-augmentation-against-training-set-size)). It holds G6's generator
+  runs, `g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo` (`G6_MODELS`: `G6_BASE`, E1's methods
+  and `bko` with no criterion, at each run's model and ceiling), and its thinking-cost runs,
+  `g6-gemmathink` and `g6-nemotronthink` (`G6_THINKING`: `G6_BASE` at each `-thinking` model id on
+  holdouts 0 to 4, a $1.00 ceiling and an idle limit of 1700 s, a liveness guard below
+  `bko.generate.local.TIMEOUT_SECONDS`, not a measurement; ADR
+  [`research/local-generator-backend`](adr/research/local-generator-backend.md);
+  [EVIDENCE.md](EVIDENCE.md#g6-generator-model)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -923,7 +930,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `llama.cpp`) on `http://127.0.0.1:8081` (ADR
   [`research/local-generator-backend`](adr/research/local-generator-backend.md)). Fetch and verify
   its pinned weights into `data/models/`, serve it with its output in the run's folder
-  (`server.log`, [Runs](#runs)), probe it, and stop the server when the run ends:
+  (`server.log`, [Runs](#runs)), probe it, and stop the server when the run ends. A `-thinking`
+  model id, `gemma-4-26b-a4b-q8_0-thinking` or `nemotron-3-nano-30b-a3b-q8_0-thinking`, is its
+  base model with thinking on, served from the base's weights file:
 
       uv run --no-sync python -m bko.generate.local fetch <model> [--data-dir <dir>]
       mkdir -p runs/<run-id> && test ! -e runs/<run-id>/server.log && eval "$(uv run --no-sync python -m bko.generate.local serve-command <model> [--data-dir <dir>])" > runs/<run-id>/server.log 2>&1 &
@@ -932,14 +941,18 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
   `fetch` verifies a present file's size and sha256, or streams the file into `<file>.part`,
   logging its progress, and renames it once it matches the pin; it removes a download that does
-  not match and exits 2 on a mismatch or a failed download. `serve-command` prints the server's
-  argv, thinking off; give it the `--data-dir` `fetch` used. `probe` waits for the server's
-  `/health` while it loads, sends one call for four records of `<55/female/1`, and logs each
-  decoded record and the seconds it took; it exits 2 if the server does not ready, serves another
-  model, or nothing decodes. Stop the server with `pkill` whether or not the probe passes. One
-  model is served at a time; a local model bills nothing. A run's first call logs the
-  `local server` line (the served file, the server's build and the file's pinned sha256) and
-  refuses a server serving another model, and a local run keeps at most four calls in flight
+  not match and exits 2 on a mismatch or a failed download; a `-thinking` id's `fetch` verifies or
+  fetches its base's file. `serve-command` prints the server's argv, thinking off, or for a
+  `-thinking` id the base's file under the variant's alias with
+  `--jinja --reasoning on --reasoning-format deepseek`; give it the `--data-dir` `fetch` used.
+  `probe` waits for the server's `/health` while it loads, sends one call for four records of
+  `<55/female/1`, and logs each decoded record, the seconds it took and the reply's reasoning
+  length as `reasoning_chars=`; it exits 2 if the server does not ready, serves another model
+  (a base id's server for its `-thinking` id, or the reverse, included), nothing decodes, or a
+  `-thinking` id's reply carries no reasoning (a `WARNING` names it). Stop the server with `pkill`
+  whether or not the probe passes. One model is served at a time; a local model bills nothing. A
+  run's first call logs the `local server` line (the model, whether it thinks, the served file,
+  the server's build and the file's pinned sha256) and refuses a server serving another model, and a local run keeps at most four calls in flight
   (`bko.generate.local.SLOTS`), logging `local in_flight=` when `--in-flight` asked for more.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
