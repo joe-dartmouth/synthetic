@@ -21,12 +21,10 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-local-thinking-cost`](evaluate-local-thinking-cost.md) | ready | -- | Joe | final-report |
 | [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | ready | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR
-    local_thinking[evaluate-local-thinking-cost]
     diabetes_removal[evaluate-diabetes-subgroup-removal] --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
 ```
 

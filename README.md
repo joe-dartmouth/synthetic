@@ -32,11 +32,6 @@ representation. The pipeline:
 These follow the first full evaluation. Each is one task unit, and the set's graph and status
 board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
-**Evaluation**
-
-1. Thinking on for the local generators: whether reasoning survives the schema grammar and what a
-   full run would take ([`evaluate-local-thinking-cost`](tasks/evaluate-local-thinking-cost.md)).
-
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the interpreter named in
