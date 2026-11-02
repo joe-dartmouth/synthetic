@@ -40,6 +40,12 @@ from bko.evaluate.named_runs import (
     E3_SLICE_CEILING,
     E4_TARGETS,
     E5_FRACTIONS,
+    E6_ASKED,
+    E6_CAP,
+    E6_EMPTY,
+    E6_SETTINGS,
+    E6_SLICES,
+    E6_THIN,
     G2,
     G5,
     G6_BASE,
@@ -143,6 +149,10 @@ def test_every_run_name_is_pinned():
         "e5-half",
         "e5-quarter",
         "e5-threequarters",
+        "e6-empty",
+        *(f"e6-empty{letter}" for letter in "abcdefghij"),
+        "e6-thin",
+        *(f"e6-thin{letter}" for letter in "abcdefghij"),
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -367,6 +377,110 @@ def test_e3s_slices_partition_its_seeds_and_its_ceiling():
             dataclasses.replace(experiment, holdout_seeds=E3.holdout_seeds, spend_ceiling=65.0)
             == E3
         )
+
+
+E6_EVERY_ARM: Final = (
+    "none",
+    "class-weight",
+    "smote",
+    "adasyn",
+    "ctgan",
+    "tvae",
+    "gaussian-copula",
+    "cart",
+    "bayes-net",
+    "bko",
+    "bko-population",
+    "bko-frequency",
+    "bko-direct",
+    "bko-skeleton",
+    "cllm",
+    "cllm-uncurated",
+    "real",
+)
+"""E6's arms as ADR `research/diabetes-subgroup-removal-design` (Decision, Arms) lists them."""
+
+
+def test_e6s_runs_pin_the_diabetes_design():
+    assert E6_THIN.arms == E6_EVERY_ARM
+    assert E6_THIN.candidate == "bko"
+    assert E6_THIN.comparators == tuple(a for a in E6_EVERY_ARM if a not in {"bko", REAL_ARM})
+    assert E6_THIN.replica_arms == ("bko",)
+    assert E6_THIN.replica_rows == 2000
+    assert E6_THIN.removal == Removal(("6-7", "male", 1), 0.985)
+    assert E6_THIN.fill_to == 1269
+    assert E6_THIN.threshold == 20
+    assert E6_THIN.cutoff == pytest.approx(0.0902)
+    assert E6_THIN.decontaminate is False
+    assert E6_THIN.criteria == ()
+    assert E6_THIN.holdout_seeds == tuple(range(100))
+    emptied = dataclasses.replace(
+        E6_THIN,
+        removal=Removal(("6-7", "male", 1), 1.0),
+        replica_arms=(),
+        replica_rows=None,
+        spend_ceiling=E6_EMPTY.spend_ceiling,
+    )
+    assert emptied == E6_EMPTY
+    assert dataclasses.replace(SETTINGS, max_tokens=32000) == E6_SETTINGS
+    assert RUNS["e6-thin"] == NamedRun(E6_THIN, E6_SETTINGS, Dataset.DIABETES)
+    assert RUNS["e6-empty"] == NamedRun(E6_EMPTY, E6_SETTINGS, Dataset.DIABETES)
+
+
+@pytest.mark.parametrize(("name", "whole"), [("thin", E6_THIN), ("empty", E6_EMPTY)])
+def test_e6s_slices_take_ten_consecutive_holdouts_at_a_tenth_of_the_ceiling(name, whole):
+    assert E6_SLICES == 10
+    slices = [RUNS[f"e6-{name}{letter}"] for letter in "abcdefghij"]
+    for index, named in enumerate(slices):
+        assert named.experiment.holdout_seeds == tuple(range(10 * index, 10 * index + 10))
+        assert named.experiment.spend_ceiling == whole.spend_ceiling / 10
+        assert named.experiment.projection_after < 10
+        assert named.settings == E6_SETTINGS
+        assert named.dataset is Dataset.DIABETES
+        assert (
+            dataclasses.replace(
+                named.experiment,
+                holdout_seeds=whole.holdout_seeds,
+                spend_ceiling=whole.spend_ceiling,
+            )
+            == whole
+        )
+    seeds = tuple(seed for named in slices for seed in named.experiment.holdout_seeds)
+    assert seeds == whole.holdout_seeds
+    total = sum(named.experiment.spend_ceiling for named in slices)
+    assert total == pytest.approx(whole.spend_ceiling)
+
+
+def test_each_e6_ceiling_covers_its_estimate():
+    """E6's estimate per record asked (`docs/EVIDENCE.md`, E6 Configuration), written out.
+
+    Rate: the larger of `e1-4`'s $1.35635e-4 per record x 34 Diabetes columns / 14 UCI columns,
+    $3.2940e-4, and pilot `e6-1`'s $3.1536e-4. Records asked per holdout: the five BKO-type arms
+    and `cllm-uncurated` ask (fill_to - R) x (1 + 0.005), the drop share of the 32000-token
+    pilot (1 of 200 records); `cllm` asks (fill_to - R) x 7.837, `b3-3`'s CLLM records asked per
+    requested row; `bko`'s replica asks 2000 x (1 + 0.005), in the f run only.
+    """
+    rate = max(1.35635e-4 * 34 / 14, 3.1536e-4)
+    assert rate == pytest.approx(3.294e-4, rel=1e-4)
+    thin = 6 * (1269 - 19) * 1.005 + (1269 - 19) * 7.837 + 2000 * 1.005
+    empty = 6 * (1269 - 0) * 1.005 + (1269 - 0) * 7.837
+    assert (math.floor(thin), math.floor(empty)) == (19_343, 17_597)
+    assert E6_ASKED == {"thin": 19_343, "empty": 17_597}
+    assert math.isclose(E6_CAP, 1500.0)
+    # Ceilings: $1,500 x each fraction's share of 36,940 records asked per holdout.
+    # thin: 1500 x 19,343 / 36,940 = $785.45; empty: 1500 x 17,597 / 36,940 = $714.55.
+    assert E6_THIN.spend_ceiling == pytest.approx(785.449, abs=1e-3)
+    assert E6_EMPTY.spend_ceiling == pytest.approx(714.551, abs=1e-3)
+    assert E6_THIN.spend_ceiling + E6_EMPTY.spend_ceiling == pytest.approx(E6_CAP)
+    # Estimates over 100 holdouts at $3.294e-4: thin $637.16, empty $579.65, total $1,216.80;
+    # each ceiling is 1500 / 1216.80 = 1.2327 times its estimate, and each slice's tenth of its
+    # ceiling covers its 10 holdouts' tenth of the estimate.
+    for name, whole in (("thin", E6_THIN), ("empty", E6_EMPTY)):
+        estimate = 100 * E6_ASKED[name] * 3.294e-4
+        assert whole.spend_ceiling / estimate == pytest.approx(1.2327, abs=1e-4)
+        for letter in "abcdefghij":
+            sliced = RUNS[f"e6-{name}{letter}"].experiment
+            assert sliced.spend_ceiling >= len(sliced.holdout_seeds) * E6_ASKED[name] * 3.294e-4
 
 
 E1_1_TOKENS: Final = (1_925_406, 564_976)

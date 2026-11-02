@@ -222,15 +222,20 @@ def test_a_data_root_is_forwarded_absolute_so_a_leading_dash_never_reads_as_an_o
 
 
 def _stopped(
-    tmp_path: Path, *, stop: str | None = "idle", rehearsal: bool = False, settings=SETTINGS
+    tmp_path: Path,
+    *,
+    stop: str | None = "idle",
+    rehearsal: bool = False,
+    settings=SETTINGS,
+    **end: object,
 ) -> Path:
-    """A stopped call log under `g9-1`, its end line naming `stop`."""
+    """A stopped call log under `g9-1`, its end line naming `stop` and holding `end`."""
     source = tmp_path / "g9-1" / "calls.jsonl"
     source.parent.mkdir(exist_ok=True)
     with CallLog(source, settings, rehearsal=rehearsal, frame="uci"):
         pass
     lines = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
-    lines[-1].update(status="failed", stop=stop)
+    lines[-1].update(status="failed", stop=stop, **end)
     source.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     return source
 
@@ -239,8 +244,10 @@ def _stopped(
     ("flags", "message"),
     [
         ({"rehearsal": True}, "rehearsal"),
-        ({"stop": "projection"}, "reported, not resumed"),
-        ({"stop": "ceiling"}, "reported, not resumed"),
+        ({"stop": "projection"}, "records no finished holdouts"),
+        ({"stop": "ceiling"}, "records no finished holdouts"),
+        ({"stop": "ceiling", "usd": 1.5, "holdouts": 5}, "projects to 30.0000 USD over 100"),
+        ({"stop": "projection", "usd": 1.25, "holdouts": 5}, "ceiling of 25.00 USD does not"),
         ({"settings": dataclasses.replace(SETTINGS, guidance=Level.CELL)}, "settings"),
     ],
 )
@@ -277,6 +284,17 @@ def test_a_resume_supervises_the_stopped_log_into_a_new_folder(tmp_path):
     )
     log = (folder / "launch.log").read_text(encoding="utf-8")
     assert f"resume={source.absolute()}" in log
+
+
+@pytest.mark.parametrize("stop", ["projection", "ceiling"])
+def test_a_spend_stop_resumes_once_the_named_runs_ceiling_covers_its_projection(tmp_path, stop):
+    # 1.2 USD over 5 of E1's 100 holdouts projects to 24.0 USD, under E1's 25.0 USD ceiling.
+    source = _stopped(tmp_path, stop=stop, usd=1.2, live_usd=1.2, holdouts=5)
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(source)]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    (command,) = context.start.commands
+    assert command[-2:] == ("--resume", str(source.absolute()))
 
 
 def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
@@ -618,6 +636,16 @@ def test_an_id_that_is_not_a_run_of_record_exits_two(tmp_path, caplog, run_id):
     with caplog.at_level(logging.ERROR):
         assert main(["launch", run_id], context=named(tmp_path, RUNS), out=io.StringIO()) == 2
     assert "not a run id of record" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "name",
+    [f"e6-{fraction}{letter}" for fraction in ("thin", "empty") for letter in "abcdefghij"],
+)
+def test_each_e6_slice_launches_from_an_e6_run_id(tmp_path, name):
+    argv = ["launch", "e6-1", name, "--dry-run"]
+    assert main(argv, context=named(tmp_path, RUNS), out=io.StringIO()) == 0
+    assert f"run={name} " in (tmp_path / "e6-1" / "launch.log").read_text(encoding="utf-8")
 
 
 def test_every_named_run_is_an_entry_or_a_word_after_it():

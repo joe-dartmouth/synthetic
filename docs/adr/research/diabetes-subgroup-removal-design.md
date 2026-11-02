@@ -55,7 +55,8 @@ for SMOTE and 1.42 for duplication ([C3]).
 * **Must leave the removed cell the only flagged one** on every holdout, so the headline reads one
   subgroup.
 * **Must pair every arm, `real` included, on identical splits**, as E3 does.
-* **Must keep the spend inside the unit's cap**, so the replica fill is bounded.
+* **Must keep the spend inside the cap**, $1,500 over both fractions (user decision), so the
+  replica fill is bounded.
 * **Must report compute in system-independent units**: no reading, rule or design value uses wall
   time.
 
@@ -111,14 +112,30 @@ for SMOTE and 1.42 for duplication ([C3]).
   comparators times the measures: 15 x 2 = 30 intervals, each refuting reading at confidence
   1 - (1 - c)/30, 0.99833 at E1's c = 0.95.
 - **N**: the full eligible frame, every one of the 69,283 records.
-- **Settings**: `SETTINGS` (Haiku 5.5) for every Messages arm.
-- **Slices**: each fraction's run is K = 10 holdout slices of 10 holdouts; the f = 0.985 run's
-  slices finish before the 1.0 run's start. `merge` joins a fraction's slices into one run's bytes.
+- **Settings**: `E6_SETTINGS`, `SETTINGS` (Haiku 5.5) with `max_tokens` 32000, for every Messages
+  arm. A Diabetes call's reply runs near 16000 tokens: at `SETTINGS`' 16000, 1 of 15 live pilot
+  calls stopped at the limit (pilot `e6-1`, its call 5 of 5); at 32000, 0 of 10 did
+  ([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal), E6 Configuration).
+- **Slices**: each fraction's run, `e6-thin` at f = 0.985 and `e6-empty` at 1.0, is K = 10
+  holdout slices of 10 consecutive holdouts, `e6-thina` (holdouts 0 to 9) to `e6-thinj` (90 to
+  99) and `e6-emptya` to `e6-emptyj` alike. Both fractions' 20 slices run at once (user decision:
+  time over cost). `merge` joins a fraction's slices into one run's bytes.
   K is the memory cap's: a free smoke run of every arm on holdouts 0 and 1 at full N, one process
   per fraction under the Threads environment with canned replies (`score --rehearse`), peaked at
   2,146,516,992 bytes maximum resident set size at f = 0.985 and 2,184,560,640 at 1.0
   (`/usr/bin/time -l`). 20 such processes, 43.7 GB, fit in 100 GB, and `projection_after`, 5, is
   under the 10 holdouts per slice.
+- **In flight**: 4 calls per slice, 80 across the 20 slices. The organization's limits are
+  2,000,000 output tokens a minute, 45,000 requests and 10,000,000 input tokens. A call writes
+  about 11,000 output tokens (the 32000-token pilot's mean is 10,909) at about 255 tokens a
+  second, so a slot asks about 11,000 x 60 / (11,000 / 255) = 15,300 tokens a minute and 80 slots
+  about 1,224,000, under the 2,000,000.
+- **Spend ceilings**: the $1,500 cap split between the fractions in proportion to their estimated
+  records asked per holdout, 19,343 at f = 0.985 and 17,597 at 1.0: `e6-thin` 1500 x 19,343 /
+  36,940 = $785.45 and `e6-empty` $714.55, each slice a tenth of its run's, $78.54 and $71.46.
+  Each ceiling is 1.2327 times its run's estimate (`tests/test_evaluate_experiment.py`,
+  `test_each_e6_ceiling_covers_its_estimate`; the estimate is E6's Configuration in
+  [`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
 - **Replays**: one slice per fraction, plus every slice that resumed after a stop.
 - **Compute cost**: reported as model fits, rows drawn, tokens and USD per run and per record
   asked. No wall time is read, ruled on or reported.
@@ -385,14 +402,17 @@ the replica reads `bko` alone.
 | Excluding SMOTE and ADASYN at 1.0 | Their zero fill is the result at 1.0: count-based methods have nothing to copy | 2026-11-02 |
 | A cross-fraction beside reading | The held-out distance to closest record differs between fractions, since the training rows differ, so the fractions do not pair | 2026-11-02 |
 | Replaying every slice | User decision: one slice per fraction verifies the code, and every resumed slice its resumption | 2026-11-02 |
+| One fraction's slices after the other's | User decision: time over cost; the 20 slices fit the memory cap (Decision, Slices) and the output-token limit (Decision, In flight) | 2026-11-02 |
+| `SETTINGS`' 16000 output tokens | 1 of 15 live pilot calls stopped at the limit; at 32000, 0 of 10 | 2026-11-02 |
 | A wall-time duration rule | User decision: no reading, rule or design value uses wall time | 2026-11-02 |
 | The probe's cell `(4-7, female, 1)` under edges (4, 8) | On the committed frame it scores fifth of nine and fails G4 on both replicate seed sets ([C4]) | 2026-11-02 |
 | A 0.5 cutoff | G1 failed on all 18 cells: real recall at 0.5 is 0.0020 to 0.0157 ([C3]) | 2026-11-02 |
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/diabetes.py`
-- Pinned by: `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
+- Owner: `src/bko/evaluate/diabetes.py`; E6's runs, `src/bko/evaluate/named_runs.py`
+- Pinned by: `tests/test_evaluate_experiment.py` (the runs, slices and ceilings),
+  `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
   `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`
 
 ## Reversal Conditions

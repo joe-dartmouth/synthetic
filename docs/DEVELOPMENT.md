@@ -280,14 +280,25 @@ this command under the paid-run protocol below; by hand it reads:
 
     test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
 
-Never resume a log that another process still writes. A run stopped by the projection or the
-spend ceiling is reported, not resumed, and a rerun takes a new run id; a run stopped by the idle
-limit resumes. The call log's `end` line names the stop rule that ended a failed run under `stop`
-(`ceiling`, `projection` or `idle`, else null), and a guard holds the policy: `score --resume`
-refuses, exit 3, a log whose `end` line reads `stop` `projection` or `ceiling`, a rehearsal's log
-and a replay's log, and `launch --resume` refuses those, and a log whose `run` line's settings
-differ from the named run's, exit 2 before it claims a folder
-(`bko.generate.replay.refuse_unresumable`). A log with no `stop` field predates it and resumes.
+Never resume a log that another process still writes. A run stopped by the idle limit resumes. A
+run stopped by the projection or the spend ceiling resumes only after its named run's
+`spend_ceiling` is raised past the stopped run's own projection, so the calls it paid for are
+recovered under the same run id plus `-resume`. The call log's `end` line names the stop rule that
+ended a failed run under `stop` (`ceiling`, `projection` or `idle`, else null), and for a ceiling
+or projection stop the holdouts it finished under `holdouts`. The projection is the `end` line's
+`usd` (the whole run's spend, carried and replayed included) over those holdouts (at least 1),
+scaled to the named run's holdouts, and never below `usd`. A guard holds the policy:
+`score --resume` refuses, exit 3, a ceiling or projection stop whose named run's current ceiling
+is not above that projection, naming the logged spend, its live part, the projection and the
+ceiling; a ceiling or projection stop with no `holdouts`; a rehearsal's log; and a replay's log.
+`launch --resume` refuses those, and a log whose `run` line's settings differ from the named
+run's, exit 2 before it claims a folder (`bko.generate.resume_guard.refuse_unresumable`). A log with no
+`stop` field predates it and resumes. The resumed run's ceiling and projection read the whole
+run's spend, the stopped segments' included, as any resume's do, and its call log's `resume` field
+(in the `run` and `end` lines) adds `stop` and `ceiling`, the rule it resumes and the ceiling it
+runs under. The supervisor never resumes a ceiling or projection stop itself (F1 and F2 below);
+the operator raises the ceiling in `bko.evaluate.named_runs` (a commit, which is the sign-off) and
+then runs `launch <run-id>-resume <run> --resume runs/<run-id>/calls.jsonl`.
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at the judged run e1-4's tokens per record priced at the named run's model's
@@ -376,8 +387,8 @@ segment saw a 429. Each stop branch is handled as follows:
 
 | Branch | Signal | Supervisor |
 |---|---|---|
-| F1 projection | `stop` `projection` | no resume |
-| F2 ceiling | `stop` `ceiling` | no resume |
+| F1 projection | `stop` `projection` | no resume; the operator's `launch --resume` under a raised ceiling |
+| F2 ceiling | `stop` `ceiling` | no resume; the operator's `launch --resume` under a raised ceiling |
 | F3 idle | `stop` `idle`, `retryable` true | resume |
 | F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 408, 409 or 429, or a status of 500 or above) | resume |
 | F5 deterministic | `status` `failed`, `retryable` false (`retryable` must be the JSON `true`) | no resume |
@@ -536,7 +547,11 @@ start or the supervisor cannot run.
   E1's 0.5, the probability at which utility calls a record positive), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
-  a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
+  a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call,
+  and for a resumed ceiling or projection stop a
+  `resume stop=%s usd=%.4f holdouts=%d projected_usd=%.4f ceiling=%.2f` line after it (the rule,
+  the stopped log's spend, its finished holdouts, its projection and the ceiling the resume runs
+  under), then
   per holdout, for a run with a training fraction below 1 (the `e5-*` runs) a
   `subsample holdout=%d fraction=%s train=%d kept=%d ratio=%.6f` line (the training rows before
   and kept, and the held-out ratio the holdout's intervals read),
@@ -679,7 +694,13 @@ start or the supervisor cannot run.
   holdouts 0 to 4, a $1.00 ceiling and an idle limit of 1700 s, a liveness guard below
   `bko.generate.local.TIMEOUT_SECONDS`, not a measurement; ADR
   [`research/local-generator-backend`](adr/research/local-generator-backend.md);
-  [EVIDENCE.md](EVIDENCE.md#g6-generator-model)). No flag
+  [EVIDENCE.md](EVIDENCE.md#g6-generator-model)). It holds E6's runs over the Diabetes frame,
+  `e6-thin` (`E6_THIN`: every arm, 0.985 of `(6-7, male, 1)`'s training rows removed) and
+  `e6-empty` (`E6_EMPTY`: all of them removed, no replica), each at `E6_SETTINGS`, and each
+  run's ten holdout slices, `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj`, each the
+  next 10 holdouts at a tenth of its run's ceiling (ADR
+  [`research/diabetes-subgroup-removal-design`](adr/research/diabetes-subgroup-removal-design.md);
+  [EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
