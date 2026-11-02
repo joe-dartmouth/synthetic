@@ -12,6 +12,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.sources import Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.uci import CATEGORICAL, CODEBOOK, NUMERIC, RANGES
+from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, UNMAPPED_ICD9
 from bko.ontology.mapping import (
     CODE_MAPPINGS,
     CONCEPT_ROWS,
@@ -154,8 +155,21 @@ def _resolves(source: str) -> bool:
     return bool(source) and (REPO_ROOT / "docs" / "adr" / f"{source}.md").is_file()
 
 
+_TABLES = (
+    FIELD_MAPPINGS,
+    UNMAPPED,
+    RANGES,
+    CODE_MAPPINGS,
+    OUT_OF_SCOPE,
+    UNMAPPED_CODES,
+    ICD9_MAPPINGS,
+    UNMAPPED_ICD9,
+    LAB_MAPPINGS,
+)
+
+
 def _all_sources() -> Iterable[str]:
-    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE, UNMAPPED_CODES):
+    for table in _TABLES:
         for row in table:
             yield row.source
 
@@ -183,5 +197,11 @@ def test_every_row_explains_itself() -> None:
     for row in UNMAPPED_CODES:
         assert row.label.strip(), row
         assert row.reason.strip(), row
-    for table in (FIELD_MAPPINGS, UNMAPPED, RANGES, CODE_MAPPINGS, OUT_OF_SCOPE, UNMAPPED_CODES):
+    for row in (*ICD9_MAPPINGS, *LAB_MAPPINGS):
+        assert row.label.strip(), row
+        assert row.limits.strip(), row
+    for row in UNMAPPED_ICD9:
+        assert row.label.strip(), row
+        assert row.reason.strip(), row
+    for table in _TABLES:
         assert len(table) == len(set(table)), table

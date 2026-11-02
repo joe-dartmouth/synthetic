@@ -88,7 +88,7 @@ def test_agreeing_rows_exit_zero(tmp_path, caplog):
     assert "data_version=releases/2026-10-06" in caplog.text
     assert "data_version=hp/releases/2026-09-01" in caplog.text
     assert "release mondo data_version=releases/2026-10-06" in caplog.text
-    assert "terms=19 obsolete=2" in caplog.text
+    assert "terms=29 obsolete=2" in caplog.text
     assert "checked 10 rows: 0 disagree" in caplog.text
     assert f"parser pronto {importlib.metadata.version('pronto')}" in caplog.text
 

@@ -15,7 +15,8 @@ in its release, reached through classes with the release's prefix. Every other c
 scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and
 `bko.ontology.check` refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO
 holds the part of it the dataset's own rows reach: `FIELD_MAPPINGS` for UCI Heart Disease,
-`CODE_MAPPINGS` for Synthea (`bko.gaps`). A Synthea disorder code maps to the one live MONDO concept
+`CODE_MAPPINGS` for Synthea (`bko.gaps`); the rows of `bko.ontology.icd9` map Diabetes 130's
+diagnosis categories and lab states. A Synthea disorder code maps to the one live MONDO concept
 carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the named conditions' disorder codes none
 carries, and `bko.ontology.check` refuses one that gains a live match.
 
@@ -33,6 +34,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.sources import HPO, MONDO, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.uci import RANGES  # ruff: ignore[unused-import]  (re-exported)
+from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, UNMAPPED_ICD9
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -341,13 +343,23 @@ UNMAPPED_CODES: Final[tuple[UnmappedCode, ...]] = (
 """The named conditions' Synthea disorder codes no MONDO concept is equated with, each with its
 reason; the population holds other codes with no match, which no row records."""
 
-CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (*FIELD_MAPPINGS, *CODE_MAPPINGS, *OUT_OF_SCOPE)
-"""Every row that names a concept, in table order."""
+CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (
+    *FIELD_MAPPINGS,
+    *CODE_MAPPINGS,
+    *OUT_OF_SCOPE,
+    *ICD9_MAPPINGS,
+    *LAB_MAPPINGS,
+)
+"""Every row that names a concept, in table order, the Diabetes 130 rows of `bko.ontology.icd9`
+last."""
 
-CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES)
-"""Every concept row, then every excluded code: what `bko.ontology.check` checks."""
+CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES, *UNMAPPED_ICD9)
+"""Every concept row, then every excluded code and ICD-9 category: what `bko.ontology.check`
+checks."""
 
-MAPPED: Final = frozenset(row.concept for row in (*FIELD_MAPPINGS, *CODE_MAPPINGS))
+MAPPED: Final = frozenset(
+    row.concept for row in (*FIELD_MAPPINGS, *CODE_MAPPINGS, *ICD9_MAPPINGS, *LAB_MAPPINGS)
+)
 """The concepts a row maps; with their is_a ancestors, the table's scope.
 
 Each dataset's BKO takes the part its own rows map.

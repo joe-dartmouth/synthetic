@@ -719,8 +719,9 @@ and the gate never runs pybkb.
 ## Ontologies
 
 `bko.ontology` ([README](../src/bko/ontology/README.md)) reads the MONDO and HPO releases
-`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields and to
-Synthea condition codes, with the codes it excludes (ADR
+`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields, to
+Synthea condition codes, and to Diabetes 130's ICD-9 diagnosis categories and lab states, with the
+codes and categories it excludes (ADR
 [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). One command, inside
 `.venv`:
 
@@ -730,13 +731,16 @@ Synthea condition codes, with the codes it excludes (ADR
   its pin, parses them with pronto, and checks every row: a concept row's concept exists and is
   not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
   `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
-  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), and an
-  out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets a CSV with the
-  columns `table` (`field`, `code`, `out-of-scope` or `excluded-code`), `subject` (the dataset
-  side, such as `cp in 1|2|3` or `SCTID:<code>`), `concept` (empty for an excluded code), `label`
-  and `status` (`ok`, or how the release disagrees; for an `excluded-code` row, `ok` means the
-  code still has no live `skos:exactMatch`), one row per checked row, the same bytes on every run
-  over the same releases.
+  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), an ICD-9 row's
+  concept carries its `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that
+  xref are exactly the row's declared holders, an excluded ICD-9 category is an xref of no live
+  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout
+  gets a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`
+  or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`,
+  `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or category), `label`
+  and `status` (`ok`, or how the release disagrees; for an `excluded-code` or `excluded-icd9`
+  row, `ok` means the code still has no live holder), one row per checked row, the same bytes on
+  every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.

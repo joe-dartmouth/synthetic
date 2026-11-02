@@ -10,6 +10,7 @@ from types import MappingProxyType
 import pytest
 
 from bko.ontology.check import Verdict, check
+from bko.ontology.icd9 import UnmappedIcd9
 from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import (
@@ -244,11 +245,11 @@ def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
 def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
     verdicts = check(CHECKED_ROWS, _fixture_releases(tmp_path))
     assert [v.problem for v in verdicts] == [None] * len(CHECKED_ROWS)
-    assert "excluded-code" in {v.table for v in verdicts}
+    assert {"excluded-code", "icd9", "excluded-icd9"} <= {v.table for v in verdicts}
     table_hp = {
         row.concept: row.label
         for row in CHECKED_ROWS
-        if not isinstance(row, UnmappedCode) and row.concept.startswith("HP:")
+        if not isinstance(row, UnmappedCode | UnmappedIcd9) and row.concept.startswith("HP:")
     }
     assert table_hp == dict(HPO_LABELS)
 

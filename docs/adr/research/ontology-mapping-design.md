@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-10-28
+updated: 2026-11-02
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -22,6 +22,12 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
   Measured on 2026-10-27: the Synthea disorder codes of essential hypertension, type 2 diabetes,
   hyperlipidemia, myocardial infarction, ST-elevation myocardial infarction and stroke each sit on
   one live MONDO concept; the code of acute non-ST-elevation myocardial infarction sits on none.
+- **MONDO carries ICD-9 references only as `xref: ICD9:<code>` lines**, never as a
+  `skos:exactMatch`. Measured on 2026-11-02: an ICD-9 xref's qualifier takes several shapes (a
+  `source` naming another ontology's class, or `MONDO:equivalentTo` or `MONDO:relatedTo` with
+  `MONDO:i2s`, or none), and pronto keeps the id only. Of the Diabetes 130 diagnosis categories
+  the table maps, 428 sits on heart failure and congestive heart failure and 491 on bronchitis and
+  chronic bronchitis; each other sits on one live concept. No live concept carries ICD9:414.
 - **HPO carries no SNOMED-CT reference.**
 - **pronto read both releases**, with every term converted to standard-library values, no import
   and no warning.
@@ -87,6 +93,14 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   reason no UCI field grounds it, that `fbs` is one reading, sits in the `fbs` row's limits, which
   name the concept; UCI's scope takes the field mappings' concepts only, so it still excludes
   diabetes mellitus.
+- **Diabetes 130 rows**: `bko.ontology.icd9` holds them. An ICD-9 row (`ICD9_MAPPINGS`) maps a
+  diagnosis category to a live MONDO concept that carries the category's `xref: ICD9:<code>`, and
+  declares every live concept carrying that xref; where two do, the row maps the one that spans
+  the category's subcodes, and its limits name the other. A category left out because no live
+  concept carries its xref is an `UnmappedIcd9` row in `UNMAPPED_ICD9`, and the check refuses one
+  that gains a holder. A lab row (`LAB_MAPPINGS`) maps the archive's result states of
+  `A1Cresult` and `max_glu_serum`, verbatim, to an HPO phenotype. The rows' concepts join the
+  table's scope.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
@@ -95,6 +109,9 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **SNOMED-CT evidence**: MONDO's `skos:exactMatch SCTID:<code>` annotation, which the check
   requires on the mapped concept and on no other live concept, and on no live concept for an
   excluded code.
+- **ICD-9 evidence**: MONDO's `xref: ICD9:<code>` with that exact id and any qualifier, which the
+  check requires on the mapped concept; the release's live holders of the xref must equal the
+  row's declared holders, and an excluded category must have none.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
   row against the real releases.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
@@ -138,7 +155,8 @@ unavailable; labels are copies of release names (MONDO under CC BY 4.0; HPO unde
 attributed in `bko.datasets.sources`); the range checks catch gross errors only; with
 presence-only rows, a record check derived from `is_a` alone rejects nothing, so record
 validation leans on the ranges and the codebook; the guideline cutoffs, the Detrano readings and
-the team-specified bounds await clinician review (RESEARCH, Represent); load time has no budget.
+the team-specified bounds await clinician review (RESEARCH, Represent); an ICD-9 xref asserts no
+equivalence, so the choice among a category's holders is the team's; load time has no budget.
 
 ## Ruled Out
 
@@ -156,7 +174,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 | Text-named rows only | Grounds four of thirteen predictors; the BKO arms would reduce to label-by-cell counts, which `research/bko-formal-gap-definition` evaluates separately | 2026-10-16 |
 | Listing all of MONDO and HPO as scope | An unbounded default turns every unmapped concept into a gap | 2026-10-16 |
 | Data-derived range bounds | `bko.baselines.records` already refuses added rows outside the split's range, and RESEARCH asks for separately specified constraints | 2026-10-16 |
-| SNOMED-CT evidence from xref ids | pronto drops xref qualifiers, so equivalent and related cannot be told apart | 2026-10-16 |
+| Evidence from an xref's qualifier, for SNOMED-CT or ICD-9 | pronto drops xref qualifiers, so equivalent and related cannot be told apart; SNOMED-CT rows read `skos:exactMatch` instead, and ICD-9 rows, whose only MONDO evidence is the xref id, declare every live holder so the check sees each one | 2026-11-02 |
 | SNOMED-CT evidence from HPO | HPO carries no SNOMED-CT reference | 2026-10-16 |
 | Committed release slices and a manifest for an offline concept check | HPO's license bars altered extracts, and the table changes only on a re-pin | 2026-10-16 |
 | Keeping owlready2 in the `ontology` extra | A Cython build on every clone for a library nothing imports | 2026-10-16 |
@@ -172,7 +190,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); load tim
 - Owner: `src/bko/ontology/`
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
-  `tests/test_ontology_cli.py`, and `tests/test_ontology_pinned_releases.py` with `--releases`
+  `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, and `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
   passed; a person runs one of them after editing the table, re-pinning, or changing
