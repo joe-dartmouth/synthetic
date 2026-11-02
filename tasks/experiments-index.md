@@ -21,7 +21,7 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | ready | -- | Joe | final-report |
+| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | in-progress | -- | Joe | final-report |
 
 ```mermaid
 flowchart LR

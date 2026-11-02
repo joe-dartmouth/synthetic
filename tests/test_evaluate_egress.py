@@ -6,15 +6,8 @@ import dataclasses
 
 import pytest
 
-from bko.datasets.sources import (
-    DO,
-    HPO,
-    MONDO,
-    SYNTHEA_JAR,
-    UCI_HEART_DISEASE,
-    Agreement,
-    permits_sending,
-)
+from bko.datasets import sources as pinned
+from bko.datasets.sources import Agreement, Source, permits_sending
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
 from bko.evaluate.holdout_candidates import Origin
@@ -62,6 +55,7 @@ def test_a_messages_arm_opens_on_permitted_or_open_data(tmp_path, agreement):
 
 
 def test_every_pinned_source_is_open_data():
-    sources = (UCI_HEART_DISEASE, SYNTHEA_JAR, MONDO, HPO, DO)
+    sources = tuple(value for value in vars(pinned).values() if isinstance(value, Source))
+    assert {source.name for source in sources} >= {"uci-heart-disease", "uci-diabetes-130"}
     assert all(source.agreement is None for source in sources)
     assert all(permits_sending(source.agreement) for source in sources)

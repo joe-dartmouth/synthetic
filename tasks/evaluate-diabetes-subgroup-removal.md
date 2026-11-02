@@ -1,7 +1,7 @@
 ---
 id: evaluate-diabetes-subgroup-removal
 title: Subgroup removal on Diabetes 130-US Hospitals
-status: ready
+status: in-progress
 depends_on: --
 blocks: generate-bkb-curation-diabetes
 parallel_safe: false

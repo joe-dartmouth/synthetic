@@ -14,7 +14,14 @@ PINS = tuple(value for value in vars(sources).values() if isinstance(value, Sour
 
 
 def test_the_scan_finds_every_pin() -> None:
-    assert {pin.name for pin in PINS} >= {"uci-heart-disease", "synthea-jar", "mondo", "hpo", "do"}
+    assert {pin.name for pin in PINS} >= {
+        "uci-heart-disease",
+        "uci-diabetes-130",
+        "synthea-jar",
+        "mondo",
+        "hpo",
+        "do",
+    }
 
 
 @pytest.mark.parametrize("pin", PINS, ids=lambda pin: pin.name)
