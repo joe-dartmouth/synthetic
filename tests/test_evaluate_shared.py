@@ -643,6 +643,33 @@ def test_an_assumed_value_must_equal_the_other_lines(tmp_path, caplog):
     assert error.endswith("differ: {'decontaminate': ('true', 'false')}")
 
 
+def test_a_line_naming_cutoff_0_5_reads_as_one_that_names_none(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    assert " cutoff=" not in _experiment_line(folder)
+    edit_log(
+        folder, "experiment ", lambda line: line.replace("fill_to=20 ", "fill_to=20 cutoff=0.5 ")
+    )
+    code, text = shared(tmp_path, folder)
+    assert code == 0
+    assert text == (folder / "scores.csv").read_text(encoding="utf-8")
+
+
+def test_a_with_folder_scored_at_another_cutoff_is_refused(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    other = tmp_path / "other"
+    shutil.copytree(folder, other)
+    edit_log(
+        other, "experiment ", lambda line: line.replace("fill_to=20 ", "fill_to=20 cutoff=0.25 ")
+    )
+    error = refused(tmp_path, caplog, folder, other)
+    assert error.endswith("differ: {'cutoff': ('0.5', '0.25')}")
+
+
+def _experiment_line(folder: Path) -> str:
+    log = (folder / "scores.log").read_text(encoding="utf-8")
+    return next(line for line in log.splitlines() if " experiment run=" in line)
+
+
 def appended(marker: str, old: str, new: str):
     """An edit of a log's lines that appends a copy of the first line holding `marker`, edited."""
 

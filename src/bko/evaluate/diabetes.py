@@ -12,7 +12,7 @@ indicators and the field rows come from `bko.ontology.icd9`: one indicator and o
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Final
 
@@ -35,9 +35,23 @@ def indicator(row: Icd9Mapping) -> str:
     return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
 
 
-DIABETES_INDICATORS: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
-    {indicator(row): row.codes for row in ICD9_MAPPINGS}
-)
+def indicator_codes(rows: Sequence[Icd9Mapping]) -> Mapping[str, tuple[str, ...]]:
+    """Each row's indicator column and its ICD-9 categories, in row order.
+
+    Raises:
+        ValueError: If two rows' labels give one indicator name.
+    """
+    codes: dict[str, tuple[str, ...]] = {}
+    for row in rows:
+        name = indicator(row)
+        if name in codes:
+            msg = f"indicator {name!r} names 2 rows; give their labels distinct names"
+            raise ValueError(msg)
+        codes[name] = row.codes
+    return MappingProxyType(codes)
+
+
+DIABETES_INDICATORS: Final[Mapping[str, tuple[str, ...]]] = indicator_codes(ICD9_MAPPINGS)
 """Each indicator column's ICD-9 categories, in `ICD9_MAPPINGS` order, as `load_diabetes` takes
 them."""
 
@@ -170,7 +184,15 @@ def _icd9_row(row: Icd9Mapping) -> FieldMapping:
 
 
 def _lab_row(row: LabMapping) -> FieldMapping:
+    """The field row of a lab row, refusing a field or state the frame does not code."""
+    if row.field not in STATE_CODES:
+        msg = f"lab row {row.label!r}: field {row.field!r} is not a coded frame column"
+        raise ValueError(msg)
     codes = STATE_CODES[row.field]
+    unknown = sorted(row.states - set(codes))
+    if unknown:
+        msg = f"lab row {row.label!r}: state {unknown[0]!r} is not one of {row.field}'s states"
+        raise ValueError(msg)
     return FieldMapping(
         when=(Codes(row.field, frozenset(codes[state] for state in row.states)),),
         concept=row.concept,
@@ -192,16 +214,28 @@ def check_records(records: pd.DataFrame) -> None:
     """Refuse records whose columns are not the frame's or whose codes its codebook lacks.
 
     Raises:
-        ContractError: If the columns differ from `DIABETES_FRAME.columns`, in order, or a coded
-            column or the label holds a code its codebook does not.
+        ContractError: If the columns differ from `DIABETES_FRAME.columns`, in order, naming the
+            missing, the extra and the first misplaced column, or a coded column or the label
+            holds a code its codebook does not.
     """
     frame = DIABETES_FRAME
-    if tuple(records.columns) != frame.columns:
-        msg = f"the records' columns are not frame {frame.name}'s columns in order"
+    found = tuple(records.columns)
+    if found != frame.columns:
+        missing = [name for name in frame.columns if name not in found]
+        extra = [name for name in found if name not in frame.columns]
+        shared = [name for name in found if name in frame.columns]
+        expected = [name for name in frame.columns if name in found]
+        misplaced = next(
+            (ours for ours, theirs in zip(shared, expected, strict=True) if ours != theirs), None
+        )
+        msg = (
+            f"the records' columns are not frame {frame.name}'s columns in order: missing "
+            f"{missing}, extra {extra}, first out of order {misplaced!r}"
+        )
         raise ContractError(msg)
     coded = {**frame.codebook, frame.label: frame.label_meanings}
     for name, codes in coded.items():
-        stray = sorted(set(records[name].unique()) - set(codes))
+        stray = sorted(set(records[name].unique().tolist()) - set(codes))
         if stray:
             msg = f"{name} holds codes {stray} that frame {frame.name}'s codebook lacks"
             raise ContractError(msg)

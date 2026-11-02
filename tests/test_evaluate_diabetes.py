@@ -11,6 +11,7 @@ import dataclasses
 import io
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Final
 
@@ -27,7 +28,10 @@ from bko.evaluate.diabetes import (
     DIABETES_FIELD_ROWS,
     DIABETES_FRAME,
     DIABETES_INDICATORS,
+    _lab_row,
     check_records,
+    indicator,
+    indicator_codes,
 )
 from bko.evaluate.experiment import (
     CLLM_ARM,
@@ -42,6 +46,7 @@ from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run import method_arms
 from bko.evaluate.scores import parse
+from bko.gaps.shares import nested
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.prompt import system
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS
@@ -238,3 +243,52 @@ def test_a_diabetes_rehearsal_sends_no_uci_words(rehearsed):
 def test_the_uci_word_check_finds_uci_words_in_a_uci_prompt():
     assert set(_uci_words(system(UCI_FRAME))) >= {"chol", "thalach", "trestbps", "oldpeak"}
     assert not _uci_words(system(DIABETES_FRAME))
+
+
+def test_two_rows_whose_labels_share_an_indicator_name_are_refused():
+    first, second = ICD9_MAPPINGS[:2]
+    twin = dataclasses.replace(second, label=first.label.upper())
+    with pytest.raises(ValueError, match=f"indicator {indicator(first)!r} names 2 rows"):
+        indicator_codes((first, twin))
+    assert indicator_codes(ICD9_MAPPINGS) == DIABETES_INDICATORS
+
+
+@pytest.mark.parametrize(
+    ("edit", "named"),
+    [
+        (lambda records: records.drop(columns=[LABEL]), f"missing ['{LABEL}']"),
+        (lambda records: records.assign(extra=0), "extra ['extra']"),
+        (
+            lambda records: records[[records.columns[1], records.columns[0], *records.columns[2:]]],
+            f"first out of order {DIABETES_FRAME.columns[1]!r}",
+        ),
+    ],
+    ids=["missing", "extra", "misordered"],
+)
+def test_a_column_refusal_names_the_columns(tmp_path, edit, named):
+    records = load(Dataset.DIABETES, tmp_path, _context()).records
+    with pytest.raises(ContractError, match=re.escape(named)):
+        check_records(edit(records))
+
+
+def test_a_stray_code_is_named_as_a_plain_number(tmp_path):
+    records = load(Dataset.DIABETES, tmp_path, _context()).records
+    stray = records.copy()
+    stray.loc[stray.index[0], "A1Cresult"] = 9
+    with pytest.raises(ContractError, match=re.escape("A1Cresult holds codes [9] ")):
+        check_records(stray)
+
+
+@pytest.mark.parametrize(
+    ("edit", "named"),
+    [({"field": "glucose"}, "field 'glucose'"), ({"states": frozenset({">9"})}, "state '>9'")],
+    ids=["field", "state"],
+)
+def test_a_lab_row_the_frame_cannot_code_is_refused_naming_it(edit, named):
+    row = dataclasses.replace(LAB_MAPPINGS[0], **edit)
+    with pytest.raises(ValueError, match=re.escape(f"lab row {row.label!r}: {named}")):
+        _lab_row(row)
+
+
+def test_no_field_row_nests_inside_another():
+    assert nested(DIABETES_FIELD_ROWS) == {}

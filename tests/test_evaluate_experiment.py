@@ -50,7 +50,7 @@ from bko.evaluate.named_runs import (
     NamedRun,
 )
 from bko.evaluate.run import ARMS, run, score_holdout
-from bko.evaluate.scores import Measure, Scope
+from bko.evaluate.scores import Measure, Scope, Source
 from bko.gaps.definitions import Definition
 from bko.generate.local import TIMEOUT_SECONDS as LOCAL_TIMEOUT_SECONDS
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -616,5 +616,31 @@ def test_score_holdout_calls_positives_at_the_experiments_cutoff():
             if s.arm == "none" and s.measure is Measure.RECALL and s.scope is Scope.ALL
         )
 
-    assert recall(dataclasses.replace(experiment, cutoff=0.0)) == pytest.approx(1.0)
-    assert recall(dataclasses.replace(experiment, cutoff=1.5)) == pytest.approx(0.0)
+    assert recall(dataclasses.replace(experiment, cutoff=0.01)) == pytest.approx(1.0)
+    assert recall(dataclasses.replace(experiment, cutoff=0.99)) == pytest.approx(0.0)
+
+
+def test_score_holdout_calls_a_replicas_positives_at_the_experiments_cutoff():
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    experiment = dataclasses.replace(
+        SMALL, arms=("none", "smote"), candidate="none", comparators=(), replica_arms=("smote",)
+    )
+
+    def recall(experiment):
+        scores = score_holdout(parts, experiment, FAST_ARMS, frame=UCI_FRAME)
+        return next(
+            s.value
+            for s in scores
+            if s.source is Source.REPLICA and s.measure is Measure.RECALL and s.scope is Scope.ALL
+        )
+
+    assert recall(dataclasses.replace(experiment, cutoff=0.01)) == pytest.approx(1.0)
+    assert recall(dataclasses.replace(experiment, cutoff=0.99)) == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    "cutoff", [0.0, 1.0, -0.5, 1.5, math.nan, math.inf, True, 1, "0.5"], ids=repr
+)
+def test_a_cutoff_outside_the_open_unit_interval_is_refused(cutoff):
+    with pytest.raises(ValueError, match=f"cutoff {cutoff!r} must be a float strictly between"):
+        dataclasses.replace(E1, cutoff=cutoff)

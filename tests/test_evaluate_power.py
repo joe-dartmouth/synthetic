@@ -36,3 +36,26 @@ def test_the_mde_falls_with_holdouts_and_rises_with_ratio():
     assert many < few
     assert mde(0.2, holdouts=100, ratio=0.5) > many
     assert mde(0.4, holdouts=100, ratio=0.25) == pytest.approx(2 * many, rel=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        ({"sd": -0.1}, "standard deviation -0.1 must be a number at or above 0"),
+        ({"sd": math.nan}, "standard deviation nan must be a number at or above 0"),
+        ({"ratio": -0.01}, "ratio -0.01 must be a number at or above 0"),
+        ({"ratio": math.nan}, "ratio nan must be a number at or above 0"),
+        ({"holdouts": 1}, "2 or more holdouts"),
+    ],
+    ids=["negative-sd", "nan-sd", "negative-ratio", "nan-ratio", "one"],
+)
+def test_a_design_with_no_defined_mde_is_refused(arguments, match):
+    design = {"sd": 0.2, "holdouts": 10, "ratio": 0.25} | arguments
+    with pytest.raises(ValueError, match=match):
+        mde(design["sd"], holdouts=design["holdouts"], ratio=design["ratio"])
+
+
+@pytest.mark.parametrize("holdouts", [10.0, True, "10"], ids=repr)
+def test_holdouts_that_are_not_an_int_are_refused(holdouts):
+    with pytest.raises(TypeError, match=f"holdouts {holdouts!r} must be an int"):
+        mde(0.2, holdouts=holdouts, ratio=0.25)

@@ -87,7 +87,8 @@ class Experiment:
             E3 keeps them and counts them.
         training_fraction: The share of each cell's training rows every holdout keeps before any
             arm runs (`bko.datasets.split.subsampled`); 1 keeps them all.
-        cutoff: The probability at or above which utility calls a record positive.
+        cutoff: The probability at or above which utility calls a record positive; a float in
+            (0, 1).
     """
 
     holdout_seeds: tuple[int, ...]
@@ -125,7 +126,8 @@ class Experiment:
                 read after at least one holdout, the idle limit is not above 0 seconds, the
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
-                removes copies.
+                removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
+                bool among them).
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -156,6 +158,7 @@ class Experiment:
         if not 0 < self.confidence < 1:
             msg = f"confidence {self.confidence} must lie strictly between 0 and 1"
             raise ValueError(msg)
+        self._check_cutoff()
         if self.attempts < 1:
             msg = f"attempts {self.attempts}: an arm needs at least one attempt"
             raise ValueError(msg)
@@ -192,6 +195,11 @@ class Experiment:
             raise ValueError(msg)
         if self.decontaminate:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
+            raise ValueError(msg)
+
+    def _check_cutoff(self) -> None:
+        if not isinstance(self.cutoff, float) or not 0 < self.cutoff < 1:
+            msg = f"cutoff {self.cutoff!r} must be a float strictly between 0 and 1"
             raise ValueError(msg)
 
     def _check_training(self) -> None:

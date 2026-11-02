@@ -113,7 +113,9 @@ DRUGS: Final = (
     "glimepiride",
     "repaglinide",
 )
-"""The eight drug columns most often other than `No` across the archive's encounters, most first."""
+"""The eight drug columns most often other than `No` across the archive's encounters, most first.
+
+The archive's other 15 drug columns are never read."""
 
 DIAGNOSES: Final = ("diag_1", "diag_2", "diag_3")
 """The diagnosis columns an indicator reads."""
@@ -172,9 +174,13 @@ STATE_CODES: Final[Mapping[str, Mapping[str, int]]] = {
 }
 """Every coded column of a record besides `age` and `sex`, in record order, and its codes."""
 
-_WHOLE: Final = r"\d+"
-_NUMERIC_CODE: Final = r"(\d{1,3})(?:\.(\d{1,2}))?"
-_DIAGNOSIS: Final = rf"\?|{_NUMERIC_CODE}|V\d{{2}}(?:\.\d{{1,2}})?|E\d{{3}}(?:\.\d)?"
+MEMBER_LIMIT: Final = 64 * 2**20
+"""The most bytes a member may hold once decompressed; the archive's largest holds under 20 MiB."""
+
+_WHOLE: Final = r"[0-9]{1,18}"
+"""An ASCII whole number that fits int64; `\\d` and `int` also read other scripts' digits."""
+_NUMERIC_CODE: Final = r"([0-9]{1,3})(?:\.([0-9]{1,2}))?"
+_DIAGNOSIS: Final = rf"\?|{_NUMERIC_CODE}|V[0-9]{{2}}(?:\.[0-9]{{1,2}})?|E[0-9]{{3}}(?:\.[0-9])?"
 
 
 def parse_diabetic(text: str) -> pd.DataFrame:
@@ -186,7 +192,8 @@ def parse_diabetic(text: str) -> pd.DataFrame:
         text: The member's text.
 
     Returns:
-        The 50 `COLUMNS` as strings, in file order.
+        The 50 `COLUMNS` as strings, in file order, indexed by `line`, the physical line each row
+        ends on, so a quoted line break inside a field keeps later rows' numbers right.
 
     Raises:
         ContractError: If the header is not `COLUMNS` or a line has other than 50 fields.
@@ -197,12 +204,19 @@ def parse_diabetic(text: str) -> pd.DataFrame:
         msg = f"{MEMBER}: the header is not the archive's {len(COLUMNS)} columns in order"
         raise ContractError(msg)
     rows: list[list[str]] = []
-    for row in reader:
-        if len(row) != len(COLUMNS):
-            msg = f"{MEMBER} line {reader.line_num}: {len(row)} fields, expected {len(COLUMNS)}"
-            raise ContractError(msg)
-        rows.append(row)
-    return pd.DataFrame(rows, columns=list(COLUMNS), dtype=str)
+    lines: list[int] = []
+    try:
+        for row in reader:
+            if len(row) != len(COLUMNS):
+                msg = f"{MEMBER} line {reader.line_num}: {len(row)} fields, expected {len(COLUMNS)}"
+                raise ContractError(msg)
+            rows.append(row)
+            lines.append(reader.line_num)
+    except csv.Error as exc:
+        msg = f"{MEMBER} line {reader.line_num}: {exc}"
+        raise ContractError(msg) from exc
+    index = pd.Index(lines, dtype="int64", name="line")
+    return pd.DataFrame(rows, columns=list(COLUMNS), index=index, dtype=str)
 
 
 def excluded_discharges(ids: str) -> frozenset[int]:
@@ -217,16 +231,26 @@ def excluded_discharges(ids: str) -> frozenset[int]:
         any case.
 
     Raises:
-        ContractError: If there is no discharge block or one of its ids is not a whole number.
+        ContractError: If there is no discharge block, a block's header row has an empty first
+            cell, one of the discharge ids is not a whole number, or the text is not CSV.
     """
     found: set[int] = set()
     block: str | None = None
     seen = False
-    for row in csv.reader(io.StringIO(ids, newline="")):
+    reader = csv.reader(io.StringIO(ids, newline=""))
+    try:
+        rows = list(reader)
+    except csv.Error as exc:
+        msg = f"{IDS_MEMBER} line {reader.line_num}: {exc}"
+        raise ContractError(msg) from exc
+    for row in rows:
         cells = [cell.strip() for cell in row]
         if not any(cells):
             block = None
         elif block is None:
+            if not cells[0]:
+                msg = f"{IDS_MEMBER}: a block header with an empty first cell: {row!r}"
+                raise ContractError(msg)
             block = cells[0]
             seen = seen or block == "discharge_disposition_id"
         elif block == "discharge_disposition_id":
@@ -323,22 +347,14 @@ def load_diabetes(
 
     Raises:
         UnavailableError: If the snapshot is absent.
-        ContractError: If the archive or a member contradicts its pin or schema, or
-            `IDS_mapping.csv` names other Expired or Hospice discharges than `EXCLUDED_DISCHARGES`.
+        ContractError: If the archive or a member contradicts its pin or schema, a member holds
+            more than `MEMBER_LIMIT` bytes, `IDS_mapping.csv` names other Expired or Hospice
+            discharges than `EXCLUDED_DISCHARGES`, or the cohort holds no record or no record
+            readmitted in under 30 days.
         ValueError: As `frame_records` raises it.
     """
     data = read_verified(source, data_dir)
-    texts: dict[str, str] = {}
-    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-        for member in (MEMBER, IDS_MEMBER):
-            try:
-                texts[member] = bundle.read(member).decode("utf-8")
-            except KeyError as exc:
-                msg = f"{source.name}: cannot read {member}: the archive has no such member"
-                raise ContractError(msg) from exc
-            except (zipfile.BadZipFile, zlib.error, UnicodeDecodeError) as exc:
-                msg = f"{source.name}: cannot read {member}: {type(exc).__name__}: {exc}"
-                raise ContractError(msg) from exc
+    texts = {member: _member(data, member, source) for member in (MEMBER, IDS_MEMBER)}
     named = excluded_discharges(texts[IDS_MEMBER])
     if named != EXCLUDED_DISCHARGES:
         msg = (
@@ -346,7 +362,49 @@ def load_diabetes(
             f"not {sorted(EXCLUDED_DISCHARGES)}"
         )
         raise ContractError(msg)
-    return frame_records(parse_diabetic(texts[MEMBER]), indicators=indicators)
+    records = frame_records(parse_diabetic(texts[MEMBER]), indicators=indicators)
+    if records.empty:
+        msg = f"{source.name}: the cohort holds no records"
+        raise ContractError(msg)
+    if not records[LABEL].any():
+        msg = f"{source.name}: the cohort holds no record readmitted in under 30 days"
+        raise ContractError(msg)
+    return records
+
+
+def _member(data: bytes, member: str, source: Source) -> str:
+    """Return `member` of the zip `data` as UTF-8 text, refusing one over `MEMBER_LIMIT` bytes."""
+    where = f"{source.name}: cannot read {member}"
+    try:
+        return _capped(data, member, where).decode("utf-8")
+    except KeyError as exc:
+        msg = f"{where}: the archive has no such member"
+        raise ContractError(msg) from exc
+    except (
+        zipfile.BadZipFile,
+        zlib.error,
+        UnicodeDecodeError,
+        NotImplementedError,
+        RuntimeError,
+        EOFError,
+    ) as exc:
+        msg = f"{where}: {type(exc).__name__}: {exc}"
+        raise ContractError(msg) from exc
+
+
+def _capped(data: bytes, member: str, where: str) -> bytes:
+    """Return `member`'s bytes, refusing one whose stated or read size passes `MEMBER_LIMIT`."""
+    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+        size = bundle.getinfo(member).file_size
+        if size > MEMBER_LIMIT:
+            msg = f"{where}: {size} bytes, over the {MEMBER_LIMIT}-byte cap"
+            raise ContractError(msg)
+        with bundle.open(member) as handle:
+            body = handle.read(MEMBER_LIMIT + 1)
+    if len(body) > MEMBER_LIMIT:
+        msg = f"{where}: over the {MEMBER_LIMIT}-byte cap"
+        raise ContractError(msg)
+    return body
 
 
 def _categories(
@@ -375,11 +433,11 @@ def _categories(
 
 def _checked(raw: pd.DataFrame) -> pd.DataFrame:
     """Return `raw` sorted by `encounter_id` once every value it is read for fits the schema."""
-    malformed = ~raw["encounter_id"].str.fullmatch(_WHOLE)
+    malformed = ~raw["encounter_id"].str.fullmatch(_WHOLE).to_numpy(dtype=bool)
     if malformed.any():
-        first = int(malformed.to_numpy().argmax())
+        first = int(malformed.argmax())
         value = raw["encounter_id"].iloc[first]
-        msg = f"{MEMBER} line {first + 2}: encounter_id is {value!r}, not a whole number"
+        msg = f"{MEMBER} line {raw.index[first]}: encounter_id is {value!r}, not a whole number"
         raise ContractError(msg)
     encounters = raw["encounter_id"].astype("int64")
     order = encounters.sort_values(kind="stable").index

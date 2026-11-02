@@ -6,7 +6,7 @@ The rows are the concept rows, the excluded Synthea codes and the excluded ICD-9
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, assert_never
 
@@ -274,8 +274,11 @@ def _xref_problem(
         return f"{where} has no xref {row.xref} on {row.concept}"
     live = holders.get(_key(row), ())
     if frozenset(live) != row.holders:
-        return (
-            f"xref {row.xref} is on {', '.join(live)}; "
-            f"the row declares {', '.join(sorted(row.holders))}"
-        )
+        declared = _listed(sorted(row.holders))
+        return f"xref {row.xref} is on {_listed(live)}; the row declares {declared}"
     return None
+
+
+def _listed(curies: Sequence[str]) -> str:
+    """`curies` joined by commas, or `none`."""
+    return ", ".join(curies) or "none"

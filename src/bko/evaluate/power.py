@@ -32,15 +32,23 @@ def mde(
         The smallest mean contrast the interval reads above zero at `power`.
 
     Raises:
-        ValueError: If there are fewer than 2 holdouts, or the confidence or power is not in
-            (0, 1).
+        TypeError: If the holdouts are not an int.
+        ValueError: If there are fewer than 2 holdouts, the standard deviation or the ratio is NaN
+            or below 0, or the confidence or power is not in (0, 1).
     """
+    if isinstance(holdouts, bool) or not isinstance(holdouts, int):
+        msg = f"holdouts {holdouts!r} must be an int"
+        raise TypeError(msg)
     if holdouts < 2:
         msg = f"an interval needs 2 or more holdouts; got {holdouts}"
         raise ValueError(msg)
     if not 0 < confidence < 1 or not 0 < power < 1:
         msg = f"confidence {confidence} and power {power} must lie strictly between 0 and 1"
         raise ValueError(msg)
+    for name, value in (("standard deviation", sd), ("ratio", ratio)):
+        if not value >= 0:
+            msg = f"{name} {value} must be a number at or above 0"
+            raise ValueError(msg)
     freedom = holdouts - 1
     quantiles = float(student.ppf(1 - (1 - confidence) / 2, freedom)) + float(
         student.ppf(power, freedom)

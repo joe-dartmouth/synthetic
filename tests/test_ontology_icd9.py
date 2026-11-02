@@ -251,3 +251,18 @@ def test_an_icd9_row_checks_its_concept_like_any_concept_row() -> None:
     assert _problem(COPD_ROW, {"MONDO": _mondo(renamed)}) == (
         "named 'COPD' in mondo releases/2026-10-06"
     )
+
+
+def test_an_icd9_rows_xref_is_its_first_category() -> None:
+    assert all(row.xref == f"ICD9:{row.codes[0]}" for row in ICD9_MAPPINGS)
+    with pytest.raises(ValueError, match=re.escape("xref ICD9:496 is not ICD9:491")):
+        replace(COPD_ROW, codes=("491",))
+    with pytest.raises(ValueError, match="no ICD-9 categories"):
+        replace(COPD_ROW, codes=())
+
+
+def test_a_side_with_no_holder_is_rendered_none() -> None:
+    bare = replace(COPD_ROW, holders=frozenset())
+    assert _problem(bare, {"MONDO": _mondo(COPD)}) == (
+        "xref ICD9:496 is on MONDO:0005002; the row declares none"
+    )

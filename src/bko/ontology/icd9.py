@@ -25,7 +25,7 @@ class Icd9Mapping:
     Attributes:
         codes: The ICD-9 categories a diagnosis token falls in for the row to hold, matched by
             category rather than by string prefix.
-        xref: The `ICD9:` xref id the concept carries.
+        xref: The `ICD9:` xref id the concept carries: `ICD9:` and the first of `codes`.
         concept: The MONDO curie.
         label: The concept's name in its pinned release, verbatim.
         holders: Every live concept in the pinned release that carries `xref`, `concept` among
@@ -41,6 +41,20 @@ class Icd9Mapping:
     holders: frozenset[str]
     source: str
     limits: str
+
+    def __post_init__(self) -> None:
+        """Tie the xref to the row's first category.
+
+        Raises:
+            ValueError: If there is no category or `xref` is not `ICD9:` and the first one.
+        """
+        if not self.codes:
+            msg = f"{self.label}: no ICD-9 categories"
+            raise ValueError(msg)
+        expected = f"ICD9:{self.codes[0]}"
+        if self.xref != expected:
+            msg = f"{self.label}: xref {self.xref} is not {expected}, its first category's"
+            raise ValueError(msg)
 
 
 @dataclass(frozen=True, slots=True)

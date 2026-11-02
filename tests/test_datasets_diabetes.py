@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
 import subprocess
 import sys
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -25,6 +27,8 @@ from bko.datasets.diabetes import (
     DRUGS,
     EXCLUDED_DISCHARGES,
     GLU_CODES,
+    IDS_MEMBER,
+    MEMBER,
     RACE_CODES,
     excluded_discharges,
     frame_records,
@@ -32,6 +36,7 @@ from bko.datasets.diabetes import (
     parse_diabetic,
 )
 from bko.datasets.errors import ContractError
+from bko.datasets.sources import Source
 from tests._datasets_fixtures import plant
 from tests._diabetes_fixtures import (
     IDS_EXCERPT,
@@ -68,8 +73,8 @@ def test_the_header_must_be_the_archives_fifty_columns_in_order():
     assert len(COLUMNS) == 50
     raw = parse_diabetic(text(REAL_LAYOUT))
     assert list(raw.columns) == list(COLUMNS)
-    assert raw.loc[0, "diag_1"] == "8"
-    assert raw.loc[0, "diag_2"] == "250.43"
+    assert raw.loc[2, "diag_1"] == "8"
+    assert raw.loc[2, "diag_2"] == "250.43"
     columns = list(COLUMNS)
     columns[2], columns[3] = columns[3], columns[2]
     with pytest.raises(ContractError, match="header"):
@@ -87,7 +92,7 @@ def test_a_row_with_the_wrong_field_count_names_its_line():
 
 def test_none_in_the_lab_columns_is_a_state_not_missing():
     raw = parse_diabetic(text(_patient(1, A1Cresult="None", max_glu_serum="None")))
-    assert raw.loc[0, "A1Cresult"] == "None"
+    assert raw.loc[2, "A1Cresult"] == "None"
     frame = frame_records(raw, indicators=INDICATORS)
     assert frame.loc[1, "A1Cresult"] == A1C_CODES["None"] == 0
     assert frame.loc[1, "max_glu_serum"] == GLU_CODES["None"] == 0
@@ -253,6 +258,9 @@ def test_v_and_e_codes_never_match_a_numeric_code():
         ("250.4", "250.4", 1),
         ("250.4", "250.04", 0),
         ("250.4", "250", 0),
+        ("250.41", "250.41", 1),
+        ("250.41", "250.4", 0),
+        ("250.41", "250.42", 0),
         ("250", "250.43", 1),
         ("25", "250", 0),
         ("40", "401", 0),
@@ -389,3 +397,153 @@ def test_load_reads_the_member_of_a_verified_snapshot(tmp_path):
     plant(stray, lone_source, lone)
     with pytest.raises(ContractError, match=re.escape("IDS_mapping.csv")):
         load_diabetes(stray, indicators=INDICATORS, source=lone_source)
+
+
+# Malformed values
+
+
+_WHOLE_FIELDS = ("patient_nbr", "discharge_disposition_id", *COUNTS)
+
+
+def _arabic(digits: str) -> str:
+    """`digits` in Arabic-Indic digits, which Python's `int` and `\\d` read as ASCII ones."""
+    return "".join(chr(0x660 + int(digit)) for digit in digits)
+
+
+_ARABIC_33 = _arabic("33")
+"""Arabic-Indic digits that Python's `int` reads as 33."""
+
+_OVERSIZED = "1" * 30
+"""A whole number too large for int64."""
+
+
+@pytest.mark.parametrize("value", [_ARABIC_33, _OVERSIZED, "12a", "-1", "1.0", ""])
+@pytest.mark.parametrize("name", _WHOLE_FIELDS)
+def test_a_field_that_is_not_an_ascii_whole_number_names_its_encounter(name, value):
+    with pytest.raises(ContractError, match=re.escape(f"encounter 9: {name} is {value!r}")):
+        _records(_patient(1), diabetic_line(encounter_id="9", **{name: value}))
+
+
+@pytest.mark.parametrize("value", [_ARABIC_33, _OVERSIZED, "12a", "-1", ""])
+def test_a_malformed_encounter_id_names_its_line(value):
+    lines = (_patient(1), _patient(2), diabetic_line(encounter_id=value))
+    with pytest.raises(ContractError, match=re.escape(f"line 4: encounter_id is {value!r}")):
+        _records(*lines)
+
+
+def test_a_malformed_encounter_ids_line_counts_a_quoted_line_break():
+    spread = diabetic_line(medical_specialty='"Two\r\nlines"', encounter_id="2", patient_nbr="2")
+    with pytest.raises(ContractError, match=re.escape("line 5: encounter_id is 'x'")):
+        _records(_patient(1), spread, diabetic_line(encounter_id="x"))
+
+
+def test_a_repeated_encounter_id_is_refused():
+    with pytest.raises(ContractError, match="encounter 4: listed more than once"):
+        _records(_patient(4), diabetic_line(encounter_id="4", patient_nbr="8"))
+
+
+@pytest.mark.parametrize("diagnosis", ["diag_1", "diag_2", "diag_3"])
+@pytest.mark.parametrize(
+    "token", [_arabic("250"), f"250.{_arabic('4')}", f"V{_arabic('45')}", f"E{_arabic('8')}"]
+)
+def test_a_diagnosis_with_non_ascii_digits_is_refused(diagnosis, token):
+    with pytest.raises(ContractError, match=re.escape(f"encounter 6: {diagnosis} is {token!r}")):
+        _records(_patient(1), _patient(6, **{diagnosis: token}))
+
+
+@pytest.mark.parametrize(
+    ("indicators", "match"),
+    [
+        ({"": ("401",)}, "the name is empty or a frame column"),
+        ({"insulin": ("401",)}, "the name is empty or a frame column"),
+        ({LABEL: ("401",)}, "the name is empty or a frame column"),
+        ({"dx": ()}, "no ICD-9 categories"),
+        ({"dx": ("4010",)}, "'4010' is not a numeric ICD-9 category"),
+        ({"dx": (_arabic("401"),)}, "is not a numeric ICD-9 category"),
+    ],
+)
+def test_an_indicator_the_frame_cannot_hold_is_refused(indicators, match):
+    with pytest.raises(ValueError, match=re.escape(match)):
+        _records(_patient(1), indicators=indicators)
+
+
+def test_a_non_whole_discharge_id_in_the_mapping_is_refused():
+    ids = IDS_EXCERPT.replace("7,Left AMA", f"{_arabic('7')},Left AMA")
+    with pytest.raises(
+        ContractError, match=re.escape(f"discharge_disposition_id {_arabic('7')!r}")
+    ):
+        excluded_discharges(ids)
+    oversized = IDS_EXCERPT.replace("7,Left AMA", f"{_OVERSIZED},Left AMA")
+    with pytest.raises(ContractError, match="is not a whole number"):
+        excluded_discharges(oversized)
+
+
+def test_a_mapping_block_header_with_an_empty_first_cell_is_refused():
+    ids = IDS_EXCERPT.replace(
+        "discharge_disposition_id,description", ",discharge_disposition_id description"
+    )
+    with pytest.raises(ContractError, match="block header with an empty first cell"):
+        excluded_discharges(ids)
+
+
+# Archive refusals
+
+
+def _planted(tmp_path: Path, data: bytes) -> Source:
+    source = pin(data, "uci-diabetes-130")
+    plant(tmp_path, source, data)
+    return source
+
+
+def _stored(diabetic: bytes) -> bytes:
+    """Return `archive`'s zip with `diabetic` as the encounters member's raw bytes."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as bundle:
+        bundle.writestr(MEMBER, diabetic)
+        bundle.writestr(IDS_MEMBER, IDS_EXCERPT)
+    return buffer.getvalue()
+
+
+def _corrupt_crc(data: bytes) -> bytes:
+    """Flip one byte of `diabetic_data.csv`'s stored body, so its CRC no longer matches."""
+    start = data.index(MEMBER.encode()) + len(MEMBER)
+    return data[:start] + bytes([data[start] ^ 0xFF]) + data[start + 1 :]
+
+
+@pytest.mark.parametrize(
+    ("make", "match"),
+    [
+        (lambda: b"not a zip archive", "BadZipFile"),
+        (lambda: _corrupt_crc(archive(text(*_mixed_lines()))), "BadZipFile"),
+        (lambda: _stored(text(*_mixed_lines()).encode("utf-16")), "UnicodeDecodeError"),
+        (lambda: archive(chr(0xFEFF) + text(*_mixed_lines())), "header"),
+    ],
+    ids=["not-a-zip", "bad-crc", "not-utf-8", "bom"],
+)
+def test_a_damaged_archive_is_a_contract_error(tmp_path, make, match):
+    source = _planted(tmp_path, make())
+    with pytest.raises(ContractError, match=match):
+        load_diabetes(tmp_path, indicators=INDICATORS, source=source)
+
+
+def test_a_member_larger_than_the_cap_is_refused_before_it_is_read(tmp_path, monkeypatch):
+    monkeypatch.setattr("bko.datasets.diabetes.MEMBER_LIMIT", 100)
+    source = _planted(tmp_path, archive(text(*_mixed_lines())))
+    with pytest.raises(ContractError, match=r"diabetic_data.csv: \d+ bytes, over the 100-byte cap"):
+        load_diabetes(tmp_path, indicators=INDICATORS, source=source)
+
+
+@pytest.mark.parametrize(
+    ("readmitted", "match"),
+    [(None, "no records"), ("NO", "no record readmitted in under 30 days")],
+    ids=["empty", "no-label-1"],
+)
+def test_load_refuses_a_cohort_it_cannot_score(tmp_path, readmitted, match):
+    lines = (
+        [diabetic_line(encounter_id="1", age="[0-10)")]
+        if readmitted is None
+        else [_patient(n, readmitted=readmitted) for n in (1, 2)]
+    )
+    source = _planted(tmp_path, archive(text(*lines)))
+    with pytest.raises(ContractError, match=match):
+        load_diabetes(tmp_path, indicators=INDICATORS, source=source)
