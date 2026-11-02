@@ -15,6 +15,7 @@ import torch
 import bko.baselines.classical as classical_module
 from bko.baselines.classical import _predictors, cart, gaussian_copula
 from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request, Strata, Stratum
 from bko.baselines.synthesizers import fill
@@ -140,12 +141,16 @@ def test_cart_copies_measured_values_from_training_rows(cart_runs):
 def test_each_classical_method_logs_a_fit_line_in_ctgans_format(method, name, caplog):
     quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
     request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
-    with caplog.at_level(logging.INFO):
-        method(TOY_TRAIN, request)
+    token = CURRENT_FILL.set(Fill(3, "replica"))
+    try:
+        with caplog.at_level(logging.INFO):
+            method(TOY_TRAIN, request)
+    finally:
+        CURRENT_FILL.reset(token)
     fits = [r.getMessage() for r in caplog.records if r.name == classical_module.logger.name]
     fits = [m for m in fits if m.startswith("fit ")]
     assert len(fits) == 1
-    assert re.fullmatch(rf"fit method={name} seconds=\d+\.\d", fits[0])
+    assert re.fullmatch(rf"fit holdout=3 fill=replica method={name} seconds=\d+\.\d", fits[0])
 
 
 def _ticking(monkeypatch) -> dict[str, float]:
@@ -177,7 +182,7 @@ def test_the_copula_fit_line_spans_its_fit_alone(monkeypatch, caplog):
     request = Request(quota=dict.fromkeys(SHORT, 3), strata=Strata.CELL, seed=0, frame=TOY)
     with caplog.at_level(logging.INFO):
         gaussian_copula(TOY_TRAIN, request)
-    assert _fit_seconds(caplog) == ["fit method=gaussian-copula seconds=7.5"]
+    assert _fit_seconds(caplog) == ["fit holdout=-1 fill=none method=gaussian-copula seconds=7.5"]
 
 
 def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypatch, caplog):
@@ -199,7 +204,8 @@ def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypa
         cart(TOY_TRAIN, request)
     # Per later column: the tree's 10, its own predictors' 100, and the leaf assignment's 100.
     later = len(TOY.columns) - 1
-    assert _fit_seconds(caplog) == [f"fit method=cart seconds={210.0 * later:.1f}"]
+    expected = f"fit holdout=-1 fill=none method=cart seconds={210.0 * later:.1f}"
+    assert _fit_seconds(caplog) == [expected]
 
 
 @pytest.mark.parametrize("method", [gaussian_copula, cart], ids=["copula", "cart"])

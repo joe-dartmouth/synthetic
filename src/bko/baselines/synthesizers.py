@@ -6,7 +6,8 @@ values fall in a stratum still short, until every quota is met or `MAX_DRAWN_ROW
 SDV seeds no fit, so the run's seed reaches the fit through numpy's and torch's global generators,
 restored afterwards; SDV seeds its own sampling after every fit. Training runs on the CPU with
 `TORCH_THREADS` threads, so a seed gives the same rows on one machine and lock. The metadata,
-columns and precision are the request's frame's. ADR `research/baseline-augmentation-design`
+columns and precision are the request's frame's. The `fit` and `filled` lines name the harness
+fill (`bko.baselines.fills`). ADR `research/baseline-augmentation-design`
 records the choices.
 """
 
@@ -27,6 +28,7 @@ from sdv.metadata import Metadata
 from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 
 from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, no_rows, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.frames import FrameSpec
@@ -156,7 +158,13 @@ def fill(
                 hits = rows.loc[[key == stratum for key in keys]].head(need)
                 kept[stratum].append(hits)
                 needed[stratum] = need - len(hits)
-    logger.info("filled method=%s drawn=%d added=%d", method, drawn, request.rows)
+    logger.info(
+        "filled holdout=%d fill=%s method=%s drawn=%d added=%d",
+        *fill_names(),
+        method,
+        drawn,
+        request.rows,
+    )
     return _joined(kept, request)
 
 
@@ -178,7 +186,12 @@ def _synthesize(
     with seeded(request.seed):
         start = time.perf_counter()
         synthesizer.fit(train.loc[:, list(request.frame.columns)])
-        logger.info("fit method=%s seconds=%.1f", method, time.perf_counter() - start)
+        logger.info(
+            "fit holdout=%d fill=%s method=%s seconds=%.1f",
+            *fill_names(),
+            method,
+            time.perf_counter() - start,
+        )
         params = {**synthesizer.get_parameters(), "torch_threads": TORCH_THREADS}
         try:
             added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)

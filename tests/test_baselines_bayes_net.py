@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import hashlib
+import logging
 import math
 
 import numpy as np
@@ -26,6 +27,7 @@ from bko.baselines.bayes_net import (
     mutual_information,
 )
 from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import derived_seed, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
 from bko.baselines.synthesizers import fill
@@ -193,6 +195,27 @@ def test_the_network_fills_the_toy_frame():
     added = bayes_net(TOY_TRAIN, request).added
     assert list(added.columns) == list(TOY.columns)
     assert len(added) == sum(quota.values())
+
+
+def test_the_fit_line_names_the_harness_fill(caplog):
+    quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
+    request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
+    caplog.set_level(logging.INFO, logger=bayes_net_module.logger.name)
+    bayes_net(TOY_TRAIN, request)
+    token = CURRENT_FILL.set(Fill(2, "gap"))
+    try:
+        bayes_net(TOY_TRAIN, request)
+    finally:
+        CURRENT_FILL.reset(token)
+    fits = [
+        r.getMessage().split(" seconds=")[0]
+        for r in caplog.records
+        if r.name == bayes_net_module.logger.name and r.getMessage().startswith("fit ")
+    ]
+    assert fits == [
+        "fit holdout=-1 fill=none method=bayes-net",
+        "fit holdout=2 fill=gap method=bayes-net",
+    ]
 
 
 def test_a_code_no_training_row_holds_is_no_state_and_draws_no_crash():

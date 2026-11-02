@@ -57,7 +57,7 @@ We will build **an in-house GreedyBayes learner, `bko.baselines.bayes_net`**, ru
   parent set, and counts each table with `np.bincount`.
 - **Params.** The `arm` line names the request's seed, the first field, `k`, `BINS`, the
   equivalent sample size, each field's number of states and the learned edges as `[parent, child]`
-  in drawing order; a `fit method=bayes-net seconds=` line times the binning and the search.
+  in drawing order; a `fit holdout=%d fill=%s method=bayes-net seconds=` line times the binning and the search.
 
 ## Rationale
 

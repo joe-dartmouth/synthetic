@@ -334,9 +334,10 @@ label (`bko.evaluate.cllm`, `bko.evaluate.curation`)."""
 CLLM_RAW_ARM: Final = "cllm-uncurated"
 """`cllm` with every accepted row kept: the same prompt, no curation."""
 
-CLLM_BUDGET: Final = 9
-"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
-pilots measured over UCI and Synthea (ADR `research/cllm-arm-design`, The pilot)."""
+CLLM_BUDGET: Final = 22
+"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s`
+measured: B3's `cllm` on Synthea kept 0.0707 of replica `<65/female/1`'s rows reaching its curator
+(ADR `research/cllm-arm-design`, Budget)."""
 
 MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
     {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,7 @@ from sdv.single_table import CTGANSynthesizer, TVAESynthesizer
 
 import bko.baselines.synthesizers as synth_module
 from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request
 from bko.baselines.synthesizers import (
@@ -56,6 +58,35 @@ def test_fill_meets_the_quota_stratum_by_stratum():
     got = fill(FakeModel(TRAIN), request, method="fake", batch=50, limit=10_000)
     assert cell_list(got) == [stratum for stratum, n in request.quota.items() for _ in range(n)]
     assert got.index.tolist() == list(range(-1, -len(got) - 1, -1))
+
+
+def test_fill_names_the_harness_fill_or_none_in_its_filled_line(caplog):
+    caplog.set_level(logging.INFO, logger=synth_module.logger.name)
+    fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=50, limit=10_000)
+    token = CURRENT_FILL.set(Fill(7, "replica"))
+    try:
+        fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=50, limit=10_000)
+    finally:
+        CURRENT_FILL.reset(token)
+    filled = [m for m in caplog.messages if m.startswith("filled ")]
+    assert [m.split(" drawn=")[0] for m in filled] == [
+        "filled holdout=-1 fill=none method=fake",
+        "filled holdout=7 fill=replica method=fake",
+    ]
+
+
+@pytest.mark.parametrize("name", sorted(ADAPTERS))
+def test_each_synthesizer_names_the_harness_fill_in_its_fit_line(name, caplog):
+    adapter, parameters = ADAPTERS[name]
+    caplog.set_level(logging.INFO, logger=synth_module.logger.name)
+    token = CURRENT_FILL.set(Fill(5, "gap"))
+    try:
+        adapter(TRAIN, Request(quota=QUOTA, seed=3), parameters=parameters)
+    finally:
+        CURRENT_FILL.reset(token)
+    fits = [m for m in caplog.messages if m.startswith("fit ")]
+    assert len(fits) == 1
+    assert fits[0].startswith(f"fit holdout=5 fill=gap method={name} seconds=")
 
 
 def test_fill_takes_a_stratums_first_matches_in_draw_order():

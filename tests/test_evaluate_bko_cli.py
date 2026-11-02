@@ -66,6 +66,19 @@ def test_score_runs_a_bko_arm_and_compare_judges_its_validity(tmp_path, caplog):
     assert "mean arm=bko" in caplog.text
 
 
+def test_score_logs_the_candidates_files_sha256(tmp_path, caplog):
+    _, log, _ = paid_run(tmp_path, caplog)
+    path = candidates_for(log)
+    data = path.read_bytes()
+    lines = len(data.splitlines()) - 1
+    digest = hashlib.sha256(data).hexdigest()
+    expected = f"candidates path={path} lines={lines} sha256={digest}"
+    assert lines > 0
+    assert caplog.messages.count(expected) == 1
+    at = caplog.messages.index(expected)
+    assert caplog.messages[at - 1].startswith("scores rows=")
+
+
 def test_score_needs_a_log_for_bko_arms(tmp_path):
     send = scripted()
     ctx, _ = context(send)
@@ -390,7 +403,10 @@ def test_a_failure_mid_run_keeps_the_calls_before_it_in_the_sums(tmp_path, caplo
     caplog.set_level(logging.INFO)
     assert main(score_argv(tmp_path / "calls.jsonl", tmp_path), context=ctx, out=out) == 2
     assert out.getvalue() == ""
-    guided = [m for m in caplog.messages if m.startswith("guided arm=bko ")]
+    guided = [m for m in caplog.messages if m.startswith("guided ") and " arm=bko " in m]
+    first, second = NARROW.holdout_seeds[:2]
+    assert guided[0].startswith(f"guided holdout={first} fill=gap arm=bko ")
+    assert guided[1].startswith(f"guided holdout={second} fill=gap arm=bko ")
     assert "outcome=returned calls=1-2 " in guided[0]
     assert "outcome=failed calls=3-4 " in guided[1]
     assert _validity(caplog) == [

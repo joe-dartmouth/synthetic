@@ -35,3 +35,9 @@ class Fill:
 
 CURRENT_FILL: Final[ContextVar[Fill | None]] = ContextVar("current_fill", default=None)
 """The fill the running runner call serves; None outside a harness fill."""
+
+
+def fill_names() -> tuple[int, str]:
+    """The running fill's holdout and kind for a log line; `-1` and `none` outside a fill."""
+    fill = CURRENT_FILL.get()
+    return (-1, "none") if fill is None else (fill.holdout, fill.kind)

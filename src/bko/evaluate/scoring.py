@@ -135,7 +135,9 @@ def _score(
 
     Every stage reads `data`: the harness splits its records under its frame's edges, the BKO arms
     observe cells by its field rows and name it in their knowledge, the rehearsal answers in its
-    frame, and the experiment line, call log and candidates file name its frame.
+    frame, and the experiment line, call log and candidates file name its frame. The scores' row
+    count and sha256 are logged, then, once a candidates file is closed, its path, candidate lines
+    and sha256.
     """
     experiment = named.experiment
     guided, direct = _arms(named, context)
@@ -149,6 +151,14 @@ def _score(
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
+    if args.candidates is not None:
+        kept = args.candidates.read_bytes()
+        logger.info(
+            "candidates path=%s lines=%d sha256=%s",
+            args.candidates,
+            len(kept.splitlines()) - 1,
+            hashlib.sha256(kept).hexdigest(),
+        )
     return text
 
 

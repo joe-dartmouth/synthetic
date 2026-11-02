@@ -193,20 +193,26 @@ def test_a_wave_assigns_lines_in_plan_order_and_re_queues_them_in_call_order(tmp
     caplog.set_level("INFO", logger="bko.evaluate.guided")
     send = FollowSend(spoil={1: frozenset({0, 1}), 2: frozenset({0})})
     arm, log = _arm(tmp_path, send, settings=PER_TWO)
-    with log:
-        arm(training_split(tmp_path / "train", UCI_E1), SIBLINGS)
+    token = CURRENT_FILL.set(Fill(2, "replica"))
+    try:
+        with log:
+            arm(training_split(tmp_path / "train", UCI_E1), SIBLINGS)
+    finally:
+        CURRENT_FILL.reset(token)
     a, n = ANGINA_LINE, NONE_LINE
     # The first wave's two calls take the young cell's lines in plan order; the three spoiled
     # records' lines return in call order, then line order, and the top-up asks them so.
     assert [_lines(call) for call in send.calls] == [[a, a], [n, a], [a], [a, a], [n]]
     assert arm.drain(0, Source.CANDIDATES)[Measure.DROPPED_RANGE] == 3
     guided_line = next(r.message for r in caplog.records if r.message.startswith("guided "))
+    assert guided_line.startswith("guided holdout=2 fill=replica arm=bko-skeleton seed=6 ")
     assert " kept=5 requeued=3 usd=" in guided_line
     waves = [r.message for r in caplog.records if r.message.startswith("prescribed ")]
+    named = "prescribed holdout=2 fill=replica arm=bko-skeleton seed=6"
     assert waves == [
-        "prescribed arm=bko-skeleton seed=6 wave=1 asked=4 kept=1 dropped_concepts=0 requeued=3",
-        "prescribed arm=bko-skeleton seed=6 wave=2 asked=1 kept=1 dropped_concepts=0 requeued=0",
-        "prescribed arm=bko-skeleton seed=6 wave=3 asked=3 kept=3 dropped_concepts=0 requeued=0",
+        f"{named} wave=1 asked=4 kept=1 dropped_concepts=0 requeued=3",
+        f"{named} wave=2 asked=1 kept=1 dropped_concepts=0 requeued=0",
+        f"{named} wave=3 asked=3 kept=3 dropped_concepts=0 requeued=0",
     ]
 
 
@@ -407,7 +413,7 @@ def test_a_starved_arm_refuses_every_attempt_and_the_run_exits_2(tmp_path, caplo
     retries = [m for m in caplog.messages if m.startswith("retry holdout=0 arm=bko-skeleton ")]
     assert [m.split()[3] for m in retries] == [f"attempt={n}" for n in range(1, 5)]
     assert "refused holdout=0 arm=bko-skeleton attempts=5" in caplog.messages
-    outcomes = [m.split()[3] for m in caplog.messages if m.startswith("guided ")]
+    outcomes = [m.split()[5] for m in caplog.messages if m.startswith("guided ")]
     assert outcomes == ["outcome=refused"] * 5
     end = json.loads(log.read_text(encoding="utf-8").splitlines()[-1])
     assert (end["kind"], end["status"], end["retryable"]) == ("end", "failed", False)

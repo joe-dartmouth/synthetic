@@ -129,8 +129,9 @@ command per method, inside `.venv`:
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
   with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
   row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, the Bayesian
-  network, the Gaussian copula and sequential CART (`fit method=<name> seconds=<s>`, each method's
-  own name), and the method's parameters. An experiment copies them into its configuration in
+  network, the Gaussian copula and sequential CART
+  (`fit holdout=<h> fill=<kind> method=<name> seconds=<s>`, each method's own name, and
+  `holdout=-1 fill=none` outside a harness fill), and the method's parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a

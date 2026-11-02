@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, derived_seed, unit_weights
 from bko.baselines.request import Request
 from bko.baselines.synthesizers import fill, holding
@@ -206,9 +207,11 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
 
     The first field is `frame.columns[derived_seed(seed, "bayes-net") % len(frame.columns)]`, and
     every draw reads `default_rng(derived_seed(seed, "bayes-net"))`, so the seed alone decides the
-    rows and no global generator is read or moved. Logs one `fit method=bayes-net seconds=%.1f`
-    line. The params name the request's seed, the first field, `k`, `BINS`, the equivalent sample
-    size, each field's states and the learned edges, each `[parent, child]` in drawing order.
+    rows and no global generator is read or moved. Logs one
+    `fit holdout=%d fill=%s method=bayes-net seconds=%.1f` line, naming the harness fill
+    (`bko.baselines.fills`). The params name the request's seed, the first field, `k`, `BINS`, the
+    equivalent sample size, each field's states and the learned edges, each `[parent, child]` in
+    drawing order.
 
     Raises:
         BaselineError: As `fill`, if the draws cannot meet the quota.
@@ -222,7 +225,11 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
     start = time.perf_counter()
     bins = discretize(rows, frame)
     network = learn(bins, first=first)
-    logger.info("fit method=bayes-net seconds=%.1f", time.perf_counter() - start)
+    logger.info(
+        "fit holdout=%d fill=%s method=bayes-net seconds=%.1f",
+        *fill_names(),
+        time.perf_counter() - start,
+    )
     rng = np.random.default_rng(seed)
     params = {
         "seed": request.seed,

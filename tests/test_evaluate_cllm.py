@@ -83,11 +83,13 @@ def records() -> list[object]:
     return found
 
 
-def arm(directory: Path, name: str, send: AnySend) -> tuple[GuidedArm, CallLog]:
+def arm(
+    directory: Path, name: str, send: AnySend, *, in_flight: int = 1
+) -> tuple[GuidedArm, CallLog]:
     spec = MESSAGES_ARMS[name]
     directory.mkdir(parents=True, exist_ok=True)
     log = CallLog(directory / "calls.jsonl", SETTINGS, frame="uci")
-    flight = Flight(send, log, Limits(1, None), spendable=partial(spendable, log, 50.0))
+    flight = Flight(send, log, Limits(in_flight, None), spendable=partial(spendable, log, 50.0))
     built = GuidedArm(
         name,
         spec.definition,
@@ -247,14 +249,16 @@ def wrong_records(count: int) -> list[object]:
 
 
 def shortfall_send(first: list[object], short: int) -> ScriptedSend:
-    """`first`, then a reply of `short` rows the curator drops for every round the budget allows.
+    """`first`, then a reply of `short` rows the curator drops for every call the budget allows.
 
-    Each round asks for the cell's shortfall, so after `first` the arm asks `short` per call
-    until the next ask would pass `QUOTA` times its budget.
+    Each curating call asks a full call, capped by what is left of the cell's limit, `QUOTA` times
+    its budget, so the cell makes one call per `per_call` of its limit, the last asking the
+    remainder, which still covers `short`.
     """
     budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
-    rounds = (QUOTA * budget - QUOTA) // short
-    return ScriptedSend(reply(first), *[reply(wrong_records(short))] * rounds)
+    calls = -(-QUOTA * budget // SETTINGS.per_call)
+    assert QUOTA * budget % SETTINGS.per_call >= short
+    return ScriptedSend(reply(first), *[reply(wrong_records(short))] * (calls - 1))
 
 
 def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_path, caplog):
@@ -273,7 +277,11 @@ def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_pat
         f"shortfall arm=cllm seed=0 cell=<55/female/1 short=2 quota={QUOTA} asked={cap} limit={cap}"
     )
     assert expected in caplog.messages
-    assert any(" outcome=partial " in m for m in caplog.messages if m.startswith("guided arm=cllm"))
+    assert any(
+        " outcome=partial " in m
+        for m in caplog.messages
+        if m.startswith("guided ") and " arm=cllm " in m
+    )
 
 
 def test_a_curated_arm_that_keeps_nothing_adds_no_rows(tmp_path):
@@ -302,16 +310,8 @@ def test_an_uncurated_arm_still_refuses_past_its_budget(tmp_path):
 def test_a_cell_the_curator_rejects_is_given_up_at_its_own_budget(tmp_path, caplog):
     """The rejected cell stops at `budget` times its quota; the other cell still fills."""
     rows = train()
-    well_template = rows[[key == ("<55", "female", 0) for key in cells_of(rows)]].iloc[0]
-    well: dict[str, int | float] = {
-        name: float(well_template[name])
-        if name in UCI_FRAME.fractional
-        else int(well_template[name])
-        for name in UCI_FRAME.columns
-    }
-    well["thalach"] = 185
-    young_well = ("<55", "female", 0)
-    request = Request(quota={YOUNG_SICK: 2, young_well: 2}, strata=Strata.CELL, seed=0)
+    well = well_woman()
+    request = Request(quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0)
     budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
 
     class Keyed(ScriptedSend):
@@ -341,6 +341,21 @@ def test_a_cell_the_curator_rejects_is_given_up_at_its_own_budget(tmp_path, capl
         f"shortfall arm=cllm seed=0 cell=<55/female/1 short=2 quota=2 asked={cap} limit={cap}"
     )
     assert expected in caplog.messages
+
+
+YOUNG_WELL = ("<55", "female", 0)
+
+
+def well_woman() -> dict[str, int | float]:
+    """A young well woman from the training rows, thalach 185."""
+    rows = train()
+    template = rows[[key == YOUNG_WELL for key in cells_of(rows)]].iloc[0]
+    well: dict[str, int | float] = {
+        name: float(template[name]) if name in UCI_FRAME.fractional else int(template[name])
+        for name in UCI_FRAME.columns
+    }
+    well["thalach"] = 185
+    return well
 
 
 def asked_of(call) -> int:
@@ -382,26 +397,52 @@ def test_a_partial_attempts_candidates_are_marked_returned(tmp_path):
     assert all(returned for _, returned, _ in built._seen)
 
 
-def test_a_cell_is_given_up_once_the_next_ask_passes_its_limit_by_one(tmp_path, caplog):
-    """Quota 4 keeping 1 leaves asks of 3 from 4 records asked: 34 asked, and 37 passes 36."""
+def test_a_cell_short_by_one_record_asks_a_full_call_within_its_cap(tmp_path, caplog):
+    """Quota 3 at budget 22 is a limit of 66: three full calls of 20, then the 6 left of it."""
     budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
-    quota = 4
-    limit = budget * quota
-    rounds = (limit - quota) // (quota - 1)
-    first = [*records()[:1], *wrong_records(quota - 1)]
-    send = ScriptedSend(reply(first), *[reply(wrong_records(quota - 1))] * rounds)
+    limit = budget * QUOTA
+    per_call = SETTINGS.per_call
+    first = [records()[0], records()[2], *wrong_records(per_call - 2)]
+    send = ByCell({"<55": [first, wrong_records(1)]})
     built, log = arm(tmp_path, CLLM_ARM, send)
     caplog.set_level(logging.INFO, logger="bko.evaluate")
     with log:
-        built(train(), Request(quota={YOUNG_SICK: quota}, strata=Strata.CELL, seed=0))
-    send.assert_consumed()
-    asked = quota + rounds * (quota - 1)
-    assert asked + quota - 1 == limit + 1
+        baseline = built(train(), REQUEST)
+    full = limit // per_call
+    assert [asked_of(call) for call in send.calls] == [per_call] * full + [limit % per_call]
+    assert 0 < limit % per_call < per_call
+    assert baseline.params["short"] == {"<55/female/1": 1}
     expected = (
-        f"shortfall arm=cllm seed=0 cell=<55/female/1 short={quota - 1} quota={quota} "
-        f"asked={asked} limit={limit}"
+        f"shortfall arm=cllm seed=0 cell=<55/female/1 short=1 quota={QUOTA} "
+        f"asked={limit} limit={limit}"
     )
     assert expected in caplog.messages
+
+
+def test_every_in_flight_count_shows_the_same_records(tmp_path):
+    """Two chains in one wave, each asked over several rounds: the logged requests match."""
+    half: list[object] = [records()[0], records()[1]]
+    script = {"<55": [half]}
+
+    class ByLabel(ByCell):
+        """The sick cell keeps half its rows; the well cell keeps every one."""
+
+        def __call__(self, call):
+            if call.label == 1:
+                return super().__call__(call)
+            self.calls.append(call)
+            return reply([well_woman()] * asked_of(call))
+
+    request = Request(quota={YOUNG_SICK: 25, YOUNG_WELL: 30}, strata=Strata.CELL, seed=0)
+    logged = []
+    for in_flight in (1, 4):
+        built, log = arm(tmp_path / str(in_flight), CLLM_ARM, ByLabel(script), in_flight=in_flight)
+        with log:
+            built(train(), request)
+        logged.append(requests_of(log.path))
+    assert len(logged[0]) > 2
+    assert logged[0] == logged[1]
+    assert len({json.dumps(shown_in(params)) for params in logged[0]}) == len(logged[0])
 
 
 def test_two_cells_given_up_in_different_rounds_are_each_logged_once(tmp_path, caplog):
@@ -410,7 +451,7 @@ def test_two_cells_given_up_in_different_rounds_are_each_logged_once(tmp_path, c
         {
             "<55": [[sick_woman(44, 190)]],
             ">=55": [
-                [sick_woman(63, 100), sick_woman(63, 190), sick_woman(63, 190)],
+                [sick_woman(63, 100), *[sick_woman(63, 190)] * (SETTINGS.per_call - 1)],
                 [sick_woman(63, 190)],
             ],
         }

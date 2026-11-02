@@ -3,7 +3,8 @@
 A `GuidedArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it observes the rows' cells, finds their gaps under
 its definition and guides each requested cell by them. It then asks the Messages API for each cell's
-shortfall, round by round in quota order. Each round goes out in waves: a wave is the longest run of
+shortfall, round by round in quota order; a curating arm's call asks a full call, capped by its
+cell's limit (`bko.evaluate.waves.asks`). Each round goes out in waves: a wave is the longest run of
 the round's short cells whose (sex, label) chains are distinct, its calls are in flight together
 (`bko.generate.flight`), and its batches are taken in call order before the next wave is read, so
 the calls are those a one-call-at-a-time run makes (ADR `research/concurrent-call-waves`). Every
@@ -33,6 +34,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, Drop, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
@@ -45,7 +47,7 @@ from bko.evaluate.experiment import Curation
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues
-from bko.evaluate.waves import committer, give_up, lines_requeued, next_wave
+from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
 from bko.generate.errors import IdleError
@@ -163,6 +165,7 @@ class GuidedArm:
         if request.strata is not Strata.CELL:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
+        named = fill_names()
         guidance = self._guidance(train, request.frame)
         prescribing = self._prescribe is not None
         discard = None if self._curation is None else classifier_discard(train, frame=request.frame)
@@ -177,7 +180,7 @@ class GuidedArm:
         queues: Queues | None = None
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
-            short = self._rounds(attempt, guidance, request.frame, queues, shower)
+            short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -191,7 +194,8 @@ class GuidedArm:
             last = self._log.calls
             requeued = "" if self._prescribe is None else f" requeued={lines_requeued(queues)}"
             logger.info(
-                "guided arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
+                "guided holdout=%d fill=%s arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
+                *named,
                 self.name,
                 request.seed,
                 outcome,
@@ -283,8 +287,13 @@ class GuidedArm:
         frame: FrameSpec,
         queues: Queues | None,
         shower: Shower | None = None,
+        *,
+        named: tuple[int, str] = (-1, "none"),
     ) -> dict[Cell, int]:
         """Ask for each short cell round by round until the quota is filled.
+
+        Each round's calls are sized by `bko.evaluate.waves.asks`; `named` is the harness fill's
+        holdout and kind, which each `prescribed` line names.
 
         Returns:
             Each cell a curating arm leaves short, with its missing rows, once that cell's own
@@ -295,6 +304,7 @@ class GuidedArm:
                 budget cannot cover the rows still short.
         """
         per_call = self._log.settings.per_call
+        budget = None if self._curation is None else self._budget
         waves = 0
         given_up: dict[Cell, int] = {}
         while short := {c: n for c, n in attempt.short().items() if c not in given_up}:
@@ -320,11 +330,9 @@ class GuidedArm:
                 rows = {cell: attempt.short().get(cell, 0) for cell in wave}
                 # Lines are taken in plan order, so every in-flight count asks the same calls.
                 planned = [
-                    self._planned(
-                        guidance[cell], min(per_call, count - start), frame, queues, shower
-                    )
+                    self._planned(guidance[cell], ask, frame, queues, shower)
                     for cell, count in rows.items()
-                    for start in range(0, count, per_call)
+                    for ask in asks(attempt, cell, count, per_call=per_call, budget=budget)
                 ]
                 if not planned:
                     continue
@@ -338,8 +346,9 @@ class GuidedArm:
                     raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
                 if queues is not None:
                     logger.info(
-                        "prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d "
-                        "requeued=%d",
+                        "prescribed holdout=%d fill=%s arm=%s seed=%d wave=%d asked=%d kept=%d "
+                        "dropped_concepts=%d requeued=%d",
+                        *named,
                         self.name,
                         attempt.request.seed,
                         waves,
