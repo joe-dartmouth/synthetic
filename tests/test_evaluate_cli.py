@@ -372,6 +372,18 @@ def test_the_experiment_line_names_the_seeds_removal_and_copy_rule(caplog, exper
     assert f" threshold={experiment.threshold} fill_to={experiment.fill_to} " in line
 
 
+def test_the_experiment_line_names_a_cutoff_only_when_it_is_not_0_5(caplog):
+    def line(experiment):
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            log_experiment("x", experiment, ["lr"], frame="f")
+        return next(m for m in caplog.messages if m.startswith("experiment "))
+
+    assert " cutoff=" not in line(E1)
+    named = line(dataclasses.replace(E1, cutoff=0.25))
+    assert f" fill_to={E1.fill_to} cutoff=0.25 budget={E1.budget} " in named
+
+
 def test_the_commit_is_unknown_without_git(monkeypatch):
     def absent(*args, **kwargs):
         raise FileNotFoundError("git")

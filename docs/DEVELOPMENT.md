@@ -497,7 +497,8 @@ start or the supervisor cannot run.
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
   `training_fraction=` an exact fraction such as `1/4`, or `1`, `decontaminate=` `true` or
-  `false`), and a
+  `false`; `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not
+  E1's 0.5, the probability at which utility calls a record positive), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then

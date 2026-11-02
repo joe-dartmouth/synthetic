@@ -38,13 +38,7 @@ from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import (
-    REAL_ARM,
-    Experiment,
-    flagged,
-    gap_request,
-    replica_request,
-)
+from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import fidelity
 from bko.evaluate.fills import CURRENT_FILL, Fill, FillKind
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
@@ -216,13 +210,13 @@ def score_holdout(
             **({} if exclude is None else marker(clean)),
         },
     )
+    cutoff = experiment.cutoff
     for name in experiment.arms:
         fill = fills[name]
-        scores += _arm_scores(seed, name, fill, ablated, clean, cells, models=models, frame=frame)
+        scores += _arm_scores(seed, name, fill, ablated, clean, cells, models, frame, cutoff)
         if name in replicas:
-            replica = replicas[name]
             scores += _replica_scores(
-                seed, name, replica, ablated, clean, cells, factory=models[Model.LR], frame=frame
+                seed, name, replicas[name], ablated, clean, cells, models[Model.LR], frame, cutoff
             )
         if name in gap_counts:
             scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
@@ -387,9 +381,9 @@ def _arm_scores(
     parts: Split,
     clean: pd.DataFrame,
     cells: tuple[Stratum, ...],
-    *,
     models: Mapping[Model, Factory],
     frame: FrameSpec,
+    cutoff: float,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
 
@@ -407,7 +401,7 @@ def _arm_scores(
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     for model in ordered:
         fitted = probabilities(training, clean, factory=models[model], frame=frame)
-        measured = utility(clean, fitted, cells, edges=frame.edges)
+        measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
 
@@ -419,15 +413,16 @@ def _replica_scores(
     parts: Split,
     clean: pd.DataFrame,
     cells: tuple[Stratum, ...],
-    *,
     factory: Factory,
     frame: FrameSpec,
+    cutoff: float,
 ) -> list[Score]:
     """REPLICA utility of a fit on the replica alone, then fidelity, then copies."""
     fitted = probabilities(replica.assign(weight=1.0), clean, factory=factory, frame=frame)
+    measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
     copied = {Measure.TEST_COPIES: float(copies(replica, parts.test, frame=frame))}
     return [
-        *_scoped(seed, name, Source.REPLICA, utility(clean, fitted, cells, edges=frame.edges)),
+        *_scoped(seed, name, Source.REPLICA, measured),
         *_rows(seed, name, Source.REPLICA, fidelity(parts.train, replica, frame=frame)),
         *_rows(seed, name, Source.REPLICA, copied),
     ]

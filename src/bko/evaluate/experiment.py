@@ -20,6 +20,7 @@ from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
 
 
@@ -86,6 +87,7 @@ class Experiment:
             E3 keeps them and counts them.
         training_fraction: The share of each cell's training rows every holdout keeps before any
             arm runs (`bko.datasets.split.subsampled`); 1 keeps them all.
+        cutoff: The probability at or above which utility calls a record positive.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -108,6 +110,7 @@ class Experiment:
     removal: Removal | None = None
     decontaminate: bool = True
     training_fraction: Fraction = Fraction(1)
+    cutoff: float = THRESHOLD
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.

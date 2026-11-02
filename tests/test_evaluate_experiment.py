@@ -49,14 +49,15 @@ from bko.evaluate.named_runs import (
     SETTINGS_SWEEP,
     NamedRun,
 )
-from bko.evaluate.run import ARMS, run
+from bko.evaluate.run import ARMS, run, score_holdout
+from bko.evaluate.scores import Measure, Scope
 from bko.gaps.definitions import Definition
 from bko.generate.local import TIMEOUT_SECONDS as LOCAL_TIMEOUT_SECONDS
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
 from bko.generate.weights import LOCAL_MODELS
 from tests._baselines_fixtures import full_records
-from tests._evaluate_fixtures import FLAGGED, GRADED
+from tests._evaluate_fixtures import FAST_ARMS, FLAGGED, GRADED, SMALL
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -114,6 +115,7 @@ def test_e1_is_its_stated_configuration():
         "removal": None,
         "decontaminate": True,
         "training_fraction": Fraction(1),
+        "cutoff": 0.5,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -593,3 +595,26 @@ def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens, asks)
 
 def test_the_cllm_budget_covers_the_least_pilot_keep_share():
     assert max(3, math.ceil(1.5 / 0.1734)) == CLLM_BUDGET
+
+
+@pytest.mark.parametrize("name", ["e1", "e3-a", "e3-b"])
+def test_e1_and_e3_keep_0_5(name):
+    assert RUNS[name].experiment.cutoff == pytest.approx(0.5)
+
+
+def test_score_holdout_calls_positives_at_the_experiments_cutoff():
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    experiment = dataclasses.replace(
+        SMALL, arms=("none",), candidate="none", comparators=(), replica_arms=()
+    )
+
+    def recall(experiment):
+        scores = score_holdout(parts, experiment, FAST_ARMS, frame=UCI_FRAME)
+        return next(
+            s.value
+            for s in scores
+            if s.arm == "none" and s.measure is Measure.RECALL and s.scope is Scope.ALL
+        )
+
+    assert recall(dataclasses.replace(experiment, cutoff=0.0)) == pytest.approx(1.0)
+    assert recall(dataclasses.replace(experiment, cutoff=1.5)) == pytest.approx(0.0)
