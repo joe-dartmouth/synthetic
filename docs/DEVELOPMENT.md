@@ -1101,8 +1101,10 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   record matches a draw (a `cannot draw` message) or the draw log exists (checked before any
   download). The same seed and inputs write the same stdout and draw log, byte for byte. The gate
   drives it over an archive and releases built in `tmp_path` (`tests/test_generate_cli.py`).
-- **The live test**: `tests/test_generate_live.py` makes one paid call for 2 records and checks the
-  reply's keys, types and codes. It runs only under `--live`. Run it deliberately, after a change to
+- **The live test**: `tests/test_generate_live.py` makes paid calls and checks each reply's keys,
+  types and codes: one call for 2 records over the UCI frame on each of two models, and 10 calls for
+  `SETTINGS.per_call` records over the Diabetes frame, from invented guidance and no `data/` read.
+  It runs only under `--live`. Run it deliberately, after a change to
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
 
       test ! -e runs/<run-id>/pytest && mkdir -p runs/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=runs/<run-id>/pytest -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
