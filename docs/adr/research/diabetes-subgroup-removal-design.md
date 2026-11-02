@@ -95,7 +95,11 @@ for SMOTE and 1.42 for duplication ([C3]).
   `tvae`, `gaussian-copula`, `cart`, `bayes-net`, `bko`, `bko-population`, `bko-frequency`,
   `bko-direct`, `bko-skeleton`, `cllm`, `cllm-uncurated` and `real`. At 1.0 the cell keeps no
   training row, so SMOTE and ADASYN meet a structural shortfall and fill 0 rows; they stay in the
-  run and read as `none` there.
+  run and read as `none` there. The scale smoke run (holdouts 0 and 1, canned replies,
+  `scratchpad/e6-smoke/summary.txt`) measured the rejection samplers on the cell at full N: at
+  0.985, TVAE filled 0 of 1,250 rows and CART and the Bayesian network about 30% (412 and 430; 355
+  and 329), each after five attempts of 1,000,000 draws; at 1.0, TVAE and CART filled 0 of 1,269
+  and the Bayesian network 1 and 3. Each completes as a shortfall, not a refusal.
 - **Candidate and comparators**: `bko` is the candidate; the comparators are every arm except
   `real` and `bko`, the 15 others.
 - **Replica**: `bko` alone fills a replica, of `replica_rows` 2000 rows, in the f = 0.985 run only.
@@ -108,13 +112,19 @@ for SMOTE and 1.42 for duplication ([C3]).
   1 - (1 - c)/30, 0.99833 at E1's c = 0.95.
 - **N**: the full eligible frame, every one of the 69,283 records.
 - **Settings**: `SETTINGS` (Haiku 5.5) for every Messages arm.
-- **Slices**: each fraction's run is 10 holdout slices of 10 holdouts; the f = 0.985 run's slices
-  finish before the 1.0 run's start. `merge` joins a fraction's slices into one run's bytes.
+- **Slices**: each fraction's run is K = 10 holdout slices of 10 holdouts; the f = 0.985 run's
+  slices finish before the 1.0 run's start. `merge` joins a fraction's slices into one run's bytes.
+  K is the memory cap's: a free smoke run of every arm on holdouts 0 and 1 at full N, one process
+  per fraction under the Threads environment with canned replies (`score --rehearse`), peaked at
+  2,146,516,992 bytes maximum resident set size at f = 0.985 and 2,184,560,640 at 1.0
+  (`/usr/bin/time -l`). 20 such processes, 43.7 GB, fit in 100 GB, and `projection_after`, 5, is
+  under the 10 holdouts per slice.
 - **Replays**: one slice per fraction, plus every slice that resumed after a stop.
 - **Compute cost**: reported as model fits, rows drawn, tokens and USD per run and per record
   asked. No wall time is read, ruled on or reported.
-- **Threads**: every run and every replay sets `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a
-  replay's numerics match its run's.
+- **Threads**: every run, every replay and the smoke run behind K set
+  `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a replay's numerics match its run's and K's
+  memory reading holds for the slices.
 - **Egress**: each Messages call sends what [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation)
   (What leaves the machine, Diabetes 130) lists, under the archive's CC BY 4.0 license: training
   bounds, quartiles and shares of de-identified encounters through the BKO arms, and frame records
@@ -357,7 +367,10 @@ read on one split with `real` beside it; compute stated in units any machine rep
 within 30 days); the chosen cell leads the runner-up narrowly and loses to `(6-7, female, 1)` on
 one replicate seed set; at the prevalence cutoff `class-weight` calls nearly every record positive
 (recall 0.9999 on the cell and 1.0000 overall in [C3]), so its recall carries no ranking and no
-gate reads it; kappa is carried over from E3's Synthea runs; at 1.0 SMOTE and ADASYN add nothing;
+gate reads it; kappa is carried over from E3's Synthea runs; at 1.0 SMOTE, ADASYN, TVAE and CART add nothing, and at 0.985 TVAE adds nothing and CART and
+the Bayesian network fill about 30% of the cell, so those arms read close to `none`; a capped
+replica asks `split.kept_count` per cell, so its total can exceed `replica_rows` by rounding (2,001
+for 2,000 in the smoke run);
 the replica reads `bko` alone.
 
 ## Ruled Out
