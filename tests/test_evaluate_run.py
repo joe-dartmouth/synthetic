@@ -12,6 +12,7 @@ import pytest
 
 import bko.evaluate.run as run_module
 from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
+from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
@@ -568,3 +569,65 @@ def test_smote_rows_copy_fewer_training_rows_than_it_adds(caplog):
     assert found is not None
     rows, copied = map(int, found.groups())
     assert copied < rows
+
+
+CLASSIFIER_MEASURES = frozenset({Measure.RECALL, Measure.PRECISION, Measure.AUC_PR})
+
+
+def thinned_replica(keep):
+    """SMOTE's runner, but its replica fill keeps only the rows `keep` selects from its rows."""
+
+    def thin(train, request):
+        full = FAST_ARMS["smote"](train, request)
+        fill = CURRENT_FILL.get()
+        if fill is None or fill.kind != "replica":
+            return full
+        return Baseline(number(full.added.loc[keep(full.added)]), full.weights, full.params)
+
+    return thin
+
+
+REPLICA_ONLY = dataclasses.replace(ONLY_SMOTE, replica_arms=("smote",))
+
+
+def replica_scores(keep) -> tuple[list, list]:
+    """The run's REPLICA classifier rows and its other REPLICA rows, the replica thinned."""
+    scores = run(GRADED, REPLICA_ONLY, {"smote": thinned_replica(keep)}, frame=UCI_FRAME)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    augmented = [s for s in scores if s.source is Source.AUGMENTED and s.scope is Scope.ALL]
+    assert augmented
+    assert not any(np.isnan(s.value) for s in augmented)
+    replica = [s for s in scores if s.source is Source.REPLICA]
+    measured = [s for s in replica if s.measure in CLASSIFIER_MEASURES]
+    assert len(measured) == len(SMALL.holdout_seeds) * len(CLASSIFIER_MEASURES) * len(Scope)
+    return measured, [s for s in replica if s.measure not in CLASSIFIER_MEASURES]
+
+
+def test_a_replica_of_one_label_scores_undefined_and_the_run_goes_on(caplog):
+    with caplog.at_level(logging.WARNING, logger="bko.evaluate"):
+        measured, others = replica_scores(lambda added: added["target"].eq(0))
+    lines = [m for m in caplog.messages if m.startswith("undefined ")]
+    assert len(lines) == len(SMALL.holdout_seeds)
+    assert all(re.fullmatch(r"undefined holdout=\d+ arm=smote rows=\d+ labels=1", m) for m in lines)
+    assert all(np.isnan(s.value) for s in measured)
+    assert others
+    assert not any(np.isnan(s.value) for s in others)
+
+
+def test_a_replica_with_no_rows_scores_undefined():
+    measured, others = replica_scores(lambda added: added["target"].lt(0))
+    assert all(np.isnan(s.value) for s in measured)
+    copied = [s for s in others if s.measure is Measure.TEST_COPIES]
+    assert [s.value for s in copied] == [0.0] * len(SMALL.holdout_seeds)
+    fidelity = [s for s in others if s.measure is not Measure.TEST_COPIES]
+    assert len(fidelity) == 3 * len(SMALL.holdout_seeds)
+    assert all(np.isnan(s.value) for s in fidelity)
+
+
+def test_an_undefined_replica_keeps_a_defined_runs_keys():
+    defined = run(GRADED, REPLICA_ONLY, FAST_ARMS, frame=UCI_FRAME)
+    one = thinned_replica(lambda added: added["target"].eq(0))
+    undefined = run(GRADED, REPLICA_ONLY, {"smote": one}, frame=UCI_FRAME)
+    assert [(s.holdout, s.arm, s.source, s.measure, s.scope) for s in undefined] == [
+        (s.holdout, s.arm, s.source, s.measure, s.scope) for s in defined
+    ]

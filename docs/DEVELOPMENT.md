@@ -205,7 +205,9 @@ configuration would, and writes the rows in the named run's seed order under one
 each holdout's rows in its file's order. It also reads each slice's sibling `scores.log` and
 refuses a slice with none, or whose `data`, `versions` or `experiment` line differs from the first
 slice's once `run=`, `holdouts=`, `seeds=` and `spend_ceiling=` are set aside, as slices at another
-training fraction, removal fraction or commit would:
+training fraction, removal fraction, cutoff or commit would. A key an older line lacks is read at
+the value its runs used, as `bko.evaluate.run_folder.ASSUMED` lists for the `experiment` line and
+`agreement=none` for the `data` line:
 
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
@@ -457,7 +459,8 @@ start or the supervisor cannot run.
   arms also fill the training split's own cell counts, or, when `Experiment.replica_rows` is set, that
   many rows split across the cells in proportion to those counts; those rows alone train a
   classifier and are compared with the training split for fidelity. A replica holding rows of fewer
-  than two labels, or none, scores its classifier measures undefined, and the run goes on. It writes one row per holdout, arm, source, measure
+  than two labels, or none, scores its classifier measures undefined, a replica of no rows its
+  fidelity too, and the run goes on. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
   split's training rows' gaps under its definition (a CLLM arm reads none and shows training
   records instead, ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)), asks the API for each requested cell's
@@ -598,7 +601,8 @@ start or the supervisor cannot run.
   frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
   `kept=true`), a `training holdout=%d arm=%s fill=%s rows=%d copies=%d` line per arm and fill
   after it, `copies=` counting the arm's added rows that equal some training row in every frame
-  column, and at
+  column, an `undefined holdout=%d arm=%s rows=%d labels=%d` WARNING for each replica of fewer
+  than two labels, whose classifier measures score undefined, and at
   the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm and
@@ -720,7 +724,9 @@ file's path, schema and sha256, a `likelihood pool` line counting the file's lin
 ones, each holdout's `split` line, one `likelihood measure=` line per fidelity measure with the
 top-minus-bottom corrected interval over the holdouts at the largest held-out ratio, one `likelihood concept=` line per concept with its share in the top half, the
 bottom half and the training rows, and `gate separated=`, true when every measure's interval lies
-above 0. The file's `run` must be the named run; a schema-2 file's data digest must match the
+above 0. A sliced run's files log a `candidates` line each and one `likelihood pool` line over
+them all. A single file's `run` must be the named run, while a sliced run's files carry their
+slices' runs; a schema-2 file's data digest must match the
 loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, for a run that
 scores it.
 

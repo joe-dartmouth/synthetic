@@ -6,12 +6,15 @@ import dataclasses
 import hashlib
 import io
 import logging
+from fractions import Fraction
 
 import pytest
 
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
+from bko.evaluate.experiment import Experiment, Removal
 from bko.evaluate.named_runs import NamedRun
+from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run import ARMS, run
 from bko.evaluate.scores import parse, render
 from tests._frame_fixtures import TOY, toy_records
@@ -32,11 +35,56 @@ LOW, HIGH, OVERLAP, EXTRA = _scored((0, 1)), _scored((2, 3)), _scored((1, 2, 3))
 """Slices of the toy run's holdouts, scored once for every test here."""
 
 
-def _merged(tmp_path, texts: list[str], *, context: Context = CONTEXT) -> tuple[int, str]:
-    paths = []
+DATA_LINE = f"data dataset=toy frame=toy records=150 digest={'a' * 64} agreement=none"
+VERSIONS_LINE = 'versions commit=0123abc dirty=false {"python": "3.14.6"}'
+
+
+def scores_log(
+    experiment: Experiment,
+    *,
+    name: str,
+    data: str = DATA_LINE,
+    versions: str = VERSIONS_LINE,
+) -> str:
+    """A slice's `scores.log`: its `data`, `experiment` and `versions` lines among others."""
+    messages = [
+        data,
+        experiment_line(name, experiment, ("lr", "hgb"), frame="toy"),
+        versions,
+        "split seed=0 train=1 test=1 fingerprint=x",
+    ]
+    return "".join(f"2026-11-02 10:00:00,000 INFO bko.evaluate: {m}\n" for m in messages)
+
+
+def _slice_logs(texts: list[str]) -> list[str]:
+    """Each slice's log as one run's slices write them: own name, seeds and spend ceiling."""
+    logs = []
     for i, text in enumerate(texts):
-        path = tmp_path / f"scores-{i}.csv"
+        held = tuple(sorted({int(row.split(",", 1)[0]) for row in text.splitlines()[1:]})) or (0,)
+        experiment = dataclasses.replace(
+            WHOLE, holdout_seeds=held, spend_ceiling=WHOLE.spend_ceiling + i
+        )
+        logs.append(scores_log(experiment, name=f"toy-{'ab'[i % 2]}{i}"))
+    return logs
+
+
+def _merged(
+    tmp_path,
+    texts: list[str],
+    *,
+    context: Context = CONTEXT,
+    logs: list[str | None] | None = None,
+) -> tuple[int, str]:
+    """Merge `texts`, each in its own folder beside its log; a None log writes none."""
+    written = _slice_logs(texts) if logs is None else logs
+    paths = []
+    for i, (text, log) in enumerate(zip(texts, written, strict=True)):
+        folder = tmp_path / f"slice-{i}"
+        folder.mkdir()
+        path = folder / "scores.csv"
         path.write_text(text, encoding="utf-8")
+        if log is not None:
+            (folder / "scores.log").write_text(log, encoding="utf-8")
         paths.append(str(path))
     out = io.StringIO()
     code = main(["merge", "toy", *paths], context=context, out=out)
@@ -55,9 +103,10 @@ def test_merging_two_slices_equals_one_run(tmp_path, caplog):
     assert merged == whole
     lines = [m for m in caplog.messages if m.startswith("merge ")]
     rows = [len(parse(text)) for text in (HIGH, LOW, whole)]
+    high, low = (tmp_path / f"slice-{i}" / "scores.csv" for i in (0, 1))
     assert lines == [
-        f"merge file={tmp_path / 'scores-0.csv'} holdouts=2-3 rows={rows[0]} sha256={_sha(HIGH)}",
-        f"merge file={tmp_path / 'scores-1.csv'} holdouts=0-1 rows={rows[1]} sha256={_sha(LOW)}",
+        f"merge file={high} holdouts=2-3 rows={rows[0]} sha256={_sha(HIGH)}",
+        f"merge file={low} holdouts=0-1 rows={rows[1]} sha256={_sha(LOW)}",
         f"merge files=2 holdouts=4 rows={rows[2]} sha256={_sha(whole)}",
     ]
 
@@ -114,5 +163,69 @@ def test_merge_of_a_missing_file_exits_two(tmp_path):
     missing = str(tmp_path / "absent.csv")
     path = tmp_path / "low.csv"
     path.write_text(LOW, encoding="utf-8")
+    (tmp_path / "scores.log").write_text(_slice_logs([LOW])[0], encoding="utf-8")
     assert main(["merge", "toy", str(path), missing], context=CONTEXT, out=out) == 2
     assert out.getvalue() == ""
+
+
+def _refused(tmp_path, caplog, second: str) -> str:
+    """Merge LOW and HIGH, HIGH's log `second`; the run must exit 2 with stdout empty."""
+    first = _slice_logs([LOW, HIGH])[0]
+    with caplog.at_level(logging.INFO):
+        assert _merged(tmp_path, [LOW, HIGH], logs=[first, second]) == (2, "")
+    return caplog.text
+
+
+def _high(experiment: Experiment = WHOLE, **lines: str) -> str:
+    """HIGH's log, its experiment `experiment` over HIGH's holdouts."""
+    held = dataclasses.replace(experiment, holdout_seeds=(2, 3))
+    return scores_log(held, name="toy-b", **lines)
+
+
+def test_merge_refuses_slices_at_another_training_fraction(tmp_path, caplog):
+    text = _refused(
+        tmp_path, caplog, _high(dataclasses.replace(WHOLE, training_fraction=Fraction(1, 2)))
+    )
+    assert "training_fraction" in text
+    assert str(tmp_path / "slice-1" / "scores.log") in text
+
+
+def test_merge_refuses_slices_at_another_removal_fraction(tmp_path, caplog):
+    removal = Removal(("45-69", "female", 1), 0.5)
+    text = _refused(tmp_path, caplog, _high(dataclasses.replace(WHOLE, removal=removal)))
+    assert "removal" in text
+
+
+def test_merge_refuses_slices_at_another_cutoff(tmp_path, caplog):
+    text = _refused(tmp_path, caplog, _high(dataclasses.replace(WHOLE, cutoff=0.3)))
+    assert "cutoff" in text
+
+
+def test_merge_refuses_slices_of_another_commit(tmp_path, caplog):
+    other = VERSIONS_LINE.replace("0123abc", "4567def")
+    text = _refused(tmp_path, caplog, _high(versions=other))
+    assert "versions" in text
+
+
+def test_merge_refuses_slices_of_other_data(tmp_path, caplog):
+    text = _refused(tmp_path, caplog, _high(data=DATA_LINE.replace("a" * 64, "b" * 64)))
+    assert "data" in text
+
+
+def test_merge_refuses_a_slice_without_its_scores_log(tmp_path, caplog):
+    first = _slice_logs([LOW, HIGH])[0]
+    with caplog.at_level(logging.INFO):
+        assert _merged(tmp_path, [LOW, HIGH], logs=[first, None]) == (2, "")
+    assert f"{tmp_path / 'slice-1' / 'scores.log'}" in caplog.text
+
+
+def test_merge_reads_an_older_line_at_the_values_it_lacks(tmp_path):
+    lines = _high().splitlines(keepends=True)
+    older = "".join(
+        line.replace(" training_fraction=1", "").replace(" agreement=none", "") for line in lines
+    )
+    assert older != _high()
+    first = _slice_logs([LOW, HIGH])[0]
+    code, merged = _merged(tmp_path, [LOW, HIGH], logs=[first, older])
+    assert code == 0
+    assert merged == _scored((0, 1, 2, 3))

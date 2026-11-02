@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import math
 import time
 from collections.abc import Callable, Mapping, Sequence
 from functools import partial
@@ -40,16 +41,19 @@ from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
-from bko.evaluate.fidelity import fidelity
+from bko.evaluate.fidelity import MEASURES, fidelity
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
 from bko.evaluate.shortfall import partial_fill, shortfall_kept, structural
-from bko.evaluate.utility import utility
+from bko.evaluate.utility import undefined, utility
 
 
 logger = logging.getLogger(__name__)
+
+MIN_LABELS: Final = 2
+"""The labels a replica's rows must hold for a classifier fit on them alone to be scored."""
 
 
 def method_arms(methods: Mapping[Method, Runner] = METHODS) -> dict[str, Runner]:
@@ -421,13 +425,33 @@ def _replica_scores(
     frame: FrameSpec,
     cutoff: float,
 ) -> list[Score]:
-    """REPLICA utility of a fit on the replica alone, then fidelity, then copies."""
-    fitted = probabilities(replica.assign(weight=1.0), clean, factory=factory, frame=frame)
-    measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
+    """REPLICA utility of a fit on the replica alone, then fidelity, then copies.
+
+    A replica holding rows of fewer than 2 labels, as a partial fill may, fits no classifier: its
+    utility is NaN in every measure and scope, under the keys a fit writes. A replica of no rows
+    has no fidelity either, so its fidelity is NaN too.
+    """
+    if replica[frame.label].nunique() < MIN_LABELS:
+        logger.warning(
+            "undefined holdout=%d arm=%s rows=%d labels=%d",
+            seed,
+            name,
+            len(replica),
+            replica[frame.label].nunique(),
+        )
+        measured = undefined()
+    else:
+        fitted = probabilities(replica.assign(weight=1.0), clean, factory=factory, frame=frame)
+        measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
+    found = (
+        fidelity(parts.train, replica, frame=frame)
+        if len(replica)
+        else dict.fromkeys(MEASURES, math.nan)
+    )
     copied = {Measure.TEST_COPIES: float(copies(replica, parts.test, frame=frame))}
     return [
         *_scoped(seed, name, Source.REPLICA, measured),
-        *_rows(seed, name, Source.REPLICA, fidelity(parts.train, replica, frame=frame)),
+        *_rows(seed, name, Source.REPLICA, found),
         *_rows(seed, name, Source.REPLICA, copied),
     ]
 

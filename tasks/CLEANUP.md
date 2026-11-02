@@ -101,18 +101,6 @@ links to where its blocker is tracked.
   `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
   **Trigger:** unit `generate-bkb-curation-diabetes`'s phase 1 verdict.
 
-- **`cleanup:evaluate/merge-configuration-check`: `merge` says it refuses slices of other
-  configuration, but it compares score keys alone.** `bko.evaluate.merge`'s docstring says slices
-  scored under different code or configuration are refused; it compares each slice's (arm, source,
-  measure, scope) keys and holdouts, so two slices run at a different `training_fraction`,
-  removal fraction or `cutoff` share keys and merge. *Filed 2026-10-31 by the diff review of PR
-  #66; the cutoff case added 2026-11-02 by the review of PR #71, whose `shared` test refuses it.*
-  **Why deferred.** No run of a training fraction or removal fraction is sliced; the check predates
-  PR #66.
-  **What discharges it:** `merge` compares each slice's `experiment` line (or a configuration
-  digest the scores carry), or its docstring says what it checks.
-  **Trigger:** the next sliced run, or the next change to `bko.evaluate.merge`.
-
 - **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
   not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
   `assess` reads it, so the candidates file says `dropped-curation` but not by what margin, and a
@@ -124,19 +112,6 @@ links to where its blocker is tracked.
   **What discharges it:** each curated candidate line carries its two scores, documented in
   `docs/DEVELOPMENT.md` (Evaluation), or a refit command that prints them.
   **Trigger:** a threshold sweep, or the next change to the candidates schema.
-
-- **`cleanup:evaluate/replica-one-label-guard`: a partial replica fill can leave the replica one
-  label.** A curated arm's partial replica fill whose given-up cells leave rows of one label, or
-  no rows, reaches `bko.evaluate.run._replica_scores`, which fits the logistic regression on the
-  replica alone through `bko.evaluate.classifier.probabilities`; scikit-learn's fit then raises a
-  plain `ValueError` mid-holdout, which the harness does not retry. It is latent on `b3-3`, whose
-  replica kept rows of the positive class on every holdout. *Filed 2026-10-31 by the diff review
-  of PR #63.*
-  **Why deferred.** No run of record reaches it, and the fix touches the scoring path `b3-3` ran.
-  **What discharges it:** a replica with fewer than two labels is scored as undefined or refused
-  with an `EvaluationError` before the fit, with a test, documented in `docs/DEVELOPMENT.md`
-  (Evaluation).
-  **Trigger:** the next curated run on a frame with fewer positive cells (Diabetes 130).
 
 - **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
   `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time

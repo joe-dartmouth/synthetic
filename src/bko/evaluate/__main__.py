@@ -22,7 +22,10 @@ for a child a signal killed, or 2 when it or a resume cannot run.
 less every record a `--with` folder's arms copy, to stdout (`bko.evaluate.shared`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
-RUN's, whose columns differ, or whose holdouts hold different scores' keys.
+RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
+`scores.log` is missing or names other data, versions or configuration.
+`likelihood [RUN] --candidates FILE...` reads one run's candidates files, one per slice of a sliced
+run, as one, and logs G7's gate (`bko.evaluate.likelihood`).
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
 `docs/DEVELOPMENT.md` (Evaluation) is the usage home.
 
@@ -56,7 +59,7 @@ import argparse
 import hashlib
 import logging
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
@@ -71,9 +74,9 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import MESSAGES_ARMS
-from bko.evaluate.holdout_candidates import read
+from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
-from bko.evaluate.likelihood import likelihood
+from bko.evaluate.likelihood import candidates_file, likelihood
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
@@ -218,32 +221,45 @@ def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
 def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
     """Score the run's candidates by their BKB likelihood, write the per-cell CSV, log the gate.
 
+    Each `--candidates` file is read and checked in turn, as the gate consumes it, so one file's
+    lines are held at a time. A single file's `run` must be the named run; a sliced run's files
+    name their slices' runs.
+
     Raises:
-        EvaluationError: If a schema-2 file's data digest is not the run's data's.
-        CandidatesFormatError: If the file is not a candidates file.
+        EvaluationError: If a single file is another run's, a schema-1 file is read for a run of
+            other data, or a schema-2 file's data digest is not the run's data's.
+        CandidatesFormatError: If a file is not a candidates file.
     """
     named = _named(args.run, context)
-    body = args.candidates.read_bytes()
-    candidates = read(body)
-    header = candidates.header
-    if header["run"] != args.run:
-        msg = f"the candidates file is run {header['run']!r}'s, not {args.run!r}'s"
-        raise EvaluationError(msg)
-    if header["schema"] == 1 and named.dataset is not Dataset.UCI:
-        msg = f"a schema-1 candidates file holds UCI Heart Disease, not run {args.run!r}'s data"
-        raise EvaluationError(msg)
+    paths: list[Path] = args.candidates
+    single = len(paths) == 1
+    pending = [candidates_file(paths[0], args.run, named.dataset, single=single)]
     data = load(named.dataset, data_dir(args), named)
-    if header["schema"] != 1 and header["data"] != data.digest:
-        msg = f"the candidates file's data digest {header['data']!r} is not the run's {data.digest}"
-        raise EvaluationError(msg)
     log_experiment(args.run, named.experiment, context.models, frame=data.frame.name)
-    logger.info(
-        "candidates path=%s schema=%d sha256=%s",
-        args.candidates,
-        header["schema"],
-        hashlib.sha256(body).hexdigest(),
-    )
-    likelihood(named.experiment, data, candidates, sink)
+
+    def files() -> Iterator[HoldoutCandidates]:
+        for index, path in enumerate(paths):
+            body, candidates = (
+                pending.pop()
+                if index == 0
+                else candidates_file(path, args.run, named.dataset, single=single)
+            )
+            header = candidates.header
+            if header["schema"] != 1 and header["data"] != data.digest:
+                msg = (
+                    f"the candidates file {path}'s data digest {header['data']!r} is not the "
+                    f"run's {data.digest}"
+                )
+                raise EvaluationError(msg)
+            logger.info(
+                "candidates path=%s schema=%d sha256=%s",
+                path,
+                header["schema"],
+                hashlib.sha256(body).hexdigest(),
+            )
+            yield candidates
+
+    likelihood(named.experiment, data, files(), sink)
 
 
 def _shared(args: argparse.Namespace, context: Context) -> str:
@@ -437,7 +453,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     liking.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
     liking.add_argument(
-        "--candidates", type=Path, required=True, help="the run's holdout-candidates.jsonl"
+        "--candidates",
+        type=Path,
+        action="append",
+        required=True,
+        help="the run's holdout-candidates.jsonl; repeat it for each slice of a sliced run",
     )
     liking.add_argument(
         "--data-dir", type=Path, default=None, help="the data root; default: the repository's"

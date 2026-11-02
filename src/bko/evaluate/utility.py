@@ -72,3 +72,12 @@ def utility(
             float(average_precision_score(truth, score)) if positives and negatives else math.nan
         )
     return scores
+
+
+def undefined() -> dict[tuple[Measure, Scope], float]:
+    """Every measure in every scope as NaN, in `utility`'s order: a fit no classifier makes."""
+    return {
+        (measure, scope): math.nan
+        for scope in Scope
+        for measure in (Measure.RECALL, Measure.PRECISION, Measure.AUC_PR)
+    }

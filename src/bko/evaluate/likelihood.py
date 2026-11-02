@@ -1,7 +1,8 @@
 """G7's free gate: does the BKB likelihood separate the judged arm's records by fidelity?
 
-`likelihood` reads a run's per-holdout candidates file and scores every record of `bko`'s replica
-fill that counted toward a cell (`kept` or `dropped-quota`) by its BKB likelihood
+`likelihood` reads a run's per-holdout candidates file, or a sliced run's files as one, and
+scores every record of `bko`'s replica fill that counted toward a cell (`kept` or
+`dropped-quota`) by its BKB likelihood
 (`bko.gaps.likelihood`) at its cell's shares on that holdout's training rows. Each cell's records
 split at the cell's median score, ties at the median in the order of
 `sha256(f"{holdout}:{call}:{position}")`, and the cells' top halves pooled against their bottom
@@ -20,19 +21,20 @@ import logging
 import math
 import statistics
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TextIO
 
 import pandas as pd
 
 from bko.datasets.split import split
 from bko.evaluate.criteria import corrected_interval
-from bko.evaluate.data import Data
+from bko.evaluate.data import Data, Dataset
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.fidelity import MEASURES, fidelity
-from bko.evaluate.holdout_candidates import KEPT, Candidate, HoldoutCandidates
+from bko.evaluate.holdout_candidates import KEPT, Candidate, HoldoutCandidates, read
 from bko.evaluate.prepare import held_out_ratio, prepared
 from bko.gaps.likelihood import Likelihood
 from bko.gaps.observe import Cell, by_concept, cell_key, observe_records, record_cells
@@ -105,25 +107,48 @@ class _Tally:
 
 
 def likelihood(
-    experiment: Experiment, data: Data, candidates: HoldoutCandidates, sink: TextIO
+    experiment: Experiment, data: Data, files: Iterable[HoldoutCandidates], sink: TextIO
 ) -> bool:
     """Write the per-cell CSV to `sink`, log the paired measures and the gate, and return it.
 
+    `files` are one run's candidates files, a sliced run's one per slice, read one at a time:
+    only each file's scored lines are kept. A file's holdouts are those its lines name.
+
     Raises:
-        EvaluationError: If a holdout of the experiment holds no scored record or no cell of two,
+        EvaluationError: If no file is given, two files hold the same holdout, the files leave a
+            holdout of the experiment out, a file's header differs from the first file's in any
+            key but `run`, a holdout of the experiment holds no scored record or no cell of two,
             a scored line has no record of the frame's finite values, or the file names a cell the
             holdout's training rows do not hold.
     """
     pool: dict[int, list[Candidate]] = {}
-    for line in candidates.candidates:
-        if (line.arm, line.fill) == (ARM, FILL) and line.outcome in COUNTED:
-            pool.setdefault(line.holdout, []).append(line)
+    owner: dict[int, int] = {}
+    first: Mapping[str, object] | None = None
+    lines = 0
+    for number, candidates in enumerate(files, start=1):
+        first = _agree(first, candidates.header, number)
+        lines += len(candidates.candidates)
+        for holdout in sorted({line.holdout for line in candidates.candidates}):
+            if holdout in owner:
+                msg = f"holdout {holdout} is in both file {owner[holdout]} and file {number}"
+                raise EvaluationError(msg)
+            owner[holdout] = number
+        for line in candidates.candidates:
+            if (line.arm, line.fill) == (ARM, FILL) and line.outcome in COUNTED:
+                pool.setdefault(line.holdout, []).append(line)
+    if first is None:
+        msg = "the gate needs at least one candidates file"
+        raise EvaluationError(msg)
+    missing = sorted(set(experiment.holdout_seeds) - owner.keys())
+    if missing:
+        msg = f"the candidates files leave the run's holdouts {missing} out"
+        raise EvaluationError(msg)
     seeds = set(experiment.holdout_seeds)
     logger.info(
         "likelihood pool arm=%s fill=%s lines=%d scored=%d outside=%d",
         ARM,
         FILL,
-        len(candidates.candidates),
+        lines,
         sum(len(v) for k, v in pool.items() if k in seeds),
         sum(len(v) for k, v in pool.items() if k not in seeds),
     )
@@ -135,6 +160,47 @@ def likelihood(
     writer.writerow(CSV_COLUMNS)
     writer.writerows(tally.lines)
     return separated
+
+
+def candidates_file(
+    path: Path, run: str, dataset: Dataset, *, single: bool
+) -> tuple[bytes, HoldoutCandidates]:
+    """A `--candidates` file's bytes and contents, its header checked against the named run.
+
+    Raises:
+        EvaluationError: If `single` and the file is another run's, or the file is schema 1 and
+            `dataset` is not UCI Heart Disease.
+        CandidatesFormatError: If the file is not a candidates file.
+    """
+    body = path.read_bytes()
+    candidates = read(body)
+    header = candidates.header
+    if single and header["run"] != run:
+        msg = f"the candidates file is run {header['run']!r}'s, not {run!r}'s"
+        raise EvaluationError(msg)
+    if header["schema"] == 1 and dataset is not Dataset.UCI:
+        msg = f"a schema-1 candidates file holds UCI Heart Disease, not run {run!r}'s data"
+        raise EvaluationError(msg)
+    return body, candidates
+
+
+def _agree(
+    first: Mapping[str, object] | None, header: Mapping[str, object], number: int
+) -> Mapping[str, object]:
+    """The first file's header, after refusing file `number`'s if it differs but in `run`.
+
+    Raises:
+        EvaluationError: If `header` differs from `first` in a key other than `run`.
+    """
+    if first is None:
+        return header
+    differ = sorted(
+        key for key in (first.keys() | header.keys()) - {"run"} if first.get(key) != header.get(key)
+    )
+    if differ:
+        msg = f"file {number}'s header differs from the first file's in {', '.join(differ)}"
+        raise EvaluationError(msg)
+    return first
 
 
 def _holdout(
