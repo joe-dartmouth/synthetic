@@ -175,7 +175,7 @@ def score_holdout(
         name: _fill(
             arms[name],
             train,
-            replica_request(train, seed=seed, frame=frame),
+            replica_request(train, experiment, seed=seed, frame=frame),
             holdout=seed,
             attempts=experiment.attempts,
             name=f"{name}-replica",

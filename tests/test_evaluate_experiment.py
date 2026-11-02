@@ -11,7 +11,7 @@ import pytest
 
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
-from bko.datasets.split import split
+from bko.datasets.split import kept_count, split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.cllm import SHOW
 from bko.evaluate.data import Dataset
@@ -116,6 +116,7 @@ def test_e1_is_its_stated_configuration():
         "decontaminate": True,
         "training_fraction": Fraction(1),
         "cutoff": 0.5,
+        "replica_rows": None,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -268,10 +269,30 @@ def test_nothing_to_fill_is_refused():
 
 def test_the_replica_asks_for_every_cells_training_count():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
-    request = replica_request(train, seed=3, frame=UCI_FRAME)
+    request = replica_request(train, E1, seed=3, frame=UCI_FRAME)
     assert request.rows == len(train)
     assert request.seed == 3
     assert request.quota[FLAGGED[0]] == 2
+
+
+def test_a_capped_replica_asks_kept_count_per_cell():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    cap = len(train) // 2
+    capped = dataclasses.replace(E1, replica_rows=cap)
+    request = replica_request(train, capped, seed=3, frame=UCI_FRAME)
+    whole = replica_request(train, E1, seed=3, frame=UCI_FRAME)
+    fraction = Fraction(cap, len(train))
+    assert request.quota == {
+        cell: kept_count(count, fraction) for cell, count in whole.quota.items()
+    }
+    assert request.rows < whole.rows
+    assert request.seed == 3
+
+
+def test_no_cap_keeps_the_whole_split_replica():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    request = replica_request(train, E1, seed=3, frame=UCI_FRAME)
+    assert request.rows == len(train)
 
 
 @pytest.mark.parametrize(

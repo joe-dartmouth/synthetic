@@ -265,7 +265,7 @@ def _exclude(
     ablated = prepared(parts, experiment, edges=frame.edges).ablated
     train, seed = ablated.train, ablated.seed
     gap = gap_request(train, experiment, seed=seed, frame=frame)
-    return excluded(others, seed, gap, replica_request(train, seed=seed, frame=frame))
+    return excluded(others, seed, gap, replica_request(train, experiment, seed=seed, frame=frame))
 
 
 def _admit(folder: Folder, others: Sequence[Folder], *, run: str, experiment: Experiment) -> None:

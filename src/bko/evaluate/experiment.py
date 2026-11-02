@@ -19,6 +19,7 @@ import pandas as pd
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
+from bko.datasets.split import kept_count
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
@@ -89,6 +90,8 @@ class Experiment:
             arm runs (`bko.datasets.split.subsampled`); 1 keeps them all.
         cutoff: The probability at or above which utility calls a record positive; a float in
             (0, 1).
+        replica_rows: The rows a replica asks for in all, split across cells in proportion to their
+            training counts (`bko.datasets.split.kept_count`); None asks for every training row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -112,6 +115,7 @@ class Experiment:
     decontaminate: bool = True
     training_fraction: Fraction = Fraction(1)
     cutoff: float = THRESHOLD
+    replica_rows: int | None = None
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -127,7 +131,7 @@ class Experiment:
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
-                bool among them).
+                bool among them), or the replica rows are below 1.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -198,6 +202,9 @@ class Experiment:
             raise ValueError(msg)
 
     def _check_cutoff(self) -> None:
+        if self.replica_rows is not None and self.replica_rows < 1:
+            msg = f"replica rows {self.replica_rows} must be 1 or more"
+            raise ValueError(msg)
         if not isinstance(self.cutoff, float) or not 0 < self.cutoff < 1:
             msg = f"cutoff {self.cutoff!r} must be a float strictly between 0 and 1"
             raise ValueError(msg)
@@ -376,9 +383,18 @@ def gap_request(
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec) -> Request:
-    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells."""
+def replica_request(
+    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
+) -> Request:
+    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells.
+
+    With `experiment.replica_rows` set, each cell asks for its `kept_count` at the share
+    `replica_rows / len(train)`, so the cap is split across cells in proportion.
+    """
     quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
+    if experiment.replica_rows is not None:
+        share = Fraction(experiment.replica_rows, len(train))
+        quota = {cell: kept_count(count, share) for cell, count in quota.items()}
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 

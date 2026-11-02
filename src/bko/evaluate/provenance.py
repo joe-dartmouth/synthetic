@@ -47,18 +47,19 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
 
     `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
     band, sex and label joined by `/`, then `@` and the fraction, or `none`; `cutoff=` follows
-    `fill_to=` only when it is not E1's.
+    `fill_to=` only when it is not E1's; `replica_rows=` follows `replica=` only when set.
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
     removed = (
         "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}"
     )
     cutoff = "" if experiment.cutoff == THRESHOLD else f"cutoff={experiment.cutoff} "
+    capped = "" if experiment.replica_rows is None else f"replica_rows={experiment.replica_rows} "
     return (
         f"experiment run={name} frame={frame} holdouts={len(seeds)} seeds={seeds[0]}-{seeds[-1]} "
         f"removal={removed} training_fraction={experiment.training_fraction} "
         f"decontaminate={'true' if experiment.decontaminate else 'false'} "
-        f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} "
+        f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} {capped}"
         f"threshold={experiment.threshold} fill_to={experiment.fill_to} {cutoff}"
         f"budget={experiment.budget} validity={experiment.validity} "
         f"spend_ceiling={experiment.spend_ceiling:.2f} "
