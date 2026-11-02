@@ -188,7 +188,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   define is empty, and a criterion that reads an empty value refuses to judge. Fidelity is
   SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
   `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
-  both against the training rows. Each arm's added and replica rows that equal a test record in
+  both against the training rows. `bko.evaluate.privacy.nearest` computes it in blocks of arrays
+  rather than through `calculate_dcr`'s cross merge of every row pair, and
+  `tests/test_evaluate_privacy.py` holds the two equal bit for bit. Each arm's added and replica rows that equal a test record in
   every column are counted (`test-copies`). Each holdout's held-out rows also carry a
   `flagged-fingerprint` score, a hash of the cells it flagged, so two scores files show whether
   their flagged subgroups are the same test records.
@@ -376,8 +378,8 @@ which arm looked best; a harness that takes any frame in the evaluation schema.
 **Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9); `<55 female 1`
 holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect shows only through
 other test records; subgroup verdicts are likely inconclusive at this size; distance to closest
-record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
-a public SDMetrics export; baseline results on the real test split were in view when the readings
+record is weak evidence of privacy, blind to attacks that need no near-copy; the test oracle
+`calculate_dcr` is not a public SDMetrics export; baseline results on the real test split were in view when the readings
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
 than the holdout seed; a BKO arm ignores the seed, and its retry repeats the same request; the test
 split each arm is scored on depends on every arm's rows; a call with no response forfeits only that call,
@@ -470,7 +472,7 @@ that E1 runs again (The latest configuration is judged).
 **The holdout count and the margins are re-chosen if the frame changes before the run that judges
 it**; this record and `E1` change together.
 
-**`calculate_dcr` is replaced if an SDMetrics release removes
+**The equality test's oracle is replaced if an SDMetrics release removes
 `sdmetrics.single_table.privacy.dcr_utils.calculate_dcr`.**
 
 **The classifier changes if any holdout logs a fit that did not converge within `MAX_ITER`.**
