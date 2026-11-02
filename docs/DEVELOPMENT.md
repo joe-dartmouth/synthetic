@@ -948,10 +948,11 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `probe` waits for the server's `/health` while it loads, sends one call for four records of
   `<55/female/1`, and logs each decoded record, the seconds it took and the reply's reasoning
   length as `reasoning_chars=`; it exits 2 if the server does not ready, serves another model
-  (a base id's server for its `-thinking` id included), or nothing decodes. Stop the server with `pkill` whether or not the probe passes. One
-  model is served at a time; a local model bills nothing. A run's first call logs the
-  `local server` line (the served file, the server's build and the file's pinned sha256) and
-  refuses a server serving another model, and a local run keeps at most four calls in flight
+  (a base id's server for its `-thinking` id, or the reverse, included), nothing decodes, or a
+  `-thinking` id's reply carries no reasoning (a `WARNING` names it). Stop the server with `pkill`
+  whether or not the probe passes. One model is served at a time; a local model bills nothing. A
+  run's first call logs the `local server` line (the model, whether it thinks, the served file,
+  the server's build and the file's pinned sha256) and refuses a server serving another model, and a local run keeps at most four calls in flight
   (`bko.generate.local.SLOTS`), logging `local in_flight=` when `--in-flight` asked for more.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.

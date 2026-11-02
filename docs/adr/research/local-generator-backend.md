@@ -56,9 +56,11 @@ with the same structured-output schema, and the run's spend gates still have to 
   uses (ADR `research/call-log-replay`): the first choice's `message.content`, reasoning ignored.
 - **Server check.** The first call reads the server's `/props` and refuses a server whose alias is
   not the run's model or whose weights file name is not its pin's, before any call is posted, so a
-  server under a base id's alias is refused for its variant; and logs one
-  `local server model=%s path=%s build=%s slots=%s sha256=%s` line: the served file, the server's
-  build and the file's pinned digest.
+  server under a base id's alias is refused for its variant and the reverse. It then logs one
+  `local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s` line: the model, whether
+  it thinks, the served file, the server's build and the file's pinned digest. The check reads
+  names, not the server's reasoning setting, so `probe` is what shows a thinking id served without
+  its flags.
 - **Calls in flight.** A local run keeps at most `SLOTS` calls in flight, whatever `--in-flight`
   asks (`bko.evaluate.scoring`), since a call past the slots would queue inside the server while its
   idle limit ran.
@@ -84,8 +86,10 @@ with the same structured-output schema, and the run's spend gates still have to 
   comparison, so no thinking-off control run is made.
 - **Compute.** A local run's cost is read in tokens and in FLOPs, 2 x active parameters x tokens
   computed, never in wall time. The tokens computed are the prompt tokens less those the server's
-  usage reports as cached, plus the generated tokens, reasoning included. Active parameters come
-  from each pinned GGUF header's expert fields (experts used of total):
+  usage reports as cached, plus the generated tokens, reasoning included. Each pinned GGUF header
+  holds the experts used and their total in `<arch>.expert_used_count` and `<arch>.expert_count`
+  (read from the pinned files: `gemma4` 8 of 128, `nemotron_h_moe` 6 of 128). The parameter
+  figures are not among the header's metadata fields, and no field checked here derives them:
 
   | Model | Active parameters / total | Experts used |
   |-------|---------------------------|--------------|
@@ -139,7 +143,8 @@ lines in `scratchpad/probe-*.log`).
 
 - Owner: `src/bko/generate/`
 - Pinned by: `tests/test_generate_local.py`, `tests/test_generate_weights.py`,
-  `tests/test_evaluate_context.py`, `tests/test_generate_spend.py`
+  `tests/test_evaluate_context.py`, `tests/test_evaluate_experiment.py`,
+  `tests/test_generate_spend.py`
 
 ## Reversal Conditions
 
