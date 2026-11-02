@@ -31,11 +31,12 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
-[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease, UCI Diabetes
-130-US Hospitals, the Synthea jar, and the MONDO, HPO and DO releases) is pinned by size and sha256 in
-`bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
-fetch again a snapshot on disk that fails its pin, and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
-commands regenerate one whose CSVs or recorded settings differ.
+[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease,
+UCI Diabetes 130-US Hospitals, the Synthea jar, and the MONDO, HPO and DO releases) is pinned by
+size and sha256 in `bko.datasets.sources`. A download that differs from its pin is refused; the
+commands delete and fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes
+loaders refuse one. A generated population is checked against its own `run.json`: the commands
+regenerate one whose CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
 their report to stdout as CSV and their logs to stderr. The module exits 0 when done, 1 on an
@@ -76,7 +77,17 @@ root or to see the module's own code, run it directly:
   `patient_nbr` never enter the frame. `bko.evaluate.diabetes` holds its `FrameSpec`: age in
   decades (UCUM `10.a`), band edges 4, 6 and 8, each coded column's meanings the archive's own state
   strings, and one field row per ICD-9 and lab row of `bko.ontology.icd9`; `score` refuses records
-  whose columns or codes the frame lacks.
+  whose columns or codes the frame lacks. The loader refuses, as a contract error, a member over
+  its size cap, a value outside the archive's schema (a whole number in other than ASCII digits or
+  past int64 among them), and a cohort with no record or no record readmitted in under 30 days.
+  `tests/test_datasets_diabetes_pinned.py` loads the snapshot under the data root and checks the
+  cohort's size, its label count, the frame's ranges and the pinned discharges and drugs; the gate
+  skips it, and `--releases` runs it, as for [the ontology release tests](#ontologies):
+
+      uv run --no-sync pytest tests/test_datasets_diabetes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `bko.datasets.fetch.ensure`
+  fetches the snapshot, as `score` does for a run over Diabetes 130.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -95,7 +106,8 @@ root or to see the module's own code, run it directly:
   experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test it runs reads `data/`, and each builds its input in `tmp_path`;
-  the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies)). No
+  the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies), and
+  The Diabetes frame above). No
   test runs Java, no gate test reaches the Anthropic API, and the one test that reaches the network
   is under [Gate hazards](#gate-hazards).
 
@@ -493,11 +505,17 @@ start or the supervisor cannot run.
   criterion's family still counts it. The table reads the regression only, so it is the same with
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
-- **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
-  loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the
-  dataset, its frame, its record count, the sha256 of its records that the candidates file's
-  header names under `data`, and the data use agreement the records are held under: `none` for
-  open data, else the agreement's name in double quotes ([Data](#data), Agreements)), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
+- **What it logs**: each stderr line starts with its time. For a Diabetes 130 run, `score` first
+  logs the cohort line as it loads the records, `cohort encounters=%d repeat_encounters=%d
+  excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
+  accounts for every encounter: `encounters` = `repeat_encounters` + `excluded_discharges` +
+  `unknown_gender` + `under_20` + `records` ([Data](#data), The Diabetes frame). `score` logs a
+  `data` line once it has loaded the named run's data,
+  `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the dataset, its frame, its record
+  count, the sha256 of its records that the candidates file's header names under `data`, and the
+  data use agreement the records are held under: `none` for open data, else the agreement's name
+  in double quotes ([Data](#data), Agreements)), then an `experiment` line,
+  `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
@@ -652,9 +670,10 @@ start or the supervisor cannot run.
   its row limit, which fills partially) or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
-  send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a direct arm
-  with no `--candidates` or over field rows that nest in a chain (`bko.gaps.shares.nested`), `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
-  `--candidates` with no BKO or direct arm, one path for
+  send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a
+  direct arm with no `--candidates`, a direct arm whose field rows nest in a chain
+  (`bko.gaps.shares.nested`), `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to
+  build, `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match

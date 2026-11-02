@@ -190,7 +190,8 @@ equivalence, so the choice among a category's holders is the team's; load time h
 - Owner: `src/bko/ontology/`
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
-  `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, and `tests/test_ontology_pinned_releases.py` with `--releases`
+  `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, and
+  `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
   passed; a person runs one of them after editing the table, re-pinning, or changing

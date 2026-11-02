@@ -120,8 +120,9 @@ links to where its blocker is tracked.
 - **`cleanup:evaluate/merge-configuration-check`: `merge` says it refuses slices of other
   configuration, but it compares score keys alone.** `bko.evaluate.merge`'s docstring says slices
   scored under different code or configuration are refused; it compares each slice's (arm, source,
-  measure, scope) keys and holdouts, so two slices run at a different `training_fraction` or
-  removal fraction share keys and merge. *Filed 2026-10-31 by the diff review of PR #66.*
+  measure, scope) keys and holdouts, so two slices run at a different `training_fraction`,
+  removal fraction or `cutoff` share keys and merge. *Filed 2026-10-31 by the diff review of PR
+  #66; the cutoff case added 2026-11-02 by the review of PR #71, whose `shared` test refuses it.*
   **Why deferred.** No run of a training fraction or removal fraction is sliced; the check predates
   PR #66.
   **What discharges it:** `merge` compares each slice's `experiment` line (or a configuration

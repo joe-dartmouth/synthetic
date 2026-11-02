@@ -172,7 +172,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **A judged classifier and a reported one.** The criteria read a logistic regression (lbfgs, L2,
   C = 1) on standardised measured predictors and coded predictors one-hot encoded over their
   codebook. The weights reach the regression only. A record is called positive at a probability of
-  0.5 or more, E1's cutoff; `Experiment.cutoff` sets it for another run, and E1 and E3 keep 0.5. A fit that does not converge stops the run. Every arm's augmented training set also
+  0.5 or more, E1's cutoff; `Experiment.cutoff`, a float strictly between 0 and 1, sets it for
+  another run, and E1 and E3 keep 0.5. A fit that does not converge stops the run. Every arm's
+  augmented training set also
   fits a histogram gradient boosting classifier (`bko.evaluate.classifier.build_hgb`): the same
   one-hot coded predictors, measured predictors unscaled, log loss, learning rate 0.1, 100
   iterations, 31 leaves, no depth limit, a leaf of at least 1 record, no L2 penalty, every feature,

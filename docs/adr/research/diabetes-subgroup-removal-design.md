@@ -19,9 +19,16 @@ Every E6 number depends on the cohort, the label, the cutoff, the age bands, the
 removal fraction, the fill target, the arms, the holdout count and the copy rule. The task unit
 [`evaluate-diabetes-subgroup-removal`](../../../tasks/evaluate-diabetes-subgroup-removal.md) asks
 for a power calculation to fix them before any paid run. Two free measurements did that: a probe
-over a frame reimplemented from the raw archive, then a dry run over the committed frame code. The
-dry run is a throwaway script outside the repository; its output blocks [C1] to [C5] are quoted
-below byte for byte. It ran with `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`.
+over a frame reimplemented from the raw archive, then a dry run over the committed frame code. Each
+is a throwaway script outside the repository, whose header gives its invocation with
+`VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`. Blocks [C1] to [C5] below are excerpts of the dry
+run's output, every line kept byte for byte, with lines left out: [C1] omits G0's label counts per
+filter order, the drug shares beside the committed `DRUGS`, and the `change` and `diabetesMed`
+shares; [C2] the tables under edges (8,) and
+(4, 8); [C3] the arms' definitions, every other cell's section, the 0.5-cutoff readings, and the
+AUC-PR, precision, `mix-0.5` and `class-weight` lines; [C4] the other cells' replicate rows. The
+probe block in Rationale is an excerpt of the probe's output in the same way. [C6] is not from
+either script: it was measured separately, by the command it shows.
 
 The dry run's gates, in order:
 
@@ -61,7 +68,8 @@ for SMOTE and 1.42 for duplication ([C3]).
   (2 to 9), sex, race, the eight count fields, `A1Cresult`, `max_glu_serum`, the eight drugs most
   often given, `change`, `diabetesMed`, and one indicator per `ICD9_MAPPINGS` row. Every indicator
   lies above 1% prevalence (the least is 0.0154, [C1]), and `bko.gaps.shares.nested` finds no
-  nesting among the field rows, so the table keeps all ten.
+  nesting among the field rows (`tests/test_evaluate_diabetes.py` asserts it), so the table keeps
+  all ten.
 - **G0, approximate**: after the first-encounter and discharge filters the cohort holds 69,973
   encounters against Strack et al.'s 69,984 ([`strack-2014`](../../literature.md#datasets)), 11
   fewer ([C1]). At that step 6,277 are readmitted in under 30 days against the 6,459 (3,462 +
@@ -356,30 +364,32 @@ the replica reads `bko` alone.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| An any-readmission label (`<30` or `>30`) | Blurs the early readmission Strack et al. study with any later one; `<30` is the outcome the archive is used for | 2026-11-01 |
-| A 20-row fill | Null at about 56,000 training rows: `dup20 - none` recall +0.0004 on the chosen cell ([C3]) | 2026-11-01 |
-| Year midpoints for age | Off-grid ages that no real record holds would break exact-copy counts; the decade index is the archive's own resolution | 2026-11-01 |
-| Messages replicas for every arm | A full replica of the training split per holdout per Messages arm costs far past the unit's cap; see Rationale, The replica | 2026-11-01 |
-| Fewer than 100 holdouts | User decision: 100, for replicability; `mde` at 30 is 1.0696 times its value at 100 | 2026-11-01 |
-| Excluding SMOTE and ADASYN at 1.0 | Their zero fill is the result at 1.0: count-based methods have nothing to copy | 2026-11-01 |
-| A cross-fraction beside reading | The held-out distance to closest record differs between fractions, since the training rows differ, so the fractions do not pair | 2026-11-01 |
-| Replaying every slice | User decision: one slice per fraction verifies the code, and every resumed slice its resumption | 2026-11-01 |
-| A wall-time duration rule | User decision: no reading, rule or design value uses wall time | 2026-11-01 |
+| An any-readmission label (`<30` or `>30`) | Blurs the early readmission Strack et al. study with any later one; `<30` is the outcome the archive is used for | 2026-11-02 |
+| A 20-row fill | Null at about 56,000 training rows: `dup20 - none` recall +0.0004 on the chosen cell ([C3]) | 2026-11-02 |
+| Year midpoints for age | Off-grid ages that no real record holds would break exact-copy counts; the decade index is the archive's own resolution | 2026-11-02 |
+| Messages replicas for every arm | A full replica of the training split per holdout per Messages arm costs far past the unit's cap; see Rationale, The replica | 2026-11-02 |
+| Fewer than 100 holdouts | User decision: 100, for replicability; `mde` at 30 is 1.0696 times its value at 100 | 2026-11-02 |
+| Excluding SMOTE and ADASYN at 1.0 | Their zero fill is the result at 1.0: count-based methods have nothing to copy | 2026-11-02 |
+| A cross-fraction beside reading | The held-out distance to closest record differs between fractions, since the training rows differ, so the fractions do not pair | 2026-11-02 |
+| Replaying every slice | User decision: one slice per fraction verifies the code, and every resumed slice its resumption | 2026-11-02 |
+| A wall-time duration rule | User decision: no reading, rule or design value uses wall time | 2026-11-02 |
 | The probe's cell `(4-7, female, 1)` under edges (4, 8) | On the committed frame it scores fifth of nine and fails G4 on both replicate seed sets ([C4]) | 2026-11-02 |
 | A 0.5 cutoff | G1 failed on all 18 cells: real recall at 0.5 is 0.0020 to 0.0157 ([C3]) | 2026-11-02 |
 
 ## Enforcement
 
 - Owner: `src/bko/evaluate/diabetes.py`
-- Pinned by: `tests/test_datasets_diabetes.py`, `tests/test_evaluate_diabetes.py`,
-  `tests/test_evaluate_power.py`
+- Pinned by: `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
+  `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`
 
 ## Reversal Conditions
 
 - The paid f = 0.985 run's `none - real` recall on the removed cell fails G3: its corrected
   interval's upper bound is not below 0, or |D| is under 0.1609, the dry run's largest
   2 x kappa x MDE against `none` ([C3]).
-- The measured cost per record asked exceeds 1.25 times the estimate stated before the run.
+- The measured cost per record asked exceeds 1.25 times the estimate E6's Configuration in
+  [`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal) records before the paid
+  run.
 
 ## Related
 

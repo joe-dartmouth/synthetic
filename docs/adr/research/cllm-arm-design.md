@@ -173,7 +173,8 @@ prompt (their section 2.2).
 - **Egress.** The CLLM arms send training records whole. Every `Source` in
   `bko.datasets.sources` names the data use agreement it is held under
   (`bko.datasets.sources.Agreement(name, sending)`), None for open data, and every pinned source's
-  is None: UCI Heart Disease and UCI Diabetes 130-US Hospitals are CC BY 4.0 with no other term. `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
+  is None: UCI Heart Disease and UCI Diabetes 130-US Hospitals are CC BY 4.0 with no other term.
+  `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
   `bko.evaluate.data.Data.agreement` carries it into `score` and the app, and
   `bko.evaluate.guided.guided_arms` refuses data whose agreement permits no sending, for every
   Messages arm, with an `EvaluationError` naming the agreement, before the call log or the
