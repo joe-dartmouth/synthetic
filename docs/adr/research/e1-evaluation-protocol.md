@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-01
+updated: 2026-11-02
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -341,7 +341,10 @@ the same; dropping the holdout would select splits on how one generator behaved.
 still short of a gap fill at its row limit on the last attempt fills partially
 (`bko.evaluate.shortfall`): it keeps the rows it drew, checked against the quota less the
 shortfall, each short cell gets a `shortfall` line and its `arm` line's params name the shortfall,
-and the holdout stays paired at fewer rows for that arm alone. A replica fill still refuses, since
+and the holdout stays paired at fewer rows for that arm alone. A structural shortfall, a stratum
+holding fewer records than its method needs (ADR
+[`research/baseline-augmentation-design`](baseline-augmentation-design.md)), fills partially the
+same way on attempt 1 for every row-adding method, since no later attempt changes it. A replica fill still refuses, since
 its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
 2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
 not one holdout. Any other refusal on every attempt still stops the run.

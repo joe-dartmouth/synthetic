@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-10-31
+updated: 2026-11-02
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -61,8 +61,10 @@ all three measures**.
   the fused fragments; the command is `python -m bko.evaluate likelihood`, because it reads
   `holdout_candidates`, `split`, `prepared` and `fidelity`, and `bko.generate` already imports
   `bko.gaps`.
-- **Input.** `runs/e1-4/holdout-candidates.jsonl` as written: `holdout_candidates.read` accepts
-  schema 1 beside schema 2, checking a schema-1 file's `uci` digest against UCI Heart Disease's.
+- **Input.** The named run's candidates files as written, one or more slices, over the named run's
+  holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schema 1 beside schema 2,
+  checking a schema-1 file's `uci` digest against UCI Heart Disease's. `e1-4`'s
+  `holdout-candidates.jsonl` is the first such file.
 
 ## Rationale
 

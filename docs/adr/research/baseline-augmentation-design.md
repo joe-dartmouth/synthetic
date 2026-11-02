@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-31
+updated: 2026-11-02
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -44,7 +44,8 @@ seed their sampling after every fit, and seed no fit.
   weights each record n / (k * n_c) over the labels, scikit-learn's balanced heuristic, computed in
   the stage.
 - **SMOTE is SMOTE-NC**, run once per stratum against the rest of the split with
-  k = min(5, records - 1). A stratum of fewer than 2 records is refused.
+  k = min(5, records - 1). A stratum of fewer than 2 records is a 0-row shortfall: the method adds
+  no row to it and the fill reports the stratum's quota as short.
 - **ADASYN runs the same way on one-hot coded predictors**, each block decoded to its largest entry.
   It is asked for ceil(records / 2) more rows than the quota, and the quota is kept by sha256 rank.
 - **SMOTE and ADASYN z-score the measured predictors** with the training split's mean and standard

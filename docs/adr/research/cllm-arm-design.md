@@ -101,8 +101,9 @@ prompt (their section 2.2).
   measure and `dropped_curation=` in the `guided` and `validity` lines, for a curating arm alone.
   It counts as passed in the validity rate, as every drop after validation does.
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
-  `max(3, ceil(1.5 / s))` for the least curator keep share `s` the two pilots measured: 9, from
-  Synthea's 0.1734.
+  `max(3, ceil(1.5 / s))` for the least curator keep share `s` measured: 22, from `ceil(1.5 / 0.0707)`
+  at B3's replica `<65/female/1` fill on Synthea (Consequences). A curating call asks
+  `min(per_call, limit - asked)` records, so a cell never asks past its limit.
 - **Partial fill.** A curating arm gives each cell its own budget, `budget` times the cell's
   quota, and gives up a cell, with a `shortfall` line naming its `quota=`, once its records asked
   could not cover its rows still short; the other cells go on, and the attempt returns the rows it
@@ -222,7 +223,7 @@ Curation sits before the quota so a dropped row costs budget, not a slot. An att
 1/s records asked per row kept, so `1.5 / s` leaves half again for top-ups. For an arm that does
 not curate, the budget only caps an attempt's asks before it refuses; for `cllm` it caps each
 cell's asks before the cell is given up. Either way it is a cap, not a target, so the UCI arm,
-whose least share needs less than 3, asks no more under 9. The pilot curates BKO
+whose least share needs less than 3, asks no more under 22. The pilot curates BKO
 records because no shown-record run exists before B3; B3's own `dropped-curation` counts measure
 the arm.
 
@@ -253,8 +254,7 @@ an agreement that grants no permission to send them.
   half in five fills and cells, replica `<65/female/1` 0.0707 (1437 of 20314), replica
   `>=65/female/1` 0.0976 (366 of 3750), gap `>=65/female/1` 0.1276 (1348 of 10564), replica
   `>=65/male/0` 0.1543 (2666 of 17276) and replica `<65/male/1` 0.2074 (4504 of 21718). The
-  budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22. `CLLM_BUDGET` is 9, the budget
-  B3 ran; the re-measure is `cleanup:evaluate/cllm-budget-remeasure`.
+  budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22, `CLLM_BUDGET`.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.
 - The curator's fits are not XGBoost's: histogram boosting bins each feature, and its leaf bound
   counts rows.
@@ -291,7 +291,7 @@ an agreement that grants no permission to send them.
 
 **The budget is re-measured if B3's `cllm` keeps under half of the rows that reach its curator in
 any fill and cell**, where `1.5 / s` passes 3; the candidates file's `dropped-curation` lines
-against its `kept` and `dropped-quota` lines show it. B3's Synthea run meets it (Consequences).
+against its `kept` and `dropped-quota` lines show it. `CLLM_BUDGET` rests on B3's Synthea run (Consequences).
 
 **The thresholds follow CLLM's code if `notebooks/compute_downstream.ipynb` changes
 `curation_ythresh` or `curation_xthresh`** in a later commit of its repository.

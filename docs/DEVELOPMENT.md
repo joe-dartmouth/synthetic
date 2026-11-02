@@ -201,7 +201,10 @@ and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`
 holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
 holdouts hold different (arm, source, measure, scope) keys, as slices scored under other code or
 configuration would, and writes the rows in the named run's seed order under one header to stdout,
-each holdout's rows in its file's order:
+each holdout's rows in its file's order. It also reads each slice's sibling `scores.log` and
+refuses a slice with none, or whose `data`, `versions` or `experiment` line differs from the first
+slice's once `run=`, `holdouts=`, `seeds=` and `spend_ceiling=` are set aside, as slices at another
+training fraction, removal fraction or commit would:
 
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
@@ -450,8 +453,10 @@ start or the supervisor cannot run.
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
   `grep -v -- '-hgb,'` leaves the regression's rows alone. The replica
-  arms also fill the training split's own cell counts; those rows alone train a classifier and are
-  compared with the training split for fidelity. It writes one row per holdout, arm, source, measure
+  arms also fill the training split's own cell counts, or, when `Experiment.replica_rows` is set, that
+  many rows split across the cells in proportion to those counts; those rows alone train a
+  classifier and are compared with the training split for fidelity. A replica holding rows of fewer
+  than two labels, or none, scores its classifier measures undefined, and the run goes on. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
   split's training rows' gaps under its definition (a CLLM arm reads none and shows training
   records instead, ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)), asks the API for each requested cell's
@@ -518,9 +523,11 @@ start or the supervisor cannot run.
   `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
-  holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
+  holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>`, the fraction in (0, 1] and 1
+  removing every row of the cell, or `none`,
   `training_fraction=` an exact fraction such as `1/4`, or `1`, `decontaminate=` `true` or
-  `false`; `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not
+  `false`; ` replica_rows=<rows>` follows `replica=` only when the run's
+  `Experiment.replica_rows` caps the replica fill at that many rows in all; `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not
   E1's 0.5, the probability at which utility calls a record positive), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
@@ -541,13 +548,14 @@ start or the supervisor cannot run.
   (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
   scores the rows it kept; a short replica fill, or a Gaussian copula or CART fill, still refuses,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
-  `holdout` line with the progress and seconds, then the CSV's row count and sha256. It also logs
-  per BKO attempt a `guided` line, `guided arm=%s seed=%d outcome=%s calls=%s asked=%d
+  `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
+  `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote. It also logs
+  per BKO attempt a `guided` line, `guided holdout=%d fill=%s arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
   (`calls=` is the attempt's call range `<first>-<last>`, or `none` for an attempt refused before
   any call, and `usd=` the run's spend so far); for the prescribing arm `bko-skeleton` it reads
-  `guided arm=%s seed=%d outcome=%s calls=%s asked=%d generated=%d passed=%d dropped_range=%d
-  dropped_cell=%d dropped_concepts=%d dropped_quota=%d kept=%d requeued=%d usd=%.4f`, where
+  `guided holdout=%d fill=%s arm=%s seed=%d outcome=%s calls=%s asked=%d generated=%d passed=%d
+  dropped_range=%d dropped_cell=%d dropped_concepts=%d dropped_quota=%d kept=%d requeued=%d usd=%.4f`, where
   `requeued=` counts the attempt's lines returned to their cell's queue; for the curating arm `cllm`
   `dropped_curation=%d` stands before `dropped_quota=`, and each attempt first logs its curator's
   fit as `curator train=%d labels=%s stages=%d confidence_at_most=%s aleatoric_at_most=%s` (the
@@ -559,10 +567,12 @@ start or the supervisor cannot run.
   cell short returns the rows it kept, with outcome `partial`, instead of refusing, its params
   carry `short` (each such cell's missing rows), and its rows are checked against its quota less
   each given-up cell's missing rows. `bko-skeleton` also logs, after each wave,
-  `prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d requeued=%d`
+  `prescribed holdout=%d fill=%s arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d
+  requeued=%d`
   (the wave's number within the attempt from 1, and the wave's records asked, kept, dropped for
   their concepts and lines re-queued), so an arm starving on concept drops shows before its
-  attempt ends, and, from logger `bko.generate.direct`, the `direct holdout=` and `fallback` lines of
+  attempt ends, and, as the `guided` and `prescribed` lines do, a baseline method's `fit` and
+  `filled` lines carry `holdout=%d fill=%s` (`holdout=-1 fill=none` outside a harness fill), and, from logger `bko.generate.direct`, the `direct holdout=` and `fallback` lines of
   each attempt's draw of its lines, as `g2` logs them. It logs a `spend` line before each BKO call
   with the run's spend so far and the ceiling, a
   `ceiling wait call=%d reserved_usd=%.4f in_flight=%d usd=%.4f ceiling=%.2f` line when a call waits
@@ -690,9 +700,11 @@ start or the supervisor cannot run.
 **Likelihood.** `likelihood` reads a run's candidates file and asks whether a candidate's
 log-probability under the BKB's concept draw (`bko.gaps.likelihood.Likelihood`) separates fidelity,
 the question G7's curated arm rests on
-([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). It makes no API call:
+([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). `--candidates` repeats: a sliced run's
+files are read as one run's, and the command refuses files whose holdouts overlap or leave a holdout
+of the named run out, or whose headers differ in any key but `run`. It makes no API call:
 
-    test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates runs/<source-run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log </dev/null
+    test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates runs/<source-run-id>/holdout-candidates.jsonl [--candidates <more>]... [--data-dir <dir>] > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log </dev/null
 
 Per holdout, it scores the `bko` arm's replica records that were kept or dropped by the quota,
 splits each cell's records at that cell's median score (ties in `sha256` order of holdout, call and

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-28
+updated: 2026-11-02
 ---
 # The Synthea ablation: a pinned generated population, with whole patients removed
 
@@ -51,7 +51,8 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
   fraction ablations name the same removals.
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 - **E3 removes training rows only**: E3 thins one cell of each holdout's training split with
-  `bko.datasets.ablation.thinned`, by the same `removal_order` and exact count, and leaves the
+  `bko.datasets.ablation.thinned`, by the same `removal_order` and exact count, takes a fraction in (0, 1], 1 removing the whole
+  cell, and leaves the
   population and the test split whole (ADR
   [`research/synthea-downstream-design`](synthea-downstream-design.md)).
 
