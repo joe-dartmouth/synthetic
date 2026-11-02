@@ -25,7 +25,8 @@ from bko.evaluate.data import Data, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
-from bko.evaluate.guided import Knowledge, guided_arms
+from bko.evaluate.guided import Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.provenance import log_experiment
@@ -220,7 +221,7 @@ def _guided(
     *,
     direct: bool,
 ) -> list[Score]:
-    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
+    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided_run.guided_arms`.
 
     With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
     writes that file alone, with no settings in its header, and no call log is made. Each BKO or

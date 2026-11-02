@@ -177,7 +177,7 @@ prompt (their section 2.2).
   is None: UCI Heart Disease and UCI Diabetes 130-US Hospitals are CC BY 4.0 with no other term.
   `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
   `bko.evaluate.data.Data.agreement` carries it into `score` and the app, and
-  `bko.evaluate.guided.guided_arms` refuses data whose agreement permits no sending, for every
+  `bko.evaluate.guided_run.guided_arms` refuses data whose agreement permits no sending, for every
   Messages arm, with an `EvaluationError` naming the agreement, before the call log or the
   candidates file exists; `python -m bko.generate` refuses the same before its call log, since its
   bounds and percentiles are training values too. Importing `bko.generate.api`, the one module

@@ -17,7 +17,8 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import EvaluationError, StopRuleError
-from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.scores import Source
 from bko.evaluate.validity import COUNTS

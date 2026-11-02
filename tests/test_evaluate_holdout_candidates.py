@@ -22,7 +22,8 @@ from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
-from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
+from bko.evaluate.guided import SEQUENTIAL, Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import SCHEMA, Candidate, CandidateFile, Origin, read
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (

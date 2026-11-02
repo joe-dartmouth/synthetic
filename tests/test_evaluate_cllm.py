@@ -16,7 +16,8 @@ from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.cllm import SHOW, Shower
 from bko.evaluate.experiment import CLLM_ARM, CLLM_RAW_ARM, MESSAGES_ARMS
-from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge, guided_arms
+from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.scores import Measure, Source
