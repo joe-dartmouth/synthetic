@@ -29,6 +29,10 @@ SLICE_KEYS: Final = frozenset({"run", "holdouts", "seeds", "spend_ceiling"})
 DATA_ASSUMED: Final = {"agreement": "none"}
 """The `data` keys an older line may lack, each with the value it is read as: open data."""
 
+ADDED_DISTANCES: Final = frozenset({Measure.DCR_P5, Measure.DCR_MEDIAN})
+"""The added rows' distance measures, which `score` writes for an arm only on a holdout where it
+added rows (`bko.evaluate.run`), so one run's holdouts may differ in them."""
+
 type _Lines = Mapping[str, Mapping[str, str] | str]
 """A slice log's `data` and `experiment` lines as keys and values, and its `versions` line."""
 
@@ -39,12 +43,13 @@ def merge(seeds: Sequence[int], paths: Sequence[Path]) -> str:
     Each file is read as `bko.evaluate.scores.parse` reads one, so a file with other columns is
     refused, and logged with its path, its lowest and highest holdout, its row count and its
     sha256. Every holdout must hold the same (arm, source, measure, scope) keys, as one run's
-    holdouts do. Each file's sibling `scores.log` must hold the first file's `data`, `versions`
-    and `experiment` lines, `SLICE_KEYS` set aside and a key an older line lacks read at the
-    value `ASSUMED` or `DATA_ASSUMED` gives it, so slices scored under different code or
-    configuration are refused. The rows are written in the order of `seeds` under one header,
-    each holdout's rows in the order its file holds them, and the result is logged with its
-    sha256.
+    holdouts do, but for the added rows' distances (`ADDED_DISTANCES`), which an arm that added
+    no row on a holdout lacks there. Each file's sibling `scores.log` must hold the first file's
+    `data`, `versions` and `experiment` lines, `SLICE_KEYS` set aside and a key an older line
+    lacks read at the value `ASSUMED` or `DATA_ASSUMED` gives it, so slices scored under different
+    code or configuration are refused. The rows are written in the order of `seeds` under one
+    header, each holdout's rows in the order its file holds them, and the result is logged with
+    its sha256.
 
     Raises:
         EvaluationError: If no file is given, two files hold the same holdout, a holdout holds
@@ -87,7 +92,10 @@ def merge(seeds: Sequence[int], paths: Sequence[Path]) -> str:
                 raise EvaluationError(msg)
             owner[holdout] = path
             keys = frozenset(
-                (s.arm, s.source, s.measure, s.scope) for s in read if s.holdout == holdout
+                (s.arm, s.source, s.measure, s.scope)
+                for s in read
+                if s.holdout == holdout
+                and not (s.source is Source.ADDED and s.measure in ADDED_DISTANCES)
             )
             if reference is None:
                 reference = (holdout, path, keys)

@@ -158,6 +158,19 @@ def test_merge_refuses_slices_whose_holdouts_hold_other_scores(tmp_path, caplog)
     assert "other scores than holdout 0 of" in caplog.text
 
 
+def test_an_arm_that_added_no_row_on_one_holdout_still_merges(tmp_path):
+    lines = HIGH.splitlines(keepends=True)
+    emptied = "".join(
+        line
+        for line in lines
+        if not line.startswith(("3,smote,added,dcr-p5,", "3,smote,added,dcr-median,"))
+    )
+    assert len(emptied.splitlines()) == len(lines) - 2
+    code, merged = _merged(tmp_path, [LOW, emptied])
+    assert code == 0
+    assert merged == LOW + "".join(emptied.splitlines(keepends=True)[1:])
+
+
 def test_merge_of_a_missing_file_exits_two(tmp_path):
     out = io.StringIO()
     missing = str(tmp_path / "absent.csv")

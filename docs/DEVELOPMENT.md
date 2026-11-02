@@ -201,7 +201,8 @@ and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`
 `merge` joins holdout slices' scores into the scores one run writes. It refuses files whose
 holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
 holdouts hold different (arm, source, measure, scope) keys, as slices scored under other code or
-configuration would, and writes the rows in the named run's seed order under one header to stdout,
+configuration would; an arm's added-row `dcr-p5` and `dcr-median` are set aside, since `score`
+writes them only on a holdout where the arm added rows. It writes the rows in the named run's seed order under one header to stdout,
 each holdout's rows in its file's order. It also reads each slice's sibling `scores.log` and
 refuses a slice with none, or whose `data`, `versions` or `experiment` line differs from the first
 slice's once `run=`, `holdouts=`, `seeds=` and `spend_ceiling=` are set aside, as slices at another
