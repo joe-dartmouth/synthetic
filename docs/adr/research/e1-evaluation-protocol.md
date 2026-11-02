@@ -339,14 +339,18 @@ request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling d
 and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
 a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
 third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
-the same; dropping the holdout would select splits on how one generator behaved. CTGAN or TVAE
-still short of a gap fill at its row limit on the last attempt fills partially
+the same; dropping the holdout would select splits on how one generator behaved. A rejection
+sampler (CTGAN, TVAE, the Gaussian copula, sequential CART or the Bayesian network) still short of
+a gap fill at its row limit on the last attempt fills partially
 (`bko.evaluate.shortfall`): it keeps the rows it drew, checked against the quota less the
 shortfall, each short cell gets a `shortfall` line and its `arm` line's params name the shortfall,
 and the holdout stays paired at fewer rows for that arm alone. A structural shortfall, a stratum
 holding fewer records than its method needs (ADR
 [`research/baseline-augmentation-design`](baseline-augmentation-design.md)), fills partially the
-same way on attempt 1 for every row-adding method, since no later attempt changes it. A replica fill still refuses, since
+same way on attempt 1, since no later attempt changes it: on a gap fill that asks for a stratum
+of fewer than 2 training records, any arm's shortfall fills partially on the attempt that meets it,
+a rejection sampler's at its row limit included, and a refusal that is not a shortfall is retried
+as on any other fill. A replica fill still refuses, since
 its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
 2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
 not one holdout. Any other refusal on every attempt still stops the run.

@@ -36,20 +36,20 @@ class Removal:
     Attributes:
         cell: The cell's age band, sex label and label.
         fraction: The share of its training rows removed, drawn per holdout at the holdout's seed
-            (`bko.datasets.ablation.thinned`).
+            (`bko.datasets.ablation.thinned`); 1 removes every row of the cell.
     """
 
     cell: Stratum
     fraction: float
 
     def __post_init__(self) -> None:
-        """Refuse a fraction outside (0, 1).
+        """Refuse a fraction outside (0, 1].
 
         Raises:
-            ValueError: If the fraction is not strictly between 0 and 1.
+            ValueError: If the fraction is not above 0 and at most 1.
         """
-        if not 0 < self.fraction < 1:
-            msg = f"removal fraction {self.fraction} must lie strictly between 0 and 1"
+        if not 0 < self.fraction <= 1:
+            msg = f"removal fraction {self.fraction} must lie in (0, 1]"
             raise ValueError(msg)
 
 

@@ -34,9 +34,10 @@ from sdv.metadata import Metadata
 from sdv.single_table import GaussianCopulaSynthesizer
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
+from bko.baselines.errors import ShortfallError
 from bko.baselines.records import Baseline, derived_seed, unit_weights
 from bko.baselines.request import Request
-from bko.baselines.synthesizers import fill, metadata
+from bko.baselines.synthesizers import fill, holding, metadata
 from bko.datasets.frames import FrameSpec
 
 
@@ -65,8 +66,9 @@ def gaussian_copula(train: pd.DataFrame, request: Request) -> Baseline:
     The request's seed reaches nothing: SDV fixes the copula's sampling seed itself.
 
     Raises:
-        BaselineError: As `fill`, if the copula's draws cannot meet the quota; its shortfall holds
-            no baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the copula's draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     tables = Metadata.load_from_dict(dict(metadata(frame)))
@@ -74,8 +76,14 @@ def gaussian_copula(train: pd.DataFrame, request: Request) -> Baseline:
     start = time.perf_counter()
     synthesizer.fit(train.loc[:, list(frame.columns)])
     logger.info("fit method=gaussian-copula seconds=%.1f", time.perf_counter() - start)
-    added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method="gaussian-copula")
-    return Baseline(added=added, weights=unit_weights(train), params=synthesizer.get_parameters())
+    params = synthesizer.get_parameters()
+    try:
+        added = fill(
+            lambda rows: synthesizer.sample(num_rows=rows), request, method="gaussian-copula"
+        )
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
+    return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
 def cart(train: pd.DataFrame, request: Request) -> Baseline:
@@ -87,8 +95,9 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
     global generator is read or moved.
 
     Raises:
-        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
-            baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     columns = list(frame.columns)
@@ -108,7 +117,6 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
             out[column] = _donated(new, trained, rows[column].to_numpy(), rng)
         return out.astype(dict(frame.dtypes))
 
-    added = fill(draw, request, method="cart")
     params = {
         "seed": request.seed,
         "visit": columns,
@@ -117,6 +125,10 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
         "max_depth": CART_MAX_DEPTH,
         "complexity": CART_COMPLEXITY,
     }
+    try:
+        added = fill(draw, request, method="cart")
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 

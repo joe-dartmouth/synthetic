@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
 
@@ -24,10 +25,12 @@ from bko.baselines.bayes_net import (
     learn,
     mutual_information,
 )
+from bko.baselines.errors import ShortfallError
 from bko.baselines.records import derived_seed, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
+from bko.baselines.synthesizers import fill
 from bko.datasets.uci import UCI_FRAME
-from tests._baselines_fixtures import QUOTA, assert_contract, full_records
+from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 
 
@@ -281,7 +284,8 @@ def _table_digest(network: Network) -> str:
                 node.field,
                 node.parents,
                 sorted(
-                    (key, tuple(p.hex() for p in chances)) for key, chances in node.table.items()
+                    (key, tuple(float(p).hex() for p in chances))
+                    for key, chances in node.table.items()
                 ),
             )
             for node in network.nodes
@@ -345,3 +349,17 @@ def test_mutual_information_is_computed_once_per_field_and_parents(monkeypatch):
     learn(discretize(TRAIN, UCI_FRAME), first="age")
     assert calls
     assert len(calls) == len(set(calls))
+
+
+def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch):
+    monkeypatch.setattr(bayes_net_module, "fill", functools.partial(fill, batch=10, limit=10))
+    quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
+    with pytest.raises(ShortfallError) as caught:
+        bayes_net(TRAIN, Request(quota=quota, seed=3))
+    short = caught.value
+    assert short.baseline is not None
+    assert set(short.short) == {f">={EDGE}/female/1"}
+    pd.testing.assert_frame_equal(short.baseline.added, short.added)
+    pd.testing.assert_series_equal(short.baseline.weights, unit_weights(TRAIN))
+    assert short.baseline.params["short"] == dict(short.short)
+    assert short.baseline.params["seed"] == 3

@@ -6,10 +6,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bko.baselines.errors import BaselineError
+from bko.baselines.errors import BaselineError, ShortfallError
 from bko.baselines.oversample import adasyn, smote
 from bko.baselines.request import Request
-from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
+from bko.evaluate.data import digest
+from tests._baselines_fixtures import (
+    EDGE,
+    EVALUATION_COLUMNS,
+    QUOTA,
+    assert_contract,
+    full_records,
+)
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -63,10 +70,47 @@ def test_a_two_record_stratum_uses_one_neighbour(oversampler):
     assert result.params["neighbors"] == {f"('<{EDGE}', 'female', 1)": 1}
 
 
-def test_a_one_record_stratum_is_refused(oversampler):
-    train = TRAIN.drop(TRAIN.index[YOUNG][1:])
-    with pytest.raises(BaselineError, match="at least 2 training records"):
+@pytest.mark.parametrize("left", [0, 1])
+def test_an_empty_stratum_raises_a_shortfall_holding_the_other_strata(oversampler, left):
+    train = TRAIN.drop(TRAIN.index[YOUNG][left:])
+    young = (f"<{EDGE}", "female", 1)
+    with pytest.raises(ShortfallError, match="at least 2 training records") as caught:
+        oversampler(train, Request(quota=QUOTA, seed=3))
+    short = caught.value
+    assert short.short == {f"<{EDGE}/female/1": QUOTA[young]}
+    others = {stratum: rows for stratum, rows in QUOTA.items() if stratum != young}
+    assert short.baseline is not None
+    assert_contract(short.baseline.added, train, others)
+    pd.testing.assert_frame_equal(short.added, short.baseline.added)
+    assert short.baseline.params == {
+        "neighbors": {str(stratum): 5 for stratum in others},
+        "short": {f"<{EDGE}/female/1": QUOTA[young]},
+    }
+
+
+def test_every_stratum_empty_raises_a_shortfall_of_no_rows(oversampler):
+    train = TRAIN.drop(TRAIN.index[YOUNG])
+    with pytest.raises(ShortfallError) as caught:
         oversampler(train, Request(quota={(f"<{EDGE}", "female", 1): 4}))
+    assert caught.value.baseline is not None
+    assert caught.value.baseline.added.empty
+    assert list(caught.value.baseline.added.columns) == EVALUATION_COLUMNS
+
+
+PINNED = {
+    ("smote", 0): "4816f15feb6fac53cdf9a3188225f25853488ecc8b8f091d23ed46648d703e5c",
+    ("smote", 3): "6e28dec998722bacaffb007062c3617feb681b06d1de873c20912b06ec59ce5a",
+    ("adasyn", 0): "0fa5ece66778041539e05c3cbfaeb6e0704416dfba33e94bbadf8fa8f5de857d",
+    ("adasyn", 3): "281ced36241feb47b9a1bb1e51a1891fe5f817627b98cfa10a39cc46afd3cf47",
+}
+"""Each method's added rows' `digest` on `QUOTA`, as the method wrote them before a shortfall."""
+
+
+@pytest.mark.parametrize(("method", "seed"), sorted(PINNED))
+def test_smote_and_adasyn_bytes_are_unchanged_off_the_structural_path(method, seed):
+    result = OVERSAMPLERS[method](TRAIN, Request(quota=QUOTA, seed=seed))
+    assert digest(result.added) == PINNED[method, seed]
+    assert result.params == {"neighbors": {str(stratum): 5 for stratum in sorted(QUOTA)}}
 
 
 @pytest.mark.parametrize("rows", [1, 2, 17])

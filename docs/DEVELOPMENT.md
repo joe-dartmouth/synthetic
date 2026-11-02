@@ -544,9 +544,12 @@ start or the supervisor cannot run.
   the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
   `params={}`), a `retry` warning for each refused attempt before the last, a
   `shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d` warning per short cell
-  when CTGAN or TVAE still lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt
+  when a rejection sampler (CTGAN, TVAE, the Gaussian copula, CART or the Bayesian network) still
+  lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt, or SMOTE or ADASYN meets a
+  cell of fewer than 2 training records, where it adds no row; on a gap fill that asks for such a
+  cell, any arm's shortfall fills partially on the attempt that meets it, with no retry
   (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
-  scores the rows it kept; a short replica fill, or a Gaussian copula or CART fill, still refuses,
+  scores the rows it kept; a short replica fill still refuses,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
   `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote. It also logs

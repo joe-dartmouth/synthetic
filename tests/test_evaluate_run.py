@@ -274,6 +274,70 @@ def test_a_shortfall_with_no_rows_built_still_refuses():
         run(GRADED, SMALL, {**FAST_ARMS, "smote": short}, frame=UCI_FRAME)
 
 
+ONE_RECORD = GRADED.drop(
+    GRADED.index[[cell == (f"<{EDGE}", "female", 1) for cell in cell_list(GRADED)]][1:]
+)
+"""`GRADED` with one record left in `<55 female 1`: a structural shortfall for SMOTE."""
+
+
+def test_a_structural_shortfall_fills_partially_on_attempt_1(caplog):
+    assert SMALL.attempts > 1
+    calls = []
+
+    def counting(train, request):
+        calls.append(request.seed)
+        return FAST_ARMS["smote"](train, request)
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        scores = run(ONE_RECORD, ONLY_SMOTE, {"smote": counting}, frame=UCI_FRAME)
+    assert len(calls) == len(SMALL.holdout_seeds)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    assert not any(m.startswith("retry ") for m in caplog.messages)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert len(lines) == len(SMALL.holdout_seeds)
+    assert all(
+        re.fullmatch(
+            rf"shortfall holdout=\d+ arm=smote attempt=1 cell=<{EDGE}/female/1 "
+            r"short=(\d+) quota=\1",
+            m,
+        )
+        for m in lines
+    )
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert all(" attempt=1 " in m and '"short": {' in m for m in arms)
+
+
+def test_a_plain_refusal_on_a_structural_request_keeps_its_retries(caplog):
+    calls = []
+
+    def flaky(train, request):
+        calls.append(request.seed)
+        if len(calls) % 2 == 1:
+            msg = "past its budget"
+            raise BaselineError(msg)
+        return FAST_ARMS["smote"](train, request)
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        run(ONE_RECORD, ONLY_SMOTE, {"smote": flaky}, frame=UCI_FRAME)
+    assert len(calls) == 2 * len(SMALL.holdout_seeds)
+    retries = [m for m in caplog.messages if m.startswith("retry ")]
+    assert [m.split()[1:4] for m in retries] == [
+        [f"holdout={seed}", "arm=smote", "attempt=1"] for seed in SMALL.holdout_seeds
+    ]
+    shortfalls = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert len(shortfalls) == len(SMALL.holdout_seeds)
+    assert all(" attempt=2 " in m for m in shortfalls)
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert all(" attempt=2 " in m for m in arms)
+
+
+def test_a_structural_shortfall_on_a_replica_still_refuses(caplog):
+    replica = dataclasses.replace(ONLY_SMOTE, replica_arms=("smote",), threshold=2, fill_to=3)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"), pytest.raises(ShortfallError):
+        run(ONE_RECORD, replica, {"smote": FAST_ARMS["smote"]}, frame=UCI_FRAME)
+    assert any(m.startswith("refused holdout=0 arm=smote-replica ") for m in caplog.messages)
+
+
 def test_a_refusal_is_retried_with_a_derived_seed():
     seeds = []
 

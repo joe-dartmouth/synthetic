@@ -230,17 +230,17 @@ def thinned(
         train: The training rows, with `age`, `sex` and `LABEL`.
         cell: The age band, sex label and label of the rows to thin.
         edges: Age band starts.
-        fraction: The share of the cell's rows to remove, in (0, 1).
+        fraction: The share of the cell's rows to remove, in (0, 1]; 1 removes every row.
         seed: The draw's seed.
 
     Returns:
         The rows kept, then the rows removed, each in `train`'s order.
 
     Raises:
-        DatasetError: If the fraction is not in (0, 1) or `cell` holds no row of `train`.
+        DatasetError: If the fraction is not in (0, 1] or `cell` holds no row of `train`.
     """
-    if not 0 < fraction < 1:
-        msg = f"the thinned fraction must lie in (0, 1), not {fraction}"
+    if not 0 < fraction <= 1:
+        msg = f"the thinned fraction must lie in (0, 1], not {fraction}"
         raise DatasetError(msg)
     keys = cell_keys(train, edges=edges)
     band, sex, label = cell

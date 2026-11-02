@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 import types
@@ -13,8 +14,10 @@ import torch
 
 import bko.baselines.classical as classical_module
 from bko.baselines.classical import _predictors, cart, gaussian_copula
+from bko.baselines.errors import ShortfallError
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request, Strata, Stratum
+from bko.baselines.synthesizers import fill
 from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
@@ -197,3 +200,19 @@ def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypa
     # Per later column: the tree's 10, its own predictors' 100, and the leaf assignment's 100.
     later = len(TOY.columns) - 1
     assert _fit_seconds(caplog) == [f"fit method=cart seconds={210.0 * later:.1f}"]
+
+
+@pytest.mark.parametrize("method", [gaussian_copula, cart], ids=["copula", "cart"])
+def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch, method):
+    monkeypatch.setattr(classical_module, "fill", functools.partial(fill, batch=10, limit=10))
+    quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
+    with pytest.raises(ShortfallError) as caught:
+        method(TRAIN, Request(quota=quota, seed=3))
+    short = caught.value
+    assert short.baseline is not None
+    assert set(short.short) == {f">={EDGE}/female/1"}
+    assert 0 < short.short[f">={EDGE}/female/1"] <= 10
+    pd.testing.assert_frame_equal(short.baseline.added, short.added)
+    pd.testing.assert_series_equal(short.baseline.weights, unit_weights(TRAIN))
+    assert short.baseline.params["short"] == dict(short.short)
+    assert len(short.baseline.params) > 1

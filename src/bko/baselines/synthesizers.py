@@ -183,6 +183,13 @@ def _synthesize(
         try:
             added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method=method)
         except ShortfallError as exc:
-            kept = Baseline(exc.added, unit_weights(train), {**params, "short": dict(exc.short)})
-            raise ShortfallError(str(exc), exc.short, exc.added, kept) from None
+            raise holding(exc, train, params) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)
+
+
+def holding(
+    exc: ShortfallError, train: pd.DataFrame, params: Mapping[str, object]
+) -> ShortfallError:
+    """`exc` again, holding its kept rows as the method's baseline, `params` plus its `short`."""
+    kept = Baseline(exc.added, unit_weights(train), {**params, "short": dict(exc.short)})
+    return ShortfallError(str(exc), exc.short, exc.added, kept)

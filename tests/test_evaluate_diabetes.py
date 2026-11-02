@@ -17,6 +17,7 @@ from typing import Final
 
 import pytest
 
+from bko.baselines.request import Method
 from bko.datasets.cells import LABEL
 from bko.datasets.diabetes import STATE_CODES, load_diabetes
 from bko.datasets.errors import ContractError
@@ -34,7 +35,9 @@ from bko.evaluate.diabetes import (
     indicator_codes,
 )
 from bko.evaluate.experiment import (
+    BKO_ARMS,
     CLLM_ARM,
+    CLLM_RAW_ARM,
     DIRECT_ARM,
     E1,
     REAL_ARM,
@@ -45,7 +48,7 @@ from bko.evaluate.experiment import (
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run import method_arms
-from bko.evaluate.scores import parse
+from bko.evaluate.scores import Source, parse
 from bko.gaps.shares import nested
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.prompt import system
@@ -227,6 +230,42 @@ def test_diabetes_rehearses_end_to_end_on_a_tmp_archive(rehearsed):
     kept = read(candidates_for(log).read_bytes())
     assert kept.header["frame"] == "diabetes"
     assert {line.arm for line in kept.candidates} == {"bko", DIRECT_ARM, SKELETON_ARM, CLLM_ARM}
+
+
+EVERY_ARM: Final = (
+    *(str(method) for method in Method),
+    *BKO_ARMS,
+    DIRECT_ARM,
+    SKELETON_ARM,
+    CLLM_ARM,
+    CLLM_RAW_ARM,
+    REAL_ARM,
+)
+"""E6's arms: every method, every Messages arm, the direct arm and `real`."""
+
+EMPTIED: Final = dataclasses.replace(
+    TOY_RUN,
+    arms=EVERY_ARM,
+    comparators=tuple(arm for arm in EVERY_ARM if arm not in {"bko", REAL_ARM}),
+    removal=Removal(REMOVED, 1.0),
+)
+"""The toy run at E6's zero-shot removal: every training row of `(6-7, female, 1)` removed."""
+
+
+def test_every_e6_arm_completes_at_an_emptied_cell(tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="bko"):
+        text, log = _score(tmp_path, "toy-e6-emptied", EMPTIED, "--rehearse")
+    scores = parse(text)
+    for holdout in (0, 1):
+        scored = {s.arm for s in scores if s.holdout == holdout and s.source is Source.AUGMENTED}
+        assert scored == set(EVERY_ARM)
+    shortfalls = [m for m in caplog.messages if m.startswith("shortfall holdout=")]
+    for arm in ("smote", "adasyn"):
+        mine = [m for m in shortfalls if f" arm={arm} " in m]
+        assert len(mine) == 2
+        assert all(" attempt=1 cell=6-7/female/1 " in m for m in mine)
+    assert not any(m.startswith(("retry ", "refused ")) for m in caplog.messages)
+    assert json.loads(log.read_text(encoding="utf-8").splitlines()[-1])["status"] == "complete"
 
 
 def test_a_diabetes_rehearsal_sends_no_uci_words(rehearsed):

@@ -28,9 +28,10 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from bko.baselines.errors import ShortfallError
 from bko.baselines.records import Baseline, derived_seed, unit_weights
 from bko.baselines.request import Request
-from bko.baselines.synthesizers import fill
+from bko.baselines.synthesizers import fill, holding
 from bko.datasets.frames import FrameSpec
 
 
@@ -210,8 +211,9 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
     size, each field's states and the learned edges, each `[parent, child]` in drawing order.
 
     Raises:
-        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
-            baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
@@ -222,9 +224,6 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
     network = learn(bins, first=first)
     logger.info("fit method=bayes-net seconds=%.1f", time.perf_counter() - start)
     rng = np.random.default_rng(seed)
-    added = fill(
-        lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
-    )
     params = {
         "seed": request.seed,
         "first": first,
@@ -234,6 +233,12 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
         "states": {field: bins.arity(field) for field in frame.columns},
         "edges": [list(edge) for edge in network.edges],
     }
+    try:
+        added = fill(
+            lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
+        )
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 

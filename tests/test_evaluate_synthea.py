@@ -108,7 +108,7 @@ def test_the_removal_thins_training_rows_only(tmp_path):
     assert whole.removed.empty
 
 
-@pytest.mark.parametrize("fraction", [1.0, 0.0, -0.1])
+@pytest.mark.parametrize("fraction", [0.0, -0.1, 1.5])
 def test_thinning_refuses_a_fraction_outside_0_and_1(tmp_path, fraction):
     train = split(_records(tmp_path), seed=0, edges=SYNTHEA_FRAME.edges).train
     with pytest.raises(DatasetError, match="must lie in"):
@@ -144,8 +144,16 @@ def test_thinning_counts_the_fraction_exactly_at_a_float_boundary(fraction, remo
     assert (len(out), len(kept)) == (removed, 100 - removed)
 
 
-def test_a_removal_fraction_must_lie_strictly_between_0_and_1():
-    for fraction in (0.0, 1.0, 1.5):
+def test_thinning_at_one_removes_every_row_of_the_cell():
+    train = pd.concat([_one_cell(10), _one_cell(3).set_axis(range(11, 14)).assign(target=0)])
+    kept, out = thinned(train, cell=REMOVED, edges=(65,), fraction=1.0, seed=0)
+    assert sorted(out.index) == list(range(1, 11))
+    assert list(kept.index) == [11, 12, 13]
+
+
+def test_a_removal_fraction_must_lie_in_0_to_1():
+    assert Removal(REMOVED, 1.0) == Removal(REMOVED, 1)
+    for fraction in (0.0, 1.5):
         with pytest.raises(ValueError, match="fraction"):
             Removal(REMOVED, fraction)
 

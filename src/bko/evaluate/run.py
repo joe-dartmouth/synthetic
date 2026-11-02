@@ -45,7 +45,7 @@ from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
-from bko.evaluate.shortfall import partial_fill, shortfall_kept
+from bko.evaluate.shortfall import partial_fill, shortfall_kept, structural
 from bko.evaluate.utility import utility
 
 
@@ -297,7 +297,9 @@ def _fill(
 
     On a gap fill, a generator still short at its row limit on the last attempt returns the rows
     it kept (`bko.evaluate.shortfall.partial_fill`) rather than refusing; a replica fill still
-    refuses, since its scores read it as a copy of every training cell.
+    refuses, since its scores read it as a copy of every training cell. On a gap fill that asks
+    for a stratum of fewer than 2 training rows (`structural`), a shortfall fills partially on any
+    attempt, since no retry changes those rows; a plain refusal there is retried as any other.
 
     The runner gets a copy of `train` on every attempt, so one that changes its input changes
     nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
@@ -307,6 +309,7 @@ def _fill(
         EvaluationError: If `attempts` is below 1.
     """
     first = request.seed
+    partial = kind == "gap" and structural(train, request)
     for attempt in range(1, attempts + 1):
         try:
             baseline = _call(runner, train, request, Fill(holdout, kind))
@@ -317,7 +320,8 @@ def _fill(
             )
             raise
         except BaselineError as exc:
-            kept = shortfall_kept(exc) if attempt == attempts and kind == "gap" else None
+            last = attempt == attempts and kind == "gap"
+            kept = shortfall_kept(exc) if last or partial else None
             if kept is not None:
                 baseline = partial_fill(*kept, train, request, fill=(holdout, name, attempt))
                 _log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)
