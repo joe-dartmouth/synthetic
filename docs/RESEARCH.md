@@ -218,14 +218,16 @@ students and 10 weeks ([section 8](#8-scope-assessment)).
 
 ## 6. Datasets
 
-The plan uses UCI Heart Disease and Synthea, both openly available (2-pager sections 2 and 4). The
-other rows are the brief's registry (D10), kept for reference.
+The plan uses UCI Heart Disease and Synthea, both openly available (2-pager sections 2 and 4), and
+UCI Diabetes 130-US Hospitals for subgroup removal on real patients
+([below](#limits-of-uci-heart-disease-as-the-evaluation-frame)). The other rows are the
+brief's registry (D10), kept for reference.
 
 | Dataset | Access | Description (brief D10) | In the plan |
 |---|---|---|---|
 | UCI Heart Disease (Cleveland) | Open | Classic 303-record binary/multiclass detection task; naturally small, which suits a low-data story; the evaluation frame is ADR [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md) | Evaluation setting ([section 2](#2-intended-users-and-evaluation-setting)) |
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
-| UCI Diabetes 130-US Hospitals | Open | Larger; used in recent synthetic-data audit benchmarks | Planned: unit [`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) (below) |
+| UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, unit [`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
 | NHANES | Open | Openly available national survey data | No |
 | Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
 | MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training | Demo subsets of the credentialed datasets | No |
@@ -342,14 +344,16 @@ Where the brief and the 2-pager disagree:
 | Generator | CLLM [`seedat-2024`][seedat-2024] or fine-tuned GReaT [`borisov-2023`][borisov-2023] | Anthropic Messages API | 2-pager; alternatives in [IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators) |
 | Evaluation stack | SDMetrics + synthcity | scikit-learn, SDMetrics, synthcity | Repository drops synthcity (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)) |
 | Ontology access | OLS/BioPortal APIs (brief A2, F16) | owlready2, pronto, OLS4 | Repository reads pinned OBO releases with pronto and drops owlready2 and OLS4 (ADR [research/ontology-mapping-design](adr/research/ontology-mapping-design.md)) |
-| Datasets | UCI, Pima, Synthea; MIMIC optional | UCI Heart Disease + Synthea | 2-pager |
+| Datasets | UCI, Pima, Synthea; MIMIC optional | 2-pager: UCI Heart Disease + Synthea; repository: also UCI Diabetes 130-US Hospitals [`clore-2014`][clore-2014], open and larger | 2-pager for E1's criteria; the repository adds Diabetes 130 for subgroup removal on real patients ([section 6](#limits-of-uci-heart-disease-as-the-evaluation-frame)) |
 | SLM distillation | Stretch goal or Track B | Absent | [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) |
 | Primary criterion | Not discussed | 2-pager: at least 10% over no augmentation, and matching CTGAN, TVAE and SMOTE; repository: separation from every comparison method, however small, judged on paired intervals ([section 4](#4-success-criteria)) | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
 | Privacy criterion | Not discussed | 2-pager: distance to closest record remains above the real-data baseline; repository: the added rows' 5th-percentile distance reaches a share `E1` fixes of the test rows', judged on paired intervals | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
 | Validity checks | Ontology or SHACL validation rejects implausible rows | 2-pager: at least 95% of generated records pass the model's consistency checks, which it does not list; repository: each field's number, codebook or range, and decimals, with no check from an ontology relationship | Repository; ADR [research/record-validation-design](adr/research/record-validation-design.md) |
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
+[clore-2014]: https://doi.org/10.24432/C5230J
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
+[strack-2014]: https://doi.org/10.1155/2014/781670
 [xu-2019]: https://arxiv.org/abs/1907.00503

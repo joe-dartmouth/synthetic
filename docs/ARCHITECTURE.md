@@ -20,7 +20,7 @@ The tools the 2-pager names (section 4):
 | Baselines | CTGAN (Conditional Tabular GAN), TVAE (Tabular Variational AutoEncoder), SMOTE (Synthetic Minority Over-sampling Technique), ADASYN (Adaptive Synthetic Sampling) | CTGAN and TVAE come from SDV, SMOTE and ADASYN from imbalanced-learn |
 | Evaluation | scikit-learn, SDMetrics, synthcity | synthcity is not a dependency: it does not resolve on Python 3.14 (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). Evaluation uses scikit-learn and SDMetrics ([RESEARCH.md](RESEARCH.md#5-evaluation-contract)) |
 | Code | A GitHub repository | |
-| Data | UCI Heart Disease and Synthea, both openly available | [RESEARCH.md](RESEARCH.md#6-datasets) |
+| Data | UCI Heart Disease and Synthea, both openly available | Also UCI Diabetes 130-US Hospitals, open under CC BY 4.0, for subgroup removal on real patients ([RESEARCH.md](RESEARCH.md#6-datasets)) |
 
 **Principal risk.** The 2-pager states: "The principal risk is that no public BKB library exists, so
 the inference layer will be built by the team." A public BKB library exists ([pybkb](#pybkb)), and

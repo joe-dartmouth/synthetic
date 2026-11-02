@@ -21,6 +21,7 @@ from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, NUMERIC, UCI_FRAME
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
+from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
 from bko.evaluate.holdout_candidates import read
@@ -33,7 +34,7 @@ from bko.evaluate.rehearse import (
     safe_ranges,
 )
 from bko.generate.errors import GenerationError
-from bko.generate.guidance import Guidance, intervals
+from bko.generate.guidance import Basis, Guidance, intervals
 from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
 from bko.generate.prompt import COHERENCE, render, render_shown
 from bko.validate.checks import validate
@@ -131,6 +132,31 @@ def test_a_call_whose_user_turn_names_another_cell_is_refused():
     _, user = render(GUIDANCE, 3, SETTINGS.guidance, frame=UCI_FRAME)
     with pytest.raises(GenerationError, match="not the call's"):
         send(Call(SETTINGS, 1, 1, "system", user, frame=UCI_FRAME))
+
+
+def test_rehearse_prompt_reads_the_frames_age_unit():
+    interval = {bound.field: (bound.low, bound.high) for bound in DIABETES_FRAME.ranges}
+    guidance = Guidance(
+        cell=("6-7", "female", 1),
+        sex=0,
+        label=1,
+        records=5,
+        interval={**interval, "age": (6.0, 7.0)},
+        basis=Basis.NONE,
+    )
+    _, user = render(guidance, 3, Level.CELL, frame=DIABETES_FRAME)
+    found = PROMPT.match(user)
+    assert found is not None
+    assert (found["low"], found["high"], found["unit"]) == ("6", "7", "decades")
+    _, uci = render(GUIDANCE, 3, Level.CELL, frame=UCI_FRAME)
+    found = PROMPT.match(uci)
+    assert found is not None
+    assert found["unit"] == "years"
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
+    with pytest.raises(GenerationError, match="decades, not the frame's years"):
+        send(
+            Call(SETTINGS, 0, 1, "system", uci.replace(" years.", " decades.", 1), frame=UCI_FRAME)
+        )
 
 
 def test_a_rehearsal_runs_with_no_request_and_its_log_says_so(tmp_path):

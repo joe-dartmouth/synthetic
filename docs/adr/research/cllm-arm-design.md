@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-10-31
+updated: 2026-11-02
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -173,7 +173,8 @@ prompt (their section 2.2).
 - **Egress.** The CLLM arms send training records whole. Every `Source` in
   `bko.datasets.sources` names the data use agreement it is held under
   (`bko.datasets.sources.Agreement(name, sending)`), None for open data, and every pinned source's
-  is None. `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
+  is None: UCI Heart Disease and UCI Diabetes 130-US Hospitals are CC BY 4.0 with no other term.
+  `bko.datasets.sources.permits_sending` reads a blank `sending` as no permission.
   `bko.evaluate.data.Data.agreement` carries it into `score` and the app, and
   `bko.evaluate.guided.guided_arms` refuses data whose agreement permits no sending, for every
   Messages arm, with an `EvaluationError` naming the agreement, before the call log or the
@@ -239,8 +240,9 @@ size and sha256, so a dataset's terms have one home.
 holdouts, and curation alone against the uncurated twin. No Messages arm sends records held under
 an agreement that grants no permission to send them.
 **Accepted**:
-- Twenty training records leave the machine on each CLLM call: UCI's are de-identified records
-  under CC BY 4.0, Synthea's are generated
+- Twenty training records leave the machine on each CLLM call: UCI Heart Disease's and UCI
+  Diabetes 130-US Hospitals' are de-identified records under CC BY 4.0 (Diabetes's without
+  `encounter_id` or `patient_nbr`), Synthea's are generated
   ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation), What leaves the machine).
 - A model shown records can copy them; the `training` lines count an arm's rows equal to a
   training row and the `copies` lines its rows equal to a test record, as for every arm.

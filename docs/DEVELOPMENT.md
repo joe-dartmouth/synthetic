@@ -31,11 +31,12 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
-[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease, the
-Synthea jar, and the MONDO, HPO and DO releases) is pinned by size and sha256 in
-`bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
-fetch again a snapshot on disk that fails its pin, and the UCI loader refuses one. A generated population is checked against its own `run.json`: the
-commands regenerate one whose CSVs or recorded settings differ.
+[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease,
+UCI Diabetes 130-US Hospitals, the Synthea jar, and the MONDO, HPO and DO releases) is pinned by
+size and sha256 in `bko.datasets.sources`. A download that differs from its pin is refused; the
+commands delete and fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes
+loaders refuse one. A generated population is checked against its own `run.json`: the commands
+regenerate one whose CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
 their report to stdout as CSV and their logs to stderr. The module exits 0 when done, 1 on an
@@ -59,7 +60,34 @@ root or to see the module's own code, run it directly:
   pinned population `DEFAULT_RUN` names: `score e3` checks it against its `run.json` with no Java
   and never generates it, so `make synthea` runs once first. It keeps the patients alive on the
   snapshot date and aged 40 and over, and the sha256 of its records is the `digest` of the
-  `data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs.
+  `data dataset=synthea frame=synthea records=<n> digest=<sha256> agreement=none` line `score`
+  logs.
+- **The Diabetes frame**: `bko.datasets.diabetes` reads `diabetic_data.csv` and
+  `IDS_mapping.csv` from the verified `uci-diabetes-130` snapshot without extracting it. It keeps
+  each patient's first encounter (the lowest `encounter_id`), then drops encounters discharged
+  expired or to hospice (`discharge_disposition_id` 11, 13, 14, 19, 20 and 21, the rows
+  `IDS_mapping.csv` names Expired or Hospice), `Unknown/Invalid` gender and age brackets under 20,
+  the cohort of Strack et al. 2014 (`strack-2014` in [`literature.md`](literature.md)) restricted
+  to adults. The label is 1 for readmission in under 30 days (`readmitted` `<30`), 0 otherwise. A
+  record holds the age decade index (2 for `[20-30)` to 9 for `[90-100)`), sex, race (`?` is code
+  0, not recorded), the eight count fields, `A1Cresult` and `max_glu_serum` (`None` is a state,
+  not missing), the eight drug columns most often given, `change`, `diabetesMed`, and one
+  indicator per mapped ICD-9 category, set when any of `diag_1` to `diag_3` falls in it;
+  `record_id` is the record's 1-based position in encounter order. `encounter_id` and
+  `patient_nbr` never enter the frame. `bko.evaluate.diabetes` holds its `FrameSpec`: age in
+  decades (UCUM `10.a`), band edges 4, 6 and 8, each coded column's meanings the archive's own state
+  strings, and one field row per ICD-9 and lab row of `bko.ontology.icd9`; `score` refuses records
+  whose columns or codes the frame lacks. The loader refuses, as a contract error, a member over
+  its size cap, a value outside the archive's schema (a whole number in other than ASCII digits or
+  past int64 among them), and a cohort with no record or no record readmitted in under 30 days.
+  `tests/test_datasets_diabetes_pinned.py` loads the snapshot under the data root and checks the
+  cohort's size, its label count, the frame's ranges and the pinned discharges and drugs; the gate
+  skips it, and `--releases` runs it, as for [the ontology release tests](#ontologies):
+
+      uv run --no-sync pytest tests/test_datasets_diabetes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `bko.datasets.fetch.ensure`
+  fetches the snapshot, as `score` does for a run over Diabetes 130.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -78,7 +106,8 @@ root or to see the module's own code, run it directly:
   experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry).
 - **The gate is offline.** No test it runs reads `data/`, and each builds its input in `tmp_path`;
-  the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies)). No
+  the release tests read `data/` only when `--releases` is passed ([Ontologies](#ontologies), and
+  The Diabetes frame above). No
   test runs Java, no gate test reaches the Anthropic API, and the one test that reaches the network
   is under [Gate hazards](#gate-hazards).
 
@@ -476,15 +505,23 @@ start or the supervisor cannot run.
   criterion's family still counts it. The table reads the regression only, so it is the same with
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
-- **What it logs**: each stderr line starts with its time. `score` logs a `data` line once it has
-  loaded the named run's data, `data dataset=%s frame=%s records=%d digest=%s` (the dataset, its
-  frame, its record count, and the sha256 of its records that the candidates file's header names
-  under `data`), then an `experiment` line, `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
+- **What it logs**: each stderr line starts with its time. For a Diabetes 130 run, `score` first
+  logs the cohort line as it loads the records, `cohort encounters=%d repeat_encounters=%d
+  excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
+  accounts for every encounter: `encounters` = `repeat_encounters` + `excluded_discharges` +
+  `unknown_gender` + `under_20` + `records` ([Data](#data), The Diabetes frame). `score` logs a
+  `data` line once it has loaded the named run's data,
+  `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the dataset, its frame, its record
+  count, the sha256 of its records that the candidates file's header names under `data`, and the
+  data use agreement the records are held under: `none` for open data, else the agreement's name
+  in double quotes ([Data](#data), Agreements)), then an `experiment` line,
+  `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>` or `none`,
   `training_fraction=` an exact fraction such as `1/4`, or `1`, `decontaminate=` `true` or
-  `false`), and a
+  `false`; `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not
+  E1's 0.5, the probability at which utility calls a record positive), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call, then
@@ -633,9 +670,10 @@ start or the supervisor cannot run.
   its row limit, which fills partially) or scores that cannot be
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
-  send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a direct arm
-  with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to build,
-  `--candidates` with no BKO or direct arm, one path for
+  send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a
+  direct arm with no `--candidates`, a direct arm whose field rows nest in a chain
+  (`bko.gaps.shares.nested`), `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to
+  build, `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match
@@ -705,8 +743,9 @@ and the gate never runs pybkb.
 ## Ontologies
 
 `bko.ontology` ([README](../src/bko/ontology/README.md)) reads the MONDO and HPO releases
-`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields and to
-Synthea condition codes, with the codes it excludes (ADR
+`bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields, to
+Synthea condition codes, and to Diabetes 130's ICD-9 diagnosis categories and lab states, with the
+codes and categories it excludes (ADR
 [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). One command, inside
 `.venv`:
 
@@ -716,13 +755,16 @@ Synthea condition codes, with the codes it excludes (ADR
   its pin, parses them with pronto, and checks every row: a concept row's concept exists and is
   not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
   `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
-  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), and an
-  out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets a CSV with the
-  columns `table` (`field`, `code`, `out-of-scope` or `excluded-code`), `subject` (the dataset
-  side, such as `cp in 1|2|3` or `SCTID:<code>`), `concept` (empty for an excluded code), `label`
-  and `status` (`ok`, or how the release disagrees; for an `excluded-code` row, `ok` means the
-  code still has no live `skos:exactMatch`), one row per checked row, the same bytes on every run
-  over the same releases.
+  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), an ICD-9 row's
+  concept carries its `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that
+  xref are exactly the row's declared holders, an excluded ICD-9 category is an xref of no live
+  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout
+  gets a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`
+  or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`,
+  `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or category), `label`
+  and `status` (`ok`, or how the release disagrees; for an `excluded-code` or `excluded-icd9`
+  row, `ok` means the code still has no live holder), one row per checked row, the same bytes on
+  every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.
@@ -923,6 +965,13 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
     label) record count, each mapped concept's share of it and its age quartiles; through the CLLM
     arms, whole training records too. Its rows are generated by Synthea from a pinned seed, so no
     bound, quartile, share or record describes a person.
+  - Diabetes 130 (every named run with a Messages arm whose dataset is Diabetes 130): the same
+    kinds of quantity as UCI's, over the frame's fields ([Data](#data), The Diabetes frame); every
+    bound and quartile is a real training value of a de-identified encounter, and a CLLM call sends
+    frame records whole, under the archive's CC BY 4.0 license. The archive's identifiers,
+    `encounter_id` and `patient_nbr`, never enter the frame, so no call sends them; nor does any
+    call send a column the frame leaves out (`weight`, `payer_code`, `medical_specialty`, the
+    admission and discharge ids, the raw `diag_1` to `diag_3` codes).
 
   A run whose settings name a model in `bko.generate.weights.LOCAL_MODELS` sends each call to the
   llama.cpp server on `127.0.0.1` instead (Local models below), so nothing leaves the machine.

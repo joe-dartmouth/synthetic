@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Final
 
 from bko.evaluate.experiment import Experiment
+from bko.evaluate.utility import THRESHOLD
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -45,18 +46,20 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
     """The run's configuration, frame and models, as the `experiment` log line's message.
 
     `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
-    band, sex and label joined by `/`, then `@` and the fraction, or `none`.
+    band, sex and label joined by `/`, then `@` and the fraction, or `none`; `cutoff=` follows
+    `fill_to=` only when it is not E1's.
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
     removed = (
         "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}"
     )
+    cutoff = "" if experiment.cutoff == THRESHOLD else f"cutoff={experiment.cutoff} "
     return (
         f"experiment run={name} frame={frame} holdouts={len(seeds)} seeds={seeds[0]}-{seeds[-1]} "
         f"removal={removed} training_fraction={experiment.training_fraction} "
         f"decontaminate={'true' if experiment.decontaminate else 'false'} "
         f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} "
-        f"threshold={experiment.threshold} fill_to={experiment.fill_to} "
+        f"threshold={experiment.threshold} fill_to={experiment.fill_to} {cutoff}"
         f"budget={experiment.budget} validity={experiment.validity} "
         f"spend_ceiling={experiment.spend_ceiling:.2f} "
         f"criteria={','.join(experiment.criteria) or 'none'} models={','.join(models)}"

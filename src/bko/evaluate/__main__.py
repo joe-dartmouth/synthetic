@@ -40,13 +40,14 @@ FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log or candidates file, Messages arms with no `--log` or `--candidates`,
-a direct arm with no `--candidates`, `--log`, `--replay`, `--resume` or `--rehearse` with no
-Messages arm to build, `--candidates` with no Messages or direct arm, one
-path for both files, more than one of `--replay`, `--resume` and `--rehearse`, a call with no
-response, a failed gap query, a run whose spend reached the ceiling, projects to it or stalled, a
-`launch` on battery power or into a folder that holds a run, and scores whose validity cannot be
-read; 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be
-resumed contradicts its contract, or a `shared` run folder fails an identity check.
+a direct arm with no `--candidates` or over field rows that nest in a chain, `--log`,
+`--replay`, `--resume` or `--rehearse` with no Messages arm to build, `--candidates` with no
+Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
+`--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
+ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
+and scores whose validity cannot be read; 3 the data, a method's output, a scores file, a replay
+or a stopped log that cannot be resumed contradicts its contract, or a `shared` run folder fails
+an identity check.
 """
 
 from __future__ import annotations

@@ -3,8 +3,9 @@
 A field mapping means one thing: when its clauses all hold for a record, the record shows its
 concept (SSSOM `skos:broadMatch`, with the dataset state as subject). No row says a concept is
 absent. `RangeConstraint` is defined with the frame it bounds, in `bko.datasets.frames`, and
-re-exported here. That import loads `bko.datasets.cells`, and so pandas; nothing else is imported
-but the standard library.
+re-exported here. That import loads `bko.datasets.cells`, and so pandas. The Diabetes 130 row
+types are defined with their rows in `bko.ontology.icd9`, which imports only the standard library;
+nothing else is imported but the standard library.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from bko.datasets.frames import RangeConstraint  # ruff: ignore[unused-import]  (re-exported)
+from bko.ontology.icd9 import Icd9Mapping, LabMapping, UnmappedIcd9
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,9 +150,9 @@ class UnmappedCode:
     source: str
 
 
-type ConceptRow = FieldMapping | CodeMapping | OutOfScope
+type ConceptRow = FieldMapping | CodeMapping | OutOfScope | Icd9Mapping | LabMapping
 
-type CheckedRow = ConceptRow | UnmappedCode
+type CheckedRow = ConceptRow | UnmappedCode | UnmappedIcd9
 
 type CodedRow = CodeMapping | UnmappedCode
 """A row whose subject is a Synthea SNOMED-CT code."""

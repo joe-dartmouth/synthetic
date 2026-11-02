@@ -65,6 +65,26 @@ UCI_HEART_DISEASE: Final = Source(
 )
 """UCI Heart Disease (CC BY 4.0); `bko.datasets.uci` reads its Cleveland file."""
 
+DIABETES_130: Final = Source(
+    name="uci-diabetes-130",
+    url=(
+        "https://archive.ics.uci.edu/static/public/296/"
+        "diabetes+130-us+hospitals+for+years+1999-2008.zip"
+    ),
+    filename="diabetes-130-us-hospitals-for-years-1999-2008.zip",
+    size=3_170_254,
+    sha256="f82ac129da2ddd2299391ff6fbae3a6a58b3edcf59ac9d7bd480c00fe453112a",
+    agreement=None,
+)
+"""UCI Diabetes 130-US Hospitals for Years 1999-2008 (doi:10.24432/C5230J).
+
+The archive holds `diabetic_data.csv` and `IDS_mapping.csv`; size and sha256 were measured from
+the bytes UCI serves. Its terms are CC BY 4.0 alone, so it is open data. The UCI page says: "This
+dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license."
+Strack et al. 2014 say of the records: "All data were deidentified in compliance with the Health
+Insurance Portability and Accountability Act of 1996 before being provided to the investigators."
+"""
+
 SYNTHEA_JAR: Final = Source(
     name="synthea-jar",
     url=(

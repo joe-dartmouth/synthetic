@@ -10,6 +10,8 @@ import pytest
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.split import ranges
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS, UCI_FRAME
+from bko.evaluate.data import SYNTHEA_FRAME
+from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.evaluate.rehearse import PROMPT, RECORD_LINE
 from bko.gaps.detect import Statement
 from bko.generate.guidance import (
@@ -61,6 +63,19 @@ def test_the_system_prompt_names_every_column_with_its_description_codes_and_uni
     )
     assert _line("thalach") == "- thalach: maximum heart rate achieved; beats per minute"
     assert _line("oldpeak") == ("- oldpeak: ST depression induced by exercise relative to rest; mm")
+
+
+@pytest.mark.parametrize(
+    "frame", [UCI_FRAME, SYNTHEA_FRAME, DIABETES_FRAME, TOY], ids=lambda frame: frame.name
+)
+def test_every_numeric_range_unit_of_every_frame_has_a_prompt_unit(frame):
+    text = system(frame)
+    for bound in frame.ranges:
+        assert bound.unit in UNITS, (frame.name, bound.unit)
+        lines = [line for line in text.splitlines() if line.startswith(f"- {bound.field}: ")]
+        assert len(lines) == 1, bound.field
+        details = lines[0].split(": ", 1)[1].lower()
+        assert details.count(UNITS[bound.unit].lower()) == 1, bound.field
 
 
 def test_the_system_prompt_names_the_fractional_fields_from_the_frame():

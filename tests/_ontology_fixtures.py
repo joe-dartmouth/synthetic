@@ -2,9 +2,11 @@
 
 The MONDO:0024644 stanza of `MONDO_TEXT`, with the header lines that declare its prefixes, is from
 MONDO release 2026-10-06 (CC BY 4.0). Its six other stanzas with a `skos:exactMatch SCTID:` line
-abridge that release's stanzas to the id, name, is_a and that line, qualifiers dropped. Every other
-`MONDO_TEXT` stanza is invented: an edge case, or a stub of a parent or a table concept that
-reuses the release's id and name.
+abridge that release's stanzas to the id, name, is_a and that line, qualifiers dropped. Each stanza
+with an `xref: ICD9:` line carries that release's line for the ICD-9 category the table names,
+qualifier kept, beside the id and name, and beside the lines above for MONDO:0001134 and
+MONDO:0004781. Every other `MONDO_TEXT` stanza is invented: an edge case, or a stub of a parent or
+a table concept that reuses the release's id and name.
 `SANTOS_MONDO_TEXT` abridges MONDO release 2026-10-06 (CC BY 4.0) to the id, name and is_a lines
 and the skos:exactMatch lines to DO of the six MONDO classes of Santos et al.'s example, with the
 id and name of their parents, qualifiers dropped; `SANTOS_DO_TEXT` abridges Human Disease Ontology
@@ -58,6 +60,7 @@ name: diabetes mellitus
 [Term]
 id: MONDO:0001134
 name: essential hypertension
+xref: ICD9:401 {{source="DOID:10825"}}
 is_a: MONDO:0005044 ! hypertensive disorder
 property_value: skos:exactMatch SCTID:59621000
 
@@ -96,6 +99,7 @@ property_value: skos:exactMatch SCTID:401303003
 [Term]
 id: MONDO:0004781
 name: acute myocardial infarction
+xref: ICD9:410 {{source="DOID:9408"}}
 
 [Term]
 id: MONDO:0005098
@@ -110,6 +114,56 @@ name: cerebrovascular disorder
 [Term]
 id: MONDO:0021661
 name: coronary atherosclerosis
+
+[Term]
+id: MONDO:0005016
+name: diabetic kidney disease
+xref: ICD9:250.4 {{source="EFO:0000401"}}
+
+[Term]
+id: MONDO:0005252
+name: heart failure
+xref: ICD9:428 {{source="EFO:0003144"}}
+
+[Term]
+id: MONDO:0005009
+name: congestive heart failure
+xref: ICD9:428 {{source="DOID:6000"}}
+
+[Term]
+id: MONDO:0000944
+name: cerebral artery occlusion
+xref: ICD9:434 {{source="DOID:10127"}}
+
+[Term]
+id: MONDO:0005249
+name: pneumonia
+xref: ICD9:486 {{source="MONDO:equivalentTo", source="MONDO:i2s"}}
+
+[Term]
+id: MONDO:0005607
+name: chronic bronchitis
+xref: ICD9:491 {{source="EFO:0006505"}}
+
+[Term]
+id: MONDO:0003781
+name: bronchitis
+xref: ICD9:491 {{source="DOID:6132"}}
+
+[Term]
+id: MONDO:0005002
+name: chronic obstructive pulmonary disease
+xref: ICD9:496 {{source="EFO:0000341", source="MONDO:relatedTo", source="MONDO:i2s"}}
+
+[Term]
+id: MONDO:0005300
+name: chronic kidney disease
+xref: ICD9:585 {{source="MONDO:equivalentTo", source="MONDO:i2s"}}
+
+[Term]
+id: MONDO:0004605
+name: chronic ulcer of skin
+xref: ICD9:707 {{source="DOID:8549"}}
 
 [Term]
 id: MONDO:9999998
@@ -142,6 +196,7 @@ HPO_LABELS: Mapping[str, str] = {
     "HP:0005145": "Coronary artery stenosis",
     "HP:0012250": "ST segment depression",
     "HP:0033992": "Chronotropic incompetence",
+    "HP:0040217": "Elevated hemoglobin A1c",
     "HP:0100749": "Chest pain",
     "HP:0500018": "Abnormal cardiac exercise stress test",
 }

@@ -57,6 +57,18 @@ def test_a_probability_of_one_half_is_called_positive():
     assert scores[Measure.RECALL, Scope.FLAGGED] == pytest.approx(0.5)
 
 
+def test_recall_reads_the_experiments_cutoff():
+    test = records()
+    probability = pd.Series(PROBABILITY, index=test.index)
+    low = utility(test, probability, FLAGGED, edges=EDGES, cutoff=0.35)
+    high = utility(test, probability, FLAGGED, edges=EDGES, cutoff=0.95)
+    assert low[Measure.RECALL, Scope.ALL] == pytest.approx(1.0)
+    assert low[Measure.PRECISION, Scope.ALL] == pytest.approx(3 / 5)
+    assert high[Measure.RECALL, Scope.ALL] == pytest.approx(0.0)
+    assert math.isnan(high[Measure.PRECISION, Scope.ALL])
+    assert low[Measure.AUC_PR, Scope.ALL] == high[Measure.AUC_PR, Scope.ALL]
+
+
 def test_a_scope_without_positives_is_nan_not_zero():
     test = records()
     scores = utility(

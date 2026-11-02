@@ -1,8 +1,8 @@
 """Recall, precision and AUC-PR of one classifier's probabilities on the test split, per scope.
 
-A record is called positive at `THRESHOLD` or above. A measure a scope cannot define is NaN, never
-scikit-learn's fallback: recall needs a positive record, AUC-PR a positive and a negative one, and
-precision a record called positive.
+A record is called positive at `cutoff` or above, `THRESHOLD` by default. A measure a scope cannot
+define is NaN, never scikit-learn's fallback: recall needs a positive record, AUC-PR a positive and
+a negative one, and precision a record called positive.
 """
 
 from __future__ import annotations
@@ -47,15 +47,19 @@ def utility(
     flagged: Collection[Stratum],
     *,
     edges: Sequence[int],
+    cutoff: float = THRESHOLD,
 ) -> dict[tuple[Measure, Scope], float]:
-    """Each measure in each scope, `probability` holding P(disease) per test record by index."""
+    """Each measure in each scope, `probability` holding P(disease) per test record by index.
+
+    A record is called positive at `cutoff` or above; AUC-PR reads no cutoff.
+    """
     scores: dict[tuple[Measure, Scope], float] = {}
     matched = probability.loc[test.index].to_numpy()
     for scope in Scope:
         mask = in_scope(test, scope, flagged, edges=edges).to_numpy()
         truth = test[LABEL].to_numpy()[mask]
         score = matched[mask]
-        called = (score >= THRESHOLD).astype("int64")
+        called = (score >= cutoff).astype("int64")
         positives = int(truth.sum())
         negatives = len(truth) - positives
         scores[Measure.RECALL, scope] = (

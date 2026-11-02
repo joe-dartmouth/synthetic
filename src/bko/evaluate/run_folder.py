@@ -23,6 +23,7 @@ from bko.evaluate.data import Data
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
 from bko.evaluate.holdout_candidates import Candidate, read
+from bko.evaluate.utility import THRESHOLD
 
 
 SCORES_LOG: Final = "scores.log"
@@ -42,13 +43,14 @@ ASSUMED: Final = MappingProxyType(
         "training_fraction": str(Fraction(1)),
         "decontaminate": "true",
         "threshold": str(UNDERREPRESENTED_BELOW),
+        "cutoff": str(THRESHOLD),
     }
 )
 """The `experiment` keys an older line may lack, each with the value it is read as.
 
 Each names a setting added after a run of record was scored, at the value that run used: UCI's
-frame, no removal, the whole training split, copies removed and E1's threshold. `seeds` is also
-read, as `0-<holdouts - 1>`. Any other key a line lacks is refused."""
+frame, no removal, the whole training split, copies removed, E1's threshold and E1's cutoff. `seeds`
+is also read, as `0-<holdouts - 1>`. Any other key a line lacks is refused."""
 
 LINE: Final = re.compile(r"^\S+ \S+ [A-Z]+ [\w.]+: (?P<message>.*)$")
 ARM: Final = re.compile(

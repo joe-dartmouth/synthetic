@@ -21,7 +21,7 @@ from typing import Final
 
 from bko.datasets.fetch import default_data_dir
 from bko.evaluate.context import Context
-from bko.evaluate.data import Data, Dataset, load
+from bko.evaluate.data import Data, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
@@ -32,6 +32,7 @@ from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
 from bko.gaps.scope import load_scope
+from bko.gaps.shares import nested
 from bko.generate.flight import Limits
 from bko.generate.local import SLOTS
 from bko.generate.replay import Answers, Replay, Resume
@@ -96,15 +97,18 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or if the direct arm runs on a dataset other than
-            UCI.
+        EvaluationError: As `_refuse_flags`, or if the direct arm runs on field rows that nest
+            in a chain (`bko.gaps.shares.nested`), which it cannot draw.
         FileExistsError: If the call log or candidates file exists.
     """
     guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
-    if direct and named.dataset is not Dataset.UCI:
-        msg = f"the direct arm {DIRECT_ARM} draws UCI records only, not dataset {named.dataset}"
-        raise EvaluationError(msg)
+    if direct:
+        try:
+            nested(field_rows(named.dataset, context))
+        except ValueError as exc:
+            msg = f"the direct arm {DIRECT_ARM} cannot draw dataset {named.dataset}'s rows: {exc}"
+            raise EvaluationError(msg) from exc
     if args.rehearse:
         # scores.csv carries no marker, so its log says what the run was before anything else.
         logger.warning(

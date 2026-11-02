@@ -32,6 +32,12 @@ representation. The pipeline:
 These follow the first full evaluation. Each is one task unit, and the set's graph and status
 board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
+**Evaluation**
+
+1. Subgroup removal on Diabetes 130-US Hospitals: every arm on real inpatient encounters, with
+   one cell's training positives removed, read against the removed rows added back (E6,
+   [`evaluate-diabetes-subgroup-removal`](tasks/evaluate-diabetes-subgroup-removal.md)).
+
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/) on macOS or Linux. uv provides the interpreter named in

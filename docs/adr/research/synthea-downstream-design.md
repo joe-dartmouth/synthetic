@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-28
-updated: 2026-10-31
+updated: 2026-11-02
 ---
 # The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference
 
@@ -110,8 +110,8 @@ figure below is what the command beside it in Rationale prints against that popu
 `bko.datasets.synthea` builds the frame's records, `bko.evaluate.data` holds the dataset, the frame
 and its field rows, `bko.datasets.ablation` the training-only removal, and
 `bko.evaluate.experiment` the runs. The frame's identity is the `digest` of the
-`data dataset=synthea frame=synthea records=<n> digest=<sha256>` line `score` logs: the sha256
-of its records, which two builds in separate processes match.
+`data dataset=synthea frame=synthea records=<n> digest=<sha256> agreement=none` line `score`
+logs: the sha256 of its records, which two builds in separate processes match.
 
 ## Rationale
 
