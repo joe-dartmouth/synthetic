@@ -16,6 +16,7 @@ import bko.generate.local as local_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scoring import _in_flight
 from bko.generate.calls import ask
+from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.local import (
     SLOTS,
@@ -24,6 +25,7 @@ from bko.generate.local import (
     main,
     payload,
     probe,
+    reasoning_chars,
     reply_of,
     serve_command,
     wait_ready,
@@ -213,8 +215,8 @@ def test_the_send_checks_the_server_once_and_posts_the_payload(caplog):
     lines = [m for m in caplog.messages if m.startswith("local server ")]
     assert lines == [
         (
-            f"local server model={MODEL} path={PROPS['model_path']} build=b1-test slots=4 "
-            f"sha256={LOCAL_MODELS[MODEL].sha256}"
+            f"local server model={MODEL} thinking=false path={PROPS['model_path']} "
+            f"build=b1-test slots=4 sha256={LOCAL_MODELS[MODEL].sha256}"
         )
     ]
 
@@ -479,11 +481,83 @@ def test_the_probe_logs_reasoning_chars(caplog):
     assert "reasoning_chars=0" in lines[1]
 
 
-def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(monkeypatch, caplog):
+def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(monkeypatch):
     tagged = "<think>plan</think>" + json.dumps({"records": [RECORD]})
     with Server([(200, completion([RECORD], content=tagged))]) as fake:
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
-        monkeypatch.setattr(local_module, "LOCAL_URL", fake.url)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
         assert main(["probe", MODEL]) == 2
+
+
+def test_the_server_line_names_thinking_for_a_variant(caplog):
+    caplog.set_level("INFO")
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    lines = [m for m in caplog.messages if m.startswith("local server ")]
+    assert [m.split()[:4] for m in lines] == [
+        ["local", "server", f"model={THINKING}", "thinking=true"]
+    ]
+
+
+def test_a_thinking_server_alias_is_refused_for_a_base_run():
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    base_call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE))
+    with (
+        Server([(200, completion([RECORD]))], props=props) as fake,
+        pytest.raises(GenerationError, match="the run names") as caught,
+    ):
+        asyncio.run(local_send(BASE, url=fake.url)(base_call))
+    assert not caught.value.retryable
+    assert fake.requests == []
+
+
+def test_an_unlisted_model_has_no_payload():
+    call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model="no-such-model"))
+    with pytest.raises(GenerationError, match="no-such-model") as caught:
+        payload(call)
+    assert not caught.value.retryable
+
+
+def test_a_thinking_reply_cut_at_the_budget_decodes_nothing_and_keeps_its_tokens():
+    body = completion([RECORD], finish="length", reasoning_content="t" * 50, content="")
+    reply = reply_of(body)
+    assert (reply.stop_reason, reply.text) == ("max_tokens", "")
+    assert reply.usage.output_tokens == 120
+    assert reasoning_chars(reply) == 50
+    candidates = decode(reply, 1)
+    assert len(candidates) - undecoded_in(candidates) == 0
+
+
+def test_a_thinking_reply_decodes_from_content_alone():
+    reply = reply_of(completion([RECORD], reasoning_content="not json {"))
+    candidates = decode(reply, 1)
+    assert candidates[: len(candidates) - undecoded_in(candidates)] == (RECORD,)
+
+
+@pytest.mark.parametrize("thoughts", [7, ["a"], {"a": 1}, True])
+def test_reasoning_that_is_not_text_counts_zero(thoughts):
+    assert reasoning_chars(reply_of(completion([RECORD], reasoning_content=thoughts))) == 0
+
+
+def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, caplog):
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        with caplog.at_level("INFO"):
+            assert main(["probe", THINKING]) == 2
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("reasoning_chars=0" in m and THINKING in m for m in warnings)
+
+
+def test_a_thinking_probe_with_reasoning_exits_zero(monkeypatch):
+    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    body = completion([RECORD], reasoning_content="think")
+    with Server([(200, body)], props=props) as fake:
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        assert main(["probe", THINKING]) == 0

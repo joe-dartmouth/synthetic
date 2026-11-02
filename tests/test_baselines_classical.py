@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import logging
 import re
+import types
 
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 
+import bko.baselines.classical as classical_module
 from bko.baselines.classical import _predictors, cart, gaussian_copula
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request, Strata, Stratum
@@ -137,6 +139,61 @@ def test_each_classical_method_logs_a_fit_line_in_ctgans_format(method, name, ca
     request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
     with caplog.at_level(logging.INFO):
         method(TOY_TRAIN, request)
-    fits = [r.getMessage() for r in caplog.records if r.getMessage().startswith("fit ")]
+    fits = [r.getMessage() for r in caplog.records if r.name == classical_module.logger.name]
+    fits = [m for m in fits if m.startswith("fit ")]
     assert len(fits) == 1
     assert re.fullmatch(rf"fit method={name} seconds=\d+\.\d", fits[0])
+
+
+def _ticking(monkeypatch) -> dict[str, float]:
+    """Make the module's clock a counter that only the test's own steps advance."""
+    clock = {"now": 0.0}
+    monkeypatch.setattr(
+        classical_module, "time", types.SimpleNamespace(perf_counter=lambda: clock["now"])
+    )
+    return clock
+
+
+def _fit_seconds(caplog) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.name == classical_module.logger.name and r.getMessage().startswith("fit ")
+    ]
+
+
+def test_the_copula_fit_line_spans_its_fit_alone(monkeypatch, caplog):
+    clock = _ticking(monkeypatch)
+    original = classical_module.GaussianCopulaSynthesizer.fit
+
+    def slow_fit(self, data):
+        clock["now"] += 7.5
+        return original(self, data)
+
+    monkeypatch.setattr(classical_module.GaussianCopulaSynthesizer, "fit", slow_fit)
+    request = Request(quota=dict.fromkeys(SHORT, 3), strata=Strata.CELL, seed=0, frame=TOY)
+    with caplog.at_level(logging.INFO):
+        gaussian_copula(TOY_TRAIN, request)
+    assert _fit_seconds(caplog) == ["fit method=gaussian-copula seconds=7.5"]
+
+
+def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypatch, caplog):
+    clock = _ticking(monkeypatch)
+    tree, predictors = classical_module._tree, classical_module._predictors
+
+    def slow_tree(*args, **kwargs):
+        clock["now"] += 10.0
+        return tree(*args, **kwargs)
+
+    def slow_predictors(*args, **kwargs):
+        clock["now"] += 100.0
+        return predictors(*args, **kwargs)
+
+    monkeypatch.setattr(classical_module, "_tree", slow_tree)
+    monkeypatch.setattr(classical_module, "_predictors", slow_predictors)
+    request = Request(quota=dict.fromkeys(SHORT, 3), strata=Strata.CELL, seed=0, frame=TOY)
+    with caplog.at_level(logging.INFO):
+        cart(TOY_TRAIN, request)
+    # Per later column: the tree's 10, its own predictors' 100, and the leaf assignment's 100.
+    later = len(TOY.columns) - 1
+    assert _fit_seconds(caplog) == [f"fit method=cart seconds={210.0 * later:.1f}"]

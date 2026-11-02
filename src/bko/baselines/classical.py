@@ -17,7 +17,8 @@ new row's leaf. The trees use rpart's defaults as synthpop sets them; scikit-lea
 draws nothing at random once its seed is fixed.
 
 Each method logs `fit method=<name> seconds=<s>` as CTGAN and TVAE do: the copula's covers its
-`fit`, CART's the fit of every column's tree.
+`fit`, CART's the fit of every column's tree and the leaf each training row lands in. Seconds are
+wall time, a liveness log and not a cost.
 """
 
 from __future__ import annotations

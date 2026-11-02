@@ -42,9 +42,13 @@ class LocalModel:
         size: The file's exact byte count.
         sha256: The file's lowercase hex sha256.
         template: A built-in llama.cpp chat template the server uses in place of the file's own,
-            or None to render the file's template with thinking off.
+            or None to render the file's template, with thinking off unless `thinking`. A model
+            that thinks has no template.
         thinking: Whether the model is served with its reasoning on.
         weights: The id of the model whose file this one serves, or None for its own.
+
+    Raises:
+        ValueError: If the model both thinks and names a template.
     """
 
     repo: str
@@ -54,6 +58,12 @@ class LocalModel:
     template: str | None = None
     thinking: bool = False
     weights: str | None = None
+
+    def __post_init__(self) -> None:
+        """Refuse a model that thinks under a built-in template, which serving would drop."""
+        if self.thinking and self.template is not None:
+            msg = f"{self.filename}: a model that thinks cannot name the template {self.template}"
+            raise ValueError(msg)
 
     @property
     def url(self) -> str:
@@ -99,6 +109,29 @@ template pipes an undefined `tools` into `tojson`, which llama.cpp's template pa
 system and a user turn with no tools it renders ChatML, so the server uses its built-in `chatml`.
 Olmo 3 7B Instruct has no thinking mode. A `-thinking` id serves its base's file with reasoning
 on, so the two share one download."""
+
+
+def check_weights(models: Mapping[str, LocalModel]) -> None:
+    """Check that each `weights` link names another pin that does not think.
+
+    Raises:
+        ValueError: If a link names itself, an absent id, or a model that thinks.
+    """
+    for model, pin in models.items():
+        if pin.weights is None:
+            continue
+        if pin.weights == model:
+            msg = f"{model}: weights name itself"
+        elif pin.weights not in models:
+            msg = f"{model}: weights name {pin.weights}, which is not a pinned model"
+        elif models[pin.weights].thinking:
+            msg = f"{model}: weights name {pin.weights}, a thinking model"
+        else:
+            continue
+        raise ValueError(msg)
+
+
+check_weights(LOCAL_MODELS)
 
 
 def model_path(model: str, data_dir: Path) -> Path:

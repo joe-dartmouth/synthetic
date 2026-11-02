@@ -318,7 +318,8 @@ E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with 
 `medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
 G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
 holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
-`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
+`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, `b2-uci` and `b2-synthea` are `B2_UCI` and
+`B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
 its `G6_MODELS` model and ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with
 its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling. A variant adds its own entry in its
 own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and

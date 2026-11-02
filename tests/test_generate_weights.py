@@ -11,7 +11,14 @@ import pytest
 
 import bko.generate.weights as weights_module
 from bko.generate.errors import GenerationError
-from bko.generate.weights import LOCAL_MODELS, LocalModel, fetch, model_path, verify_model
+from bko.generate.weights import (
+    LOCAL_MODELS,
+    LocalModel,
+    check_weights,
+    fetch,
+    model_path,
+    verify_model,
+)
 
 
 PIN_BYTES = b"weights" * 1000
@@ -124,7 +131,55 @@ def test_a_present_base_serves_its_thinking_variant_without_a_fetch(monkeypatch,
     assert seen == []
 
 
-def test_olmo_has_no_thinking_variant():
+def test_the_thinking_variants_are_the_gemma_and_nemotron_ones_and_olmo_has_none():
     assert "olmo-3-7b-instruct-q8_0-thinking" not in LOCAL_MODELS
     assert not LOCAL_MODELS["olmo-3-7b-instruct-q8_0"].thinking
     assert [m for m, pin in LOCAL_MODELS.items() if pin.thinking] == sorted(THINKING)
+
+
+def test_a_fetch_of_a_variant_with_its_base_absent_downloads_to_the_bases_path(
+    monkeypatch, tmp_path
+):
+    variant = dataclasses.replace(PIN, thinking=True, weights="toy")
+    monkeypatch.setattr(weights_module, "LOCAL_MODELS", {"toy": PIN, "toy-thinking": variant})
+    seen: list[str] = []
+
+    def opener(url: str, timeout: float):
+        seen.append(url)
+        return io.BytesIO(PIN_BYTES)
+
+    path = fetch("toy-thinking", tmp_path, open_url=opener)
+    assert path == model_path("toy", tmp_path)
+    assert path.read_bytes() == PIN_BYTES
+    assert not (tmp_path / "models" / "toy-thinking").exists()
+    assert fetch("toy", tmp_path, open_url=opener) == path
+    assert len(seen) == 1
+
+
+def test_a_model_with_a_template_cannot_think():
+    with pytest.raises(ValueError, match="template"):
+        dataclasses.replace(PIN, template="chatml", thinking=True)
+
+
+@pytest.mark.parametrize(
+    ("models", "match"),
+    [
+        ({"v": dataclasses.replace(PIN, thinking=True, weights="gone")}, "gone"),
+        (
+            {
+                "b": dataclasses.replace(PIN, thinking=True),
+                "v": dataclasses.replace(PIN, thinking=True, weights="b"),
+            },
+            "thinking",
+        ),
+        ({"v": dataclasses.replace(PIN, weights="v")}, "itself"),
+    ],
+    ids=["missing", "thinking-base", "self"],
+)
+def test_a_weights_link_must_name_another_pin_that_thinks_not(models, match):
+    with pytest.raises(ValueError, match=match):
+        check_weights(models)
+
+
+def test_the_shipped_pins_pass_the_weights_check():
+    check_weights(LOCAL_MODELS)

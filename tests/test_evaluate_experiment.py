@@ -51,6 +51,7 @@ from bko.evaluate.named_runs import (
 )
 from bko.evaluate.run import ARMS, run
 from bko.gaps.definitions import Definition
+from bko.generate.local import TIMEOUT_SECONDS as LOCAL_TIMEOUT_SECONDS
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
 from bko.generate.weights import LOCAL_MODELS
@@ -442,6 +443,7 @@ def test_each_thinking_run_is_g6_base_on_holdouts_0_to_4(name, model):
     assert run.experiment == dataclasses.replace(
         G6_BASE, holdout_seeds=tuple(range(5)), spend_ceiling=1.0, idle_limit=1700.0
     )
+    assert run.experiment.idle_limit < LOCAL_TIMEOUT_SECONDS
     assert model in LOCAL_MODELS
     price_of(model)
 
