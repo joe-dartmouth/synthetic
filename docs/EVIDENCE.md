@@ -85,6 +85,17 @@ folder is its record.
 | Result | Over 100 holdouts (`mean` and `unjudged` lines of each `criteria.log`; fraction 1 is `runs/e1-4/criteria.log`). Whole test split, `none` then `bko`: recall 0.7915 then 0.7752 (1/4), 0.7978 then 0.8004 (1/2), 0.8104 then 0.8167 (3/4), 0.8033 then 0.8107 (1); AUC-PR 0.8930 then 0.8809, 0.9030 then 0.8959, 0.9098 then 0.9070, 0.9119 then 0.9107. `bko` minus `none`, mean [corrected interval]: recall -0.0163 [-0.1329, +0.1003] (1/4), +0.0026 [-0.0699, +0.0751] (1/2), +0.0063 [-0.0436, +0.0562] (3/4), +0.0074 [-0.0360, +0.0508] (1); AUC-PR -0.0121 [-0.0778, +0.0536], -0.0071 [-0.0377, +0.0235], -0.0028 [-0.0173, +0.0118], -0.0012 [-0.0114, +0.0091]. Every other contrast of `bko` against a method, at every fraction and both scopes, holds 0 too: at 1/2 the 12 means lie between -0.0170 and +0.0096, at 3/4 between -0.0268 and +0.0095. At 1/4 and 1/2 the flagged cells cover every age-sex subgroup, so the flagged scope is the whole split; at 3/4 `bko` minus `none` on the flagged subgroups reads recall -0.0184 [-0.0727, +0.0358] and AUC-PR -0.0069 [-0.0241, +0.0104]. `bko` validity: 16009 of 16010 (1/4), 17328 of 17328 (1/2), 20620 of 20620 (3/4) passed, with 9, 19 and 20 quota drops and 9 cell drops at 1/2. Augmentation does not pay more as rows leave: the intervals widen with the held-out ratio, and every mean stays near 0, below it on AUC-PR at every fraction |
 | Read against | [RESEARCH.md section 4](RESEARCH.md#4-success-criteria); verdict: reported, no criterion applies |
 
+## E6. Diabetes 130 subgroup removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On real inpatient encounters, with 0.985 and then all of one cell's training positives removed, how much of the removed cell's recall, and of AUC-PR over the whole test split, does each augmentation method recover against `none` and the `real` reference? |
+| Configuration | Data: UCI Diabetes 130-US Hospitals as `bko.datasets.sources` pins it (`uci-diabetes-130`, sha256 `f82ac129da2ddd2299391ff6fbae3a6a58b3edcf59ac9d7bd480c00fe453112a`), the frame `bko.datasets.diabetes.frame_records` builds; frame digest `38b599c950d6f7bf70620bb8e0fbe90888de56fedf55d5dbb93aa1a06e9ab0cb` (records 69283), the `data dataset=diabetes frame=diabetes records=69283 digest=38b599c950d6f7bf70620bb8e0fbe90888de56fedf55d5dbb93aa1a06e9ab0cb agreement=none` line `load` logs. Design: ADR [`research/diabetes-subgroup-removal-design`](adr/research/diabetes-subgroup-removal-design.md) holds the cohort, label, cutoff, cell, removal, fill, arms, replica, holdouts and family, and its reasons. Slices and ceilings: PR4 |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 4](RESEARCH.md#4-success-criteria); no verdict |
+
 ## B1. Classical baselines
 
 | Field | Entry |

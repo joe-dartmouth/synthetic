@@ -107,15 +107,17 @@ def archive(diabetic: str, ids: str = IDS_EXCERPT) -> bytes:
     return buffer.getvalue()
 
 
-TOY_CELLS: Final = {
-    **{(band, sex, 0): 40 for band in ("<4", "4-7", ">=8") for sex in ("Female", "Male")},
-    **{(band, sex, 1): 28 for band in ("<4", "4-7", ">=8") for sex in ("Female", "Male")},
-    ("4-7", "Female", 1): 56,
-}
-"""The toy cohort's patients per (age band under the edges `(4, 8)`, gender, label): the cell
-`(4-7, female, 1)` holds twice the others' cases, so a 0.9 removal leaves it flagged."""
+_BANDS: Final = ("<4", "4-5", "6-7", ">=8")
 
-_DECADES: Final = {"<4": (2, 3), "4-7": (4, 5, 6, 7), ">=8": (8, 9)}
+TOY_CELLS: Final = {
+    **{(band, sex, 0): 40 for band in _BANDS for sex in ("Female", "Male")},
+    **{(band, sex, 1): 28 for band in _BANDS for sex in ("Female", "Male")},
+    ("6-7", "Female", 1): 56,
+}
+"""The toy cohort's patients per (age band under the edges `(4, 6, 8)`, gender, label): the cell
+`(6-7, female, 1)` holds twice the others' cases, so a 0.9 removal leaves it flagged."""
+
+_DECADES: Final = {"<4": (2, 3), "4-5": (4, 5), "6-7": (6, 7), ">=8": (8, 9)}
 
 _TOKENS: Final = (
     "250.41",

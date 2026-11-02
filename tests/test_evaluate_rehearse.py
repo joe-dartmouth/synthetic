@@ -137,17 +137,17 @@ def test_a_call_whose_user_turn_names_another_cell_is_refused():
 def test_rehearse_prompt_reads_the_frames_age_unit():
     interval = {bound.field: (bound.low, bound.high) for bound in DIABETES_FRAME.ranges}
     guidance = Guidance(
-        cell=("4-7", "female", 1),
+        cell=("6-7", "female", 1),
         sex=0,
         label=1,
         records=5,
-        interval={**interval, "age": (4.0, 7.0)},
+        interval={**interval, "age": (6.0, 7.0)},
         basis=Basis.NONE,
     )
     _, user = render(guidance, 3, Level.CELL, frame=DIABETES_FRAME)
     found = PROMPT.match(user)
     assert found is not None
-    assert (found["low"], found["high"], found["unit"]) == ("4", "7", "decades")
+    assert (found["low"], found["high"], found["unit"]) == ("6", "7", "decades")
     _, uci = render(GUIDANCE, 3, Level.CELL, frame=UCI_FRAME)
     found = PROMPT.match(uci)
     assert found is not None

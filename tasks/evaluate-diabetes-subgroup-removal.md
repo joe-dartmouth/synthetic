@@ -8,7 +8,7 @@ parallel_safe: false
 owner: Joe
 milestone: final-report
 paid: true
-adrs: --
+adrs: research/diabetes-subgroup-removal-design
 ---
 
 # Subgroup removal on Diabetes 130-US Hospitals

@@ -74,7 +74,7 @@ root or to see the module's own code, run it directly:
   indicator per mapped ICD-9 category, set when any of `diag_1` to `diag_3` falls in it;
   `record_id` is the record's 1-based position in encounter order. `encounter_id` and
   `patient_nbr` never enter the frame. `bko.evaluate.diabetes` holds its `FrameSpec`: age in
-  decades (UCUM `10.a`), band edges 4 and 8, each coded column's meanings the archive's own state
+  decades (UCUM `10.a`), band edges 4, 6 and 8, each coded column's meanings the archive's own state
   strings, and one field row per ICD-9 and lab row of `bko.ontology.icd9`; `score` refuses records
   whose columns or codes the frame lacks.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its

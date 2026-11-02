@@ -58,7 +58,7 @@ UCI_WORDS: Final = ("chol", "thalach", "trestbps", "oldpeak", "restecg", "angiog
 ARCHIVE: Final = toy_archive()
 PIN: Final = pin(ARCHIVE, "uci-diabetes-130")
 
-REMOVED: Final = ("4-7", "female", 1)
+REMOVED: Final = ("6-7", "female", 1)
 
 PREVALENCE: Final = round(
     sum(n for (_, _, label), n in TOY_CELLS.items() if label) / sum(TOY_CELLS.values()), 2
@@ -89,7 +89,7 @@ TOY_RUN: Final = dataclasses.replace(
     decontaminate=False,
     cutoff=PREVALENCE,
 )
-"""Every kind of arm on two holdouts of the toy cohort, 0.9 of `(4-7, female, 1)` removed."""
+"""Every kind of arm on two holdouts of the toy cohort, 0.9 of `(6-7, female, 1)` removed."""
 
 DIRECT_ONLY: Final = dataclasses.replace(
     E1,
@@ -152,7 +152,7 @@ def test_the_frames_codebooks_are_the_loaders_states_verbatim():
         assert dict(DIABETES_FRAME.codebook[name]) == {code: state for state, code in codes.items()}
     for name in DIABETES_INDICATORS:
         assert dict(DIABETES_FRAME.codebook[name]) == {0: "absent", 1: "present"}
-    assert DIABETES_FRAME.edges == (4, 8)
+    assert DIABETES_FRAME.edges == (4, 6, 8)
     assert {bound.unit for bound in DIABETES_FRAME.ranges if bound.field == "age"} == {"10.a"}
 
 

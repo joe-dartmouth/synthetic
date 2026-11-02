@@ -152,7 +152,7 @@ DIABETES_FRAME: Final = FrameSpec(
     ),
     label_codes=tuple(sorted(LABEL_CODES)),
     label_meanings={0: "not readmitted within 30 days", 1: "readmitted within 30 days"},
-    edges=(4, 8),
+    edges=(4, 6, 8),
     study="hospital readmission within 30 days of patients with diabetes",
     cohort="adult patient's first inpatient encounter with diabetes at a US hospital",
 )
