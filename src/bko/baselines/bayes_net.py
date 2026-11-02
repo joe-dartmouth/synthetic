@@ -151,9 +151,18 @@ def learn(bins: Bins, *, k: int = K, first: str) -> Network:
         raise ValueError(msg)
     placed = [first]
     chosen: list[tuple[str, tuple[str, ...]]] = [(first, ())]
+    # A (field, parents) pair's information never changes, and later rounds offer it again.
+    known: dict[tuple[str, tuple[str, ...]], float] = {}
+
+    def information(field: str, parents: tuple[str, ...]) -> float:
+        key = (field, parents)
+        if key not in known:
+            known[key] = mutual_information(bins.states, field, parents)
+        return known[key]
+
     while len(placed) < len(fields):
         candidates = [
-            (mutual_information(bins.states, field, parents), field, parents)
+            (information(field, parents), field, parents)
             for field in fields
             if field not in placed
             for parents in itertools.combinations(placed, min(k, len(placed)))
@@ -245,8 +254,18 @@ def _states(
     codes: Mapping[str, tuple[int, ...]],
 ) -> np.ndarray:
     if field in codes:
-        position = {code: at for at, code in enumerate(codes[field])}
-        return np.array([position[int(value)] for value in column], dtype=int)
+        known = np.asarray(codes[field], dtype=np.int64)
+        values = column.to_numpy().astype(np.int64)
+        low = int(min(known.min(initial=0), values.min(initial=0)))
+        lookup = np.full(int(max(known.max(initial=0), values.max(initial=0))) - low + 1, -1)
+        lookup[known - low] = np.arange(len(known))
+        found = lookup[values - low]
+        if (found < 0).any():
+            msg = (
+                f"{field} holds codes {sorted(set(values[found < 0].tolist()))} outside its states"
+            )
+            raise KeyError(msg)
+        return found.astype(int)
     return np.searchsorted(np.asarray(cuts[field]), column.to_numpy(dtype="float64"), side="right")
 
 
@@ -255,13 +274,16 @@ def _node(bins: Bins, field: str, parents: tuple[str, ...]) -> Node:
     arity = bins.arity(field)
     configurations = math.prod(bins.arity(parent) for parent in parents)
     prior = ESS / (configurations * arity)
-    counts: dict[tuple[int, ...], list[int]] = {}
-    child = bins.states[field].to_numpy()
-    given = bins.states.loc[:, list(parents)].to_numpy()
-    for row, state in zip(given, child, strict=True):
-        counts.setdefault(tuple(int(v) for v in row), [0] * arity)[int(state)] += 1
-    table = {
-        configuration: tuple((n + prior) / (sum(seen) + prior * arity) for n in seen)
-        for configuration, seen in counts.items()
-    }
+    radices = [bins.arity(parent) for parent in parents]
+    # Each row's parent configuration as one mixed-radix index, the last parent varying fastest.
+    index = np.zeros(len(bins.states), dtype=np.int64)
+    for parent, radix in zip(parents, radices, strict=True):
+        index = index * radix + bins.states[parent].to_numpy(dtype=np.int64)
+    cells = index * arity + bins.states[field].to_numpy(dtype=np.int64)
+    counts = np.bincount(cells, minlength=configurations * arity).reshape(configurations, arity)
+    table: dict[tuple[int, ...], tuple[float, ...]] = {}
+    for at in np.flatnonzero(counts.sum(axis=1)):
+        seen = [int(n) for n in counts[at]]
+        configuration = tuple(int(v) for v in np.unravel_index(at, radices)) if radices else ()
+        table[configuration] = tuple((n + prior) / (sum(seen) + prior * arity) for n in seen)
     return Node(field, parents, table, arity)

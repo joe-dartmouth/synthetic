@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 
 import numpy as np
 import pandas as pd
 import pytest
 
+import bko.baselines.bayes_net as bayes_net_module
 from bko.baselines.bayes_net import (
     BINS,
     ESS,
@@ -269,3 +271,77 @@ def test_a_tie_falls_to_the_first_field_in_the_frames_order():
     network = learn(states_of(a=a, b=a.copy(), c=a.copy()), k=1, first="a")
     assert [node.field for node in network.nodes] == ["a", "b", "c"]
     assert network.nodes[2].parents == ("a",)
+
+
+def _table_digest(network: Network) -> str:
+    """The sha256 of every node's field, parents and table, each probability as its float hex."""
+    text = repr(
+        [
+            (
+                node.field,
+                node.parents,
+                sorted(
+                    (key, tuple(p.hex() for p in chances)) for key, chances in node.table.items()
+                ),
+            )
+            for node in network.nodes
+        ]
+    )
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_learned_edges_and_tables_are_unchanged_on_the_uci_fixture():
+    network = learn(discretize(TRAIN, UCI_FRAME), first="age")
+    assert network.edges == [
+        ("age", "chol"),
+        ("age", "thalach"),
+        ("chol", "thalach"),
+        ("chol", "trestbps"),
+        ("thalach", "trestbps"),
+        ("thalach", "oldpeak"),
+        ("trestbps", "oldpeak"),
+        ("thalach", "cp"),
+        ("oldpeak", "cp"),
+        ("age", "ca"),
+        ("cp", "ca"),
+        ("age", "fbs"),
+        ("cp", "fbs"),
+        ("age", "exang"),
+        ("cp", "exang"),
+        ("age", "restecg"),
+        ("trestbps", "restecg"),
+        ("age", "slope"),
+        ("restecg", "slope"),
+        ("age", "thal"),
+        ("restecg", "thal"),
+        ("trestbps", "target"),
+        ("oldpeak", "target"),
+        ("chol", "sex"),
+        ("trestbps", "sex"),
+    ]
+    assert _table_digest(network) == (
+        "b5da690ca23182f3f58735931ce394f1518cc492ded591d0a282e0ff0343d316"
+    )
+    for node in network.nodes:
+        assert all(type(state) is int for key in node.table for state in key), node.field
+
+
+def test_draws_are_unchanged_for_a_seed():
+    bins = discretize(TRAIN, UCI_FRAME)
+    rows = draw(learn(bins, first="age"), bins, TRAIN, 200, np.random.default_rng(5), UCI_FRAME)
+    assert hashlib.sha256(rows.to_csv(index=False).encode()).hexdigest() == (
+        "8804f6e8ba52d5b451d7a045538ad8a312a973d3fb47a53faf1b33e181a21b04"
+    )
+
+
+def test_mutual_information_is_computed_once_per_field_and_parents(monkeypatch):
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def counted(states: pd.DataFrame, field: str, parents) -> float:
+        calls.append((field, tuple(parents)))
+        return mutual_information(states, field, parents)
+
+    monkeypatch.setattr(bayes_net_module, "mutual_information", counted)
+    learn(discretize(TRAIN, UCI_FRAME), first="age")
+    assert calls
+    assert len(calls) == len(set(calls))
