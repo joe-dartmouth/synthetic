@@ -737,7 +737,7 @@ start or the supervisor cannot run.
   `bko.generate.local.TIMEOUT_SECONDS`, not a measurement; ADR
   [`research/local-generator-backend`](adr/research/local-generator-backend.md);
   [EVIDENCE.md](EVIDENCE.md#g6-generator-model)). It holds E6's runs over the Diabetes frame,
-  `e6-thin` (`E6_THIN`: every arm, 0.985 of `(6-7, male, 1)`'s training rows removed) and
+  `e6-thin` (`E6_THIN`: every arm but the curated `cllm`, 0.985 of `(6-7, male, 1)`'s training rows removed) and
   `e6-empty` (`E6_EMPTY`: all of them removed, no replica), each at `E6_SETTINGS`, and each
   run's ten holdout slices, `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj`, each the
   next 10 holdouts at a tenth of its run's ceiling (ADR

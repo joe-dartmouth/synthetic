@@ -395,7 +395,6 @@ E6_EVERY_ARM: Final = (
     "bko-frequency",
     "bko-direct",
     "bko-skeleton",
-    "cllm",
     "cllm-uncurated",
     "real",
 )
@@ -470,27 +469,27 @@ def test_each_e6_ceiling_covers_its_estimate():
     Rate: the larger of `e1-4`'s $1.35635e-4 per record x 34 Diabetes columns / 14 UCI columns,
     $3.2940e-4, and pilot `e6-1`'s $3.1536e-4. Records asked per holdout: the five BKO-type arms
     and `cllm-uncurated` ask (fill_to - R) x (1 + 0.0075), the drop share pooled over the two
-    10-call pilots (3 of 400 records); `cllm` asks (fill_to - R) x 7.837, `b3-3`'s CLLM records
-    asked per requested row; `bko`'s replica asks 2000 x (1 + 0.0075), in the f run only.
+    10-call pilots (3 of 400 records); `bko`'s replica asks 2000 x (1 + 0.0075), in the f run
+    only. The curated `cllm` arm is not in E6 (pilot `e6-1c`).
     """
     rate = max(1.35635e-4 * 34 / 14, 3.1536e-4)
     assert rate == pytest.approx(3.294e-4, rel=1e-4)
-    thin = 6 * (1269 - 19) * 1.0075 + (1269 - 19) * 7.837 + 2000 * 1.0075
-    empty = 6 * (1269 - 0) * 1.0075 + (1269 - 0) * 7.837
-    assert (math.floor(thin), math.floor(empty)) == (19_367, 17_616)
-    assert E6_ASKED == {"thin": 19_367, "empty": 17_616}
+    thin = 6 * (1269 - 19) * 1.0075 + 2000 * 1.0075
+    empty = 6 * (1269 - 0) * 1.0075
+    assert (math.floor(thin), math.floor(empty)) == (9_571, 7_671)
+    assert E6_ASKED == {"thin": 9_571, "empty": 7_671}
     assert math.isclose(E6_CAP, 1500.0)
-    # Ceilings: $1,500 x each fraction's share of 36,983 records asked per holdout.
-    # thin: 1500 x 19,367 / 36,983 = $785.51; empty: 1500 x 17,616 / 36,983 = $714.49.
-    assert E6_THIN.spend_ceiling == pytest.approx(785.510, abs=1e-3)
-    assert E6_EMPTY.spend_ceiling == pytest.approx(714.490, abs=1e-3)
+    # Ceilings: $1,500 x each fraction's share of 17,242 records asked per holdout.
+    # thin: 1500 x 9,571 / 17,242 = $832.65; empty: 1500 x 7,671 / 17,242 = $667.35.
+    assert E6_THIN.spend_ceiling == pytest.approx(832.647, abs=1e-3)
+    assert E6_EMPTY.spend_ceiling == pytest.approx(667.353, abs=1e-3)
     assert E6_THIN.spend_ceiling + E6_EMPTY.spend_ceiling == pytest.approx(E6_CAP)
-    # Estimates over 100 holdouts at $3.294e-4: thin $637.95, empty $580.27, total $1,218.22;
-    # each ceiling is 1500 / 1218.22 = 1.2313 times its estimate, and each slice's tenth of its
+    # Estimates over 100 holdouts at $3.294e-4: thin $315.27, empty $252.68, total $567.95;
+    # each ceiling is 1500 / 567.95 = 2.6411 times its estimate, and each slice's tenth of its
     # ceiling covers its 10 holdouts' tenth of the estimate.
     for name, whole in (("thin", E6_THIN), ("empty", E6_EMPTY)):
         estimate = 100 * E6_ASKED[name] * 3.294e-4
-        assert whole.spend_ceiling / estimate == pytest.approx(1.2313, abs=1e-4)
+        assert whole.spend_ceiling / estimate == pytest.approx(2.6411, abs=1e-4)
         for letter in "abcdefghij":
             sliced = RUNS[f"e6-{name}{letter}"].experiment
             assert sliced.spend_ceiling >= len(sliced.holdout_seeds) * E6_ASKED[name] * 3.294e-4

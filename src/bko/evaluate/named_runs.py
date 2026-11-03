@@ -198,11 +198,10 @@ E6_ARMS: Final = (
     *BKO_ARMS,
     DIRECT_ARM,
     SKELETON_ARM,
-    CLLM_ARM,
     CLLM_RAW_ARM,
     REAL_ARM,
 )
-"""E6's arms: every method, every Messages arm and `real` (ADR
+"""E6's arms: every method, every Messages arm but the curated `cllm`, and `real` (ADR
 `research/diabetes-subgroup-removal-design`, Decision, Arms)."""
 
 E6_CELL: Final = ("6-7", "male", 1)
@@ -211,7 +210,7 @@ E6_CELL: Final = ("6-7", "male", 1)
 E6_CAP: Final = 1500.0
 """E6's total spend cap in USD, split between its two fractions' runs."""
 
-E6_ASKED: Final[Mapping[str, int]] = MappingProxyType({"thin": 19_367, "empty": 17_616})
+E6_ASKED: Final[Mapping[str, int]] = MappingProxyType({"thin": 9_571, "empty": 7_671})
 """Each E6 fraction's estimated records asked per holdout (`docs/EVIDENCE.md`, E6
 Configuration)."""
 

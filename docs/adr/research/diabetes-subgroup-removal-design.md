@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-03
 ---
 # The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm
 
@@ -92,9 +92,10 @@ for SMOTE and 1.42 for duplication ([C3]).
 - **Copies**: kept and counted (`decontaminate` false), since `real`'s rows are real training rows
   and the harness refuses `real` in an experiment that removes copies. The archive is public, so
   a test copy from a Messages arm reads as memorization of the archive, not as chance.
-- **Arms, in each fraction's run**: every arm: `none`, `class-weight`, `smote`, `adasyn`, `ctgan`,
+- **Arms, in each fraction's run**: the 16 runnable arms, `real` included: `none`, `class-weight`, `smote`, `adasyn`, `ctgan`,
   `tvae`, `gaussian-copula`, `cart`, `bayes-net`, `bko`, `bko-population`, `bko-frequency`,
-  `bko-direct`, `bko-skeleton`, `cllm`, `cllm-uncurated` and `real`. At 1.0 the cell keeps no
+  `bko-direct`, `bko-skeleton`, `cllm-uncurated` and `real`. The curated `cllm` is not an arm
+  (Ruled Out). At 1.0 the cell keeps no
   training row, so SMOTE and ADASYN meet a structural shortfall and fill 0 rows; they stay in the
   run and read as `none` there. The scale smoke run (holdouts 0 and 1, canned replies,
   `scratchpad/e6-smoke/summary.txt`) measured the rejection samplers on the cell at full N: at
@@ -102,15 +103,15 @@ for SMOTE and 1.42 for duplication ([C3]).
   and 329), each after five attempts of 1,000,000 draws; at 1.0, TVAE and CART filled 0 of 1,269
   and the Bayesian network 1 and 3. Each completes as a shortfall, not a refusal.
 - **Candidate and comparators**: `bko` is the candidate; the comparators are every arm except
-  `real` and `bko`, the 15 others.
+  `real` and `bko`, the 14 others.
 - **Replica**: `bko` alone fills a replica, of `replica_rows` 2000 rows, in the f = 0.985 run only.
   E1's rule that every row-adding arm fills a replica of the training split's cell counts (ADR
   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)) is E1's, not E6's.
 - **Holdouts and the family**: 100 holdouts, E1's seeds 0 to 99. The contrasts read together are
   `bko` minus each comparator on two measures, recall on the removed cell (scope
   `flagged-subgroups`) and AUC-PR over the whole test split (scope `all`). The family is the
-  comparators times the measures: 15 x 2 = 30 intervals, each refuting reading at confidence
-  1 - (1 - c)/30, 0.99833 at E1's c = 0.95.
+  comparators times the measures: 14 x 2 = 28 intervals, each refuting reading at confidence
+  1 - (1 - c)/28, 0.99821 at E1's c = 0.95.
 - **N**: the full eligible frame, every one of the 69,283 records.
 - **Settings**: `E6_SETTINGS`, `SETTINGS` (Haiku 5.5) with `max_tokens` 32000, for every Messages
   arm. A Diabetes call's reply runs near 11,000 output tokens (7,818 to 13,352 over the
@@ -132,16 +133,15 @@ for SMOTE and 1.42 for duplication ([C3]).
   second, so a slot asks about 11,000 x 60 / (11,000 / 255) = 15,300 tokens a minute and 80 slots
   about 1,224,000, under the 2,000,000.
 - **Spend ceilings**: the $1,500 cap split between the fractions in proportion to their estimated
-  records asked per holdout, 19,367 at f = 0.985 and 17,616 at 1.0: `e6-thin` 1500 x 19,367 /
-  36,983 = $785.51 and `e6-empty` $714.49, each slice a tenth of its run's, $78.55 and $71.45.
-  Each ceiling is 1.2313 times its run's estimate (`tests/test_evaluate_experiment.py`,
+  records asked per holdout, 9,571 at f = 0.985 and 7,671 at 1.0: `e6-thin` 1500 x 9,571 /
+  17,242 = $832.65 and `e6-empty` $667.35, each slice a tenth of its run's, $83.26 and $66.74.
+  Each ceiling is 2.6411 times its run's estimate (`tests/test_evaluate_experiment.py`,
   `test_each_e6_ceiling_covers_its_estimate`; the estimate is E6's Configuration in
-  [`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The estimate's
-  `cllm` term is Synthea's 7.837 records asked per requested row; the Diabetes keep share is
-  unmeasured until a CLLM pilot reads it. The code lets `cllm` ask up to `CLLM_BUDGET`, 22, times
-  its cell's quota, 27,500 records per holdout at f = 0.985 and 27,918 at 1.0, so a holdout at
-  that limit asks 1.914 and 2.020 times its estimate. A slice's ceiling stops it before it spends
-  past its share, and a stopped slice resumes under a raised ceiling for that slice alone
+  [`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The estimate holds
+  no `cllm` term: pilot `e6-1c` asked 46,360 records of the curated arm on holdouts 0 and 1, kept
+  0, and spent $15.0042 to its ceiling, so the arm is out (Ruled Out). A slice's ceiling stops it
+  before it spends past its share, and a stopped slice resumes under a raised ceiling for that
+  slice alone
   ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#evaluation), the paid-run protocol).
 - **Replays**: one slice per fraction, plus every slice that resumed after a stop.
 - **Compute cost**: reported as model fits, rows drawn, tokens and USD per run and per record
@@ -200,7 +200,7 @@ at a bounded cost.
 
 **The family.** E1 reads a not-met verdict at 1 - (1 - c)/k over its k intervals (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md), Rationale); E6 reads the same
-intersection over its own k: 15 comparators on two measures.
+intersection over its own k: 14 comparators on two measures.
 
 **The holdout count.** At ratio 0.250450, `mde` at 30 holdouts is 1.0696 times its value at 100,
 and corrected resampled tests replicate their verdicts across seed sets at about 100 runs
@@ -413,6 +413,7 @@ the replica reads `bko` alone.
 | `SETTINGS`' 16000 output tokens | Replies run near 11,000 output tokens (7,818 to 13,352 at 32000), and 1 of 15 live pilot calls stopped at 16000; at 32000, 0 of 10 | 2026-11-02 |
 | A wall-time duration rule | User decision: no reading, rule or design value uses wall time | 2026-11-02 |
 | The probe's cell `(4-7, female, 1)` under edges (4, 8) | On the committed frame it scores fifth of nine and fails G4 on both replicate seed sets ([C4]) | 2026-11-02 |
+| The curated `cllm` arm on Diabetes | Pilot `e6-1c` (holdouts 0 and 1, arms `none` and `cllm`, $15 ceiling) asked 46,360 records, kept 0 (26,389 of holdout 0's 26,460 asked and 19,757 of holdout 1's 19,900 dropped by curation) and stopped on the ceiling at $15.0042: the curator rejects every generated record of the removed cell, label 1 at 9% prevalence; at budget 22 it would spend about $1,700 for zero rows | 2026-11-03 |
 | A 0.5 cutoff | G1 failed on all 18 cells: real recall at 0.5 is 0.0020 to 0.0157 ([C3]) | 2026-11-02 |
 
 ## Enforcement
