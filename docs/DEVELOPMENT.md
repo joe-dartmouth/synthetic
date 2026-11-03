@@ -271,34 +271,57 @@ or `--with` is refused.
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
-included. The stopped run keeps its folder; the resumed run takes that id plus `-resume`
-([Runs](#runs)). A log of a concurrent run (its `run` line holds `in_flight` above 1) resumes from
+included. The stopped run keeps its folder; the resumed run takes a fresh run id of the same entry,
+the next free `<entry>-<n>` ([Runs](#runs)), so its supervised segments' `<run-id>-resume-<k>`
+folders stay run ids. A log of a concurrent run (its `run` line holds `in_flight` above 1) resumes from
 its first call not answered by exactly one reply: the later calls are dropped with one warning
 each and sent live again. The new run's `carried_usd` holds their spend plus whatever the stopped
 log itself carried, at any in-flight, so the ceiling reads the whole run. `launch --resume` runs
 this command under the paid-run protocol below; by hand it reads:
 
-    test -e runs/<run-id>/calls.jsonl && mkdir -p runs/<run-id>-resume && test ! -e runs/<run-id>-resume/calls.jsonl && test ! -e runs/<run-id>-resume/holdout-candidates.jsonl && test ! -e runs/<run-id>-resume/scores.csv && test ! -e runs/<run-id>-resume/scores.log && uv run --no-sync python -m bko.evaluate score --resume runs/<run-id>/calls.jsonl --log runs/<run-id>-resume/calls.jsonl --candidates runs/<run-id>-resume/holdout-candidates.jsonl > runs/<run-id>-resume/scores.csv 2> runs/<run-id>-resume/scores.log
+    test -e runs/<last-segment>/calls.jsonl && mkdir -p runs/<new-run-id> && test ! -e runs/<new-run-id>/calls.jsonl && test ! -e runs/<new-run-id>/holdout-candidates.jsonl && test ! -e runs/<new-run-id>/scores.csv && test ! -e runs/<new-run-id>/scores.log && uv run --no-sync python -m bko.evaluate score <run> --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] --log runs/<new-run-id>/calls.jsonl --candidates runs/<new-run-id>/holdout-candidates.jsonl > runs/<new-run-id>/scores.csv 2> runs/<new-run-id>/scores.log
+
+`<last-segment>` is the folder of the run's last segment: a supervised run that resumed its own
+stops wrote `<run-id>-resume-<k>` folders, and the stop to resume is in the highest `k`'s log.
+Resuming an earlier segment's log would send again the calls a later segment paid for, so
+`launch --resume` refuses a log whose sha256 another run folder's `run` line names under
+`resume`.
 
 Never resume a log that another process still writes. A run stopped by the idle limit resumes. A
-run stopped by the projection or the spend ceiling resumes only after its named run's
-`spend_ceiling` is raised past the stopped run's own projection, so the calls it paid for are
-recovered under the same run id plus `-resume`. The call log's `end` line names the stop rule that
+run stopped by the projection or the spend ceiling resumes only with `--ceiling <usd>`, a spend
+ceiling for that resume alone above the stopped run's own projection, so the calls it paid for are
+recovered under a fresh run id. The named run, its `experiment` line and the code stay as
+launched, so `merge` joins the resumed slice to its siblings; no commit raises the ceiling, and
+raising one E6 slice's raises no other's. The call log's `end` line names the stop rule that
 ended a failed run under `stop` (`ceiling`, `projection` or `idle`, else null), and for a ceiling
 or projection stop the holdouts it finished under `holdouts`. The projection is the `end` line's
 `usd` (the whole run's spend, carried and replayed included) over those holdouts (at least 1),
-scaled to the named run's holdouts, and never below `usd`. A guard holds the policy:
-`score --resume` refuses, exit 3, a ceiling or projection stop whose named run's current ceiling
-is not above that projection, naming the logged spend, its live part, the projection and the
-ceiling; a ceiling or projection stop with no `holdouts`; a rehearsal's log; and a replay's log.
-`launch --resume` refuses those, and a log whose `run` line's settings differ from the named
-run's, exit 2 before it claims a folder (`bko.generate.resume_guard.refuse_unresumable`). A log with no
-`stop` field predates it and resumes. The resumed run's ceiling and projection read the whole
-run's spend, the stopped segments' included, as any resume's do, and its call log's `resume` field
-(in the `run` and `end` lines) adds `stop` and `ceiling`, the rule it resumes and the ceiling it
-runs under. The supervisor never resumes a ceiling or projection stop itself (F1 and F2 below);
-the operator raises the ceiling in `bko.evaluate.named_runs` (a commit, which is the sign-off) and
-then runs `launch <run-id>-resume <run> --resume runs/<run-id>/calls.jsonl`.
+scaled to the named run's holdouts, and never below `usd`; with no holdout finished, the spend of
+the holdout in progress is scaled as one. A guard holds the policy: `score --resume` refuses, exit
+3, a ceiling or projection stop with no `--ceiling` or one not above that projection, naming the
+logged spend, its live part, the projection and the ceiling; a ceiling or projection stop with no
+`holdouts`, with a `usd` or `live_usd` that is not a finite number of at least 0, or whose `run`
+line names no run; `--ceiling` for any other stop; a log whose `run` line names another run; a
+rehearsal's log; and a replay's log. `score` refuses `--ceiling` with no `--resume`, exit 2.
+`launch --resume` refuses those, a log whose `run` line's settings differ from the named run's, and
+a log a later segment already resumed, exit 2 before it claims a folder
+(`bko.generate.resume_guard.refuse_unresumable`, `bko.evaluate.resumes`). A log with no `stop`
+field predates it and resumes. The resumed run's ceiling and projection read the whole run's
+spend, the stopped segments' included, as any resume's do, and its call log's `resume` field (in
+the `run` and `end` lines) adds `stop` and `ceiling`, the rule it resumes and the ceiling it runs
+under. A later resume of that run's log, a supervisor's included, runs under the same ceiling,
+read from the log's `resume` field, and records it as `ceiling` alone; a raise stays above the
+stopped run's projection, but the projection rule reads the resumed run's spend after
+`projection_after` holdouts, carried spend included, so a resume that carries a concurrent
+segment's dropped calls can stop again on the projection while it still replays, paying nothing.
+The supervisor never resumes a ceiling or projection stop itself (F1 and F2 below); it writes a
+`supervise stop=` WARNING with the stopped log's spend, its projection and the command, and the
+operator, whose command is the sign-off, resumes the last segment's log under a fresh run id:
+
+    uv run --no-sync python -m bko.evaluate launch <new-run-id> <run> --resume runs/<last-segment>/calls.jsonl --ceiling <usd above projected_usd>
+
+For an E6 slice, `<run>` is the slice's own name (`e6-thinc`), `<new-run-id>` the next free
+`e6-<n>`, and `<usd>` that slice's raised ceiling; the other 19 slices keep theirs.
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
 training range, at the judged run e1-4's tokens per record priced at the named run's model's
@@ -324,7 +347,7 @@ judged run keeps `compare`'s stdout and stderr in its folder:
 the `score --log` command above; a resume and a rehearsal start with it too:
 
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
-    uv run --no-sync python -m bko.evaluate launch <run-id>-resume [<run>] --resume runs/<run-id>/calls.jsonl [--data-dir <dir>]
+    uv run --no-sync python -m bko.evaluate launch <new-run-id> [<run>] --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] [--data-dir <dir>]
     uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--data-dir <dir>]
 
 `<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
@@ -334,7 +357,9 @@ into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a ru
 or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
 `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
 launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
-`resume=`), the power reading, the keep-awake and the command to `launch.log`, and starts
+`resume=`), for a raised ceiling a `ceiling=%.4f stop=%s usd=%.4f live_usd=%.4f holdouts=%d
+projected_usd=%.4f` line (the ceiling it accepted and the stopped log's spend and projection), the
+power reading, the keep-awake and the command to `launch.log`, and starts
 `supervise <run-id> <run> --retries R --runs-dir <runs>` in its own session, held awake by
 `caffeinate -i -s` on macOS, with stdout and stderr in those two files; `--data-dir` is forwarded
 as an absolute path, and `--in-flight` when given. `supervise` is internal to `launch`: it runs
@@ -349,12 +374,11 @@ folder free. A started process whose `pid=` line cannot be written is still repo
 WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
 retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
 and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ... --candidates ...`
-with the stopped log's path made absolute, and refuses a stopped log that is not a file or lies
-inside the new folder, and the logs the resume guard above refuses. The manual resume's run id
-`<run-id>-resume` is not supervised further: its resume folder name, `<run-id>-resume-resume-1`, is
-not a `RUN_ID`, so `launch` logs the WARNING
-`launch run_id=<run-id>-resume resumes=none reason=name: <run-id>-resume-resume-1 is not a run id, so the supervisor resumes no stop`
-and its segment's line says `reason=name`. `--rehearse` supervises
+with the stopped log's path made absolute, and `--ceiling` forwarded to that segment alone, and
+refuses a stopped log that is not a file or lies inside the new folder, and the logs the resume
+guard above refuses. `launch` refuses, before it reads the power, a run id whose first resume
+folder name, `<run-id>-resume-1`, is not a `RUN_ID` (such as `e1-4-resume`, whose
+`e1-4-resume-resume-1` is not), unless `--retries 0` or `--rehearse` asks for no resume. `--rehearse` supervises
 `score <run> --log ... --candidates ... --rehearse` with the same checks inside
 `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
 and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
@@ -387,13 +411,13 @@ segment saw a 429. Each stop branch is handled as follows:
 
 | Branch | Signal | Supervisor |
 |---|---|---|
-| F1 projection | `stop` `projection` | no resume; the operator's `launch --resume` under a raised ceiling |
-| F2 ceiling | `stop` `ceiling` | no resume; the operator's `launch --resume` under a raised ceiling |
+| F1 projection | `stop` `projection` | no resume; a `supervise stop=` WARNING, then the operator's `launch --resume --ceiling` |
+| F2 ceiling | `stop` `ceiling` | no resume; a `supervise stop=` WARNING, then the operator's `launch --resume --ceiling` |
 | F3 idle | `stop` `idle`, `retryable` true | resume |
 | F4 API failure | `status` `failed`, `retryable` true (a connection error, a timeout, a 408, 409 or 429, or a status of 500 or above) | resume |
 | F5 deterministic | `status` `failed`, `retryable` false (`retryable` must be the JSON `true`) | no resume |
 | F5 crash | no `end` line, the child exited on its own (exit code 0 or above) | no resume |
-| F5 no log | no call log (`absent`), or one whose first line is not a call log's (`unreadable`) | no resume |
+| F5 no log | no call log (`absent`), or one whose first line is not a call log's (`unreadable`, with a `supervise log=%s unreadable error=%s: %s` WARNING) | no resume |
 | F6 killed or slept | no `end` line, a signal killed the child (a negative exit code: `SIGKILL`, an out-of-memory kill, a sleep) | resume |
 | F7 operator | `status` `interrupted`, or the operator's signal or `STOP` file (below) | no resume |
 
@@ -440,6 +464,11 @@ folder's `scores.log`, which the `next=` line's `watch=` names. The lines, in or
   a call log's; `stop` the `end` line's (`projection`, `ceiling`, `idle`) or `none`; `retryable`
   and `rate_limited` `true` or `false`, as the supervisor reads them. When a resume is scheduled the
   line ends `reason=retryable backoff_s=%d`.
+- `supervise stop=%s usd=%.4f holdouts=%s projected_usd=%s resume=launch <fresh-run-id> <run>
+  --resume <folder>/calls.jsonl --ceiling <USD above projected_usd>`, one line: after a ceiling or
+  projection stop's segment line, a WARNING with the `end` line's spend and holdouts, the
+  projection over the named run's holdouts (`none` when the `end` line records no holdouts), and
+  the command that resumes it.
 - `supervise next=%s in_flight=%s watch=tail -f <runs>/<next>/scores.log`: the resume folder, once
   claimed (no line names a resume that was not claimed); `in_flight` is a number or `default`.
 - `supervise resume=%s refused=%s`: a resume a check refused, an ERROR, with the refusal's message.
@@ -491,7 +520,10 @@ start or the supervisor cannot run.
   `git diff --stat <run commit> <replay commit> -- src` lists only the reply-text reader's
   files, `src/bko/generate/messages.py` and `src/bko/generate/local.py`, named by a pushed
   `replay/<name>` tag; G6's local runs replay at `replay/g6-local` (ADR
-  [`research/call-log-replay`](adr/research/call-log-replay.md)). With `--resume`, the stopped
+  [`research/call-log-replay`](adr/research/call-log-replay.md)). B3's call logs replay at their
+  run commits only: their `cllm` calls asked at a budget of 9 with shortfall-sized asks, which
+  later code does not ask (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)).
+  With `--resume`, the stopped
   log's answered calls come first, answered from it, then live calls. With `--rehearse`,
   `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
   its billed spend as live.
@@ -539,16 +571,21 @@ start or the supervisor cannot run.
   `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
   budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
-  holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>`, the fraction in (0, 1] and 1
-  removing every row of the cell, or `none`,
-  `training_fraction=` an exact fraction such as `1/4`, or `1`, `decontaminate=` `true` or
-  `false`; ` replica_rows=<rows>` follows `replica=` only when the run's
-  `Experiment.replica_rows` caps the replica fill at that many rows in all; `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not
-  E1's 0.5, the probability at which utility calls a record positive), and a
+  holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>`, the fraction in
+  (0, 1] and 1 removing every row of the cell, or `none`, `training_fraction=` an exact fraction
+  such as `1/4`, or `1`, `decontaminate=` `true` or `false`; ` replica_rows=<rows>` follows
+  `replica=` only when the run's `Experiment.replica_rows` caps the replica fill near that many
+  rows in all: each cell asks its `kept_count` at the share `replica_rows` over the training rows,
+  so the rounded cells may sum to a few rows off it; `cutoff=<probability>` follows `fill_to=` only
+  when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
+  record positive; `spend_ceiling=` is the named run's own, a resume under `--ceiling` included),
+  and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call,
   and for a resumed ceiling or projection stop a
+  `resume ceiling=%.2f inherited=true` line after it for a resume under the raised ceiling its
+  stopped log ran under, or a
   `resume stop=%s usd=%.4f holdouts=%d projected_usd=%.4f ceiling=%.2f` line after it (the rule,
   the stopped log's spend, its finished holdouts, its projection and the ceiling the resume runs
   under), then
@@ -566,13 +603,15 @@ start or the supervisor cannot run.
   `shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d` warning per short cell
   when a rejection sampler (CTGAN, TVAE, the Gaussian copula, CART or the Bayesian network) still
   lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt, or SMOTE or ADASYN meets a
-  cell of fewer than 2 training records, where it adds no row; on a gap fill that asks for such a
-  cell, any arm's shortfall fills partially on the attempt that meets it, with no retry
-  (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
+  cell of fewer than 2 training records, where it adds no row; on a gap fill, any arm's shortfall
+  that falls on such cells alone fills partially on the attempt that meets it, with no retry, and
+  one that also falls on another cell is retried (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
   scores the rows it kept; a short replica fill still refuses,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
-  `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote. It also logs
+  `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote, read in chunks
+  after the scores are rendered (a file it cannot read gets a `candidates path=%s unread error=%s:
+  %s` WARNING, and the scores still go to stdout). It also logs
   per BKO attempt a `guided` line, `guided holdout=%d fill=%s arm=%s seed=%d outcome=%s calls=%s asked=%d
   generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d kept=%d usd=%.4f`
   (`calls=` is the attempt's call range `<first>-<last>`, or `none` for an attempt refused before
@@ -611,15 +650,18 @@ start or the supervisor cannot run.
   validity is undefined`, a
   `retry call= attempt= status= retry_after=` line for each 429 or retryable status with an attempt
   left, the SDK's own retry records, which name their call as [Generation](#generation) states,
-  the `run status=` line (`run=`, `level=`, `in_flight=`) and the call log's totals line (with
+  the `run status=` line (`stop=`, `retryable=`, `rate_limited=` and `holdouts=` as the call log's
+  `end` line holds them, then `run=`, `level=`, `in_flight=`) and the call log's totals line (with
   `live_usd=`, `resume=` and `rehearsal=`), a `test holdout=%d records=%d copied=%d kept=%s` line
   per holdout, `copied=` counting the test records some arm's added or replica row equals in every
   frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
   `kept=true`), a `training holdout=%d arm=%s fill=%s rows=%d copies=%d` line per arm and fill
   after it, `copies=` counting the arm's added rows that equal some training row in every frame
-  column, an `undefined holdout=%d arm=%s rows=%d labels=%d` WARNING for each replica of fewer
-  than two labels, whose classifier measures score undefined, and at
-  the end of the run, a stopped run included, one `validity` line per Messages arm,
+  column, an `undefined holdout=%d arm=%s rows=%d labels=%d held=%s` WARNING for each replica of
+  fewer than two labels (`held=` the labels it holds, or `none`), whose classifier measures score
+  undefined, as its fidelity does for a replica of fewer than two rows, then after the last
+  holdout an `undefined replicas arm=%s holdouts=%d of=%d` WARNING per arm with such a replica,
+  and at the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm and
   `dropped_curation=%d` there for a curating arm: its counts
@@ -732,7 +774,9 @@ log-probability under the BKB's concept draw (`bko.gaps.likelihood.Likelihood`) 
 the question G7's curated arm rests on
 ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). `--candidates` repeats: a sliced run's
 files are read as one run's, and the command refuses files whose holdouts overlap or leave a holdout
-of the named run out, or whose headers differ in any key but `run`. It makes no API call:
+of the named run out, whose headers differ in any key but `run`, or whose `run` is not a registered
+slice of the named run (its configuration but for its holdouts and spend ceiling, over holdouts
+among the named run's). It makes no API call:
 
     test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates runs/<source-run-id>/holdout-candidates.jsonl [--candidates <more>]... [--data-dir <dir>] > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log </dev/null
 

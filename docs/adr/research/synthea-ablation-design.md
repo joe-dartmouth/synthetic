@@ -51,9 +51,8 @@ drops conditions resolved before its window. v4.0.0 codes ischemic heart disease
   fraction ablations name the same removals.
 - **Ground truth** is the removed patient ids and the cell counts before and after.
 - **E3 removes training rows only**: E3 thins one cell of each holdout's training split with
-  `bko.datasets.ablation.thinned`, by the same `removal_order` and exact count, takes a fraction in (0, 1], 1 removing the whole
-  cell, and leaves the
-  population and the test split whole (ADR
+  `bko.datasets.ablation.thinned`, by the same `removal_order` and exact count, takes a fraction in
+  (0, 1], 1 removing the whole cell, and leaves the population and the test split whole (ADR
   [`research/synthea-downstream-design`](synthea-downstream-design.md)).
 
 `bko.datasets.synthea_run`, `bko.datasets.synthea` and `bko.datasets.ablation` hold the values. The
@@ -96,6 +95,7 @@ checksums.
 | Idea | Why ruled out | When |
 |------|---------------|------|
 | The apr2020 pre-generated sample | No seed, and no cell can hold 20 cases | 2026-10-14 |
+| A removal fraction in (0, 1), short of the whole cell | E6's zero-shot run removes every training row of its cell, a fraction of 1 (ADR [`research/diabetes-subgroup-removal-design`](diabetes-subgroup-removal-design.md)) | 2026-11-02 |
 | The `latest` pre-generated sample | Its contents change under one name, and it has no seed | 2026-10-14 |
 | Removing condition rows only | Turns a case into a non-case; see Rationale | 2026-10-14 |
 | Removing part of a patient's rows | Turns a case into a non-case; a fraction removes whole patients instead | 2026-10-14 |

@@ -56,12 +56,13 @@ import it (ADR `tooling/agent-config-single-home`).
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes
   no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
-- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl>]`:
+- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl> [--ceiling USD]]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money. It supervises the
   run and resumes an API-caused stop into `runs/<run-id>-resume-<k>/`, at most R times (its
   default in `launch --help`).
-  `--resume <calls.jsonl>` resumes a stopped run into the new folder under the same checks, and
+  `--resume <calls.jsonl>` resumes a stopped run into the new folder under the same checks, a
+  ceiling or projection stop only with `--ceiling USD`, a ceiling for that resume alone, and
   `--rehearse` rehearses the run on canned replies into `runs/<run-id>/rehearsal/` for free
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paid-run protocol).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned

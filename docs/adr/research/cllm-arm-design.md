@@ -248,13 +248,19 @@ an agreement that grants no permission to send them.
 - A model shown records can copy them; the `training` lines count an arm's rows equal to a
   training row and the `copies` lines its rows equal to a test record, as for every arm.
 - The curator is fit on the same training rows the shown records come from.
-- The budget comes from a proxy pilot, and B3's `cllm` on Synthea kept less than it
+- The budget rests on B3's `cllm` keep shares on Synthea
   (`runs/b3-3/holdout-candidates.jsonl`; each share is the rows kept or dropped for the quota over
-  those plus the rows dropped by curation): 0.5370 overall against the pilot's 0.8856, and under
-  half in five fills and cells, replica `<65/female/1` 0.0707 (1437 of 20314), replica
+  those plus the rows dropped by curation): 0.5370 overall against the proxy pilot's 0.8856, and
+  under half in five fills and cells, replica `<65/female/1` 0.0707 (1437 of 20314), replica
   `>=65/female/1` 0.0976 (366 of 3750), gap `>=65/female/1` 0.1276 (1348 of 10564), replica
   `>=65/male/0` 0.1543 (2666 of 17276) and replica `<65/male/1` 0.2074 (4504 of 21718). The
   budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22, `CLLM_BUDGET`.
+- B3's runs asked at the proxy pilot's budget of 9, and their curating calls asked each cell's
+  shortfall, as a non-curating arm's still do (`tests/test_evaluate_cllm.py` pins that split). A
+  call log replays only against the code that asks its calls, so B3's `cllm` call logs replay at
+  their run commits, the replay-commit rule of ADR
+  [`research/call-log-replay`](call-log-replay.md), and B3's rows in `docs/EVIDENCE.md` hold at
+  those commits.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.
 - The curator's fits are not XGBoost's: histogram boosting bins each feature, and its leaf bound
   counts rows.
@@ -263,6 +269,8 @@ an agreement that grants no permission to send them.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| `CLLM_BUDGET` 9, from the proxy pilot's least keep share | B3's `cllm` on Synthea kept 0.0707 of replica `<65/female/1`, under the pilot's least share, so 9 records per requested row cannot cover that cell; the rule on B3's share gives 22 (Consequences) | 2026-11-02 |
+| A curating call that asks its cell's shortfall | A cell short by one asks one record per call, so a cell the curator mostly rejects asks one record at a time; a full call capped by the cell's limit asks fewer calls for the same rows (Decision, Budget) | 2026-11-02 |
 | A curated arm's budget shared across its attempt's cells | One cell the curator rejects asks the rest of the attempt's budget one record per call (`b3-synthea`'s first launch, stopped at $1.64) | 2026-10-30 |
 | A curated arm that refuses past its budget, as every other arm does | On Synthea the curator keeps no record of `>=65/female/1` on many holdouts, so `b3-synthea` would stop partway (its rehearsal refused on holdout 2) | 2026-10-30 |
 | An arm-built `Call` outside the shared flight | Loses concurrent waves, the ceiling's reservations and the idle rule (Rationale) | 2026-10-29 |
