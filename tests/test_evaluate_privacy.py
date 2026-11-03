@@ -12,7 +12,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.evaluate.fidelity import metadata
-from bko.evaluate.privacy import distances, nearest
+from bko.evaluate.privacy import BLOCK, distances, nearest
 from bko.evaluate.scores import Measure
 from tests._baselines_fixtures import full_records
 
@@ -99,3 +99,56 @@ def test_blocked_dcr_is_independent_of_block_size():
     whole = nearest(rows, train, frame=DIABETES_FRAME, block=len(train) + len(rows))
     for block in (13, 64, 1_000):
         assert np.array_equal(nearest(rows, train, frame=DIABETES_FRAME, block=block), whole)
+
+
+def test_rows_against_no_training_rows_are_refused():
+    rows, train = _cases(UCI_FRAME)
+    with pytest.raises(ValueError, match="no training rows to measure against"):
+        nearest(rows, train.iloc[:0], frame=UCI_FRAME)
+
+
+def test_no_rows_have_no_distances():
+    rows, train = _cases(UCI_FRAME)
+    assert nearest(rows.iloc[:0], train, frame=UCI_FRAME).shape == (0,)
+
+
+def _missing(frame: FrameSpec, *, numeric: bool, rows: bool, train: bool) -> tuple:
+    """`_cases`' rows and training rows with some values of one column missing on each side
+    named: the first numeric column, or the first coded one."""
+    cases = _cases(frame)
+    name = frame.numeric[0] if numeric else next(c for c in frame.columns if c not in frame.numeric)
+    found = []
+    for frame_rows, blank in zip(cases, (rows, train), strict=True):
+        frame_rows = frame_rows.astype({name: "float64"})
+        if blank:
+            frame_rows.loc[frame_rows.index[::3], name] = np.nan
+        found.append(frame_rows)
+    return tuple(found)
+
+
+@pytest.mark.parametrize("numeric", [True, False], ids=["numeric", "coded"])
+@pytest.mark.parametrize(
+    ("rows", "train"), [(True, False), (False, True), (True, True)], ids=["rows", "train", "both"]
+)
+def test_blocked_dcr_equals_sdmetrics_with_missing_values(numeric, rows, train):
+    data, reference = _missing(UCI_FRAME, numeric=numeric, rows=rows, train=train)
+    expected = _sdmetrics(data, reference, UCI_FRAME)
+    assert np.array_equal(nearest(data, reference, frame=UCI_FRAME), expected)
+
+
+def test_a_wholly_missing_nullable_training_column_measures_as_sdmetrics_does():
+    rows, train = _cases(UCI_FRAME)
+    name = UCI_FRAME.numeric[0]
+    train[name] = pd.array([pd.NA] * len(train), dtype="Int64")
+    found = nearest(rows, train, frame=UCI_FRAME)
+    assert np.array_equal(found, _sdmetrics(rows, train.astype({name: "float64"}), UCI_FRAME))
+
+
+@pytest.mark.parametrize("crossing", ["rows", "train"])
+def test_blocked_dcr_equals_sdmetrics_across_the_default_block(crossing):
+    """`BLOCK` rows or training rows and a few more, so the default blocks split one side."""
+    more = _records(UCI_FRAME, BLOCK + 37, seed=5)
+    few = _records(UCI_FRAME, 23, seed=6)
+    rows, train = (more, few) if crossing == "rows" else (few, more)
+    expected = _sdmetrics(rows, train, UCI_FRAME)
+    assert np.array_equal(nearest(rows, train, frame=UCI_FRAME), expected)

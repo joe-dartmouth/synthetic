@@ -2,10 +2,11 @@
 
 `bko.evaluate.run` retries a refused fill; on a gap fill's last attempt, a `ShortfallError` that
 holds the method's baseline is scored as the rows it kept rather than refused (ADR
-`research/e1-evaluation-protocol`). On a gap fill asking for a stratum `structural` names, a
-shortfall fills partially on any attempt, since no retry changes its training rows. The kept rows
-are checked against the quota less the shortfall, so a partial fill keeps every promise a full one
-does for the cells it fills.
+`research/e1-evaluation-protocol`). On a gap fill whose shortfall falls on strata `structural`
+names alone, it fills partially on any attempt, since no retry changes their training rows; a
+shortfall that also falls on another stratum is retried, since a retry can fill that one. The kept
+rows are checked against the quota less the shortfall, so a partial fill keeps every promise a full
+one does for the cells it fills.
 """
 
 from __future__ import annotations
@@ -70,14 +71,16 @@ def partial_fill(
     return baseline
 
 
-def structural(train: pd.DataFrame, request: Request) -> bool:
-    """Whether some stratum `request` asks for holds fewer than 2 rows of `train`.
+def structural(train: pd.DataFrame, request: Request) -> frozenset[str]:
+    """The strata `request` asks for that hold fewer than 2 rows of `train`, keyed as `short` is.
 
-    Such a stratum is a structural shortfall (ADR `research/baseline-augmentation-design`): no
-    later attempt adds a training row to it, so a gap fill's shortfall there is not retried.
+    Each is a structural shortfall (ADR `research/baseline-augmentation-design`): no later attempt
+    adds a training row to it, so a gap fill short of such strata alone is not retried.
     """
     keys = Counter(stratum_keys(train, request.strata, edges=request.frame.edges))
-    return any(keys[stratum] < STRUCTURAL_BELOW for stratum in request.quota)
+    return frozenset(
+        "/".join(map(str, stratum)) for stratum in request.quota if keys[stratum] < STRUCTURAL_BELOW
+    )
 
 
 def shortfall_kept(exc: BaselineError) -> tuple[Baseline, Mapping[str, int]] | None:

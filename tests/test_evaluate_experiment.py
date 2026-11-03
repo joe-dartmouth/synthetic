@@ -54,6 +54,7 @@ from bko.evaluate.named_runs import (
     RUNS,
     SETTINGS_SWEEP,
     NamedRun,
+    _e6_runs,
 )
 from bko.evaluate.run import ARMS, run, score_holdout
 from bko.evaluate.scores import Measure, Scope, Source
@@ -451,33 +452,45 @@ def test_e6s_slices_take_ten_consecutive_holdouts_at_a_tenth_of_the_ceiling(name
     assert total == pytest.approx(whole.spend_ceiling)
 
 
+@pytest.mark.parametrize("rows", [0, -5])
+def test_a_replica_cap_below_one_row_is_refused(rows):
+    with pytest.raises(ValueError, match=f"replica rows {rows} must be 1 or more"):
+        dataclasses.replace(E6_THIN, replica_rows=rows)
+
+
+def test_e6_slices_refuse_holdouts_they_do_not_divide():
+    uneven = dataclasses.replace(E6_THIN, holdout_seeds=tuple(range(99)))
+    with pytest.raises(ValueError, match="99 holdouts do not divide into 10 slices"):
+        _e6_runs("thin", uneven)
+
+
 def test_each_e6_ceiling_covers_its_estimate():
     """E6's estimate per record asked (`docs/EVIDENCE.md`, E6 Configuration), written out.
 
     Rate: the larger of `e1-4`'s $1.35635e-4 per record x 34 Diabetes columns / 14 UCI columns,
     $3.2940e-4, and pilot `e6-1`'s $3.1536e-4. Records asked per holdout: the five BKO-type arms
-    and `cllm-uncurated` ask (fill_to - R) x (1 + 0.005), the drop share of the 32000-token
-    pilot (1 of 200 records); `cllm` asks (fill_to - R) x 7.837, `b3-3`'s CLLM records asked per
-    requested row; `bko`'s replica asks 2000 x (1 + 0.005), in the f run only.
+    and `cllm-uncurated` ask (fill_to - R) x (1 + 0.0075), the drop share pooled over the two
+    10-call pilots (3 of 400 records); `cllm` asks (fill_to - R) x 7.837, `b3-3`'s CLLM records
+    asked per requested row; `bko`'s replica asks 2000 x (1 + 0.0075), in the f run only.
     """
     rate = max(1.35635e-4 * 34 / 14, 3.1536e-4)
     assert rate == pytest.approx(3.294e-4, rel=1e-4)
-    thin = 6 * (1269 - 19) * 1.005 + (1269 - 19) * 7.837 + 2000 * 1.005
-    empty = 6 * (1269 - 0) * 1.005 + (1269 - 0) * 7.837
-    assert (math.floor(thin), math.floor(empty)) == (19_343, 17_597)
-    assert E6_ASKED == {"thin": 19_343, "empty": 17_597}
+    thin = 6 * (1269 - 19) * 1.0075 + (1269 - 19) * 7.837 + 2000 * 1.0075
+    empty = 6 * (1269 - 0) * 1.0075 + (1269 - 0) * 7.837
+    assert (math.floor(thin), math.floor(empty)) == (19_367, 17_616)
+    assert E6_ASKED == {"thin": 19_367, "empty": 17_616}
     assert math.isclose(E6_CAP, 1500.0)
-    # Ceilings: $1,500 x each fraction's share of 36,940 records asked per holdout.
-    # thin: 1500 x 19,343 / 36,940 = $785.45; empty: 1500 x 17,597 / 36,940 = $714.55.
-    assert E6_THIN.spend_ceiling == pytest.approx(785.449, abs=1e-3)
-    assert E6_EMPTY.spend_ceiling == pytest.approx(714.551, abs=1e-3)
+    # Ceilings: $1,500 x each fraction's share of 36,983 records asked per holdout.
+    # thin: 1500 x 19,367 / 36,983 = $785.51; empty: 1500 x 17,616 / 36,983 = $714.49.
+    assert E6_THIN.spend_ceiling == pytest.approx(785.510, abs=1e-3)
+    assert E6_EMPTY.spend_ceiling == pytest.approx(714.490, abs=1e-3)
     assert E6_THIN.spend_ceiling + E6_EMPTY.spend_ceiling == pytest.approx(E6_CAP)
-    # Estimates over 100 holdouts at $3.294e-4: thin $637.16, empty $579.65, total $1,216.80;
-    # each ceiling is 1500 / 1216.80 = 1.2327 times its estimate, and each slice's tenth of its
+    # Estimates over 100 holdouts at $3.294e-4: thin $637.95, empty $580.27, total $1,218.22;
+    # each ceiling is 1500 / 1218.22 = 1.2313 times its estimate, and each slice's tenth of its
     # ceiling covers its 10 holdouts' tenth of the estimate.
     for name, whole in (("thin", E6_THIN), ("empty", E6_EMPTY)):
         estimate = 100 * E6_ASKED[name] * 3.294e-4
-        assert whole.spend_ceiling / estimate == pytest.approx(1.2327, abs=1e-4)
+        assert whole.spend_ceiling / estimate == pytest.approx(1.2313, abs=1e-4)
         for letter in "abcdefghij":
             sliced = RUNS[f"e6-{name}{letter}"].experiment
             assert sliced.spend_ceiling >= len(sliced.holdout_seeds) * E6_ASKED[name] * 3.294e-4

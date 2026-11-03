@@ -6,6 +6,7 @@ import json
 import logging
 from functools import partial
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -14,6 +15,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.request import Request, Strata
 from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.attempts import Attempt
 from bko.evaluate.cllm import SHOW, Shower
 from bko.evaluate.experiment import CLLM_ARM, CLLM_RAW_ARM, MESSAGES_ARMS
 from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
@@ -21,7 +23,7 @@ from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.scores import Measure, Source
-from bko.evaluate.waves import spendable
+from bko.evaluate.waves import asks, spendable
 from bko.generate.flight import Flight, Limits
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend
@@ -464,3 +466,28 @@ def test_two_cells_given_up_in_different_rounds_are_each_logged_once(tmp_path, c
     lines = [m for m in caplog.messages if m.startswith("shortfall ")]
     assert [m.split()[3] for m in lines] == ["cell=<55/female/1", "cell=>=55/female/1"]
     assert baseline.params["short"] == {"<55/female/1": 2, ">=55/female/1": 2}
+
+
+@pytest.mark.parametrize(
+    ("short", "per_call", "expected"),
+    [
+        (0, 20, []),
+        (1, 20, [1]),
+        (19, 20, [19]),
+        (20, 20, [20]),
+        (21, 20, [20, 1]),
+        (45, 20, [20, 20, 5]),
+        (60, 20, [20, 20, 20]),
+        (7, 3, [3, 3, 1]),
+    ],
+)
+def test_an_arm_that_does_not_curate_asks_its_shortfall_split_as_before_the_cell_limit(
+    short, per_call, expected
+):
+    """The asks every non-curating arm made at B3's run commits: one call per `per_call` of the
+    shortfall, the last asking what is left. B3's `cllm` call logs replay at their run commits,
+    whose curating arm asked the same split (ADR `research/cllm-arm-design`)."""
+    old = [min(per_call, short - start) for start in range(0, short, per_call)]
+    assert old == expected
+    attempt = cast("Attempt", None)
+    assert asks(attempt, ("<55", "female", 0), short, per_call=per_call, budget=None) == expected

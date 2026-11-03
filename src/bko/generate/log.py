@@ -4,10 +4,11 @@ A run writes one `run` line, then per call a `request` line before the call and 
 line after it, then one `end` line holding the run's status and totals. The `run` and `end` lines
 name the log a replay answers from under `replay` and the stopped log a resume continues under
 `resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line names
-the frame whose records the calls ask for under `frame` and records under `in_flight` the most calls
-the run keeps in flight at once, and a resume's under `carried_usd` the spend of the stopped log's
-calls it dropped. A resume of a ceiling or projection stop adds that rule and the raised ceiling
-it runs under to `resume`, as `stop` and `ceiling`, in both lines. The `end` line names under
+the frame whose records the calls ask for under `frame` and the named run under `run` (null outside
+one), records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
+`carried_usd` the spend of the stopped log's calls it dropped. A resume under a raised ceiling adds
+it to `resume` as `ceiling`, and a resume of a ceiling or projection stop adds that rule as `stop`,
+in both lines. The `end` line names under
 `stop` the stop rule that ended a failed run, or null; for a ceiling or projection stop, under
 `holdouts` the holdouts finished, which a resume projects from; under `retryable` whether the API
 caused the stop (the exception's `retryable` attribute), so a supervised run resumes it; and under
@@ -67,7 +68,9 @@ class Answered:
         carried_usd: For a resume, the spend of the logged calls it dropped and sends again, so
             the run's spend still counts them; 0 for a replay.
         stop: For a resume of a ceiling or projection stop, that rule; None otherwise.
-        ceiling: For such a resume, the raised spend ceiling in USD it runs under; None otherwise.
+        ceiling: For a resume under a raised spend ceiling, that ceiling in USD: the one raised
+            for a ceiling or projection stop, or the one the stopped log ran under; None
+            otherwise.
     """
 
     kind: Literal["replay", "resume"]
@@ -155,8 +158,10 @@ class CallLog:
             if answered is not None and answered.kind == "resume"
             else None
         )
-        if self.resume is not None and answered is not None and answered.stop is not None:
-            self.resume.update(stop=answered.stop, ceiling=answered.ceiling)
+        if self.resume is not None and answered is not None and answered.ceiling is not None:
+            self.resume["ceiling"] = answered.ceiling
+            if answered.stop is not None:
+                self.resume["stop"] = answered.stop
         self.rehearsal = rehearsal
         self.settings = settings
         self.run = run
@@ -186,6 +191,7 @@ class CallLog:
             "rehearsal": rehearsal,
             "in_flight": in_flight,
             "frame": frame,
+            "run": run,
         }
         if self.resume is not None:
             run_line["carried_usd"] = self.usd
@@ -272,10 +278,15 @@ class CallLog:
                 }
             )
             logger.info(
-                "run status=%s run=%s level=%s in_flight=%d calls=%d failed=%d retried=%d asked=%d "
-                "decoded=%d undecoded=%d input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f "
-                "replay=%s resume=%s rehearsal=%s log=%s",
+                "run status=%s stop=%s retryable=%s rate_limited=%s holdouts=%d run=%s level=%s "
+                "in_flight=%d calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
+                "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
+                "rehearsal=%s log=%s",
                 status,
+                stop or "none",
+                str(retryable).lower(),
+                str(self.rate_limited).lower(),
+                self.holdouts,
                 self.run or "none",
                 self.settings.guidance,
                 self.in_flight,

@@ -71,14 +71,14 @@ def test_a_resume_of_a_local_run_sends_through_the_local_factory(monkeypatch, tm
     captured: list[object] = []
 
     class Recorded:
-        def __init__(self, path, send, *, ceiling) -> None:
+        def __init__(self, path, send, *, ceiling, run) -> None:
             captured.append(send)
             raise SystemExit(0)
 
     monkeypatch.setattr(scoring_module, "Resume", Recorded)
     ctx, _ = context(answers)
     ctx = dataclasses.replace(ctx, send=boom, local_send=lambda model: answers)
-    args = argparse.Namespace(replay=None, resume=tmp_path / "calls.jsonl")
+    args = argparse.Namespace(replay=None, resume=tmp_path / "calls.jsonl", ceiling=None, run="e1")
     run = NamedRun(NARROW, dataclasses.replace(SETTINGS, model=LOCAL))
     with pytest.raises(SystemExit):
         scoring_module._answers(args, ctx, run)

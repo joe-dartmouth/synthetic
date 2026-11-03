@@ -58,6 +58,7 @@ def test_the_header_holds_schema_settings_price_and_sdk_version(tmp_path):
         "rehearsal": False,
         "in_flight": 1,
         "frame": "uci",
+        "run": None,
         "started": FIXED_NOW.isoformat(),
         "settings": {
             "model": "claude-haiku-5-5",
@@ -249,7 +250,8 @@ def test_the_run_line_logs_status_totals_and_the_log_path(tmp_path, caplog):
     with caplog.at_level(logging.INFO), CallLog(path, SETTINGS, now=_now, frame="uci") as log:
         ask(GUIDANCE, 2, send=send, log=log, frame=UCI_FRAME)
     assert (
-        "run status=complete run=none level=summary in_flight=1 calls=1 failed=0 retried=0 "
+        "run status=complete stop=none retryable=false rate_limited=false holdouts=0 run=none "
+        "level=summary in_flight=1 calls=1 failed=0 retried=0 "
         "asked=2 decoded=2 undecoded=0 "
         f"input_tokens=1000 output_tokens=500 usd=0.000350 live_usd=0.000350 replay=none "
         f"resume=none rehearsal=false log={path}"
@@ -265,7 +267,8 @@ def test_the_run_status_line_names_run_level_and_in_flight(tmp_path, caplog):
         pass
     assert any(
         m.startswith(
-            f"run status=complete run=g3-cell level={SETTINGS.guidance} in_flight=4 calls=0 "
+            "run status=complete stop=none retryable=false rate_limited=false holdouts=0 "
+            f"run=g3-cell level={SETTINGS.guidance} in_flight=4 calls=0 "
         )
         for m in caplog.messages
     )

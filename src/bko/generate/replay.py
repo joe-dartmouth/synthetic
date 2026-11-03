@@ -12,12 +12,13 @@ in flight together, so it drops every call from the first one not answered by ex
 line, and carries the dropped calls' spend into the resumed run's (`Answered.carried_usd`). At
 any in-flight, what the stopped log itself carried is carried too, so a resume of a resume keeps
 the whole run's spend. It refuses a log with a failed call before its last, a replay's log, a
-rehearsal's log, whose replies are canned, and a resumed log that stopped before its replayed calls
-ran out. A run the projection or the ceiling stopped resumes only under the named run's current
-`Ceiling`, and only when that ceiling is above the stopped run's own projection: its logged spend
-over the holdouts it finished (at least one), scaled to every holdout, never below the spend
-itself. `bko.generate.resume_guard` holds the checks on the `run` and `end` lines. ADR
-`research/call-log-replay` records the design.
+rehearsal's log, whose replies are canned, a log of another named run, and a resumed log that
+stopped before its replayed calls ran out. A run the projection or the ceiling stopped resumes only
+under a `Ceiling` raised for that resume alone, and only when that ceiling is above the stopped
+run's own projection: its logged spend over the holdouts it finished (at least one), scaled to
+every holdout, never below the spend itself. Any other stop resumes under the raised ceiling its
+log ran under, if any (`Resume.ceiling`). `bko.generate.resume_guard` holds the checks on the
+`run` and `end` lines. ADR `research/call-log-replay` records the design.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ from typing import Any, Final, NamedTuple
 from bko.generate.errors import GenerationError, ReplayError
 from bko.generate.log import SCHEMA, Answered
 from bko.generate.messages import AnySend, Call, Reply, Usage, text_of
-from bko.generate.resume_guard import Ceiling, refuse_unresumable
+from bko.generate.resume_guard import Ceiling, ran_under, refuse_unresumable
 
 
 logger = logging.getLogger(__name__)
@@ -146,22 +147,33 @@ class Resume(_Logged):
         digest: The stopped log's sha256, which the resumed run's log records under `resume`.
         dropped: The logged calls it dropped, to send again.
         raised: The ceiling or projection stop it resumes under a raised ceiling, or None.
+        ceiling: The raised ceiling in USD the resumed run runs under: `raised`'s, else the one
+            the stopped log ran under (`bko.generate.resume_guard.ran_under`), else None, which
+            leaves the named run's own.
     """
 
-    def __init__(self, path: Path, send: AnySend, *, ceiling: Ceiling | None = None) -> None:
+    def __init__(
+        self,
+        path: Path,
+        send: AnySend,
+        *,
+        ceiling: Ceiling | None = None,
+        run: str | None = None,
+    ) -> None:
         """Read the stopped log at `path`; calls past its answered ones go through `send`.
 
-        `ceiling` is the named run's spend rule, which a ceiling or projection stop resumes
-        under (`refuse_unresumable`).
+        `ceiling` is the ceiling raised for this resume, which a ceiling or projection stop
+        resumes under, and `run` the named run it runs (`refuse_unresumable`).
 
         Raises:
             ReplayError: As `Replay`, past a dropped last call; or if a call before the last
-                failed, as `refuse_unresumable`, if its `resume` field is malformed, or if it
-                resumed more calls than it holds.
+                failed, as `refuse_unresumable` and `ran_under`, if its `resume` field is
+                malformed, or if it resumed more calls than it holds.
             OSError: If the log cannot be read.
         """
         log = _read(path, stopped=True)
-        self.raised = refuse_unresumable(path, log.run, log.end, ceiling)
+        self.raised = refuse_unresumable(path, log.run, log.end, ceiling, name=run)
+        self.ceiling = self.raised.ceiling if self.raised is not None else ran_under(path, log.run)
         prior = log.run.get("resume")
         if prior is not None:
             calls = prior.get("calls") if isinstance(prior, dict) else None
@@ -182,14 +194,11 @@ class Resume(_Logged):
     def answered(self) -> Answered:
         """What the resumed run's own log records about this source, the spend it carries too.
 
-        A resume of a ceiling or projection stop records the rule and the ceiling it runs under.
+        A resume of a ceiling or projection stop records the rule and the ceiling it runs under;
+        any other resume under a raised ceiling records that ceiling alone.
         """
-        raised = self.raised
-        if raised is None:
-            return Answered("resume", self.digest, self._total, self._carried)
-        return Answered(
-            "resume", self.digest, self._total, self._carried, raised.stop, raised.ceiling
-        )
+        stop = None if self.raised is None else self.raised.stop
+        return Answered("resume", self.digest, self._total, self._carried, stop, self.ceiling)
 
     def __call__(self, call: Call) -> Reply | Awaitable[Reply]:
         """Answer from the stopped log while it holds calls, then send live, awaitably or not."""

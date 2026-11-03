@@ -265,20 +265,37 @@ def _states(
     cuts: Mapping[str, tuple[float, ...]],
     codes: Mapping[str, tuple[int, ...]],
 ) -> np.ndarray:
+    """Each value of `column`'s state: its code's place among `codes[field]`, else its bin.
+
+    Raises:
+        ValueError: If a coded field holds a missing value or one that is not a whole number.
+        KeyError: If a coded field holds a code outside its states.
+    """
     if field in codes:
         known = np.asarray(codes[field], dtype=np.int64)
-        values = column.to_numpy().astype(np.int64)
-        low = int(min(known.min(initial=0), values.min(initial=0)))
-        lookup = np.full(int(max(known.max(initial=0), values.max(initial=0))) - low + 1, -1)
-        lookup[known - low] = np.arange(len(known))
-        found = lookup[values - low]
-        if (found < 0).any():
-            msg = (
-                f"{field} holds codes {sorted(set(values[found < 0].tolist()))} outside its states"
-            )
+        values = _whole(column, field)
+        order = np.argsort(known, kind="stable")
+        ranked = known[order]
+        at = np.minimum(np.searchsorted(ranked, values), len(ranked) - 1)
+        outside = ranked[at] != values if len(ranked) else np.ones(len(values), dtype=bool)
+        if outside.any():
+            msg = f"{field} holds codes {sorted(set(values[outside].tolist()))} outside its states"
             raise KeyError(msg)
-        return found.astype(int)
+        return order[at].astype(int)
     return np.searchsorted(np.asarray(cuts[field]), column.to_numpy(dtype="float64"), side="right")
+
+
+def _whole(column: pd.Series, field: str) -> np.ndarray:
+    """`column`'s values as whole-number codes.
+
+    Raises:
+        ValueError: If a value is missing or not a whole number.
+    """
+    values = pd.to_numeric(column, errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
+    if not np.isfinite(values).all() or not (values == np.floor(values)).all():
+        msg = f"{field} holds values that are not whole codes"
+        raise ValueError(msg)
+    return pd.to_numeric(column).to_numpy(dtype=np.int64)
 
 
 def _node(bins: Bins, field: str, parents: tuple[str, ...]) -> Node:

@@ -7,6 +7,7 @@ import hashlib
 import io
 import logging
 from fractions import Fraction
+from typing import Final
 
 import pytest
 
@@ -158,17 +159,78 @@ def test_merge_refuses_slices_whose_holdouts_hold_other_scores(tmp_path, caplog)
     assert "other scores than holdout 0 of" in caplog.text
 
 
-def test_an_arm_that_added_no_row_on_one_holdout_still_merges(tmp_path):
-    lines = HIGH.splitlines(keepends=True)
-    emptied = "".join(
+def _without_distances(text: str, *, rows: str | None) -> str:
+    """`text` with holdout 3's `smote` distance rows dropped, and its added count `rows` if set."""
+    kept = [
         line
-        for line in lines
+        for line in text.splitlines(keepends=True)
         if not line.startswith(("3,smote,added,dcr-p5,", "3,smote,added,dcr-median,"))
-    )
-    assert len(emptied.splitlines()) == len(lines) - 2
+    ]
+    if rows is not None:
+        kept = [
+            f"3,smote,added,rows,all,{rows}\n" if line.startswith("3,smote,added,rows,") else line
+            for line in kept
+        ]
+    return "".join(kept)
+
+
+def test_an_arm_that_added_no_row_on_one_holdout_still_merges(tmp_path):
+    emptied = _without_distances(HIGH, rows="0.0")
+    assert len(emptied.splitlines()) == len(HIGH.splitlines()) - 2
     code, merged = _merged(tmp_path, [LOW, emptied])
     assert code == 0
     assert merged == LOW + "".join(emptied.splitlines(keepends=True)[1:])
+
+
+def test_an_arm_that_added_rows_but_lacks_their_distances_is_refused(tmp_path, caplog):
+    with caplog.at_level(logging.INFO):
+        assert _merged(tmp_path, [LOW, _without_distances(HIGH, rows=None)]) == (2, "")
+    assert "holdout 3 of" in caplog.text
+    assert "other scores than holdout 0 of" in caplog.text
+
+
+E3_DATA: Final = (
+    "data dataset=synthea frame=synthea records=985 "
+    "digest=f9c6a23e30036a12a8647903783cac6cd47eac3f58e40d82b09b7d572898b94f"
+)
+E3_VERSIONS: Final = (
+    "versions commit=8a50dc6e8b0392724ed7079c76891fcd1835c654 dirty=false "
+    '{"anthropic": "1.13.0", "imbalanced-learn": "0.14.2", "numpy": "2.5.4", '
+    '"pandas": "2.3.3", "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O", "pronto": "2.7.3", '
+    '"python": "3.14.6", "scikit-learn": "1.9.1", "scipy": "1.18.1", "sdmetrics": "0.32.0", '
+    '"sdv": "1.38.5", "threadpoolctl": "3.7.0", "torch": "2.14.1"}'
+)
+E3_EXPERIMENT: Final = (
+    "experiment run=e3-{slice} frame=synthea holdouts=2 seeds={seeds} "
+    "removal=>=65/female/1@0.9 decontaminate=false "
+    "arms=none,class-weight,smote,adasyn,ctgan,tvae,bko,bko-population,bko-frequency,real "
+    "replica=smote,adasyn,ctgan,tvae,bko,bko-population,bko-frequency fill_to=20 budget=3 "
+    "validity=19/20 spend_ceiling=32.50 criteria=none models=lr,hgb"
+)
+"""`runs/e3-2/scores.log`'s `data`, `versions` and `experiment` lines as recorded, but for the
+holdouts and seeds: a line that predates `agreement=`, `training_fraction=`, `threshold=`,
+`cutoff=` and `replica_rows=`, each read at its assumed value."""
+
+
+def _recorded(slice_: str, seeds: str) -> str:
+    messages = [E3_DATA, E3_EXPERIMENT.format(slice=slice_, seeds=seeds), E3_VERSIONS]
+    return "".join(f"2026-10-28 22:45:36,232 INFO bko.evaluate: {m}\n" for m in messages)
+
+
+def test_merge_joins_slices_whose_lines_are_in_the_recorded_older_format(tmp_path):
+    logs: list[str | None] = [_recorded("a", "0-1"), _recorded("b", "2-3")]
+    for key in ("agreement=", "training_fraction=", "threshold=", "cutoff=", "replica_rows="):
+        assert key not in str(logs[0])
+    code, merged = _merged(tmp_path, [LOW, HIGH], logs=logs)
+    assert code == 0
+    assert merged == _scored((0, 1, 2, 3))
+
+
+def test_merge_refuses_a_recorded_format_slice_beside_one_of_another_cutoff(tmp_path, caplog):
+    other = _recorded("b", "2-3").replace(" fill_to=20 ", " fill_to=20 cutoff=0.3 ")
+    with caplog.at_level(logging.INFO):
+        assert _merged(tmp_path, [LOW, HIGH], logs=[_recorded("a", "0-1"), other]) == (2, "")
+    assert "cutoff=0.5 vs 0.3" in caplog.text
 
 
 def test_merge_of_a_missing_file_exits_two(tmp_path):

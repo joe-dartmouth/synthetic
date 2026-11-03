@@ -16,6 +16,7 @@ import signal
 import threading
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Final
 
@@ -42,6 +43,9 @@ from bko.generate.weights import LOCAL_MODELS
 
 
 logger = logging.getLogger("bko.evaluate")
+
+CHUNK: Final = 1 << 20
+"""Bytes of the candidates file read at a time to hash it."""
 
 TERMINATING: Final = (signal.SIGTERM, signal.SIGHUP)
 """The signals `score` turns into `KeyboardInterrupt`, beside `SIGINT`, which already is one."""
@@ -153,14 +157,26 @@ def _score(
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
     if args.candidates is not None:
-        kept = args.candidates.read_bytes()
-        logger.info(
-            "candidates path=%s lines=%d sha256=%s",
-            args.candidates,
-            len(kept.splitlines()) - 1,
-            hashlib.sha256(kept).hexdigest(),
-        )
+        log_candidates(args.candidates)
     return text
+
+
+def log_candidates(path: Path) -> None:
+    """Log the closed candidates file's path, candidate lines and sha256, read in chunks.
+
+    The scores are rendered before it runs, so a file it cannot read is logged as a WARNING and
+    the scores still go out.
+    """
+    sha256, newlines = hashlib.sha256(), 0
+    try:
+        with path.open("rb") as handle:
+            while chunk := handle.read(CHUNK):
+                sha256.update(chunk)
+                newlines += chunk.count(b"\n")
+    except OSError as exc:
+        logger.warning("candidates path=%s unread error=%s: %s", path, type(exc).__name__, exc)
+        return
+    logger.info("candidates path=%s lines=%d sha256=%s", path, newlines - 1, sha256.hexdigest())
 
 
 def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bool) -> None:
@@ -181,6 +197,9 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise EvaluationError(msg)
     if args.rehearse and not guided:
         msg = "--rehearse needs a BKO arm"
+        raise EvaluationError(msg)
+    if args.ceiling is not None and args.resume is None:
+        msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
         raise EvaluationError(msg)
     generating = [*guided, *([DIRECT_ARM] if direct else [])]
     if generating and args.candidates is None:
@@ -205,15 +224,16 @@ def _answers(args: argparse.Namespace, context: Context, named: NamedRun) -> Ans
     """The source that answers the BKO calls, read before any download or log is made.
 
     A resume's live calls go to the named run's model's send (`Context.sender`), and a ceiling or
-    projection stop resumes under the named run's current ceiling.
+    projection stop resumes under `--ceiling`, raised for this resume alone.
     """
     if args.replay is not None:
         return Replay(args.replay)
     if args.resume is None:
         return None
-    experiment = named.experiment
-    ceiling = Ceiling(experiment.spend_ceiling, len(experiment.holdout_seeds))
-    resume = Resume(args.resume, context.sender(named.settings.model)(), ceiling=ceiling)
+    holdouts = len(named.experiment.holdout_seeds)
+    raising = None if args.ceiling is None else Ceiling(args.ceiling, holdouts)
+    send = context.sender(named.settings.model)()
+    resume = Resume(args.resume, send, ceiling=raising, run=args.run)
     logger.info(
         "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
@@ -232,6 +252,8 @@ def _answers(args: argparse.Namespace, context: Context, named: NamedRun) -> Ans
             raised.projected,
             raised.ceiling,
         )
+    elif resume.ceiling is not None:
+        logger.info("resume ceiling=%.2f inherited=true", resume.ceiling)
     return resume
 
 
@@ -275,10 +297,11 @@ def _guided(
             )
     settings = named.settings
     canned = context.rehearse(data, experiment, settings) if args.rehearse else None
+    raised = None if isinstance(answers, Replay) or answers is None else answers.ceiling
     with guided_arms(
         names,
         knowledge,
-        experiment,
+        experiment if raised is None else replace(experiment, spend_ceiling=raised),
         settings=settings,
         log=args.log,
         candidates=args.candidates,

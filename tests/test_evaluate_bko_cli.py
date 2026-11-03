@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 
 import bko.evaluate.guided as guided_module
+import bko.evaluate.scoring as scoring_module
 from bko.bkb.errors import QueryError
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.scoring import interrupted_by_termination
@@ -77,6 +78,25 @@ def test_score_logs_the_candidates_files_sha256(tmp_path, caplog):
     assert caplog.messages.count(expected) == 1
     at = caplog.messages.index(expected)
     assert caplog.messages[at - 1].startswith("scores rows=")
+
+
+def test_the_candidates_files_sha256_is_read_in_chunks(tmp_path, caplog, monkeypatch):
+    path = tmp_path / "candidates.jsonl"
+    data = b'{"kind": "header"}\n' + b'{"line": 1}\n' * 40
+    path.write_bytes(data)
+    monkeypatch.setattr(scoring_module, "CHUNK", 7)
+    with caplog.at_level(logging.INFO):
+        scoring_module.log_candidates(path)
+    digest = hashlib.sha256(data).hexdigest()
+    assert caplog.messages == [f"candidates path={path} lines=40 sha256={digest}"]
+
+
+def test_a_candidates_file_that_cannot_be_read_still_lets_the_scores_out(tmp_path, caplog):
+    path = tmp_path / "gone.jsonl"
+    with caplog.at_level(logging.WARNING):
+        scoring_module.log_candidates(path)
+    missing = f"[Errno 2] No such file or directory: '{path}'"
+    assert caplog.messages == [f"candidates path={path} unread error=FileNotFoundError: {missing}"]
 
 
 def test_score_needs_a_log_for_bko_arms(tmp_path):
@@ -407,20 +427,25 @@ def test_a_projection_stop_resumes_under_a_raised_ceiling_to_the_uninterrupted_b
     end = _end(stopped)
     assert (end["stop"], end["holdouts"]) == ("projection", 1)
     held = tmp_path / "held.jsonl"
-    argv = score_argv(held, tmp_path, "--resume", str(stopped))
-    assert main(argv, context=dataclasses.replace(ctx, experiment=rules)) == 3
-    assert "does not cover it" in caplog.text
-    assert not held.exists()
+    for flags, message in (
+        ([], "resume it with launch --resume and --ceiling"),
+        (
+            ["--ceiling", repr(4 * spent)],
+            "does not cover it",
+        ),
+    ):
+        argv = score_argv(held, tmp_path, "--resume", str(stopped), *flags)
+        assert main(argv, context=dataclasses.replace(ctx, experiment=rules)) == 3
+        assert message in caplog.text
+        assert not held.exists()
     caplog.clear()
     holdout = (reply([young(0)] * 12), reply([young(1)] * 16))
     send = ScriptedSend(*holdout)
     ceiling = 5 * spent
-    raised = dataclasses.replace(
-        ctx, send=lambda: send, experiment=dataclasses.replace(rules, spend_ceiling=ceiling)
-    )
+    raised = dataclasses.replace(ctx, send=lambda: send, experiment=rules)
     resumed = tmp_path / "resumed.jsonl"
     out = io.StringIO()
-    argv = score_argv(resumed, tmp_path, "--resume", str(stopped))
+    argv = score_argv(resumed, tmp_path, "--resume", str(stopped), "--ceiling", repr(ceiling))
     assert main(argv, context=raised, out=out) == 0
     send.assert_consumed()
     assert out.getvalue() == text

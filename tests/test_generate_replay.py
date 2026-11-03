@@ -333,7 +333,7 @@ def _spent(
 
 @pytest.mark.parametrize("rule", ["projection", "ceiling"])
 def test_resume_refuses_a_spend_stop_with_no_ceiling_to_read(tmp_path, rule):
-    with pytest.raises(ReplayError, match="resumes only under the named run's ceiling"):
+    with pytest.raises(ReplayError, match="resumes only under a ceiling raised past its"):
         Resume(_spent(_stopped_by(tmp_path, rule)), ScriptedSend())
 
 
@@ -351,8 +351,8 @@ def test_resume_refuses_a_spend_stop_whose_ceiling_does_not_cover_its_projection
     path = _spent(_stopped_by(tmp_path, rule))
     message = (
         f"{path} was stopped by the {rule} rule at a logged spend of 2.0000 USD "
-        "(live 1.5000 USD) over 4 holdouts, which projects to 5.0000 USD over 10; the named "
-        "run's ceiling of 5.00 USD does not cover it, so raise the ceiling past the projection"
+        "(live 1.5000 USD) over 4 holdouts, which projects to 5.0000 USD over 10; the raised "
+        "ceiling of 5.0000 USD does not cover it, so raise it past the projection"
     )
     with pytest.raises(ReplayError) as raised:
         Resume(path, ScriptedSend(), ceiling=Ceiling(5.0, 10))
@@ -361,7 +361,7 @@ def test_resume_refuses_a_spend_stop_whose_ceiling_does_not_cover_its_projection
 
 def test_a_ceiling_stop_inside_its_first_holdout_projects_from_one(tmp_path):
     path = _spent(_stopped_by(tmp_path, "ceiling"), holdouts=0)
-    with pytest.raises(ReplayError, match=r"projects to 20\.0000 USD over 10"):
+    with pytest.raises(ReplayError, match=r"projects to 20\.0000 USD over 10 \(no holdout"):
         Resume(path, ScriptedSend(), ceiling=Ceiling(19.0, 10))
     raised = Resume(path, ScriptedSend(), ceiling=Ceiling(21.0, 10)).raised
     assert raised is not None
@@ -399,9 +399,15 @@ def test_a_raised_ceiling_never_resumes_a_rehearsal_or_a_replay(tmp_path):
 
 @pytest.mark.parametrize("rule", ["idle", None])
 def test_another_stop_resumes_with_no_raised_record(tmp_path, rule):
-    resume = Resume(_stopped_by(tmp_path, rule), ScriptedSend(), ceiling=Ceiling(1.0, 10))
-    assert resume.raised is None
+    resume = Resume(_stopped_by(tmp_path, rule), ScriptedSend())
+    assert (resume.raised, resume.ceiling) == (None, None)
     assert resume.answered == Answered("resume", resume.digest, 1)
+
+
+@pytest.mark.parametrize("rule", ["idle", None])
+def test_another_stop_refuses_a_raised_ceiling(tmp_path, rule):
+    with pytest.raises(ReplayError, match="takes no raised ceiling"):
+        Resume(_stopped_by(tmp_path, rule), ScriptedSend(), ceiling=Ceiling(1.0, 10))
 
 
 @pytest.mark.parametrize("rule", ["idle", None])

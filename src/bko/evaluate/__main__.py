@@ -13,7 +13,8 @@ judged arm read beside another file's arm, with no verdict (`bko.evaluate.beside
 stderr.
 `launch RUN_ID [RUN]` starts a paid `score` detached under `supervise` (`bko.evaluate.launch`);
 RUN defaults to the run id's entry; `--rehearse` starts its rehearsal instead, `--resume STOPPED`
-resumes a stopped run into the new folder, `--in-flight N` is forwarded to `score` only when given,
+resumes a stopped run into the new folder (`--ceiling USD` raises a ceiling or projection stop's
+ceiling for that resume alone), `--in-flight N` is forwarded to `score` only when given,
 and `--retries R` caps the supervisor's resumes. `supervise RUN_ID RUN` is internal to `launch`,
 which starts it: it runs `score` into the claimed folder and resumes API-caused stops
 (`bko.evaluate.supervise`), and exits with the last segment's code, 128 plus the signal's number
@@ -36,7 +37,8 @@ replica fills are drained, so a stopped run's FILE lacks the stopped holdout's u
 neither file may exist. `score --replay LOG`
 answers every BKO call from the call log at LOG instead. `score --resume STOPPED --log NEW`
 finishes a stopped run: it answers the stopped log's answered calls from it and sends the rest
-live, all into NEW. `score --rehearse` answers every BKO call with canned records
+live, all into NEW; a ceiling or projection stop resumes only with `--ceiling USD`, the ceiling
+that resume alone runs under. `score --rehearse` answers every BKO call with canned records
 (`bko.evaluate.rehearse`), so the stop rules and spend lines run for free. `score g2
 --candidates FILE` is free: its direct arm draws from the fused BKB (`bko.evaluate.direct`), writes
 FILE, and takes no `--log`.
@@ -44,7 +46,8 @@ FILE, and takes no `--log`.
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log or candidates file, Messages arms with no `--log` or `--candidates`,
 a direct arm with no `--candidates` or over field rows that nest in a chain, `--log`,
-`--replay`, `--resume` or `--rehearse` with no Messages arm to build, `--candidates` with no
+`--replay`, `--resume` or `--rehearse` with no Messages arm to build, `--ceiling` with no
+`--resume`, `--candidates` with no
 Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
@@ -69,24 +72,25 @@ from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.evaluate.arguments import parser
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import MESSAGES_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
-from bko.evaluate.launch import MAX_RETRIES, RETRIES, launch, resumable
+from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
+from bko.evaluate.resumes import resumable
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
-from bko.evaluate.shared import add_parser, rescore
+from bko.evaluate.shared import rescore
 from bko.evaluate.supervise import supervise
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
-from bko.generate.flight import IN_FLIGHT
 from bko.generate.resume_guard import Ceiling
 
 
@@ -115,7 +119,7 @@ def main(
         process exits 1 with its traceback.
     """
     context = context or Context()
-    args = _parser().parse_args(argv)
+    args = parser(__doc__).parse_args(argv)
     sink = out or sys.stdout
     try:
         if args.command != "score":
@@ -156,7 +160,8 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
 
     Raises:
         EvaluationError: If the run id is not a run id of record, the run has no Messages arm, so
-            `score --log` would refuse it, or as `launch`.
+            `score --log` would refuse it, `--ceiling` comes without `--resume`, or as
+            `resumable` and `launch`.
     """
     match = RUN_ID.fullmatch(args.run_id)
     if match is None or match["entry"] is None:
@@ -167,10 +172,14 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     if not set(context.experiment.arms) & set(MESSAGES_ARMS):
         msg = f"the run {name!r} has no Messages arm, so it spends nothing to launch"
         raise EvaluationError(msg)
+    if args.ceiling is not None and args.resume is None:
+        msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
+        raise EvaluationError(msg)
+    raised = None
     if args.resume is not None and args.resume.is_file():
-        experiment = context.experiment
-        ceiling = Ceiling(experiment.spend_ceiling, len(experiment.holdout_seeds))
-        resumable(args.resume, context.settings, ceiling)
+        holdouts = len(context.experiment.holdout_seeds)
+        ceiling = None if args.ceiling is None else Ceiling(args.ceiling, holdouts)
+        raised = resumable(args.resume, context.settings, ceiling, run=name)
     found = launch(
         args.run_id,
         name,
@@ -179,6 +188,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         dry_run=args.dry_run,
         rehearse=args.rehearse,
         resume=args.resume,
+        raised=raised,
         in_flight=args.in_flight,
         retries=args.retries,
         power=context.power,
@@ -190,14 +200,17 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
 
 def _supervise(args: argparse.Namespace, context: Context) -> int:
     """Run the launched run's segments; return the last one's exit code."""
+    named = _named(args.run, context)
     return supervise(
         args.run_id,
         args.run,
-        settings=_named(args.run, context).settings,
+        settings=named.settings,
+        holdouts=len(named.experiment.holdout_seeds),
         root=args.runs_dir,
         data_dir=args.data_dir,
         rehearse=args.rehearse,
         resume=args.resume,
+        ceiling=args.ceiling,
         in_flight=args.in_flight,
         retries=args.retries,
         segment=context.segment,
@@ -226,11 +239,13 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
 
     Each `--candidates` file is read and checked in turn, as the gate consumes it, so one file's
     lines are held at a time. A single file's `run` must be the named run; a sliced run's files
-    name their slices' runs.
+    name their slices' runs, each a registered run with the named run's configuration but for its
+    spend ceiling, over holdouts among the named run's (`_slice`).
 
     Raises:
-        EvaluationError: If a single file is another run's, a schema-1 file is read for a run of
-            other data, or a schema-2 file's data digest is not the run's data's.
+        EvaluationError: If a single file is another run's, a sliced run's file is a run that is
+            not a slice of the named run, a schema-1 file is read for a run of other data, or a
+            schema-2 file's data digest is not the run's data's.
         CandidatesFormatError: If a file is not a candidates file.
     """
     named = _named(args.run, context)
@@ -248,6 +263,8 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
                 else candidates_file(path, args.run, named.dataset, single=single)
             )
             header = candidates.header
+            if not single:
+                _slice(str(header["run"]), args.run, named)
             if header["schema"] != 1 and header["data"] != data.digest:
                 msg = (
                     f"the candidates file {path}'s data digest {header['data']!r} is not the "
@@ -263,6 +280,31 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
             yield candidates
 
     likelihood(named.experiment, data, files(), sink)
+
+
+def _slice(name: str, run: str, whole: Context) -> None:
+    """Refuse the run `name` unless it is a registered slice of `run`, whose context is `whole`.
+
+    Raises:
+        EvaluationError: If `name` is not registered, or its settings, dataset or configuration
+            but for its holdouts and spend ceiling differ from `run`'s, or it holds a holdout
+            `run` lacks.
+    """
+    part = whole.runs.get(name)
+    experiment = whole.experiment
+    if part is None or (part.settings, part.dataset) != (whole.settings, whole.dataset):
+        sliced = False
+    else:
+        rest = replace(
+            part.experiment,
+            holdout_seeds=experiment.holdout_seeds,
+            spend_ceiling=experiment.spend_ceiling,
+        )
+        held = set(part.experiment.holdout_seeds) <= set(experiment.holdout_seeds)
+        sliced = held and rest == experiment
+    if not sliced:
+        msg = f"the candidates file is run {name!r}'s, which is not a slice of {run!r}"
+        raise EvaluationError(msg)
 
 
 def _shared(args: argparse.Namespace, context: Context) -> str:
@@ -300,33 +342,6 @@ def _named(name: str, context: Context) -> Context:
     return replace(context, experiment=run.experiment, settings=run.settings, dataset=run.dataset)
 
 
-def _in_flight(text: str) -> int:
-    """`--in-flight`'s value: a whole number of calls, at least 1."""
-    try:
-        value = int(text)
-    except ValueError:
-        value = 0
-    if value < 1:
-        msg = f"the calls in flight must be a whole number of at least 1, not {text!r}"
-        raise argparse.ArgumentTypeError(msg)
-    return value
-
-
-def _retries(text: str) -> int:
-    """`--retries`' value: a whole number of resumes, from 0 to `MAX_RETRIES`."""
-    try:
-        value = int(text)
-    except ValueError:
-        value = -1
-    if not 0 <= value <= MAX_RETRIES:
-        msg = (
-            f"the retries must be a whole number of at least 0 and at most {MAX_RETRIES}, "
-            f"not {text!r}"
-        )
-        raise argparse.ArgumentTypeError(msg)
-    return value
-
-
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
     logging.basicConfig(
@@ -337,154 +352,6 @@ def configure_logging() -> None:
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m bko.evaluate", description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    scoring = commands.add_parser("score", help="score every arm on every holdout")
-    scoring.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
-    scoring.add_argument(
-        "--data-dir",
-        type=Path,
-        default=None,
-        help="the data root; default: data/ at the repository root",
-    )
-    scoring.add_argument(
-        "--log",
-        type=Path,
-        default=None,
-        help="the call log to create for the BKO arms' calls; it must not exist",
-    )
-    scoring.add_argument(
-        "--candidates",
-        type=Path,
-        default=None,
-        help="the file to create for every candidate the BKO arms generate; it must not exist",
-    )
-    scoring.add_argument(
-        "--in-flight",
-        type=_in_flight,
-        default=IN_FLIGHT,
-        help=f"the most BKO calls in flight at once; default: {IN_FLIGHT}",
-    )
-    answering = scoring.add_mutually_exclusive_group()
-    answering.add_argument(
-        "--replay",
-        type=Path,
-        default=None,
-        help="answer every BKO call from this call log instead of the API",
-    )
-    answering.add_argument(
-        "--resume",
-        type=Path,
-        default=None,
-        help=(
-            "finish the stopped run whose call log this is: answer its answered calls from it, "
-            "then send the rest live"
-        ),
-    )
-    answering.add_argument(
-        "--rehearse",
-        action="store_true",
-        help="answer every BKO call with canned records, so the stop rules run for free",
-    )
-    launching = commands.add_parser(
-        "launch", help="start a paid score run detached, kept awake and on mains power"
-    )
-    launching.add_argument("run_id", help="the run's id, such as e1-4; its folder under runs/")
-    launching.add_argument(
-        "run", nargs="?", default=None, help="the named run; default: the run id's entry"
-    )
-    launching.add_argument(
-        "--data-dir", type=Path, default=None, help="the data root `score` reads"
-    )
-    launching.add_argument(
-        "--dry-run", action="store_true", help="write the folder's roles and start nothing"
-    )
-    launching.add_argument(
-        "--in-flight",
-        type=_in_flight,
-        default=None,
-        help="the most BKO calls in flight at once, forwarded to score; default: score's",
-    )
-    launching.add_argument(
-        "--retries",
-        type=_retries,
-        default=RETRIES,
-        help=(
-            f"the most resumes of API-caused stops, at most {MAX_RETRIES}; 0 runs one segment; "
-            f"ignored with --rehearse or --dry-run; default: {RETRIES}"
-        ),
-    )
-    instead = launching.add_mutually_exclusive_group()
-    instead.add_argument(
-        "--rehearse",
-        action="store_true",
-        help="rehearse the run on canned replies, into the rehearsal folder inside its folder",
-    )
-    instead.add_argument(
-        "--resume",
-        type=Path,
-        default=None,
-        help="resume the stopped run whose call log this is, into the run id's new folder",
-    )
-    _supervising(commands)
-    merging = commands.add_parser(
-        "merge", help="join holdout slices' scores into the scores one run writes"
-    )
-    merging.add_argument("run", help="the named run whose holdouts the slices partition")
-    merging.add_argument("scores", type=Path, nargs="+", help="a CSV that `score` wrote")
-    comparing = commands.add_parser("compare", help="judge a candidate against the criteria")
-    comparing.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
-    comparing.add_argument("scores", type=Path, help="a CSV that `score` wrote")
-    comparing.add_argument(
-        "--candidate", default=None, help="the row-adding arm judged; default: the experiment's own"
-    )
-    comparing.add_argument(
-        "--beside",
-        type=Path,
-        default=None,
-        help="another scores file; log the judged arm read beside its arm, with no verdict",
-    )
-    comparing.add_argument(
-        "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
-    )
-    add_parser(commands)
-    liking = commands.add_parser(
-        "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
-    )
-    liking.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
-    liking.add_argument(
-        "--candidates",
-        type=Path,
-        action="append",
-        required=True,
-        help="the run's holdout-candidates.jsonl; repeat it for each slice of a sliced run",
-    )
-    liking.add_argument(
-        "--data-dir", type=Path, default=None, help="the data root; default: the repository's"
-    )
-    return parser
-
-
-def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    supervising = commands.add_parser(
-        "supervise",
-        help=(
-            "internal to launch, which starts it: run a launched run's score segments, resuming "
-            "API-caused stops"
-        ),
-    )
-    supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
-    supervising.add_argument("run", help="the named run")
-    supervising.add_argument("--runs-dir", type=Path, required=True, help="the run folders' root")
-    supervising.add_argument("--data-dir", type=Path, default=None, help="the data root")
-    supervising.add_argument("--in-flight", type=_in_flight, default=None, help="as score's")
-    supervising.add_argument("--retries", type=_retries, default=RETRIES, help="as launch's")
-    instead = supervising.add_mutually_exclusive_group()
-    instead.add_argument("--rehearse", action="store_true", help="as launch's; never resumed")
-    instead.add_argument("--resume", type=Path, default=None, help="as launch's")
 
 
 if __name__ == "__main__":

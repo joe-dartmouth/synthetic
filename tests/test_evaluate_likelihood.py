@@ -23,6 +23,7 @@ from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.likelihood import CSV_COLUMNS, likelihood
+from bko.evaluate.named_runs import NamedRun
 from bko.ontology.mapping import FIELD_MAPPINGS
 from tests._baselines_fixtures import cleveland_text
 from tests._datasets_fixtures import FakeOpener, archive, pin
@@ -476,6 +477,64 @@ def test_the_gate_scores_a_non_uci_frames_candidates(tmp_path, caplog):
     assert any(m.startswith("gate separated=") for m in caplog.messages)
 
 
+SLICES = {
+    "e1-a": NamedRun(dataclasses.replace(SMALL, spend_ceiling=12.5)),
+    "e1-b": NamedRun(SMALL),
+}
+"""Runs registered as slices of `SMALL`: its configuration but for the spend ceiling, over holdouts
+among its own (an `Experiment` holds at least two, so each names both here)."""
+
+
+def _sliced_paths(tmp_path, names: tuple[str, str]) -> list[str]:
+    """`--candidates` flags for slices of the whole run's candidates named `names`."""
+    loaded = cli_records(tmp_path)
+    lines = [
+        candidate(seed, call, cell, p, row)
+        for seed in SMALL.holdout_seeds
+        for call, (cell, rows) in enumerate(cells(seed, loaded.records), start=1)
+        for p, row in enumerate(rows)
+    ]
+    whole = encode(lines, header() | {"data": loaded.digest})
+    paths = []
+    for i, body in enumerate(sliced(whole, (names[0], (0,)), (names[1], (1,)))):
+        path = tmp_path / f"slice-{i}.jsonl"
+        path.write_bytes(body)
+        paths += ["--candidates", str(path)]
+    return paths
+
+
+@pytest.mark.parametrize(
+    ("runs", "names", "message"),
+    [
+        (SLICES, ("e1-a", "e9-b"), "run 'e9-b''s, which is not a slice of 'e1'"),
+        (
+            {**SLICES, "e1-b": NamedRun(dataclasses.replace(SMALL, budget=9))},
+            ("e1-a", "e1-b"),
+            "run 'e1-b''s, which is not a slice of 'e1'",
+        ),
+        (
+            {**SLICES, "e1-b": NamedRun(dataclasses.replace(SMALL, holdout_seeds=(1, 7)))},
+            ("e1-a", "e1-b"),
+            "run 'e1-b''s, which is not a slice of 'e1'",
+        ),
+    ],
+    ids=["unknown", "other-budget", "other-holdouts"],
+)
+def test_the_cli_refuses_a_file_of_a_run_that_is_no_slice_of_the_named_run(
+    tmp_path, caplog, runs, names, message
+):
+    paths = _sliced_paths(tmp_path, names)
+    data = archive(cleveland_text(GRADED))
+    context = Context(open_url=FakeOpener(data), uci=pin(data), experiment=SMALL, runs=runs)
+    out = io.StringIO()
+    with caplog.at_level(logging.ERROR):
+        code = main(
+            ["likelihood", "e1", *paths, "--data-dir", str(tmp_path)], context=context, out=out
+        )
+    assert (code, out.getvalue()) == (2, "")
+    assert message in caplog.text
+
+
 def test_the_cli_reads_slices_of_other_run_names(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     loaded = cli_records(tmp_path)
@@ -494,7 +553,7 @@ def test_the_cli_reads_slices_of_other_run_names(tmp_path, caplog):
         path.write_bytes(body)
         paths += ["--candidates", str(path)]
     data = archive(cleveland_text(GRADED))
-    context = Context(open_url=FakeOpener(data), uci=pin(data), experiment=SMALL)
+    context = Context(open_url=FakeOpener(data), uci=pin(data), experiment=SMALL, runs=SLICES)
     out = io.StringIO()
     argv = ["likelihood", "e1", *paths, "--data-dir", str(tmp_path)]
     assert main(argv, context=context, out=out) == 0

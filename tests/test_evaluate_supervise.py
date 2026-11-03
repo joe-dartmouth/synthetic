@@ -122,6 +122,7 @@ def _supervise(
     rehearse: bool = False,
     run_id: str = "e1-4",
     platform: str = "darwin",
+    holdouts: int | None = None,
 ) -> tuple[int, list[float]]:
     """Supervise `run_id` under `tmp_path` through `segments`; return its code and its waits."""
     folder = tmp_path / run_id / REHEARSAL if rehearse else tmp_path / run_id
@@ -140,6 +141,7 @@ def _supervise(
         platform=platform,
         now=lambda: NOW,
         settings=SETTINGS,
+        holdouts=holdouts,
     )
     return code, waits
 
@@ -412,10 +414,55 @@ def test_a_resume_whose_stopped_log_cannot_be_resumed_is_refused_before_its_fold
     assert done == "supervise done segments=1 last=e1-4 outcome=refused exit=2"
 
 
-def test_outcome_reads_an_unreadable_log_as_final(tmp_path):
+def test_outcome_reads_an_unreadable_log_as_final_and_says_why(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     log.write_text("not a log\n", encoding="utf-8")
-    assert outcome(log, -9) == Outcome("unreadable", None, retryable=False, rate_limited=False)
+    with caplog.at_level(logging.WARNING):
+        found = outcome(log, -9)
+    assert found == Outcome("unreadable", None, retryable=False, rate_limited=False)
+    assert (
+        f"supervise log={log} unreadable error=ReplayError: {log} is not a schema 2 call log"
+    ) in caplog.messages
+
+
+@pytest.mark.parametrize("end", [PROJECTION, CEILING], ids=["projection", "ceiling"])
+def test_a_spend_stop_names_its_spend_projection_and_the_resume_under_a_raised_ceiling(
+    tmp_path, end
+):
+    segments = Segments({**end, "usd": 3.0, "holdouts": 2})
+    code, _ = _supervise(tmp_path, segments, holdouts=10)
+    assert code == 2
+    *_, line, warning, done = _record(tmp_path)
+    assert line.endswith("reason=stop")
+    assert warning == (
+        f"supervise stop={end['stop']} usd=3.0000 holdouts=2 projected_usd=15.0000 "
+        f"resume=launch <fresh-run-id> e1 --resume {tmp_path / 'e1-4' / 'calls.jsonl'} "
+        "--ceiling <USD above projected_usd>"
+    )
+    assert done == "supervise done segments=1 last=e1-4 outcome=stop exit=2"
+
+
+def test_a_spend_stop_with_no_holdouts_recorded_projects_none(tmp_path):
+    segments = Segments(CEILING)
+    _supervise(tmp_path, segments, holdouts=10)
+    warning = _record(tmp_path)[-2]
+    assert warning.startswith("supervise stop=ceiling usd=0.0000 holdouts=none projected_usd=none ")
+
+
+def test_a_raised_ceiling_goes_to_the_first_segment_alone(tmp_path):
+    stopped = tmp_path / "e1-3" / "calls.jsonl"
+    stopped.parent.mkdir()
+    stopped.write_text("x\n", encoding="utf-8")
+    segments = Segments(IDLE, COMPLETE)
+    waits: list[float] = []
+    context = Context(power=lambda: False, segment=segments, sleep=waits.append)
+    (tmp_path / "e1-4").mkdir()
+    argv = ["supervise", "e1-4", "e1", "--runs-dir", str(tmp_path), "--resume", str(stopped)]
+    assert main([*argv, "--ceiling", "40.5"], context=context) == 0
+    first, second = segments.commands
+    assert (_arg(first, "--resume"), _arg(first, "--ceiling")) == (str(stopped), "40.5")
+    assert _arg(second, "--resume") == str(tmp_path / "e1-4" / "calls.jsonl")
+    assert _arg(second, "--ceiling") is None
 
 
 def test_run_segment_runs_the_command_to_its_exit_with_its_output_appended(tmp_path):

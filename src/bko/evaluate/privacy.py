@@ -6,12 +6,14 @@ mismatch of a coded one; each row keeps its nearest training row. The privacy cr
 `calculate_dcr` in blocks of plain arrays rather than through its pandas cross merge, and returns
 its values bit for bit: each column's gap is `dcr_utils._process_dcr_chunk`'s, and the gaps are
 summed one column at a time in frame column order, as the merged frame's row sum adds them, before
-dividing by the column count. `tests/test_evaluate_privacy.py` holds the two equal. The lock holds
-SDMetrics' version.
+dividing by the column count, and a missing distance is skipped where rows meet, as its pandas
+minimum skips it. `tests/test_evaluate_privacy.py` holds the two equal, missing values and a wholly
+missing training column included. The lock holds SDMetrics' version.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Final
 
 import numpy as np
@@ -52,23 +54,25 @@ def nearest(
         One distance per row of `rows`, in its order.
 
     Raises:
-        ValueError: If `block` is below 1.
+        ValueError: If `block` is below 1, or `train` holds no row, which leaves no distance.
     """
     if block < 1:
         raise ValueError(f"block must be at least 1, not {block}")
+    if not len(train):
+        raise ValueError("no training rows to measure against, so no row has a distance")
     columns = [
         _column(rows[name], train[name], numeric=name in frame.numeric) for name in frame.columns
     ]
     result = np.empty(len(rows))
     for start in range(0, len(rows), block):
         stop = min(start + block, len(rows))
-        best = np.full(stop - start, np.inf)
+        best = np.full(stop - start, np.nan)
         for reference in range(0, len(train), block):
             end = min(reference + block, len(train))
             total = columns[0].gap(start, stop, reference, end)
             for column in columns[1:]:
                 total += column.gap(start, stop, reference, end)
-            np.minimum(best, (total / len(columns)).min(axis=1), out=best)
+            np.fmin(best, np.fmin.reduce(total / len(columns), axis=1), out=best)
         result[start:stop] = best
     return result
 
@@ -79,7 +83,8 @@ class _Numeric:
     def __init__(self, data: pd.Series, reference: pd.Series) -> None:
         self.data: np.ndarray = data.to_numpy(dtype=float, na_value=np.nan)
         self.reference: np.ndarray = reference.to_numpy(dtype=float, na_value=np.nan)
-        self.span: float = float(reference.max() - reference.min())
+        present = self.reference[~np.isnan(self.reference)]
+        self.span: float = float(present.max() - present.min()) if present.size else math.nan
 
     def gap(self, start: int, stop: int, reference: int, end: int) -> np.ndarray:
         data = self.data[start:stop, None]

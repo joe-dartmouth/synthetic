@@ -211,7 +211,7 @@ E6_CELL: Final = ("6-7", "male", 1)
 E6_CAP: Final = 1500.0
 """E6's total spend cap in USD, split between its two fractions' runs."""
 
-E6_ASKED: Final[Mapping[str, int]] = MappingProxyType({"thin": 19_343, "empty": 17_597})
+E6_ASKED: Final[Mapping[str, int]] = MappingProxyType({"thin": 19_367, "empty": 17_616})
 """Each E6 fraction's estimated records asked per holdout (`docs/EVIDENCE.md`, E6
 Configuration)."""
 
@@ -259,8 +259,14 @@ def _e6_runs(name: str, whole: Experiment) -> dict[str, NamedRun]:
     """E6 fraction `name`'s whole run and its `E6_SLICES` slices, `e6-<name>a` onwards.
 
     Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
+
+    Raises:
+        ValueError: If `E6_SLICES` does not divide the holdouts, which would drop the last ones.
     """
-    size = len(whole.holdout_seeds) // E6_SLICES
+    size, left = divmod(len(whole.holdout_seeds), E6_SLICES)
+    if left:
+        msg = f"{len(whole.holdout_seeds)} holdouts do not divide into {E6_SLICES} slices"
+        raise ValueError(msg)
     runs = {f"e6-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
     for index, letter in enumerate("abcdefghij"[:E6_SLICES]):
         sliced = replace(

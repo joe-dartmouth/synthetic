@@ -71,7 +71,9 @@ def test_a_two_record_stratum_uses_one_neighbour(oversampler):
 
 
 @pytest.mark.parametrize("left", [0, 1])
-def test_an_empty_stratum_raises_a_shortfall_holding_the_other_strata(oversampler, left):
+def test_a_stratum_of_fewer_than_two_records_raises_a_shortfall_holding_the_others(
+    oversampler, left
+):
     train = TRAIN.drop(TRAIN.index[YOUNG][left:])
     young = (f"<{EDGE}", "female", 1)
     with pytest.raises(ShortfallError, match="at least 2 training records") as caught:

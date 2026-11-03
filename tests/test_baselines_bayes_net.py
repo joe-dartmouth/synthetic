@@ -20,6 +20,7 @@ from bko.baselines.bayes_net import (
     Network,
     Node,
     _occupied,
+    _states,
     bayes_net,
     discretize,
     draw,
@@ -289,6 +290,39 @@ def test_a_measured_field_of_distinct_values_gets_bins_states():
     assert bins.arity("chol") == BINS
     counts = np.bincount(bins.states["chol"])
     assert counts.max() - counts.min() <= 1
+
+
+def test_coded_states_are_each_codes_place_in_its_field_order():
+    codes = {"cp": (4, 1, 3)}
+    found = _states(pd.Series([1, 3, 4, 4, 1]), "cp", {}, codes)
+    assert found.tolist() == [1, 2, 0, 0, 1]
+    assert found.dtype == np.dtype(int)
+
+
+def test_sparse_codes_map_without_a_table_spanning_their_range():
+    codes = {"cp": (-(10**15), 7, 10**15)}
+    found = _states(pd.Series([10**15, -(10**15), 7]), "cp", {}, codes)
+    assert found.tolist() == [2, 0, 1]
+
+
+@pytest.mark.parametrize(
+    "column",
+    [
+        pd.Series([1.0, np.nan]),
+        pd.Series([1, None], dtype=object),
+        pd.Series([1, pd.NA], dtype="Int64"),
+        pd.Series([1.0, 1.5]),
+    ],
+    ids=["nan", "none", "na", "fraction"],
+)
+def test_a_coded_field_with_a_missing_or_fractional_value_is_refused(column):
+    with pytest.raises(ValueError, match="cp holds values that are not whole codes"):
+        _states(column, "cp", {}, {"cp": (1, 2)})
+
+
+def test_a_code_outside_its_fields_states_is_refused():
+    with pytest.raises(KeyError, match=r"cp holds codes \[2, 9\] outside its states"):
+        _states(pd.Series([1, 9, 2, 1]), "cp", {}, {"cp": (1, 3)})
 
 
 def test_a_tie_falls_to_the_first_field_in_the_frames_order():

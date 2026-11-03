@@ -91,7 +91,8 @@ class Experiment:
         cutoff: The probability at or above which utility calls a record positive; a float in
             (0, 1).
         replica_rows: The rows a replica asks for in all, split across cells in proportion to their
-            training counts (`bko.datasets.split.kept_count`); None asks for every training row.
+            training counts (`bko.datasets.split.kept_count`), each cell's count rounded, so the
+            cells may sum to a few rows off it; None asks for every training row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -162,10 +163,9 @@ class Experiment:
         if not 0 < self.confidence < 1:
             msg = f"confidence {self.confidence} must lie strictly between 0 and 1"
             raise ValueError(msg)
+        self._check_replica_rows()
         self._check_cutoff()
-        if self.attempts < 1:
-            msg = f"attempts {self.attempts}: an arm needs at least one attempt"
-            raise ValueError(msg)
+        self._check_attempts()
         self._check_fill()
         self._check_training()
         if not 0 < self.validity <= 1:
@@ -201,10 +201,17 @@ class Experiment:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
             raise ValueError(msg)
 
-    def _check_cutoff(self) -> None:
+    def _check_attempts(self) -> None:
+        if self.attempts < 1:
+            msg = f"attempts {self.attempts}: an arm needs at least one attempt"
+            raise ValueError(msg)
+
+    def _check_replica_rows(self) -> None:
         if self.replica_rows is not None and self.replica_rows < 1:
             msg = f"replica rows {self.replica_rows} must be 1 or more"
             raise ValueError(msg)
+
+    def _check_cutoff(self) -> None:
         if not isinstance(self.cutoff, float) or not 0 < self.cutoff < 1:
             msg = f"cutoff {self.cutoff!r} must be a float strictly between 0 and 1"
             raise ValueError(msg)
@@ -390,7 +397,9 @@ def replica_request(
     """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells.
 
     With `experiment.replica_rows` set, each cell asks for its `kept_count` at the share
-    `replica_rows / len(train)`, so the cap is split across cells in proportion.
+    `replica_rows / len(train)`, so the cap is split across cells in proportion and the rounded
+    cells may sum to a few rows off it; a cap above the training rows asks more rows than they
+    hold, at the same share.
     """
     quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
     if experiment.replica_rows is not None:

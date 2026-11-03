@@ -17,11 +17,10 @@ their own source.
 
 from __future__ import annotations
 
-import dataclasses
-import json
 import logging
 import math
 import time
+from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 from types import MappingProxyType
@@ -29,24 +28,21 @@ from typing import Final
 
 import pandas as pd
 
-from bko.baselines.errors import BaselineError, OutputContractError
-from bko.baselines.fills import CURRENT_FILL, Fill, FillKind
 from bko.baselines.methods import METHODS, Runner, augment
-from bko.baselines.records import Baseline, derived_seed, number, training_set, unit_weights
+from bko.baselines.records import Baseline, number, training_set, unit_weights
 from bko.baselines.request import Method, Request, Stratum
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import Split, split
 from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies, decontaminated
-from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import MEASURES, fidelity
+from bko.evaluate.filling import fill_arm, log_arm
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
-from bko.evaluate.shortfall import partial_fill, shortfall_kept, structural
 from bko.evaluate.utility import undefined, utility
 
 
@@ -117,7 +113,22 @@ def run(
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
         if on_holdout is not None:
             on_holdout()
+    _tally_undefined(scores, total)
     return scores
+
+
+def _tally_undefined(scores: Sequence[Score], total: int) -> None:
+    """Log, per arm, how many of the run's `total` holdouts scored its replica undefined."""
+    undefined_in = Counter(
+        s.arm
+        for s in scores
+        if s.source is Source.REPLICA
+        and s.measure is Measure.AUC_PR
+        and s.scope is Scope.ALL
+        and math.isnan(s.value)
+    )
+    for arm, count in undefined_in.items():
+        logger.warning("undefined replicas arm=%s holdouts=%d of=%d", arm, count, total)
 
 
 def score_holdout(
@@ -161,7 +172,7 @@ def score_holdout(
     fills = {
         name: _real(ready.removed, train, holdout=seed, seed=gap.seed, frame=frame)
         if name == REAL_ARM
-        else _fill(
+        else fill_arm(
             arms[name],
             train,
             gap,
@@ -176,7 +187,7 @@ def score_holdout(
         name: drains[name](seed, Source.CANDIDATES) for name in experiment.arms if name in drains
     }
     replicas = {
-        name: _fill(
+        name: fill_arm(
             arms[name],
             train,
             replica_request(train, experiment, seed=seed, frame=frame),
@@ -287,74 +298,6 @@ def _log_quota(seed: int, request: Request) -> None:
         logger.info("quota holdout=%d stratum=%s rows=%d", seed, "/".join(map(str, stratum)), rows)
 
 
-def _fill(
-    runner: Runner,
-    train: pd.DataFrame,
-    request: Request,
-    *,
-    holdout: int,
-    attempts: int,
-    name: str,
-    kind: FillKind,
-) -> Baseline:
-    """Fill `request`, retrying a refusal with a derived seed; a contract break is never retried.
-
-    On a gap fill, a generator still short at its row limit on the last attempt returns the rows
-    it kept (`bko.evaluate.shortfall.partial_fill`) rather than refusing; a replica fill still
-    refuses, since its scores read it as a copy of every training cell. On a gap fill that asks
-    for a stratum of fewer than 2 training rows (`structural`), a shortfall fills partially on any
-    attempt, since no retry changes those rows; a plain refusal there is retried as any other.
-
-    The runner gets a copy of `train` on every attempt, so one that changes its input changes
-    nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
-
-    Raises:
-        BaselineError: The last refusal, if every attempt is refused, or a contract break.
-        EvaluationError: If `attempts` is below 1.
-    """
-    first = request.seed
-    partial = kind == "gap" and structural(train, request)
-    for attempt in range(1, attempts + 1):
-        try:
-            baseline = _call(runner, train, request, Fill(holdout, kind))
-        except OutputContractError:
-            # The context only; the caller logs the error itself, without a traceback.
-            logger.error(  # ruff: ignore[error-instead-of-exception]
-                "contract holdout=%d arm=%s attempt=%d", holdout, name, attempt
-            )
-            raise
-        except BaselineError as exc:
-            last = attempt == attempts and kind == "gap"
-            kept = shortfall_kept(exc) if last or partial else None
-            if kept is not None:
-                baseline = partial_fill(*kept, train, request, fill=(holdout, name, attempt))
-                _log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)
-                return baseline
-            if attempt == attempts:
-                logger.error(  # ruff: ignore[error-instead-of-exception]
-                    "refused holdout=%d arm=%s attempts=%d", holdout, name, attempts
-                )
-                raise
-            logger.warning(
-                "retry holdout=%d arm=%s attempt=%d reason=%s", holdout, name, attempt, exc
-            )
-            request = dataclasses.replace(request, seed=derived_seed(first, "attempt", attempt))
-            continue
-        _log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)
-        return baseline
-    msg = f"attempts {attempts}: an arm needs at least one attempt"
-    raise EvaluationError(msg)
-
-
-def _call(runner: Runner, train: pd.DataFrame, request: Request, fill: Fill) -> Baseline:
-    """`runner` on a copy of `train`, with `CURRENT_FILL` set to `fill` for the call alone."""
-    token = CURRENT_FILL.set(fill)
-    try:
-        return runner(train.copy(), request)
-    finally:
-        CURRENT_FILL.reset(token)
-
-
 def _real(
     removed: pd.DataFrame, train: pd.DataFrame, *, holdout: int, seed: int, frame: FrameSpec
 ) -> Baseline:
@@ -365,21 +308,8 @@ def _real(
     """
     added = number(removed.loc[:, list(frame.columns)])
     baseline = Baseline(added=added, weights=unit_weights(train), params={})
-    _log_arm(baseline, holdout=holdout, name=REAL_ARM, attempt=1, seed=seed)
+    log_arm(baseline, holdout=holdout, name=REAL_ARM, attempt=1, seed=seed)
     return baseline
-
-
-def _log_arm(baseline: Baseline, *, holdout: int, name: str, attempt: int, seed: int) -> None:
-    logger.info(
-        "arm holdout=%d arm=%s attempt=%d seed=%d added=%d sha256=%s params=%s",
-        holdout,
-        name,
-        attempt,
-        seed,
-        len(baseline.added),
-        digest(baseline.added),
-        json.dumps(baseline.params, sort_keys=True, default=str),
-    )
 
 
 def _arm_scores(
@@ -428,16 +358,19 @@ def _replica_scores(
     """REPLICA utility of a fit on the replica alone, then fidelity, then copies.
 
     A replica holding rows of fewer than 2 labels, as a partial fill may, fits no classifier: its
-    utility is NaN in every measure and scope, under the keys a fit writes. A replica of no rows
-    has no fidelity either, so its fidelity is NaN too.
+    utility is NaN in every measure and scope, under the keys a fit writes, and its WARNING names
+    the labels it holds. A replica of fewer than 2 rows has no fidelity either, so its fidelity is
+    NaN too.
     """
-    if replica[frame.label].nunique() < MIN_LABELS:
+    labels = sorted(replica[frame.label].unique().tolist())
+    if len(labels) < MIN_LABELS:
         logger.warning(
-            "undefined holdout=%d arm=%s rows=%d labels=%d",
+            "undefined holdout=%d arm=%s rows=%d labels=%d held=%s",
             seed,
             name,
             len(replica),
-            replica[frame.label].nunique(),
+            len(labels),
+            ",".join(map(str, labels)) or "none",
         )
         measured = undefined()
     else:
@@ -445,7 +378,7 @@ def _replica_scores(
         measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
     found = (
         fidelity(parts.train, replica, frame=frame)
-        if len(replica)
+        if len(replica) >= MIN_LABELS
         else dict.fromkeys(MEASURES, math.nan)
     )
     copied = {Measure.TEST_COPIES: float(copies(replica, parts.test, frame=frame))}
