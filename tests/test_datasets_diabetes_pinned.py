@@ -9,6 +9,7 @@ them and what fetches the snapshot.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import io
 import zipfile
@@ -29,7 +30,10 @@ from bko.datasets.diabetes import (
 )
 from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.sources import DIABETES_130
+from bko.datasets.split import split
 from bko.evaluate.diabetes import DIABETES_FRAME, DIABETES_INDICATORS
+from bko.evaluate.experiment import E1, Experiment, Removal, flagged
+from bko.evaluate.prepare import prepared
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -71,3 +75,58 @@ def test_the_drug_columns_read_are_the_eight_most_often_prescribed() -> None:
     assert len(drugs) == len(DRUGS) + 15
     share = {name: float((raw[name] != "No").mean()) for name in drugs}
     assert tuple(sorted(drugs, key=lambda name: -share[name])[: len(DRUGS)]) == DRUGS
+
+
+CELL = ("6-7", "male", 1)
+"""E6's removed cell (ADR `research/diabetes-subgroup-removal-design`)."""
+
+
+def _experiment(fraction: float) -> Experiment:
+    """E6's configuration at `fraction`: the design's threshold, fill target, cutoff and copies."""
+    return dataclasses.replace(
+        E1,
+        holdout_seeds=tuple(range(100)),
+        threshold=20,
+        fill_to=1269,
+        cutoff=0.0902,
+        decontaminate=False,
+        removal=Removal(CELL, fraction),
+    )
+
+
+def test_the_drug_constant_is_the_eight_drugs_the_frame_reads_most_often_first():
+    assert DRUGS == (
+        "insulin",
+        "metformin",
+        "glipizide",
+        "glyburide",
+        "pioglitazone",
+        "rosiglitazone",
+        "glimepiride",
+        "repaglinide",
+    )
+
+
+def test_the_indicator_set_is_the_ten_icd9_rows_in_mapping_order():
+    assert tuple(DIABETES_INDICATORS) == (
+        "diabetic_kidney_disease",
+        "essential_hypertension",
+        "acute_myocardial_infarction",
+        "heart_failure",
+        "cerebral_artery_occlusion",
+        "pneumonia",
+        "chronic_bronchitis",
+        "chronic_obstructive_pulmonary_disease",
+        "chronic_kidney_disease",
+        "chronic_ulcer_of_skin",
+    )
+
+
+@pytest.mark.parametrize("fraction", [0.985, 1.0])
+def test_the_removed_cell_is_the_only_flagged_cell_on_every_holdout_seed(fraction):
+    experiment = _experiment(fraction)
+    edges = DIABETES_FRAME.edges
+    for seed in experiment.holdout_seeds:
+        parts = split(_records(), seed=seed, edges=edges)
+        train = prepared(parts, experiment, edges=edges).ablated.train
+        assert flagged(train, experiment, edges=edges) == (CELL,), seed

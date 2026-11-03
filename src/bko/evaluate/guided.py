@@ -3,7 +3,8 @@
 A `GuidedArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it observes the rows' cells, finds their gaps under
 its definition and guides each requested cell by them. It then asks the Messages API for each cell's
-shortfall, round by round in quota order. Each round goes out in waves: a wave is the longest run of
+shortfall, round by round in quota order; a curating arm's call asks a full call, capped by its
+cell's limit (`bko.evaluate.waves.asks`). Each round goes out in waves: a wave is the longest run of
 the round's short cells whose (sex, label) chains are distinct, its calls are in flight together
 (`bko.generate.flight`), and its batches are taken in call order before the next wave is read, so
 the calls are those a one-call-at-a-time run makes (ADR `research/concurrent-call-waves`). Every
@@ -17,49 +18,42 @@ file when the harness drains it (`bko.evaluate.holdout_candidates`). An arm give
 (`bko.evaluate.skeleton`) draws each attempt's lines once, hands each planned call its cell's next
 lines at wave planning, drops a record outside the call's cell or matching no line of the call
 left unconsumed, and returns every line no kept record consumed to its cell's queue. ADR
-`research/e1-evaluation-protocol` records the rule. `guided_arms` builds a run's BKO arms over one
-call log and one candidates file, for the evaluate command and the app alike.
+`research/e1-evaluation-protocol` records the rule. `bko.evaluate.guided_run.guided_arms` builds a
+run's BKO arms over one call log and one candidates file, for the evaluate command and the app
+alike.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import logging
-from collections.abc import Callable, Generator, Mapping, Sequence
-from contextlib import contextmanager
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
-from functools import partial
-from pathlib import Path
-from types import MappingProxyType
 from typing import Final
 
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, Drop, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
-from bko.datasets.sources import permits_sending
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.cllm import SHOW, Shower
 from bko.evaluate.curation import classifier_discard
 from bko.evaluate.errors import EvaluationError, StopRuleError
-from bko.evaluate.experiment import MESSAGES_ARMS, Curation, Experiment
-from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Origin, Seen
+from bko.evaluate.experiment import Curation
+from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.scores import Measure, Source
-from bko.evaluate.skeleton import Prescribe, Queues, prescriber
-from bko.evaluate.watch import Watch
-from bko.evaluate.waves import committer, give_up, lines_requeued, next_wave, spendable
+from bko.evaluate.skeleton import Prescribe, Queues
+from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.observe import Cell, cell_key, record_cells
-from bko.generate.errors import IdleError, ReplayError
+from bko.generate.errors import IdleError
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.guidance import Guidance, cell_guidance, guide
-from bko.generate.log import CallLog, utc_now
-from bko.generate.messages import SETTINGS, AnySend, Settings
-from bko.generate.replay import Answers, Replay
+from bko.generate.log import CallLog
 from bko.generate.skeleton import skeleton
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
@@ -171,6 +165,7 @@ class GuidedArm:
         if request.strata is not Strata.CELL:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
+        named = fill_names()
         guidance = self._guidance(train, request.frame)
         prescribing = self._prescribe is not None
         discard = None if self._curation is None else classifier_discard(train, frame=request.frame)
@@ -185,7 +180,7 @@ class GuidedArm:
         queues: Queues | None = None
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
-            short = self._rounds(attempt, guidance, request.frame, queues, shower)
+            short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -199,7 +194,8 @@ class GuidedArm:
             last = self._log.calls
             requeued = "" if self._prescribe is None else f" requeued={lines_requeued(queues)}"
             logger.info(
-                "guided arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
+                "guided holdout=%d fill=%s arm=%s seed=%d outcome=%s calls=%s %s%s usd=%.4f",
+                *named,
                 self.name,
                 request.seed,
                 outcome,
@@ -291,8 +287,13 @@ class GuidedArm:
         frame: FrameSpec,
         queues: Queues | None,
         shower: Shower | None = None,
+        *,
+        named: tuple[int, str] = (-1, "none"),
     ) -> dict[Cell, int]:
         """Ask for each short cell round by round until the quota is filled.
+
+        Each round's calls are sized by `bko.evaluate.waves.asks`; `named` is the harness fill's
+        holdout and kind, which each `prescribed` line names.
 
         Returns:
             Each cell a curating arm leaves short, with its missing rows, once that cell's own
@@ -303,6 +304,7 @@ class GuidedArm:
                 budget cannot cover the rows still short.
         """
         per_call = self._log.settings.per_call
+        budget = None if self._curation is None else self._budget
         waves = 0
         given_up: dict[Cell, int] = {}
         while short := {c: n for c, n in attempt.short().items() if c not in given_up}:
@@ -328,11 +330,9 @@ class GuidedArm:
                 rows = {cell: attempt.short().get(cell, 0) for cell in wave}
                 # Lines are taken in plan order, so every in-flight count asks the same calls.
                 planned = [
-                    self._planned(
-                        guidance[cell], min(per_call, count - start), frame, queues, shower
-                    )
+                    self._planned(guidance[cell], ask, frame, queues, shower)
                     for cell, count in rows.items()
-                    for start in range(0, count, per_call)
+                    for ask in asks(attempt, cell, count, per_call=per_call, budget=budget)
                 ]
                 if not planned:
                     continue
@@ -346,8 +346,9 @@ class GuidedArm:
                     raise StopRuleError(str(exc), "idle", retryable=exc.retryable) from None
                 if queues is not None:
                     logger.info(
-                        "prescribed arm=%s seed=%d wave=%d asked=%d kept=%d dropped_concepts=%d "
-                        "requeued=%d",
+                        "prescribed holdout=%d fill=%s arm=%s seed=%d wave=%d asked=%d kept=%d "
+                        "dropped_concepts=%d requeued=%d",
+                        *named,
                         self.name,
                         attempt.request.seed,
                         waves,
@@ -373,126 +374,3 @@ class GuidedArm:
             return Planned(guidance, rows)
         lines = queues.take(guidance.cell, rows)
         return Planned(guidance, rows, skeleton(lines, self._knowledge.field_rows, frame=frame))
-
-
-@dataclass(frozen=True, slots=True)
-class GuidedRun:
-    """A run's BKO arms over one call log and one candidates file.
-
-    Attributes:
-        log: The call log every arm writes.
-        arms: Each BKO arm, by name.
-        watch: The run's stop rules, which the harness calls after each holdout.
-        candidates: The candidates file every arm writes; a direct arm in the run shares it.
-    """
-
-    log: CallLog
-    arms: Mapping[str, GuidedArm]
-    watch: Watch
-    candidates: CandidateFile
-
-
-@contextmanager
-def guided_arms(  # ruff: ignore[too-many-arguments]
-    names: Sequence[str],
-    knowledge: Knowledge,
-    experiment: Experiment,
-    *,
-    settings: Settings = SETTINGS,
-    log: Path,
-    candidates: Path,
-    origin: Origin,
-    send: Callable[[], AnySend],
-    run: str,
-    limits: Limits,
-    answers: Answers | None = None,
-    rehearsal: bool = False,
-    now: Callable[[], datetime] = utc_now,
-) -> Generator[GuidedRun]:
-    """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
-
-    The candidates file at `candidates` is created before the call log, with a header naming
-    `origin` and `settings`, and every arm writes its lines there. The call log names the run `run`
-    and `origin`'s frame and records `limits.in_flight`, and every arm's calls go through one
-    `Flight` at `limits`. Every call goes through `answers` when given, else through `send()`;
-    `rehearsal` marks the call log as a rehearsal's, whose `send()` answers with canned replies, and
-    a replay of a rehearsal's log keeps the mark. Once the body returns, answers left over are
-    refused. Each arm logs its validity sums on the way out, a stopped run included.
-
-    Raises:
-        EvaluationError: If the data is held under an agreement that grants no permission to send
-            its records, before either file exists.
-        ReplayError: If the body returns while `answers` holds calls it did not answer.
-        GenerationError: As `CallLog`, if the settings model has no price, before `log` exists;
-            the candidates file is then removed.
-        importlib.metadata.PackageNotFoundError: As `CallLog`, before `log` exists; the
-            candidates file is then removed.
-        FileExistsError: If `candidates` exists, or `log` does; the candidates file made is then
-            removed.
-        Exception: Anything building `send()` or the arms raises, before the first call; both
-            files are then removed.
-    """
-    agreement = origin.data.agreement
-    if agreement is not None and not permits_sending(agreement):
-        msg = (
-            f"{origin.data.name} is held under the agreement {agreement.name!r}, which grants no "
-            "permission to send its records to the Messages API"
-        )
-        raise EvaluationError(msg)
-    answered = None if answers is None else answers.answered
-    rehearsal = rehearsal or (answers is not None and answers.rehearsal)
-    kept = CandidateFile(candidates, origin, settings)
-    try:
-        call_log = CallLog(
-            log,
-            settings,
-            answered=answered,
-            rehearsal=rehearsal,
-            run=run,
-            in_flight=limits.in_flight,
-            frame=origin.data.frame.name,
-            now=now,
-        )
-    except BaseException:
-        kept.discard()
-        raise
-    try:
-        sender = answers if answers is not None else send()
-        watch = Watch(experiment, lambda: call_log.usd, projecting=not isinstance(answers, Replay))
-        ceiling = experiment.spend_ceiling
-        flight = Flight(
-            sender,
-            call_log,
-            limits,
-            spendable=partial(spendable, call_log, ceiling),
-            ceiling=ceiling,
-        )
-        arms = {
-            name: GuidedArm(
-                name,
-                spec.definition,
-                knowledge,
-                log=call_log,
-                budget=experiment.budget if spec.budget is None else spec.budget,
-                flight=flight,
-                candidates=kept,
-                prescribe=prescriber(knowledge) if spec.prescribes else None,
-                shows=spec.shows,
-                curation=spec.curation,
-            )
-            for name in names
-            for spec in (MESSAGES_ARMS[name],)
-        }
-    except BaseException:
-        call_log.discard()
-        kept.discard()
-        raise
-    with kept, call_log, flight:
-        try:
-            yield GuidedRun(call_log, MappingProxyType(arms), watch, kept)
-            if answers is not None and answers.remaining:
-                msg = f"{answers.remaining} logged calls were not replayed"
-                raise ReplayError(msg)
-        finally:
-            for arm in arms.values():
-                arm.summary()

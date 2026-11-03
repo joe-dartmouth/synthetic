@@ -11,7 +11,7 @@ import pytest
 
 from bko.baselines.request import Method, Strata, plan
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
-from bko.datasets.split import split
+from bko.datasets.split import kept_count, split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.cllm import SHOW
 from bko.evaluate.data import Dataset
@@ -40,6 +40,12 @@ from bko.evaluate.named_runs import (
     E3_SLICE_CEILING,
     E4_TARGETS,
     E5_FRACTIONS,
+    E6_ASKED,
+    E6_CAP,
+    E6_EMPTY,
+    E6_SETTINGS,
+    E6_SLICES,
+    E6_THIN,
     G2,
     G5,
     G6_BASE,
@@ -48,6 +54,7 @@ from bko.evaluate.named_runs import (
     RUNS,
     SETTINGS_SWEEP,
     NamedRun,
+    _e6_runs,
 )
 from bko.evaluate.run import ARMS, run, score_holdout
 from bko.evaluate.scores import Measure, Scope, Source
@@ -116,6 +123,7 @@ def test_e1_is_its_stated_configuration():
         "decontaminate": True,
         "training_fraction": Fraction(1),
         "cutoff": 0.5,
+        "replica_rows": None,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -142,6 +150,10 @@ def test_every_run_name_is_pinned():
         "e5-half",
         "e5-quarter",
         "e5-threequarters",
+        "e6-empty",
+        *(f"e6-empty{letter}" for letter in "abcdefghij"),
+        "e6-thin",
+        *(f"e6-thin{letter}" for letter in "abcdefghij"),
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -268,10 +280,30 @@ def test_nothing_to_fill_is_refused():
 
 def test_the_replica_asks_for_every_cells_training_count():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
-    request = replica_request(train, seed=3, frame=UCI_FRAME)
+    request = replica_request(train, E1, seed=3, frame=UCI_FRAME)
     assert request.rows == len(train)
     assert request.seed == 3
     assert request.quota[FLAGGED[0]] == 2
+
+
+def test_a_capped_replica_asks_kept_count_per_cell():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    cap = len(train) // 2
+    capped = dataclasses.replace(E1, replica_rows=cap)
+    request = replica_request(train, capped, seed=3, frame=UCI_FRAME)
+    whole = replica_request(train, E1, seed=3, frame=UCI_FRAME)
+    fraction = Fraction(cap, len(train))
+    assert request.quota == {
+        cell: kept_count(count, fraction) for cell, count in whole.quota.items()
+    }
+    assert request.rows < whole.rows
+    assert request.seed == 3
+
+
+def test_no_cap_keeps_the_whole_split_replica():
+    train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
+    request = replica_request(train, E1, seed=3, frame=UCI_FRAME)
+    assert request.rows == len(train)
 
 
 @pytest.mark.parametrize(
@@ -346,6 +378,121 @@ def test_e3s_slices_partition_its_seeds_and_its_ceiling():
             dataclasses.replace(experiment, holdout_seeds=E3.holdout_seeds, spend_ceiling=65.0)
             == E3
         )
+
+
+E6_EVERY_ARM: Final = (
+    "none",
+    "class-weight",
+    "smote",
+    "adasyn",
+    "ctgan",
+    "tvae",
+    "gaussian-copula",
+    "cart",
+    "bayes-net",
+    "bko",
+    "bko-population",
+    "bko-frequency",
+    "bko-direct",
+    "bko-skeleton",
+    "cllm-uncurated",
+    "real",
+)
+"""E6's arms as ADR `research/diabetes-subgroup-removal-design` (Decision, Arms) lists them."""
+
+
+def test_e6s_runs_pin_the_diabetes_design():
+    assert E6_THIN.arms == E6_EVERY_ARM
+    assert E6_THIN.candidate == "bko"
+    assert E6_THIN.comparators == tuple(a for a in E6_EVERY_ARM if a not in {"bko", REAL_ARM})
+    assert E6_THIN.replica_arms == ("bko",)
+    assert E6_THIN.replica_rows == 2000
+    assert E6_THIN.removal == Removal(("6-7", "male", 1), 0.985)
+    assert E6_THIN.fill_to == 1269
+    assert E6_THIN.threshold == 20
+    assert E6_THIN.cutoff == pytest.approx(0.0902)
+    assert E6_THIN.decontaminate is False
+    assert E6_THIN.criteria == ()
+    assert E6_THIN.holdout_seeds == tuple(range(100))
+    emptied = dataclasses.replace(
+        E6_THIN,
+        removal=Removal(("6-7", "male", 1), 1.0),
+        replica_arms=(),
+        replica_rows=None,
+        spend_ceiling=E6_EMPTY.spend_ceiling,
+    )
+    assert emptied == E6_EMPTY
+    assert dataclasses.replace(SETTINGS, max_tokens=32000) == E6_SETTINGS
+    assert RUNS["e6-thin"] == NamedRun(E6_THIN, E6_SETTINGS, Dataset.DIABETES)
+    assert RUNS["e6-empty"] == NamedRun(E6_EMPTY, E6_SETTINGS, Dataset.DIABETES)
+
+
+@pytest.mark.parametrize(("name", "whole"), [("thin", E6_THIN), ("empty", E6_EMPTY)])
+def test_e6s_slices_take_ten_consecutive_holdouts_at_a_tenth_of_the_ceiling(name, whole):
+    assert E6_SLICES == 10
+    slices = [RUNS[f"e6-{name}{letter}"] for letter in "abcdefghij"]
+    for index, named in enumerate(slices):
+        assert named.experiment.holdout_seeds == tuple(range(10 * index, 10 * index + 10))
+        assert named.experiment.spend_ceiling == whole.spend_ceiling / 10
+        assert named.experiment.projection_after < 10
+        assert named.settings == E6_SETTINGS
+        assert named.dataset is Dataset.DIABETES
+        assert (
+            dataclasses.replace(
+                named.experiment,
+                holdout_seeds=whole.holdout_seeds,
+                spend_ceiling=whole.spend_ceiling,
+            )
+            == whole
+        )
+    seeds = tuple(seed for named in slices for seed in named.experiment.holdout_seeds)
+    assert seeds == whole.holdout_seeds
+    total = sum(named.experiment.spend_ceiling for named in slices)
+    assert total == pytest.approx(whole.spend_ceiling)
+
+
+@pytest.mark.parametrize("rows", [0, -5])
+def test_a_replica_cap_below_one_row_is_refused(rows):
+    with pytest.raises(ValueError, match=f"replica rows {rows} must be 1 or more"):
+        dataclasses.replace(E6_THIN, replica_rows=rows)
+
+
+def test_e6_slices_refuse_holdouts_they_do_not_divide():
+    uneven = dataclasses.replace(E6_THIN, holdout_seeds=tuple(range(99)))
+    with pytest.raises(ValueError, match="99 holdouts do not divide into 10 slices"):
+        _e6_runs("thin", uneven)
+
+
+def test_each_e6_ceiling_covers_its_estimate():
+    """E6's estimate per record asked (`docs/EVIDENCE.md`, E6 Configuration), written out.
+
+    Rate: the larger of `e1-4`'s $1.35635e-4 per record x 34 Diabetes columns / 14 UCI columns,
+    $3.2940e-4, and pilot `e6-1`'s $3.1536e-4. Records asked per holdout: the five BKO-type arms
+    and `cllm-uncurated` ask (fill_to - R) x (1 + 0.0075), the drop share pooled over the two
+    10-call pilots (3 of 400 records); `bko`'s replica asks 2000 x (1 + 0.0075), in the f run
+    only. The curated `cllm` arm is not in E6 (pilot `e6-1c`).
+    """
+    rate = max(1.35635e-4 * 34 / 14, 3.1536e-4)
+    assert rate == pytest.approx(3.294e-4, rel=1e-4)
+    thin = 6 * (1269 - 19) * 1.0075 + 2000 * 1.0075
+    empty = 6 * (1269 - 0) * 1.0075
+    assert (math.floor(thin), math.floor(empty)) == (9_571, 7_671)
+    assert E6_ASKED == {"thin": 9_571, "empty": 7_671}
+    assert math.isclose(E6_CAP, 1500.0)
+    # Ceilings: $1,500 x each fraction's share of 17,242 records asked per holdout.
+    # thin: 1500 x 9,571 / 17,242 = $832.65; empty: 1500 x 7,671 / 17,242 = $667.35.
+    assert E6_THIN.spend_ceiling == pytest.approx(832.647, abs=1e-3)
+    assert E6_EMPTY.spend_ceiling == pytest.approx(667.353, abs=1e-3)
+    assert E6_THIN.spend_ceiling + E6_EMPTY.spend_ceiling == pytest.approx(E6_CAP)
+    # Estimates over 100 holdouts at $3.294e-4: thin $315.27, empty $252.68, total $567.95;
+    # each ceiling is 1500 / 567.95 = 2.6411 times its estimate, and each slice's tenth of its
+    # ceiling covers its 10 holdouts' tenth of the estimate.
+    for name, whole in (("thin", E6_THIN), ("empty", E6_EMPTY)):
+        estimate = 100 * E6_ASKED[name] * 3.294e-4
+        assert whole.spend_ceiling / estimate == pytest.approx(2.6411, abs=1e-4)
+        for letter in "abcdefghij":
+            sliced = RUNS[f"e6-{name}{letter}"].experiment
+            assert sliced.spend_ceiling >= len(sliced.holdout_seeds) * E6_ASKED[name] * 3.294e-4
 
 
 E1_1_TOKENS: Final = (1_925_406, 564_976)
@@ -587,14 +734,17 @@ def test_b3_runs_hold_bko_and_both_cllm_arms():
 def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens, asks):
     """`docs/EVIDENCE.md` (B3) states the estimate: per arm, `e1-4`'s and `e3-4`'s Messages spend,
     `asks` the pilot's records asked per requested row for the curated arm, and 20 shown records of
-    `tokens` input tokens each per call at the model's input rate."""
+    `tokens` input tokens each per call at the model's input rate. B3 ran at a CLLM budget of 9,
+    before `CLLM_BUDGET` moved to 22, so the estimate reads its pilot's asks, not the budget."""
     arms = per_arm * (1 + asks + 1)
     shown = calls * (asks + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
     assert 1.25 * (arms + shown) <= RUNS[name].experiment.spend_ceiling
 
 
-def test_the_cllm_budget_covers_the_least_pilot_keep_share():
-    assert max(3, math.ceil(1.5 / 0.1734)) == CLLM_BUDGET
+def test_the_cllm_budget_covers_the_least_observed_keep_share():
+    """B3's `cllm` on Synthea kept 0.0707 of the replica `<65/female/1` rows reaching its curator
+    (ADR `research/cllm-arm-design`, Consequences)."""
+    assert max(3, math.ceil(1.5 / 0.0707)) == CLLM_BUDGET
 
 
 @pytest.mark.parametrize("name", ["e1", "e3-a", "e3-b"])

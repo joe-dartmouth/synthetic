@@ -260,3 +260,21 @@ def test_the_test_line_says_whether_copies_are_kept(caplog, decontaminate):
     assert _lines(caplog, "test ") == [
         f"test holdout={TOY_PARTS.seed} records={len(TOY_PARTS.test)} copied=3 kept={kept}"
     ]
+
+
+def _count(train: pd.DataFrame, cell: tuple[str, str, int]) -> int:
+    counts = cell_counts(train, edges=TOY.edges).itertuples(index=False)
+    return {(band, sex, label): count for band, sex, label, count, _ in counts}[cell]
+
+
+def test_the_emptied_cell_is_flagged_and_real_adds_back_every_removed_row(caplog):
+    emptied = dataclasses.replace(TOY_E3, removal=Removal(REMOVED, 1.0))
+    ready = prepared(TOY_PARTS, emptied, edges=TOY.edges)
+    assert _count(ready.ablated.train, REMOVED) == 0
+    assert len(ready.removed) == _count(TOY_PARTS.train, REMOVED) > 0
+    assert flagged(ready.ablated.train, emptied, edges=TOY.edges) == (REMOVED,)
+    with caplog.at_level(logging.INFO):
+        scores = score_holdout(TOY_PARTS, emptied, ARMS, models=LR, frame=TOY)
+    rows = {(s.arm, s.measure): s.value for s in scores if s.source is Source.ADDED}
+    assert rows[REAL_ARM, Measure.ROWS] == pytest.approx(len(ready.removed))
+    assert " cell=>=70/female/1 fraction=1.0 " in _lines(caplog, "removal ")[0]

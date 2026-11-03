@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
 import types
@@ -13,8 +14,11 @@ import torch
 
 import bko.baselines.classical as classical_module
 from bko.baselines.classical import _predictors, cart, gaussian_copula
+from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Request, Strata, Stratum
+from bko.baselines.synthesizers import fill
 from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
@@ -137,12 +141,16 @@ def test_cart_copies_measured_values_from_training_rows(cart_runs):
 def test_each_classical_method_logs_a_fit_line_in_ctgans_format(method, name, caplog):
     quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
     request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
-    with caplog.at_level(logging.INFO):
-        method(TOY_TRAIN, request)
+    token = CURRENT_FILL.set(Fill(3, "replica"))
+    try:
+        with caplog.at_level(logging.INFO):
+            method(TOY_TRAIN, request)
+    finally:
+        CURRENT_FILL.reset(token)
     fits = [r.getMessage() for r in caplog.records if r.name == classical_module.logger.name]
     fits = [m for m in fits if m.startswith("fit ")]
     assert len(fits) == 1
-    assert re.fullmatch(rf"fit method={name} seconds=\d+\.\d", fits[0])
+    assert re.fullmatch(rf"fit holdout=3 fill=replica method={name} seconds=\d+\.\d", fits[0])
 
 
 def _ticking(monkeypatch) -> dict[str, float]:
@@ -174,7 +182,7 @@ def test_the_copula_fit_line_spans_its_fit_alone(monkeypatch, caplog):
     request = Request(quota=dict.fromkeys(SHORT, 3), strata=Strata.CELL, seed=0, frame=TOY)
     with caplog.at_level(logging.INFO):
         gaussian_copula(TOY_TRAIN, request)
-    assert _fit_seconds(caplog) == ["fit method=gaussian-copula seconds=7.5"]
+    assert _fit_seconds(caplog) == ["fit holdout=-1 fill=none method=gaussian-copula seconds=7.5"]
 
 
 def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypatch, caplog):
@@ -196,4 +204,21 @@ def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypa
         cart(TOY_TRAIN, request)
     # Per later column: the tree's 10, its own predictors' 100, and the leaf assignment's 100.
     later = len(TOY.columns) - 1
-    assert _fit_seconds(caplog) == [f"fit method=cart seconds={210.0 * later:.1f}"]
+    expected = f"fit holdout=-1 fill=none method=cart seconds={210.0 * later:.1f}"
+    assert _fit_seconds(caplog) == [expected]
+
+
+@pytest.mark.parametrize("method", [gaussian_copula, cart], ids=["copula", "cart"])
+def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch, method):
+    monkeypatch.setattr(classical_module, "fill", functools.partial(fill, batch=10, limit=10))
+    quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
+    with pytest.raises(ShortfallError) as caught:
+        method(TRAIN, Request(quota=quota, seed=3))
+    short = caught.value
+    assert short.baseline is not None
+    assert set(short.short) == {f">={EDGE}/female/1"}
+    assert 0 < short.short[f">={EDGE}/female/1"] <= 10
+    pd.testing.assert_frame_equal(short.baseline.added, short.added)
+    pd.testing.assert_series_equal(short.baseline.weights, unit_weights(TRAIN))
+    assert short.baseline.params["short"] == dict(short.short)
+    assert len(short.baseline.params) > 1

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import io
 import json
 import logging
@@ -13,6 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any, Final
 
 import pytest
 
@@ -23,7 +25,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
 from bko.evaluate.launch import REHEARSAL, TAKEN, launch, on_battery, spawn
 from bko.evaluate.named_runs import RUNS, NamedRun
-from bko.generate.log import CallLog
+from bko.generate.log import Answered, CallLog
 from bko.generate.messages import SETTINGS, Level
 
 
@@ -222,35 +224,58 @@ def test_a_data_root_is_forwarded_absolute_so_a_leading_dash_never_reads_as_an_o
 
 
 def _stopped(
-    tmp_path: Path, *, stop: str | None = "idle", rehearsal: bool = False, settings=SETTINGS
+    tmp_path: Path,
+    *,
+    stop: str | None = "idle",
+    rehearsal: bool = False,
+    settings=SETTINGS,
+    run: str | None = "g9-probe",
+    **end: object,
 ) -> Path:
-    """A stopped call log under `g9-1`, its end line naming `stop`."""
+    """A stopped call log of the run `run` under `g9-1`, its end line naming `stop` and `end`."""
     source = tmp_path / "g9-1" / "calls.jsonl"
     source.parent.mkdir(exist_ok=True)
-    with CallLog(source, settings, rehearsal=rehearsal, frame="uci"):
+    with CallLog(source, settings, rehearsal=rehearsal, run=run, frame="uci"):
         pass
     lines = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
-    lines[-1].update(status="failed", stop=stop)
+    lines[-1].update(status="failed", stop=stop, **end)
     source.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     return source
 
 
+SPENT: Final[dict[str, Any]] = {"usd": 1.2, "live_usd": 1.2, "holdouts": 5}
+"""A stopped log's spend: 1.2 USD over 5 of E1's 100 holdouts, which projects to 24.0 USD."""
+
+
 @pytest.mark.parametrize(
-    ("flags", "message"),
+    ("flags", "raised", "message"),
     [
-        ({"rehearsal": True}, "rehearsal"),
-        ({"stop": "projection"}, "reported, not resumed"),
-        ({"stop": "ceiling"}, "reported, not resumed"),
-        ({"settings": dataclasses.replace(SETTINGS, guidance=Level.CELL)}, "settings"),
+        ({"rehearsal": True}, None, "rehearsal"),
+        ({"stop": "projection"}, None, "resumes only under a ceiling raised past its projection"),
+        ({"stop": "ceiling", **SPENT}, None, "resume it with launch --resume and --ceiling"),
+        ({"stop": "projection"}, "30", "records no finished holdouts"),
+        ({"stop": "ceiling"}, "30", "records no finished holdouts"),
+        ({"stop": "ceiling", "usd": 1.5, "holdouts": 5}, "30", "projects to 30.0000 USD over 100"),
+        (
+            {"stop": "projection", "usd": 1.25, "holdouts": 5},
+            "25",
+            "raised ceiling of 25.0000 USD does not",
+        ),
+        ({"stop": "ceiling", **SPENT, "usd": -1.0}, "30", "no usd and live_usd spend of at least"),
+        ({"stop": "ceiling", **SPENT, "run": None}, "30", "names no run, so it cannot be checked"),
+        ({"run": "g9-other"}, None, "holds the calls of the run 'g9-other', not 'g9-probe'"),
+        ({"stop": "idle"}, "30", "takes no raised ceiling; resume it without --ceiling"),
+        ({"settings": dataclasses.replace(SETTINGS, guidance=Level.CELL)}, None, "settings"),
     ],
 )
 def test_a_resume_refuses_a_log_it_cannot_resume_before_the_folder(
-    tmp_path, caplog, flags, message
+    tmp_path, caplog, flags, raised, message
 ):
     source = _stopped(tmp_path, **flags)
     context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(source)]
     with caplog.at_level(logging.ERROR):
-        code = main(["launch", "g9-6", "g9-probe", "--resume", str(source)], context=context)
+        code = main([*argv, *(["--ceiling", raised] if raised else [])], context=context)
     assert code == 2
     assert message in caplog.text
     assert not (tmp_path / "g9-6").exists()
@@ -277,6 +302,62 @@ def test_a_resume_supervises_the_stopped_log_into_a_new_folder(tmp_path):
     )
     log = (folder / "launch.log").read_text(encoding="utf-8")
     assert f"resume={source.absolute()}" in log
+
+
+@pytest.mark.parametrize("stop", ["projection", "ceiling"])
+def test_a_spend_stop_resumes_under_a_raised_ceiling_that_covers_its_projection(tmp_path, stop):
+    # 1.2 USD over 5 of E1's 100 holdouts projects to 24.0 USD; the raised 24.5 covers it.
+    source = _stopped(tmp_path, stop=stop, **SPENT)
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(source), "--ceiling", "24.5"]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    (command,) = context.start.commands
+    assert command[-4:] == ("--resume", str(source.absolute()), "--ceiling", "24.5")
+    log = (tmp_path / "g9-6" / "launch.log").read_text(encoding="utf-8").splitlines()
+    assert log[1] == (
+        f"ceiling=24.5000 stop={stop} usd=1.2000 live_usd=1.2000 holdouts=5 projected_usd=24.0000"
+    )
+
+
+def test_a_ceiling_without_a_resume_is_refused(tmp_path, caplog):
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    with caplog.at_level(logging.ERROR):
+        code = main(["launch", "g9-6", "g9-probe", "--ceiling", "30"], context=context)
+    assert code == 2
+    assert "--ceiling raises a resumed run's spend ceiling, so it needs --resume" in caplog.text
+    assert not (tmp_path / "g9-6").exists()
+
+
+@pytest.mark.parametrize("text", ["0", "-1", "nan", "inf", "x"])
+def test_a_ceiling_that_is_no_spend_above_zero_is_refused(tmp_path, capsys, text):
+    source = _stopped(tmp_path, stop="ceiling", **SPENT)
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(source), f"--ceiling={text}"]
+    with pytest.raises(SystemExit):
+        main(argv, context=context)
+    assert "the ceiling must be a finite number of USD above 0" in capsys.readouterr().err
+    assert context.start.commands == []
+
+
+def test_a_resume_refuses_a_log_a_later_segment_already_resumed(tmp_path, caplog):
+    source = _stopped(tmp_path)
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    later = tmp_path / "g9-1-resume-1" / "calls.jsonl"
+    later.parent.mkdir()
+    with CallLog(
+        later, SETTINGS, answered=Answered("resume", digest, 0), run="g9-probe", frame="uci"
+    ):
+        pass
+    context = named(tmp_path, {**RUNS, "g9-probe": NamedRun(E1)})
+    with caplog.at_level(logging.ERROR):
+        code = main(["launch", "g9-6", "g9-probe", "--resume", str(source)], context=context)
+    assert code == 2
+    assert f"{later} already resumed {source} (sha256 {digest})" in caplog.text
+    assert "resume the last segment's log" in caplog.text
+    assert not (tmp_path / "g9-6").exists()
+    assert context.start.commands == []
+    argv = ["launch", "g9-6", "g9-probe", "--resume", str(later)]
+    assert main(argv, context=context, out=io.StringIO()) == 0
 
 
 def test_a_resume_source_inside_the_target_folder_is_refused(tmp_path):
@@ -620,6 +701,16 @@ def test_an_id_that_is_not_a_run_of_record_exits_two(tmp_path, caplog, run_id):
     assert "not a run id of record" in caplog.text
 
 
+@pytest.mark.parametrize(
+    "name",
+    [f"e6-{fraction}{letter}" for fraction in ("thin", "empty") for letter in "abcdefghij"],
+)
+def test_each_e6_slice_launches_from_an_e6_run_id(tmp_path, name):
+    argv = ["launch", "e6-1", name, "--dry-run"]
+    assert main(argv, context=named(tmp_path, RUNS), out=io.StringIO()) == 0
+    assert f"run={name} " in (tmp_path / "e6-1" / "launch.log").read_text(encoding="utf-8")
+
+
 def test_every_named_run_is_an_entry_or_a_word_after_it():
     assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)?", name) for name in RUNS)
 
@@ -637,23 +728,22 @@ def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder
 
 
 @pytest.mark.parametrize(
-    ("run_id", "flags", "warned"),
-    [
-        ("e1-4-resume", {}, True),
-        ("e1-4-resume", {"retries": 0}, False),
-        ("e1-4-resume", {"rehearse": True}, False),
-        ("e1-4", {}, False),
-    ],
+    ("run_id", "flags"),
+    [("e1-4-resume", {"retries": 0}), ("e1-4-resume", {"rehearse": True}), ("e1-4", {})],
 )
-def test_a_run_id_whose_resume_folder_name_is_no_run_id_warns(
-    tmp_path, caplog, run_id, flags, warned
-):
-    with caplog.at_level(logging.WARNING):
-        assert launch(
-            run_id, "e1", root=tmp_path, power=lambda: False, start=Starts(), **flags
-        ).started
-    expected = (
-        f"launch run_id={run_id} resumes=none reason=name: {run_id}-resume-1 is not a run id, "
-        "so the supervisor resumes no stop"
+def test_a_run_id_supervised_without_resumes_launches(tmp_path, run_id, flags):
+    assert launch(run_id, "e1", root=tmp_path, power=lambda: False, start=Starts(), **flags).started
+
+
+def test_a_run_id_whose_resume_folder_name_is_no_run_id_is_refused_before_its_folder(tmp_path):
+    start = Starts()
+    message = (
+        "e1-4-resume-resume-1 is not a run id, so the supervisor could resume no stop of "
+        "'e1-4-resume'; launch under a fresh run id, such as the next free e1-<n>, or pass "
+        "--retries 0"
     )
-    assert (expected in caplog.text) is warned
+    with pytest.raises(EvaluationError) as refused:
+        launch("e1-4-resume", "e1", root=tmp_path, power=lambda: False, start=start)
+    assert str(refused.value) == message
+    assert not (tmp_path / "e1-4-resume").exists()
+    assert start.commands == []

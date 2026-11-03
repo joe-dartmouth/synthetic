@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-02
-updated: 2026-11-02
+updated: 2026-11-03
 ---
 # The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm
 
@@ -55,7 +55,8 @@ for SMOTE and 1.42 for duplication ([C3]).
 * **Must leave the removed cell the only flagged one** on every holdout, so the headline reads one
   subgroup.
 * **Must pair every arm, `real` included, on identical splits**, as E3 does.
-* **Must keep the spend inside the unit's cap**, so the replica fill is bounded.
+* **Must keep the spend inside the cap**, $1,500 over both fractions (user decision), so the
+  replica fill is bounded.
 * **Must report compute in system-independent units**: no reading, rule or design value uses wall
   time.
 
@@ -91,30 +92,63 @@ for SMOTE and 1.42 for duplication ([C3]).
 - **Copies**: kept and counted (`decontaminate` false), since `real`'s rows are real training rows
   and the harness refuses `real` in an experiment that removes copies. The archive is public, so
   a test copy from a Messages arm reads as memorization of the archive, not as chance.
-- **Arms, in each fraction's run**: every arm: `none`, `class-weight`, `smote`, `adasyn`, `ctgan`,
+- **Arms, in each fraction's run**: the 16 runnable arms, `real` included: `none`, `class-weight`, `smote`, `adasyn`, `ctgan`,
   `tvae`, `gaussian-copula`, `cart`, `bayes-net`, `bko`, `bko-population`, `bko-frequency`,
-  `bko-direct`, `bko-skeleton`, `cllm`, `cllm-uncurated` and `real`. At 1.0 the cell keeps no
+  `bko-direct`, `bko-skeleton`, `cllm-uncurated` and `real`. The curated `cllm` is not an arm
+  (Ruled Out). At 1.0 the cell keeps no
   training row, so SMOTE and ADASYN meet a structural shortfall and fill 0 rows; they stay in the
-  run and read as `none` there.
+  run and read as `none` there. The scale smoke run (holdouts 0 and 1, canned replies,
+  `scratchpad/e6-smoke/summary.txt`) measured the rejection samplers on the cell at full N: at
+  0.985, TVAE filled 0 of 1,250 rows and CART and the Bayesian network about 30% (412 and 430; 355
+  and 329), each after five attempts of 1,000,000 draws; at 1.0, TVAE and CART filled 0 of 1,269
+  and the Bayesian network 1 and 3. Each completes as a shortfall, not a refusal.
 - **Candidate and comparators**: `bko` is the candidate; the comparators are every arm except
-  `real` and `bko`, the 15 others.
+  `real` and `bko`, the 14 others.
 - **Replica**: `bko` alone fills a replica, of `replica_rows` 2000 rows, in the f = 0.985 run only.
   E1's rule that every row-adding arm fills a replica of the training split's cell counts (ADR
   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)) is E1's, not E6's.
 - **Holdouts and the family**: 100 holdouts, E1's seeds 0 to 99. The contrasts read together are
   `bko` minus each comparator on two measures, recall on the removed cell (scope
   `flagged-subgroups`) and AUC-PR over the whole test split (scope `all`). The family is the
-  comparators times the measures: 15 x 2 = 30 intervals, each refuting reading at confidence
-  1 - (1 - c)/30, 0.99833 at E1's c = 0.95.
+  comparators times the measures: 14 x 2 = 28 intervals, each refuting reading at confidence
+  1 - (1 - c)/28, 0.99821 at E1's c = 0.95.
 - **N**: the full eligible frame, every one of the 69,283 records.
-- **Settings**: `SETTINGS` (Haiku 5.5) for every Messages arm.
-- **Slices**: each fraction's run is 10 holdout slices of 10 holdouts; the f = 0.985 run's slices
-  finish before the 1.0 run's start. `merge` joins a fraction's slices into one run's bytes.
+- **Settings**: `E6_SETTINGS`, `SETTINGS` (Haiku 5.5) with `max_tokens` 32000, for every Messages
+  arm. A Diabetes call's reply runs near 11,000 output tokens (7,818 to 13,352 over the
+  32000-token pilot's 10 calls, mean 10,909), and its tail reaches 16000: at `SETTINGS`' 16000,
+  1 of 15 live pilot calls stopped at the limit (pilot `e6-1`, its call 5 of 5); at 32000, 0 of
+  10 did ([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal), E6 Configuration).
+- **Slices**: each fraction's run, `e6-thin` at f = 0.985 and `e6-empty` at 1.0, is K = 10
+  holdout slices of 10 consecutive holdouts, `e6-thina` (holdouts 0 to 9) to `e6-thinj` (90 to
+  99) and `e6-emptya` to `e6-emptyj` alike. Both fractions' 20 slices run at once (user decision:
+  time over cost). `merge` joins a fraction's slices into one run's bytes.
+  K is the memory cap's: a free smoke run of every arm on holdouts 0 and 1 at full N, one process
+  per fraction under the Threads environment with canned replies (`score --rehearse`), peaked at
+  2,146,516,992 bytes maximum resident set size at f = 0.985 and 2,184,560,640 at 1.0
+  (`/usr/bin/time -l`). 20 such processes, 43.7 GB, fit the memory budget E6's plan sets, 20 times the peak resident set size at most 100 GB, and `projection_after`, 5, is
+  under the 10 holdouts per slice.
+- **In flight**: 4 calls per slice, 80 across the 20 slices. The organization's limits are
+  2,000,000 output tokens a minute, 45,000 requests and 10,000,000 input tokens. A call writes
+  about 11,000 output tokens (the 32000-token pilot's mean is 10,909) at about 255 tokens a
+  second, so a slot asks about 11,000 x 60 / (11,000 / 255) = 15,300 tokens a minute and 80 slots
+  about 1,224,000, under the 2,000,000.
+- **Spend ceilings**: the $1,500 cap split between the fractions in proportion to their estimated
+  records asked per holdout, 9,571 at f = 0.985 and 7,671 at 1.0: `e6-thin` 1500 x 9,571 /
+  17,242 = $832.65 and `e6-empty` $667.35, each slice a tenth of its run's, $83.26 and $66.74.
+  Each ceiling is 2.6411 times its run's estimate (`tests/test_evaluate_experiment.py`,
+  `test_each_e6_ceiling_covers_its_estimate`; the estimate is E6's Configuration in
+  [`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The estimate holds
+  no `cllm` term: pilot `e6-1c` asked 46,360 records of the curated arm on holdouts 0 and 1, kept
+  0, and spent $15.0042 to its ceiling, so the arm is out (Ruled Out). A slice's ceiling stops it
+  before it spends past its share, and a stopped slice resumes under a raised ceiling for that
+  slice alone
+  ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#evaluation), the paid-run protocol).
 - **Replays**: one slice per fraction, plus every slice that resumed after a stop.
 - **Compute cost**: reported as model fits, rows drawn, tokens and USD per run and per record
   asked. No wall time is read, ruled on or reported.
-- **Threads**: every run and every replay sets `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a
-  replay's numerics match its run's.
+- **Threads**: every run, every replay and the smoke run behind K set
+  `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a replay's numerics match its run's and K's
+  memory reading holds for the slices.
 - **Egress**: each Messages call sends what [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation)
   (What leaves the machine, Diabetes 130) lists, under the archive's CC BY 4.0 license: training
   bounds, quartiles and shares of de-identified encounters through the BKO arms, and frame records
@@ -166,7 +200,7 @@ at a bounded cost.
 
 **The family.** E1 reads a not-met verdict at 1 - (1 - c)/k over its k intervals (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md), Rationale); E6 reads the same
-intersection over its own k: 15 comparators on two measures.
+intersection over its own k: 14 comparators on two measures.
 
 **The holdout count.** At ratio 0.250450, `mde` at 30 holdouts is 1.0696 times its value at 100,
 and corrected resampled tests replicate their verdicts across seed sets at about 100 runs
@@ -357,7 +391,10 @@ read on one split with `real` beside it; compute stated in units any machine rep
 within 30 days); the chosen cell leads the runner-up narrowly and loses to `(6-7, female, 1)` on
 one replicate seed set; at the prevalence cutoff `class-weight` calls nearly every record positive
 (recall 0.9999 on the cell and 1.0000 overall in [C3]), so its recall carries no ranking and no
-gate reads it; kappa is carried over from E3's Synthea runs; at 1.0 SMOTE and ADASYN add nothing;
+gate reads it; kappa is carried over from E3's Synthea runs; at 1.0 SMOTE, ADASYN, TVAE and CART add nothing, and at 0.985 TVAE adds nothing and CART and
+the Bayesian network fill about 30% of the cell, so those arms read close to `none`; a capped
+replica asks `split.kept_count` per cell, so its total can exceed `replica_rows` by rounding (2,001
+for 2,000 in the smoke run);
 the replica reads `bko` alone.
 
 ## Ruled Out
@@ -372,14 +409,18 @@ the replica reads `bko` alone.
 | Excluding SMOTE and ADASYN at 1.0 | Their zero fill is the result at 1.0: count-based methods have nothing to copy | 2026-11-02 |
 | A cross-fraction beside reading | The held-out distance to closest record differs between fractions, since the training rows differ, so the fractions do not pair | 2026-11-02 |
 | Replaying every slice | User decision: one slice per fraction verifies the code, and every resumed slice its resumption | 2026-11-02 |
+| One fraction's slices after the other's | User decision: time over cost; the 20 slices fit the memory cap (Decision, Slices) and the output-token limit (Decision, In flight) | 2026-11-02 |
+| `SETTINGS`' 16000 output tokens | Replies run near 11,000 output tokens (7,818 to 13,352 at 32000), and 1 of 15 live pilot calls stopped at 16000; at 32000, 0 of 10 | 2026-11-02 |
 | A wall-time duration rule | User decision: no reading, rule or design value uses wall time | 2026-11-02 |
 | The probe's cell `(4-7, female, 1)` under edges (4, 8) | On the committed frame it scores fifth of nine and fails G4 on both replicate seed sets ([C4]) | 2026-11-02 |
+| The curated `cllm` arm on Diabetes | Pilot `e6-1c` (holdouts 0 and 1, arms `none` and `cllm`, $15 ceiling) asked 46,360 records, kept 0 (26,389 of holdout 0's 26,460 asked and 19,757 of holdout 1's 19,900 dropped by curation) and stopped on the ceiling at $15.0042: the curator rejects every generated record of the removed cell, label 1 at 9% prevalence; at budget 22 it would spend about $1,700 for zero rows | 2026-11-03 |
 | A 0.5 cutoff | G1 failed on all 18 cells: real recall at 0.5 is 0.0020 to 0.0157 ([C3]) | 2026-11-02 |
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/diabetes.py`
-- Pinned by: `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
+- Owner: `src/bko/evaluate/diabetes.py`; E6's runs, `src/bko/evaluate/named_runs.py`
+- Pinned by: `tests/test_evaluate_experiment.py` (the runs, slices and ceilings),
+  `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
   `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`
 
 ## Reversal Conditions

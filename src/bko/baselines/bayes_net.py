@@ -28,9 +28,11 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, derived_seed, unit_weights
 from bko.baselines.request import Request
-from bko.baselines.synthesizers import fill
+from bko.baselines.synthesizers import fill, holding
 from bko.datasets.frames import FrameSpec
 
 
@@ -151,9 +153,18 @@ def learn(bins: Bins, *, k: int = K, first: str) -> Network:
         raise ValueError(msg)
     placed = [first]
     chosen: list[tuple[str, tuple[str, ...]]] = [(first, ())]
+    # A (field, parents) pair's information never changes, and later rounds offer it again.
+    known: dict[tuple[str, tuple[str, ...]], float] = {}
+
+    def information(field: str, parents: tuple[str, ...]) -> float:
+        key = (field, parents)
+        if key not in known:
+            known[key] = mutual_information(bins.states, field, parents)
+        return known[key]
+
     while len(placed) < len(fields):
         candidates = [
-            (mutual_information(bins.states, field, parents), field, parents)
+            (information(field, parents), field, parents)
             for field in fields
             if field not in placed
             for parents in itertools.combinations(placed, min(k, len(placed)))
@@ -196,13 +207,16 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
 
     The first field is `frame.columns[derived_seed(seed, "bayes-net") % len(frame.columns)]`, and
     every draw reads `default_rng(derived_seed(seed, "bayes-net"))`, so the seed alone decides the
-    rows and no global generator is read or moved. Logs one `fit method=bayes-net seconds=%.1f`
-    line. The params name the request's seed, the first field, `k`, `BINS`, the equivalent sample
-    size, each field's states and the learned edges, each `[parent, child]` in drawing order.
+    rows and no global generator is read or moved. Logs one
+    `fit holdout=%d fill=%s method=bayes-net seconds=%.1f` line, naming the harness fill
+    (`bko.baselines.fills`). The params name the request's seed, the first field, `k`, `BINS`, the
+    equivalent sample size, each field's states and the learned edges, each `[parent, child]` in
+    drawing order.
 
     Raises:
-        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
-            baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     rows = train.loc[:, list(frame.columns)].reset_index(drop=True)
@@ -211,11 +225,12 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
     start = time.perf_counter()
     bins = discretize(rows, frame)
     network = learn(bins, first=first)
-    logger.info("fit method=bayes-net seconds=%.1f", time.perf_counter() - start)
-    rng = np.random.default_rng(seed)
-    added = fill(
-        lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
+    logger.info(
+        "fit holdout=%d fill=%s method=bayes-net seconds=%.1f",
+        *fill_names(),
+        time.perf_counter() - start,
     )
+    rng = np.random.default_rng(seed)
     params = {
         "seed": request.seed,
         "first": first,
@@ -225,6 +240,12 @@ def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:
         "states": {field: bins.arity(field) for field in frame.columns},
         "edges": [list(edge) for edge in network.edges],
     }
+    try:
+        added = fill(
+            lambda size: draw(network, bins, rows, size, rng, frame), request, method="bayes-net"
+        )
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
@@ -244,10 +265,37 @@ def _states(
     cuts: Mapping[str, tuple[float, ...]],
     codes: Mapping[str, tuple[int, ...]],
 ) -> np.ndarray:
+    """Each value of `column`'s state: its code's place among `codes[field]`, else its bin.
+
+    Raises:
+        ValueError: If a coded field holds a missing value or one that is not a whole number.
+        KeyError: If a coded field holds a code outside its states.
+    """
     if field in codes:
-        position = {code: at for at, code in enumerate(codes[field])}
-        return np.array([position[int(value)] for value in column], dtype=int)
+        known = np.asarray(codes[field], dtype=np.int64)
+        values = _whole(column, field)
+        order = np.argsort(known, kind="stable")
+        ranked = known[order]
+        at = np.minimum(np.searchsorted(ranked, values), len(ranked) - 1)
+        outside = ranked[at] != values if len(ranked) else np.ones(len(values), dtype=bool)
+        if outside.any():
+            msg = f"{field} holds codes {sorted(set(values[outside].tolist()))} outside its states"
+            raise KeyError(msg)
+        return order[at].astype(int)
     return np.searchsorted(np.asarray(cuts[field]), column.to_numpy(dtype="float64"), side="right")
+
+
+def _whole(column: pd.Series, field: str) -> np.ndarray:
+    """`column`'s values as whole-number codes.
+
+    Raises:
+        ValueError: If a value is missing or not a whole number.
+    """
+    values = pd.to_numeric(column, errors="coerce").to_numpy(dtype="float64", na_value=np.nan)
+    if not np.isfinite(values).all() or not (values == np.floor(values)).all():
+        msg = f"{field} holds values that are not whole codes"
+        raise ValueError(msg)
+    return pd.to_numeric(column).to_numpy(dtype=np.int64)
 
 
 def _node(bins: Bins, field: str, parents: tuple[str, ...]) -> Node:
@@ -255,13 +303,16 @@ def _node(bins: Bins, field: str, parents: tuple[str, ...]) -> Node:
     arity = bins.arity(field)
     configurations = math.prod(bins.arity(parent) for parent in parents)
     prior = ESS / (configurations * arity)
-    counts: dict[tuple[int, ...], list[int]] = {}
-    child = bins.states[field].to_numpy()
-    given = bins.states.loc[:, list(parents)].to_numpy()
-    for row, state in zip(given, child, strict=True):
-        counts.setdefault(tuple(int(v) for v in row), [0] * arity)[int(state)] += 1
-    table = {
-        configuration: tuple((n + prior) / (sum(seen) + prior * arity) for n in seen)
-        for configuration, seen in counts.items()
-    }
+    radices = [bins.arity(parent) for parent in parents]
+    # Each row's parent configuration as one mixed-radix index, the last parent varying fastest.
+    index = np.zeros(len(bins.states), dtype=np.int64)
+    for parent, radix in zip(parents, radices, strict=True):
+        index = index * radix + bins.states[parent].to_numpy(dtype=np.int64)
+    cells = index * arity + bins.states[field].to_numpy(dtype=np.int64)
+    counts = np.bincount(cells, minlength=configurations * arity).reshape(configurations, arity)
+    table: dict[tuple[int, ...], tuple[float, ...]] = {}
+    for at in np.flatnonzero(counts.sum(axis=1)):
+        seen = [int(n) for n in counts[at]]
+        configuration = tuple(int(v) for v in np.unravel_index(at, radices)) if radices else ()
+        table[configuration] = tuple((n + prior) / (sum(seen) + prior * arity) for n in seen)
     return Node(field, parents, table, arity)

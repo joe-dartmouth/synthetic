@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-01
+updated: 2026-11-02
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -74,11 +74,14 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   and its spend is not in the call log, so the ceiling does not count it; each automatic resume can
   repeat that exposure, bounded by the calls in flight per segment and by `--retries`.
   `launch --resume STOPPED` resumes a run the idle rule stopped into a new folder under the same
-  checks; a run the projection or the ceiling stopped is reported, not resumed, since resuming would
-  spend past the rule that stopped it. A guard holds this: each rule raises a `StopRuleError` naming
-  it, the call log's `end` line records it under `stop`, and a resume refuses a `projection` or
-  `ceiling` stop (ADR `research/call-log-replay`); `launch --resume` also refuses a log whose
-  settings differ from the named run's, before it claims a folder. `launch --rehearse` first runs
+  checks; a run the projection or the ceiling stopped resumes only under a ceiling raised for that
+  resume alone (`--ceiling`), above the run's own projection, since otherwise resuming would spend
+  past the rule that stopped it. A guard holds this: each rule raises a `StopRuleError` naming it,
+  the call log's `end` line records it under `stop`, and a resume refuses a `projection` or
+  `ceiling` stop with no raised ceiling or one that does not cover its projection (ADR
+  `research/call-log-replay`); `launch --resume` also refuses a log whose settings differ from the
+  named run's, one whose `run` line names another run, and one a later segment already resumed,
+  before it claims a folder. `launch --rehearse` first runs
   the whole run on canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal`
   directory, so the stop rules, the spend lines and the folder roles are checked for free before any
   spend. A rehearsal bills each record asked at the judged run `e1-4`'s tokens per record
@@ -188,8 +191,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   define is empty, and a criterion that reads an empty value refuses to judge. Fidelity is
   SDMetrics' quality report with every column pair counted. Distance to closest record is SDMetrics'
   `calculate_dcr`, read as a 5th percentile and a median, for the added rows and for the test rows,
-  both against the training rows. Each arm's added and replica rows that equal a test record in
-  every column are counted (`test-copies`). Each holdout's held-out rows also carry a
+  both against the training rows. `bko.evaluate.privacy.nearest` computes it in blocks of arrays
+  rather than through `calculate_dcr`'s cross merge of every row pair, and
+  `tests/test_evaluate_privacy.py` holds the two equal bit for bit. Each arm's added and replica
+  rows that equal a test record in every column are counted (`test-copies`). Each holdout's held-out rows also carry a
   `flagged-fingerprint` score, a hash of the cells it flagged, so two scores files show whether
   their flagged subgroups are the same test records.
 - **A test split without copied records.** On each holdout every arm fills before any is scored. A
@@ -337,11 +342,18 @@ request on 2 of the 100 holdouts (measured 2026-10-15): its rejection sampling d
 and still lacks a few of the 18 rows asked of `<55 female 1`, a cell of 2 training records. That is
 a property of one sampling seed, not of the split: with derived seeds, one of the two fills on its
 third attempt and the other on its fourth. A retry keeps every holdout paired and keeps the request
-the same; dropping the holdout would select splits on how one generator behaved. CTGAN or TVAE
-still short of a gap fill at its row limit on the last attempt fills partially
+the same; dropping the holdout would select splits on how one generator behaved. A rejection
+sampler (CTGAN, TVAE, the Gaussian copula, sequential CART or the Bayesian network) still short of
+a gap fill at its row limit on the last attempt fills partially
 (`bko.evaluate.shortfall`): it keeps the rows it drew, checked against the quota less the
 shortfall, each short cell gets a `shortfall` line and its `arm` line's params name the shortfall,
-and the holdout stays paired at fewer rows for that arm alone. A replica fill still refuses, since
+and the holdout stays paired at fewer rows for that arm alone. A structural shortfall, a stratum
+holding fewer records than its method needs (ADR
+[`research/baseline-augmentation-design`](baseline-augmentation-design.md)), fills partially the
+same way on attempt 1, since no later attempt changes it: on a gap fill, any arm's shortfall that
+falls on strata of fewer than 2 training records alone fills partially on the attempt that meets
+it, a rejection sampler's at its row limit included; a shortfall that also falls on another
+stratum, and a refusal that is not a shortfall, are retried as on any other fill. A replica fill still refuses, since
 its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
 2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
 not one holdout. Any other refusal on every attempt still stops the run.
@@ -373,8 +385,8 @@ which arm looked best; a harness that takes any frame in the evaluation schema.
 **Accepted**: the 2-pager's 10% criterion is replaced (`docs/RESEARCH.md` section 9); `<55 female 1`
 holds 2 records, none ever tested, yet takes 18 of the 20 gap rows, so its effect shows only through
 other test records; subgroup verdicts are likely inconclusive at this size; distance to closest
-record is weak evidence of privacy, blind to attacks that need no near-copy; `calculate_dcr` is not
-a public SDMetrics export; baseline results on the real test split were in view when the readings
+record is weak evidence of privacy, blind to attacks that need no near-copy; the test oracle
+`calculate_dcr` is not a public SDMetrics export; baseline results on the real test split were in view when the readings
 were fixed, no BKO result was; on a retried holdout, that arm's rows come from a derived seed rather
 than the holdout seed; a BKO arm ignores the seed, and its retry repeats the same request; the test
 split each arm is scored on depends on every arm's rows; a call with no response forfeits only that call,
@@ -398,6 +410,10 @@ and holdout.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| A partial fill on attempt 1 whenever the request asks a structural stratum | A shortfall that also falls on a stratum a retry can fill would keep fewer rows than the retry gives | 2026-11-02 |
+| Reporting a projection or ceiling stop rather than resuming it | Loses the holdouts a stopped run paid for; a resume under a raised ceiling recovers them and still stops at a ceiling | 2026-11-02 |
+| Raising a stopped run's ceiling in its named run | A commit changes the resumed run's `versions` line, so `merge` refuses it beside its sibling slices, and an E6 fraction's ceiling sets all 10 of its slices'; `--ceiling` raises one resume's alone | 2026-11-02 |
+| Distances to closest record through `calculate_dcr` itself | Its cross merge builds a pandas frame of every row pair per chunk before it reduces them; blocks of arrays reduce as they go and return its values bit for bit (`tests/test_evaluate_privacy.py`) | 2026-11-02 |
 | `METHOD_ARMS` and `ADDS_ROWS` derived from every `Method` | A method added for B1 would join E1 and E3, changing their arms and the runs that replay them | 2026-10-29 |
 | A separate enum for the comparison set | `augment` takes a `Method`, so a second enum breaks its typing | 2026-10-29 |
 | One free run per new method | Doubles the CTGAN and TVAE fits the runs share; a second method reads from the same scores | 2026-10-29 |
@@ -467,7 +483,7 @@ that E1 runs again (The latest configuration is judged).
 **The holdout count and the margins are re-chosen if the frame changes before the run that judges
 it**; this record and `E1` change together.
 
-**`calculate_dcr` is replaced if an SDMetrics release removes
+**The equality test's oracle is replaced if an SDMetrics release removes
 `sdmetrics.single_table.privacy.dcr_utils.calculate_dcr`.**
 
 **The classifier changes if any holdout logs a fit that did not converge within `MAX_ITER`.**

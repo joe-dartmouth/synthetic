@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.request import Request
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.fills import CURRENT_FILL
 from bko.gaps.observe import Cell
 from bko.gaps.shares import label_only
 from bko.generate.direct import sample

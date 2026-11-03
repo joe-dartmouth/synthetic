@@ -4,15 +4,19 @@ A run writes one `run` line, then per call a `request` line before the call and 
 line after it, then one `end` line holding the run's status and totals. The `run` and `end` lines
 name the log a replay answers from under `replay` and the stopped log a resume continues under
 `resume`, and say under `rehearsal` whether canned replies answered every call; the `run` line names
-the frame whose records the calls ask for under `frame` and records under `in_flight` the most calls
-the run keeps in flight at once, and a resume's under `carried_usd` the spend of the stopped log's
-calls it dropped, and the `end` line names under `stop` the stop rule that ended a failed run, or
-null, under `retryable` whether the API caused the stop (the exception's `retryable` attribute), so
-a supervised run resumes it, and under `rate_limited` whether any call's retry met a 429; its totals
-split `live_usd`, what the run paid or a rehearsal billed, from `usd`. Each line is flushed as it is
-written, so the lines of every call made survive a failure, an interrupt or a killed process. The
-file is created exclusively, so a rerun never overwrites a paid log, with mode 0o600, so only its
-owner reads it. ADR `research/record-generation-design` records the format.
+the frame whose records the calls ask for under `frame` and the named run under `run` (null outside
+one), records under `in_flight` the most calls the run keeps in flight at once, and a resume's under
+`carried_usd` the spend of the stopped log's calls it dropped. A resume under a raised ceiling adds
+it to `resume` as `ceiling`, and a resume of a ceiling or projection stop adds that rule as `stop`,
+in both lines. The `end` line names under
+`stop` the stop rule that ended a failed run, or null; for a ceiling or projection stop, under
+`holdouts` the holdouts finished, which a resume projects from; under `retryable` whether the API
+caused the stop (the exception's `retryable` attribute), so a supervised run resumes it; and under
+`rate_limited` whether any call's retry met a 429. Its totals split `live_usd`, what the run paid
+or a rehearsal billed, from `usd`. Each line is flushed as it is written, so the lines of every
+call made survive a failure, an interrupt or a killed process. The file is created exclusively, so
+a rerun never overwrites a paid log, with mode 0o600, so only its owner reads it. ADR
+`research/record-generation-design` records the format.
 """
 
 from __future__ import annotations
@@ -43,6 +47,9 @@ SCHEMA: Final = 2
 STOP_RULES: Final = ("ceiling", "projection", "idle")
 """The stop rules a failed run's `end` line can name under `stop`."""
 
+SPEND_STOPS: Final = frozenset({"ceiling", "projection"})
+"""The stop rules that read the run's spend; their `end` line records the holdouts finished."""
+
 
 def utc_now() -> datetime:
     """The current time in UTC, the call log's default clock."""
@@ -60,12 +67,18 @@ class Answered:
         calls: The calls it answers.
         carried_usd: For a resume, the spend of the logged calls it dropped and sends again, so
             the run's spend still counts them; 0 for a replay.
+        stop: For a resume of a ceiling or projection stop, that rule; None otherwise.
+        ceiling: For a resume under a raised spend ceiling, that ceiling in USD: the one raised
+            for a ceiling or projection stop, or the one the stopped log ran under; None
+            otherwise.
     """
 
     kind: Literal["replay", "resume"]
     sha256: str
     calls: int
     carried_usd: float = 0.0
+    stop: str | None = None
+    ceiling: float | None = None
 
 
 class CallLog:
@@ -78,7 +91,8 @@ class CallLog:
         path: The log file.
         answered: The call log the first calls are answered from, or None for a live run.
         replay: The sha256 of the call log a replay answers from, or None.
-        resume: The sha256 and answered calls of the stopped log a resume continues, or None.
+        resume: The sha256 and answered calls of the stopped log a resume continues, with the
+            stop rule and raised ceiling of a ceiling or projection stop, or None.
         rehearsal: Whether canned replies answer every call (`bko.evaluate.rehearse`).
         settings: How each call is made; its model's price is the one every spend uses.
         run: The named run whose calls the log holds, or None outside a named run.
@@ -95,6 +109,8 @@ class CallLog:
             calls and starts at the spend it carried.
         live_usd: The spend of calls past the answered ones: what the run paid.
         rate_limited: Whether any call's retry met a 429, from its reply or its failure.
+        holdouts: Holdouts finished (`holdout_done`); a ceiling or projection stop's `end` line
+            records it.
     """
 
     def __init__(
@@ -137,11 +153,15 @@ class CallLog:
         self.replay = (
             answered.sha256 if answered is not None and answered.kind == "replay" else None
         )
-        self.resume = (
+        self.resume: dict[str, object] | None = (
             {"sha256": answered.sha256, "calls": answered.calls}
             if answered is not None and answered.kind == "resume"
             else None
         )
+        if self.resume is not None and answered is not None and answered.ceiling is not None:
+            self.resume["ceiling"] = answered.ceiling
+            if answered.stop is not None:
+                self.resume["stop"] = answered.stop
         self.rehearsal = rehearsal
         self.settings = settings
         self.run = run
@@ -158,6 +178,7 @@ class CallLog:
         self.usd = 0.0 if answered is None else answered.carried_usd
         self.live_usd = 0.0
         self.rate_limited = False
+        self.holdouts = 0
         run_line: dict[str, object] = {
             "kind": "run",
             "schema": SCHEMA,
@@ -170,6 +191,7 @@ class CallLog:
             "rehearsal": rehearsal,
             "in_flight": in_flight,
             "frame": frame,
+            "run": run,
         }
         if self.resume is not None:
             run_line["carried_usd"] = self.usd
@@ -223,10 +245,11 @@ class CallLog:
         The status is `complete` with no exception, `interrupted` for `KeyboardInterrupt`, and
         `failed` for any other. `stop` names the stop rule that ended a failed run, read from the
         exception's `stop_rule` attribute when it is one of `STOP_RULES` (`bko.evaluate` raises
-        it), and is null otherwise. `retryable` is the failed run's exception's `retryable`
-        attribute when it is True (an `IdleError`, a `GenerationError` the API caused, or the
-        `StopRuleError` an idle stop raises), and false otherwise, the ceiling and projection
-        stops included. `rate_limited` is true when any call's retry met a 429.
+        it), and is null otherwise; a ceiling or projection stop adds `holdouts`, the holdouts
+        finished. `retryable` is the failed run's exception's `retryable` attribute when it is
+        True (an `IdleError`, a `GenerationError` the API caused, or the `StopRuleError` an idle
+        stop raises), and false otherwise, the ceiling and projection stops included.
+        `rate_limited` is true when any call's retry met a 429.
         """
         if kind is None:
             status = "complete"
@@ -237,6 +260,7 @@ class CallLog:
         rule = getattr(error, "stop_rule", None) if status == "failed" else None
         stop = rule if rule in STOP_RULES else None
         retryable = status == "failed" and getattr(error, "retryable", False) is True
+        finished = {"holdouts": self.holdouts} if stop in SPEND_STOPS else {}
         try:
             self._write(
                 {
@@ -249,14 +273,20 @@ class CallLog:
                     "stop": stop,
                     "retryable": retryable,
                     "rate_limited": self.rate_limited,
+                    **finished,
                     **self._totals(),
                 }
             )
             logger.info(
-                "run status=%s run=%s level=%s in_flight=%d calls=%d failed=%d retried=%d asked=%d "
-                "decoded=%d undecoded=%d input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f "
-                "replay=%s resume=%s rehearsal=%s log=%s",
+                "run status=%s stop=%s retryable=%s rate_limited=%s holdouts=%d run=%s level=%s "
+                "in_flight=%d calls=%d failed=%d retried=%d asked=%d decoded=%d undecoded=%d "
+                "input_tokens=%d output_tokens=%d usd=%.6f live_usd=%.6f replay=%s resume=%s "
+                "rehearsal=%s log=%s",
                 status,
+                stop or "none",
+                str(retryable).lower(),
+                str(self.rate_limited).lower(),
+                self.holdouts,
                 self.run or "none",
                 self.settings.guidance,
                 self.in_flight,
@@ -277,6 +307,10 @@ class CallLog:
             )
         finally:
             self._file.close()
+
+    def holdout_done(self) -> None:
+        """Count a finished holdout, which a ceiling or projection stop's `end` line records."""
+        self.holdouts += 1
 
     def discard(self) -> None:
         """Close and remove the log, for a run that failed before its first call."""

@@ -44,13 +44,15 @@ ASSUMED: Final = MappingProxyType(
         "decontaminate": "true",
         "threshold": str(UNDERREPRESENTED_BELOW),
         "cutoff": str(THRESHOLD),
+        "replica_rows": "none",
     }
 )
 """The `experiment` keys an older line may lack, each with the value it is read as.
 
 Each names a setting added after a run of record was scored, at the value that run used: UCI's
-frame, no removal, the whole training split, copies removed, E1's threshold and E1's cutoff. `seeds`
-is also read, as `0-<holdouts - 1>`. Any other key a line lacks is refused."""
+frame, no removal, the whole training split, copies removed, E1's threshold, E1's cutoff and an
+uncapped replica. `seeds` is also read, as `0-<holdouts - 1>`. Any other key a line lacks is
+refused."""
 
 LINE: Final = re.compile(r"^\S+ \S+ [A-Z]+ [\w.]+: (?P<message>.*)$")
 ARM: Final = re.compile(

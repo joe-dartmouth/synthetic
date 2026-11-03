@@ -34,6 +34,7 @@ from pathlib import Path
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, Drop, no_rows, number, unit_weights
 from bko.baselines.request import Request, Strata, stratum_keys
@@ -50,7 +51,6 @@ from bko.evaluate.experiment import (
     gap_request,
     replica_request,
 )
-from bko.evaluate.fills import CURRENT_FILL
 from bko.evaluate.holdout_candidates import FILLS, KEPT, REJECTED, Candidate
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, require_cell
@@ -265,7 +265,7 @@ def _exclude(
     ablated = prepared(parts, experiment, edges=frame.edges).ablated
     train, seed = ablated.train, ablated.seed
     gap = gap_request(train, experiment, seed=seed, frame=frame)
-    return excluded(others, seed, gap, replica_request(train, seed=seed, frame=frame))
+    return excluded(others, seed, gap, replica_request(train, experiment, seed=seed, frame=frame))
 
 
 def _admit(folder: Folder, others: Sequence[Folder], *, run: str, experiment: Experiment) -> None:

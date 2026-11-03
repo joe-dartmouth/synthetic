@@ -489,3 +489,15 @@ def test_a_run_naming_only_privacy_judges_only_privacy(scores_file):
     context = Context(experiment=only)
     assert main(["compare", str(scores_file), "--candidate", "tvae"], context=context, out=out) == 0
     assert list(dict.fromkeys(pd.read_csv(io.StringIO(out.getvalue()))["criterion"])) == ["privacy"]
+
+
+def test_the_experiment_line_names_replica_rows_only_when_set(caplog):
+    lines = {}
+    for rows in (None, 2000):
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            log_experiment("x", dataclasses.replace(E1, replica_rows=rows), ["lr"], frame="f")
+        lines[rows] = next(m for m in caplog.messages if m.startswith("experiment "))
+    assert "replica_rows" not in lines[None]
+    assert " threshold=20 fill_to=20 budget=3 " in lines[None]
+    assert " replica_rows=2000 threshold=20 " in lines[2000]

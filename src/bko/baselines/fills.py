@@ -5,6 +5,8 @@ both in its log lines without a parameter on `Runner`. A score reads it only thr
 `bko.evaluate.shared`'s stored arms, which answer each fill from the run's candidates file. An arm
 reads it synchronously when called, as `bko.evaluate.direct` and `bko.evaluate.skeleton` do: a
 task on an event loop started earlier, or a thread pool, would not see the value.
+It lives in `bko.baselines` so a baseline method can name its fill without importing
+`bko.evaluate`.
 """
 
 from __future__ import annotations
@@ -33,3 +35,9 @@ class Fill:
 
 CURRENT_FILL: Final[ContextVar[Fill | None]] = ContextVar("current_fill", default=None)
 """The fill the running runner call serves; None outside a harness fill."""
+
+
+def fill_names() -> tuple[int, str]:
+    """The running fill's holdout and kind for a log line; `-1` and `none` outside a fill."""
+    fill = CURRENT_FILL.get()
+    return (-1, "none") if fill is None else (fill.holdout, fill.kind)

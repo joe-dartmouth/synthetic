@@ -13,7 +13,7 @@ import pytest
 from bko.datasets.fetch import ensure
 from bko.datasets.sources import Agreement
 from bko.datasets.uci import UCI_FRAME, load_uci
-from bko.evaluate.__main__ import _parser
+from bko.evaluate.arguments import parser
 from bko.evaluate.context import Context
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import CandidatesFormatError, EvaluationError
@@ -114,7 +114,7 @@ def test_a_toy_rehearsal_reads_the_toy_frame_at_every_stage(tmp_path, caplog):
     log = tmp_path / "calls.jsonl"
     candidates = candidates_for(log)
     argv = ["score", "toy", "--rehearse", "--log", str(log), "--candidates", str(candidates)]
-    args = _parser().parse_args([*argv, "--data-dir", str(tmp_path / "data")])
+    args = parser(None).parse_args([*argv, "--data-dir", str(tmp_path / "data")])
     named = NamedRun(NARROW)
     text = _scored(_toy_data(), named, args, _toy_context())
     assert ",bko," in text
@@ -155,7 +155,7 @@ def test_a_method_only_toy_run_asks_for_the_toy_cells(tmp_path):
         NARROW, arms=("none", "smote"), candidate="smote", comparators=("none",)
     )
     ctx = _toy_context(experiment=experiment, arms={"none": FAST_ARMS["none"], "smote": spying})
-    args = _parser().parse_args(["score", "toy", "--data-dir", str(tmp_path / "data")])
+    args = parser(None).parse_args(["score", "toy", "--data-dir", str(tmp_path / "data")])
     text = _scored(_toy_data(), NamedRun(experiment), args, ctx)
     assert ",smote," in text
     assert asked
@@ -167,7 +167,7 @@ def test_a_method_only_toy_run_asks_for_the_toy_cells(tmp_path):
 
 def test_the_direct_arm_is_refused_on_a_nesting_chain_before_any_load(tmp_path):
     candidates = tmp_path / "candidates.jsonl"
-    args = _parser().parse_args(
+    args = parser(None).parse_args(
         ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
     )
     named = RUNS["g2"]

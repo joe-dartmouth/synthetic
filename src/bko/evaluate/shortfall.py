@@ -2,24 +2,33 @@
 
 `bko.evaluate.run` retries a refused fill; on a gap fill's last attempt, a `ShortfallError` that
 holds the method's baseline is scored as the rows it kept rather than refused (ADR
-`research/e1-evaluation-protocol`). The kept rows are checked against the quota less the shortfall,
-so a partial fill keeps every promise a full one does for the cells it fills.
+`research/e1-evaluation-protocol`). On a gap fill whose shortfall falls on strata `structural`
+names alone, it fills partially on any attempt, since no retry changes their training rows; a
+shortfall that also falls on another stratum is retried, since a retry can fill that one. The kept
+rows are checked against the quota less the shortfall, so a partial fill keeps every promise a full
+one does for the cells it fills.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import logging
+from collections import Counter
 from collections.abc import Mapping
+from typing import Final
 
 import pandas as pd
 
 from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
 from bko.baselines.records import Baseline, check
-from bko.baselines.request import Request, Stratum
+from bko.baselines.request import Request, Stratum, stratum_keys
 
 
 logger = logging.getLogger(__name__)
+
+STRUCTURAL_BELOW: Final = 2
+"""A stratum holding fewer training rows than this is a structural shortfall: SMOTE and ADASYN
+need 2 records to interpolate."""
 
 
 def partial_fill(
@@ -60,6 +69,18 @@ def partial_fill(
             quota[key][1],
         )
     return baseline
+
+
+def structural(train: pd.DataFrame, request: Request) -> frozenset[str]:
+    """The strata `request` asks for that hold fewer than 2 rows of `train`, keyed as `short` is.
+
+    Each is a structural shortfall (ADR `research/baseline-augmentation-design`): no later attempt
+    adds a training row to it, so a gap fill short of such strata alone is not retried.
+    """
+    keys = Counter(stratum_keys(train, request.strata, edges=request.frame.edges))
+    return frozenset(
+        "/".join(map(str, stratum)) for stratum in request.quota if keys[stratum] < STRUCTURAL_BELOW
+    )
 
 
 def shortfall_kept(exc: BaselineError) -> tuple[Baseline, Mapping[str, int]] | None:

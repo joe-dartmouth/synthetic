@@ -11,7 +11,8 @@ from bko.datasets.sources import Agreement, Source, permits_sending
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.guided import SEQUENTIAL, Knowledge, guided_arms
+from bko.evaluate.guided import SEQUENTIAL, Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
 from bko.ontology.mapping import RELEASES
 from tests._diabetes_fixtures import pin, toy_archive

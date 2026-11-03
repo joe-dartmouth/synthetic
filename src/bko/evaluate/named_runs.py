@@ -7,7 +7,9 @@ frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-down
 B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network runs, `b2-uci` and
 `b2-synthea`, and G6's generator-comparison runs,
 `g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`, and the two thinking-cost runs,
-`g6-gemmathink` and `g6-nemotronthink`.
+`g6-gemmathink` and `g6-nemotronthink`, and E6's runs over the Diabetes frame, `e6-thin` and
+`e6-empty` and their holdout slices `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj` (ADR
+`research/diabetes-subgroup-removal-design`).
 No command-line flag changes a value here.
 """
 
@@ -189,6 +191,92 @@ B3_SYNTHEA: Final = replace(
 criterion, a $35.00 ceiling."""
 
 
+E6_ARMS: Final = (
+    *METHOD_ARMS,
+    *NEW_METHODS,
+    BAYES_NET,
+    *BKO_ARMS,
+    DIRECT_ARM,
+    SKELETON_ARM,
+    CLLM_RAW_ARM,
+    REAL_ARM,
+)
+"""E6's arms: every method, every Messages arm but the curated `cllm`, and `real` (ADR
+`research/diabetes-subgroup-removal-design`, Decision, Arms)."""
+
+E6_CELL: Final = ("6-7", "male", 1)
+"""E6's removed cell: men in their sixties and seventies readmitted within 30 days."""
+
+E6_CAP: Final = 1500.0
+"""E6's total spend cap in USD, split between its two fractions' runs."""
+
+E6_ASKED: Final[Mapping[str, int]] = MappingProxyType({"thin": 9_571, "empty": 7_671})
+"""Each E6 fraction's estimated records asked per holdout (`docs/EVIDENCE.md`, E6
+Configuration)."""
+
+E6_SLICES: Final = 10
+"""How many consecutive-holdout slices each E6 fraction's run is cut into."""
+
+E6_SETTINGS: Final = replace(SETTINGS, max_tokens=32000)
+"""`SETTINGS` with room for a Diabetes call's reply: at 16000 tokens 1 of 15 pilot calls
+stopped at the limit, at 32000 none of 10 did (`docs/EVIDENCE.md`, E6 Configuration)."""
+
+
+def _e6_ceiling(name: str) -> float:
+    """E6 fraction `name`'s share of `E6_CAP`, in proportion to its records asked."""
+    return E6_CAP * E6_ASKED[name] / sum(E6_ASKED.values())
+
+
+E6_THIN: Final = replace(
+    E3,
+    arms=E6_ARMS,
+    candidate="bko",
+    comparators=tuple(arm for arm in E6_ARMS if arm not in {"bko", REAL_ARM}),
+    replica_arms=("bko",),
+    replica_rows=2000,
+    removal=Removal(E6_CELL, 0.985),
+    fill_to=1269,
+    cutoff=0.0902,
+    spend_ceiling=_e6_ceiling("thin"),
+)
+"""E6's thinned run over the Diabetes frame: 0.985 of `E6_CELL`'s 1,269 training rows removed,
+each row-adding arm filling it back to 1,269, the training prevalence 0.0902 as the cutoff,
+`bko`'s capped replica of 2000 rows, and E3's holdouts, threshold, copy rule and empty criteria
+(ADR `research/diabetes-subgroup-removal-design`)."""
+
+E6_EMPTY: Final = replace(
+    E6_THIN,
+    removal=Removal(E6_CELL, 1.0),
+    replica_arms=(),
+    replica_rows=None,
+    spend_ceiling=_e6_ceiling("empty"),
+)
+"""E6's zero-shot run: `E6_THIN` with every training row of `E6_CELL` removed and no replica."""
+
+
+def _e6_runs(name: str, whole: Experiment) -> dict[str, NamedRun]:
+    """E6 fraction `name`'s whole run and its `E6_SLICES` slices, `e6-<name>a` onwards.
+
+    Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
+
+    Raises:
+        ValueError: If `E6_SLICES` does not divide the holdouts, which would drop the last ones.
+    """
+    size, left = divmod(len(whole.holdout_seeds), E6_SLICES)
+    if left:
+        msg = f"{len(whole.holdout_seeds)} holdouts do not divide into {E6_SLICES} slices"
+        raise ValueError(msg)
+    runs = {f"e6-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
+    for index, letter in enumerate("abcdefghij"[:E6_SLICES]):
+        sliced = replace(
+            whole,
+            holdout_seeds=whole.holdout_seeds[index * size : (index + 1) * size],
+            spend_ceiling=whole.spend_ceiling / E6_SLICES,
+        )
+        runs[f"e6-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, Dataset.DIABETES)
+    return runs
+
+
 G6_BASE: Final = replace(
     E1, arms=(*METHOD_ARMS, "bko"), replica_arms=(*ADDS_ROWS, "bko"), criteria=()
 )
@@ -300,6 +388,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             )
             for name, model in G6_THINKING.items()
         },
+        **_e6_runs("thin", E6_THIN),
+        **_e6_runs("empty", E6_EMPTY),
         "g5": NamedRun(
             G5,
             Settings(
@@ -321,6 +411,8 @@ holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceilin
 `b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, `b2-uci` and `b2-synthea` are `B2_UCI` and
 `B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
 its `G6_MODELS` model and ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with
-its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling. A variant adds its own entry in its
-own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling and
-criteria."""
+its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and `e6-empty` are
+`E6_THIN` and `E6_EMPTY` at `E6_SETTINGS` over the Diabetes frame, each `e6-<fraction><letter>`,
+`a` to `j`, the next 10 of its holdouts at a tenth of its ceiling. A variant adds its own entry
+in its own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling
+and criteria."""

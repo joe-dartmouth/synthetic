@@ -12,6 +12,7 @@ import pytest
 
 import bko.evaluate.run as run_module
 from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
+from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
@@ -274,6 +275,100 @@ def test_a_shortfall_with_no_rows_built_still_refuses():
         run(GRADED, SMALL, {**FAST_ARMS, "smote": short}, frame=UCI_FRAME)
 
 
+ONE_RECORD = GRADED.drop(
+    GRADED.index[[cell == (f"<{EDGE}", "female", 1) for cell in cell_list(GRADED)]][1:]
+)
+"""`GRADED` with one record left in `<55 female 1`: a structural shortfall for SMOTE."""
+
+
+def test_a_structural_shortfall_fills_partially_on_attempt_1(caplog):
+    assert SMALL.attempts > 1
+    calls = []
+
+    def counting(train, request):
+        calls.append(request.seed)
+        return FAST_ARMS["smote"](train, request)
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        scores = run(ONE_RECORD, ONLY_SMOTE, {"smote": counting}, frame=UCI_FRAME)
+    assert len(calls) == len(SMALL.holdout_seeds)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    assert not any(m.startswith("retry ") for m in caplog.messages)
+    lines = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert len(lines) == len(SMALL.holdout_seeds)
+    assert all(
+        re.fullmatch(
+            rf"shortfall holdout=\d+ arm=smote attempt=1 cell=<{EDGE}/female/1 "
+            r"short=(\d+) quota=\1",
+            m,
+        )
+        for m in lines
+    )
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert all(" attempt=1 " in m and '"short": {' in m for m in arms)
+
+
+def test_a_plain_refusal_on_a_structural_request_keeps_its_retries(caplog):
+    calls = []
+
+    def flaky(train, request):
+        calls.append(request.seed)
+        if len(calls) % 2 == 1:
+            msg = "past its budget"
+            raise BaselineError(msg)
+        return FAST_ARMS["smote"](train, request)
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        run(ONE_RECORD, ONLY_SMOTE, {"smote": flaky}, frame=UCI_FRAME)
+    assert len(calls) == 2 * len(SMALL.holdout_seeds)
+    retries = [m for m in caplog.messages if m.startswith("retry ")]
+    assert [m.split()[1:4] for m in retries] == [
+        [f"holdout={seed}", "arm=smote", "attempt=1"] for seed in SMALL.holdout_seeds
+    ]
+    shortfalls = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert len(shortfalls) == len(SMALL.holdout_seeds)
+    assert all(" attempt=2 " in m for m in shortfalls)
+    arms = [m for m in caplog.messages if m.startswith("arm holdout=")]
+    assert all(" attempt=2 " in m for m in arms)
+
+
+def test_a_shortfall_beside_a_retry_fixable_stratum_keeps_its_retries(caplog):
+    """`ONE_RECORD`'s gap request asks `<55 female 1` (structural) and `>=55 female 1`; an
+    attempt short of both is retried, since a retry can fill the second, and the next attempt,
+    short of the structural cell alone, fills partially."""
+    calls = []
+
+    def both_short(train, request):
+        calls.append(request.seed)
+        try:
+            return FAST_ARMS["smote"](train, request)
+        except ShortfallError as exc:
+            if len(calls) % 2 == 0 or exc.baseline is None:
+                raise
+            empty = dataclasses.replace(exc.baseline, added=exc.baseline.added.iloc[:0])
+            short = {f"<{EDGE}/female/1": 19, f">={EDGE}/female/1": 2}
+            msg = "short of both cells"
+            raise ShortfallError(msg, short, empty.added, empty) from exc
+
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        run(ONE_RECORD, ONLY_SMOTE, {"smote": both_short}, frame=UCI_FRAME)
+    assert len(calls) == 2 * len(SMALL.holdout_seeds)
+    retries = [m for m in caplog.messages if m.startswith("retry ")]
+    assert [m.split()[1:4] for m in retries] == [
+        [f"holdout={seed}", "arm=smote", "attempt=1"] for seed in SMALL.holdout_seeds
+    ]
+    shortfalls = [m for m in caplog.messages if m.startswith("shortfall ")]
+    assert len(shortfalls) == len(SMALL.holdout_seeds)
+    assert all(f" attempt=2 cell=<{EDGE}/female/1 short=19 " in m for m in shortfalls)
+
+
+def test_a_structural_shortfall_on_a_replica_still_refuses(caplog):
+    replica = dataclasses.replace(ONLY_SMOTE, replica_arms=("smote",), threshold=2, fill_to=3)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"), pytest.raises(ShortfallError):
+        run(ONE_RECORD, replica, {"smote": FAST_ARMS["smote"]}, frame=UCI_FRAME)
+    assert any(m.startswith("refused holdout=0 arm=smote-replica ") for m in caplog.messages)
+
+
 def test_a_refusal_is_retried_with_a_derived_seed():
     seeds = []
 
@@ -504,3 +599,85 @@ def test_smote_rows_copy_fewer_training_rows_than_it_adds(caplog):
     assert found is not None
     rows, copied = map(int, found.groups())
     assert copied < rows
+
+
+CLASSIFIER_MEASURES = frozenset({Measure.RECALL, Measure.PRECISION, Measure.AUC_PR})
+
+
+def thinned_replica(keep):
+    """SMOTE's runner, but its replica fill keeps only the rows `keep` selects from its rows."""
+
+    def thin(train, request):
+        full = FAST_ARMS["smote"](train, request)
+        fill = CURRENT_FILL.get()
+        if fill is None or fill.kind != "replica":
+            return full
+        return Baseline(number(full.added.loc[keep(full.added)]), full.weights, full.params)
+
+    return thin
+
+
+REPLICA_ONLY = dataclasses.replace(ONLY_SMOTE, replica_arms=("smote",))
+
+
+def replica_scores(keep) -> tuple[list, list]:
+    """The run's REPLICA classifier rows and its other REPLICA rows, the replica thinned."""
+    scores = run(GRADED, REPLICA_ONLY, {"smote": thinned_replica(keep)}, frame=UCI_FRAME)
+    assert {score.holdout for score in scores} == set(SMALL.holdout_seeds)
+    augmented = [s for s in scores if s.source is Source.AUGMENTED and s.scope is Scope.ALL]
+    assert augmented
+    assert not any(np.isnan(s.value) for s in augmented)
+    replica = [s for s in scores if s.source is Source.REPLICA]
+    measured = [s for s in replica if s.measure in CLASSIFIER_MEASURES]
+    assert len(measured) == len(SMALL.holdout_seeds) * len(CLASSIFIER_MEASURES) * len(Scope)
+    return measured, [s for s in replica if s.measure not in CLASSIFIER_MEASURES]
+
+
+def test_a_replica_of_one_label_scores_undefined_and_the_run_goes_on(caplog):
+    with caplog.at_level(logging.WARNING, logger="bko.evaluate"):
+        measured, others = replica_scores(lambda added: added["target"].eq(0))
+    lines = [m for m in caplog.messages if m.startswith("undefined holdout=")]
+    assert len(lines) == len(SMALL.holdout_seeds)
+    pattern = r"undefined holdout=\d+ arm=smote rows=\d+ labels=1 held=0"
+    assert all(re.fullmatch(pattern, m) for m in lines)
+    assert all(np.isnan(s.value) for s in measured)
+    assert others
+    assert not any(np.isnan(s.value) for s in others)
+    held = len(SMALL.holdout_seeds)
+    assert caplog.messages[-1] == f"undefined replicas arm=smote holdouts={held} of={held}"
+
+
+def test_a_run_with_every_replica_defined_tallies_none(caplog):
+    with caplog.at_level(logging.WARNING, logger="bko.evaluate"):
+        run(GRADED, REPLICA_ONLY, FAST_ARMS, frame=UCI_FRAME)
+    assert not any(m.startswith("undefined replicas ") for m in caplog.messages)
+
+
+def test_a_replica_of_one_row_has_no_fidelity():
+    def first(added):
+        return added.index == added.index[0]
+
+    measured, others = replica_scores(first)
+    assert all(np.isnan(s.value) for s in measured)
+    fidelity = [s for s in others if s.measure is not Measure.TEST_COPIES]
+    assert len(fidelity) == 3 * len(SMALL.holdout_seeds)
+    assert all(np.isnan(s.value) for s in fidelity)
+
+
+def test_a_replica_with_no_rows_scores_undefined():
+    measured, others = replica_scores(lambda added: added["target"].lt(0))
+    assert all(np.isnan(s.value) for s in measured)
+    copied = [s for s in others if s.measure is Measure.TEST_COPIES]
+    assert [s.value for s in copied] == [0.0] * len(SMALL.holdout_seeds)
+    fidelity = [s for s in others if s.measure is not Measure.TEST_COPIES]
+    assert len(fidelity) == 3 * len(SMALL.holdout_seeds)
+    assert all(np.isnan(s.value) for s in fidelity)
+
+
+def test_an_undefined_replica_keeps_a_defined_runs_keys():
+    defined = run(GRADED, REPLICA_ONLY, FAST_ARMS, frame=UCI_FRAME)
+    one = thinned_replica(lambda added: added["target"].eq(0))
+    undefined = run(GRADED, REPLICA_ONLY, {"smote": one}, frame=UCI_FRAME)
+    assert [(s.holdout, s.arm, s.source, s.measure, s.scope) for s in undefined] == [
+        (s.holdout, s.arm, s.source, s.measure, s.scope) for s in defined
+    ]

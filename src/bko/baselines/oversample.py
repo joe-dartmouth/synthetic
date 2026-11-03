@@ -6,7 +6,9 @@ training split's mean and standard deviation for the neighbour search, then rest
 (`records.whole`). SMOTE runs as SMOTE-NC, which takes each coded predictor from the neighbours.
 ADASYN has no such variant: the coded predictors are one-hot encoded and each block decoded to its
 largest entry, the nearer parent's code. ADASYN rounds each record's share, so it is asked for
-ceil(records / 2) extra rows and the quota is kept by sha256 rank. The fields are the request's
+ceil(records / 2) extra rows and the quota is kept by sha256 rank. A stratum of fewer than 2
+records is a 0-row shortfall: it gains no row, and the method raises `ShortfallError` holding the
+other strata's rows, which a harness may score as a partial fill. The fields are the request's
 frame's. ADR `research/baseline-augmentation-design` records the choices.
 """
 
@@ -21,8 +23,16 @@ import numpy as np
 import pandas as pd
 from imblearn.over_sampling import ADASYN, SMOTENC
 
-from bko.baselines.errors import BaselineError
-from bko.baselines.records import Baseline, derived_seed, keep, number, unit_weights, whole
+from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.records import (
+    Baseline,
+    derived_seed,
+    keep,
+    no_rows,
+    number,
+    unit_weights,
+    whole,
+)
 from bko.baselines.request import Request, stratum_keys
 from bko.datasets.frames import FrameSpec
 
@@ -48,12 +58,24 @@ type _Sampler = Callable[
 
 
 def smote(train: pd.DataFrame, request: Request) -> Baseline:
-    """Add each stratum's quota with SMOTE-NC."""
+    """Add each stratum's quota with SMOTE-NC.
+
+    Raises:
+        ShortfallError: If a stratum holds fewer than 2 training records, holding the other
+            strata's rows as the method's baseline, `short` naming each such stratum's quota.
+        BaselineError: If imbalanced-learn refuses a stratum.
+    """
     return _oversample(train, request, _smote_stratum, method="smote")
 
 
 def adasyn(train: pd.DataFrame, request: Request) -> Baseline:
-    """Add each stratum's quota with ADASYN on one-hot coded predictors."""
+    """Add each stratum's quota with ADASYN on one-hot coded predictors.
+
+    Raises:
+        ShortfallError: If a stratum holds fewer than 2 training records, holding the other
+            strata's rows as the method's baseline, `short` naming each such stratum's quota.
+        BaselineError: If imbalanced-learn refuses a stratum.
+    """
     return _oversample(train, request, _adasyn_stratum, method="adasyn")
 
 
@@ -65,18 +87,24 @@ def _oversample(
     scaled = _scale(train, frame)
     parts: list[pd.DataFrame] = []
     neighbors: dict[str, int] = {}
+    short: dict[str, int] = {}
     for stratum, rows in request.quota.items():
         inside = np.fromiter((key == stratum for key in keys), dtype=bool, count=len(keys))
         size = int(inside.sum())
         if size < 2:
-            msg = f"{method} needs at least 2 training records in stratum {stratum}; it has {size}"
-            raise BaselineError(msg)
+            short["/".join(map(str, stratum))] = rows
+            continue
         neighbors[str(stratum)] = k = min(NEIGHBORS, size - 1)
         seed = derived_seed(request.seed, method, *stratum)
         values = sample(train, scaled, inside, rows, k, seed, frame)
         values[frame.label] = stratum[-1]
         parts.append(whole(values, frame))
-    added = number(pd.concat(parts))
+    added = number(pd.concat(parts)) if parts else no_rows(frame)
+    if short:
+        kept = Baseline(added, unit_weights(train), {"neighbors": neighbors, "short": short})
+        cells = ", ".join(short)
+        msg = f"{method} needs at least 2 training records in a stratum; {cells} holds fewer"
+        raise ShortfallError(msg, short, added, kept)
     return Baseline(added=added, weights=unit_weights(train), params={"neighbors": neighbors})
 
 

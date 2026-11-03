@@ -17,29 +17,30 @@ cannot start leaves an `error=<type>: <message>` line in `launch.log`, which is 
 line survives a retry; a started process whose `pid=` line cannot be written is still reported
 started, with a WARNING. A dry run writes `launch.log` and starts nothing. A resume
 (`score --resume`) launches into a new folder with the same checks, and refuses a stopped log
-inside that folder. The data root, the runs root and the stopped log are forwarded as absolute
-paths. `check_folder`, `resumable`, `claim`, `release`, `append`, `awake` and `score_command` are
-the checks, claim, keep-awake and command a supervisor's resume reuses.
+inside that folder or one a later segment already resumed (`superseded`); a ceiling or projection
+stop's raised ceiling is forwarded as `--ceiling` and recorded in `launch.log`. A run id whose
+first supervised resume folder, `<run_id>-resume-1`, is not a `RUN_ID` is refused unless no resume
+is asked (`--retries 0`). The data root, the runs root and the stopped log are forwarded as
+absolute paths. `check_folder`, `claim`, `release`, `append`, `awake` and
+`score_command` are the checks, claim, keep-awake and command a supervisor's resume reuses.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import shlex
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import sys
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
 from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.errors import EvaluationError
-from bko.generate.errors import ReplayError
-from bko.generate.messages import Settings
-from bko.generate.replay import log_ends, refuse_unresumable
+from bko.evaluate.resumes import raised_line, superseded
+from bko.generate.resume_guard import Raised
 
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ def launch(  # ruff: ignore[too-many-arguments]
     dry_run: bool = False,
     rehearse: bool = False,
     resume: Path | None = None,
+    raised: Raised | None = None,
     in_flight: int | None = None,
     retries: int = RETRIES,
     power: Power = on_battery,
@@ -162,18 +164,21 @@ def launch(  # ruff: ignore[too-many-arguments]
         dry_run: Write the folder's roles and the log, and start nothing.
         rehearse: Rehearse the run on canned replies, into `root/<run_id>/rehearsal`.
         resume: The call log of a stopped run to resume, or None for a new run.
+        raised: The ceiling or projection stop `resume` ended on, with the ceiling raised for it
+            (`resumable`), forwarded as `--ceiling`; None for any other.
         in_flight: The calls `score` keeps in flight, forwarded as `--in-flight`; None forwards
             nothing, so `score`'s default holds.
-        retries: The resumes the supervisor makes at most, forwarded as `--retries`. A run id
-            whose `<run_id>-resume-1` is not a `RUN_ID` gets none, with a WARNING.
+        retries: The resumes the supervisor makes at most, forwarded as `--retries`.
         power: Whether the machine runs on battery.
         start: Starts the command detached.
         platform: `sys.platform`; `caffeinate` holds the machine awake on `darwin` only.
         now: The clock the log's line reads.
 
     Raises:
-        EvaluationError: If `run_id` is not a run id of record of `run`'s entry, `rehearse` is
-            given with `resume`, `resume` is not a file or lies inside the folder, the machine
+        EvaluationError: If `run_id` is not a run id of record of `run`'s entry, or asks for
+            resumes (`retries` above 0, no `rehearse`) while `<run_id>-resume-1` is not a
+            `RUN_ID`, `rehearse` is given with `resume`, `resume` is not a file, lies inside the
+            folder or is `superseded` under `root`, the machine
             reports battery power, or on macOS its power cannot be read, the folder already holds
             the call log, the scores, their log or the candidates file, the output files cannot
             be claimed, or the process cannot start.
@@ -182,16 +187,20 @@ def launch(  # ruff: ignore[too-many-arguments]
             WARNING instead, and the launch is reported started.
     """
     folder = root / run_id / REHEARSAL if rehearse else root / run_id
+    match = RUN_ID.fullmatch(run_id)
+    resumes = retries > 0 and not rehearse and match is not None and match["entry"] is not None
+    if resumes and RUN_ID.fullmatch(f"{run_id}-resume-1") is None:
+        msg = (
+            f"{run_id}-resume-1 is not a run id, so the supervisor could resume no stop of "
+            f"{run_id!r}; launch under a fresh run id, such as the next free "
+            f"{run_id.partition('-')[0]}-<n>, or pass --retries 0"
+        )
+        raise EvaluationError(msg)
     battery = check_folder(
         run_id, run, folder, rehearse=rehearse, resume=resume, power=power, platform=platform
     )
-    if retries > 0 and not rehearse and RUN_ID.fullmatch(f"{run_id}-resume-1") is None:
-        logger.warning(
-            "launch run_id=%s resumes=none reason=name: %s-resume-1 is not a run id, so the "
-            "supervisor resumes no stop",
-            run_id,
-            run_id,
-        )
+    if resume is not None:
+        superseded(resume, root)
     held = awake(platform)
     command = (
         *held,
@@ -206,6 +215,7 @@ def launch(  # ruff: ignore[too-many-arguments]
         "--runs-dir",
         str(root.absolute()),
         *(["--resume", str(resume.absolute())] if resume is not None else []),
+        *(["--ceiling", repr(raised.ceiling)] if raised is not None else []),
         *(["--data-dir", str(data_dir.absolute())] if data_dir is not None else []),
         *(["--rehearse"] if rehearse else []),
         *(["--in-flight", str(in_flight)] if in_flight is not None else []),
@@ -219,6 +229,7 @@ def launch(  # ruff: ignore[too-many-arguments]
             f"rehearse={str(rehearse).lower()} "
             f"resume={resume.absolute() if resume is not None else 'none'}"
         ),
+        *([] if raised is None else [raised_line(raised)]),
         f"power={reading}",
         f"awake={'caffeinate' if held else 'none'}",
         f"command={shlex.join(command)}",
@@ -247,6 +258,7 @@ def score_command(
     data_dir: Path | None = None,
     rehearse: bool = False,
     resume: Path | None = None,
+    ceiling: float | None = None,
     in_flight: int | None = None,
 ) -> tuple[str, ...]:
     """The `score` command that runs `run` into `folder`, its paths absolute where given.
@@ -257,6 +269,7 @@ def score_command(
         data_dir: The data root, or None for `score`'s default.
         rehearse: Rehearse the run on canned replies.
         resume: The call log of a stopped run to resume, or None.
+        ceiling: The ceiling raised for that resume, forwarded as `--ceiling`, or None.
         in_flight: The calls in flight, or None for `score`'s default.
 
     Returns:
@@ -269,6 +282,7 @@ def score_command(
         "score",
         run,
         *(["--resume", str(resume.absolute())] if resume is not None else []),
+        *(["--ceiling", repr(ceiling)] if ceiling is not None else []),
         "--log",
         str(folder / "calls.jsonl"),
         "--candidates",
@@ -304,24 +318,6 @@ def check_folder(
         msg = f"{folder} already holds {', '.join(taken)}; a run of record gets a new folder"
         raise EvaluationError(msg)
     return battery
-
-
-def resumable(path: Path, settings: Settings) -> None:
-    """Refuse a stopped log a resume cannot resume, before any folder is claimed.
-
-    Raises:
-        EvaluationError: As `bko.generate.replay.refuse_unresumable`, or if the log's settings
-            differ from `settings`, the named run's, so its first replayed call would differ.
-    """
-    try:
-        run_line, end = log_ends(path)
-        refuse_unresumable(path, run_line, end)
-    except ReplayError as exc:
-        raise EvaluationError(str(exc)) from exc
-    expected = json.loads(json.dumps(asdict(settings)))
-    if run_line.get("settings") != expected:
-        msg = f"{path} was made with settings {run_line.get('settings')}, not the run's {expected}"
-        raise EvaluationError(msg)
 
 
 def claim(folder: Path) -> tuple[Path, Path]:

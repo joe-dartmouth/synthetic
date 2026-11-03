@@ -12,14 +12,17 @@ import io
 import json
 import logging
 import re
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Final
 
 import pytest
 
+from bko.baselines.request import Method
 from bko.datasets.cells import LABEL
 from bko.datasets.diabetes import STATE_CODES, load_diabetes
 from bko.datasets.errors import ContractError
+from bko.datasets.split import held_out_count
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
@@ -34,7 +37,9 @@ from bko.evaluate.diabetes import (
     indicator_codes,
 )
 from bko.evaluate.experiment import (
+    BKO_ARMS,
     CLLM_ARM,
+    CLLM_RAW_ARM,
     DIRECT_ARM,
     E1,
     REAL_ARM,
@@ -43,9 +48,10 @@ from bko.evaluate.experiment import (
     Removal,
 )
 from bko.evaluate.holdout_candidates import read
+from bko.evaluate.launch import REHEARSAL
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run import method_arms
-from bko.evaluate.scores import parse
+from bko.evaluate.scores import Source, parse
 from bko.gaps.shares import nested
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.prompt import system
@@ -229,6 +235,42 @@ def test_diabetes_rehearses_end_to_end_on_a_tmp_archive(rehearsed):
     assert {line.arm for line in kept.candidates} == {"bko", DIRECT_ARM, SKELETON_ARM, CLLM_ARM}
 
 
+EVERY_ARM: Final = (
+    *(str(method) for method in Method),
+    *BKO_ARMS,
+    DIRECT_ARM,
+    SKELETON_ARM,
+    CLLM_ARM,
+    CLLM_RAW_ARM,
+    REAL_ARM,
+)
+"""E6's arms: every method, every Messages arm, the direct arm and `real`."""
+
+EMPTIED: Final = dataclasses.replace(
+    TOY_RUN,
+    arms=EVERY_ARM,
+    comparators=tuple(arm for arm in EVERY_ARM if arm not in {"bko", REAL_ARM}),
+    removal=Removal(REMOVED, 1.0),
+)
+"""The toy run at E6's zero-shot removal: every training row of `(6-7, female, 1)` removed."""
+
+
+def test_every_e6_arm_completes_at_an_emptied_cell(tmp_path, caplog):
+    with caplog.at_level(logging.INFO, logger="bko"):
+        text, log = _score(tmp_path, "toy-e6-emptied", EMPTIED, "--rehearse")
+    scores = parse(text)
+    for holdout in (0, 1):
+        scored = {s.arm for s in scores if s.holdout == holdout and s.source is Source.AUGMENTED}
+        assert scored == set(EVERY_ARM)
+    shortfalls = [m for m in caplog.messages if m.startswith("shortfall holdout=")]
+    for arm in ("smote", "adasyn"):
+        mine = [m for m in shortfalls if f" arm={arm} " in m]
+        assert len(mine) == 2
+        assert all(" attempt=1 cell=6-7/female/1 " in m for m in mine)
+    assert not any(m.startswith(("retry ", "refused ")) for m in caplog.messages)
+    assert json.loads(log.read_text(encoding="utf-8").splitlines()[-1])["status"] == "complete"
+
+
 def test_a_diabetes_rehearsal_sends_no_uci_words(rehearsed):
     _, log = rehearsed
     requests = _requests(log)
@@ -292,3 +334,116 @@ def test_a_lab_row_the_frame_cannot_code_is_refused_naming_it(edit, named):
 
 def test_no_field_row_nests_inside_another():
     assert nested(DIABETES_FIELD_ROWS) == {}
+
+
+TOY_FILL: Final = TOY_CELLS["6-7", "Female", 1] - held_out_count(TOY_CELLS["6-7", "Female", 1])
+"""The toy cell's un-ablated training count, E6's fill target on the toy cohort."""
+
+TOY_E6: Final = dataclasses.replace(
+    EMPTIED,
+    holdout_seeds=(0, 1, 2, 3),
+    fill_to=TOY_FILL,
+    replica_arms=("bko",),
+    replica_rows=160,
+    removal=Removal(REMOVED, 0.9),
+)
+"""E6's thinned run on the toy cohort: every arm, `bko`'s capped replica, copies kept."""
+
+TOY_E6_EMPTY: Final = dataclasses.replace(
+    TOY_E6, replica_arms=(), replica_rows=None, removal=Removal(REMOVED, 1.0)
+)
+"""E6's zero-shot run on the toy cohort: the cell emptied, no replica."""
+
+E6_SLICES: Final = {
+    "thin": (TOY_E6, ("e6-1", "e6-2")),
+    "empty": (TOY_E6_EMPTY, ("e6-3", "e6-4")),
+}
+"""Each toy fraction's run and its two slices' run ids; slice `a` holds holdouts 0 and 1, `b` 2
+and 3, each with its own holdouts as E6's slices hold theirs."""
+
+LOG_FORMAT: Final = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+"""The line format `configure_logging` gives a launched run's `scores.log`."""
+
+
+def _after_module(command: Sequence[str]) -> list[str]:
+    """`command`'s arguments after `-m bko.evaluate`, as `main` takes them."""
+    return list(command[command.index("bko.evaluate") + 1 :])
+
+
+def _launching(runs: dict[str, NamedRun]) -> Context:
+    """A context whose `launch` runs `supervise`, and its segments, in this process.
+
+    The supervisor's and each segment's log lines go to the launched folder's `scores.log` in the
+    line format a detached run writes, so `merge` reads its `data`, `versions` and `experiment`
+    lines as it reads a real slice's.
+    """
+    holder: list[Context] = []
+
+    def segment(
+        command: Sequence[str], out: Path, err: Path, started: Callable[[int], None]
+    ) -> int:
+        started(2**22 + 1)
+        with out.open("a", encoding="utf-8") as sink:
+            return main(_after_module(command), context=holder[0], out=sink)
+
+    def start(command: Sequence[str], out: Path, err: Path) -> int:
+        handler = logging.FileHandler(err, encoding="utf-8")
+        handler.setFormatter(LOG_FORMAT)
+        logger = logging.getLogger("bko")
+        logger.addHandler(handler)
+        try:
+            assert main(_after_module(command), context=holder[0]) == 0
+        finally:
+            logger.removeHandler(handler)
+            handler.close()
+        return 2**22
+
+    pins, served = diabetes_releases()
+    holder.append(
+        Context(
+            open_url=RoutingOpener({**served, PIN.url: ARCHIVE}),
+            runs=runs,
+            arms=method_arms(FAST_METHODS),
+            releases=pins,
+            send=_unsendable,
+            diabetes=PIN,
+            power=lambda: False,
+            start=start,
+            segment=segment,
+            sleep=lambda seconds: None,
+        )
+    )
+    return holder[0]
+
+
+@pytest.mark.parametrize("name", list(E6_SLICES))
+def test_e6_shaped_runs_rehearse_and_merge_end_to_end(tmp_path, caplog, name):
+    experiment, ids = E6_SLICES[name]
+    runs = {f"e6-{name}": NamedRun(experiment, SETTINGS, Dataset.DIABETES)}
+    for letter, seeds in (("a", (0, 1)), ("b", (2, 3))):
+        sliced = dataclasses.replace(experiment, holdout_seeds=seeds)
+        runs[f"e6-{name}{letter}"] = NamedRun(sliced, SETTINGS, Dataset.DIABETES)
+    root = tmp_path / "runs"
+    context = dataclasses.replace(_launching(runs), runs_dir=root)
+    data = ["--data-dir", str(tmp_path / "data")]
+    caplog.set_level(logging.INFO, logger="bko")
+    folders = [root / run_id / REHEARSAL for run_id in ids]
+    for run_id, letter, folder in zip(ids, "ab", folders, strict=True):
+        argv = ["launch", run_id, f"e6-{name}{letter}", "--rehearse", *data]
+        assert main(argv, context=context, out=io.StringIO()) == 0
+        calls = (folder / "calls.jsonl").read_text(encoding="utf-8").splitlines()
+        assert json.loads(calls[-1])["status"] == "complete"
+        assert "outcome=complete exit=0" in (folder / "launch.log").read_text(encoding="utf-8")
+    merged = io.StringIO()
+    argv = ["merge", f"e6-{name}", *(str(folder / "scores.csv") for folder in folders)]
+    assert main(argv, context=context, out=merged) == 0
+    scores = parse(merged.getvalue())
+    assert {score.holdout for score in scores} == {0, 1, 2, 3}
+    assert {s.arm for s in scores if s.source is Source.AUGMENTED} == set(EVERY_ARM)
+    if experiment.replica_rows is None:
+        return
+    caplog.clear()
+    thin = [f"--candidates={folder / 'holdout-candidates.jsonl'}" for folder in folders]
+    argv = ["likelihood", f"e6-{name}", *thin, *data]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    assert any(m.startswith("gate separated=") for m in caplog.messages)

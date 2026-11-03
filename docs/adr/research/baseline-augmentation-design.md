@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-10-31
+updated: 2026-11-02
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -44,16 +44,21 @@ seed their sampling after every fit, and seed no fit.
   weights each record n / (k * n_c) over the labels, scikit-learn's balanced heuristic, computed in
   the stage.
 - **SMOTE is SMOTE-NC**, run once per stratum against the rest of the split with
-  k = min(5, records - 1). A stratum of fewer than 2 records is refused.
+  k = min(5, records - 1). A stratum of fewer than 2 records is a 0-row shortfall: the method adds
+  no row to it, fills the other strata, and raises a shortfall holding their rows and naming the
+  stratum's quota as short, which the harness scores as a partial fill on the attempt that meets
+  it (ADR [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
 - **ADASYN runs the same way on one-hot coded predictors**, each block decoded to its largest entry.
   It is asked for ceil(records / 2) more rows than the quota, and the quota is kept by sha256 rank.
 - **SMOTE and ADASYN z-score the measured predictors** with the training split's mean and standard
   deviation for the neighbour search; restored values round to the archive's precision.
 - **CTGAN and TVAE are SDV's synthesizers at SDV's defaults** on explicit metadata, on the CPU. Each
   draws unconditioned batches and keeps the rows whose own values fall in a stratum still short, until
-  every quota is met or a cap on drawn rows is reached; at the cap the method refuses, and the
-  evaluation harness scores a gap fill's last attempt as the rows it kept (ADR
-  [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)).
+  every quota is met or a cap on drawn rows is reached; at the cap the method raises a shortfall
+  holding the rows it kept, and the evaluation harness scores a gap fill's last attempt as those
+  rows (ADR [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)). The Gaussian copula,
+  sequential CART and the Bayesian network draw and keep rows the same way and hold their kept rows
+  the same way.
 - **The Gaussian copula is SDV's `GaussianCopulaSynthesizer` at its defaults**
   ([`patki-2016`](../../literature.md#tabular-generators)), fit on the
   training split and drawn unconditioned, rows kept by their own values as CTGAN's and TVAE's are.

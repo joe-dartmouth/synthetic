@@ -2,7 +2,8 @@
 
 A wave is the longest run of a round's short cells whose (sex, label) chains are distinct; its
 batches are taken in call order, and a batch that keeps a row in a later group's cell refuses the
-wave (ADR `research/concurrent-call-waves`). `spendable` is the exact spend check the flight runs
+wave (ADR `research/concurrent-call-waves`). `asks` sizes each call of a round, `give_up` finds
+the cells a curating arm stops asking, and `spendable` is the exact spend check the flight runs
 before each call.
 """
 
@@ -107,6 +108,27 @@ def spendable(log: CallLog, ceiling: float) -> None:
         logger.warning("stop rule=ceiling usd=%.4f ceiling=%.2f", spent, ceiling)
         msg = f"the run's spend {spent:.4f} USD reached its ceiling of {ceiling} USD"
         raise StopRuleError(msg, "ceiling")
+
+
+def asks(
+    attempt: Attempt, cell: Cell, short: int, *, per_call: int, budget: int | None
+) -> list[int]:
+    """The records each call of a round asks of `cell`, short by `short`, in call order.
+
+    The round makes one call per `per_call` of `short`. An arm that does not curate, `budget`
+    None, asks `short` itself; a curating arm's call asks `min(per_call, limit - asked)`, its
+    cell's limit being `budget` times its quota, so a cell short by one asks a full call and never
+    asks past its limit. `give_up` has already kept every asked cell's limit above its shortfall.
+    """
+    if budget is None:
+        return [min(per_call, short - start) for start in range(0, short, per_call)]
+    left = budget * attempt.request.quota[cell] - attempt.asked_in[cell]
+    found: list[int] = []
+    for _ in range(0, short, per_call):
+        ask = min(per_call, left)
+        found.append(ask)
+        left -= ask
+    return found
 
 
 def give_up(

@@ -15,10 +15,14 @@ line whose child exited on its own (a crash), a missing or unreadable log and an
 `<run_id>-resume-<k>` under launch's own argument, power and folder checks and claim, and runs
 `score --resume` on the previous segment's call log there, at half the previous in-flight (at
 least 1) when that segment was rate limited. A rehearsal is never resumed, and neither is a run id
-whose `-resume-<k>` folder name is not a `RUN_ID`. Every line goes to the run folder's `launch.log`
-behind a UTC time, and to the log; the last is `supervise done`, with the command's exit code: the
-last segment's, 128 plus the signal's number for a child a signal killed, or 2 when a resume
-cannot be claimed.
+whose `-resume-<k>` folder name is not a `RUN_ID`. A ceiling raised for the first segment's resume
+(`--ceiling`) goes to that segment alone; a later segment runs under the ceiling its source log
+ran under (`bko.generate.replay.Resume.ceiling`). A ceiling or projection stop's line is followed
+by a `supervise stop=` WARNING with its spend, its projection and the command that resumes it.
+Every line goes to the run folder's `launch.log` behind a UTC time, and to the log; the last is
+`supervise done`, with the command's exit code: the last segment's, 128 plus the signal's number
+for a child a signal killed, or 2 when a resume cannot be claimed. `bko.evaluate.segments` reads
+a finished segment's call log.
 """
 
 from __future__ import annotations
@@ -46,15 +50,15 @@ from bko.evaluate.launch import (
     claim,
     on_battery,
     release,
-    resumable,
     score_command,
     utc_now,
 )
+from bko.evaluate.resumes import resumable
+from bko.evaluate.segments import Outcome, outcome
 from bko.evaluate.stopping import STOP_FILE, OperatorStop
-from bko.generate.errors import ReplayError
 from bko.generate.flight import IN_FLIGHT
+from bko.generate.log import SPEND_STOPS
 from bko.generate.messages import Settings
-from bko.generate.replay import UNRESUMABLE, log_ends
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +71,13 @@ BACKOFF_CAP_SECONDS: Final = 900.0
 
 STAMP: Final = "%Y-%m-%dT%H:%M:%SZ"
 """The UTC time format that starts every `launch.log` line the supervisor writes."""
+
+SPEND_STOP: Final = (
+    "supervise stop=%s usd=%.4f holdouts=%s projected_usd=%s resume=launch <fresh-run-id> %s "
+    "--resume %s --ceiling <USD above projected_usd>"
+)
+"""The WARNING after a ceiling or projection stop's segment line: the stopped log's spend, its
+finished holdouts and projection (`none` when unrecorded), and the command that resumes it."""
 
 REASONS: Final = (
     "complete",
@@ -145,51 +156,6 @@ def backoff(resume: int) -> float:
     return min(BACKOFF_SECONDS * 2 ** (resume - 1), BACKOFF_CAP_SECONDS)
 
 
-@dataclass(frozen=True, slots=True)
-class Outcome:
-    """What a finished segment's call log says.
-
-    Attributes:
-        status: The `end` line's status; `none` for a log with no `end` line, `absent` for no
-            log, `unreadable` for a log whose first line is not a call log's.
-        stop: The stop rule the `end` line names, or None.
-        retryable: Whether the API caused the stop, or the log has no `end` line and a signal
-            killed the child: the segment is resumed while resumes remain.
-        rate_limited: Whether any retry in the segment met a 429.
-    """
-
-    status: str
-    stop: str | None
-    retryable: bool
-    rate_limited: bool
-
-
-def outcome(log: Path, code: int) -> Outcome:
-    """Read a finished segment's call log at `log`; its child process, which exited `code`, is gone.
-
-    A log with no `end` line is retryable only when `code` is negative, a signal's: `score` turns
-    `SIGTERM`, `SIGINT` and `SIGHUP` into an `interrupted` end line, so a signal that leaves none
-    is a kill, and a child that exited on its own with none crashed.
-    """
-    if not log.is_file():
-        return Outcome("absent", None, retryable=False, rate_limited=False)
-    try:
-        _, end = log_ends(log)
-    except ReplayError, OSError:
-        return Outcome("unreadable", None, retryable=False, rate_limited=False)
-    if end is None:
-        return Outcome("none", None, retryable=code < 0, rate_limited=False)
-    stop = end.get("stop")
-    status = str(end.get("status"))
-    retryable = status == "failed" and end.get("retryable") is True and stop not in UNRESUMABLE
-    return Outcome(
-        status,
-        stop if isinstance(stop, str) else None,
-        retryable=retryable,
-        rate_limited=end.get("rate_limited") is True,
-    )
-
-
 def supervise(  # ruff: ignore[too-many-arguments]
     run_id: str,
     run: str,
@@ -198,8 +164,10 @@ def supervise(  # ruff: ignore[too-many-arguments]
     data_dir: Path | None = None,
     rehearse: bool = False,
     resume: Path | None = None,
+    ceiling: float | None = None,
     in_flight: int | None = None,
     retries: int,
+    holdouts: int | None = None,
     segment: Segment = run_segment,
     sleep: Callable[[float], object] | None = None,
     power: Power = on_battery,
@@ -220,8 +188,10 @@ def supervise(  # ruff: ignore[too-many-arguments]
         rehearse: Rehearse the run on canned replies, into `root/<run_id>/rehearsal`; a rehearsal
             is never resumed.
         resume: The stopped call log the first segment resumes, or None for a new run.
+        ceiling: The ceiling raised for that resume, forwarded to the first segment alone.
         in_flight: The calls `score` keeps in flight, or None for its default.
         retries: The resumes made at most; 0 runs one segment.
+        holdouts: The named run's holdouts, which a spend stop's projection scales to, or None.
         segment: Runs one segment's command to its exit.
         sleep: Waits the backoff before each resume; None waits until the backoff ends or the
             operator stops the run.
@@ -251,9 +221,10 @@ def supervise(  # ruff: ignore[too-many-arguments]
         now=now,
         operator=operator,
         settings=settings,
+        holdouts=holdouts,
     )
     with operator.installed():
-        return _supervise(plan, resume, in_flight)
+        return _supervise(plan, resume, in_flight, ceiling)
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,6 +245,7 @@ class _Plan:
         now: The clock.
         operator: The operator's stop.
         settings: The named run's generator settings.
+        holdouts: The named run's holdouts, or None.
     """
 
     run_id: str
@@ -289,6 +261,7 @@ class _Plan:
     now: Callable[[], datetime]
     operator: OperatorStop
     settings: Settings
+    holdouts: int | None
 
     @property
     def first(self) -> Path:
@@ -300,7 +273,9 @@ class _Plan:
         logger.log(level, "%s", line)
         append(record or self.first / "launch.log", [f"{self.now().strftime(STAMP)} {line}"])
 
-    def command(self, folder: Path, source: Path | None, flight: int | None) -> tuple[str, ...]:
+    def command(
+        self, folder: Path, source: Path | None, flight: int | None, ceiling: float | None
+    ) -> tuple[str, ...]:
         """The segment's command into `folder`, resuming `source` at `flight`, kept awake."""
         return (
             *awake(self.platform),
@@ -310,16 +285,33 @@ class _Plan:
                 data_dir=self.data_dir,
                 rehearse=self.rehearse,
                 resume=source,
+                ceiling=ceiling,
                 in_flight=flight,
             ),
         )
+
+    def spend_stop(self, folder: Path, found: Outcome) -> None:
+        """Write the `SPEND_STOP` WARNING for a segment in `folder` a spend rule stopped."""
+        projected = "none"
+        if found.usd is not None and found.holdouts is not None and self.holdouts is not None:
+            scaled = found.usd / max(found.holdouts, 1) * self.holdouts
+            projected = f"{max(found.usd, scaled):.4f}"
+        line = SPEND_STOP % (
+            found.stop,
+            found.usd or 0.0,
+            "none" if found.holdouts is None else found.holdouts,
+            projected,
+            self.run,
+            folder / "calls.jsonl",
+        )
+        self.write(line, level=logging.WARNING)
 
     def reason(self, k: int, found: Outcome) -> str:
         """Why segment `k`, which ended as `found`, is resumed or not: one of `REASONS`."""
         checks = (
             (found.status == "complete", "complete"),
             (self.operator.stopping or found.status == "interrupted", "operator"),
-            (found.stop in UNRESUMABLE, "stop"),
+            (found.stop in SPEND_STOPS, "stop"),
             (found.status == "none" and not found.retryable, "crash"),
             (not found.retryable, "unresumable"),
             (self.rehearse, "rehearsal"),
@@ -338,13 +330,15 @@ class _Plan:
         self.write(f"supervise stop=operator by={self.operator.by}", level=logging.WARNING)
 
 
-def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
-    """Run `plan`'s segments, the first resuming `resume` at `in_flight`, as `supervise`."""
+def _supervise(
+    plan: _Plan, resume: Path | None, in_flight: int | None, ceiling: float | None
+) -> int:
+    """Run `plan`'s segments, the first resuming `resume` at `in_flight` under `ceiling`."""
     folder, source, flight, k, reading = plan.first, resume, in_flight, 0, "unchecked"
     claimed: tuple[Path, ...] = ()
     plan.write(f"supervise pid={os.getpid()}")
     while True:
-        command = plan.command(folder, source, flight)
+        command = plan.command(folder, source, flight, ceiling if k == 0 else None)
         try:
             if k > 0:
                 _opened(plan, folder, command, f"segment={k} resume={source}", reading)
@@ -360,6 +354,8 @@ def _supervise(plan: _Plan, resume: Path | None, in_flight: int | None) -> int:
             plan.stopped()
         line = LINE % (k, folder, code, *_fields(found), why)
         plan.write(line + (SCHEDULED % backoff(k + 1) if why == "retryable" else ""))
+        if why == "stop":
+            plan.spend_stop(folder, found)
         if why != "retryable":
             return plan.done(k, folder, why, exit_code(code))
         if found.rate_limited:
@@ -401,7 +397,7 @@ def _claim(plan: _Plan, name: str, source: Path) -> tuple[str, tuple[Path, Path]
         power=plan.power,
         platform=plan.platform,
     )
-    resumable(source, plan.settings)
+    resumable(source, plan.settings, run=plan.run)
     return "unchecked" if battery is None else "mains", claim(folder)
 
 

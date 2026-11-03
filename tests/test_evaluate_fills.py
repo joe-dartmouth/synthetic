@@ -7,9 +7,9 @@ import dataclasses
 import pytest
 
 from bko.baselines.errors import BaselineError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.fills import CURRENT_FILL, Fill
 from bko.evaluate.run import score_holdout
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 

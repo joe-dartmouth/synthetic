@@ -16,6 +16,7 @@ import signal
 import threading
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Final
 
@@ -25,7 +26,8 @@ from bko.evaluate.data import Data, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
-from bko.evaluate.guided import Knowledge, guided_arms
+from bko.evaluate.guided import Knowledge
+from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.provenance import log_experiment
@@ -36,10 +38,14 @@ from bko.gaps.shares import nested
 from bko.generate.flight import Limits
 from bko.generate.local import SLOTS
 from bko.generate.replay import Answers, Replay, Resume
+from bko.generate.resume_guard import Ceiling
 from bko.generate.weights import LOCAL_MODELS
 
 
 logger = logging.getLogger("bko.evaluate")
+
+CHUNK: Final = 1 << 20
+"""Bytes of the candidates file read at a time to hash it."""
 
 TERMINATING: Final = (signal.SIGTERM, signal.SIGHUP)
 """The signals `score` turns into `KeyboardInterrupt`, beside `SIGINT`, which already is one."""
@@ -115,7 +121,7 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
             "rehearsal canned replies: spend, projection and stop lines are wiring checks, "
             "not paid figures"
         )
-    return _answers(args, context, named.settings.model)
+    return _answers(args, context, named)
 
 
 def data_dir(args: argparse.Namespace) -> Path:
@@ -134,7 +140,9 @@ def _score(
 
     Every stage reads `data`: the harness splits its records under its frame's edges, the BKO arms
     observe cells by its field rows and name it in their knowledge, the rehearsal answers in its
-    frame, and the experiment line, call log and candidates file name its frame.
+    frame, and the experiment line, call log and candidates file name its frame. The scores' row
+    count and sha256 are logged, then, once a candidates file is closed, its path, candidate lines
+    and sha256.
     """
     experiment = named.experiment
     guided, direct = _arms(named, context)
@@ -148,7 +156,27 @@ def _score(
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("scores rows=%d sha256=%s", text.count("\n") - 1, digest)
+    if args.candidates is not None:
+        log_candidates(args.candidates)
     return text
+
+
+def log_candidates(path: Path) -> None:
+    """Log the closed candidates file's path, candidate lines and sha256, read in chunks.
+
+    The scores are rendered before it runs, so a file it cannot read is logged as a WARNING and
+    the scores still go out.
+    """
+    sha256, newlines = hashlib.sha256(), 0
+    try:
+        with path.open("rb") as handle:
+            while chunk := handle.read(CHUNK):
+                sha256.update(chunk)
+                newlines += chunk.count(b"\n")
+    except OSError as exc:
+        logger.warning("candidates path=%s unread error=%s: %s", path, type(exc).__name__, exc)
+        return
+    logger.info("candidates path=%s lines=%d sha256=%s", path, newlines - 1, sha256.hexdigest())
 
 
 def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bool) -> None:
@@ -170,6 +198,9 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
     if args.rehearse and not guided:
         msg = "--rehearse needs a BKO arm"
         raise EvaluationError(msg)
+    if args.ceiling is not None and args.resume is None:
+        msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
+        raise EvaluationError(msg)
     generating = [*guided, *([DIRECT_ARM] if direct else [])]
     if generating and args.candidates is None:
         msg = f"--candidates is required: the arms {generating} generate candidates"
@@ -189,16 +220,20 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
         raise FileExistsError(errno.EEXIST, "the candidates file exists", str(args.candidates))
 
 
-def _answers(args: argparse.Namespace, context: Context, model: str) -> Answers | None:
+def _answers(args: argparse.Namespace, context: Context, named: NamedRun) -> Answers | None:
     """The source that answers the BKO calls, read before any download or log is made.
 
-    A resume's live calls go to `model`'s send (`Context.sender`).
+    A resume's live calls go to the named run's model's send (`Context.sender`), and a ceiling or
+    projection stop resumes under `--ceiling`, raised for this resume alone.
     """
     if args.replay is not None:
         return Replay(args.replay)
     if args.resume is None:
         return None
-    resume = Resume(args.resume, context.sender(model)())
+    holdouts = len(named.experiment.holdout_seeds)
+    raising = None if args.ceiling is None else Ceiling(args.ceiling, holdouts)
+    send = context.sender(named.settings.model)()
+    resume = Resume(args.resume, send, ceiling=raising, run=args.run)
     logger.info(
         "resume log=%s sha256=%s answered=%d dropped=%d carried_usd=%.4f",
         args.resume,
@@ -207,6 +242,18 @@ def _answers(args: argparse.Namespace, context: Context, model: str) -> Answers 
         resume.dropped,
         resume.answered.carried_usd,
     )
+    raised = resume.raised
+    if raised is not None:
+        logger.info(
+            "resume stop=%s usd=%.4f holdouts=%d projected_usd=%.4f ceiling=%.2f",
+            raised.stop,
+            raised.usd,
+            raised.holdouts,
+            raised.projected,
+            raised.ceiling,
+        )
+    elif resume.ceiling is not None:
+        logger.info("resume ceiling=%.2f inherited=true", resume.ceiling)
     return resume
 
 
@@ -220,7 +267,7 @@ def _guided(
     *,
     direct: bool,
 ) -> list[Score]:
-    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided.guided_arms`.
+    """Run every arm, the BKO arms `names` built by `bko.evaluate.guided_run.guided_arms`.
 
     With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
     writes that file alone, with no settings in its header, and no call log is made. Each BKO or
@@ -250,10 +297,11 @@ def _guided(
             )
     settings = named.settings
     canned = context.rehearse(data, experiment, settings) if args.rehearse else None
+    raised = None if isinstance(answers, Replay) or answers is None else answers.ceiling
     with guided_arms(
         names,
         knowledge,
-        experiment,
+        experiment if raised is None else replace(experiment, spend_ceiling=raised),
         settings=settings,
         log=args.log,
         candidates=args.candidates,

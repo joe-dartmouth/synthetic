@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import functools
+import hashlib
+import logging
 import math
 
 import numpy as np
 import pandas as pd
 import pytest
 
+import bko.baselines.bayes_net as bayes_net_module
 from bko.baselines.bayes_net import (
     BINS,
     ESS,
@@ -16,16 +20,20 @@ from bko.baselines.bayes_net import (
     Network,
     Node,
     _occupied,
+    _states,
     bayes_net,
     discretize,
     draw,
     learn,
     mutual_information,
 )
+from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import derived_seed, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
+from bko.baselines.synthesizers import fill
 from bko.datasets.uci import UCI_FRAME
-from tests._baselines_fixtures import QUOTA, assert_contract, full_records
+from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 
 
@@ -190,6 +198,27 @@ def test_the_network_fills_the_toy_frame():
     assert len(added) == sum(quota.values())
 
 
+def test_the_fit_line_names_the_harness_fill(caplog):
+    quota: dict[Stratum, int] = dict.fromkeys(SHORT, 3)
+    request = Request(quota=quota, strata=Strata.CELL, seed=0, frame=TOY)
+    caplog.set_level(logging.INFO, logger=bayes_net_module.logger.name)
+    bayes_net(TOY_TRAIN, request)
+    token = CURRENT_FILL.set(Fill(2, "gap"))
+    try:
+        bayes_net(TOY_TRAIN, request)
+    finally:
+        CURRENT_FILL.reset(token)
+    fits = [
+        r.getMessage().split(" seconds=")[0]
+        for r in caplog.records
+        if r.name == bayes_net_module.logger.name and r.getMessage().startswith("fit ")
+    ]
+    assert fits == [
+        "fit holdout=-1 fill=none method=bayes-net",
+        "fit holdout=2 fill=gap method=bayes-net",
+    ]
+
+
 def test_a_code_no_training_row_holds_is_no_state_and_draws_no_crash():
     train = TRAIN.loc[TRAIN["restecg"] != 1]
     bins = discretize(train, UCI_FRAME)
@@ -263,9 +292,131 @@ def test_a_measured_field_of_distinct_values_gets_bins_states():
     assert counts.max() - counts.min() <= 1
 
 
+def test_coded_states_are_each_codes_place_in_its_field_order():
+    codes = {"cp": (4, 1, 3)}
+    found = _states(pd.Series([1, 3, 4, 4, 1]), "cp", {}, codes)
+    assert found.tolist() == [1, 2, 0, 0, 1]
+    assert found.dtype == np.dtype(int)
+
+
+def test_sparse_codes_map_without_a_table_spanning_their_range():
+    codes = {"cp": (-(10**15), 7, 10**15)}
+    found = _states(pd.Series([10**15, -(10**15), 7]), "cp", {}, codes)
+    assert found.tolist() == [2, 0, 1]
+
+
+@pytest.mark.parametrize(
+    "column",
+    [
+        pd.Series([1.0, np.nan]),
+        pd.Series([1, None], dtype=object),
+        pd.Series([1, pd.NA], dtype="Int64"),
+        pd.Series([1.0, 1.5]),
+    ],
+    ids=["nan", "none", "na", "fraction"],
+)
+def test_a_coded_field_with_a_missing_or_fractional_value_is_refused(column):
+    with pytest.raises(ValueError, match="cp holds values that are not whole codes"):
+        _states(column, "cp", {}, {"cp": (1, 2)})
+
+
+def test_a_code_outside_its_fields_states_is_refused():
+    with pytest.raises(KeyError, match=r"cp holds codes \[2, 9\] outside its states"):
+        _states(pd.Series([1, 9, 2, 1]), "cp", {}, {"cp": (1, 3)})
+
+
 def test_a_tie_falls_to_the_first_field_in_the_frames_order():
     rng = np.random.default_rng(3)
     a = rng.integers(0, 2, 400)
     network = learn(states_of(a=a, b=a.copy(), c=a.copy()), k=1, first="a")
     assert [node.field for node in network.nodes] == ["a", "b", "c"]
     assert network.nodes[2].parents == ("a",)
+
+
+def _table_digest(network: Network) -> str:
+    """The sha256 of every node's field, parents and table, each probability as its float hex."""
+    text = repr(
+        [
+            (
+                node.field,
+                node.parents,
+                sorted(
+                    (key, tuple(float(p).hex() for p in chances))
+                    for key, chances in node.table.items()
+                ),
+            )
+            for node in network.nodes
+        ]
+    )
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def test_learned_edges_and_tables_are_unchanged_on_the_uci_fixture():
+    network = learn(discretize(TRAIN, UCI_FRAME), first="age")
+    assert network.edges == [
+        ("age", "chol"),
+        ("age", "thalach"),
+        ("chol", "thalach"),
+        ("chol", "trestbps"),
+        ("thalach", "trestbps"),
+        ("thalach", "oldpeak"),
+        ("trestbps", "oldpeak"),
+        ("thalach", "cp"),
+        ("oldpeak", "cp"),
+        ("age", "ca"),
+        ("cp", "ca"),
+        ("age", "fbs"),
+        ("cp", "fbs"),
+        ("age", "exang"),
+        ("cp", "exang"),
+        ("age", "restecg"),
+        ("trestbps", "restecg"),
+        ("age", "slope"),
+        ("restecg", "slope"),
+        ("age", "thal"),
+        ("restecg", "thal"),
+        ("trestbps", "target"),
+        ("oldpeak", "target"),
+        ("chol", "sex"),
+        ("trestbps", "sex"),
+    ]
+    assert _table_digest(network) == (
+        "b5da690ca23182f3f58735931ce394f1518cc492ded591d0a282e0ff0343d316"
+    )
+    for node in network.nodes:
+        assert all(type(state) is int for key in node.table for state in key), node.field
+
+
+def test_draws_are_unchanged_for_a_seed():
+    bins = discretize(TRAIN, UCI_FRAME)
+    rows = draw(learn(bins, first="age"), bins, TRAIN, 200, np.random.default_rng(5), UCI_FRAME)
+    assert hashlib.sha256(rows.to_csv(index=False).encode()).hexdigest() == (
+        "8804f6e8ba52d5b451d7a045538ad8a312a973d3fb47a53faf1b33e181a21b04"
+    )
+
+
+def test_mutual_information_is_computed_once_per_field_and_parents(monkeypatch):
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def counted(states: pd.DataFrame, field: str, parents) -> float:
+        calls.append((field, tuple(parents)))
+        return mutual_information(states, field, parents)
+
+    monkeypatch.setattr(bayes_net_module, "mutual_information", counted)
+    learn(discretize(TRAIN, UCI_FRAME), first="age")
+    assert calls
+    assert len(calls) == len(set(calls))
+
+
+def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch):
+    monkeypatch.setattr(bayes_net_module, "fill", functools.partial(fill, batch=10, limit=10))
+    quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
+    with pytest.raises(ShortfallError) as caught:
+        bayes_net(TRAIN, Request(quota=quota, seed=3))
+    short = caught.value
+    assert short.baseline is not None
+    assert set(short.short) == {f">={EDGE}/female/1"}
+    pd.testing.assert_frame_equal(short.baseline.added, short.added)
+    pd.testing.assert_series_equal(short.baseline.weights, unit_weights(TRAIN))
+    assert short.baseline.params["short"] == dict(short.short)
+    assert short.baseline.params["seed"] == 3

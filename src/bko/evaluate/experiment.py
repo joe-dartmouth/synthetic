@@ -19,6 +19,7 @@ import pandas as pd
 from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
+from bko.datasets.split import kept_count
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
@@ -35,20 +36,20 @@ class Removal:
     Attributes:
         cell: The cell's age band, sex label and label.
         fraction: The share of its training rows removed, drawn per holdout at the holdout's seed
-            (`bko.datasets.ablation.thinned`).
+            (`bko.datasets.ablation.thinned`); 1 removes every row of the cell.
     """
 
     cell: Stratum
     fraction: float
 
     def __post_init__(self) -> None:
-        """Refuse a fraction outside (0, 1).
+        """Refuse a fraction outside (0, 1].
 
         Raises:
-            ValueError: If the fraction is not strictly between 0 and 1.
+            ValueError: If the fraction is not above 0 and at most 1.
         """
-        if not 0 < self.fraction < 1:
-            msg = f"removal fraction {self.fraction} must lie strictly between 0 and 1"
+        if not 0 < self.fraction <= 1:
+            msg = f"removal fraction {self.fraction} must lie in (0, 1]"
             raise ValueError(msg)
 
 
@@ -89,6 +90,9 @@ class Experiment:
             arm runs (`bko.datasets.split.subsampled`); 1 keeps them all.
         cutoff: The probability at or above which utility calls a record positive; a float in
             (0, 1).
+        replica_rows: The rows a replica asks for in all, split across cells in proportion to their
+            training counts (`bko.datasets.split.kept_count`), each cell's count rounded, so the
+            cells may sum to a few rows off it; None asks for every training row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -112,6 +116,7 @@ class Experiment:
     decontaminate: bool = True
     training_fraction: Fraction = Fraction(1)
     cutoff: float = THRESHOLD
+    replica_rows: int | None = None
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -127,7 +132,7 @@ class Experiment:
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
-                bool among them).
+                bool among them), or the replica rows are below 1.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -158,10 +163,9 @@ class Experiment:
         if not 0 < self.confidence < 1:
             msg = f"confidence {self.confidence} must lie strictly between 0 and 1"
             raise ValueError(msg)
+        self._check_replica_rows()
         self._check_cutoff()
-        if self.attempts < 1:
-            msg = f"attempts {self.attempts}: an arm needs at least one attempt"
-            raise ValueError(msg)
+        self._check_attempts()
         self._check_fill()
         self._check_training()
         if not 0 < self.validity <= 1:
@@ -195,6 +199,16 @@ class Experiment:
             raise ValueError(msg)
         if self.decontaminate:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
+            raise ValueError(msg)
+
+    def _check_attempts(self) -> None:
+        if self.attempts < 1:
+            msg = f"attempts {self.attempts}: an arm needs at least one attempt"
+            raise ValueError(msg)
+
+    def _check_replica_rows(self) -> None:
+        if self.replica_rows is not None and self.replica_rows < 1:
+            msg = f"replica rows {self.replica_rows} must be 1 or more"
             raise ValueError(msg)
 
     def _check_cutoff(self) -> None:
@@ -327,9 +341,10 @@ label (`bko.evaluate.cllm`, `bko.evaluate.curation`)."""
 CLLM_RAW_ARM: Final = "cllm-uncurated"
 """`cllm` with every accepted row kept: the same prompt, no curation."""
 
-CLLM_BUDGET: Final = 9
-"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s` the
-pilots measured over UCI and Synthea (ADR `research/cllm-arm-design`, The pilot)."""
+CLLM_BUDGET: Final = 22
+"""The CLLM arms' attempt budget, `max(3, ceil(1.5 / s))` for the least curator keep share `s`
+measured: B3's `cllm` on Synthea kept 0.0707 of replica `<65/female/1`'s rows reaching its curator
+(ADR `research/cllm-arm-design`, Budget)."""
 
 MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
     {
@@ -376,9 +391,20 @@ def gap_request(
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 
-def replica_request(train: pd.DataFrame, *, seed: int, frame: FrameSpec) -> Request:
-    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells."""
+def replica_request(
+    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
+) -> Request:
+    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells.
+
+    With `experiment.replica_rows` set, each cell asks for its `kept_count` at the share
+    `replica_rows / len(train)`, so the cap is split across cells in proportion and the rounded
+    cells may sum to a few rows off it; a cap above the training rows asks more rows than they
+    hold, at the same share.
+    """
     quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
+    if experiment.replica_rows is not None:
+        share = Fraction(experiment.replica_rows, len(train))
+        quota = {cell: kept_count(count, share) for cell, count in quota.items()}
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 

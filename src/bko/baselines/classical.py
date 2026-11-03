@@ -16,9 +16,10 @@ a tree fit on the columns before it, copying the value of a uniformly chosen tra
 new row's leaf. The trees use rpart's defaults as synthpop sets them; scikit-learn grows them and
 draws nothing at random once its seed is fixed.
 
-Each method logs `fit method=<name> seconds=<s>` as CTGAN and TVAE do: the copula's covers its
-`fit`, CART's the fit of every column's tree and the leaf each training row lands in. Seconds are
-wall time, a liveness log and not a cost.
+Each method logs `fit holdout=<h> fill=<kind> method=<name> seconds=<s>` as CTGAN and TVAE do,
+naming the harness fill (`bko.baselines.fills`): the copula's covers its `fit`, CART's the fit
+of every column's tree and the leaf each training row lands in. Seconds are wall time, a liveness
+log and not a cost.
 """
 
 from __future__ import annotations
@@ -34,9 +35,11 @@ from sdv.metadata import Metadata
 from sdv.single_table import GaussianCopulaSynthesizer
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
+from bko.baselines.errors import ShortfallError
+from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, derived_seed, unit_weights
 from bko.baselines.request import Request
-from bko.baselines.synthesizers import fill, metadata
+from bko.baselines.synthesizers import fill, holding, metadata
 from bko.datasets.frames import FrameSpec
 
 
@@ -65,17 +68,28 @@ def gaussian_copula(train: pd.DataFrame, request: Request) -> Baseline:
     The request's seed reaches nothing: SDV fixes the copula's sampling seed itself.
 
     Raises:
-        BaselineError: As `fill`, if the copula's draws cannot meet the quota; its shortfall holds
-            no baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the copula's draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     tables = Metadata.load_from_dict(dict(metadata(frame)))
     synthesizer = GaussianCopulaSynthesizer(tables)
     start = time.perf_counter()
     synthesizer.fit(train.loc[:, list(frame.columns)])
-    logger.info("fit method=gaussian-copula seconds=%.1f", time.perf_counter() - start)
-    added = fill(lambda rows: synthesizer.sample(num_rows=rows), request, method="gaussian-copula")
-    return Baseline(added=added, weights=unit_weights(train), params=synthesizer.get_parameters())
+    logger.info(
+        "fit holdout=%d fill=%s method=gaussian-copula seconds=%.1f",
+        *fill_names(),
+        time.perf_counter() - start,
+    )
+    params = synthesizer.get_parameters()
+    try:
+        added = fill(
+            lambda rows: synthesizer.sample(num_rows=rows), request, method="gaussian-copula"
+        )
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
+    return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
 def cart(train: pd.DataFrame, request: Request) -> Baseline:
@@ -87,8 +101,9 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
     global generator is read or moved.
 
     Raises:
-        BaselineError: As `fill`, if the draws cannot meet the quota; its shortfall holds no
-            baseline, so the harness refuses it rather than filling partially.
+        BaselineError: As `fill`, if the draws cannot meet the quota.
+        ShortfallError: As `fill`, holding the rows kept as the method's baseline, which a harness
+            may score as a partial fill.
     """
     frame = request.frame
     columns = list(frame.columns)
@@ -96,7 +111,11 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
     start = time.perf_counter()
     trees = [_tree(rows, columns, at, frame, seed=request.seed) for at in range(1, len(columns))]
     leaves = [tree.apply(_predictors(rows, columns[:at], frame)) for at, tree in trees]
-    logger.info("fit method=cart seconds=%.1f", time.perf_counter() - start)
+    logger.info(
+        "fit holdout=%d fill=%s method=cart seconds=%.1f",
+        *fill_names(),
+        time.perf_counter() - start,
+    )
     rng = np.random.default_rng(derived_seed(request.seed, "cart"))
 
     def draw(size: int) -> pd.DataFrame:
@@ -108,7 +127,6 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
             out[column] = _donated(new, trained, rows[column].to_numpy(), rng)
         return out.astype(dict(frame.dtypes))
 
-    added = fill(draw, request, method="cart")
     params = {
         "seed": request.seed,
         "visit": columns,
@@ -117,6 +135,10 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
         "max_depth": CART_MAX_DEPTH,
         "complexity": CART_COMPLEXITY,
     }
+    try:
+        added = fill(draw, request, method="cart")
+    except ShortfallError as exc:
+        raise holding(exc, train, params) from None
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 

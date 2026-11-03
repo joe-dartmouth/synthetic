@@ -140,7 +140,7 @@ def test_the_likelihood_gate_reads_the_subsamples_ratio(monkeypatch):
         for call, (cell, rows) in enumerate(cells(seed), start=1)
         for p, row in enumerate(rows)
     ]
-    likelihood_module.likelihood(HALF, DATA, read(encode(lines)), io.StringIO())
+    likelihood_module.likelihood(HALF, DATA, [read(encode(lines))], io.StringIO())
     expected = max(
         held_out_ratio(
             prepared(split(GRADED, seed=s, edges=EDGES), HALF, edges=EDGES).sized, edges=EDGES

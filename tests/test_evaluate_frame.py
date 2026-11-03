@@ -191,7 +191,7 @@ def test_the_experiment_requests_read_the_toy_frame():
     gap = gap_request(TOY_TRAIN, TOY_EXPERIMENT, seed=0, frame=TOY)
     assert gap.frame is TOY
     assert list(gap.quota) == list(SHORT)
-    replica = replica_request(TOY_TRAIN, seed=0, frame=TOY)
+    replica = replica_request(TOY_TRAIN, TOY_EXPERIMENT, seed=0, frame=TOY)
     assert replica.frame is TOY
     assert replica.rows == len(TOY_TRAIN)
 
