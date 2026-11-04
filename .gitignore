@@ -231,3 +231,6 @@ scratchpad/
 /data/
 /logs/
 /runs/
+
+# The team's source PDFs (proposal, research brief, papers): local only
+/papers/

@@ -879,7 +879,7 @@ codes and categories it excludes (ADR
 ## Fusion reproduction
 
 `bko.ontology.santos` rebuilds the MONDO/DO fusion example of Santos et al. (section 7 of
-[`papers/santos-2024.pdf`](../papers/santos-2024.pdf)) from the pinned MONDO and DO releases, with
+[the paper](https://doi.org/10.1371/journal.pone.0296864)) from the pinned MONDO and DO releases, with
 the fragment encoding of ADR `research/bko-fragment-encoding`. One command, inside `.venv`:
 
     uv run --no-sync python -m bko.ontology reproduce [--data-dir <dir>]

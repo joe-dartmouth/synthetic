@@ -8,7 +8,7 @@ updated: 2026-10-15
 
 ## Context
 
-The team's ENGG 119 [proposal](../../../papers/proposal-2-pager.pdf) (dated 2026-10-07) names
+The team's ENGG 119 proposal (dated 2026-10-07, kept outside the repository; [RESEARCH.md](../../RESEARCH.md) is its plan of record) names
 synthcity, alongside scikit-learn and
 SDMetrics, for evaluation. The reference repository whose structure this one follows runs on
 Python 3.14, where coverage's `sys.monitoring` core measures branch coverage; on earlier

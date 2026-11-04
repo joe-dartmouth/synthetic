@@ -7,9 +7,8 @@ heart-disease prediction for underrepresented groups. The Python package is `bko
 
 > Status: every pipeline stage is built, and the gate runs; each `src/bko/` subpackage's README
 > says what its stage holds. The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md),
-> converted from the team's [proposal 2-pager](papers/proposal-2-pager.pdf); the
-> [research brief](papers/research-brief.pdf) is background, and where the two disagree the
-> 2-pager governs (RESEARCH section 9).
+> converted from the team's proposal 2-pager; the research brief is background, and where the two
+> disagree the 2-pager governs (RESEARCH section 9). Both stay outside the repository.
 
 
 This file is the single home for agent guidance in this repository. `CLAUDE.md` and `GEMINI.md`
@@ -108,7 +107,7 @@ synthetic/
 ├── data/        # downloaded datasets, gitignored, written by `bko.datasets`
 ├── runs/        # one folder per run of record, gitignored (docs/DEVELOPMENT.md#runs)
 ├── docs/        # research plan, background, architecture, roadmap, evidence, ADRs (index below)
-├── papers/      # the source PDFs: the proposal 2-pager, the research brief and Santos et al. 2024
+├── papers/      # the team's source PDFs, gitignored and local only
 ├── tasks/       # the open task sets: one unit per PR (tasks/<set>-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
@@ -191,7 +190,7 @@ synthetic/
 - Deferred cleanup and its blockers: [`tasks/CLEANUP.md`](tasks/CLEANUP.md)
 - Unscheduled ideas: [`docs/IDEAS.md`](docs/IDEAS.md); market and regulation:
   [`docs/MARKET.md`](docs/MARKET.md)
-- Citation registry: [`docs/literature.md`](docs/literature.md); source PDFs: `papers/`
+- Citation registry: [`docs/literature.md`](docs/literature.md)
 - Environment, data, platforms, Make targets, gate hazards:
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - Decisions: [`docs/adr/`](docs/adr/README.md)

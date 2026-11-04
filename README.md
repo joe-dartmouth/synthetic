@@ -32,11 +32,22 @@ representation. The pipeline:
 These follow the first full evaluation. Each is one task unit, and the set's graph and status
 board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
-**Evaluation**
+**Generation**
 
-1. Subgroup removal on Diabetes 130-US Hospitals: every arm on real inpatient encounters, with
-   one cell's training positives removed, read against the removed rows added back (E6,
-   [`evaluate-diabetes-subgroup-removal`](tasks/evaluate-diabetes-subgroup-removal.md)).
+1. The BKB likelihood gate on Diabetes 130, then a curated BKO arm if it separates
+   ([`generate-bkb-curation-diabetes`](tasks/generate-bkb-curation-diabetes.md)).
+
+**Privacy**
+
+2. Rewriting `bko-direct`'s identifying fields with an LLM while keeping its concepts and
+   distribution, with distance to closest record tracked per method
+   ([`privacy-identifier-perturbation`](tasks/privacy-identifier-perturbation.md)).
+
+**Knowledge**
+
+3. A comparison with the ELK description-logic reasoner, and a logic-only ablation that measures
+   what the BKB's probabilities add over the ontology's structure
+   ([`compare-elk-logic-only`](tasks/compare-elk-logic-only.md)).
 
 ## Setup
 
@@ -56,8 +67,7 @@ Tools used above: [Synthea](https://synthetichealth.github.io/synthea/) (synthet
 
 ## Repository guide
 
-The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md); the source documents are in
-[`papers/`](papers/proposal-2-pager.pdf). [`AGENTS.md`](AGENTS.md) holds the commands, layout,
+The plan of record is [`docs/RESEARCH.md`](docs/RESEARCH.md). [`AGENTS.md`](AGENTS.md) holds the commands, layout,
 conventions and document index.
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) is the full record of the environment and the gate.
 Decisions ([ADRs](https://adr.github.io/)) are in [`docs/adr/`](docs/adr/README.md).
