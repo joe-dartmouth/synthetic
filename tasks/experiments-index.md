@@ -23,9 +23,16 @@ the ROADMAP heading it serves.
 |---|---|---|---|---|
 | [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | in-progress | -- | Joe | final-report |
 
+### Privacy
+
+| Unit | Status | Depends on | Owner | Milestone |
+|---|---|---|---|---|
+| [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | blocked | `evaluate-diabetes-subgroup-removal` | Joe | final-report |
+
 ```mermaid
 flowchart LR
     diabetes_removal[evaluate-diabetes-subgroup-removal] --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
+    diabetes_removal --> identifier_perturbation[privacy-identifier-perturbation]
 ```
 
 ## What every unit relies on
