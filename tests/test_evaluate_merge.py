@@ -17,7 +17,7 @@ from bko.evaluate.experiment import Experiment, Removal
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run import ARMS, run
-from bko.evaluate.scores import parse, render
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, parse, render
 from tests._frame_fixtures import TOY, toy_records
 from tests.test_evaluate_frame import TOY_EXPERIMENT
 
@@ -110,6 +110,29 @@ def test_merging_two_slices_equals_one_run(tmp_path, caplog):
         f"merge file={low} holdouts=0-1 rows={rows[1]} sha256={_sha(LOW)}",
         f"merge files=2 holdouts=4 rows={rows[2]} sha256={_sha(whole)}",
     ]
+
+
+def test_a_shared_split_row_passes_through_a_merge_unchanged(tmp_path):
+    def marked(text: str, seeds: tuple[int, ...]) -> str:
+        rows = [
+            Score(
+                seed,
+                HELD_OUT_ARM,
+                Source.HELD_OUT,
+                Measure.SHARED_SPLIT,
+                Scope.ALL,
+                float(seed + 7),
+            )
+            for seed in seeds
+        ]
+        return render([*parse(text), *rows])
+
+    low, high = marked(LOW, (0, 1)), marked(HIGH, (2, 3))
+    code, merged = _merged(tmp_path, [high, low])
+    assert code == 0
+    found = {s.holdout: s.value for s in parse(merged) if s.measure is Measure.SHARED_SPLIT}
+    assert found == {0: 7.0, 1: 8.0, 2: 9.0, 3: 10.0}
+    assert len(parse(merged)) == len(parse(low)) + len(parse(high))
 
 
 def test_rows_follow_the_runs_seed_order_and_each_files_order_within_a_holdout(tmp_path):

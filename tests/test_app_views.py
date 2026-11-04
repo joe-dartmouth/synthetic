@@ -207,6 +207,15 @@ def test_arm_means_average_each_measure_over_the_holdouts():
     assert recall == pytest.approx([0.5, 0.6])
 
 
+def test_arm_means_leave_out_the_shared_split_fingerprint():
+    marker = Score(
+        0, "none", Source.HELD_OUT, Measure.SHARED_SPLIT, Scope.ALL, float(int("abc123def456", 16))
+    )
+    means = arm_means([*SCORES, marker])
+    assert "shared-split" not in set(means.index.get_level_values("measure"))
+    assert means.equals(arm_means(SCORES))
+
+
 def test_e1_validity_sums_the_candidate_counts():
     table = e1_validity(SCORES)
     holdouts = len(E1.holdout_seeds)

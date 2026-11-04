@@ -129,8 +129,15 @@ def totals_table(totals: Mapping[str, object]) -> pd.DataFrame:
 
 
 def arm_means(scores: Sequence[Score]) -> pd.DataFrame:
-    """Each arm's mean of every measure over the holdouts, and how many holdouts there are."""
-    rows = [(s.source.value, s.measure.value, s.scope.value, s.arm, s.value) for s in scores]
+    """Each arm's mean of every measure over the holdouts, and how many holdouts there are.
+
+    `Measure.SHARED_SPLIT` is a fingerprint read as a number, not a quantity, so it has no mean.
+    """
+    rows = [
+        (s.source.value, s.measure.value, s.scope.value, s.arm, s.value)
+        for s in scores
+        if s.measure is not Measure.SHARED_SPLIT
+    ]
     frame = pd.DataFrame(rows, columns=[*SCORE_INDEX, "arm", "value"])
     means = frame.pivot_table(
         index=list(SCORE_INDEX), columns="arm", values="value", aggfunc="mean"
