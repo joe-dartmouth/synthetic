@@ -50,17 +50,6 @@ links to where its blocker is tracked.
   experiment with a training fraction below 1 or a removal.
   **Trigger:** the app taking a named run other than `e1`.
 
-- **`cleanup:app/shared-split-in-app-means`: the app averages the `shared-split` marker.**
-  `Measure.SHARED_SPLIT` is a held-out row whose value is a split's fingerprint read as an integer,
-  not a quantity. The browse view's `bko.app.views.arm_means` averages it with the other held-out
-  rows of a `shared` output's `scores.csv`, such as `runs/g6-1-shared/scores.csv`, and `merge`
-  joins it as any other score; no test reads it in either. *Filed 2026-11-01 by G6's landing.*
-  **Why deferred.** No judged reading uses the mean: `compare` judges other measures, and the
-  browse view only displays it.
-  **What discharges it:** `arm_means` leaves `shared-split` out of its means, and a `merge` test
-  shows the row passes through unchanged, each with a test.
-  **Trigger:** the next change to the app's means or to `merge`.
-
 ## baselines
 
 - **`cleanup:baselines/bayes-net-vectorize`: the Bayesian network draws row by row in Python.**
