@@ -133,16 +133,13 @@ def arm_means(scores: Sequence[Score]) -> pd.DataFrame:
 
     `Measure.SHARED_SPLIT` is a fingerprint read as a number, not a quantity, so it has no mean.
     """
-    rows = [
-        (s.source.value, s.measure.value, s.scope.value, s.arm, s.value)
-        for s in scores
-        if s.measure is not Measure.SHARED_SPLIT
-    ]
+    kept = [s for s in scores if s.measure is not Measure.SHARED_SPLIT]
+    rows = [(s.source.value, s.measure.value, s.scope.value, s.arm, s.value) for s in kept]
     frame = pd.DataFrame(rows, columns=[*SCORE_INDEX, "arm", "value"])
     means = frame.pivot_table(
         index=list(SCORE_INDEX), columns="arm", values="value", aggfunc="mean"
     )
-    return means.assign(holdouts=len({s.holdout for s in scores}))
+    return means.assign(holdouts=len({s.holdout for s in kept}))
 
 
 def e1_validity(scores: Sequence[Score]) -> pd.DataFrame:

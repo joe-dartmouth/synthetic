@@ -112,6 +112,10 @@ def test_merging_two_slices_equals_one_run(tmp_path, caplog):
     ]
 
 
+FINGERPRINT = float(int("abc123def456", 16))
+"""A 48-bit split fingerprint, as `bko.evaluate.shared.marker` writes one: exact in a float."""
+
+
 def test_a_shared_split_row_passes_through_a_merge_unchanged(tmp_path):
     def marked(text: str, seeds: tuple[int, ...]) -> str:
         rows = [
@@ -121,7 +125,7 @@ def test_a_shared_split_row_passes_through_a_merge_unchanged(tmp_path):
                 Source.HELD_OUT,
                 Measure.SHARED_SPLIT,
                 Scope.ALL,
-                float(seed + 7),
+                FINGERPRINT + seed,
             )
             for seed in seeds
         ]
@@ -130,8 +134,13 @@ def test_a_shared_split_row_passes_through_a_merge_unchanged(tmp_path):
     low, high = marked(LOW, (0, 1)), marked(HIGH, (2, 3))
     code, merged = _merged(tmp_path, [high, low])
     assert code == 0
-    found = {s.holdout: s.value for s in parse(merged) if s.measure is Measure.SHARED_SPLIT}
-    assert found == {0: 7.0, 1: 8.0, 2: 9.0, 3: 10.0}
+    found = {
+        (s.holdout, s.arm, s.source, s.scope): s.value
+        for s in parse(merged)
+        if s.measure is Measure.SHARED_SPLIT
+    }
+    key = (HELD_OUT_ARM, Source.HELD_OUT, Scope.ALL)
+    assert found == {(seed, *key): FINGERPRINT + seed for seed in (0, 1, 2, 3)}
     assert len(parse(merged)) == len(parse(low)) + len(parse(high))
 
 
