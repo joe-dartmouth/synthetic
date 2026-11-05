@@ -38,8 +38,8 @@ from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
 from bko.evaluate.fidelity import MEASURES, fidelity
-from bko.evaluate.filling import fill_arm, log_arm
-from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell
+from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
+from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
@@ -140,6 +140,7 @@ def score_holdout(
     drains: Mapping[str, Drain] = MappingProxyType({}),
     frame: FrameSpec,
     exclude: Sequence[pd.DataFrame] | None = None,
+    logged: Logged | None = None,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -147,7 +148,8 @@ def score_holdout(
     thinned by its removal (`prepared`); the held-out ratio reads the sized split. `REAL_ARM`
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
-    `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`).
+    `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
+    is reset, then receives the `split` line and every fill's `Filled` as they are logged.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -158,28 +160,27 @@ def score_holdout(
     ready = prepared(parts, experiment, edges=frame.edges)
     ablated = ready.ablated
     train, test, seed = ablated.train, ablated.test, ablated.seed
-    logger.info(
-        "split seed=%d train=%d test=%d fingerprint=%s",
-        seed,
-        len(train),
-        len(test),
-        ablated.fingerprint,
-    )
+    logged = Logged() if logged is None else logged
+    logged.split, logged.fills = split_line(ablated), []
+    logger.info("%s", logged.split)
     gap = gap_request(train, experiment, seed=seed, frame=frame)
     _log_quota(seed, gap)
     cells = flagged(train, experiment, edges=frame.edges)
     logger.info("flagged holdout=%d cells=%s", seed, ",".join("/".join(map(str, c)) for c in cells))
     fills = {
-        name: _real(ready.removed, train, holdout=seed, seed=gap.seed, frame=frame)
-        if name == REAL_ARM
-        else fill_arm(
-            arms[name],
-            train,
-            gap,
-            holdout=seed,
-            attempts=experiment.attempts,
-            name=name,
-            kind="gap",
+        name: _collect(
+            logged,
+            _real(ready.removed, train, holdout=seed, seed=gap.seed, frame=frame)
+            if name == REAL_ARM
+            else fill_arm(
+                arms[name],
+                train,
+                gap,
+                holdout=seed,
+                attempts=experiment.attempts,
+                name=name,
+                kind="gap",
+            ),
         )
         for name in experiment.arms
     }
@@ -187,14 +188,17 @@ def score_holdout(
         name: drains[name](seed, Source.CANDIDATES) for name in experiment.arms if name in drains
     }
     replicas = {
-        name: fill_arm(
-            arms[name],
-            train,
-            replica_request(train, experiment, seed=seed, frame=frame),
-            holdout=seed,
-            attempts=experiment.attempts,
-            name=f"{name}-replica",
-            kind="replica",
+        name: _collect(
+            logged,
+            fill_arm(
+                arms[name],
+                train,
+                replica_request(train, experiment, seed=seed, frame=frame),
+                holdout=seed,
+                attempts=experiment.attempts,
+                name=f"{name}-replica",
+                kind="replica",
+            ),
         ).added
         for name in experiment.replica_arms
     }
@@ -227,8 +231,7 @@ def score_holdout(
     )
     cutoff = experiment.cutoff
     for name in experiment.arms:
-        fill = fills[name]
-        scores += _arm_scores(seed, name, fill, ablated, clean, cells, models, frame, cutoff)
+        scores += _arm_scores(seed, name, fills[name], ablated, clean, cells, models, frame, cutoff)
         if name in replicas:
             scores += _replica_scores(
                 seed, name, replicas[name], ablated, clean, cells, models[Model.LR], frame, cutoff
@@ -298,9 +301,15 @@ def _log_quota(seed: int, request: Request) -> None:
         logger.info("quota holdout=%d stratum=%s rows=%d", seed, "/".join(map(str, stratum)), rows)
 
 
+def _collect(logged: Logged, filled: Filled) -> Baseline:
+    """Record `filled` in `logged` and return its rows."""
+    logged.fills.append(filled)
+    return filled.baseline
+
+
 def _real(
     removed: pd.DataFrame, train: pd.DataFrame, *, holdout: int, seed: int, frame: FrameSpec
-) -> Baseline:
+) -> Filled:
     """`REAL_ARM`'s fill: the removed rows as added rows, every training row at weight 1.0.
 
     No runner fills it and no `check` reads it: its rows are real, so no quota or range applies.
@@ -308,8 +317,8 @@ def _real(
     """
     added = number(removed.loc[:, list(frame.columns)])
     baseline = Baseline(added=added, weights=unit_weights(train), params={})
-    log_arm(baseline, holdout=holdout, name=REAL_ARM, attempt=1, seed=seed)
-    return baseline
+    line = log_arm(baseline, holdout=holdout, name=REAL_ARM, attempt=1, seed=seed)
+    return Filled(REAL_ARM, "gap", 1, baseline, line)
 
 
 def _arm_scores(

@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `likelihood`, `launch` and
-`supervise`.
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `likelihood`, `launch`
+and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -21,6 +21,9 @@ which starts it: it runs `score` into the claimed folder and resumes API-caused 
 for a child a signal killed, or 2 when it or a resume cannot run.
 `shared RUN --folder FOLDER [--with FOLDER]...` rescores the run in FOLDER from its own files,
 less every record a `--with` folder's arms copy, to stdout (`bko.evaluate.shared`).
+`rows RUN --folder FOLDER --rows PATH` rescores the run in FOLDER the same way, with no `--with`,
+and stores every fill of each holdout its checks pass in PATH, which must not exist
+(`bko.evaluate.rows`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -44,16 +47,16 @@ that resume alone runs under. `score --rehearse` answers every BKO call with can
 FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log or candidates file, Messages arms with no `--log` or `--candidates`,
-a direct arm with no `--candidates` or over field rows that nest in a chain, `--log`,
-`--replay`, `--resume` or `--rehearse` with no Messages arm to build, `--ceiling` with no
-`--resume`, `--candidates` with no
+including an existing call log or candidates file, a `rows` store path that exists or whose
+directory does not, Messages arms with no `--log` or `--candidates`, a direct arm with no
+`--candidates` or over field rows that nest in a chain, `--log`, `--replay`, `--resume` or
+`--rehearse` with no Messages arm to build, `--ceiling` with no `--resume`, `--candidates` with no
 Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
 and scores whose validity cannot be read; 3 the data, a method's output, a scores file, a replay
-or a stopped log that cannot be resumed contradicts its contract, or a `shared` run folder fails
-an identity check.
+or a stopped log that cannot be resumed contradicts its contract, or a `shared` or `rows` run
+folder fails an identity check.
 """
 
 from __future__ import annotations
@@ -85,6 +88,7 @@ from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
+from bko.evaluate.rows import creatable, store
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.shared import rescore
@@ -137,7 +141,7 @@ def main(
 
 
 def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
-    """Run `supervise`, `launch`, `merge`, `likelihood` or `compare`, writing to `sink`."""
+    """Run any subcommand but `score`, writing to `sink`."""
     if args.command == "supervise":
         return _supervise(args, context)
     if args.command == "launch":
@@ -148,6 +152,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         _likelihood(args, context, sink)
     elif args.command == "shared":
         sink.write(_shared(args, context))
+    elif args.command == "rows":
+        sink.write(_rows(args, context))
     else:
         _compare(args, context, sink)
     return 0
@@ -322,6 +328,27 @@ def _shared(args: argparse.Namespace, context: Context) -> str:
         arms=named.arms,
         models=named.models,
         uci=uci,
+    )
+
+
+def _rows(args: argparse.Namespace, context: Context) -> str:
+    """Rescore the folder's run and store every checked holdout's fills at `--rows`.
+
+    A `--rows` path that exists, or whose directory does not, is refused before any file is read.
+    """
+    creatable(args.rows)
+    named = _named(args.run, context)
+    folder = read_folder(args.folder)
+    data = load(named.dataset, data_dir(args), named)
+    return store(
+        folder,
+        args.rows,
+        run=args.run,
+        experiment=named.experiment,
+        data=data,
+        arms=named.arms,
+        models=named.models,
+        uci=named.dataset is Dataset.UCI,
     )
 
 

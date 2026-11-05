@@ -23,12 +23,10 @@ import argparse
 import hashlib
 import json
 import logging
-import sys
 import time
 from collections import Counter
-from collections.abc import Generator, Mapping, Sequence
-from contextlib import contextmanager, suppress
-from logging.handlers import BufferingHandler
+from collections.abc import Callable, Mapping, Sequence
+from contextlib import suppress
 from pathlib import Path
 
 import pandas as pd
@@ -52,11 +50,11 @@ from bko.evaluate.experiment import (
     gap_request,
     replica_request,
 )
+from bko.evaluate.filling import Logged
 from bko.evaluate.holdout_candidates import FILLS, KEPT, REJECTED, Candidate
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, require_cell
 from bko.evaluate.provenance import experiment_line, log_experiment
-from bko.evaluate.run import logger as harness_logger
 from bko.evaluate.run import score_holdout
 from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
 from bko.evaluate.scores import Measure, Score, Source, render
@@ -219,35 +217,23 @@ def excluded(
     return found
 
 
-@contextmanager
-def captured(name: str) -> Generator[list[logging.LogRecord]]:
-    """Every record the logger `name` logs while the body runs, INFO records included."""
-    target = logging.getLogger(name)
-    handler, level = BufferingHandler(sys.maxsize), target.level
-    target.addHandler(handler)
-    if target.getEffectiveLevel() > logging.INFO:
-        target.setLevel(logging.INFO)
-    try:
-        yield handler.buffer
-    finally:
-        target.removeHandler(handler)
-        target.setLevel(level)
+def _check_holdout(folder: Folder, holdout: int, logged: Logged) -> None:
+    """Identity checks 3 and 4 for one rescored holdout: the harness's `split` and `arm` lines.
 
-
-def _check_holdout(folder: Folder, holdout: int, records: Sequence[logging.LogRecord]) -> None:
-    """Identity checks 3 and 4 for one rescored holdout: its `split` and `arm` lines are logged.
+    `logged` holds the lines `score_holdout` logged, collected as it logged them, so the check
+    holds whatever the process's logging setup.
 
     Raises:
         IdentityError: If a line differs from the folder's, or one is missing.
     """
-    logged = [record.getMessage() for record in records]
-    splits = [m for m in logged if SPLIT.match(m)]
+    splits = [] if logged.split is None or not SPLIT.match(logged.split) else [logged.split]
     theirs = folder.splits.get(holdout)
     if splits != [theirs]:
         msg = f"holdout {holdout}'s split lines {splits} differ from {folder.path}'s"
         msg += f" {_shown(theirs)}"
         raise IdentityError(msg)
-    arms = {(int(f["holdout"]), f["arm"]): m for m in logged if (f := ARM.fullmatch(m))}
+    lines = [fill.line for fill in logged.fills]
+    arms = {(int(f["holdout"]), f["arm"]): m for m in lines if (f := ARM.fullmatch(m))}
     logged_arms = {key: line for key, line in folder.arms.items() if key[0] == holdout}
     for key in sorted(set(arms) | set(logged_arms)):
         if arms.get(key) != logged_arms.get(key):
@@ -304,13 +290,15 @@ def rescore(
     arms: Mapping[str, Runner],
     models: Mapping[Model, Factory],
     uci: bool,
+    after: Callable[[int, Logged, Sequence[Score]], None] | None = None,
 ) -> str:
     """Score `folder`'s run again, less every record `others` copy, and return the scores CSV.
 
     With no `others`, no holdout is marked, so the CSV is the bytes the run wrote; the `scores`
     line's `matches_folder=` says whether its sha256 is the one the folder's `scores` line logs.
     A run scored before a held-out row joined the harness gains that row, so it reads false
-    without failing.
+    without failing. A given `after` is called with each holdout's seed, its `Logged` lines and
+    its scores, once its checks pass.
 
     Raises:
         IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are
@@ -334,17 +322,21 @@ def rescore(
         started = time.perf_counter()
         parts = split(data.records, seed=seed, edges=frame.edges)
         exclude = None if not others else _exclude(others, parts, experiment, frame)
-        with captured(harness_logger.name) as logged:
-            scores += score_holdout(
-                parts,
-                experiment,
-                runners,
-                models=models,
-                drains=drains,
-                frame=frame,
-                exclude=exclude,
-            )
+        logged = Logged()
+        scored = score_holdout(
+            parts,
+            experiment,
+            runners,
+            models=models,
+            drains=drains,
+            frame=frame,
+            exclude=exclude,
+            logged=logged,
+        )
         _check_holdout(folder, seed, logged)
+        if after is not None:
+            after(seed, logged, scored)
+        scores += scored
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
     text = render(scores)

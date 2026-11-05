@@ -11,6 +11,7 @@ from pathlib import Path
 
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.named_runs import DEFAULT_RUN
+from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.generate.flight import IN_FLIGHT
 
@@ -137,6 +138,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
     add_parser(commands)
+    add_rows(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
     )

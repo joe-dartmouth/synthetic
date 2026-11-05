@@ -211,7 +211,13 @@ def digest(records: pd.DataFrame) -> str:
 
     `Data.digest` and each arm's `arm` log line (`bko.evaluate.run`) hash a frame this way.
     """
-    return hashlib.sha256(records.to_csv(lineterminator="\n").encode()).hexdigest()
+    return digested(records)[1]
+
+
+def digested(records: pd.DataFrame) -> tuple[str, str]:
+    """The CSV text `digest` hashes, and its sha256, from one rendering of `records`."""
+    text = records.to_csv(lineterminator="\n")
+    return text, hashlib.sha256(text.encode()).hexdigest()
 
 
 def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:

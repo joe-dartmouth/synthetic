@@ -268,6 +268,47 @@ compared run), `<run-id>-sharedbase` (the compared run with the run) and `<run-i
 `shared` exits 2 on a missing input or an arm with no runner, and 3 when an identity check fails
 or `--with` is refused.
 
+**`rows`** rescores a recorded run's folder at the folder's own models and stores every fill, so
+the readings that need a run's added rows read a file and regenerate nothing (ADR
+[`research/rebuilt-rows-store`](adr/research/rebuilt-rows-store.md)). It makes no API call. The
+output folder is `runs/<run-id>-rows`, `<run-id>` and `<run>` the folder and named run read. Its
+`mkdir` has no `-p`, so a second run into the same folder fails there; that is the write-once guard:
+
+    mkdir runs/<run-id>-rows && test ! -e runs/<run-id>-rows/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate rows <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-rows/scores.csv 2> runs/<run-id>-rows/scores.log </dev/null
+
+It runs `shared`'s identity checks (`rescore`) and, on each holdout, the strict check 7 (ADR
+[`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md)); a holdout that
+fails a check exits 3 before its rows are written. The store is created when the first holdout
+passes, so a run refused before then leaves none; a later refusal leaves the holdouts checked
+before it, which a reader refuses as incomplete (ADR
+[`research/rebuilt-rows-store`](adr/research/rebuilt-rows-store.md)). Exit codes are `shared`'s;
+a `--rows` path that exists, or whose directory does not, exits 2 before any file is read. The
+panel's shortfall WARNING lines are not reproduced, because a stored fill does not run the
+generator again.
+
+Its `scores.log` holds `shared`'s lines and these, at INFO unless named:
+
+- `rows folder=%s run=%s holdouts=%d started_utc=%s pid=%d`, once, before the first holdout.
+- `rows differing holdout=%d key=%s ours=%s theirs=%s`, per replica `quality` or
+  `column-pair-trends` row that differs on a holdout training on more than 50,000 rows, which the
+  strict check 7's exception admits; `key` is the row's key as the scores CSV writes it, `ours`
+  the rescore's value and `theirs` the folder's.
+- `rows holdout=%d arm=%s added=%d sha256=%s matches_arm=true`, per stored fill, once its
+  holdout's lines are synced to disk.
+- `rows holdout=%d stored=%d differing=%d subsampled=true|false`, per holdout: the fill lines
+  stored, the `rows differing` lines logged, and whether the holdout trains on more than 50,000
+  rows.
+- `rows done holdouts=%d stored=%d sha256=%s`, last, once the store is closed: the holdouts and
+  fill lines stored, and the store's sha256.
+- `rows partial path=%s holdouts=%d`, at WARNING, when the run stops after the store exists: the
+  holdouts stored before the stop.
+
+`rows.jsonl` holds a header line, then one line per fill of every arm with an `arm` line, `real`
+included, gap and replica; its format is in the ADR above. By hand, the fill of holdout 0's
+`ctgan` arm hashes to its `arm` line's sha256:
+
+    jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' runs/<run-id>-rows/rows.jsonl | shasum -a 256
+
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
@@ -1268,6 +1309,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `scores.log` | its stderr |
 | `server.log` | the local model server's output, written by the operator's serve command |
 | `holdout-candidates.jsonl` | every candidate a run's BKO arms generated, per holdout |
+| `rows.jsonl` | `python -m bko.evaluate rows`'s store of every fill, per holdout |
 | `launch.log` | `python -m bko.evaluate launch`'s record of the power reading and command |
 | `rehearsal` | `python -m bko.evaluate launch --rehearse`'s directory of the run's roles |
 | `criteria.csv` | `python -m bko.evaluate compare`'s stdout |

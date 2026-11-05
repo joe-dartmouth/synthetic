@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-01
-updated: 2026-11-01
+updated: 2026-11-05
 ---
 # A run is read beside another on the test split neither copies, rescored from both runs' own files
 
@@ -63,20 +63,29 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
      `decontaminate` `true`, `threshold` `20`, and `seeds` `0-<holdouts - 1>`); the other line must
      hold that value. Any other missing key exits 3.
   3. Each folder logs a `split seed= train= test= fingerprint=` line per holdout its `experiment`
-     line counts, and each holdout's line is equal across the folders and to the rescore's.
+     line counts, and each holdout's line is equal across the folders and to the rescore's. The
+     rescore's line is read from a `Logged` collector that `run.score_holdout` fills with the
+     lines it logs.
   4. Each folder logs, on each holdout, an `arm` line for each arm and replica fill its
      `experiment` line names and no other, so a line format that drifts is refused rather than
      skipped. Each rebuilt BKO arm row set, and each regenerated baseline row set, reproduces its
      logged `arm ... sha256=`, attempt, seed and params (a BKO arm's params are read from its
      line); each `--with` folder's rebuilt BKO gap and replica row sets reproduce their logged
-     attempt, row count and sha256.
+     attempt, row count and sha256. The rescore's `arm` lines are read from the same `Logged`
+     collector.
   5. The `--with` folders' non-BKO `arm` lines equal the folder's own.
   6. Scoring goes through `run.score_holdout`.
   7. Self-reproduction holds: with no `--with`, the output equals the folder's `scores.csv`, and
      the `scores` line logs `matches_folder=true`. The one exception is a held-out measure added to
      the harness after the run was scored: the output then holds every original row and that
-     measure's rows besides, and the line logs `matches_folder=false`. The tests pin this check;
-     the command logs it and does not refuse.
+     measure's rows besides, and the line logs `matches_folder=false`. `shared` keeps this log-only
+     check: the command logs it and does not refuse. `rows` (ADR `research/rebuilt-rows-store`)
+     applies a strict check 7 on each holdout: for keys the folder's `scores.csv` holds, rendered
+     values must be byte-equal, NaN included, and a key the folder lacks must be a held-out key. A
+     replica's `quality` and
+     `column-pair-trends` may differ only when the holdout's training split exceeds 50,000 rows,
+     because a folder scored before `bko.evaluate.fidelity` read every row holds one unseeded
+     SDMetrics subsample draw. Any other difference exits 3 before rows are written.
 - A missing input, or an arm with no runner, exits 2.
 
 ## Rationale
@@ -110,18 +119,22 @@ attempt, so the file does not mark the rows the run kept.
 | One split for every G6 run, less every run's copies | One run's copies would shrink every other pair's split | 2026-11-01 |
 | Letting `beside` pair copied holdouts with no marker | Two files scored on different splits would pair | 2026-11-01 |
 | A scoring path of its own for the rescore | Self-reproduction would no longer show the run's scoring | 2026-11-01 |
+| Capturing the harness's lines with a logger handler | A handler's level and propagation depend on the process's logging setup; `score_holdout` fills a `Logged` collector instead, so checks 3 and 4 read what it logged | 2026-11-05 |
 
 ## Enforcement
 
 - Owner: `src/bko/evaluate/shared.py` (the command), `src/bko/evaluate/run_folder.py` (the
   folder's reading and checks 1, 2, 3 and 5), `src/bko/evaluate/shared_split.py` (the marker)
-- Pinned by: `tests/test_evaluate_shared.py`, `tests/test_evaluate_beside.py`,
-  `tests/test_evaluate_run.py`
+- Pinned by: `tests/test_evaluate_shared.py` (check 7's log-only reading in `shared` among
+  them), `tests/test_evaluate_beside.py`, `tests/test_evaluate_run.py`,
+  `tests/test_evaluate_rows.py` (the strict check 7)
 
 ## Reversal Conditions
 
-**A rescore with no `--with` stops reproducing its folder's `scores.csv`**: the scoring path moved,
-and the rescore waits until it reproduces again.
+**A rescore with no `--with` stops reproducing its folder's `scores.csv`** at the commit the
+folder's `versions` line names: the `scores` line logs `matches_folder=false` for a run with no added
+held-out measure, or `rows` exits 3 on the strict check 7. The scoring path moved, and the rescore
+waits until it reproduces again.
 
 **`score` stops removing copied test records** (`Experiment.decontaminate` false for every run):
 every run then scores on the whole split, and the marker has nothing to pair.

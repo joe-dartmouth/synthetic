@@ -51,6 +51,10 @@ import it (ADR `tooling/agent-config-single-home`).
   rescore a run's folder from its own files on the test split that no arm of it or of a `--with`
   folder copies, so `compare --beside` pairs the holdouts a copy would exclude. It makes no API
   call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded commands).
+- `mkdir runs/<run-id>-rows && test ! -e runs/<run-id>-rows/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate rows <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-rows/scores.csv 2> runs/<run-id>-rows/scores.log`:
+  rescore a run's folder at its own models through the identity checks and the strict check 7, and
+  store every fill in a sha-verified `rows.jsonl`. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes
