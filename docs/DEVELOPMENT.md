@@ -879,7 +879,7 @@ codes and categories it excludes (ADR
 ## Fusion reproduction
 
 `bko.ontology.santos` rebuilds the MONDO/DO fusion example of Santos et al. (section 7 of
-[`papers/santos-2024.pdf`](../papers/santos-2024.pdf)) from the pinned MONDO and DO releases, with
+[the paper](https://doi.org/10.1371/journal.pone.0296864)) from the pinned MONDO and DO releases, with
 the fragment encoding of ADR `research/bko-fragment-encoding`. One command, inside `.venv`:
 
     uv run --no-sync python -m bko.ontology reproduce [--data-dir <dir>]
@@ -1332,7 +1332,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   per detector and E2's gap readings per ablation and detector; R1's reproduction rows; a demo
   fill's scores (as means over its one holdout) and training set. It recomputes nothing from
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
-  files. It reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
+  files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
+  reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
   `first-flag.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
   a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
   shows its error in place of its section.

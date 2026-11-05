@@ -364,7 +364,7 @@ PINNED = re.compile(r"^- Pinned by: (.+)$", re.MULTILINE)
 
 # Directories git tracks. A path under a gitignored root such as `data/` or `logs/` names a local
 # artifact a fresh clone does not have, so its absence is not a dead citation.
-TRACKED_ROOTS = frozenset({"docs", "papers", "src", "tasks", "tests", "tools"})
+TRACKED_ROOTS = frozenset({"docs", "src", "tasks", "tests", "tools"})
 CODE_SPAN = re.compile(r"`([^`\s]+)`")
 # A pytest node id, then a line or line range, both trailing the path they qualify.
 PATH_SUFFIX = re.compile(r"(?:::\S*)?(?::\d+(?:-\d+)?)?$")

@@ -1,6 +1,6 @@
 # Background
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1, 3 and 6; [research brief](../papers/research-brief.pdf) A1, A2, A3, B4, B6, D11; [Santos et al.](../papers/santos-2024.pdf), read from the stored PDF on 2026-10-17; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record; [Santos et al.](https://doi.org/10.1371/journal.pone.0296864), read on 2026-10-17; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.

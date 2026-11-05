@@ -37,7 +37,7 @@ from bko.baselines.__main__ import render
 from bko.datasets.cells import LABEL_MEANINGS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
-from bko.evaluate.scores import Measure, Scope, Score, Source, parse
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, parse
 from bko.gaps.definitions import Definition
 from bko.gaps.report import labeller
 from bko.generate.candidates import render_lines
@@ -208,10 +208,13 @@ def test_arm_means_average_each_measure_over_the_holdouts():
 
 
 def test_arm_means_leave_out_the_shared_split_fingerprint():
-    marker = Score(
-        0, "none", Source.HELD_OUT, Measure.SHARED_SPLIT, Scope.ALL, float(int("abc123def456", 16))
-    )
-    means = arm_means([*SCORES, marker])
+    fingerprint = float(int("abc123def456", 16))
+    markers = [
+        Score(holdout, HELD_OUT_ARM, Source.HELD_OUT, Measure.SHARED_SPLIT, Scope.ALL, fingerprint)
+        for holdout in (0, max(s.holdout for s in SCORES) + 1)
+    ]
+    means = arm_means([*SCORES, *markers])
+    assert (means["holdouts"] == len(E1.holdout_seeds)).all()
     assert "shared-split" not in set(means.index.get_level_values("measure"))
     assert means.equals(arm_means(SCORES))
 

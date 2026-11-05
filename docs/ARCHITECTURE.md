@@ -1,6 +1,6 @@
 # Architecture
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 3, 4, 5 and 6; [research brief](../papers/research-brief.pdf) F16; facts verified outside the PDFs (pybkb, ofs_app, synthcity resolution).
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record; facts verified outside it (pybkb, ofs_app, synthcity resolution).
 
 > **Status: built.** Each stage's README says what the stage holds.
 

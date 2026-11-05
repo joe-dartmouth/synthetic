@@ -1,6 +1,6 @@
 # Roadmap
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) section 6; [research brief](../papers/research-brief.pdf) F15.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record.
 
 The schedule is the 2-pager's timeline. It runs Oct 10 - Nov 25; the proposal is dated October 7,
 2026. The dependency-ordered work units, with their status and owners, are in

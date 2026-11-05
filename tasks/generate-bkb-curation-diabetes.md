@@ -1,14 +1,14 @@
 ---
 id: generate-bkb-curation-diabetes
 title: The BKB likelihood gate on Diabetes 130, then the curated arm if it separates
-status: blocked
-depends_on: evaluate-diabetes-subgroup-removal
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley
 milestone: final-report
 paid: true
-adrs: research/bkb-candidate-curation
+adrs: --
 ---
 
 # The BKB likelihood gate on Diabetes 130, then the curated arm if it separates
@@ -24,7 +24,7 @@ held 0 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)). U
 splits
 ([`docs/RESEARCH.md`](../docs/RESEARCH.md#limits-of-uci-heart-disease-as-the-evaluation-frame)) and
 the few concepts its field rows map (one line per concept in G7's diagnostic) may be why. Diabetes
-130 holds far more records per subgroup, and its mapping is a deliverable of its own unit, so the
+130 holds far more records per subgroup and maps ten ICD-9 categories and two lab states, so the
 same free gate can be read again there before any curated arm is built. The score, the gate command
 and the arm's reserved spec fields (`Curation.LIKELIHOOD`, `over_ask`;
 `cleanup:evaluate/likelihood-curation-unused`) already exist.
@@ -33,9 +33,10 @@ and the arm's reserved spec fields (`Curation.LIKELIHOOD`, `over_ask`;
 
 **In.**
 
-- Phase 1, free: `python -m bko.evaluate likelihood <run> --candidates <file>` over the `bko`
-  arm's candidates file from the Diabetes 130 run of
-  [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md), with the gate
+- Phase 1, free: `python -m bko.evaluate likelihood e6-thin` with one `--candidates` per slice,
+  `runs/e6-2/holdout-candidates.jsonl` to `runs/e6-11/holdout-candidates.jsonl`: the `bko` arm's
+  candidates at f = 0.985, the fraction whose `bko` fills a replica, from E6
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)), with the gate
   ADR `research/bkb-candidate-curation` fixes unchanged, recorded as a new G7 run in
   `docs/EVIDENCE.md`. If the gate fails again, the entry reads the concept-share diagnostic (on UCI
   the score favoured records with fewer concepts present) and the unit records whether a score

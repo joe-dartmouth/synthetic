@@ -1,6 +1,6 @@
 # Research plan
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 to 6; [research brief](../papers/research-brief.pdf) TL;DR, A1, B5, D10, D11, F15; [Santos et al.](../papers/santos-2024.pdf), read from the stored PDF; facts verified outside the PDFs (pybkb, synthcity resolution).
+Sources: the team's proposal 2-pager (sections 1 to 6) and research brief (TL;DR, A1, B5, D10, D11, F15), both kept outside the repository, of which this document is the plan of record; Santos et al. [`santos-2024`][santos-2024]; facts verified outside those sources (pybkb, synthcity resolution).
 
 This is the plan of record. The 2-pager governs; the brief is background, explained in
 [BACKGROUND.md](BACKGROUND.md). [Section 9](#9-source-reconciliation) records each point where the
@@ -227,7 +227,7 @@ brief's registry (D10), kept for reference.
 |---|---|---|---|
 | UCI Heart Disease (Cleveland) | Open | Classic 303-record binary/multiclass detection task; naturally small, which suits a low-data story; the evaluation frame is ADR [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md) | Evaluation setting ([section 2](#2-intended-users-and-evaluation-setting)) |
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
-| UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, unit [`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
+| UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, E6 ([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
 | NHANES | Open | Openly available national survey data | No |
 | Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
 | MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training | Demo subsets of the credentialed datasets | No |
@@ -300,10 +300,9 @@ A frame that can read a difference needs a subgroup with enough test positives p
 move an interval, a gap that leaves count-based methods little or nothing to copy (a subgroup's
 training positives removed, as E3 does on Synthea), coded features the ontology can inform, and
 records the generators have not memorized under terms that permit sending them. E3 tests the
-removal on generated patients; unit
-[`evaluate-diabetes-subgroup-removal`](../tasks/evaluate-diabetes-subgroup-removal.md) runs it
-on UCI Diabetes 130-US Hospitals' real encounters, with a power calculation fixing its design
-before the first paid run. UCI stays the judged frame for E1's criteria.
+removal on generated patients; E6
+([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)) runs it on UCI Diabetes 130-US
+Hospitals' real encounters, with a power calculation fixing its design before the first paid run. UCI stays the judged frame for E1's criteria.
 
 ## 7. Augmentation versus resampling
 

@@ -1,6 +1,6 @@
 # Ideas
 
-Sources: [research brief](../papers/research-brief.pdf) TL;DR, A1, A2, B4, B6, C7, C8, C9, F15, F16, Caveats; [2-pager](../papers/proposal-2-pager.pdf) sections 2, 3 and 4.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record, and the works [literature.md](literature.md) registers.
 
 Ideas outside the plan. Each records what it is, why it is not in the plan, and its sources.
 Adopting one means changing [RESEARCH.md](RESEARCH.md) first; an entry that points at a task unit

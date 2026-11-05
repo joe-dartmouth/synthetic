@@ -1,6 +1,6 @@
 # Market and regulation
 
-Sources: [2-pager](../papers/proposal-2-pager.pdf) sections 1 and 2; [research brief](../papers/research-brief.pdf) E12, E13, E14, Caveats.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record, and the works [literature.md](literature.md) registers.
 
 The Track A framing: who sells synthetic health data, how large the market is said to be, what
 regulation drives demand, and who buys. The project's argument against the incumbents is in
