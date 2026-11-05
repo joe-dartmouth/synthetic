@@ -22,6 +22,7 @@ from bko.evaluate.experiment import (
     CLLM_ARM,
     CLLM_BUDGET,
     CLLM_RAW_ARM,
+    CURATED_ARM,
     E1,
     MESSAGES_ARMS,
     METHOD_ARMS,
@@ -639,7 +640,7 @@ def test_every_bko_arm_reads_the_experiments_budget_and_only_the_skeleton_arm_pr
     assert all(
         spec.budget is None and not spec.shows
         for name, spec in MESSAGES_ARMS.items()
-        if name not in {CLLM_ARM, CLLM_RAW_ARM}
+        if name not in {CLLM_ARM, CLLM_RAW_ARM, CURATED_ARM}
     )
     assert {name for name, spec in MESSAGES_ARMS.items() if spec.prescribes} == {SKELETON_ARM}
 

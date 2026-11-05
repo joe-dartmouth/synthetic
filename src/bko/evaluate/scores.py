@@ -79,6 +79,8 @@ class Measure(enum.StrEnum):
     DROPPED_CURATION = "dropped-curation"
     """A curating arm's candidates its curator dropped; no other arm writes it."""
     DROPPED_QUOTA = "dropped-quota"
+    DROPPED_LIKELIHOOD = "dropped-likelihood"
+    """A ranking arm's candidates its ranking dropped; no other arm writes it."""
     TEST_COPIES = "test-copies"
 
 

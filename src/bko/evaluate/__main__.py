@@ -245,7 +245,7 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
     Raises:
         EvaluationError: If a single file is another run's, a sliced run's file is a run that is
             not a slice of the named run, a schema-1 file is read for a run of other data, or a
-            schema-2 file's data digest is not the run's data's.
+            schema-2 or schema-3 file's data digest is not the run's data's.
         CandidatesFormatError: If a file is not a candidates file.
     """
     named = _named(args.run, context)

@@ -108,18 +108,6 @@ links to where its blocker is tracked.
   `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
   **Trigger:** unit `generate-bkb-curation-diabetes`'s phase 1 verdict.
 
-- **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
-  not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
-  `assess` reads it, so the candidates file says `dropped-curation` but not by what margin, and a
-  threshold sweep needs a refit on the holdout's training rows. *Filed 2026-10-30 by the pre-run
-  diff review of PR6.*
-  **Why deferred.** Adding fields to `Seen` and the candidates schema after the review would move
-  the run commit for a reading B3 does not need; the fit is deterministic (`random_state` 0, one
-  thread), so a refit reproduces the scores.
-  **What discharges it:** each curated candidate line carries its two scores, documented in
-  `docs/DEVELOPMENT.md` (Evaluation), or a refit command that prints them.
-  **Trigger:** a threshold sweep, or the next change to the candidates schema.
-
 - **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
   `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time
   with no offset, so a `scores.log` stamp names no zone; `launch.log`'s stamps end in `Z`. The

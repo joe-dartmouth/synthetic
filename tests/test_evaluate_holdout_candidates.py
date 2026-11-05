@@ -301,7 +301,43 @@ def test_schema_2_reads_a_prescribing_arms_concept_drop():
     }
     (line,) = read(HEADER + json.dumps(dropped).encode() + b"\n").candidates
     assert (line.arm, line.outcome) == ("bko-skeleton", "dropped-concepts")
-    assert SCHEMA == 2
+
+
+RANKED: Final = {
+    **{key: value for key, value in LINE.items() if key != "undecoded"},
+    "arm": "bko-curated",
+    "candidate": {"age": 40},
+    "outcome": "dropped-likelihood",
+    "failed": [],
+    "score": {"likelihood": -4.25},
+}
+"""A schema-3 line of the ranking arm, with its score."""
+
+
+def test_read_accepts_schemas_1_to_3():
+    assert SCHEMA == 3
+    schema_3 = HEADER.replace(b'"schema": 2', b'"schema": 3')
+    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, schema_3)
+    for head in heads:
+        (line,) = read(head + json.dumps(LINE).encode() + b"\n").candidates
+        assert line.line() == LINE
+    undrawable = {**RANKED, "score": {"likelihood": None}}
+    curated = {
+        **RANKED,
+        "arm": "cllm",
+        "outcome": "kept",
+        "score": {"aleatoric": 0.1, "confidence": 0.9},
+    }
+    for scored in (RANKED, undrawable, curated):
+        (line,) = read(schema_3 + json.dumps(scored).encode() + b"\n").candidates
+        assert line.score == scored["score"]
+        assert line.line() == scored
+    for head in heads[:2]:
+        with pytest.raises(CandidatesFormatError, match="keys"):
+            read(head + json.dumps(RANKED).encode() + b"\n")
+    for score in ("high", [], {"likelihood": "high"}, {"likelihood": True}, {"likelihood": 1e999}):
+        with pytest.raises(CandidatesFormatError, match="wrong type"):
+            read(schema_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
 
 
 def test_read_takes_a_header_and_a_well_formed_line():

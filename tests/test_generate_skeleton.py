@@ -172,7 +172,14 @@ def test_drops_a_record_whose_concepts_differ_after_cell_before_quota():
     assert found.lines == (0, None, None, None, None)
     assert drops(rows, train, asked, prescribed=lined) == found.reasons
     assert drops(rows, train, asked) == (None, Drop.QUOTA, Drop.RANGE, Drop.CELL, Drop.QUOTA)
-    assert list(Drop) == [Drop.RANGE, Drop.CELL, Drop.CONCEPTS, Drop.CURATION, Drop.QUOTA]
+    assert list(Drop) == [
+        Drop.RANGE,
+        Drop.CELL,
+        Drop.CONCEPTS,
+        Drop.CURATION,
+        Drop.QUOTA,
+        Drop.LIKELIHOOD,
+    ]
     with pytest.raises(ValueError, match="2 concept sets for 5 rows"):
         drops(rows, train, asked, prescribed=dataclasses.replace(lined, shows=(one, one)))
 

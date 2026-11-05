@@ -6,7 +6,8 @@ probability the stages give its own label, and its aleatoric uncertainty the mea
 row is dropped when both are low (`discards`): the classifier confidently puts it at the other
 label. The rule and its thresholds are CLLM's (Seedat et al. 2024; its results code reads them
 off Data-IQ's training dynamics), with fixed thresholds, so a row's fate never depends on its
-batch and a replay keeps the same rows.
+batch and a replay keeps the same rows. `classifier_scores` returns the two scores themselves,
+which a curating attempt keeps on each row's candidates line (`bko.evaluate.holdout_candidates`).
 """
 
 from __future__ import annotations
@@ -28,6 +29,16 @@ logger = logging.getLogger(__name__)
 
 type Discard = Callable[[pd.DataFrame], pd.Series]
 """A curator: given added rows in a frame's columns, which to drop, by row, True to drop."""
+
+type Scores = Callable[[pd.DataFrame], pd.DataFrame]
+"""A curator's reading: given added rows in a frame's columns, each row's `CONFIDENCE` and
+`ALEATORIC`, indexed as the rows."""
+
+CONFIDENCE: Final = "confidence"
+"""The column of a row's mean confidence in its own label."""
+
+ALEATORIC: Final = "aleatoric"
+"""The column of a row's mean aleatoric uncertainty."""
 
 STAGES: Final = 99
 """The boosting stages read per row: the first 99 of the classifier's 100."""
@@ -60,6 +71,30 @@ def discards(confidence: np.ndarray, aleatoric: np.ndarray) -> np.ndarray:
 def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
     """The curator fit on `train`, as a function of the added rows it reads.
 
+    Args:
+        train: The holdout's training rows, in `frame`'s columns.
+        frame: The frame whose features and label the curator reads.
+
+    Returns:
+        A `Discard` that marks the rows `discards` drops from their `classifier_scores`, indexed
+        as the rows given.
+
+    Raises:
+        ValueError: As `classifier_scores`.
+    """
+    scores = classifier_scores(train, frame=frame)
+
+    def discard(rows: pd.DataFrame) -> pd.Series:
+        read = scores(rows)
+        dropped = discards(read[CONFIDENCE].to_numpy(), read[ALEATORIC].to_numpy())
+        return pd.Series(dropped, index=rows.index, dtype=bool)
+
+    return discard
+
+
+def classifier_scores(train: pd.DataFrame, *, frame: FrameSpec) -> Scores:
+    """The curator fit on `train`, as the reading of the added rows it scores.
+
     The fit and every read run on one OpenMP thread, as `bko.evaluate.classifier` does: the
     classifier is small, and threads beside other work cost far more than they save.
 
@@ -68,8 +103,8 @@ def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
         frame: The frame whose features and label the curator reads.
 
     Returns:
-        A `Discard` that reads each row's confidence and aleatoric uncertainty over the first
-        `STAGES` stages and marks the rows `discards` drops, indexed as the rows given.
+        A `Scores` that reads each row's confidence and aleatoric uncertainty over the first
+        `STAGES` stages.
 
     Logs one `curator` line: the training rows, their count per label, the stages read and both
     thresholds.
@@ -99,9 +134,9 @@ def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
     )
     classes = list(model.classes_)
 
-    def discard(rows: pd.DataFrame) -> pd.Series:
+    def scores(rows: pd.DataFrame) -> pd.DataFrame:
         if rows.empty:
-            return pd.Series(False, index=rows.index, dtype=bool)
+            return pd.DataFrame({CONFIDENCE: [], ALEATORIC: []}, index=rows.index, dtype=float)
         own = np.array([classes.index(label) for label in rows[frame.label]])
         with threadpool_limits(limits=1, user_api="openmp"):
             stages = np.stack(
@@ -112,6 +147,6 @@ def classifier_discard(train: pd.DataFrame, *, frame: FrameSpec) -> Discard:
             )
         confidence = stages.mean(axis=0)
         aleatoric = (stages * (1 - stages)).mean(axis=0)
-        return pd.Series(discards(confidence, aleatoric), index=rows.index, dtype=bool)
+        return pd.DataFrame({CONFIDENCE: confidence, ALEATORIC: aleatoric}, index=rows.index)
 
-    return discard
+    return scores

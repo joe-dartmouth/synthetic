@@ -47,6 +47,7 @@ from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     MESSAGES_ARMS,
     REAL_ARM,
+    Curation,
     Experiment,
     gap_request,
     replica_request,
@@ -139,8 +140,12 @@ class StoredArm:
         self._tries: Counter[Key] = Counter()
         spec = MESSAGES_ARMS.get(name)
         prescribing = spec is not None and spec.prescribes
-        curating = spec is not None and spec.curation is not None
-        self._template = Attempt.tally_for(prescribing=prescribing, curating=curating)
+        curation = None if spec is None else spec.curation
+        self._template = Attempt.tally_for(
+            prescribing=prescribing,
+            curating=curation is Curation.CLASSIFIER,
+            ranking=curation is Curation.LIKELIHOOD,
+        )
 
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """The fill's stored rows on its last returned attempt; a refusal before it.

@@ -2,15 +2,16 @@
 
 `scorer` builds one cell's `bko.gaps.likelihood.Likelihood` from a holdout's training rows: the
 cell's shares (`bko.gaps.shares.shares`) read the cell's own records and its label group's.
-`tie` is the order that breaks equal scores, `sha256(f"{holdout}:{call}:{position}")`, so neither
-the gate's split nor the arm's ranking favours an early call (ADR
-`research/bkb-candidate-curation`).
+`record` reads a valid candidate as the scorer takes it, and `tie` is the order that breaks equal
+scores, `sha256(f"{holdout}:{call}:{position}")`, so neither the gate's split nor the arm's
+ranking favours an early call (ADR `research/bkb-candidate-curation`).
 """
 
 from __future__ import annotations
 
 import hashlib
-from typing import Protocol
+from collections.abc import Mapping, Sequence
+from typing import Final, Protocol
 
 import pandas as pd
 
@@ -21,6 +22,10 @@ from bko.gaps.likelihood import Likelihood
 from bko.gaps.observe import Cell, cell_key, observe_records, record_cells
 from bko.gaps.shares import shares
 from bko.ontology.schema import FieldMapping
+
+
+LIKELIHOOD: Final = "likelihood"
+"""The name a ranked candidate's score goes under on its candidates line."""
 
 
 class Known(Protocol):
@@ -66,3 +71,15 @@ def scorer(train: pd.DataFrame, data: Known, frame: FrameSpec, cell: Cell) -> Li
 def tie(holdout: int, call: int | None, position: int) -> str:
     """The order equal scores break by: `sha256(f"{holdout}:{call}:{position}")`, hex."""
     return hashlib.sha256(f"{holdout}:{call}:{position}".encode()).hexdigest()
+
+
+def record(candidate: object, columns: Sequence[str]) -> dict[str, float]:
+    """A valid candidate's values in `columns`, as the scorer reads them.
+
+    Raises:
+        EvaluationError: If `candidate` is not a record holding every column.
+    """
+    if not isinstance(candidate, Mapping) or not set(columns) <= set(candidate):
+        msg = f"a ranked candidate is a record of every column; got {candidate!r}"
+        raise EvaluationError(msg)
+    return {column: float(candidate[column]) for column in columns}
