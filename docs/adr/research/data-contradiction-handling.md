@@ -24,7 +24,8 @@ sample, and the direct sampler draws a child without its parent.
   fixed list.
 * **Must keep every stage's output a valid fused BKB**, so the fused BKB a stage reads is one
   `bko.bkb.fusion.check_fused` accepts.
-* **Must leave `bko-direct`'s draw and `shares` unchanged**, so a recorded run reads the same.
+* **Must leave `bko-direct`'s draw and every non-empty cell's share unchanged**, so a recorded run
+  reads the same.
 * **Must measure each kind on the data**, every cell listed, not on a sample.
 
 ## Decision
@@ -52,15 +53,19 @@ sample, and the direct sampler draws a child without its parent.
    contradicts it. Neither is dropped or rescaled.
 5. **Gap detection**: a held child grounds its parent, as the `is_a` S-node says, whatever the
    dataset shows of the parent.
-6. **Shares** are finite and in [0, 1]. An empty cell has `n_c` of 0, so its share is `p_g`
-   (ADR `research/bkb-direct-generation`, Decision 1), to within one ulp: `shares` multiplies
-   `p_g` by `GROUP_WEIGHT` and divides it back (`cleanup:gaps/empty-cell-share-rounds`).
+6. **Shares** are finite and in [0, 1]. An empty cell has `n_c` of 0, so its share is exactly
+   `p_g` (ADR `research/bkb-direct-generation`, Decision 1): `shares` returns `p_g` itself there
+   rather than multiplying it by `GROUP_WEIGHT` and dividing it back, which can move it by one
+   ulp.
 7. **`bko-direct`** never forces an `is_a` ancestor into a field. A `nested` field pair keeps the
    outer concept whenever the inner is drawn. A draw no record matches falls back to the label
    group's records, then raises `SamplingError`. A label group with no record raises `GapError`,
    once.
-8. **No change to `bko-direct`'s draw or to `shares`.** The contradictions are reported, and the
-   sampler already handles each kind as Decisions 6 and 7 say.
+8. **No change to `bko-direct`'s draw, and `shares` changes only on an empty cell.** `shares`
+   returns `p_g` exactly on a cell of no record; a non-empty cell's share is the same formula, as
+   the digest pins in `tests/test_generate_direct.py` and `tests/test_evaluate_direct.py` show.
+   The contradictions are reported, and the sampler already handles each kind as Decisions 6 and 7
+   say.
 
 ## Rationale
 
@@ -87,8 +92,8 @@ read the data as it is.
 ## Consequences
 
 **Gained**: each stage's handling of each kind is one statement, checkable by `check_fused` and
-the `contradictions` command; no recorded run changes, since `bko-direct`'s draw and `shares` are
-untouched.
+the `contradictions` command; `bko-direct`'s draw and every non-empty cell's share are unchanged,
+as the digest pins show, and an empty cell's share moves by at most one ulp to `p_g` itself.
 **Accepted**: a fused BKB can hold an `is_a` S-node and a dataset prior that disagree, so
 inference over it reads both; `bko-direct` can draw a child without its parent when the mapping
 table does not nest them, a pattern the data shows.

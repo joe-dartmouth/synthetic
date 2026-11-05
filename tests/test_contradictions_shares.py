@@ -36,10 +36,6 @@ def test_every_share_on_the_grid_is_finite_and_inside_0_and_1():
         assert 0 <= found <= 1, (n_c, k_c, n_g, k_g)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="`cleanup:gaps/empty-cell-share-rounds`: GROUP_WEIGHT * p_g / GROUP_WEIGHT is not p_g",
-)
 def test_an_empty_cells_share_on_the_grid_is_exactly_its_groups():
     for n_g, k_g in {(n_g, k_g) for _, _, n_g, k_g in GRID}:
         assert share(0, 0, n_g, k_g) == k_g / n_g, (n_g, k_g)
