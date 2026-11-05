@@ -47,9 +47,19 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Knowledge**
 
-4. A comparison with the ELK description-logic reasoner, and a logic-only ablation that measures
-   what the BKB's probabilities add over the ontology's structure
-   ([`compare-elk-logic-only`](tasks/compare-elk-logic-only.md)).
+4. A comparison with the ELK description-logic reasoner, BioGPT and NCATS's Biomedical Data
+   Translator, and a logic-only ablation that measures what the BKB's probabilities add over the
+   ontology's structure ([`compare-elk-logic-only`](tasks/compare-elk-logic-only.md)).
+5. Where the data contradicts the ontology, and how each stage handles it
+   ([`evaluate-data-contradictions`](tasks/evaluate-data-contradictions.md)).
+6. A definition of explainability for BKO, a trace from each generated record to the BKB
+   probabilities and ontology statements behind it, shown in the Streamlit app
+   ([`explain-record-provenance`](tasks/explain-record-provenance.md)).
+
+**Evaluation**
+
+7. E6 under more classifiers, with the literature on what row-adding does to AUC-PR
+   ([`evaluate-more-classifiers`](tasks/evaluate-more-classifiers.md)).
 
 ## Setup
 

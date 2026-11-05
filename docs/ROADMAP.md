@@ -68,3 +68,14 @@ The 2-pager schedules nothing past the Final Report. The brief (F15) proposed a 
 (that distillation plus an agentic data-gap-filling copilot). Both are recorded in
 [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) and
 [IDEAS.md](IDEAS.md#track-b-agentic-gap-filling-copilot).
+
+Productization is unscheduled. The instructor's feedback on the 2026-11-04 status update raised
+five questions for it:
+- the real-world setting the system would run in;
+- an onboarding flow;
+- who its end users are;
+- what the UI needs;
+- how it handles user data under HIPAA and other regulations.
+
+[MARKET.md](MARKET.md) holds the market and HIPAA background. Product work gets its own task set
+once one of these is scoped.

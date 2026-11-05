@@ -1,6 +1,6 @@
 ---
 id: compare-elk-logic-only
-title: Compare against ELK, and measure what the BKB's probabilities add over logic alone
+title: Compare against ELK and related systems, and measure what the BKB's probabilities add
 status: ready
 depends_on: --
 blocks: --
@@ -11,7 +11,7 @@ paid: false
 adrs: --
 ---
 
-# Compare against ELK, and measure what the BKB's probabilities add over logic alone
+# Compare against ELK and related systems, and measure what the BKB's probabilities add
 
 The set's graph is [`experiments-index.md`](experiments-index.md).
 
@@ -29,6 +29,10 @@ model, was the strongest arm with the cell wholly removed
 each concept's share from the BKB's data priors, while the `is_a` closure is recorded and never
 read into a field (`bko.generate.direct`). How much of the result comes from the logical structure
 and how much from the probabilities has not been measured.
+
+The instructor's feedback on the 2026-11-04 status update named two more systems to read
+against: BioGPT, a biomedical language model, and NCATS's Biomedical Data Translator, a
+knowledge-graph reasoning program. Neither is cited either.
 
 There is also a precondition to check. MONDO's and HPO's release pipelines may already classify
 their ontologies with ELK. If so, the hierarchy `bko.ontology` loads from the pinned releases
@@ -52,10 +56,14 @@ already holds ELK's inferred subclasses, and swapping ELK in would change little
     paired against `bko-direct` on recall, AUC-PR and distance to closest record.
 
   If Phase 1 finds differences, each reading also runs on the ELK-classified hierarchy.
-- **Phase 3, docs.**
-  - Cite ELK in [`docs/literature.md`](../docs/literature.md).
-  - Add a related-work paragraph to [`docs/RESEARCH.md`](../docs/RESEARCH.md): what a DL
-    classifier computes and a BKO does not, and the reverse.
+- **Phase 3, related work.**
+  - Cite ELK, BioGPT and the Biomedical Data Translator in
+    [`docs/literature.md`](../docs/literature.md).
+  - Add a related-work section to [`docs/RESEARCH.md`](../docs/RESEARCH.md):
+    - what a DL classifier such as ELK computes and a BKO does not, and the reverse;
+    - how a biomedical language model such as BioGPT compares with the general model the
+      Messages arms use, and whether it could stand in as a generator;
+    - how the Translator's knowledge-graph reasoning over many sources relates to BKO fusion.
   - Record the result as a new entry in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md).
   - Write a new ADR under `docs/adr/research/` for the ablation's design.
 
@@ -71,5 +79,6 @@ already holds ELK's inferred subclasses, and swapping ELK in would change little
   listed, or an empty list stated.
 - The logic-only readings come from committed commands with no API call. They are paired against
   `bko-direct` and the BKO gap definitions on the same holdouts and inputs.
-- ELK is cited through the registry, and `tests/test_docs_citations.py` passes.
+- ELK, BioGPT and the Translator are cited through the registry, and
+  `tests/test_docs_citations.py` passes.
 - `make check`.
