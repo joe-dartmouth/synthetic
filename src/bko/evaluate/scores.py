@@ -84,6 +84,14 @@ class Measure(enum.StrEnum):
     ROWS = "rows"
     DCR_P5 = "dcr-p5"
     DCR_MEDIAN = "dcr-median"
+    NNDR_P5 = "nndr-p5"
+    """The 5th percentile of each row's d1/d2, its two nearest training rows' distances
+    (`bko.evaluate.privacy.nndr`); 0/0 reads 1."""
+    NNDR_MEDIAN = "nndr-median"
+    NNDR_TIES = "nndr-ties"
+    """How many rows read 0/0: two training rows at distance 0."""
+    NNDR_EXACT = "nndr-exact"
+    """How many rows read d1 = 0 < d2: a copy of one training row."""
     HELD_OUT_RATIO = "held-out-ratio"
     FLAGGED_FINGERPRINT = "flagged-fingerprint"
     """The holdout's flagged cells, as the first 12 hex digits of the sha256 of their sorted

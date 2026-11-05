@@ -9,11 +9,16 @@ summed one column at a time in frame column order, as the merged frame's row sum
 dividing by the column count, and a missing distance is skipped where rows meet, as its pandas
 minimum skips it. `tests/test_evaluate_privacy.py` holds the two equal, missing values and a wholly
 missing training column included. The lock holds SDMetrics' version.
+
+`nearest_two` also keeps each row's second-nearest distance, which `nndr` reads, and
+`nearest_from` reads each measured column's span from another frame than the one it measures
+against.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
 from typing import Final
 
 import numpy as np
@@ -56,34 +61,147 @@ def nearest(
     Raises:
         ValueError: If `block` is below 1, or `train` holds no row, which leaves no distance.
     """
-    if block < 1:
-        raise ValueError(f"block must be at least 1, not {block}")
-    if not len(train):
-        raise ValueError("no training rows to measure against, so no row has a distance")
-    columns = [
-        _column(rows[name], train[name], numeric=name in frame.numeric) for name in frame.columns
-    ]
+    return nearest_from(rows, train, frame=frame, spans_from=train, block=block)
+
+
+def nearest_from(
+    rows: pd.DataFrame,
+    reference: pd.DataFrame,
+    *,
+    frame: FrameSpec,
+    spans_from: pd.DataFrame,
+    block: int = BLOCK,
+) -> np.ndarray:
+    """`nearest` from `rows` to `reference`, each measured column's span read from `spans_from`.
+
+    The membership attack measures a record's distance to an arm's added rows on the training
+    split's spans, so every arm's distances share one metric (`bko.evaluate.membership`).
+
+    Raises:
+        ValueError: As `nearest`, for `reference`.
+    """
     result = np.empty(len(rows))
-    for start in range(0, len(rows), block):
-        stop = min(start + block, len(rows))
+    for start, stop, block_distances in _blocks(rows, reference, frame, spans_from, block):
         best = np.full(stop - start, np.nan)
-        for reference in range(0, len(train), block):
-            end = min(reference + block, len(train))
-            total = columns[0].gap(start, stop, reference, end)
-            for column in columns[1:]:
-                total += column.gap(start, stop, reference, end)
-            np.fmin(best, np.fmin.reduce(total / len(columns), axis=1), out=best)
+        for found in block_distances:
+            np.fmin(best, np.fmin.reduce(found, axis=1), out=best)
         result[start:stop] = best
     return result
 
 
-class _Numeric:
-    """A measured column: the absolute gap over the training range, capped at 1."""
+def nearest_two(
+    rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec, block: int = BLOCK
+) -> tuple[np.ndarray, np.ndarray]:
+    """Each row's distances to its closest and its second-closest training rows.
 
-    def __init__(self, data: pd.Series, reference: pd.Series) -> None:
+    Each block keeps a running pair of minima, so the first equals `nearest` bit for bit. A
+    missing distance is skipped, as `nearest` skips it; a row with no distance reads NaN.
+
+    Raises:
+        ValueError: If `block` is below 1, or `train` holds fewer than two rows.
+    """
+    if len(train) < 2:
+        raise ValueError(f"a second-nearest distance needs two training rows, not {len(train)}")
+    first, second = np.empty(len(rows)), np.empty(len(rows))
+    for start, stop, block_distances in _blocks(rows, train, frame, train, block):
+        low, next_low = np.full(stop - start, np.inf), np.full(stop - start, np.inf)
+        for found in block_distances:
+            found = np.where(np.isnan(found), np.inf, found)
+            if found.shape[1] > 1:
+                pair = np.partition(found, 1, axis=1)
+                least, runner_up = pair[:, 0], pair[:, 1]
+            else:
+                least, runner_up = found[:, 0], np.full(stop - start, np.inf)
+            next_low = np.minimum(np.maximum(low, least), np.minimum(next_low, runner_up))
+            low = np.minimum(low, least)
+        first[start:stop], second[start:stop] = low, next_low
+    first[np.isinf(first)], second[np.isinf(second)] = np.nan, np.nan
+    return first, second
+
+
+def nndr(rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec) -> dict[Measure, float]:
+    """The nearest-neighbour distance ratio d1/d2 of each row to the training rows, summarised.
+
+    0/0, a row with two training rows at distance 0, reads 1; d1 = 0 < d2, a copy of one
+    training row, reads 0. It returns the ratios' 5th percentile and median, and how many rows
+    read 0/0 (`NNDR_TIES`) and d1 = 0 < d2 (`NNDR_EXACT`); with no rows, each is NaN.
+
+    Raises:
+        ValueError: As `nearest_two`.
+    """
+    first, second = nearest_two(rows, train, frame=frame)
+    if not len(rows):
+        return dict.fromkeys(NNDR_MEASURES, math.nan)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratios = pd.Series(np.where(second == 0, 1.0, first / second))
+    return {
+        Measure.NNDR_P5: float(ratios.quantile(QUANTILE)),
+        Measure.NNDR_MEDIAN: float(ratios.median()),
+        Measure.NNDR_TIES: float((second == 0).sum()),
+        Measure.NNDR_EXACT: float(((first == 0) & (second > 0)).sum()),
+    }
+
+
+NNDR_MEASURES: Final = (
+    Measure.NNDR_P5,
+    Measure.NNDR_MEDIAN,
+    Measure.NNDR_TIES,
+    Measure.NNDR_EXACT,
+)
+"""What `nndr` returns, in order."""
+
+
+def _blocks(
+    rows: pd.DataFrame,
+    reference: pd.DataFrame,
+    frame: FrameSpec,
+    spans_from: pd.DataFrame,
+    block: int,
+) -> Iterator[tuple[int, int, Iterator[np.ndarray]]]:
+    """Each block of rows' start and stop, with its distances to each block of `reference`.
+
+    Each column's gaps are summed one column at a time in frame column order before dividing by
+    the column count, as SDMetrics' merged frame's row sum adds them.
+
+    Raises:
+        ValueError: If `block` is below 1, or `reference` holds no row.
+    """
+    if block < 1:
+        raise ValueError(f"block must be at least 1, not {block}")
+    if not len(reference):
+        raise ValueError("no training rows to measure against, so no row has a distance")
+    columns = [
+        _column(
+            rows[name], reference[name], numeric=name in frame.numeric, span_from=spans_from[name]
+        )
+        for name in frame.columns
+    ]
+
+    def distances_of(start: int, stop: int) -> Iterator[np.ndarray]:
+        for at in range(0, len(reference), block):
+            end = min(at + block, len(reference))
+            total = columns[0].gap(start, stop, at, end)
+            for column in columns[1:]:
+                total += column.gap(start, stop, at, end)
+            yield total / len(columns)
+
+    for start in range(0, len(rows), block):
+        stop = min(start + block, len(rows))
+        yield start, stop, distances_of(start, stop)
+
+
+class _Numeric:
+    """A measured column: the absolute gap over the training range, capped at 1.
+
+    The range is `span_from`'s: the reference's own for `nearest`, the training split's for
+    `nearest_from`.
+    """
+
+    def __init__(self, data: pd.Series, reference: pd.Series, span_from: pd.Series) -> None:
         self.data: np.ndarray = data.to_numpy(dtype=float, na_value=np.nan)
         self.reference: np.ndarray = reference.to_numpy(dtype=float, na_value=np.nan)
-        present = self.reference[~np.isnan(self.reference)]
+        spanned = span_from.to_numpy(dtype=float, na_value=np.nan)
+        present = spanned[~np.isnan(spanned)]
         self.span: float = float(present.max() - present.min()) if present.size else math.nan
 
     def gap(self, start: int, stop: int, reference: int, end: int) -> np.ndarray:
@@ -111,5 +229,10 @@ class _Coded:
         return (data != ref).astype(float)
 
 
-def _column(data: pd.Series, reference: pd.Series, *, numeric: bool) -> _Numeric | _Coded:
-    return _Numeric(data, reference) if numeric else _Coded(data, reference)
+def _column(
+    data: pd.Series, reference: pd.Series, *, numeric: bool, span_from: pd.Series | None = None
+) -> _Numeric | _Coded:
+    """A column's gaps; a measured column's span is `span_from`'s, `reference`'s when None."""
+    if not numeric:
+        return _Coded(data, reference)
+    return _Numeric(data, reference, reference if span_from is None else span_from)

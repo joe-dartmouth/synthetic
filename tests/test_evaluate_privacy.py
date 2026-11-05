@@ -1,5 +1,6 @@
 """Distance to closest record: copies sit at zero, one differing code moves a row 1/14, and the
-blocked computation returns SDMetrics' `calculate_dcr` bit for bit."""
+blocked computation returns SDMetrics' `calculate_dcr` bit for bit; the second-nearest distance,
+spans from another frame, and the nearest-neighbour distance ratio."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.evaluate.fidelity import metadata
-from bko.evaluate.privacy import BLOCK, distances, nearest
+from bko.evaluate.privacy import BLOCK, distances, nearest, nearest_from, nearest_two, nndr
 from bko.evaluate.scores import Measure
 from tests._baselines_fixtures import full_records
 
@@ -152,3 +153,100 @@ def test_blocked_dcr_equals_sdmetrics_across_the_default_block(crossing):
     rows, train = (more, few) if crossing == "rows" else (few, more)
     expected = _sdmetrics(rows, train, UCI_FRAME)
     assert np.array_equal(nearest(rows, train, frame=UCI_FRAME), expected)
+
+
+@pytest.mark.parametrize("block", [13, 64, 1_000, None], ids=lambda b: f"block={b}")
+def test_the_first_of_the_two_nearest_is_nearest_bitwise(block):
+    rows, train = _cases(DIABETES_FRAME)
+    size = block or len(train) + len(rows)
+    first, _ = nearest_two(rows, train, frame=DIABETES_FRAME, block=size)
+    assert np.array_equal(first, nearest(rows, train, frame=DIABETES_FRAME))
+
+
+def _matrix(rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec) -> np.ndarray:
+    """Each row's distance to each training row, every column's span the whole of `train`'s."""
+    return np.column_stack(
+        [
+            nearest_from(rows, train.iloc[[j]], frame=frame, spans_from=train)
+            for j in range(len(train))
+        ]
+    )
+
+
+@pytest.mark.parametrize("block", [7, 64])
+def test_the_second_of_the_two_nearest_is_the_second_smallest_distance(block):
+    train = _records(UCI_FRAME, 40, seed=3)
+    rows = pd.concat([_records(UCI_FRAME, 30, seed=4), train.iloc[:5]], ignore_index=True)
+    first, second = nearest_two(rows, train, frame=UCI_FRAME, block=block)
+    ordered = np.sort(_matrix(rows, train, UCI_FRAME), axis=1)
+    assert np.array_equal(first, ordered[:, 0])
+    assert np.array_equal(second, ordered[:, 1])
+
+
+def test_two_nearest_need_two_training_rows():
+    rows, train = _cases(UCI_FRAME)
+    with pytest.raises(ValueError, match="two training rows"):
+        nearest_two(rows, train.iloc[:1], frame=UCI_FRAME)
+
+
+def test_spans_from_the_reference_itself_are_nearest_bitwise():
+    rows, train = _cases(DIABETES_FRAME)
+    found = nearest_from(rows, train, frame=DIABETES_FRAME, spans_from=train)
+    assert np.array_equal(found, nearest(rows, train, frame=DIABETES_FRAME))
+
+
+def test_a_span_is_read_from_the_training_split_not_the_reference():
+    record = FRAME.iloc[[0]].reset_index(drop=True)
+    moved = record.assign(age=record["age"] + 10)
+    ages = pd.Series(np.linspace(30, 70, len(FRAME)).round(), index=FRAME.index)
+    train = FRAME.assign(age=ages.astype(FRAME["age"].dtype))
+    span = float(train["age"].max() - train["age"].min())
+    found = nearest_from(record, moved, frame=UCI_FRAME, spans_from=train)
+    assert found[0] == pytest.approx(10 / span / len(UCI_FRAME.columns))
+    # Against the one moved row alone, its own span is 0, so any gap reads 1.
+    assert nearest(record, moved, frame=UCI_FRAME)[0] == pytest.approx(1 / len(UCI_FRAME.columns))
+
+
+def test_nndr_reads_a_tie_at_zero_as_one_and_an_exact_copy_as_zero():
+    train = _records(UCI_FRAME, 50, seed=7)
+    train = pd.concat([train, train.iloc[[0]]], ignore_index=True)
+    rows = train.iloc[[0, 1]].reset_index(drop=True)
+    ratios = pd.Series([1.0, 0.0])
+    assert nndr(rows, train, frame=UCI_FRAME) == {
+        Measure.NNDR_P5: float(ratios.quantile(0.05)),
+        Measure.NNDR_MEDIAN: 0.5,
+        Measure.NNDR_TIES: 1.0,
+        Measure.NNDR_EXACT: 1.0,
+    }
+
+
+def test_nndr_quantiles_follow_pandas_on_the_ratio_of_the_two_nearest():
+    rows, train = _cases(UCI_FRAME)
+    first, second = nearest_two(rows, train, frame=UCI_FRAME)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratios = pd.Series(np.where(second == 0, 1.0, first / second))
+    assert nndr(rows, train, frame=UCI_FRAME) == {
+        Measure.NNDR_P5: float(ratios.quantile(0.05)),
+        Measure.NNDR_MEDIAN: float(ratios.median()),
+        Measure.NNDR_TIES: float((second == 0).sum()),
+        Measure.NNDR_EXACT: float(((first == 0) & (second > 0)).sum()),
+    }
+    assert 0 < (first == 0).sum() < len(rows)
+
+
+def test_nndr_against_one_training_row_is_refused():
+    rows, train = _cases(UCI_FRAME)
+    with pytest.raises(ValueError, match="two training rows"):
+        nndr(rows, train.iloc[:1], frame=UCI_FRAME)
+
+
+def test_nndr_of_no_rows_is_undefined():
+    rows, train = _cases(UCI_FRAME)
+    scores = nndr(rows.iloc[:0], train, frame=UCI_FRAME)
+    assert all(np.isnan(value) for value in scores.values())
+    assert set(scores) == {
+        Measure.NNDR_P5,
+        Measure.NNDR_MEDIAN,
+        Measure.NNDR_TIES,
+        Measure.NNDR_EXACT,
+    }
