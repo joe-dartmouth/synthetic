@@ -605,7 +605,10 @@ start or the supervisor cannot run.
   criterion's family still counts it. The table reads the regression only, so it is the same with
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
-- **What it logs**: each stderr line starts with its time. For a Diabetes 130 run, `score` first
+- **What it logs**: each stderr line starts with its local time and UTC offset,
+  `YYYY-MM-DD HH:MM:SS,mmm±HHMM` (two whitespace-free tokens), then its level and logger name;
+  `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the offset. For a
+  Diabetes 130 run, `score` first
   logs the cohort line as it loads the records, `cohort encounters=%d repeat_encounters=%d
   excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
   accounts for every encounter: `encounters` = `repeat_encounters` + `excluded_discharges` +
@@ -1501,7 +1504,9 @@ A targeted run while working:
 - **A `live` run spends money.** `--live` lifts the guard for each `live` test's body and leaves
   subprocesses unguarded. Never set `ANTHROPIC_LOG=debug`: the SDK then logs prompts, training
   records included for a CLLM arm. Importing `bko.generate.api` holds the SDK's `anthropic` logger
-  at INFO, so no entry point logs a request body.
+  at INFO, so no entry point logs a request body. Setting `ANTHROPIC_LOG` leaves the bko INFO
+  lines in place: the SDK's import installs a root handler, and every entry point's logging setup
+  replaces it (`force=True`).
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

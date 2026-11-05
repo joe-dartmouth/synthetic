@@ -35,7 +35,7 @@ SPEND_CEILING: Final = 0.25
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr; a second call changes nothing."""
+    """Send INFO and higher, and every warning, to stderr, replacing any root handler."""
     logging.basicConfig(
         stream=sys.stderr,
         level=logging.INFO,
