@@ -23,14 +23,11 @@ from scipy.stats import t as student
 from bko.evaluate.classifier import Model
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
-from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, suffixed
 
 
 JUDGED: Final = (Measure.RECALL, Measure.AUC_PR)
 """The measures the separation criteria judge."""
-
-BOOSTED: Final = (Measure.RECALL_HGB, Measure.AUC_PR_HGB)
-"""The boosting model's measures, read by `reported_contrasts` as the criteria read `JUDGED`."""
 
 CRITERIA: Final = (("primary", Scope.ALL), ("secondary", Scope.FLAGGED))
 """Each separation criterion and the test records it judges."""
@@ -310,7 +307,7 @@ def reported_contrasts(
     experiment: Experiment,
     *,
     candidate: str | None = None,
-    model: Model = Model.HGB,
+    model: Model,
 ) -> list[Reported | Absent]:
     """Each separation criterion's contrasts of `model`'s measures, read as it reads `JUDGED`'s.
 
@@ -322,7 +319,7 @@ def reported_contrasts(
     Raises:
         EvaluationError: As `judge`, for a series of `model`'s measures it reads.
     """
-    measures = tuple(Measure(f"{measure}-{model}") for measure in JUDGED)
+    measures = tuple(suffixed(measure, model) for measure in JUDGED)
     held = {s.arm for s in scores if s.source is Source.AUGMENTED and s.measure in measures}
     if not held:
         return []

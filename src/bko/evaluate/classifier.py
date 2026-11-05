@@ -7,14 +7,14 @@ one-hot encoded over their codebook, so every fit has the same columns whatever 
 rows hold; the regression and the perceptron also standardise measured predictors, which the trees
 split on as they are. Naive Bayes bins measured predictors and reads coded ones as ordinals over
 their codebook. The fields and codebook are the frame's, which every builder requires. The weights
-reach the model only, as `class_weight="balanced"` would. Every fit runs on one OpenMP thread.
+reach the model only, as `class_weight="balanced"` would. Every fit runs on one OpenMP thread;
+`bko.evaluate.panel` bounds every other thread pool too.
 ADRs `research/e1-evaluation-protocol` and `research/classifier-panel` record why.
 """
 
 from __future__ import annotations
 
 import enum
-import logging
 import warnings
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
@@ -39,8 +39,6 @@ from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
 
 
-logger = logging.getLogger(__name__)
-
 MAX_ITER: Final = 1000
 """lbfgs iterations before a fit counts as not converged."""
 
@@ -60,7 +58,7 @@ class Model(enum.StrEnum):
     ET = "et"
     """The extra trees, reported with no verdict."""
     MLP = "mlp"
-    """The multilayer perceptron, fit for `MLP_EPOCHS` epochs and reported with no verdict."""
+    """The multilayer perceptron, fit for exactly `MLP_EPOCHS` epochs, reported with no verdict."""
     NB = "nb"
     """The categorical naive Bayes, reported with no verdict."""
 
@@ -106,7 +104,7 @@ def build_hgb(frame: FrameSpec) -> Pipeline:
 
 
 def build_rf(frame: FrameSpec) -> Pipeline:
-    """The unfitted random forest: `frame`'s unscaled features, then the model named `model`."""
+    """The unfitted random forest, named `model`, over `frame`'s unscaled features."""
     model = RandomForestClassifier(
         n_estimators=TREES,
         criterion="gini",
@@ -121,7 +119,7 @@ def build_rf(frame: FrameSpec) -> Pipeline:
 
 
 def build_et(frame: FrameSpec) -> Pipeline:
-    """The unfitted extra trees: `frame`'s unscaled features, then the model named `model`."""
+    """The unfitted extra trees, named `model`, over `frame`'s unscaled features."""
     model = ExtraTreesClassifier(
         n_estimators=TREES,
         max_features="sqrt",
@@ -137,8 +135,9 @@ def build_et(frame: FrameSpec) -> Pipeline:
 def build_mlp(frame: FrameSpec) -> Pipeline:
     """The unfitted perceptron: `frame`'s scaled features, then the model named `model`.
 
-    It stops at `MLP_EPOCHS` epochs with no early stopping, so its `ConvergenceWarning` is
-    expected (`FIXED_EPOCHS`).
+    It trains exactly `MLP_EPOCHS` epochs: early stopping is off, and a loss that stops falling
+    cannot end it sooner, since `n_iter_no_change` is the epoch count and `tol` is 0. Its
+    `ConvergenceWarning` at the last epoch is expected (`FIXED_EPOCHS`).
     """
     model = MLPClassifier(
         hidden_layer_sizes=(100,),
@@ -149,6 +148,8 @@ def build_mlp(frame: FrameSpec) -> Pipeline:
         learning_rate_init=1e-3,
         early_stopping=False,
         max_iter=MLP_EPOCHS,
+        n_iter_no_change=MLP_EPOCHS,
+        tol=0.0,
         random_state=0,
     )
     return Pipeline([("features", _features(frame, scaled=True)), ("model", model)])
@@ -214,17 +215,19 @@ def probabilities(
     factory: Factory = build,
     frame: FrameSpec,
     model: Model = Model.LR,
+    on_fit: Callable[[int, bool], None] | None = None,
 ) -> pd.Series:
     """Fit on `training`, weighted by its `weight` column; return each test record's P(disease).
 
-    `model` names the fit in errors and logs. The fit and the prediction run on one OpenMP thread:
-    the boosting model scores the same on any count, and unbounded threads crawl under the gate's
-    parallel workers. A `FIXED_EPOCHS` model's `ConvergenceWarning` is recorded and its fit logged
-    with its iteration count; any other warning it raises is re-issued.
+    The fit and the prediction run on one OpenMP thread: the boosting model scores the same on any
+    count, and unbounded threads crawl under the gate's parallel workers. A `FIXED_EPOCHS` model's
+    `ConvergenceWarning` is recorded, a given `on_fit` receives its `n_iter_` and whether it
+    converged, and any other warning it raises is re-issued, even when the fit fails.
 
     Raises:
         EvaluationError: If a model outside `FIXED_EPOCHS` does not converge within its
-            iteration limit.
+            iteration limit; a `MODELS` model's message is the default path's, which names no
+            model, and any other model's names it.
     """
     pipeline = factory(frame)
     features = list(frame.features)
@@ -232,37 +235,53 @@ def probabilities(
     fit_args = (training.loc[:, features], training[frame.label])
     with threadpool_limits(limits=1, user_api="openmp"):
         if model in FIXED_EPOCHS:
-            _fit_fixed(pipeline, fit_args, fit_params, model)
+            n_iter, converged = _fit_fixed(pipeline, fit_args, fit_params)
+            if on_fit is not None:
+                on_fit(n_iter, converged)
         else:
             with warnings.catch_warnings():
                 warnings.simplefilter("error", ConvergenceWarning)
                 try:
                     pipeline.fit(*fit_args, **fit_params)
                 except ConvergenceWarning as exc:
-                    limit = pipeline.named_steps["model"].get_params().get("max_iter")
-                    msg = f"the {model} classifier did not converge in {limit} iterations"
-                    raise EvaluationError(msg) from exc
+                    raise EvaluationError(_unconverged(pipeline, model)) from exc
         positive = pipeline.predict_proba(test.loc[:, features])[:, 1]
     return pd.Series(positive, index=test.index, name="probability", dtype="float64")
+
+
+def _unconverged(pipeline: Pipeline, model: Model) -> str:
+    """The message of a fit that did not converge: the default path's for a `MODELS` model.
+
+    Only a model with a `max_iter` warns, so the fallback for one without names no count.
+    """
+    if model in MODELS:
+        return f"the classifier did not converge in {MAX_ITER} iterations"
+    limit = pipeline.named_steps["model"].get_params().get("max_iter")
+    if limit is None:
+        return f"the {model} classifier did not converge"
+    return f"the {model} classifier did not converge in {limit} iterations"
 
 
 def _fit_fixed(
     pipeline: Pipeline,
     fit_args: tuple[pd.DataFrame, pd.Series],
     fit_params: Mapping[str, object],
-    model: Model,
-) -> None:
-    """Fit `pipeline` recording its `ConvergenceWarning`; log `n_iter_` and whether it converged."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always", ConvergenceWarning)
-        pipeline.fit(*fit_args, **fit_params)
-    converged = True
-    for warning in caught:
-        if issubclass(warning.category, ConvergenceWarning):
-            converged = False
-        else:
-            warnings.warn_explicit(
-                warning.message, warning.category, warning.filename, warning.lineno
-            )
-    n_iter = pipeline.named_steps["model"].n_iter_
-    logger.info("fit model=%s n_iter=%d converged=%s", model, n_iter, str(converged).lower())
+) -> tuple[int, bool]:
+    """Fit `pipeline` recording its `ConvergenceWarning`; return `n_iter_` and whether it converged.
+
+    Every other warning recorded is re-issued after the fit, whether or not it raised.
+    """
+    recorded: list[warnings.WarningMessage] = []
+    try:
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ConvergenceWarning)
+            recorded = caught
+            pipeline.fit(*fit_args, **fit_params)
+    finally:
+        for warning in recorded:
+            if not issubclass(warning.category, ConvergenceWarning):
+                warnings.warn_explicit(
+                    warning.message, warning.category, warning.filename, warning.lineno
+                )
+    converged = not any(issubclass(w.category, ConvergenceWarning) for w in recorded)
+    return pipeline.named_steps["model"].n_iter_, converged

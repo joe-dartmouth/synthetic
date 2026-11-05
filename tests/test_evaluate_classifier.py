@@ -20,6 +20,7 @@ from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME, complete_records, parse_cleveland
 from bko.evaluate.classifier import (
     FIXED_EPOCHS,
+    MLP_EPOCHS,
     MODELS,
     PANEL,
     Model,
@@ -33,6 +34,7 @@ from bko.evaluate.classifier import (
 )
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.run import _fitted
 from tests._baselines_fixtures import UNBALANCED_TEXT
 from tests._evaluate_fixtures import FAST_METHODS, FLAGGED, GRADED, Spy
 
@@ -220,8 +222,12 @@ NEW = (Model.RF, Model.ET, Model.MLP, Model.NB)
 """The panel's models beyond the regression and the boosting model."""
 
 
-def _panel(model, training, test=GRADED):
-    return probabilities(training, test, factory=PANEL[model], frame=UCI_FRAME, model=model)
+def _panel(model, training, test=GRADED, on_fit=None):
+    """`model`'s probabilities, with every thread pool at one thread, as `panel` runs it."""
+    with threadpool_limits(limits=1):
+        return probabilities(
+            training, test, factory=PANEL[model], frame=UCI_FRAME, model=model, on_fit=on_fit
+        )
 
 
 def test_models_default_stays_lr_hgb():
@@ -293,13 +299,13 @@ MLP_PARAMS = {
     "max_fun": 15000,
     "max_iter": 15,
     "momentum": 0.9,
-    "n_iter_no_change": 10,
+    "n_iter_no_change": 15,
     "nesterovs_momentum": True,
     "power_t": 0.5,
     "random_state": 0,
     "shuffle": True,
     "solver": "adam",
-    "tol": 0.0001,
+    "tol": 0.0,
     "validation_fraction": 0.1,
     "verbose": False,
     "warm_start": False,
@@ -351,7 +357,9 @@ PANEL_PINS = {
     ),
 }
 """Each panel model's P(disease) of `GRADED` records 3, 6, 21 and 24, which seed 0 holds out, and
-its relative tolerance."""
+its relative tolerance. `_panel` fits under `threadpool_limits(limits=1)`, which bounds every pool
+threadpoolctl detects, so the perceptron's matrix products sum in one order; the tolerance of 1e-9
+leaves room for another BLAS build's rounding."""
 
 
 @pytest.mark.parametrize("model", NEW, ids=str)
@@ -362,25 +370,146 @@ def test_panel_probabilities_are_pinned(model):
     np.testing.assert_allclose(probability.to_numpy()[[3, 6, 21, 24]], expected, rtol=rtol)
 
 
-def test_the_mlp_records_not_raises_at_its_fixed_epochs(caplog):
-    caplog.set_level(logging.INFO, logger="bko.evaluate.classifier")
+def test_the_mlp_trains_exactly_its_epochs_and_records_not_raises():
+    fits: list[tuple[int, bool]] = []
     with warnings.catch_warnings():
         warnings.simplefilter("error", ConvergenceWarning)
-        probability = _panel(Model.MLP, TRAIN.assign(weight=1.0))
-    assert probability.between(0, 1).all()
-    assert "fit model=mlp n_iter=15 converged=false" in caplog.messages
-
-
-def test_a_non_mlp_convergence_warning_still_raises_naming_the_model():
-    def stingy(frame):
-        pipeline = build(frame)
-        pipeline.set_params(model__max_iter=1)
-        return pipeline
-
-    with pytest.raises(EvaluationError, match="the lr classifier did not converge in 1 iterations"):
-        probabilities(
-            TRAIN.assign(weight=1.0), TRAIN, factory=stingy, frame=UCI_FRAME, model=Model.LR
+        probability = _panel(
+            Model.MLP, TRAIN.assign(weight=1.0), on_fit=lambda *fit: fits.append(fit)
         )
+    assert probability.between(0, 1).all()
+    assert fits == [(MLP_EPOCHS, False)]
+    assert MLP_EPOCHS == 15
+
+
+@pytest.mark.parametrize("tol", [0.0, 1e9], ids=["pinned", "no-epoch-improves"])
+def test_no_loss_curve_can_stop_the_mlp_early(tol):
+    """At a `tol` no loss beats, every epoch counts as not improving; it still trains 15, since
+    `n_iter_no_change` is the epoch count (at scikit-learn's default of 10 it stops at 12)."""
+    pipeline = build_mlp(UCI_FRAME).set_params(model__tol=tol)
+    features = list(UCI_FRAME.features)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ConvergenceWarning)
+        pipeline.fit(TRAIN.loc[:, features], TRAIN[UCI_FRAME.label])
+    assert pipeline.named_steps["model"].n_iter_ == MLP_EPOCHS
+
+
+class Fixed(ClassifierMixin, BaseEstimator):
+    """A stand-in fixed-epoch model: it warns `warning` while it fits, then raises if `fail`."""
+
+    def __init__(self, warning=None, fail=False):
+        self.warning = warning
+        self.fail = fail
+
+    def fit(self, features, labels, sample_weight=None):
+        if self.warning is not None:
+            warnings.warn("stand-in", self.warning, stacklevel=2)
+        if self.fail:
+            msg = "the fit failed"
+            raise RuntimeError(msg)
+        self.classes_ = np.unique(labels)
+        self.n_iter_ = 7
+        return self
+
+    def predict_proba(self, features):
+        return np.full((len(features), 2), 0.5)
+
+
+def _fixed(**kwargs):
+    def factory(frame):
+        return build_mlp(frame).set_params(model=Fixed(**kwargs))
+
+    return factory
+
+
+def test_a_fixed_epoch_fit_that_converges_reports_it():
+    fits: list[tuple[int, bool]] = []
+    probabilities(
+        TRAIN.assign(weight=1.0),
+        GRADED,
+        factory=_fixed(),
+        frame=UCI_FRAME,
+        model=Model.MLP,
+        on_fit=lambda *fit: fits.append(fit),
+    )
+    assert fits == [(7, True)]
+
+
+def test_a_fixed_epoch_fits_other_warning_is_reissued():
+    with pytest.warns(UserWarning, match="stand-in"):
+        probabilities(
+            TRAIN.assign(weight=1.0),
+            GRADED,
+            factory=_fixed(warning=UserWarning),
+            frame=UCI_FRAME,
+            model=Model.MLP,
+        )
+
+
+def test_a_failing_fixed_epoch_fit_still_reissues_its_warnings():
+    with pytest.warns(UserWarning, match="stand-in"), pytest.raises(RuntimeError, match="failed"):
+        probabilities(
+            TRAIN.assign(weight=1.0),
+            GRADED,
+            factory=_fixed(warning=UserWarning, fail=True),
+            frame=UCI_FRAME,
+            model=Model.MLP,
+        )
+
+
+def _stingy(frame):
+    pipeline = build(frame)
+    pipeline.set_params(model__max_iter=1)
+    return pipeline
+
+
+@pytest.mark.parametrize("model", [Model.LR, Model.HGB], ids=str)
+def test_a_default_models_non_convergence_keeps_the_default_message(model):
+    with pytest.raises(EvaluationError) as raised:
+        probabilities(
+            TRAIN.assign(weight=1.0), TRAIN, factory=_stingy, frame=UCI_FRAME, model=model
+        )
+    assert str(raised.value) == "the classifier did not converge in 1000 iterations"
+
+
+def test_a_panel_models_non_convergence_names_the_model_holdout_and_arm():
+    with pytest.raises(EvaluationError) as raised:
+        _fitted(
+            3,
+            "smote",
+            TRAIN.assign(weight=1.0),
+            TRAIN,
+            factory=_stingy,
+            frame=UCI_FRAME,
+            model=Model.RF,
+        )
+    assert str(raised.value) == (
+        "holdout 3's smote arm: the rf classifier did not converge in 1 iterations"
+    )
+
+
+def test_the_harness_logs_a_fixed_epoch_fit_with_its_holdout_and_arm(caplog):
+    caplog.set_level(logging.INFO, logger="bko.evaluate.run")
+    _fitted(
+        2,
+        "none",
+        TRAIN.assign(weight=1.0),
+        GRADED,
+        factory=_fixed(),
+        frame=UCI_FRAME,
+        model=Model.MLP,
+    )
+    assert caplog.messages == ["fit holdout=2 arm=none model=mlp n_iter=7 converged=true"]
+
+
+def test_a_test_category_no_training_row_holds_still_scores():
+    training = TRAIN[TRAIN["sex"] == 0].assign(weight=1.0)
+    test = GRADED[GRADED["sex"] == 1]
+    assert len(training)
+    assert len(test)
+    probability = _panel(Model.NB, training, test)
+    assert probability.between(0, 1).all()
+    assert probability.notna().all()
 
 
 def test_a_constant_column_bins_and_scores():

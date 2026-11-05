@@ -33,8 +33,7 @@ from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.datasets.uci import UCI_FRAME, load_uci
-from bko.evaluate.classifier import build
-from bko.evaluate.criteria import BOOSTED
+from bko.evaluate.classifier import Model, build
 from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
@@ -43,6 +42,7 @@ from bko.evaluate.logs import stamped_handler
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
+from bko.evaluate.unjudged import judged_of
 from bko.gaps.definitions import Definition
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError, ReplayError
@@ -220,7 +220,7 @@ def test_the_app_scores_with_the_contexts_regression_only(tmp_path):
     context, _ = app_context(tmp_path, send=never, factory=factory)
     outcome = fill_and_score(analyze(context), "smote", context)
     assert built
-    assert not {s.measure for s in outcome.scores} & set(BOOSTED)
+    assert not {s.measure for s in outcome.scores} & set(judged_of(Model.HGB))
     assert Measure.RECALL in {s.measure for s in outcome.scores}
 
 

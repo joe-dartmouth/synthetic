@@ -16,6 +16,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import Method
+from bko.evaluate.classifier import Model
 from bko.evaluate.errors import ScoresFormatError
 
 
@@ -49,6 +50,7 @@ class Measure(enum.StrEnum):
     reads; each model but the regression suffixes its measures with its name."""
     PRECISION_HGB = "precision-hgb"
     AUC_PR_HGB = "auc-pr-hgb"
+    # The panel models' measures, then the calibration measures with each model's suffix.
     RECALL_RF = "recall-rf"
     PRECISION_RF = "precision-rf"
     AUC_PR_RF = "auc-pr-rf"
@@ -117,6 +119,15 @@ class Scope(enum.StrEnum):
     ALL = "all"
     FLAGGED = "flagged-subgroups"
     """The test records of every age-sex subgroup that holds an underrepresented cell."""
+
+
+CALIBRATION_MEASURES: Final = (Measure.BRIER, Measure.CALIBRATION)
+"""The calibration measures, under the regression's names."""
+
+
+def suffixed(measure: Measure, model: Model) -> Measure:
+    """`measure` under `model`'s name: the regression's as it is, every other model's suffixed."""
+    return measure if model is Model.LR else Measure(f"{measure}-{model}")
 
 
 @dataclass(frozen=True, slots=True)

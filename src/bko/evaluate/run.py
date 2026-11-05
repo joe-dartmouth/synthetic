@@ -41,7 +41,7 @@ from bko.evaluate.fidelity import MEASURES, fidelity
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
 from bko.evaluate.privacy import distances
-from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, suffixed
 from bko.evaluate.shared_split import marked, marker
 from bko.evaluate.utility import undefined, utility
 
@@ -354,12 +354,55 @@ def _arm_scores(
     training = training_set(train, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     for model in ordered:
-        fitted = probabilities(training, clean, factory=models[model], frame=frame, model=model)
+        fitted = _fitted(
+            seed, name, training, clean, factory=models[model], frame=frame, model=model
+        )
         measured = utility(
             clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
         )
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
+
+
+def _fitted(
+    seed: int,
+    arm: str,
+    training: pd.DataFrame,
+    clean: pd.DataFrame,
+    *,
+    factory: Factory,
+    frame: FrameSpec,
+    model: Model,
+) -> pd.Series:
+    """`probabilities` of `arm`'s fit at holdout `seed`, logging a fixed-epoch model's fit.
+
+    The log line is `fit holdout=%d arm=%s model=%s n_iter=%d converged=true|false`. A model
+    outside `MODELS` that does not converge is refused naming the holdout and the arm; a `MODELS`
+    model's refusal keeps its message.
+
+    Raises:
+        EvaluationError: As `probabilities`.
+    """
+
+    def on_fit(n_iter: int, converged: bool) -> None:
+        logger.info(
+            "fit holdout=%d arm=%s model=%s n_iter=%d converged=%s",
+            seed,
+            arm,
+            model,
+            n_iter,
+            "true" if converged else "false",
+        )
+
+    try:
+        return probabilities(
+            training, clean, factory=factory, frame=frame, model=model, on_fit=on_fit
+        )
+    except EvaluationError as exc:
+        if model in MODELS:
+            raise
+        msg = f"holdout {seed}'s {arm} arm: {exc}"
+        raise EvaluationError(msg) from exc
 
 
 def _replica_scores(
@@ -422,11 +465,7 @@ def _suffixed(
     values: Mapping[tuple[Measure, Scope], float], model: Model
 ) -> Mapping[tuple[Measure, Scope], float]:
     """`values` under `model`'s measure names: the regression's as they are, others suffixed."""
-    if model is Model.LR:
-        return values
-    return {
-        (Measure(f"{measure}-{model}"), scope): value for (measure, scope), value in values.items()
-    }
+    return {(suffixed(measure, model), scope): value for (measure, scope), value in values.items()}
 
 
 def _rows(seed: int, arm: str, source: Source, values: Mapping[Measure, float]) -> list[Score]:
