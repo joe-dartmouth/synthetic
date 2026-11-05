@@ -15,15 +15,17 @@ gradient boosting model reported beside it (`bko.evaluate.classifier.MODELS`, AD
 row-adding does to AUC-PR (unit `evaluate-more-classifiers`). E6 shows that the classifier
 matters: at f = 1.0 `bko-direct` reaches removed-cell recall 0.5377 under the regression and
 0.3591 under boosting ([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
-Row-adding also moves a model's predicted risk more than its ranking
-([`docs/RESEARCH.md` section 7](../../RESEARCH.md#7-augmentation-versus-resampling)), and neither
-recall nor AUC-PR reads that shift. Every recorded run must still replay byte for byte, and E1
+The rebalancing literature reports that row-adding moves a model's predicted risk more than its
+ranking ([`docs/RESEARCH.md` section 7](../../RESEARCH.md#7-augmentation-versus-resampling)), a
+finding the panel tests, and neither recall nor AUC-PR reads that shift. Every recorded run must
+still replay byte for byte, and E1
 ruled out a random forest as a judged model because its own seed moved subgroup recall by one of
 5 positives.
 
-Unless noted, every measurement below was taken on 2026-11-05 on E6 holdout 0 at f = 0.985
-(54,177 training rows, 13,856 test rows, 1,250 removed rows, 34 columns), on one thread under
-`VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`. Test prevalence is 0.0901.
+Unless noted, every measurement below is a planning measurement: measured 2026-11-05 on E6 holdout 0
+at f = 0.985 (54,177 training rows, 13,856 test rows, 1,250 removed rows, 34 columns, test
+prevalence 0.0901), on one thread under `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, during
+planning. E7's recorded run supersedes them.
 
 ## Decision Drivers
 
@@ -50,25 +52,27 @@ command, reported with no verdict.
     bootstrap=False, class_weight=None, n_jobs=1, random_state=0)`.
   - `mlp`: `MLPClassifier(hidden_layer_sizes=(100,), activation="relu", solver="adam",
     alpha=1e-4, batch_size=200, learning_rate_init=1e-3, early_stopping=False, max_iter=15,
-    random_state=0)`.
+    n_iter_no_change=15, tol=0.0, random_state=0)`.
   - `nb`: `KBinsDiscretizer(n_bins=10, encode="ordinal", strategy="uniform", subsample=None)` on
     the measured fields and `OrdinalEncoder` over the codebook on the coded fields, then
     `CategoricalNB(alpha=1.0, min_categories=...)` with 10 categories per measured field and
     each coded field's codebook size.
   - The trees read measured fields unscaled and the perceptron reads them standardised; every
     model but naive Bayes one-hot encodes coded fields over the codebook.
-- **MLP epochs**: fixed at 15, the epoch of lowest validation log-loss on holdout 0's `none`
-  training split, split 90/10 stratified with seed 0, over epochs 1 to 30. The perceptron's
-  `ConvergenceWarning` is recorded rather than raised (`FIXED_EPOCHS`), and its fit's log line
-  gives `n_iter_`.
+- **MLP epochs**: exactly 15, the epoch of lowest validation log-loss on holdout 0's `none`
+  training split, split 90/10 stratified with seed 0, over epochs 1 to 30. `n_iter_no_change`
+  equals the epoch count and `tol` is 0, so no loss curve ends a fit sooner. The perceptron's
+  `ConvergenceWarning` is recorded rather than raised (`FIXED_EPOCHS`), and the harness logs each
+  of its fits with its holdout, arm and `n_iter_` (`docs/DEVELOPMENT.md` holds the `fit` line).
 - **Calibration**: for every model, in the panel reading only, `brier`, mean((p - y)^2), and
   `calibration-in-the-large`, mean(p) - mean(y), per scope, each NaN on an empty scope, suffixed
   by model as `recall` is. `bko.evaluate.utility.utility(..., calibration=True)` writes them, so
   the default output is unchanged.
 - **Opt-in per command**: only `panel` scores the panel and the calibration measures. Its
-  `experiment` line logs `models=lr,hgb,rf,et,mlp,nb`; identity check 2 accepts it against a
-  folder whose `models=` list is its prefix (ADR
-  [`research/shared-test-split-reading`](shared-test-split-reading.md)).
+  `experiment` line logs `models=lr,hgb,rf,et,mlp,nb`; for `panel` alone, identity check 2 accepts
+  it against a folder whose `models=` list is its prefix, and refuses a folder that logs no
+  `models=` (ADR [`research/shared-test-split-reading`](shared-test-split-reading.md)); `shared`
+  and `rows` hold `models=` equal.
 - **Two stages**: stage 1, `rows`, rescores the folder at its own models and writes the store,
   which is also the self-check at the commit that reads. Stage 2, `panel` (module
   `bko.evaluate.panel`), scores from the store: `python -m bko.evaluate panel <run> --folder
@@ -83,31 +87,33 @@ command, reported with no verdict.
   header names another folder or `log_sha256` than `--folder`'s (`bko.evaluate.rows_read.bind`).
 - **Strict check 7**: `panel` applies the check `rows` does (ADR
   [`research/shared-test-split-reading`](shared-test-split-reading.md)), admitting as keys the
-  folder lacks the panel models' suffixed measures and the calibration measures; any other
-  difference exits 3.
-- **Threads**: `panel` runs under `threadpool_limits(limits=1)` across every thread-pool API,
-  beside `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1` in its environment.
+  folder lacks what `rows` admits, held-out keys, and the panel models' suffixed measures and the
+  calibration measures, so a folder `rows` passes also passes `panel`; any other difference exits
+  3.
+- **Threads**: `panel` runs under `threadpool_limits(limits=1)`, which bounds every thread-pool API
+  threadpoolctl detects. `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1` in the command's
+  environment bound macOS Accelerate's BLAS and OpenMP from process start, which a limit set at
+  run time may not reach.
 - **Seeds**: the forests and the perceptron take `random_state=0`, and their scores are reported,
   never judged.
-- **Log**: the panel's log drops `shortfall` lines, since a stored fill runs no generator.
+- **Log**: the panel's log drops `shortfall` lines, since a stored fill runs no generator, and
+  logs each refusal `StoredBaseline` replays as a `replay` line rather than a `retry` warning;
+  `docs/DEVELOPMENT.md` holds its lines.
 
 ## Rationale
 
 **The forests at 500 trees.** Over 10 seeds of the `real` fill, the random forest's removed-cell
 recall has SD 0.0194 at 100 trees and 0.0142 at 500, and its AUC-PR over all records 0.0022 and
-0.0006; extra trees read 0.0113 and 0.0096, and 0.0011 and 0.0004. A fit at 500 trees takes
-14.5 s (random forest) and 19.6 s (extra trees) on one thread, against 2.9 s and 3.7 s at 100.
-This answers E1's ruling: at E6's 317 test positives in the removed cell, the seed SD of cell
+0.0006; extra trees read 0.0113 and 0.0096, and 0.0011 and 0.0004. This answers E1's ruling: at E6's 317 test positives in the removed cell, the seed SD of cell
 recall at 500 trees is 0.0142, and one fixed seed with no verdict reports the model without
 letting a seed decide a criterion.
 
 **The perceptron at 15 epochs.** On the `none` split the validation log-loss is lowest at epoch 15
-(0.23905) and higher by epoch 30 (0.24415); on the `real` fill's training rows it is lowest at epoch 2 (0.29604,
-0.30892 at epoch 30). A fixed count read from the `none` split is the same for every arm, where
-early stopping would choose each arm's count from its own validation noise and weights. Trained to
-convergence (276 to 329 epochs, 15.7 to 18.7 s) it overfits: AUC-PR over all records 0.1006 on
-`none` and 0.1107 on `real`, against the regression's 0.1256 and 0.1429. At 15 epochs a fit takes
-about 0.9 s.
+(0.23905) and higher by epoch 30 (0.24415); on the `real` fill's training rows it is lowest at
+epoch 2 (0.29604, 0.30892 at epoch 30). A fixed count read from the `none` split is the same for
+every arm, where early stopping would choose each arm's count from its own validation noise and
+weights. Trained to convergence (276 to 329 epochs) it overfits: AUC-PR over all records 0.1006 on
+`none` and 0.1107 on `real`, against the regression's 0.1256 and 0.1429.
 
 **Categorical naive Bayes over 10 equal-width bins.** It reads AUC-PR 0.1222 on `none` and 0.1371
 on `real`, Brier 0.0831 and 0.0819, with mean predicted risk 0.0732 and 0.0964 at a test
@@ -116,24 +122,25 @@ the training rows lack still has a category at prediction.
 
 **Calibration.** Rebalancing a class leaves a regression's AUROC no higher and overestimates the
 minority class's risk
-([`vandengoorbergh-2022`](../../literature.md#augmentation-versus-resampling)), and over many
-learners an uncorrected model calibrates equal to or better than a corrected one
-([`carriero-2025`](../../literature.md#augmentation-versus-resampling)); learners also differ in
-how well their scores serve as probabilities
+([`vandengoorbergh-2022`](../../literature.md#augmentation-versus-resampling)). Carriero et al.'s
+abstract reports that over many learners an uncorrected model calibrates equal to or better than a
+corrected one ([`carriero-2025`](../../literature.md#augmentation-versus-resampling)), and the
+plan's literature review cites Niculescu-Mizil and Caruana for learners differing in how well their
+scores serve as probabilities
 ([`niculescu-mizil-2005`](../../literature.md#evaluation-and-failure-modes)). The Brier score and
 calibration-in-the-large read that shift where recall at one cutoff and AUC-PR do not. Reading
 them in the panel only keeps every recorded run's bytes.
 
 **Threads.** The boosting model already fits on one OpenMP thread; the panel's scalers, the
-perceptron's matrix products and the regression call BLAS too, so the panel limits every API and
-sets the environment variables that macOS Accelerate and OpenMP read before import.
+perceptron's matrix products and the regression call BLAS too. threadpoolctl limits only the pools
+it detects, which on macOS may leave Accelerate out, so the command also sets the environment
+variables that Accelerate and OpenMP read before import.
 
 ## Consequences
 
 **Gained**: E6's arms are read under six models with calibration, from the store, with no API call
 and no regeneration, and every recorded run still replays byte for byte.
-**Accepted**: the panel's forests take most of its compute (14.5 s and 19.6 s per fit at 500
-trees); its scores hold one seed per model; a folder whose `rows` stage has not run, or whose
+**Accepted**: the panel's forests take most of its compute; its scores hold one seed per model; a folder whose `rows` stage has not run, or whose
 rescore no longer reproduces it, cannot be read.
 
 ## Ruled Out
@@ -154,7 +161,8 @@ rescore no longer reproduces it, cannot be read.
 - Owner: `src/bko/evaluate/classifier.py` (the models, `PANEL`, `FIXED_EPOCHS`),
   `src/bko/evaluate/utility.py` (the calibration measures), `src/bko/evaluate/panel.py` (the
   command, `StoredBaseline` and the keys it admits), `src/bko/evaluate/run_folder.py` (check 2's
-  `models=` prefix rule, `_extends`), and `src/bko/evaluate/compare.py` with
+  `models=` prefix rule, `extend_models` and `_extends`), `src/bko/evaluate/run.py` (the `fit`
+  line), and `src/bko/evaluate/compare.py` with
   `src/bko/evaluate/unjudged.py` (each model's means and contrasts)
 - Pinned by: `tests/test_evaluate_classifier.py`, `tests/test_evaluate_utility.py`,
   `tests/test_evaluate_panel.py`, `tests/test_evaluate_compare.py`

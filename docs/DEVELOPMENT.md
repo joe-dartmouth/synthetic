@@ -309,30 +309,39 @@ included, gap and replica; its format is in the ADR above. By hand, the fill of 
 
     jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' runs/<run-id>-rows/rows.jsonl | shasum -a 256
 
-**`panel`** scores a recorded run's arms under the classifier panel, a random forest, extra trees,
-a multilayer perceptron and a categorical naive Bayes beside the regression and the boosting model,
-from the fills its `rows` store holds, with no verdict (ADR
-[`research/classifier-panel`](adr/research/classifier-panel.md), which holds each model's settings).
-It makes no API call and regenerates no rows. `rows` runs first, as its stage 1 and the self-check
-at the commit that reads; `<k>` numbers the `e7` reading:
+**`panel`** scores a recorded run's arms under the classifier panel from the fills its `rows`
+store holds, with each model's calibration and no verdict; ADR
+[`research/classifier-panel`](adr/research/classifier-panel.md) holds the models, their settings,
+the calibration measures, how each arm's fills are answered and the thread limits. It makes no API
+call and regenerates no rows. `rows` runs first, as its stage 1 and the self-check at the commit
+that reads. `<run-id>` and `<run>` are the folder and named run read:
 
-    mkdir runs/e7-<k> && test ! -e runs/e7-<k>/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate panel <run> --folder runs/<id> --rows runs/<id>-rows/rows.jsonl > runs/e7-<k>/scores.csv 2> runs/e7-<k>/scores.log </dev/null
+    mkdir runs/<run-id>-panel && test ! -e runs/<run-id>-panel/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate panel <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-panel/scores.csv 2> runs/<run-id>-panel/scores.log </dev/null
 
-It runs `rows`' identity checks and the strict check 7, admitting as keys the folder lacks the panel
-models' measures and the calibration measures (ADR
-[`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md)), and runs under
-`threadpool_limits(limits=1)` across every thread-pool API. Each panel model's rows follow the
-boosting model's, suffixed by its `bko.evaluate.classifier.Model` value as `hgb` suffixes its own:
-`recall-rf`, `precision-rf` and `auc-pr-rf`, then `-et`, `-mlp` and `-nb`. Only `panel` writes the
-calibration measures, for every model and scope: `brier`, mean((p - y)^2), and
-`calibration-in-the-large`, mean(p) - mean(y), each NaN on an empty scope and suffixed as `recall`
-is (`brier-hgb`, `calibration-in-the-large-rf`). Its `experiment` line logs
-`models=lr,hgb,rf,et,mlp,nb`, which check 2 accepts against a folder whose `models=` list is its
-prefix. Its log holds no `shortfall` lines, since a stored fill runs no generator, and a
-`panel holdout=%d differing=%d subsampled=true|false` line per holdout once its strict check 7
-passes. Each arm's fills come from the folder as ADR
-[`research/classifier-panel`](adr/research/classifier-panel.md) (Stored fills) says. Exit codes are
-`rows`'.
+It runs `rows`' identity checks and the strict check 7, with the keys ADR
+[`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md) lets `panel`
+admit. Its scores CSV holds the folder's rows plus each panel model's, suffixed by its
+`bko.evaluate.classifier.Model` value as `hgb` suffixes its own (`recall-rf`, `auc-pr-nb`), and
+`brier` and `calibration-in-the-large` for every model and scope, suffixed the same way
+(`brier-hgb`). Its `experiment` line logs `models=lr,hgb,rf,et,mlp,nb`. Exit codes are `rows`'. A
+run succeeded when it exits 0 and its log's last line is `panel done`; its `scores` line reads
+`matches_folder=false`, since its CSV holds rows the folder's lacks. A refused run leaves the
+redirect's `scores.csv`, empty or partial, which the `test ! -e` guard then refuses: rerun into a
+new folder.
+
+Its `scores.log` holds `shared`'s lines, less `shortfall` lines since a stored fill runs no
+generator, `rows`' `rows differing` lines, and these, at INFO:
+
+- `panel rows=%s sha256=%s`, first: the store's path and sha256.
+- `replay holdout=%d arm=%s attempt=%d`, per attempt before a `StoredBaseline` fill's logged one,
+  which the run refused; a generator's refusal, and a BKO arm's stored one, log a `retry` WARNING
+  instead.
+- `fit holdout=%d arm=%s model=mlp n_iter=%d converged=true|false`, per perceptron fit of an arm's
+  training set: its epochs, and `false` when it stopped at its epoch count.
+- `panel holdout=%d differing=%d partial=%d subsampled=true|false`, per holdout once its strict
+  check 7 passes: the `rows differing` lines logged, the fills whose `arm` line logs a shortfall,
+  and whether the holdout trains on more than 50,000 rows.
+- `panel done holdouts=%d`, last.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
@@ -630,8 +639,9 @@ start or the supervisor cannot run.
   criterion's family still counts it. The table reads the regression only, so it is the same with
   or without them. A `panel` scores file holds each panel model's rows and the calibration
   measures too: `compare` logs a `mean` line per arm, measure and scope for each, and each panel
-  model's contrasts as it logs the boosting model's, `model=` naming the model. A scores file is compared
-  at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
+  model's contrasts as it logs the boosting model's, `model=` naming the model. A scores file is
+  compared at the commit that scored it: a replica arm's validity needs its `replica-candidates`
+  rows.
 - **What it logs**: each stderr line starts with its local time and UTC offset,
   `YYYY-MM-DD HH:MM:SS,mmm+HHMM` or `-HHMM` (two whitespace-free tokens), then its level and
   logger name; `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the
@@ -770,10 +780,13 @@ start or the supervisor cannot run.
   its table is then the header alone) or, for a contrast some holdout leaves undefined (as when
   decontamination leaves a holdout no positive test record in the flagged cells), an
   `unjudged skip` line (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`,
-  `reason=undefined`, `defined=`, `holdouts=`), then each other model's whose rows the scores
-  hold, the boosting model first, as `unjudged model=<model>` and `unjudged model=<model> skip`
-  lines of its separation criteria (privacy reads no model, so only the regression's lines hold
-  it), and a `replica` line per replica arm, measure and scope. With `--beside`, it
+  `reason=undefined`, `defined=`, `holdouts=`), then, only when the scores hold a `panel` model's
+  rows, each other model's whose rows they hold, the boosting model first, as
+  `unjudged model=<model>` lines of its separation criteria, `unjudged model=<model> skip` lines
+  for an undefined contrast, and one `unjudged model=<model> skip` line (`arm=`, `against=`,
+  `reason=absent`) per pair of arms either of which lacks the model's rows (privacy reads no
+  model, so only the regression's lines hold it), and a `replica` line per replica arm, measure
+  and scope. With `--beside`, it
   then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
   excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
   `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
