@@ -114,7 +114,7 @@ def observe_records(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: 
     Raises:
         GapError: If `frame` holds no record, or a row reads a field it lacks.
     """
-    return _whole(name, _record_shows(frame, rows, name=name))
+    return _whole(name, record_shows(frame, rows, name=name))
 
 
 def record_cells(
@@ -146,7 +146,7 @@ def record_cells(
         msg = f"the cells read fields {name} lacks: {', '.join(missing)}"
         raise GapError(msg)
     mappings = tuple(rows)
-    shows = _record_shows(frame, mappings, name=name)
+    shows = record_shows(frame, mappings, name=name)
     whole = _whole(name, shows)
     keys = cell_keys(frame, edges=edges)
     assumed = {label: _only_other_labels(mappings, label) for label in sorted(LABEL_CODES)}
@@ -231,7 +231,7 @@ def _observed(name: str, records: int, holders: dict[str, int]) -> Observed:
     return Observed(name=name, records=records, holders=MappingProxyType(holders))
 
 
-def _record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
+def record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
     """Whether each record of `frame`, by position, shows each concept `rows` map, in sorted order.
 
     A record shows a concept when any row mapping it applies (`bko.ontology.schema.shown`).

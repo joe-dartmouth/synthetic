@@ -9,6 +9,7 @@ import argparse
 import math
 from pathlib import Path
 
+from bko.evaluate.contradictions import add_parser as add_contradictions
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.rows import add_parser as add_rows
@@ -139,6 +140,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
     )
     add_parser(commands)
     add_rows(commands)
+    add_contradictions(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
     )
