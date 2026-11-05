@@ -79,11 +79,10 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
      the `scores` line logs `matches_folder=true`. The one exception is a held-out measure added to
      the harness after the run was scored: the output then holds every original row and that
      measure's rows besides, and the line logs `matches_folder=false`. `shared` keeps this log-only
-     check: the tests pin it, and the command logs it and does not refuse. `rows` and `panel`
-     (ADR `research/rebuilt-rows-store`) apply a strict check 7 on each holdout: for keys the
-     folder's `scores.csv` holds, rendered values must be byte-equal, NaN included, and a key the
-     folder lacks must be one the command admits (`rows` admits held-out keys only; `panel` admits
-     its panel-model suffixes and the calibration measures). A replica's `quality` and
+     check: the command logs it and does not refuse. `rows` (ADR `research/rebuilt-rows-store`)
+     applies a strict check 7 on each holdout: for keys the folder's `scores.csv` holds, rendered
+     values must be byte-equal, NaN included, and a key the folder lacks must be a held-out key. A
+     replica's `quality` and
      `column-pair-trends` may differ only when the holdout's training split exceeds 50,000 rows,
      because a folder scored before `bko.evaluate.fidelity` read every row holds one unseeded
      SDMetrics subsample draw. Any other difference exits 3 before rows are written.
@@ -126,8 +125,9 @@ attempt, so the file does not mark the rows the run kept.
 
 - Owner: `src/bko/evaluate/shared.py` (the command), `src/bko/evaluate/run_folder.py` (the
   folder's reading and checks 1, 2, 3 and 5), `src/bko/evaluate/shared_split.py` (the marker)
-- Pinned by: `tests/test_evaluate_shared.py`, `tests/test_evaluate_beside.py`,
-  `tests/test_evaluate_run.py`
+- Pinned by: `tests/test_evaluate_shared.py` (check 7's log-only reading in `shared` among
+  them), `tests/test_evaluate_beside.py`, `tests/test_evaluate_run.py`,
+  `tests/test_evaluate_rows.py` (the strict check 7)
 
 ## Reversal Conditions
 

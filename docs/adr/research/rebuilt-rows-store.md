@@ -30,23 +30,30 @@ sha256, so one rebuild can be checked against it and kept.
   fill of that holdout to the store. The strict check 7, with `rows` admitting held-out keys only,
   and its 50,000-row exception are stated in ADR `research/shared-test-split-reading`.
 - The store is one `rows.jsonl` per output folder: a header line, then one line per fill of every
-  arm that has a runner, gap and replica. Keys are sorted, and the file is flushed and synced to
-  disk after each holdout. The header is
+  arm with an `arm` line, `real` included, gap and replica. Keys are sorted, and each holdout's
+  lines go out in one write, then the file is flushed and synced to disk. The header is
   `{"kind":"header","schema":1,"run":<run>,"folder":<folder name>,"log_sha256":<sha256 of the
   folder's scores.log>,"data":<digest>,"frame":<name>}`. A fill line is
   `{"kind":"rows","holdout":h,"arm":<the arm line's arm, "<a>" or "<a>-replica">,"attempt":k,"added":n,"sha256":s,"csv":<digest bytes>}`.
   The `csv` is the text that `bko.evaluate.data.digest` hashes, and its sha256 equals the line's
   `sha256` and the folder's `arm` line's.
-- The writer refuses a non-finite value, a fill whose `arm` line is not the folder's, and a
-  holdout and arm already stored. It creates the file with mode 0600 and `O_EXCL`, and writes a
-  holdout's lines only after its checks pass.
-- A reader binds on `log_sha256`, the folder name and the header's `frame`, and requires one fill
-  line for each of the folder's `arm` lines, so a store whose run stopped early is refused. It
-  refuses a line that is not a JSON object, and checks that `sha256(csv)` equals the line's
-  `sha256` and the folder's `arm` line's, that `added` is the row count, that the CSV reads at
-  `frame.dtypes` with exactly `frame.columns`, and that
+- The writer refuses a non-finite value, NaN included, a fill whose `arm` line is not the
+  folder's, and a holdout and arm already stored. No fill holds NaN, because UCI drops incomplete
+  records (`bko.datasets.uci`), so a NaN is a contract break. The command refuses a `--rows` path
+  that exists, or whose directory does not, before it reads any file. The writer creates the file
+  with mode 0600 and `O_EXCL` when the first holdout passes its checks, and syncs its directory,
+  so a folder refused before then leaves no store; it writes a holdout's lines only after its
+  checks pass.
+- A reader binds on the header's `run`, `data` and `frame`, `log_sha256` and the folder name,
+  and requires one fill line for each of the folder's `arm` lines, so a store whose run stopped
+  early is refused. It refuses a line that is not a JSON object, and a fill line that lacks a
+  field, whose `holdout`, `attempt` or `added` is not a non-negative integer, or whose `arm`,
+  `sha256` or `csv` is not text. It checks that `sha256(csv)` equals the line's `sha256` and the
+  folder's `arm` line's, that `added` is the row count, that the CSV reads at `frame.dtypes` with
+  exactly `frame.columns`, and that
   `digest(pd.read_csv(io.StringIO(csv), index_col="record_id", dtype=frame.dtypes,
-  float_precision="round_trip"))` equals `sha256`.
+  float_precision="round_trip", keep_default_na=False, na_values=[""]))` equals `sha256`, so
+  only an empty cell reads as missing.
 - A hand check needs only `jq` and `shasum`:
   `jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' rows.jsonl | shasum -a 256`
   prints the sha256 of the folder's `arm holdout=0 arm=ctgan` line.
@@ -57,10 +64,10 @@ sha256, so one rebuild can be checked against it and kept.
 
 `rescore` already rebuilds each arm's rows through the code that scored the run and refuses a
 folder whose lines disagree, so a store written inside it inherits those checks. Writing only after
-a holdout's strict check 7 passes keeps a fill from a rescore that no longer reproduces the folder out of the store. Holding
-the CSV text, whose hash the log already records, lets a reader verify a fill without the
-repository, and the round-trip read check shows the text parses back to the same frame.
-Binding on the log's sha256 ties the store to one run of record.
+a holdout's strict check 7 passes keeps a fill from a rescore that no longer reproduces the folder
+out of the store. Holding the CSV text, whose hash the log already records, lets a reader verify a
+fill without the repository, and the round-trip read check shows the text parses back to the same
+frame. Binding on the log's sha256 ties the store to one run of record.
 
 ## Consequences
 
@@ -78,7 +85,7 @@ cannot be stored.
 | Gzip on the store | The hand check needs plain `jq` and `shasum` | 2026-11-05 |
 | Pickle or parquet | Neither is checkable by hand, and a pickle runs code on load | 2026-11-05 |
 | Privacy measures (MI, NNDR) as harness measures | They would move every recorded run's bytes | 2026-11-05 |
-| One pass that scores the panel while regenerating | A panel failure would repeat the regeneration, and a failed reading would couple the stage-1 checks to stage 2 | 2026-11-05 |
+| One pass that scores the classifier-panel reading (unit `evaluate-more-classifiers`) while regenerating | A panel failure would repeat the regeneration, and a failed reading would couple the stage-1 checks to stage 2 | 2026-11-05 |
 
 ## Enforcement
 

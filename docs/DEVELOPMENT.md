@@ -278,15 +278,34 @@ output folder is `runs/<run-id>-rows`, `<run-id>` and `<run>` the folder and nam
 
 It runs `shared`'s identity checks (`rescore`) and, on each holdout, the strict check 7 (ADR
 [`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md)); a holdout that
-fails a check exits 3 before its rows are written, and the store keeps the holdouts checked before
-it, which a reader refuses as incomplete (ADR
+fails a check exits 3 before its rows are written. The store is created when the first holdout
+passes, so a run refused before then leaves none; a later refusal leaves the holdouts checked
+before it, which a reader refuses as incomplete (ADR
 [`research/rebuilt-rows-store`](adr/research/rebuilt-rows-store.md)). Exit codes are `shared`'s;
-an existing `--rows` file exits 2 too. The panel's shortfall WARNING lines are not reproduced,
-because a stored fill does not run the generator again.
+a `--rows` path that exists, or whose directory does not, exits 2 before any file is read. The
+panel's shortfall WARNING lines are not reproduced, because a stored fill does not run the
+generator again.
 
-`rows.jsonl` holds a header line, then one line per fill of every arm that has a runner, gap and
-replica; its format is in the ADR above. By hand, the fill of holdout 0's `ctgan` arm hashes to its
-`arm` line's sha256:
+Its `scores.log` holds `shared`'s lines and these, at INFO unless named:
+
+- `rows folder=%s run=%s holdouts=%d started_utc=%s pid=%d`, once, before the first holdout.
+- `rows differing holdout=%d key=%s ours=%s theirs=%s`, per replica `quality` or
+  `column-pair-trends` row that differs on a holdout training on more than 50,000 rows, which the
+  strict check 7's exception admits; `key` is the row's key as the scores CSV writes it, `ours`
+  the rescore's value and `theirs` the folder's.
+- `rows holdout=%d arm=%s added=%d sha256=%s matches_arm=true`, per stored fill, once its
+  holdout's lines are synced to disk.
+- `rows holdout=%d stored=%d differing=%d subsampled=true|false`, per holdout: the fill lines
+  stored, the `rows differing` lines logged, and whether the holdout trains on more than 50,000
+  rows.
+- `rows done holdouts=%d stored=%d sha256=%s`, last, once the store is closed: the holdouts and
+  fill lines stored, and the store's sha256.
+- `rows partial path=%s holdouts=%d`, at WARNING, when the run stops after the store exists: the
+  holdouts stored before the stop.
+
+`rows.jsonl` holds a header line, then one line per fill of every arm with an `arm` line, `real`
+included, gap and replica; its format is in the ADR above. By hand, the fill of holdout 0's
+`ctgan` arm hashes to its `arm` line's sha256:
 
     jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' runs/<run-id>-rows/rows.jsonl | shasum -a 256
 

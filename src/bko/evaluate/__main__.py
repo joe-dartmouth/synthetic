@@ -47,11 +47,10 @@ that resume alone runs under. `score --rehearse` answers every BKO call with can
 FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
-including an existing call log, candidates file or `rows` store, Messages arms with no `--log`
-or `--candidates`, a direct arm with no `--candidates` or over field rows that nest in a chain,
-`--log`,
-`--replay`, `--resume` or `--rehearse` with no Messages arm to build, `--ceiling` with no
-`--resume`, `--candidates` with no
+including an existing call log or candidates file, a `rows` store path that exists or whose
+directory does not, Messages arms with no `--log` or `--candidates`, a direct arm with no
+`--candidates` or over field rows that nest in a chain, `--log`, `--replay`, `--resume` or
+`--rehearse` with no Messages arm to build, `--ceiling` with no `--resume`, `--candidates` with no
 Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
