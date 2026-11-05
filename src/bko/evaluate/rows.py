@@ -250,12 +250,14 @@ def compare_holdout(
     *,
     holdout: int,
     admitted: Callable[[ScoreKey], bool],
-    subsampled: bool,
+    sampled: bool,
 ) -> int:
     """The strict check 7 on one holdout; return how many replica fidelity rows differ.
 
     Each key's rendered line is compared, so NaN matches NaN. A key only `ours` holds must be
-    `admitted`; a replica's `quality` and `column-pair-trends` may differ when `subsampled`.
+    `admitted`; a replica's `quality` and `column-pair-trends` may differ when `sampled`, the
+    holdout's fidelity read from a subsample (`subsampled`), and each such row is logged as
+    `rows differing holdout=%d key=%s ours=%s theirs=%s`, its key as the scores CSV writes it.
 
     Raises:
         IdentityError: On any other difference, or a key only `theirs` holds.
@@ -274,8 +276,15 @@ def compare_holdout(
         if mine[key] == folder[key]:
             continue
         loose = key[2] == Source.REPLICA.value and Measure(key[3]) in SUBSAMPLED_MEASURES
-        if subsampled and loose:
+        if sampled and loose:
             differing += 1
+            logger.info(
+                "rows differing holdout=%d key=%s ours=%s theirs=%s",
+                holdout,
+                ",".join(map(str, key)),
+                mine[key],
+                folder[key],
+            )
             continue
         msg = f"holdout {holdout}'s score {key} reads {mine[key]!r}, the folder's"
         msg += f" {folder[key]!r}"
@@ -350,15 +359,18 @@ def store(
         )
 
         def after(holdout: int, logged: Logged, scored: Sequence[Score]) -> None:
+            sampled = subsampled(logged.split)
             differing = compare_holdout(
-                scored,
-                theirs,
-                holdout=holdout,
-                admitted=held_out,
-                subsampled=subsampled(logged.split),
+                scored, theirs, holdout=holdout, admitted=held_out, sampled=sampled
             )
             count = rows.write(holdout, logged.fills, arms=folder.arms)
-            logger.info("rows holdout=%d stored=%d differing=%d", holdout, count, differing)
+            logger.info(
+                "rows holdout=%d stored=%d differing=%d subsampled=%s",
+                holdout,
+                count,
+                differing,
+                "true" if sampled else "false",
+            )
 
         text = rescore(
             folder,

@@ -142,7 +142,8 @@ def test_rows_stores_every_fill_whose_sha256_is_its_arm_lines(tmp_path, caplog, 
     assert found[0, "none"].csv.count("\n") == 1
     names = {arm for _, arm in found}
     assert {"replicas": "bko-replica", "baseline": "smote-replica", "real": REAL_ARM}[kind] in names
-    assert f"rows holdout=1 stored={len(arms) // 2} differing=0" in caplog.messages
+    stored_line = f"rows holdout=1 stored={len(arms) // 2} differing=0 subsampled=false"
+    assert stored_line in caplog.messages
     assert re.search(r"rows folder=\S+ run=e1 holdouts=2 started_utc=\S+ pid=\d+", caplog.text)
     whole = sha256((tmp_path / "rows.jsonl").read_bytes()).hexdigest()
     assert caplog.messages[-1] == f"rows done holdouts=2 stored={len(arms)} sha256={whole}"
@@ -296,7 +297,14 @@ def test_a_moved_replica_fidelity_row_passes_only_above_50000_rows(tmp_path, cap
     code, _ = stored(tmp_path, folder, replicas=True)
     assert code == 0
     assert holdouts(tmp_path) == {0, 1}
-    assert any(re.fullmatch(r"rows holdout=1 stored=\d+ differing=1", m) for m in caplog.messages)
+    stored_line = r"rows holdout=1 stored=\d+ differing=1 subsampled=true"
+    assert any(re.fullmatch(stored_line, m) for m in caplog.messages)
+    assert any(
+        re.fullmatch(
+            r"rows differing holdout=1 key=1,bko,replica,quality,all ours=\S+ theirs=0.123", m
+        )
+        for m in caplog.messages
+    )
 
 
 @pytest.mark.parametrize(
@@ -323,9 +331,9 @@ def scores(*extra: Score, value: float = 0.5) -> list[Score]:
     ]
 
 
-def compared(ours: list[Score], theirs: list[Score], *, subsampled: bool = False) -> int:
+def compared(ours: list[Score], theirs: list[Score], *, sampled: bool = False) -> int:
     """`compare_holdout` on holdout 0 with `rows`' admission."""
-    return compare_holdout(ours, theirs, holdout=0, admitted=held_out, subsampled=subsampled)
+    return compare_holdout(ours, theirs, holdout=0, admitted=held_out, sampled=sampled)
 
 
 def test_a_nan_row_compares_equal(tmp_path, caplog):
@@ -347,9 +355,9 @@ def test_a_new_held_out_key_is_admitted_and_a_new_arm_key_is_not():
     with pytest.raises(IdentityError, match="the rescore holds no score"):
         compared(scores(), scores(hgb))
     with pytest.raises(IdentityError, match="reads"):
-        compared(scores(), scores(value=0.6), subsampled=True)
+        compared(scores(), scores(value=0.6), sampled=True)
     quality = Score(0, "bko", Source.REPLICA, Measure.QUALITY, Scope.ALL, 0.7)
-    assert compared(scores(), [*scores()[:2], quality], subsampled=True) == 1
+    assert compared(scores(), [*scores()[:2], quality], sampled=True) == 1
     with pytest.raises(IdentityError, match="reads"):
         compared(scores(), [*scores()[:2], quality])
 
@@ -770,3 +778,23 @@ def test_a_store_whose_sync_fails_is_closed_and_counts_nothing(tmp_path, monkeyp
         with pytest.raises(OSError, match="disk gone"):
             again.write(0, [fill], arms=logged(fill))
         assert (again.stored, again.holdouts) == (0, 0)
+
+
+def test_the_50000_row_exception_admits_only_a_replicas_fidelity(caplog):
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    augmented = Score(0, "bko", Source.AUGMENTED, Measure.QUALITY, Scope.ALL, 0.8)
+    with pytest.raises(IdentityError, match="reads"):
+        compared(scores(augmented), scores(dataclasses.replace(augmented, value=0.7)), sampled=True)
+    recall = Score(0, "bko", Source.REPLICA, Measure.RECALL, Scope.ALL, 0.8)
+    with pytest.raises(IdentityError, match="reads"):
+        compared(scores(recall), scores(dataclasses.replace(recall, value=0.7)), sampled=True)
+    trends = Score(0, "bko", Source.REPLICA, Measure.COLUMN_PAIR_TRENDS, Scope.ALL, 0.8)
+    moved = dataclasses.replace(trends, value=0.7)
+    assert compared(scores(trends), scores(moved), sampled=True) == 1
+    quality = Score(0, "bko", Source.REPLICA, Measure.QUALITY, Scope.ALL, 0.7)
+    caplog.clear()
+    assert compared(scores(trends), [*scores()[:2], quality, moved], sampled=True) == 2
+    assert caplog.messages == [
+        "rows differing holdout=0 key=0,bko,replica,column-pair-trends,all ours=0.8 theirs=0.7",
+        "rows differing holdout=0 key=0,bko,replica,quality,all ours=0.8 theirs=0.7",
+    ]
