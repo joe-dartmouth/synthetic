@@ -46,16 +46,16 @@ expect that second reading.
 - **NNDR.** For each added row, the ratio of the distances to its nearest and second-nearest
   training records, with the same summaries DCR reports.
 - **The rows.**
-  - Read from the store that `python -m bko.evaluate rows` writes, rebuilt at a commit whose
-    rebuild reproduces each `arm` line, for every arm that adds rows.
+  - Read from the store that `python -m bko.evaluate rows` writes, which is written at a commit
+    whose rescore reproduces each `arm` line, for every arm that adds rows, on all of E6's
+    holdouts.
   - `real` is rebuilt from data and seed.
 
-  Regeneration costs compute, so the unit may read a seeded subset of E6's holdouts that the ADR
-  fixes before any run. Each rebuilt or regenerated arm's rows must hash to the `sha256` its
+  Each arm's rows, read from the store or rebuilt for `real`, must hash to the `sha256` its
   `arm holdout=<h> arm=<arm>` line in the slice's `scores.log` records.
 - **Records.**
   - A new ADR under `docs/adr/research/` fixing the attack, the distance, the low false-positive
-    rate, the holdout subset and the reading's decision rule.
+    rate and the reading's decision rule.
   - A new `docs/EVIDENCE.md` entry for both E6 fractions.
   - The attack as a reusable reading that `privacy-identifier-perturbation`'s perturbed arm can
     take, whichever unit lands first.
@@ -71,7 +71,7 @@ expect that second reading.
 - Every row-adding arm of both E6 fractions has an attack AUC and its low-false-positive-rate
   true-positive rate at each scope, and an NNDR summary. Each comes from a committed command that
   makes no API call.
-- Every rebuilt or regenerated arm's rows match the run's logged sha256 on every holdout read.
+- Every arm's rows, read from the store or rebuilt for `real`, match the run's logged sha256 on every holdout read.
 - A test plants an arm that copies training records and sees an attack AUC well above 0.5, and one
   that draws independently of the training records and sees about 0.5.
 - `make check`.

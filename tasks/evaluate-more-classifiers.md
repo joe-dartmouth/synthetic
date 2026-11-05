@@ -46,9 +46,8 @@ calibration.
 - **Phase 3, the reading.** Rescore E6 at both fractions under the panel, on each arm's rows
   read from the store that `python -m bko.evaluate rows` writes, with no API call.
   Each set of rows must hash to its `arm` line's `sha256` in the slice's `scores.log`.
-  `evaluate-membership-inference` reads the same store; whichever unit lands first builds it,
-  and the other reuses it. The holdout subset, if regeneration cost forces one, is fixed in the
-  ADR before any run. The result is a new `docs/EVIDENCE.md` entry.
+  `evaluate-membership-inference` reads the same store. The result is a new
+  `docs/EVIDENCE.md` entry.
 
 **Out.**
 - New dependencies (XGBoost, LightGBM, CatBoost).
