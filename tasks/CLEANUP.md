@@ -75,22 +75,6 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
   baseline outside `bko.evaluate`.
 
-## docs
-
-- **`cleanup:docs/e6-curated-teardown`: G7's curated run's replay is not yet recorded.** G7
-  landed before the replay of `e6-24` (`e6-curated`) at its run commit, tag `run/e6-24`, finished
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)). It runs from the
-  detached worktree `../synthetic-e6c` into `runs/e6-24-replay/`; on 2026-11-05 its `scores.csv`
-  was 0 bytes and `git worktree list` held `../synthetic-e6c` at `135a2c3`. The worktree stays
-  until it ends. *Filed 2026-11-05 by PR #77's review.*
-  **Why deferred.** The user chose to land each unit and record its replay as it arrives.
-  **What discharges it:** the replay's `scores.csv` and `holdout-candidates.jsonl` compared with
-  `cmp` against `runs/e6-24/`'s, the result recorded in G7's Runs row, and
-  `git worktree remove ../synthetic-e6c` once `runs/e6-24-replay` holds the finished replay and no
-  process uses the worktree's `src`.
-  **Trigger:** the replay ending: its `scores.csv` non-empty and its call log ending in an `end`
-  line.
-
 ## evaluate
 
 - **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
