@@ -31,7 +31,7 @@ Where BKO's accuracy ties the best generators, it still offers things they canno
    - That gives a data team an audit they can act on, for example by collecting more data, even if no synthetic rows are used.
 
 4. **Every row is explainable and auditable.** (Supported by design.)
-   - Each generated row traces to a gap, the ontology statements behind it, and a logged prompt and reply. Every run replays byte for byte from its call log.
+   - Each generated row traces to a gap, the ontology statements behind it, and a logged prompt and reply. Every run replays from its call log; on Diabetes 130 the replica fidelity readings varied by at most 0.000036 until the fix in PR #77.
    - A GAN's or copula's row cannot be explained this way. For clinical and regulatory review, it matters to show why a synthetic patient looks as it does.
 
 5. **Generated rows are checked against medical constraints.** (Supported, E1 validity met.)
@@ -89,7 +89,7 @@ Earlier results, unchanged:
 | 98.5% removal | 100 of 100 | $262.43 | **Complete** (all 10 slices exited cleanly, 17:12-17:38 EST) |
 
 - **Spend:** $461.87 in all, under the $1,500 cap and the $567.95 estimate. No slice stopped or resumed.
-- **Replay:** one slice per condition (`e6-2`, `e6-12`) is replaying byte for byte at the run commit, free; the evidence entry waits on it.
+- **Replay:** one slice per condition replayed at the run commit, free. `e6-12` matches byte for byte; `e6-2` matches except its replica fidelity (at most 0.000036, fixed in PR #77).
 - **Health:** no stops or failures. The machine is on AC power.
 - **Why it is slow:** a 98.5% holdout took about 4 hours while 20 processes shared 18 cores. The biggest steps are the Bayesian network's row-by-row draw (82 min), TVAE and CTGAN (about 37 min each), and the API arms (about 66 min).
 
@@ -238,7 +238,7 @@ The two conditions ask different questions:
 
 ## 5. Outstanding work and plans
 
-1. **E6 replays:** E6 lands in PR #74. The byte-for-byte replays of one slice per removal level are still running; a small follow-up PR records them (`cleanup:docs/e6-replays-unread`).
+1. **E6 replays:** both done. `e6-12` replays byte for byte. `e6-2` matches in every recall, AUC-PR, distance and candidate, but its replica `quality` and `column-pair-trends` differ by at most 0.000036: SDMetrics subsampled tables over 50,000 rows without a seed. The fidelity reading now reads every row, so it replays exactly.
 2. **BKB likelihood gate on Diabetes (free):** split BKO's candidates at the median BKB log-probability and test whether the top half is more faithful. If it separates, run a curated BKO arm once (cap $80). If not, record the result and remove the reserved curation code.
 3. **New task, `privacy-identifier-perturbation` (paid, ready):**
    - **What:** a language model rewrites the fields a patient could be identified by in `bko-direct`'s rows: race, the 8 count fields (days in hospital, lab procedures, medications and so on), the 8 drug columns, `change` and `diabetesMed`. It must not touch any ontology-mapped concept (diagnoses, lab states), age, sex or the label.
@@ -268,7 +268,7 @@ The batch has 6 planned PRs. Four have merged; the fifth is [#74](https://github
 | [#70](https://github.com/joe-dartmouth/synthetic/pull/70) | Measure what thinking on costs the local generators | Nov 2 | Added thinking-on variants of the local models and a compute metric (FLOPs per record). Measured the cost: Gemma about 3x, Nemotron about 14x counting re-asks after truncation. |
 | [#71](https://github.com/joe-dartmouth/synthetic/pull/71) | Ready Diabetes 130 for E6: frame, ICD-9 rows and power | Nov 2 | Added the Diabetes 130 dataset: 69,283 first encounters, readmission within 30 days as the label. Mapped ICD-9 diagnosis codes to MONDO and HPO. Let each experiment set its own scoring cutoff. Chose E6's target group and size from a 300-seed power dry run. |
 | [#72](https://github.com/joe-dartmouth/synthetic/pull/72) | Ready the harness for E6 and name its runs | Nov 3 | Made the harness fast enough for a 69k-row dataset: memoized the Bayesian network's mutual information, computed privacy distances in blocks, and capped replica size. Let a removal take a whole group (the 100% condition) and filled shortfalls once. Let a run stopped by its spend ceiling resume under a raised ceiling. Named E6's 20 run slices and dropped the curated CLLM arm. |
-| [#74](https://github.com/joe-dartmouth/synthetic/pull/74) | Run E6 on Diabetes 130 | in review | Runs E6's 20 paid slices, replays a slice per condition, merges the slices, reads every arm and records E6 in the evidence register. |
+| [#74](https://github.com/joe-dartmouth/synthetic/pull/74) | Run E6 on Diabetes 130 | Nov 5 | Runs E6's 20 paid slices, replays a slice per condition, merges the slices, reads every arm and records E6 in the evidence register. |
 | PR6 | BKB likelihood gate on Diabetes | pending | Tests whether BKO rows the BKB scores as likelier are more faithful. If they are, runs a curated BKO arm once (cap $80). |
 
 Each merged PR passed the full gate (`make check`) and a six-perspective diff review: code, security, tests, docs, language and observability. Every finding was fixed in the PR or filed in the cleanup backlog.

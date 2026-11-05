@@ -77,21 +77,18 @@ links to where its blocker is tracked.
 
 ## docs
 
-- **`cleanup:docs/e6-replays-unread`: E6's `e6-2` replay is not yet recorded.** E6 landed before
-  the byte-for-byte replay of `e6-2` (`e6-thina`) at the run commit `22a58c9` finished, so its
-  Runs row records `e6-12`'s replay and leaves `e6-2`'s to this entry
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). It runs from the
-  detached worktree `../synthetic-e6` into `runs/e6-2-replay/`; on 2026-11-04 `ls -l` showed its
-  `scores.csv` at 0 bytes and `git worktree list` held `../synthetic-e6` at `22a58c9`. The
-  worktree and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stay until it ends.
-  *Filed 2026-11-04 by E6's landing.*
-  **Why deferred.** The user chose to land E6 and move on rather than wait on the replays.
-  **What discharges it:** the replay's `scores.csv` and `holdout-candidates.jsonl` compared with
-  `cmp` against `runs/e6-2/`'s, the result recorded in E6's Runs row, the watcher stopped with
-  `kill $(cat scratchpad/e6-power.pid)`, and the worktree removed with `git worktree remove` once
-  `runs/` holds nothing under it.
-  **Trigger:** the replay ending: its `scores.csv` non-empty and its call log ending in an `end`
-  line.
+- **`cleanup:docs/e6-curated-teardown`: G7's curated run leaves a worktree and a watcher running.**
+  The paid run `e6-24` (`e6-curated`) runs from the detached worktree `../synthetic-e6c` at
+  `135a2c3`, and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stays running
+  because `e6-24`'s watch script reads its log. On 2026-11-05 `git worktree list` held
+  `../synthetic-e6c` and `ps -p $(cat scratchpad/e6-power.pid)` showed the watcher alive.
+  *Filed 2026-11-05 by PR #77's review.*
+  **Why deferred.** `e6-24` is still running; its record lands with unit
+  `generate-bkb-curation-diabetes`.
+  **What discharges it:** `e6-24`'s folder moved into `runs/` and recorded in G7, the watcher
+  stopped with `kill $(cat scratchpad/e6-power.pid)` after `ps -p` confirms the pid is the
+  watcher, and `git worktree remove ../synthetic-e6c` once `runs/` holds nothing under it.
+  **Trigger:** `e6-24`'s `launch.log` ending in a `supervise done` line.
 
 ## evaluate
 
