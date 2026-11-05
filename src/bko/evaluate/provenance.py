@@ -1,4 +1,4 @@
-"""What a `score` run logs about the code and libraries that produced it."""
+"""What a `score` or `contradictions` run logs about the code and libraries that produced it."""
 
 from __future__ import annotations
 
@@ -30,12 +30,17 @@ VERSIONED: Final = (
     "anthropic",
     "pronto",
 )
-"""The distributions whose installed versions a `score` run logs."""
+"""The distributions whose installed versions a `score` or `contradictions` run logs."""
 
 
 def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> None:
     """Log the run's `experiment_line`, then the commit and libraries it ran with."""
     logger.info("%s", experiment_line(name, experiment, models, frame=frame))
+    log_versions()
+
+
+def log_versions() -> None:
+    """Log the `versions` line: the commit, whether its tree is dirty, and `versions()`."""
     head, dirty = commit()
     logger.info(
         "versions commit=%s dirty=%s %s", head, dirty, json.dumps(versions(), sort_keys=True)

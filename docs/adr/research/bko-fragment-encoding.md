@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-05
 ---
 # Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes
 
@@ -71,7 +71,8 @@ state, so disjointness axioms (PTAs of probability 0) are not encoded; only `is_
 `skos:exactMatch` are read, so MONDO's `excluded_subClassOf` curation is invisible; a class with
 two scoped children makes the fragment non-mutex. A fused ontology BKB is therefore non-mutex and,
 through the bridge, cyclic, so `bko.bkb.reason.log_joint_complete` over it returns masses rather
-than P(target, evidence).
+than P(target, evidence). A fused BKB is valid when `bko.bkb.fusion.check_fused` passes, which
+does not require mutual exclusion (ADR `research/data-contradiction-handling`, Decision 3).
 
 ## Ruled Out
 
@@ -103,4 +104,5 @@ axiom**; the check is a search of `tasks/` for one.
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [The BKB layer is pybkb's core, ported under GPL-3.0 and checked against pybkb's own results](bkb-layer-source.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
+- [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)
 - [src layout](../tooling/src-layout.md)

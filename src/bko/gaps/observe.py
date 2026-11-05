@@ -114,7 +114,7 @@ def observe_records(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: 
     Raises:
         GapError: If `frame` holds no record, or a row reads a field it lacks.
     """
-    return _whole(name, _record_shows(frame, rows, name=name))
+    return _whole(name, record_shows(frame, rows, name=name))
 
 
 def record_cells(
@@ -146,13 +146,13 @@ def record_cells(
         msg = f"the cells read fields {name} lacks: {', '.join(missing)}"
         raise GapError(msg)
     mappings = tuple(rows)
-    shows = _record_shows(frame, mappings, name=name)
+    shows = record_shows(frame, mappings, name=name)
     whole = _whole(name, shows)
     keys = cell_keys(frame, edges=edges)
     assumed = {label: _only_other_labels(mappings, label) for label in sorted(LABEL_CODES)}
     each: dict[Cell, CellRecords] = {
         cell: CellRecords(_member(name, shows, keys, cell), cell[2], assumed[cell[2]])
-        for cell in _grid(frame, edges)
+        for cell in cell_grid(frame, edges)
     }
     return Cells(whole=whole, each=each)
 
@@ -196,7 +196,7 @@ def population_cells(
     whole = _whole(name, shows)
     people = subjects(population, codes=frozenset())
     keys = cell_keys(people, edges=edges)[list(CELL_COLUMNS[:2])]
-    grid = dict.fromkeys((band, sex) for band, sex, _ in _grid(people, edges))
+    grid = dict.fromkeys((band, sex) for band, sex, _ in cell_grid(people, edges))
     each: dict[Cell, CellRecords] = {
         cell: CellRecords(_member(name, shows, keys, cell), None, frozenset()) for cell in grid
     }
@@ -231,7 +231,7 @@ def _observed(name: str, records: int, holders: dict[str, int]) -> Observed:
     return Observed(name=name, records=records, holders=MappingProxyType(holders))
 
 
-def _record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
+def record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
     """Whether each record of `frame`, by position, shows each concept `rows` map, in sorted order.
 
     A record shows a concept when any row mapping it applies (`bko.ontology.schema.shown`).
@@ -273,17 +273,23 @@ def _whole(name: str, shows: pd.DataFrame) -> Observed:
     return _observed(name, len(shows), holders)
 
 
-def _member(name: str, shows: pd.DataFrame, keys: pd.DataFrame, cell: Cell) -> Observed:
-    """The records `keys` puts in `cell`, observed; `keys` and `shows` align by position."""
+def in_cell(keys: pd.DataFrame, cell: Cell) -> np.ndarray:
+    """Whether each record `keys` names, by position, falls in `cell`."""
     inside = np.ones(len(keys), dtype=bool)
     for column, value in zip(keys.columns, cell, strict=True):
         inside &= keys[column].eq(value).to_numpy(dtype=bool)
+    return inside
+
+
+def _member(name: str, shows: pd.DataFrame, keys: pd.DataFrame, cell: Cell) -> Observed:
+    """The records `keys` puts in `cell`, observed; `keys` and `shows` align by position."""
+    inside = in_cell(keys, cell)
     members = shows.loc[inside]
     holders = {str(concept): int(members[concept].sum()) for concept in shows.columns}
     return Observed(name=f"{name}/{cell_key(cell)}", records=int(inside.sum()), holders=holders)
 
 
-def _grid(people: pd.DataFrame, edges: Sequence[int]) -> tuple[tuple[str, str, int], ...]:
+def cell_grid(people: pd.DataFrame, edges: Sequence[int]) -> tuple[tuple[str, str, int], ...]:
     """Every age-sex-label cell over `edges`, in `cell_counts`' grid order."""
     counts = cell_counts(people, edges=edges)[list(CELL_COLUMNS)]
     return tuple(

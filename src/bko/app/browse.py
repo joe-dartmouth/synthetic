@@ -169,5 +169,5 @@ SHOWN: Final[Mapping[str, Callable[[Path], None]]] = MappingProxyType(
         "training.csv": _training,
     }
 )
-"""Each role the view reads, and how; every other role, such as a log, `first-flag.csv` or a
-`pytest` directory, is listed, not read."""
+"""Each role the view reads, and how; every other role, such as a log, `first-flag.csv`,
+`contradictions.csv` or a `pytest` directory, is listed, not read."""

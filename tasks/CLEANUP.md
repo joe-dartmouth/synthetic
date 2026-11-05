@@ -152,6 +152,22 @@ links to where its blocker is tracked.
   **What discharges it:** `params` carries `over_ask` for a ranking arm, with a test.
   **Trigger:** the next change to `GuidedArm`.
 
+- **`cleanup:evaluate/frames-below-evaluate`: `bko.gaps` cannot import the Synthea and Diabetes
+  frames.** The `contradictions` census is a gap-stage reading, but it lives in
+  `bko.evaluate.contradictions`, with only its pure counters in `bko.gaps.contradictions`, because
+  the Synthea frame and field rows (`SYNTHEA_FRAME`, `SYNTHEA_FIELD_ROWS` in
+  `bko.evaluate.data`) and the Diabetes 130 ones (`DIABETES_FRAME`, `DIABETES_FIELD_ROWS` in
+  `bko.evaluate.diabetes`) live in `bko.evaluate`, and `grep -n "^from bko.evaluate"
+  src/bko/gaps/*.py` finds nothing: `bko.gaps` sits below `bko.evaluate`. *Filed 2026-11-05 by
+  PR3 Phase 12 of the data-contradictions batch.*
+  **Why deferred.** Moving the frames moves every evaluation import of them, outside the census's
+  boundary, and the census reads them correctly from `bko.evaluate`.
+  **What discharges it:** the Synthea and Diabetes 130 frames, indicators and field rows move to
+  `bko.datasets`, and the census command moves to `bko.gaps`.
+  **Trigger:** a module outside `bko.evaluate` other than `bko.app.steps` imports a frame loader;
+  `grep -rn "^from bko.evaluate.\(data\|diabetes\) import" src/bko | grep -v "^src/bko/evaluate/"`
+  lists only `src/bko/app/steps.py` until then.
+
 - **`cleanup:evaluate/stamp-every-stage`: seven entry points log no time and repeat one
   `basicConfig` block.** The `baselines`, `datasets`, `fusion`, `gaps`, `generate` and `ontology`
   `__main__` modules and `bko.generate.local` each format a line as `%(levelname)s %(name)s:

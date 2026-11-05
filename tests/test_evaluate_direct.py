@@ -6,6 +6,7 @@ import csv
 import dataclasses
 import io
 import logging
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
@@ -16,7 +17,10 @@ import pytest
 from bko.baselines.errors import BaselineError
 from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.request import Request, Strata
+from bko.datasets.cells import cell_keys
+from bko.datasets.uci import MEMBER, UCI_FRAME, complete_records, parse_cleveland
 from bko.evaluate.__main__ import Context, main
+from bko.evaluate.data import digest
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.experiment import ADDS_ROWS, CRITERION_NAMES, DIRECT_ARM, E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import KEPT, SCHEMA, read
@@ -319,3 +323,36 @@ def test_a_judged_run_still_refuses_an_undefined_contrast(tmp_path, caplog):
     ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(judged)})
     assert main(["compare", "g2", str(path)], context=ctx, out=io.StringIO()) == 2
     assert "an interval needs 2 or more finite contrasts; got 1 of 2" in caplog.text
+
+
+ADDED_DIGEST: Final = "1fee23dc6e9b0f84497eead9d18cd4d10e8b89319a7ba3fab23cd5b5c757f413"
+"""`digest` of the rows the direct arm adds on `VARIED` at seed 0, computed before any
+data-contradiction change; it guards `bko-direct`'s rows."""
+
+
+def varied_arm(seed: int = 0) -> tuple[pd.DataFrame, Request, DirectArm]:
+    """`VARIED`'s records, a request for 8 rows in each of its cells at `seed`, and the arm.
+
+    The arm reads no ontology, so the draw pin in `tests/test_generate_direct.py`, not this one,
+    covers the closure.
+    """
+    with zipfile.ZipFile(io.BytesIO(VARIED)) as bundle:
+        train = complete_records(parse_cleveland(bundle.read(MEMBER).decode("ascii")))
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    cells = sorted(set(keys.itertuples(index=False, name=None)), key=str)
+    request = Request(quota=dict.fromkeys(cells, 8), strata=Strata.CELL, seed=seed)
+    arm = DirectArm(
+        (ANGINA, STENOSIS), {}, name=DIRECT_ARM, budget=3, sink=None, dataset="uci-test"
+    )
+    return train, request, arm
+
+
+def test_the_direct_arms_added_rows_are_pinned():
+    train, request, arm = varied_arm()
+    assert digest(arm(train, request).added) == ADDED_DIGEST
+
+
+@pytest.mark.parametrize("seed", [0, 3])
+def test_the_direct_arms_params_are_pinned(seed):
+    train, request, arm = varied_arm(seed)
+    assert arm(train, request).params == {"generator": "direct", "seed": seed}

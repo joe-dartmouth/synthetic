@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections.abc import Mapping, Sequence
 from typing import Final
@@ -439,3 +441,22 @@ def test_seed_0_draws_each_cell_in_quota_order_and_each_concept_in_its_order():
         "HP:0100749",
         "HP:0500018",
     }
+
+
+DRAW_DIGEST: Final = "58de44f98668635de06eabf11bca0bfc57e6a8236ce21bc8fd4d4a2af1e6fe45"
+"""The sha256 of seeds 0-4's draws on `varied()`, computed before any data-contradiction change;
+it guards `bko-direct`'s draw."""
+
+
+def test_the_default_draw_is_pinned_by_digest():
+    train = varied()
+    draws = [
+        [
+            [dict(d.record), sorted(d.concepts), sorted(d.closed), sorted(d.fallback)]
+            for cell in draw(train, {YOUNG_WOMEN_1: 30, YOUNG_WOMEN_0: 30}, seed=seed).values()
+            for d in cell
+        ]
+        for seed in range(5)
+    ]
+    found = hashlib.sha256(json.dumps(draws, sort_keys=True).encode()).hexdigest()
+    assert found == DRAW_DIGEST

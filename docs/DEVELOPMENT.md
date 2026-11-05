@@ -962,6 +962,9 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
   passes `make check` and shows here. The release tests ([Ontologies](#ontologies)) assert it
   differs nowhere.
 
+`bko.bkb.fusion.check_fused` checks that a fused BKB is valid; its docstring and ADR
+`research/data-contradiction-handling` (Decision 3) state what it requires.
+
 ## Gap detection
 
 `bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
@@ -1053,6 +1056,35 @@ commands, inside `.venv`:
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
+
+**`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
+`research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
+`child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. One command, inside
+`.venv`:
+
+    mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
+
+- **What it needs**: the pinned Synthea population in the data root, which `make synthea`
+  generates and the command never does. It fetches UCI Heart Disease, Diabetes 130 and the pinned
+  MONDO and HPO releases into the data root if absent.
+- **What it does**: it reads each frame's training split at holdout seed 0 with no removal and
+  examines every cell. Each CSV row is one finding, so a cell appears only where it holds one, in
+  the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
+  `child_share,parent_share,field,codes`. It makes no API call.
+- **What it logs**: stderr gets the `versions` line (commit, dirty tree and library versions),
+  `census data_dir=<dir>`, each dataset's `data` line and each release's identity. Then, per
+  frame in frame order: one `census data` line with the training records' count and digest; one
+  `census rows` line with the field rows' count, their digest and the `is_a` pair count; one
+  `census cells` line with the grid's cell count, the cells holding a record and the concepts
+  that follow the label, which `all-show` leaves out; one `census pair frame=<f> concept=<c>
+  parent=<p> shown=<n> without=<n> cells=<k>` line per `is_a` pair, counting over the whole
+  split the records that show the narrow concept, those of them without the broad one, and the
+  cells holding the pair's `narrow-without-broad` finding; and one `census kind` line per kind
+  with its count, 0 included. Last comes one `census rows` line with stdout's row count and
+  sha256.
+- **Reproducibility**: the same bytes on every run over the same data and releases.
+- **The gate does not run it.** `make check` runs it over records, rows and releases built in
+  memory and in `tmp_path` (`tests/test_contradictions_census.py`).
 
 ## Generation
 
@@ -1329,6 +1361,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-synthea.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
+| `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
+| `contradictions.log` | its stderr |
 | `reproduction.csv` | `python -m bko.ontology reproduce`'s stdout |
 | `reproduction.log` | its stderr |
 | `training.csv` | the augmented training set of an app fill |
@@ -1340,6 +1374,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
 - **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
@@ -1388,9 +1423,9 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
   files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
   reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
-  `first-flag.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
-  a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
-  shows its error in place of its section.
+  `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading
+  them. A folder whose name is not a run id, a symbolic link, and an entry of the wrong kind are
+  not listed; an artifact that cannot be read shows its error in place of its section.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
   only while its confirmation box is ticked, the box clears after each fill, the client is built
   only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.

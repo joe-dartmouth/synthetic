@@ -28,7 +28,9 @@ def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
     """Each mapped concept's share: `(n_c p_c + GROUP_WEIGHT p_g) / (n_c + GROUP_WEIGHT)`.
 
     `p_c` is the cell's dataset-fragment prior and `p_g` its label group's, each 0 where the
-    fragment holds no S-node for the concept; `n_c` is the cell's record count.
+    fragment holds no S-node for the concept; `n_c` is the cell's record count. A cell of no
+    record takes `p_g` itself, since multiplying by `GROUP_WEIGHT` and dividing back can move it
+    by one ulp.
 
     Args:
         cell: The cell's records.
@@ -41,18 +43,23 @@ def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
     theirs = _priors(dataset_fragment(group))
     records = cell.observed.records
     return {
-        concept: (records * mine.get(concept, 0.0) + GROUP_WEIGHT * theirs.get(concept, 0.0))
+        concept: theirs.get(concept, 0.0)
+        if records == 0
+        else (records * mine.get(concept, 0.0) + GROUP_WEIGHT * theirs.get(concept, 0.0))
         / (records + GROUP_WEIGHT)
         for concept in group.holders
     }
 
 
 def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> frozenset[str]:
-    """The concepts every row of which reads only the label: they follow the cell's label."""
+    """The concepts every row of which reads only the label: they follow the cell's label.
+
+    A row with no clause applies to every record, whatever its label, so its concept is not one.
+    """
     return frozenset(
         concept
         for concept, mapped in by_concept(rows).items()
-        if all(clause.field == frame.label for row in mapped for clause in row.when)
+        if all(row.when and all(c.field == frame.label for c in row.when) for row in mapped)
     )
 
 

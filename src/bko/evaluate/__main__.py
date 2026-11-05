@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `likelihood`, `launch`
-and `supervise`.
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `likelihood`,
+`contradictions`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -28,6 +28,8 @@ and stores every fill of each holdout its checks pass in PATH, which must not ex
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
 `scores.log` is missing or names other data, versions or configuration.
+`contradictions` counts each data contradiction in the cells of every dataset's training split
+at holdout seed 0, to stdout as CSV, with no API call (`bko.evaluate.contradictions`).
 `likelihood [RUN] --candidates FILE...` reads one run's candidates files, one per slice of a sliced
 run, as one, and logs G7's gate (`bko.evaluate.likelihood`).
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
@@ -78,6 +80,7 @@ from bko.datasets.run_folders import RUN_ID, runs_root
 from bko.evaluate.arguments import parser
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
+from bko.evaluate.contradictions import run as census
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import MESSAGES_ARMS
@@ -155,6 +158,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_shared(args, context))
     elif args.command == "rows":
         sink.write(_rows(args, context))
+    elif args.command == "contradictions":
+        sink.write(census(data_dir(args), context))
     else:
         _compare(args, context, sink)
     return 0
