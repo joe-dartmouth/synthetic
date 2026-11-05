@@ -9,7 +9,7 @@ B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network r
 `g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`, and the two thinking-cost runs,
 `g6-gemmathink` and `g6-nemotronthink`, and E6's runs over the Diabetes frame, `e6-thin` and
 `e6-empty` and their holdout slices `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj` (ADR
-`research/diabetes-subgroup-removal-design`).
+`research/diabetes-subgroup-removal-design`), and G7's curated run `e6-curated`.
 No command-line flag changes a value here.
 """
 
@@ -28,6 +28,7 @@ from bko.evaluate.experiment import (
     BKO_ARMS,
     CLLM_ARM,
     CLLM_RAW_ARM,
+    CURATED_ARM,
     DIRECT_ARM,
     E1,
     HOLDOUTS,
@@ -253,6 +254,20 @@ E6_EMPTY: Final = replace(
 )
 """E6's zero-shot run: `E6_THIN` with every training row of `E6_CELL` removed and no replica."""
 
+E6_CURATED: Final = replace(
+    E6_THIN,
+    arms=("none", REAL_ARM, CURATED_ARM),
+    candidate=CURATED_ARM,
+    comparators=("none",),
+    replica_arms=(),
+    replica_rows=None,
+    spend_ceiling=100.0,
+)
+"""G7's curated run on `E6_THIN`'s frame, removal and holdouts: `none`, `real` and
+`bko-curated`, unsliced, its ceiling $100 (ADR `research/bkb-candidate-curation`; the estimate is
+`docs/EVIDENCE.md`, G7). Its splits equal `e6-thin`'s, so `compare --beside` pairs it with `bko`
+there."""
+
 
 def _e6_runs(name: str, whole: Experiment) -> dict[str, NamedRun]:
     """E6 fraction `name`'s whole run and its `E6_SLICES` slices, `e6-<name>a` onwards.
@@ -390,6 +405,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         },
         **_e6_runs("thin", E6_THIN),
         **_e6_runs("empty", E6_EMPTY),
+        "e6-curated": NamedRun(E6_CURATED, E6_SETTINGS, Dataset.DIABETES),
         "g5": NamedRun(
             G5,
             Settings(
@@ -413,6 +429,7 @@ holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceilin
 its `G6_MODELS` model and ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with
 its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and `e6-empty` are
 `E6_THIN` and `E6_EMPTY` at `E6_SETTINGS` over the Diabetes frame, each `e6-<fraction><letter>`,
-`a` to `j`, the next 10 of its holdouts at a tenth of its ceiling. A variant adds its own entry
+`a` to `j`, the next 10 of its holdouts at a tenth of its ceiling, and `e6-curated` is
+`E6_CURATED` at `E6_SETTINGS`. A variant adds its own entry
 in its own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling
 and criteria."""

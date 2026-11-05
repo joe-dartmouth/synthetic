@@ -17,10 +17,11 @@ from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.attempts import Attempt
 from bko.evaluate.cllm import SHOW, Shower
+from bko.evaluate.curation import ALEATORIC_AT_MOST, CONFIDENCE_AT_MOST, classifier_scores
 from bko.evaluate.experiment import CLLM_ARM, CLLM_RAW_ARM, MESSAGES_ARMS
 from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
 from bko.evaluate.guided_run import guided_arms
-from bko.evaluate.holdout_candidates import Origin
+from bko.evaluate.holdout_candidates import Candidate, Origin
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.waves import asks, spendable
@@ -29,6 +30,7 @@ from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.replay import Replay
 from bko.ontology.mapping import RELEASES
+from bko.validate.checks import validate
 from tests._evaluate_fixtures import GRADED_DATA, SMALL
 from tests._generate_fixtures import ScriptedSend, reply
 from tests.test_evaluate_curation import separable
@@ -116,6 +118,37 @@ def test_cllm_keeps_an_exact_set_at_one_seed(tmp_path):
     assert baseline.params["curation"] == "classifier"
     assert baseline.params["shows"] == SHOW
     assert built.drain(0, built_source())[dropped("curation")] == 1
+
+
+def test_curated_cllm_lines_carry_their_two_scores(tmp_path):
+    rows = train()
+    built, log = arm(tmp_path, CLLM_ARM, ScriptedSend(reply(records())))
+    with log:
+        built(rows, REQUEST)
+    seen = [item for _, _, item in built._seen if item.outcome != "rejected"]
+    assert all(item.score is None for _, _, item in built._seen if item.outcome == "rejected")
+    accepted = validate(records(), frame=UCI_FRAME).accepted
+    read = classifier_scores(rows, frame=UCI_FRAME)(accepted)
+    expected = [
+        {"aleatoric": float(aleatoric), "confidence": float(confidence)}
+        for confidence, aleatoric in read[["confidence", "aleatoric"]].to_numpy().tolist()
+    ]
+    assert [item.score for item in seen] == expected
+    assert [item.outcome for item in seen] == ["kept", "dropped-curation", "kept", "kept"]
+    dropped = seen[1].score
+    assert dropped is not None
+    confidence, aleatoric = dropped["confidence"], dropped["aleatoric"]
+    assert confidence is not None
+    assert aleatoric is not None
+    assert confidence <= CONFIDENCE_AT_MOST
+    assert aleatoric <= ALEATORIC_AT_MOST
+    line = Candidate(0, CLLM_ARM, "gap", 1, True, seen[1]).line()
+    assert line["score"] == expected[1]
+    raw, raw_log = arm(tmp_path / "raw", CLLM_RAW_ARM, ScriptedSend(reply(records())))
+    with raw_log:
+        raw(rows, REQUEST)
+    assert all(item.score is None for _, _, item in raw._seen)
+    assert "score" not in Candidate(0, CLLM_RAW_ARM, "gap", 1, True, raw._seen[0][2]).line()
 
 
 def test_cllm_uncurated_keeps_the_first_quota_rows(tmp_path):

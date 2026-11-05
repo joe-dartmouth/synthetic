@@ -1,8 +1,10 @@
-"""The holdout and the fill a runner call serves, for log attribution only.
+"""The holdout and the fill a runner call serves, for log attribution and stored or ranked fills.
 
 The harness sets `CURRENT_FILL` around each runner call (`bko.evaluate.run`), so an arm can name
 both in its log lines without a parameter on `Runner`. A score reads it only through
-`bko.evaluate.shared`'s stored arms, which answer each fill from the run's candidates file. An arm
+`bko.evaluate.shared`'s stored arms, which answer each fill from the run's candidates file, and
+through the ranking arm's tie order, `sha256` of the holdout with each candidate's call and
+position (`bko.evaluate.guided`). An arm
 reads it synchronously when called, as `bko.evaluate.direct` and `bko.evaluate.skeleton` do: a
 task on an event loop started earlier, or a thread pool, would not see the value.
 It lives in `bko.baselines` so a baseline method can name its fill without importing
@@ -22,7 +24,7 @@ type FillKind = Literal["gap", "replica"]
 
 @dataclass(frozen=True, slots=True)
 class Fill:
-    """The holdout and the fill a runner call serves, for log attribution only.
+    """The holdout and the fill a runner call serves.
 
     Attributes:
         holdout: The holdout's seed.

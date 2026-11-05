@@ -9,6 +9,7 @@ import dataclasses
 import io
 import json
 import logging
+import math
 from collections import Counter
 from pathlib import Path
 from typing import Final
@@ -24,7 +25,14 @@ from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
-from bko.evaluate.holdout_candidates import SCHEMA, Candidate, CandidateFile, Origin, read
+from bko.evaluate.holdout_candidates import (
+    SCHEMA,
+    Candidate,
+    CandidateFile,
+    Origin,
+    Seen,
+    read,
+)
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (
     BAD,
@@ -301,7 +309,60 @@ def test_schema_2_reads_a_prescribing_arms_concept_drop():
     }
     (line,) = read(HEADER + json.dumps(dropped).encode() + b"\n").candidates
     assert (line.arm, line.outcome) == ("bko-skeleton", "dropped-concepts")
-    assert SCHEMA == 2
+
+
+RANKED: Final = {
+    **{key: value for key, value in LINE.items() if key != "undecoded"},
+    "arm": "bko-curated",
+    "candidate": {"age": 40},
+    "outcome": "dropped-likelihood",
+    "failed": [],
+    "score": {"likelihood": -4.25},
+}
+"""A schema-3 line of the ranking arm, with its score."""
+
+
+def test_read_accepts_schemas_1_to_3():
+    assert SCHEMA == 3
+    schema_3 = HEADER.replace(b'"schema": 2', b'"schema": 3')
+    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, schema_3)
+    for head in heads:
+        (line,) = read(head + json.dumps(LINE).encode() + b"\n").candidates
+        assert line.line() == LINE
+    undrawable = {**RANKED, "score": {"likelihood": None}}
+    curated = {
+        **RANKED,
+        "arm": "cllm",
+        "outcome": "kept",
+        "score": {"aleatoric": 0.1, "confidence": 0.9},
+    }
+    for scored in (RANKED, undrawable, curated):
+        (line,) = read(schema_3 + json.dumps(scored).encode() + b"\n").candidates
+        assert line.score == scored["score"]
+        assert line.line() == scored
+    for head in heads[:2]:
+        with pytest.raises(CandidatesFormatError, match="keys"):
+            read(head + json.dumps(RANKED).encode() + b"\n")
+    for score in (
+        "high",
+        [],
+        {"likelihood": "high"},
+        {"likelihood": True},
+        {"likelihood": 1e999},
+        {"likelihood": 10**400},
+    ):
+        with pytest.raises(CandidatesFormatError, match="wrong type"):
+            read(schema_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
+
+
+def test_a_score_of_nan_is_refused_at_write_time(tmp_path):
+    seen = Seen(1, "<55/female/1", 0, {"age": 40}, None, "kept", (), {"confidence": math.nan})
+    path = tmp_path / "candidates.jsonl"
+    with CandidateFile(path, Origin("e1", GRADED_DATA, {}), SETTINGS) as kept:
+        before = path.read_bytes()
+        with pytest.raises(ValueError, match="JSON compliant"):
+            kept.write([Candidate(0, "cllm", "replica", 1, True, seen)])
+    assert path.read_bytes() == before
 
 
 def test_read_takes_a_header_and_a_well_formed_line():

@@ -22,6 +22,7 @@ from bko.evaluate.experiment import (
     CLLM_ARM,
     CLLM_BUDGET,
     CLLM_RAW_ARM,
+    CURATED_ARM,
     E1,
     MESSAGES_ARMS,
     METHOD_ARMS,
@@ -42,6 +43,7 @@ from bko.evaluate.named_runs import (
     E5_FRACTIONS,
     E6_ASKED,
     E6_CAP,
+    E6_CURATED,
     E6_EMPTY,
     E6_SETTINGS,
     E6_SLICES,
@@ -150,6 +152,7 @@ def test_every_run_name_is_pinned():
         "e5-half",
         "e5-quarter",
         "e5-threequarters",
+        "e6-curated",
         "e6-empty",
         *(f"e6-empty{letter}" for letter in "abcdefghij"),
         "e6-thin",
@@ -463,6 +466,25 @@ def test_e6_slices_refuse_holdouts_they_do_not_divide():
         _e6_runs("thin", uneven)
 
 
+def test_e6_curated_ceiling_covers_its_estimate():
+    """G7's curated run estimate (`docs/EVIDENCE.md`, G7), written out.
+
+    Rate: `bko`'s measured cost per record asked in `e6-thin`, $104.537 over 326,621 records
+    asked, $3.2006e-4. Records asked per holdout: `over_ask` 2 x (fill_to - R) = 2 x 1250, times
+    1.005, `bko`'s measured re-ask share (326,621 asked for 325,000 kept). Over 100 holdouts:
+    $80.41; the $100 ceiling is 1.24 times it.
+    """
+    rate = 104.537 / 326_621
+    asked = 2 * (1269 - 19) * 326_621 / 325_000
+    estimate = 100 * asked * rate
+    assert estimate == pytest.approx(80.41, abs=0.01)
+    assert E6_CURATED.spend_ceiling == pytest.approx(100.0)
+    assert E6_CURATED.spend_ceiling > estimate
+    assert E6_CURATED.arms == ("none", REAL_ARM, "bko-curated")
+    assert E6_CURATED.holdout_seeds == E6_THIN.holdout_seeds
+    assert RUNS["e6-curated"].experiment is E6_CURATED
+
+
 def test_each_e6_ceiling_covers_its_estimate():
     """E6's estimate per record asked (`docs/EVIDENCE.md`, E6 Configuration), written out.
 
@@ -639,7 +661,7 @@ def test_every_bko_arm_reads_the_experiments_budget_and_only_the_skeleton_arm_pr
     assert all(
         spec.budget is None and not spec.shows
         for name, spec in MESSAGES_ARMS.items()
-        if name not in {CLLM_ARM, CLLM_RAW_ARM}
+        if name not in {CLLM_ARM, CLLM_RAW_ARM, CURATED_ARM}
     )
     assert {name for name, spec in MESSAGES_ARMS.items() if spec.prescribes} == {SKELETON_ARM}
 

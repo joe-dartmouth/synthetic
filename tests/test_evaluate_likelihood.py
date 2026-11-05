@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 import bko.evaluate.likelihood as likelihood_module
+import bko.evaluate.ranking as ranking_module
 from bko.datasets.cells import cell_keys
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
@@ -189,7 +190,7 @@ def bounds(caplog, side: str) -> list[float]:
 
 
 def test_a_score_that_ranks_real_records_first_separates(caplog, monkeypatch):
-    monkeypatch.setattr(likelihood_module, "Likelihood", Ranked)
+    monkeypatch.setattr(ranking_module, "Likelihood", Ranked)
     many = dataclasses.replace(SMALL, holdout_seeds=tuple(range(6)))
     caplog.set_level(logging.INFO, logger="bko.evaluate.likelihood")
     data = candidates(seeds=many.holdout_seeds, bad=True)
@@ -205,7 +206,7 @@ def test_reversed_ranks_do_not_separate(caplog, monkeypatch):
         def __call__(self, record) -> float:
             return -super().__call__(record)
 
-    monkeypatch.setattr(likelihood_module, "Likelihood", Reversed)
+    monkeypatch.setattr(ranking_module, "Likelihood", Reversed)
     many = dataclasses.replace(SMALL, holdout_seeds=tuple(range(6)))
     caplog.set_level(logging.INFO, logger="bko.evaluate.likelihood")
     assert not likelihood(
@@ -217,7 +218,7 @@ def test_reversed_ranks_do_not_separate(caplog, monkeypatch):
 
 
 def test_tied_scores_split_in_sha256_order_and_an_odd_cells_middle_record_sits_out(monkeypatch):
-    monkeypatch.setattr(likelihood_module, "Likelihood", Tied)
+    monkeypatch.setattr(ranking_module, "Likelihood", Tied)
     seen: list[pd.DataFrame] = []
 
     def capture(train, synthetic, *, frame):
@@ -255,7 +256,7 @@ def test_an_undrawable_record_reads_minus_infinity_in_its_cells_row(monkeypatch)
         def __call__(self, record) -> float:
             return -math.inf if record["chol"] == 999 else 0.0
 
-    monkeypatch.setattr(likelihood_module, "Likelihood", Undrawable)
+    monkeypatch.setattr(ranking_module, "Likelihood", Undrawable)
     lines = []
     for seed in SMALL.holdout_seeds:
         for call, (cell, rows) in enumerate(cells(seed), start=1):

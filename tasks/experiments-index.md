@@ -11,12 +11,6 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
-### Generation
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | ready | -- | Shirley | final-report |
-
 ### Privacy
 
 | Unit | Status | Depends on | Owner | Milestone |
@@ -29,6 +23,14 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`compare-elk-logic-only`](compare-elk-logic-only.md) | ready | -- | Joe | final-report |
+| [`evaluate-data-contradictions`](evaluate-data-contradictions.md) | ready | -- | Joe | final-report |
+| [`explain-record-provenance`](explain-record-provenance.md) | ready | -- | Joe | final-report |
+
+### Evaluation
+
+| Unit | Status | Depends on | Owner | Milestone |
+|---|---|---|---|---|
+| [`evaluate-more-classifiers`](evaluate-more-classifiers.md) | ready | -- | Joe | final-report |
 
 ## What every unit relies on
 

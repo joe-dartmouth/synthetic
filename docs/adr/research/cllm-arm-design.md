@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-02
+updated: 2026-11-05
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -64,13 +64,13 @@ prompt (their section 2.2).
   over_ask, budget)` describes every Messages arm: `definition` None guides by cell alone, `shows`
   makes each call show training records, `curation` curates the accepted rows, and `budget` None
   reads `Experiment.budget`; a spec that both prescribes and shows is refused.
-  `Curation.LIKELIHOOD` and `over_ask` (above 1 with likelihood curation alone) are reserved for
-  a curated `bko` arm that waits on its gate's reading on Diabetes 130 (ADR
-  [`research/bkb-candidate-curation`](bkb-candidate-curation.md)), and no arm runs them
-  (`cleanup:evaluate/likelihood-curation-unused`). `cllm` is
+  `over_ask` is above 1 with `Curation.LIKELIHOOD` alone. `cllm` is
   `MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET)` and
-  `cllm-uncurated` the same with no curation. A `GuidedArm` refuses any curation but `classifier`,
-  which no arm but `cllm` has.
+  `cllm-uncurated` the same with no curation; `bko-curated` is
+  `MessagesArm(Definition.SUBGROUP, curation=Curation.LIKELIHOOD, over_ask=2, budget=2 * E1.budget)`,
+  which ranks each call cell's valid rows by their BKB likelihood (ADR
+  [`research/bkb-candidate-curation`](bkb-candidate-curation.md), Arm). A `GuidedArm` takes `classifier` curation, which no arm but `cllm` has, and `likelihood`
+  curation with its `over_ask`, which no arm but `bko-curated` has.
 - **Guidance by cell alone.** `bko.generate.guidance.cell_guidance` gives each cell its training
   record count and bounds, with no gap, no finding and no ontology.
 - **The prompt.** `bko.generate.prompt.render_shown`: the system text every call shares, then a
@@ -86,19 +86,21 @@ prompt (their section 2.2).
   `numpy.random.default_rng(derived_seed(seed, "cllm"))` at the attempt's seed, made once per
   attempt and advanced call by call in planning order, never at send, so every in-flight count
   and a replay show the same records.
-- **The curator.** `bko.evaluate.curation.classifier_discard` fits scikit-learn's
+- **The curator.** `bko.evaluate.curation.classifier_scores` fits scikit-learn's
   `HistGradientBoostingClassifier` (`curator()`: 100 iterations, learning rate 0.3, maximum depth
   6, L2 regularization 1.0, at least 5 rows per leaf, no early stop, `random_state` 0) once per
   attempt on the holdout's training rows, the frame's features against its label, on one OpenMP
   thread. It reads each row at the first `STAGES` (99) stages: its confidence is the mean
   probability of its own label, its aleatoric uncertainty the mean of p(1 - p). A row is dropped
   when its confidence is at most `CONFIDENCE_AT_MOST` (0.2) and its aleatoric uncertainty at most
-  `ALEATORIC_AT_MOST` (0.15) (`discards`). A training split holding one label is refused.
+  `ALEATORIC_AT_MOST` (0.15) (`discards`; `classifier_discard` reads the rule off the scores).
+  A training split holding one label is refused. Each row that passed validation keeps its two
+  scores as its candidates line's `score`, so a threshold sweep reads them without a refit.
 - **Where curation sits.** Each call's rows that pass validation are curated, and a row the curator
   drops gets the drop reason `Drop.CURATION`, after range and cell and before the quota
   (`bko.baselines.records.assess`), so it never takes a quota slot and the arm asks again for
   it. It is the outcome `dropped-curation` in the candidates file, the `dropped-curation` score
-  measure and `dropped_curation=` in the `guided` and `validity` lines, for a curating arm alone.
+  measure and `dropped_curation=` in the `guided` and `validity` lines, for a classifier-curating arm alone.
   It counts as passed in the validity rate, as every drop after validation does.
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
   `max(3, ceil(1.5 / s))` for the least curator keep share `s` measured: 22, from `ceil(1.5 / 0.0707)`

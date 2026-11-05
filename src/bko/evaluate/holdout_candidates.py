@@ -12,9 +12,11 @@ position among the call's, then either the decoded `candidate` or the reason it 
 `outcome` and the checks it `failed`. The outcome
 is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
 `dropped-cell`, `dropped-concepts` (a prescribing arm's alone), `dropped-curation` (a curating
-arm's alone) or `dropped-quota` (by
-`bko.baselines.records.drops`). Each (arm, holdout, fill)'s
-lines count what its candidate scores count.
+arm's alone) or `dropped-quota` (by `bko.baselines.records.drops`), or `dropped-likelihood` (a
+ranking arm's alone, by `bko.evaluate.attempts.Attempt.rows`). A schema-3 line of a scoring arm
+also holds the `score` its curator read: `confidence` and `aleatoric` on a curating arm's line that
+passed validation, `likelihood` on a ranking arm's line it ranked, null for minus infinity. Each
+(arm, holdout, fill)'s lines count what its candidate scores count.
 
 An arm writes a fill's lines when the harness drains it, so a stopped run's file holds the fills
 drained before the stop. Every line's keys are sorted and no line holds a time, so a replay of a
@@ -26,10 +28,10 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from itertools import starmap
 from pathlib import Path
 from types import MappingProxyType, TracebackType
 from typing import Final, NoReturn, Self, TextIO
@@ -43,7 +45,7 @@ from bko.evaluate.scores import Source
 from bko.generate.messages import Settings
 
 
-SCHEMA: Final = 2
+SCHEMA: Final = 3
 """The file format's version, written in the header."""
 
 FILLS: Final[Mapping[Source, str]] = MappingProxyType(
@@ -63,13 +65,17 @@ OUTCOMES: Final = (KEPT, REJECTED, *(f"dropped-{drop}" for drop in Drop))
 _HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
     {
         1: frozenset({"kind", "schema", "run", "uci", "releases"}),
+        2: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
         SCHEMA: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
     }
 )
 """Each readable schema's header keys besides `settings`: schema 1, the judged run's, names UCI's
-archive digest under `uci`; schema 2 names the frame and the records' digest."""
+archive digest under `uci`; schemas 2 and 3 name the frame and the records' digest, and only a
+schema-3 line may hold a `score`."""
 
 _SETTINGS: Final = "settings"
+
+_SCORE: Final = "score"
 
 _LINE: Final = frozenset(
     {
@@ -115,6 +121,8 @@ class Seen:
         undecoded: Why the record has no decoded item, or None.
         outcome: One of `OUTCOMES`.
         failed: The checks it failed, for a rejected candidate.
+        score: What its arm's curator read of it, by name, None for minus infinity; None for a
+            candidate no curator read.
     """
 
     call: int | None
@@ -124,6 +132,7 @@ class Seen:
     undecoded: str | None
     outcome: str
     failed: tuple[str, ...]
+    score: Mapping[str, float | None] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +190,11 @@ class Candidate:
         """The checks a rejected candidate failed."""
         return self.seen.failed
 
+    @property
+    def score(self) -> Mapping[str, float | None] | None:
+        """What its arm's curator read of it, or None."""
+        return self.seen.score
+
     def line(self) -> dict[str, object]:
         """The candidate as its line's JSON object."""
         seen = self.seen
@@ -202,6 +216,7 @@ class Candidate:
             **item,
             "outcome": seen.outcome,
             "failed": list(seen.failed),
+            **({} if seen.score is None else {_SCORE: dict(seen.score)}),
         }
 
 
@@ -276,7 +291,11 @@ class CandidateFile:
         self._file.close()
 
     def write(self, candidates: Iterable[Candidate]) -> None:
-        """Append one line per candidate, and flush."""
+        """Append one line per candidate, and flush.
+
+        Raises:
+            ValueError: If a candidate holds a number that is not finite; nothing is written.
+        """
         self._write([candidate.line() for candidate in candidates])
 
     def discard(self) -> None:
@@ -285,7 +304,8 @@ class CandidateFile:
         self.path.unlink(missing_ok=True)
 
     def _write(self, lines: list[dict[str, object]]) -> None:
-        self._file.write("".join(json.dumps(line, sort_keys=True) + "\n" for line in lines))
+        text = "".join(json.dumps(line, sort_keys=True, allow_nan=False) + "\n" for line in lines)
+        self._file.write(text)
         self._file.flush()
 
 
@@ -323,16 +343,17 @@ def read(data: bytes) -> HoldoutCandidates:
     if schema == 1 and first["uci"] != UCI_HEART_DISEASE.sha256:
         msg = f"the schema-1 header's uci digest is not the pinned archive's: {first['uci']!r}"
         raise CandidatesFormatError(msg)
+    scored = schema == SCHEMA
     return HoldoutCandidates(
         MappingProxyType(first),
-        tuple(starmap(_candidate, enumerate(rest, start=2))),
+        tuple(_candidate(number, line, scored=scored) for number, line in enumerate(rest, start=2)),
     )
 
 
-def _candidate(number: int, line: object) -> Candidate:
+def _candidate(number: int, line: object, *, scored: bool) -> Candidate:
     if not isinstance(line, dict) or line.get("kind") != "candidate":
         _refuse(number, "is not a candidate line")
-    item = set(line) - _LINE
+    item = set(line) - _LINE - ({_SCORE} if scored else set())
     if not set(line) >= _LINE or item not in ({"candidate"}, {"undecoded"}):
         _refuse(number, f"holds the keys {sorted(line)}")
     undecoded = line.get("undecoded")
@@ -349,6 +370,7 @@ def _candidate(number: int, line: object) -> Candidate:
         "undecoded" not in line or isinstance(undecoded, str),
         line["outcome"] in OUTCOMES,
         isinstance(failed, list) and all(isinstance(check, str) for check in failed),
+        _SCORE not in line or _score(line[_SCORE]),
     )
     if not all(checks):
         _refuse(number, "holds a value of the wrong type")
@@ -364,10 +386,29 @@ def _candidate(number: int, line: object) -> Candidate:
         undecoded,
         line["outcome"],
         tuple(failed),
+        line.get(_SCORE),
     )
     return Candidate(
         line["holdout"], line["arm"], line["fill"], line["attempt"], line["returned"], seen
     )
+
+
+def _score(value: object) -> bool:
+    """Whether `value` is a score: names, each with a finite number or null."""
+    return isinstance(value, dict) and all(
+        number is None or _finite(number) for number in value.values()
+    )
+
+
+def _finite(number: object) -> bool:
+    """Whether `number` is an int or float, not a bool, that reads as a finite float."""
+    if not isinstance(number, int | float) or isinstance(number, bool):
+        return False
+    try:
+        return math.isfinite(number)
+    except OverflowError:
+        # An int past a float's range, which no score reaches.
+        return False
 
 
 def _count(value: object, least: int) -> bool:

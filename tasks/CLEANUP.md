@@ -75,47 +75,7 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
   baseline outside `bko.evaluate`.
 
-## docs
-
-- **`cleanup:docs/e6-curated-teardown`: G7's curated run leaves a worktree and a watcher running.**
-  The paid run `e6-24` (`e6-curated`) runs from the detached worktree `../synthetic-e6c` at
-  `135a2c3`, and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stays running
-  because `e6-24`'s watch script reads its log. On 2026-11-05 `git worktree list` held
-  `../synthetic-e6c` and `ps -p $(cat scratchpad/e6-power.pid)` showed the watcher alive.
-  *Filed 2026-11-05 by PR #77's review.*
-  **Why deferred.** `e6-24` is still running; its record lands with unit
-  `generate-bkb-curation-diabetes`.
-  **What discharges it:** `e6-24`'s folder moved into `runs/` and recorded in G7, the watcher
-  stopped with `kill $(cat scratchpad/e6-power.pid)` after `ps -p` confirms the pid is the
-  watcher, and `git worktree remove ../synthetic-e6c` once `runs/` holds nothing under it.
-  **Trigger:** `e6-24`'s `launch.log` ending in a `supervise done` line.
-
 ## evaluate
-
-- **`cleanup:evaluate/likelihood-curation-unused`: `Curation.LIKELIHOOD` and `over_ask` have no
-  arm.** `bko.evaluate.experiment.MessagesArm` accepts `curation=Curation.LIKELIHOOD` with an
-  `over_ask` above 1, and `tests/test_evaluate_experiment.py` pins both, but the curated arm they
-  were reserved for does not run: G7's gate read `gate separated=False`
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)), and the arm waits on
-  the gate's reading on Diabetes 130. *Filed 2026-10-31 by PR7's landing.*
-  **Blocked on** unit [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md), which
-  either runs them or finds the gate fails again.
-  **Why deferred.** Removing them changes the Messages arm spec, outside PR7's docs-only landing.
-  **What discharges it:** `Curation.LIKELIHOOD`, `over_ask` and their tests removed, with ADR
-  `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
-  **Trigger:** unit `generate-bkb-curation-diabetes`'s phase 1 verdict.
-
-- **`cleanup:evaluate/curator-scores-unkept`: a curated row's confidence and aleatoric scores are
-  not kept.** `bko.evaluate.curation.classifier_discard` reduces each row to a boolean before
-  `assess` reads it, so the candidates file says `dropped-curation` but not by what margin, and a
-  threshold sweep needs a refit on the holdout's training rows. *Filed 2026-10-30 by the pre-run
-  diff review of PR6.*
-  **Why deferred.** Adding fields to `Seen` and the candidates schema after the review would move
-  the run commit for a reading B3 does not need; the fit is deterministic (`random_state` 0, one
-  thread), so a refit reproduces the scores.
-  **What discharges it:** each curated candidate line carries its two scores, documented in
-  `docs/DEVELOPMENT.md` (Evaluation), or a refit command that prints them.
-  **Trigger:** a threshold sweep, or the next change to the candidates schema.
 
 - **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
   `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time
@@ -154,6 +114,81 @@ links to where its blocker is tracked.
   captured, or the CLI tests restore the logger levels they set, with the two files passing in
   one process.
   **Trigger:** the next change to `tests/test_evaluate_removal.py` or to a CLI test's logging.
+
+- **`cleanup:evaluate/ranking-log-lines`: a ranked attempt logs no per-cell counts.** A ranking
+  attempt (`bko.evaluate.attempts`, `bko.evaluate.guided`) ranks each call cell's rows once its
+  rounds end, and logs neither how many rows each cell ranked, how many scores tied at the cut,
+  nor how many sat at minus infinity; `bko.evaluate.guided`'s `validity` line (`logger.info` at
+  `guided.py:280`) counts outcomes only. A reader of `e6-24`'s `scores.log` recovers them only by
+  rereading `holdout-candidates.jsonl`. *Filed 2026-11-05 by PR #75's review.*
+  **Why deferred.** The ranked audit reads the candidates file for them, and the change is to
+  `src/` files outside the review fix's boundary.
+  **What discharges it:** a log line per ranked cell with its rows ranked, its ties at the cut
+  and its rows at minus infinity, with a test that reads it.
+  **Trigger:** the next change to `attempts.py` or `guided.py`.
+
+- **`cleanup:evaluate/ranking-scorer-rebuilds-per-cell`: `ranking.scorer` recomputes work shared
+  by a holdout's cells.** Each call to `bko.evaluate.ranking.scorer` (`ranking.py:45`) recomputes
+  `stratum_keys` over the holdout's whole training split and `observe_records` over the label's
+  rows, though both depend on the holdout and the label alone, and `GuidedArm._rank` calls it
+  once per call cell. The cost does not bite at E6's 16 quota cells. *Filed 2026-11-05 by PR #75's
+  review.*
+  **Why deferred.** A performance cost with no measured effect on a run.
+  **What discharges it:** the stratum keys and each label group's observations computed once per
+  holdout and passed to each cell's scorer, with the same scores.
+  **Trigger:** a ranked run whose attempt time shows in a profile, or the next change to
+  `ranking.py`.
+
+- **`cleanup:evaluate/candidates-score-key-names`: `_score` does not check a score's key names.**
+  `bko.evaluate.holdout_candidates._score` (`holdout_candidates.py:391`) accepts any dict whose
+  values are a finite number or null, so a schema-3 line whose `score` holds
+  `{"likelihod": -1.0}` reads as valid, and a reader looking for `likelihood` finds none.
+  *Filed 2026-11-05 by PR #75's review.*
+  **Why deferred.** The writer is the harness alone, and no reader of a score by name has been
+  fed a misspelled key.
+  **What discharges it:** `read` refuses a `score` whose names are not `likelihood`, or
+  `confidence` and `aleatoric`, by the arm, with a test.
+  **Trigger:** the next change to `holdout_candidates.py`'s schema.
+
+- **`cleanup:evaluate/over-ask-rule-three-places`: the `over_ask` rule is written three times.**
+  `Experiment`'s `MessagesArm` check (`experiment.py:325`), `GuidedArm.__init__` (`guided.py:137`)
+  and `Attempt.__init__` (`attempts.py:137`) each state when `over_ask` is valid, with three
+  messages and two different conditions (likelihood curation in two, a `rank` in the third).
+  *Filed 2026-11-05 by PR #75's review.*
+  **Why deferred.** The three agree today; the fix touches three modules.
+  **What discharges it:** one function states the rule and the other two call it, with a test per
+  condition.
+  **Trigger:** a change to what `over_ask` means or a fourth reader of it.
+
+- **`cleanup:evaluate/ranked-replay-test-drained-measures`: the ranked replay test does not
+  compare drained measures.** `tests/test_evaluate_ranked.py::test_a_ranked_arm_replays_byte_for_byte`
+  compares the candidates file bytes and `added` between a live and a replayed run, and discards
+  what `built.drain(HOLDOUT, Source.REPLICA_CANDIDATES)` returns, so a replay whose drained
+  measures differ passes. *Filed 2026-11-05 by PR #75's review.*
+  **Why deferred.** The test files belong to the concurrent fix, and the byte-equal candidates
+  file already pins the rows.
+  **What discharges it:** the test compares the live and replayed drains.
+  **Trigger:** the next change to the ranked arm's drain or to that test.
+
+- **`cleanup:evaluate/curated-ceiling-test-hardcodes-constants`: the curated ceiling test
+  hardcodes its constants.** `tests/test_evaluate_experiment.py::test_e6_curated_ceiling_covers_its_estimate`
+  writes `104.537`, `326_621`, `325_000` and `1269 - 19` as literals, so a change to `e6-thin`'s
+  frame or `E6_CURATED`'s `fill_to` leaves the test passing on the old estimate. *Filed
+  2026-11-05 by PR #75's review.*
+  **Why deferred.** The constants are a measured record of `e6-thin` (`docs/EVIDENCE.md`, G7), and
+  the run is done.
+  **What discharges it:** the test reads `fill_to` and the removed count off `E6_CURATED`, keeping
+  the measured rate as the one literal.
+  **Trigger:** the next change to `E6_THIN`, `E6_CURATED` or that test.
+
+- **`cleanup:evaluate/guided-arm-params-lack-over-ask`: `GuidedArm`'s logged params omit
+  `over_ask`.** The `params` that `GuidedArm` hands each `Baseline` (`guided.py:235` to `245`)
+  hold `shows`, `curation` and `short` and not `over_ask`, so a ranked arm's attempt records how it
+  curated but not how many rows it asked per quota. *Filed 2026-11-05 by PR #75's review.*
+  **Why deferred.** The value is in `MESSAGES_ARMS` and in the call log's requests, and the change
+  is to `src/`.
+  **What discharges it:** `params` carries `over_ask` for a ranking arm, with a test.
+  **Trigger:** the next change to `GuidedArm`.
 
 ## generate
 

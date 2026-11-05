@@ -138,6 +138,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
                 prescribe=prescriber(knowledge) if spec.prescribes else None,
                 shows=spec.shows,
                 curation=spec.curation,
+                over_ask=spec.over_ask,
             )
             for name in names
             for spec in (MESSAGES_ARMS[name],)
