@@ -75,6 +75,21 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
   baseline outside `bko.evaluate`.
 
+## docs
+
+- **`cleanup:docs/e6-curated-teardown`: G7's curated run leaves a worktree and a watcher running.**
+  The paid run `e6-24` (`e6-curated`) runs from the detached worktree `../synthetic-e6c` at
+  `135a2c3`, and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stays running
+  because `e6-24`'s watch script reads its log. On 2026-11-05 `git worktree list` held
+  `../synthetic-e6c` and `ps -p $(cat scratchpad/e6-power.pid)` showed the watcher alive.
+  *Filed 2026-11-05 by PR #77's review.*
+  **Why deferred.** `e6-24` is still running; its record lands with unit
+  `generate-bkb-curation-diabetes`.
+  **What discharges it:** `e6-24`'s folder moved into `runs/` and recorded in G7, the watcher
+  stopped with `kill $(cat scratchpad/e6-power.pid)` after `ps -p` confirms the pid is the
+  watcher, and `git worktree remove ../synthetic-e6c` once `runs/` holds nothing under it.
+  **Trigger:** `e6-24`'s `launch.log` ending in a `supervise done` line.
+
 ## evaluate
 
 - **`cleanup:evaluate/likelihood-curation-unused`: `Curation.LIKELIHOOD` and `over_ask` have no
