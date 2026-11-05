@@ -24,8 +24,8 @@ The instructor's feedback on the 2026-11-04 status update asked for two things:
 
 E6 shows why the classifier matters. At f = 1.0, `bko-direct` reaches removed-cell recall 0.5377
 under LR and 0.3591 under HGB, and the copula's falls from 0.3507 under LR to 0.0451 under HGB
-([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). Every E-series
-entry and E4 report the AUC-PR cost, but none places it in the literature on oversampling and
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). E4 and E6
+report the AUC-PR cost, but neither places it in the literature on oversampling and
 calibration.
 
 ## Scope

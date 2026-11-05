@@ -312,24 +312,44 @@ class Attempt:
         keeps every row. An added frame with no rows when none was kept.
 
         Raises:
-            ValueError: If `rank` returns other than one score per candidate.
+            ValueError: If `rank` returns other than one score per candidate, or a score that is
+                NaN or plus infinity; the attempt is then left unranked.
+            EvaluationError: As `rank`, such as `bko.evaluate.ranking.record`'s refusal of a
+                candidate that is not a record of every column.
         """
         if self.rank is not None and not self._ranked:
+            # Every cell is scored before any candidate is marked, so a refusal changes nothing.
+            scored = {
+                cell: self._scores(self.rank, cell, valid) for cell, valid in self._valid.items()
+            }
+            for cell, scores in scored.items():
+                self.kept[cell] = self._ranked_rows(cell, self._valid[cell], scores)
             self._ranked = True
-            for cell, valid in self._valid.items():
-                self.kept[cell] = self._ranked_rows(self.rank, cell, valid)
         frames = [frame for cell in self.request.quota for frame in self.kept[cell]]
         return number(pd.concat(frames)) if frames else no_rows(self.request.frame)
 
-    def _ranked_rows(
+    def _scores(
         self, rank: Rank, cell: Stratum, valid: Sequence[tuple[int, pd.DataFrame]]
-    ) -> list[pd.DataFrame]:
-        """`cell`'s kept rows after ranking `valid`, in generation order; marks every candidate."""
-        seen = [self.seen[at] for at, _ in valid]
-        scores = [float(score) for score in rank(seen)]
-        if len(scores) != len(seen):
-            msg = f"the rank scored {len(scores)} of cell {cell_key(cell)}'s {len(seen)} rows"
+    ) -> list[float]:
+        """`rank`'s score of each of `cell`'s `valid` rows.
+
+        Raises:
+            ValueError: If `rank` returns other than one score per row, or a NaN or plus infinity.
+        """
+        scores = [float(score) for score in rank([self.seen[at] for at, _ in valid])]
+        if len(scores) != len(valid):
+            msg = f"the rank scored {len(scores)} of cell {cell_key(cell)}'s {len(valid)} rows"
             raise ValueError(msg)
+        if any(math.isnan(score) or score == math.inf for score in scores):
+            msg = f"the rank scored a row of cell {cell_key(cell)} NaN or plus infinity: {scores}"
+            raise ValueError(msg)
+        return scores
+
+    def _ranked_rows(
+        self, cell: Stratum, valid: Sequence[tuple[int, pd.DataFrame]], scores: Sequence[float]
+    ) -> list[pd.DataFrame]:
+        """`cell`'s kept rows by `scores`, in generation order; marks every candidate."""
+        seen = [self.seen[at] for at, _ in valid]
         order = sorted(
             range(len(seen)),
             key=lambda i: (-scores[i], tie(self.holdout, seen[i].call, seen[i].position)),
@@ -337,7 +357,7 @@ class Attempt:
         best = set(order[: self.request.quota[cell]])
         dropped = DROPPED[Drop.LIKELIHOOD].value
         for i, (at, _) in enumerate(valid):
-            score = scores[i] if math.isfinite(scores[i]) else None
+            score = None if scores[i] == -math.inf else scores[i]
             self.seen[at] = dataclasses.replace(
                 self.seen[at],
                 outcome=KEPT if i in best else dropped,

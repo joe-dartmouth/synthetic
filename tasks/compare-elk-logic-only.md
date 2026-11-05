@@ -8,7 +8,7 @@ parallel_safe: true
 owner: Joe
 milestone: final-report
 paid: false
-adrs: --
+adrs: research/logic-only-ablation
 ---
 
 # Compare against ELK and related systems, and measure what the BKB's probabilities add

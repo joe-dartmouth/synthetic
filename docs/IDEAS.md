@@ -134,8 +134,8 @@ records without the ontology.
 A curated `bko` arm, `bko-curated`, keeps each cell's highest-scoring records by their likelihood
 under the fused BKB in place of a classifier's confidence. Its gate, fixed in ADR
 [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), did not separate
-fidelity on UCI and separates it on Diabetes 130, where the arm raises `bko`'s removed-cell recall
-by 0.030 ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation) G7).
+fidelity on UCI and separates it on Diabetes 130, where the arm runs and G7 reports its
+effect ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)).
 
 **Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the

@@ -51,6 +51,10 @@ def scorer(train: pd.DataFrame, data: Known, frame: FrameSpec, cell: Cell) -> Li
         frame: The frame whose edges cut the cells and whose label marks the label-only concepts.
         cell: The cell, as `bko.gaps.observe.record_cells` keys it.
 
+    Returns:
+        A `Likelihood` that reads a record's log-probability at the cell's shares, minus infinity
+        for a record the sampler cannot draw.
+
     Raises:
         EvaluationError: If `train` holds no record of `cell`.
     """
@@ -69,12 +73,28 @@ def scorer(train: pd.DataFrame, data: Known, frame: FrameSpec, cell: Cell) -> Li
 
 
 def tie(holdout: int, call: int | None, position: int) -> str:
-    """The order equal scores break by: `sha256(f"{holdout}:{call}:{position}")`, hex."""
+    """The order equal scores break by: `sha256(f"{holdout}:{call}:{position}")`, hex.
+
+    Args:
+        holdout: The holdout's seed.
+        call: The candidate's call index, or None for a record drawn with no call.
+        position: The candidate's position in its call's reply.
+
+    Returns:
+        The digest as hex text; equal scores keep the lower digest first.
+    """
     return hashlib.sha256(f"{holdout}:{call}:{position}".encode()).hexdigest()
 
 
 def record(candidate: object, columns: Sequence[str]) -> dict[str, float]:
     """A valid candidate's values in `columns`, as the scorer reads them.
+
+    Args:
+        candidate: A candidate that passed validation, as its `Seen` holds it.
+        columns: The frame's columns, in order.
+
+    Returns:
+        Each of `columns` with the candidate's value as a float, in `columns`' order.
 
     Raises:
         EvaluationError: If `candidate` is not a record holding every column.

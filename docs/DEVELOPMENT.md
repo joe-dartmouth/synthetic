@@ -146,8 +146,8 @@ command per method, inside `.venv`:
 `bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every arm of E1 on its repeated
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
-its Messages arms (E1's three BKO arms, and B3's CLLM arms beside `bko`) call the Anthropic
-Messages API, so it needs the `llm` extra and an Anthropic
+its Messages arms (E1's three BKO arms, B3's CLLM arms beside `bko`, and G7's `bko-curated`)
+call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
 credential, and every call goes to the call log at `--log`, which must not exist; its `run` line
 names the run's frame under `frame`. Whenever a Messages arm runs, live, with `--replay`, with `--resume`
 or with `--rehearse`, `--candidates <path>` is required and must not exist either: the candidates
@@ -541,9 +541,10 @@ start or the supervisor cannot run.
   validation (`bko.evaluate.curation`), and `likelihood` on each `bko-curated` line it ranked, the
   record's BKB log-probability at its call cell's shares, null for minus infinity (ADR
   [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), Arm). `read` also
-  reads schema 1 and 2 files, whose lines hold no `score`. Lines are written when the harness
-  drains a holdout: after every arm's gap fill, then after every replica fill. A stopped run's file
-  holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
+  reads schema 1 and 2 files, whose lines hold no `score`. A replay writes the schema its run's
+  commit wrote, so byte equality holds against a run of the same schema. Lines are written when
+  the harness drains a holdout: after every arm's gap fill, then after every replica fill. A
+  stopped run's file holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
   even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
   fill's lines count what its `candidates` or `replica-candidates` rows count;
   `bko.evaluate.holdout_candidates.read` reads the file.
@@ -748,7 +749,10 @@ start or the supervisor cannot run.
   run's ten holdout slices, `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj`, each the
   next 10 holdouts at a tenth of its run's ceiling (ADR
   [`research/diabetes-subgroup-removal-design`](adr/research/diabetes-subgroup-removal-design.md);
-  [EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). No flag
+  [EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). It also holds G7's curated run,
+  `e6-curated` (`E6_CURATED` at `E6_SETTINGS`, unsliced, a $100 ceiling; ADR
+  [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md);
+  [EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`

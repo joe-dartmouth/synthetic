@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-04
+updated: 2026-11-05
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -100,7 +100,7 @@ prompt (their section 2.2).
   drops gets the drop reason `Drop.CURATION`, after range and cell and before the quota
   (`bko.baselines.records.assess`), so it never takes a quota slot and the arm asks again for
   it. It is the outcome `dropped-curation` in the candidates file, the `dropped-curation` score
-  measure and `dropped_curation=` in the `guided` and `validity` lines, for a curating arm alone.
+  measure and `dropped_curation=` in the `guided` and `validity` lines, for a classifier-curating arm alone.
   It counts as passed in the validity rate, as every drop after validation does.
 - **Budget.** `CLLM_BUDGET`, both CLLM arms' records asked per requested row, is
   `max(3, ceil(1.5 / s))` for the least curator keep share `s` measured: 22, from `ceil(1.5 / 0.0707)`

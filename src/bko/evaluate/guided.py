@@ -165,8 +165,9 @@ class GuidedArm:
         Raises:
             BaselineError: Plain, for an arm that does not curate by classifier, when the rest of
                 the budget cannot cover the rows still short.
-            EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
-                reached the ceiling, or if a call got no reply within the idle limit.
+            EvaluationError: If the request is not by cell, or, for a ranking arm, `train` holds
+                no record of a requested cell, before any call; a `StopRuleError` if the run's
+                spend reached the ceiling, or if a call got no reply within the idle limit.
             GenerationError: As `bko.generate.flight.Flight.wave`: a call with no response.
             WaveError: If a reply kept a record in a cell a later call of its wave asked for.
         """
@@ -289,19 +290,18 @@ class GuidedArm:
     def _rank(self, train: pd.DataFrame, request: Request) -> Rank:
         """Each candidate's BKB likelihood at its call cell's shares on `train`.
 
-        One scorer per call cell, built when the cell is first ranked.
+        One scorer per requested cell, every one built here, before the attempt's first call.
+
+        Raises:
+            EvaluationError: If `train` holds no record of a requested cell, so no call is sent.
         """
         frame = request.frame
-        cells = {cell_key(cell): cell for cell in request.quota}
-        scorers: dict[str, Callable[[Mapping[str, float]], float]] = {}
+        scorers: dict[str, Callable[[Mapping[str, float]], float]] = {
+            cell_key(cell): scorer(train, self._knowledge, frame, cell) for cell in request.quota
+        }
 
         def rank(seen: Sequence[Seen]) -> list[float]:
-            found: list[float] = []
-            for item in seen:
-                if item.cell not in scorers:
-                    scorers[item.cell] = scorer(train, self._knowledge, frame, cells[item.cell])
-                found.append(scorers[item.cell](record(item.candidate, frame.columns)))
-            return found
+            return [scorers[item.cell](record(item.candidate, frame.columns)) for item in seen]
 
         return rank
 

@@ -291,7 +291,11 @@ class CandidateFile:
         self._file.close()
 
     def write(self, candidates: Iterable[Candidate]) -> None:
-        """Append one line per candidate, and flush."""
+        """Append one line per candidate, and flush.
+
+        Raises:
+            ValueError: If a candidate holds a number that is not finite; nothing is written.
+        """
         self._write([candidate.line() for candidate in candidates])
 
     def discard(self) -> None:
@@ -300,7 +304,8 @@ class CandidateFile:
         self.path.unlink(missing_ok=True)
 
     def _write(self, lines: list[dict[str, object]]) -> None:
-        self._file.write("".join(json.dumps(line, sort_keys=True) + "\n" for line in lines))
+        text = "".join(json.dumps(line, sort_keys=True, allow_nan=False) + "\n" for line in lines)
+        self._file.write(text)
         self._file.flush()
 
 
@@ -391,14 +396,19 @@ def _candidate(number: int, line: object, *, scored: bool) -> Candidate:
 def _score(value: object) -> bool:
     """Whether `value` is a score: names, each with a finite number or null."""
     return isinstance(value, dict) and all(
-        number is None
-        or (
-            isinstance(number, int | float)
-            and not isinstance(number, bool)
-            and math.isfinite(number)
-        )
-        for number in value.values()
+        number is None or _finite(number) for number in value.values()
     )
+
+
+def _finite(number: object) -> bool:
+    """Whether `number` is an int or float, not a bool, that reads as a finite float."""
+    if not isinstance(number, int | float) or isinstance(number, bool):
+        return False
+    try:
+        return math.isfinite(number)
+    except OverflowError:
+        # An int past a float's range, which no score reaches.
+        return False
 
 
 def _count(value: object, least: int) -> bool:

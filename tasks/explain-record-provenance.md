@@ -61,8 +61,9 @@ The pieces exist but nothing joins them:
   - Both views read stored files and make no API call.
   - The gate drives both through `streamlit.testing.v1.AppTest`, as the app's other views are
     tested.
-- **Phase 4, records.** `docs/DEVELOPMENT.md` (App, and the `trace` command), `src/bko/app/README.md`
-  and `src/bko/evaluate/README.md`.
+- **Phase 4, records.** `docs/DEVELOPMENT.md` (App, the `trace` command, and the candidates-file
+  paragraph under Evaluation), `docs/ARCHITECTURE.md`, `src/bko/app/README.md`,
+  `src/bko/evaluate/README.md` and ADR `research/e1-evaluation-protocol` (the candidates schema).
 
 **Out.**
 - Explaining a classifier's predictions (feature attribution); this unit explains where the
