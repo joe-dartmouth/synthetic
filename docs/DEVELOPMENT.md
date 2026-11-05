@@ -606,11 +606,10 @@ start or the supervisor cannot run.
   or without them. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its local time and UTC offset,
-  `YYYY-MM-DD HH:MM:SS,mmm±HHMM` (two whitespace-free tokens), then its level and logger name;
-  `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the offset. For a
-  Diabetes 130 run, `score` first
-  logs the cohort line as it loads the records, `cohort encounters=%d repeat_encounters=%d
-  excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
+  `YYYY-MM-DD HH:MM:SS,mmm+HHMM` or `-HHMM` (two whitespace-free tokens), then its level and
+  logger name; `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the
+  offset. For a Diabetes 130 run, `score` first logs the cohort line as it loads the records,
+  `cohort encounters=%d repeat_encounters=%d excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
   accounts for every encounter: `encounters` = `repeat_encounters` + `excluded_discharges` +
   `unknown_gender` + `under_20` + `records` ([Data](#data), The Diabetes frame). `score` logs a
   `data` line once it has loaded the named run's data,
