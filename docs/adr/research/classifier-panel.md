@@ -73,10 +73,14 @@ command, reported with no verdict.
   which is also the self-check at the commit that reads. Stage 2, `panel` (module
   `bko.evaluate.panel`), scores from the store: `python -m bko.evaluate panel <run> --folder
   runs/<id> --rows runs/<id>-rows/rows.jsonl`. `docs/DEVELOPMENT.md` holds the guarded command.
-- **Stored fills**: `StoredBaseline` answers each non-BKO arm other than `none` and
-  `class-weight` from `rows.jsonl`, for gap and replica fills alike, with unit weights and the
-  logged params, refusing each attempt before the logged one as `StoredArm` does, so the harness
-  retries as the run did and logs the same `arm` line.
+- **Stored fills**: each BKO arm is a `StoredArm`, rebuilt from the folder's candidates file as
+  `shared` and `rows` rebuild it. `none` and `class-weight` add no rows and are regenerated, since
+  `class-weight` reaches the model through weights the store does not hold. `StoredBaseline`
+  answers every other arm from `rows.jsonl`, for gap and replica fills alike, with unit weights
+  and the logged params, refusing each attempt before the logged one as `StoredArm` does, so the
+  harness retries as the run did and logs the same `arm` line. A partial fill, at its last attempt
+  or a structural one, returns its stored rows as a whole fill. `panel` also refuses a store whose
+  header names another folder or `log_sha256` than `--folder`'s (`bko.evaluate.rows_read.bind`).
 - **Strict check 7**: `panel` applies the check `rows` does (ADR
   [`research/shared-test-split-reading`](shared-test-split-reading.md)), admitting as keys the
   folder lacks the panel models' suffixed measures and the calibration measures; any other
@@ -148,9 +152,12 @@ rescore no longer reproduces it, cannot be read.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/classifier.py` (the models, `PANEL`, `FIXED_EPOCHS`),
-  `src/bko/evaluate/utility.py` (the calibration measures), and the command in module
-  `bko.evaluate.panel`
-- Pinned by: `tests/test_evaluate_classifier.py`, `tests/test_evaluate_utility.py`
+  `src/bko/evaluate/utility.py` (the calibration measures), `src/bko/evaluate/panel.py` (the
+  command, `StoredBaseline` and the keys it admits), `src/bko/evaluate/run_folder.py` (check 2's
+  `models=` prefix rule, `_extends`), and `src/bko/evaluate/compare.py` with
+  `src/bko/evaluate/unjudged.py` (each model's means and contrasts)
+- Pinned by: `tests/test_evaluate_classifier.py`, `tests/test_evaluate_utility.py`,
+  `tests/test_evaluate_panel.py`, `tests/test_evaluate_compare.py`
 
 ## Reversal Conditions
 

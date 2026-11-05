@@ -328,7 +328,10 @@ calibration measures, for every model and scope: `brier`, mean((p - y)^2), and
 `calibration-in-the-large`, mean(p) - mean(y), each NaN on an empty scope and suffixed as `recall`
 is (`brier-hgb`, `calibration-in-the-large-rf`). Its `experiment` line logs
 `models=lr,hgb,rf,et,mlp,nb`, which check 2 accepts against a folder whose `models=` list is its
-prefix. Its log holds no `shortfall` lines, since a stored fill runs no generator. Exit codes are
+prefix. Its log holds no `shortfall` lines, since a stored fill runs no generator, and a
+`panel holdout=%d differing=%d subsampled=true|false` line per holdout once its strict check 7
+passes. Each arm's fills come from the folder as ADR
+[`research/classifier-panel`](adr/research/classifier-panel.md) (Stored fills) says. Exit codes are
 `rows`'.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
@@ -760,13 +763,17 @@ start or the supervisor cannot run.
   and scope, a `contrast model=hgb` line per contrast of the boosting model's measures when the
   scores hold them (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`,
   `high=`, `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which
-  lacks them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), for a run that
-  judges no criterion (`g2`) an `unjudged` line per interval of every criterion `CRITERION_NAMES`
-  holds, read with no verdict (the same keys as a `contrast` line, no `model=`; its table is then
-  the header alone) or, for a contrast some holdout leaves undefined (as when decontamination
-  leaves a holdout no positive test record in the flagged cells), an `unjudged skip` line
-  (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `reason=undefined`, `defined=`,
-  `holdouts=`), and a `replica` line per replica arm, measure and scope. With `--beside`, it
+  lacks them, a `contrast skip model=hgb` line (`arm=`, `against=`, `reason=absent`), then the
+  same for each `panel` model whose rows the scores hold (`model=rf`, `et`, `mlp`, `nb`), for a
+  run that judges no criterion (`g2`) an `unjudged` line per interval of every criterion
+  `CRITERION_NAMES` holds, read with no verdict (the same keys as a `contrast` line, no `model=`;
+  its table is then the header alone) or, for a contrast some holdout leaves undefined (as when
+  decontamination leaves a holdout no positive test record in the flagged cells), an
+  `unjudged skip` line (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`,
+  `reason=undefined`, `defined=`, `holdouts=`), then each other model's whose rows the scores
+  hold, the boosting model first, as `unjudged model=<model>` and `unjudged model=<model> skip`
+  lines of its separation criteria (privacy reads no model, so only the regression's lines hold
+  it), and a `replica` line per replica arm, measure and scope. With `--beside`, it
   then logs a `beside flagged holdout=%d ours=%d theirs=%d` line for each shared holdout no copy
   excludes whose two `flagged-fingerprint` scores differ (each read as an integer), then a `beside` counts line (`scores_sha256=`,
   `copies_excluded=`, `shared=`, `paired=`, `excluded=`, `copied=`, `mismatched=`, `arm=`,
