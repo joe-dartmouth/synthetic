@@ -166,6 +166,23 @@ links to where its blocker is tracked.
   with `Stamp` moved to it and the seven blocks deleted.
   **Trigger:** the next change that adds an entry point or edits one's `configure_logging`.
 
+## gaps
+
+- **`cleanup:gaps/empty-cell-share-rounds`: an empty cell's share is not exactly its label
+  group's prior.** `bko.gaps.shares.shares` computes `(0 * p_c + GROUP_WEIGHT * p_g) /
+  (0 + GROUP_WEIGHT)`, and multiplying by 20 then dividing by 20 rounds: over groups of 1 to 29
+  records, 45 `(k_g, n_g)` pairs differ from `k_g / n_g`, the first `shares(...)` giving
+  `0.11111111111111112` where `1 / 9` is `0.1111111111111111`. Evidence:
+  `tests/test_contradictions_shares.py::test_an_empty_cells_share_on_the_grid_is_exactly_its_groups`,
+  marked `xfail(strict=True)` on this key. *Filed 2026-11-05 by PR3 Phase 11 of the
+  data-contradictions batch.*
+  **Why deferred.** ADR `research/data-contradiction-handling` holds `shares` and `bko-direct`'s
+  draw unchanged through the batch, and a one-ulp change to an empty cell's share can flip a
+  `bko-direct` draw on a real split's empty cell, which the digest pins do not cover.
+  **What discharges it:** `shares` returns `p_g` itself for a cell of no record, the xfail mark
+  removed, and `bko-direct`'s pins re-derived with the change named in its commit.
+  **Trigger:** the first change after the batch that may move `bko-direct`'s rows.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the

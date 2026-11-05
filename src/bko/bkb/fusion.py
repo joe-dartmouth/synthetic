@@ -30,13 +30,16 @@ from enum import StrEnum
 from typing import Final
 
 from bko.bkb.errors import FusionError
-from bko.bkb.structure import BKB, INode
+from bko.bkb.structure import BKB, INode, SNode
 
 
 logger = logging.getLogger(__name__)
 
 SOURCE_PREFIX: Final = "__Source__"
 """What every source component's name starts with."""
+
+_TOLERANCE: Final = 1e-9
+"""How far a source component's priors may sum from 1: each is a quotient, so rounded."""
 
 type _Key = tuple[INode, frozenset[INode], float]
 type _Row = tuple[_Key, INode, float]
@@ -117,6 +120,85 @@ def fuse(
         name,
     )
     return fused
+
+
+def check_fused(
+    fused: BKB,
+    fragments: Sequence[BKB],
+    *,
+    sources: Sequence[str] | None = None,
+    normalization: Normalization = Normalization.FRAGMENTS,
+) -> None:
+    """Check that `fused` is a valid fusion of `fragments`, as `fuse` builds one.
+
+    Four things must hold. Every input S-node is present, with its source I-node added to its
+    tail and its probability unchanged. Every fused S-node other than a source prior maps to an
+    input S-node of each source its source state names. Each source component's priors sum to 1
+    under pybkb's modes; under `FRAGMENTS` they sum to at most 1, and to 1 where every fragment
+    holds an S-node on the head component, since the total is every fragment's reliability. Every
+    probability is in [0, 1]. Mutual exclusion is not required (ADR
+    `research/data-contradiction-handling`).
+
+    Args:
+        fused: The fused BKB.
+        fragments: The fragments it was fused from.
+        sources: One source name per fragment; each fragment's name by default, as `fuse` takes.
+        normalization: The mode `fused` was fused under.
+
+    Raises:
+        FusionError: If any of the four fails, naming the first S-node or component that breaks
+            it, or if `sources` does not give one distinct name per fragment.
+    """
+    names = [fragment.name for fragment in fragments] if sources is None else list(sources)
+    if len(names) != len(fragments) or len(set(names)) != len(names):
+        msg = f"{len(fragments)} fragments need as many distinct source names, not {names!r}"
+        raise FusionError(msg)
+    inputs: dict[_Key, set[str]] = {}
+    for fragment, source in zip(fragments, names, strict=True):
+        for snode in fragment.snodes:
+            inputs.setdefault((snode.head, snode.tail, snode.prob), set()).add(source)
+    held: dict[_Key, set[str]] = {}
+    priors: dict[str, list[float]] = {}
+    for index, snode in enumerate(fused.snodes):
+        if not (math.isfinite(snode.prob) and 0.0 <= snode.prob <= 1.0):
+            msg = f"S-node {index} on {snode.head!r} has probability {snode.prob!r}, not in [0, 1]"
+            raise FusionError(msg)
+        if is_source(snode.head[0]) and not snode.tail:
+            priors.setdefault(snode.head[0], []).append(snode.prob)
+            continue
+        key, named = _unsourced(snode)
+        if not named or not named <= inputs.get(key, set()):
+            msg = f"S-node {index} on {snode.head!r} maps to no input S-node of {sorted(named)}"
+            raise FusionError(msg)
+        held.setdefault(key, set()).update(named)
+    for key, wanted in inputs.items():
+        if missing := wanted - held.get(key, set()):
+            msg = f"{fused.name!r} lacks S-node on {key[0]!r} at {key[2]!r} from {sorted(missing)}"
+            raise FusionError(msg)
+    for component, probs in priors.items():
+        _check_priors(component, probs, len(fused.states(component)), len(fragments), normalization)
+
+
+def _unsourced(snode: SNode) -> tuple[_Key, set[str]]:
+    """`snode` without its source I-node, and the sources that I-node's state names."""
+    own = source_component(snode.head[0])
+    rest = frozenset(inode for inode in snode.tail if inode[0] != own)
+    named: set[str] = set()
+    for component, state in snode.tail:
+        if component == own:
+            named |= {state} if isinstance(state, str) else state
+    return (snode.head, rest, snode.prob), named
+
+
+def _check_priors(
+    component: str, probs: list[float], held: int, fragments: int, normalization: Normalization
+) -> None:
+    total = math.fsum(probs)
+    whole = normalization is not Normalization.FRAGMENTS or held == fragments
+    if total > 1.0 + _TOLERANCE or (whole and total < 1.0 - _TOLERANCE):
+        wanted = "1" if whole else "at most 1"
+        msg = f"the priors on {component!r} sum to {total!r}, not {wanted}"
+        raise FusionError(msg)
 
 
 def _check(
