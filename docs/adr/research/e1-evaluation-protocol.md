@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-04
+updated: 2026-11-05
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -429,7 +429,7 @@ and holdout.
 | `DCRBaselineProtection` | A uniform random baseline, not a real one, seeded only through a private attribute | 2026-10-15 |
 | AUC-PR within the underrepresented cells | Both cells hold one label, so every scorer gets 1.0 | 2026-10-15 |
 | Fidelity and train-on-synthetic on the gap rows | The gap rows hold one label in two cells | 2026-10-15 |
-| A random forest | Its own seed moves subgroup recall by one of 5 positives | 2026-10-15 |
+| A random forest as the judged model or a default model | Its own seed moves subgroup recall by one of 5 positives; ADR `research/classifier-panel` scores one at a fixed seed, opt-in and with no verdict | 2026-10-15 |
 | Recording a refused arm and continuing | Unpairs the comparison at that holdout | 2026-10-15 |
 | Dropping, for every arm, a holdout where one arm refuses | Selects splits on one generator's behaviour, and lowers the holdout count | 2026-10-15 |
 | Flags for the readings or the holdout count | Lets a run choose its reading after the fact | 2026-10-15 |

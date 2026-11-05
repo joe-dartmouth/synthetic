@@ -309,6 +309,28 @@ included, gap and replica; its format is in the ADR above. By hand, the fill of 
 
     jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' runs/<run-id>-rows/rows.jsonl | shasum -a 256
 
+**`panel`** scores a recorded run's arms under the classifier panel, a random forest, extra trees,
+a multilayer perceptron and a categorical naive Bayes beside the regression and the boosting model,
+from the fills its `rows` store holds, with no verdict (ADR
+[`research/classifier-panel`](adr/research/classifier-panel.md), which holds each model's settings).
+It makes no API call and regenerates no rows. `rows` runs first, as its stage 1 and the self-check
+at the commit that reads; `<k>` numbers the `e7` reading:
+
+    mkdir runs/e7-<k> && test ! -e runs/e7-<k>/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate panel <run> --folder runs/<id> --rows runs/<id>-rows/rows.jsonl > runs/e7-<k>/scores.csv 2> runs/e7-<k>/scores.log </dev/null
+
+It runs `rows`' identity checks and the strict check 7, admitting as keys the folder lacks the panel
+models' measures and the calibration measures (ADR
+[`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md)), and runs under
+`threadpool_limits(limits=1)` across every thread-pool API. Each panel model's rows follow the
+boosting model's, suffixed by its `bko.evaluate.classifier.Model` value as `hgb` suffixes its own:
+`recall-rf`, `precision-rf` and `auc-pr-rf`, then `-et`, `-mlp` and `-nb`. Only `panel` writes the
+calibration measures, for every model and scope: `brier`, mean((p - y)^2), and
+`calibration-in-the-large`, mean(p) - mean(y), each NaN on an empty scope and suffixed as `recall`
+is (`brier-hgb`, `calibration-in-the-large-rf`). Its `experiment` line logs
+`models=lr,hgb,rf,et,mlp,nb`, which check 2 accepts against a folder whose `models=` list is its
+prefix. Its log holds no `shortfall` lines, since a stored fill runs no generator. Exit codes are
+`rows`'.
+
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
 calls from that log, sends the rest live, and writes one new call log at `--log` and one new
 candidates file at `--candidates`, which holds every holdout's candidates, the answered calls'
@@ -603,7 +625,9 @@ start or the supervisor cannot run.
   recall and AUC-PR, read as the criterion reads the regression's, with no verdict, after the
   table is written; a pair of arms either of which holds none of its rows is skipped, and the
   criterion's family still counts it. The table reads the regression only, so it is the same with
-  or without them. A scores file is compared
+  or without them. A `panel` scores file holds each panel model's rows and the calibration
+  measures too: `compare` logs a `mean` line per arm, measure and scope for each, and each panel
+  model's contrasts as it logs the boosting model's, `model=` naming the model. A scores file is compared
   at the commit that scored it: a replica arm's validity needs its `replica-candidates` rows.
 - **What it logs**: each stderr line starts with its local time and UTC offset,
   `YYYY-MM-DD HH:MM:SS,mmm+HHMM` or `-HHMM` (two whitespace-free tokens), then its level and
@@ -619,7 +643,8 @@ start or the supervisor cannot run.
   in double quotes ([Data](#data), Agreements)), then an `experiment` line,
   `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
   removal=%s training_fraction=%s decontaminate=%s arms=%s replica=%s threshold=%d fill_to=%d
-  budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`seeds=` the first and last
+  budget=%d validity=%s spend_ceiling=%.2f criteria=%s models=%s` (`models=` the downstream
+  models the command scores, which `panel` alone extends past `lr,hgb`; `seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>`, the fraction in
   (0, 1] and 1 removing every row of the cell, or `none`, `training_fraction=` an exact fraction
   such as `1/4`, or `1`, `decontaminate=` `true` or `false`; ` replica_rows=<rows>` follows
