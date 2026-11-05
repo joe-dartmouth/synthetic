@@ -1,7 +1,8 @@
 """Each contrast E1's criteria read, read with no verdict for a run that judges none.
 
-`bko.evaluate.compare` logs them as `unjudged` lines. A contrast some holdout leaves undefined comes
-with no interval, so the other contrasts are still read.
+`bko.evaluate.compare` logs them as `unjudged` lines, for the regression and for each other model
+whose rows the scores hold. A contrast some holdout leaves undefined comes with no interval, so the
+other contrasts are still read.
 """
 
 from __future__ import annotations
@@ -10,7 +11,11 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from bko.evaluate.classifier import Model
 from bko.evaluate.criteria import (
+    JUDGED,
+    Absent,
+    Checked,
     Interval,
     checked,
     corrected_interval,
@@ -19,7 +24,7 @@ from bko.evaluate.criteria import (
     paired_scores,
 )
 from bko.evaluate.experiment import Experiment
-from bko.evaluate.scores import Measure, Scope, Score
+from bko.evaluate.scores import Measure, Scope, Score, Source, suffixed
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,22 +55,66 @@ class Unjudged:
     holdouts: int
 
 
-def unjudged(
-    scores: Sequence[Score], experiment: Experiment, *, candidate: str | None = None
-) -> list[Unjudged]:
-    """Each contrast `judge` reads for the experiment's criteria, with no verdict.
+def judged_of(model: Model) -> tuple[Measure, ...]:
+    """`JUDGED` under `model`'s names: the regression's as they are, others suffixed."""
+    return tuple(suffixed(measure, model) for measure in JUDGED)
 
-    A contrast some holdout leaves undefined (a score that is not finite, as when decontamination
-    leaves a holdout no positive test record in the flagged cells) comes with no interval, and the
-    family still counts it.
+
+def models_in(scores: Sequence[Score]) -> list[Model]:
+    """Each model, in `Model`'s order, whose `JUDGED` measures some augmented score holds."""
+    held = {s.measure for s in scores if s.source is Source.AUGMENTED}
+    return [model for model in Model if held & set(judged_of(model))]
+
+
+def unjudged(
+    scores: Sequence[Score],
+    experiment: Experiment,
+    *,
+    candidate: str | None = None,
+    models: Sequence[Model],
+) -> dict[Model, list[Unjudged | Absent]]:
+    """Each contrast `judge` reads for the experiment's criteria, of each model's measures.
+
+    The scores are checked once, then each of `models` is read with no verdict (`_read`).
 
     Raises:
         EvaluationError: As `judge`, for anything but an undefined contrast.
     """
     facts = checked(scores, experiment, candidate)
-    found: list[Unjudged] = []
-    for name, scope, pairs, factor, margin in families(facts, experiment):
+    return {model: _read(scores, facts, experiment, model) for model in models}
+
+
+def _read(
+    scores: Sequence[Score], facts: Checked, experiment: Experiment, model: Model
+) -> list[Unjudged | Absent]:
+    """`model`'s contrasts, with no verdict.
+
+    A contrast some holdout leaves undefined (a score that is not finite, as when decontamination
+    leaves a holdout no positive test record in the flagged cells) comes with no interval, and the
+    family still counts it. For a model but the regression, a pair of arms either of which holds
+    no augmented row of the model comes first as one `Absent`, as `reported_contrasts` reads it,
+    and the family still counts its contrasts. The privacy criterion reads no model, so only the
+    regression's reading holds it.
+
+    Raises:
+        EvaluationError: As `judge`, for anything but an undefined contrast.
+    """
+    measures = judged_of(model)
+    found: list[Unjudged | Absent] = []
+    held: set[str] | None = None
+    if model is not Model.LR:
+        held = {s.arm for s in scores if s.source is Source.AUGMENTED and s.measure in measures}
+        found += [
+            Absent(model, facts.arm, other)
+            for other in facts.others
+            if not {facts.arm, other} <= held
+        ]
+    for name, scope, pairs, factor, margin in families(facts, experiment, measures=measures):
+        if held is not None and name == "privacy":
+            continue
         for left, right in pairs:
+            if held is not None and not {left.arm, right.arm} <= held:
+                continue
             ours, theirs = paired_scores(facts.series, left, right, facts.holdouts)
             contrast = [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)]
             defined = sum(math.isfinite(value) for value in contrast)

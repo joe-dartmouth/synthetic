@@ -55,6 +55,11 @@ import it (ADR `tooling/agent-config-single-home`).
   rescore a run's folder at its own models through the identity checks and the strict check 7, and
   store every fill in a sha-verified `rows.jsonl`. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
+- `mkdir runs/<run-id>-panel && test ! -e runs/<run-id>-panel/scores.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate panel <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-panel/scores.csv 2> runs/<run-id>-panel/scores.log </dev/null`:
+  score a run's stored fills under the classifier panel, a random forest, extra trees, a
+  multilayer perceptron and naive Bayes beside the regression and the boosting model, with their
+  calibration and no verdict, after `rows` has written the store. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes

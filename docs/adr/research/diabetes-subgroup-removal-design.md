@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-02
-updated: 2026-11-04
+updated: 2026-11-05
 ---
 # The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm
 
@@ -146,9 +146,9 @@ for SMOTE and 1.42 for duplication ([C3]).
 - **Replays**: one slice per fraction, plus every slice that resumed after a stop.
 - **Compute cost**: reported as model fits, rows drawn, tokens and USD per run and per record
   asked. No wall time is read, ruled on or reported.
-- **Threads**: every run, every replay and the smoke run behind K set
-  `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a replay's numerics match its run's and K's
-  memory reading holds for the slices.
+- **Threads**: every run, every replay, every rescore of E6's folders (`shared`, `rows` and
+  `panel`) and the smoke run behind K set `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`, so a
+  replay's or rescore's numerics match its run's and K's memory reading holds for the slices.
 - **Egress**: each Messages call sends what [`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#generation)
   (What leaves the machine, Diabetes 130) lists, under the archive's CC BY 4.0 license: training
   bounds, quartiles and shares of de-identified encounters through the BKO arms, and frame records

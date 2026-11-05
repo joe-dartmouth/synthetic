@@ -314,6 +314,54 @@ no-augmentation baseline, because omitting them is "the most common reviewer cri
 includes all four ([section 4](#4-success-criteria)). The studies behind the conclusion are in
 [BACKGROUND.md](BACKGROUND.md#augmentation-versus-resampling).
 
+Most row-adding arms trade ranking for recall on the group they fill, as the rebalancing
+literature leads one to expect; `bko-direct` at f = 1.0 is the exception E6 records (below). That
+literature reports that resampling a training split moves a classifier's predicted risk more than
+its ranking, which the classifier panel tests. Over 24 simulated scenarios, random undersampling,
+random oversampling and SMOTE left logistic regression's median AUROC no higher than no correction
+and overestimated the minority class's risk, and shifting an uncorrected model's threshold gave a
+similar balance of sensitivity and specificity [`vandengoorbergh-2022`][vandengoorbergh-2022].
+Carriero et al.'s abstract reports that, over a variety of machine learning algorithms, models built
+without a correction calibrated equal to or better than corrected ones in every simulated scenario
+[`carriero-2025`][carriero-2025]. The plan's literature review cites Dal Pozzolo et al. for
+undersampling biasing posterior probabilities while leaving the ranking largely intact
+[`dalpozzolo-2015`][dalpozzolo-2015]. Across seven sampling methods, eight classifiers and 31
+datasets, sampling changed AUC-PR significantly in 211 of 1,736 cases, 166 of them losses, and AUROC
+in 173, 106 of them losses, and no sampling method was best on more datasets than no sampling
+[`kim-2022`][kim-2022]. AUC-PR, like AUROC, reads only the order of the scores; Saito and
+Rehmsmeier's abstract reports that on imbalanced data the precision-recall plot is the more
+informative one [`saito-2015`][saito-2015].
+
+E6 shows the pattern on one subgroup, with SMOTE [`chawla-2002`][chawla-2002] and ADASYN
+[`he-2008`][he-2008] among its arms; [EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)
+holds every figure. At f = 0.985, `real` raises removed-cell recall over `none` by +0.4878 yet moves
+AUC-PR on the cell's age-sex subgroup by 0.0025
+([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)), so recall and ranking come apart.
+`class-weight`, which scores nearly every test record positive at the cutoff, reads AUC-PR level
+with `none` at both scopes. Every generator or resampler arm that adds rows of the cell recovers
+some of its recall, and all but the Bayesian network read lower subgroup AUC-PR than `none`. At
+f = 1.0, `bko-direct` is level with `none` on subgroup AUC-PR, the Bayesian network, which adds a
+few rows on most holdouts, scores as `none`, and the other generator and resampler arms that add the
+cell's rows read below `none`. Over the whole test
+split the sign depends on the fill: at f = 1.0 `bko-direct` raises AUC-PR against `none` and `bko`
+lowers it. On UCI, E4's larger fill targets raise every row-adding arm's recall and lower its
+whole-split AUC-PR, while SMOTE's, ADASYN's and CTGAN's flagged-subgroup AUC-PR stays nearly level
+([EVIDENCE.md](EVIDENCE.md#e4-fill-above-the-threshold)).
+
+AUROC splits into each group's own AUROC and cross-group terms that rank one group's positives
+against another group's negatives, and a monotone change to one group's scores keeps that group's
+AUROC while it moves the cross-group terms [`kallus-2019`][kallus-2019]. Carrying that onto AUC-PR
+is this project's inference, since the paper reads AUROC alone: raising one subgroup's scores alike
+leaves its own AUC-PR unchanged but moves its records against every other subgroup's. On this
+project's reading, whole-split AUC-PR then tracks how well a fill sets the subgroup's risk level,
+and subgroup AUC-PR tracks whether the added rows reorder its records. The cited studies rebalance a
+whole class and mostly read AUROC, so reading them onto one filled subgroup is also this project's
+inference. Welvaars et al.'s abstract reports that, in one readmission study, resampling raised AUC
+and precision for most algorithms and recall for all, while calibration overestimated positives
+[`welvaars-2023`][welvaars-2023]. The classifier panel (ADR
+[`research/classifier-panel`](adr/research/classifier-panel.md)) reads E6's arms under four more
+models and their calibration.
+
 ## 8. Scope assessment
 
 The brief (F15) assessed five bullets from the original project description. Its verdicts, and what
@@ -350,9 +398,18 @@ Where the brief and the 2-pager disagree:
 | Validity checks | Ontology or SHACL validation rejects implausible rows | 2-pager: at least 95% of generated records pass the model's consistency checks, which it does not list; repository: each field's number, codebook or range, and decimals, with no check from an ontology relationship | Repository; ADR [research/record-validation-design](adr/research/record-validation-design.md) |
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
+[carriero-2025]: https://doi.org/10.1002/sim.10320
+[chawla-2002]: https://doi.org/10.1613/jair.953
 [clore-2014]: https://doi.org/10.24432/C5230J
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
+[dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
+[he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
+[kallus-2019]: https://arxiv.org/abs/1902.05826
+[kim-2022]: https://doi.org/10.1371/journal.pone.0271260
+[saito-2015]: https://doi.org/10.1371/journal.pone.0118432
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [strack-2014]: https://doi.org/10.1155/2014/781670
+[vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
+[welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033
 [xu-2019]: https://arxiv.org/abs/1907.00503

@@ -2,7 +2,8 @@
 
 A record is called positive at `cutoff` or above, `THRESHOLD` by default. A measure a scope cannot
 define is NaN, never scikit-learn's fallback: recall needs a positive record, AUC-PR a positive and
-a negative one, and precision a record called positive.
+a negative one, and precision a record called positive. With calibration on, the Brier score and
+calibration-in-the-large follow, each NaN on an empty scope.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import math
 from collections.abc import Collection, Sequence
 from typing import Final
 
+import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, precision_score, recall_score
 
@@ -48,10 +50,13 @@ def utility(
     *,
     edges: Sequence[int],
     cutoff: float = THRESHOLD,
+    calibration: bool = False,
 ) -> dict[tuple[Measure, Scope], float]:
     """Each measure in each scope, `probability` holding P(disease) per test record by index.
 
-    A record is called positive at `cutoff` or above; AUC-PR reads no cutoff.
+    A record is called positive at `cutoff` or above; AUC-PR reads no cutoff. With `calibration`,
+    each scope also holds `Measure.BRIER`, mean((p - y)^2), and `Measure.CALIBRATION`,
+    mean(p) - mean(y), after its other measures.
     """
     scores: dict[tuple[Measure, Scope], float] = {}
     matched = probability.loc[test.index].to_numpy()
@@ -71,6 +76,14 @@ def utility(
         scores[Measure.AUC_PR, scope] = (
             float(average_precision_score(truth, score)) if positives and negatives else math.nan
         )
+        if calibration:
+            empty = not len(truth)
+            scores[Measure.BRIER, scope] = (
+                math.nan if empty else float(np.mean((score - truth) ** 2))
+            )
+            scores[Measure.CALIBRATION, scope] = (
+                math.nan if empty else float(np.mean(score) - np.mean(truth))
+            )
     return scores
 
 

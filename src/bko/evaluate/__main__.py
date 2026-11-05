@@ -1,6 +1,6 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `likelihood`,
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `likelihood`,
 `contradictions`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
@@ -24,6 +24,8 @@ less every record a `--with` folder's arms copy, to stdout (`bko.evaluate.shared
 `rows RUN --folder FOLDER --rows PATH` rescores the run in FOLDER the same way, with no `--with`,
 and stores every fill of each holdout its checks pass in PATH, which must not exist
 (`bko.evaluate.rows`).
+`panel RUN --folder FOLDER --rows PATH` rescores the run in FOLDER under the classifier panel,
+with calibration, from the store at PATH that `rows` wrote, to stdout (`bko.evaluate.panel`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -57,8 +59,8 @@ Messages or direct arm, one path for both files, more than one of `--replay`, `-
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
 and scores whose validity cannot be read; 3 the data, a method's output, a scores file, a replay
-or a stopped log that cannot be resumed contradicts its contract, or a `shared` or `rows` run
-folder fails an identity check.
+or a stopped log that cannot be resumed contradicts its contract, or a `shared`, `rows` or `panel`
+run folder or store fails an identity check.
 """
 
 from __future__ import annotations
@@ -90,9 +92,11 @@ from bko.evaluate.likelihood import candidates_file, likelihood
 from bko.evaluate.logs import stamped_handler
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
+from bko.evaluate.panel import panel
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
 from bko.evaluate.rows import creatable, store
+from bko.evaluate.rows_read import read_rows
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.shared import rescore
@@ -158,6 +162,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_shared(args, context))
     elif args.command == "rows":
         sink.write(_rows(args, context))
+    elif args.command == "panel":
+        sink.write(_panel(args, context))
     elif args.command == "contradictions":
         sink.write(census(data_dir(args), context))
     else:
@@ -354,6 +360,24 @@ def _rows(args: argparse.Namespace, context: Context) -> str:
         data=data,
         arms=named.arms,
         models=named.models,
+        uci=named.dataset is Dataset.UCI,
+    )
+
+
+def _panel(args: argparse.Namespace, context: Context) -> str:
+    """Score the folder's run under the context's panel from its `--rows` store."""
+    named = _named(args.run, context)
+    folder, rows = read_folder(args.folder), read_rows(args.rows)
+    data = load(named.dataset, data_dir(args), named)
+    return panel(
+        folder,
+        rows,
+        store=args.rows,
+        run=args.run,
+        experiment=named.experiment,
+        data=data,
+        arms=named.arms,
+        models=named.panel,
         uci=named.dataset is Dataset.UCI,
     )
 

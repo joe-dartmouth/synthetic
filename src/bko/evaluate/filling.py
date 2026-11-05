@@ -28,6 +28,14 @@ from bko.evaluate.shortfall import partial_fill, shortfall_kept, structural
 logger = logging.getLogger("bko.evaluate.run")
 
 
+class ReplayError(BaselineError):
+    """A stored arm's refusal of an attempt before its stored one, which the run refused too.
+
+    `fill_arm` retries it as any refusal but logs it as an INFO `replay` line, not a `retry`
+    warning, since no generator ran.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class Filled:
     """One returned fill and the `arm` line it logged.
@@ -114,9 +122,12 @@ def fill_arm(
                     "refused holdout=%d arm=%s attempts=%d", holdout, name, attempts
                 )
                 raise
-            logger.warning(
-                "retry holdout=%d arm=%s attempt=%d reason=%s", holdout, name, attempt, exc
-            )
+            if isinstance(exc, ReplayError):
+                logger.info("replay holdout=%d arm=%s attempt=%d", holdout, name, attempt)
+            else:
+                logger.warning(
+                    "retry holdout=%d arm=%s attempt=%d reason=%s", holdout, name, attempt, exc
+                )
             request = dataclasses.replace(request, seed=derived_seed(first, "attempt", attempt))
             continue
         line = log_arm(baseline, holdout=holdout, name=name, attempt=attempt, seed=request.seed)

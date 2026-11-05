@@ -93,3 +93,33 @@ def test_probabilities_are_matched_to_records_by_index():
     assert utility(test, shuffled, FLAGGED, edges=EDGES) == pytest.approx(
         utility(test, probability, FLAGGED, edges=EDGES)
     )
+
+
+def test_calibration_is_hand_computed_and_off_by_default():
+    test = records()
+    probability = pd.Series(PROBABILITY, index=test.index)
+    scores = utility(test, probability, FLAGGED, edges=EDGES, calibration=True)
+    assert scores[Measure.BRIER, Scope.ALL] == pytest.approx(1.4 / 8)
+    assert scores[Measure.CALIBRATION, Scope.ALL] == pytest.approx(4.0 / 8 - 3 / 8)
+    assert scores[Measure.BRIER, Scope.FLAGGED] == pytest.approx((0.01 + 0.36 + 0.36 + 0.01) / 4)
+    assert scores[Measure.CALIBRATION, Scope.FLAGGED] == pytest.approx(0.0)
+    default = utility(test, probability, FLAGGED, edges=EDGES)
+    assert list(default) == [key for key in scores if key[0] not in CALIBRATION_MEASURES]
+
+
+CALIBRATION_MEASURES = (Measure.BRIER, Measure.CALIBRATION)
+
+
+@pytest.mark.filterwarnings("error")
+def test_calibration_is_nan_on_an_empty_scope():
+    test = records()
+    scores = utility(
+        test,
+        pd.Series(PROBABILITY, index=test.index),
+        ((f">={EDGE}", "male", 1),),
+        edges=EDGES,
+        calibration=True,
+    )
+    assert math.isnan(scores[Measure.BRIER, Scope.FLAGGED])
+    assert math.isnan(scores[Measure.CALIBRATION, Scope.FLAGGED])
+    assert scores[Measure.BRIER, Scope.ALL] == pytest.approx(1.4 / 8)

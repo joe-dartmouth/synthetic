@@ -41,7 +41,7 @@ from bko.evaluate.fidelity import MEASURES, fidelity
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
 from bko.evaluate.privacy import distances
-from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, suffixed
 from bko.evaluate.shared_split import marked, marker
 from bko.evaluate.utility import undefined, utility
 
@@ -141,6 +141,7 @@ def score_holdout(
     frame: FrameSpec,
     exclude: Sequence[pd.DataFrame] | None = None,
     logged: Logged | None = None,
+    calibration: bool = False,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -149,7 +150,9 @@ def score_holdout(
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
-    is reset, then receives the `split` line and every fill's `Filled` as they are logged.
+    is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
+    `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
+    replica utility never does.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -231,7 +234,9 @@ def score_holdout(
     )
     cutoff = experiment.cutoff
     for name in experiment.arms:
-        scores += _arm_scores(seed, name, fills[name], ablated, clean, cells, models, frame, cutoff)
+        scores += _arm_scores(
+            seed, name, fills[name], ablated, clean, cells, models, frame, cutoff, calibration
+        )
         if name in replicas:
             scores += _replica_scores(
                 seed, name, replicas[name], ablated, clean, cells, models[Model.LR], frame, cutoff
@@ -331,10 +336,12 @@ def _arm_scores(
     models: Mapping[Model, Factory],
     frame: FrameSpec,
     cutoff: float,
+    calibration: bool,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
 
-    The regression's utility comes first, then each other model's in `models`' order.
+    The regression's utility comes first, then each other model's in `models`' order, each with
+    its calibration measures when `calibration` holds.
     """
     train, added = parts.train, baseline.added
     counts = {
@@ -347,10 +354,55 @@ def _arm_scores(
     training = training_set(train, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     for model in ordered:
-        fitted = probabilities(training, clean, factory=models[model], frame=frame)
-        measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
+        fitted = _fitted(
+            seed, name, training, clean, factory=models[model], frame=frame, model=model
+        )
+        measured = utility(
+            clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
+        )
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
+
+
+def _fitted(
+    seed: int,
+    arm: str,
+    training: pd.DataFrame,
+    clean: pd.DataFrame,
+    *,
+    factory: Factory,
+    frame: FrameSpec,
+    model: Model,
+) -> pd.Series:
+    """`probabilities` of `arm`'s fit at holdout `seed`, logging a fixed-epoch model's fit.
+
+    The log line is `fit holdout=%d arm=%s model=%s n_iter=%d converged=true|false`. A model
+    outside `MODELS` that does not converge is refused naming the holdout and the arm; a `MODELS`
+    model's refusal keeps its message.
+
+    Raises:
+        EvaluationError: As `probabilities`.
+    """
+
+    def on_fit(n_iter: int, converged: bool) -> None:
+        logger.info(
+            "fit holdout=%d arm=%s model=%s n_iter=%d converged=%s",
+            seed,
+            arm,
+            model,
+            n_iter,
+            "true" if converged else "false",
+        )
+
+    try:
+        return probabilities(
+            training, clean, factory=factory, frame=frame, model=model, on_fit=on_fit
+        )
+    except EvaluationError as exc:
+        if model in MODELS:
+            raise
+        msg = f"holdout {seed}'s {arm} arm: {exc}"
+        raise EvaluationError(msg) from exc
 
 
 def _replica_scores(
@@ -413,11 +465,7 @@ def _suffixed(
     values: Mapping[tuple[Measure, Scope], float], model: Model
 ) -> Mapping[tuple[Measure, Scope], float]:
     """`values` under `model`'s measure names: the regression's as they are, others suffixed."""
-    if model is Model.LR:
-        return values
-    return {
-        (Measure(f"{measure}-{model}"), scope): value for (measure, scope), value in values.items()
-    }
+    return {(suffixed(measure, model), scope): value for (measure, scope), value in values.items()}
 
 
 def _rows(seed: int, arm: str, source: Source, values: Mapping[Measure, float]) -> list[Score]:

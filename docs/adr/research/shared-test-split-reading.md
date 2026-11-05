@@ -61,7 +61,10 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
      a key existed may lack it only if the key has an assumed value
      (`bko.evaluate.run_folder.ASSUMED`: `frame` `uci`, `removal` `none`, `training_fraction` `1`,
      `decontaminate` `true`, `threshold` `20`, and `seeds` `0-<holdouts - 1>`); the other line must
-     hold that value. Any other missing key exits 3.
+     hold that value. Any other missing key exits 3. For `panel` alone (ADR
+     `research/classifier-panel`), one key may differ: the current line's `models=` list may
+     extend the folder's, the folder's list being its prefix, so it reads a folder scored at
+     `lr,hgb`; a folder that logs no `models=` exits 3.
   3. Each folder logs a `split seed= train= test= fingerprint=` line per holdout its `experiment`
      line counts, and each holdout's line is equal across the folders and to the rescore's. The
      rescore's line is read from a `Logged` collector that `run.score_holdout` fills with the
@@ -85,7 +88,9 @@ exist, and a Messages run's rows cannot be drawn again (ADR `research/call-log-r
      replica's `quality` and
      `column-pair-trends` may differ only when the holdout's training split exceeds 50,000 rows,
      because a folder scored before `bko.evaluate.fidelity` read every row holds one unseeded
-     SDMetrics subsample draw. Any other difference exits 3 before rows are written.
+     SDMetrics subsample draw. Any other difference exits 3 before rows are written. `panel`
+     applies the same strict check, admitting as keys the folder lacks the held-out keys and also
+     the panel models' suffixed measures and the calibration measures.
 - A missing input, or an arm with no runner, exits 2.
 
 ## Rationale

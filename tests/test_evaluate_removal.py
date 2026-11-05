@@ -217,9 +217,10 @@ def _lines(caplog, prefix):
 
 
 def test_each_holdout_logs_its_removal_and_flagged_cells(caplog):
+    ready = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges)
+    caplog.clear()
     with caplog.at_level(logging.INFO):
         score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
-    ready = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges)
     kept, removed = ready.ablated, ready.removed
     whole = len(TOY_PARTS.train)
     line = (

@@ -16,6 +16,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import Method
+from bko.evaluate.classifier import Model
 from bko.evaluate.errors import ScoresFormatError
 
 
@@ -49,6 +50,34 @@ class Measure(enum.StrEnum):
     reads; each model but the regression suffixes its measures with its name."""
     PRECISION_HGB = "precision-hgb"
     AUC_PR_HGB = "auc-pr-hgb"
+    # The panel models' measures, then the calibration measures with each model's suffix.
+    RECALL_RF = "recall-rf"
+    PRECISION_RF = "precision-rf"
+    AUC_PR_RF = "auc-pr-rf"
+    RECALL_ET = "recall-et"
+    PRECISION_ET = "precision-et"
+    AUC_PR_ET = "auc-pr-et"
+    RECALL_MLP = "recall-mlp"
+    PRECISION_MLP = "precision-mlp"
+    AUC_PR_MLP = "auc-pr-mlp"
+    RECALL_NB = "recall-nb"
+    PRECISION_NB = "precision-nb"
+    AUC_PR_NB = "auc-pr-nb"
+    BRIER = "brier"
+    """The mean squared gap between P(disease) and the label; written only when calibration is
+    on (`bko.evaluate.utility.utility`), suffixed by model as `RECALL` is."""
+    CALIBRATION = "calibration-in-the-large"
+    """Mean P(disease) less the prevalence; written only beside `BRIER`."""
+    BRIER_HGB = "brier-hgb"
+    CALIBRATION_HGB = "calibration-in-the-large-hgb"
+    BRIER_RF = "brier-rf"
+    CALIBRATION_RF = "calibration-in-the-large-rf"
+    BRIER_ET = "brier-et"
+    CALIBRATION_ET = "calibration-in-the-large-et"
+    BRIER_MLP = "brier-mlp"
+    CALIBRATION_MLP = "calibration-in-the-large-mlp"
+    BRIER_NB = "brier-nb"
+    CALIBRATION_NB = "calibration-in-the-large-nb"
     QUALITY = "quality"
     COLUMN_SHAPES = "column-shapes"
     COLUMN_PAIR_TRENDS = "column-pair-trends"
@@ -90,6 +119,15 @@ class Scope(enum.StrEnum):
     ALL = "all"
     FLAGGED = "flagged-subgroups"
     """The test records of every age-sex subgroup that holds an underrepresented cell."""
+
+
+CALIBRATION_MEASURES: Final = (Measure.BRIER, Measure.CALIBRATION)
+"""The calibration measures, under the regression's names."""
+
+
+def suffixed(measure: Measure, model: Model) -> Measure:
+    """`measure` under `model`'s name: the regression's as it is, every other model's suffixed."""
+    return measure if model is Model.LR else Measure(f"{measure}-{model}")
 
 
 @dataclass(frozen=True, slots=True)
