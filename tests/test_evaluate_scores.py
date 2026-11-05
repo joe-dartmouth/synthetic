@@ -88,3 +88,36 @@ def test_the_boosting_models_measures_read_back_and_an_old_file_still_parses():
     old = "".join(line for line in text.splitlines(keepends=True) if "-hgb," not in line)
     assert old == render(SCORES)
     assert parse(old)[0] == SCORES[0]
+
+
+PANEL_SUFFIXES = ("rf", "et", "mlp", "nb")
+NEW_MEASURES = [
+    *(
+        f"{base}-{suffix}"
+        for suffix in PANEL_SUFFIXES
+        for base in ("recall", "precision", "auc-pr")
+    ),
+    *(
+        f"{base}{suffix}"
+        for base in ("brier", "calibration-in-the-large")
+        for suffix in ("", "-hgb", *(f"-{suffix}" for suffix in PANEL_SUFFIXES))
+    ),
+]
+
+
+def test_parse_round_trips_every_new_measure():
+    rows = [
+        Score(2, "bko", Source.AUGMENTED, Measure(name), scope, 0.125)
+        for name in NEW_MEASURES
+        for scope in Scope
+    ]
+    text = render(rows)
+    assert [line.split(",")[3] for line in text.splitlines()[1::2]] == NEW_MEASURES
+    assert parse(text) == rows
+    assert Measure.CALIBRATION.value == "calibration-in-the-large"
+    assert Measure.BRIER_NB.value == "brier-nb"
+
+
+def test_parse_refuses_a_measure_of_an_unknown_model():
+    with pytest.raises(ScoresFormatError, match="recall-xgb"):
+        parse(render(SCORES).replace("auc-pr", "recall-xgb"))

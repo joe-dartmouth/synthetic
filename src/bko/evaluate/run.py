@@ -141,6 +141,7 @@ def score_holdout(
     frame: FrameSpec,
     exclude: Sequence[pd.DataFrame] | None = None,
     logged: Logged | None = None,
+    calibration: bool = False,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -149,7 +150,9 @@ def score_holdout(
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
-    is reset, then receives the `split` line and every fill's `Filled` as they are logged.
+    is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
+    `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
+    replica utility never does.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -231,7 +234,9 @@ def score_holdout(
     )
     cutoff = experiment.cutoff
     for name in experiment.arms:
-        scores += _arm_scores(seed, name, fills[name], ablated, clean, cells, models, frame, cutoff)
+        scores += _arm_scores(
+            seed, name, fills[name], ablated, clean, cells, models, frame, cutoff, calibration
+        )
         if name in replicas:
             scores += _replica_scores(
                 seed, name, replicas[name], ablated, clean, cells, models[Model.LR], frame, cutoff
@@ -331,10 +336,12 @@ def _arm_scores(
     models: Mapping[Model, Factory],
     frame: FrameSpec,
     cutoff: float,
+    calibration: bool,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
 
-    The regression's utility comes first, then each other model's in `models`' order.
+    The regression's utility comes first, then each other model's in `models`' order, each with
+    its calibration measures when `calibration` holds.
     """
     train, added = parts.train, baseline.added
     counts = {
@@ -347,8 +354,10 @@ def _arm_scores(
     training = training_set(train, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     for model in ordered:
-        fitted = probabilities(training, clean, factory=models[model], frame=frame)
-        measured = utility(clean, fitted, cells, edges=frame.edges, cutoff=cutoff)
+        fitted = probabilities(training, clean, factory=models[model], frame=frame, model=model)
+        measured = utility(
+            clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
+        )
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
 

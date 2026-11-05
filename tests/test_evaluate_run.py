@@ -16,7 +16,7 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
-from bko.evaluate.classifier import Model, build
+from bko.evaluate.classifier import PANEL, Model, build
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, gap_request
 from bko.evaluate.prepare import held_out_ratio
@@ -102,6 +102,36 @@ def test_dropping_the_boosting_rows_leaves_the_regression_rows_byte_for_byte():
     assert "-hgb," in both
     stripped = "".join(line for line in both.splitlines(keepends=True) if "-hgb," not in line)
     assert stripped == alone
+
+
+PANEL_SUFFIXES = ("-rf", "-et", "-mlp", "-nb")
+CALIBRATION_PREFIXES = ("brier", "calibration-in-the-large")
+
+
+def _panel_row(line: str) -> bool:
+    measure = line.split(",")[3]
+    return measure.endswith(PANEL_SUFFIXES) or measure.startswith(CALIBRATION_PREFIXES)
+
+
+def test_dropping_the_panel_rows_leaves_the_default_rows_byte_for_byte():
+    experiment = dataclasses.replace(
+        SMALL,
+        arms=("none", "smote"),
+        candidate="smote",
+        comparators=("none",),
+        replica_arms=("smote",),
+    )
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    default = render(score_holdout(parts, experiment, FAST_ARMS, frame=UCI_FRAME))
+    both = render(
+        score_holdout(parts, experiment, FAST_ARMS, models=PANEL, frame=UCI_FRAME, calibration=True)
+    )
+    assert "-rf," in both
+    assert ",brier-hgb," in both
+    assert ",calibration-in-the-large," in both
+    assert not any(_panel_row(line) for line in default.splitlines())
+    stripped = "".join(line for line in both.splitlines(keepends=True) if not _panel_row(line))
+    assert stripped == default
 
 
 def test_models_without_the_regression_are_refused():
