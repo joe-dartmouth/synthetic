@@ -9,7 +9,7 @@ requires.
 from __future__ import annotations
 
 import copy
-from typing import Final
+from typing import Any, Final
 
 import pandas as pd
 from sdmetrics.reports import QualityReport
@@ -31,11 +31,18 @@ def metadata(frame: FrameSpec) -> dict[str, object]:
 def quality_report(
     reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> QualityReport:
-    """SDMetrics' quality report of `synthetic` against `reference`, generated quietly."""
+    """SDMetrics' quality report of `synthetic` against `reference`, generated quietly.
+
+    SDMetrics subsamples each table to 50,000 rows for its contingency column pairs, with no seed,
+    when either is larger, and its single-table report does not pass its own `num_rows_subsample`
+    down to the per-table property that draws the sample (sdmetrics 0.32). `_every_row` sets that
+    property to read every row, so a reading of a larger table replays exactly.
+    """
     columns = list(frame.columns)
     report = QualityReport()
     report.real_correlation_threshold = 0
     report.real_association_threshold = 0
+    _every_row(report)
     report.generate(
         {frame.name: reference.loc[:, columns]},
         {frame.name: synthetic.loc[:, columns]},
@@ -43,6 +50,19 @@ def quality_report(
         verbose=False,
     )
     return report
+
+
+def _every_row(report: QualityReport) -> None:
+    """Make `report`'s column pair trends read every row of each table, never a subsample."""
+    # Typed as Any: the hook is a method SDMetrics' stubs do not declare assignable.
+    pairs: Any = report._properties["Column Pair Trends"]
+    configure = pairs._configure_single_table_property
+
+    def every_row(table_name: str) -> None:
+        configure(table_name)
+        pairs._properties[table_name].num_rows_subsample = None
+
+    pairs._configure_single_table_property = every_row
 
 
 def fidelity(

@@ -75,24 +75,6 @@ links to where its blocker is tracked.
   **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
   baseline outside `bko.evaluate`.
 
-## docs
-
-- **`cleanup:docs/e6-replays-unread`: E6's `e6-2` replay is not yet recorded.** E6 landed before
-  the byte-for-byte replay of `e6-2` (`e6-thina`) at the run commit `22a58c9` finished, so its
-  Runs row records `e6-12`'s replay and leaves `e6-2`'s to this entry
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). It runs from the
-  detached worktree `../synthetic-e6` into `runs/e6-2-replay/`; on 2026-11-04 `ls -l` showed its
-  `scores.csv` at 0 bytes and `git worktree list` held `../synthetic-e6` at `22a58c9`. The
-  worktree and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stay until it ends.
-  *Filed 2026-11-04 by E6's landing.*
-  **Why deferred.** The user chose to land E6 and move on rather than wait on the replays.
-  **What discharges it:** the replay's `scores.csv` and `holdout-candidates.jsonl` compared with
-  `cmp` against `runs/e6-2/`'s, the result recorded in E6's Runs row, the watcher stopped with
-  `kill $(cat scratchpad/e6-power.pid)`, and the worktree removed with `git worktree remove` once
-  `runs/` holds nothing under it.
-  **Trigger:** the replay ending: its `scores.csv` non-empty and its call log ending in an `end`
-  line.
-
 ## evaluate
 
 - **`cleanup:evaluate/likelihood-curation-unused`: `Curation.LIKELIHOOD` and `over_ask` have no

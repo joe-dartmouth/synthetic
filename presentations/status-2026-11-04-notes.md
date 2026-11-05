@@ -238,7 +238,7 @@ The two conditions ask different questions:
 
 ## 5. Outstanding work and plans
 
-1. **E6 replays:** E6 lands in PR #74. The byte-for-byte replays of one slice per removal level are still running; a small follow-up PR records them (`cleanup:docs/e6-replays-unread`).
+1. **E6 replays:** both done. `e6-12` replays byte for byte. `e6-2` matches in every recall, AUC-PR, distance and candidate, but its replica `quality` and `column-pair-trends` differ by at most 0.000036: SDMetrics subsampled tables over 50,000 rows without a seed. The fidelity reading now reads every row, so it replays exactly.
 2. **BKB likelihood gate on Diabetes (free):** split BKO's candidates at the median BKB log-probability and test whether the top half is more faithful. If it separates, run a curated BKO arm once (cap $80). If not, record the result and remove the reserved curation code.
 3. **New task, `privacy-identifier-perturbation` (paid, ready):**
    - **What:** a language model rewrites the fields a patient could be identified by in `bko-direct`'s rows: race, the 8 count fields (days in hospital, lab procedures, medications and so on), the 8 drug columns, `change` and `diabetesMed`. It must not touch any ontology-mapped concept (diagnoses, lab states), age, sex or the label.
