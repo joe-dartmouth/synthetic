@@ -16,9 +16,9 @@ E6 runs the same design on real encounters: UCI Diabetes 130-US Hospitals
 describes ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#data), The Diabetes frame).
 
 Every E6 number depends on the cohort, the label, the cutoff, the age bands, the removed cell, the
-removal fraction, the fill target, the arms, the holdout count and the copy rule. The task unit
-[`evaluate-diabetes-subgroup-removal`](../../../tasks/evaluate-diabetes-subgroup-removal.md) asks
-for a power calculation to fix them before any paid run. Two free measurements did that: a probe
+removal fraction, the fill target, the arms, the holdout count and the copy rule. E6
+([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)) needed a power
+calculation to fix them before any paid run. Two free measurements did that: a probe
 over a frame reimplemented from the raw archive, then a dry run over the committed frame code. Each
 is a throwaway script outside the repository, whose header gives its invocation with
 `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1`. Blocks [C1] to [C5] below are excerpts of the dry

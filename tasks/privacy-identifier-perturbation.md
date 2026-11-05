@@ -1,8 +1,8 @@
 ---
 id: privacy-identifier-perturbation
 title: Perturb identifying fields with an LLM, keeping concepts and distribution, and track distance per method
-status: blocked
-depends_on: evaluate-diabetes-subgroup-removal
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Joe

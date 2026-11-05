@@ -1,14 +1,14 @@
 ---
 id: generate-bkb-curation-diabetes
 title: The BKB likelihood gate on Diabetes 130, then the curated arm if it separates
-status: blocked
-depends_on: evaluate-diabetes-subgroup-removal
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 owner: Shirley
 milestone: final-report
 paid: true
-adrs: research/bkb-candidate-curation
+adrs: --
 ---
 
 # The BKB likelihood gate on Diabetes 130, then the curated arm if it separates
@@ -34,8 +34,8 @@ and the arm's reserved spec fields (`Curation.LIKELIHOOD`, `over_ask`;
 **In.**
 
 - Phase 1, free: `python -m bko.evaluate likelihood <run> --candidates <file>` over the `bko`
-  arm's candidates file from the Diabetes 130 run of
-  [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md), with the gate
+  arm's candidates file from the Diabetes 130 run, E6
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)), with the gate
   ADR `research/bkb-candidate-curation` fixes unchanged, recorded as a new G7 run in
   `docs/EVIDENCE.md`. If the gate fails again, the entry reads the concept-share diagnostic (on UCI
   the score favoured records with fewer concepts present) and the unit records whether a score

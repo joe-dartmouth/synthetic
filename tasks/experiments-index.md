@@ -15,25 +15,20 @@ the ROADMAP heading it serves.
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | blocked | `evaluate-diabetes-subgroup-removal` | Shirley | final-report |
-
-### Evaluation power
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`evaluate-diabetes-subgroup-removal`](evaluate-diabetes-subgroup-removal.md) | in-progress | -- | Joe | final-report |
+| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | ready | -- | Shirley | final-report |
 
 ### Privacy
 
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
-| [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | blocked | `evaluate-diabetes-subgroup-removal` | Joe | final-report |
+| [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | ready | -- | Joe | final-report |
+| [`evaluate-membership-inference`](evaluate-membership-inference.md) | ready | -- | Joe | final-report |
 
-```mermaid
-flowchart LR
-    diabetes_removal[evaluate-diabetes-subgroup-removal] --> bkb_curation_diabetes[generate-bkb-curation-diabetes]
-    diabetes_removal --> identifier_perturbation[privacy-identifier-perturbation]
-```
+### Knowledge
+
+| Unit | Status | Depends on | Owner | Milestone |
+|---|---|---|---|---|
+| [`compare-elk-logic-only`](compare-elk-logic-only.md) | ready | -- | Joe | final-report |
 
 ## What every unit relies on
 
