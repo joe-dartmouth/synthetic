@@ -1057,14 +1057,20 @@ commands, inside `.venv`:
 **`contradictions`** lists where a mapped frame's data contradicts its ontology, as ADR
 `research/data-contradiction-handling` defines the kinds: `narrow-without-broad`,
 `child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. It reads each frame's
-training split at holdout seed 0 with no removal and lists every cell. It makes no API call, and
-stdout is the same bytes on every run over the same data:
+training split at holdout seed 0 with no removal and lists every cell. Each CSV row is one
+finding, in the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
+`child_share,parent_share,field,codes`; the log holds one `census data` line per frame, one
+`census kind` line per frame and kind with its count, 0 included, and one `census rows` line with
+stdout's sha256. It makes no API call, and stdout is the same bytes on every run over the same
+data:
 
     mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
 
 A fused BKB is valid when `bko.bkb.fusion.check_fused` passes: every input S-node present with its
 source tail and unchanged probability, every other fused S-node that is not a source prior mapped
-to an input, each source component's priors summing to 1, and every probability in [0, 1].
+to an input, each source component's priors summing to 1 (under the default `FRAGMENTS`
+normalization, to at most 1, and to 1 where every fragment holds an S-node on the head component),
+and every probability in [0, 1].
 
 ## Generation
 
@@ -1403,9 +1409,9 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
   files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
   reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
-  `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
-  a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
-  shows its error in place of its section.
+  `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading
+  them. A folder whose name is not a run id, a symbolic link, and an entry of the wrong kind are
+  not listed; an artifact that cannot be read shows its error in place of its section.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
   only while its confirmation box is ticked, the box clears after each fill, the client is built
   only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.
