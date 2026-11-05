@@ -330,13 +330,17 @@ ADDED_DIGEST: Final = "1fee23dc6e9b0f84497eead9d18cd4d10e8b89319a7ba3fab23cd5b5c
 data-contradiction change; it guards `bko-direct`'s rows."""
 
 
-def varied_arm() -> tuple[pd.DataFrame, Request, DirectArm]:
-    """`VARIED`'s records, a request for 8 rows in each of its cells at seed 0, and the arm."""
+def varied_arm(seed: int = 0) -> tuple[pd.DataFrame, Request, DirectArm]:
+    """`VARIED`'s records, a request for 8 rows in each of its cells at `seed`, and the arm.
+
+    The arm reads no ontology, so the draw pin in `tests/test_generate_direct.py`, not this one,
+    covers the closure.
+    """
     with zipfile.ZipFile(io.BytesIO(VARIED)) as bundle:
         train = complete_records(parse_cleveland(bundle.read(MEMBER).decode("ascii")))
     keys = cell_keys(train, edges=UCI_FRAME.edges)
     cells = sorted(set(keys.itertuples(index=False, name=None)), key=str)
-    request = Request(quota=dict.fromkeys(cells, 8), strata=Strata.CELL, seed=0)
+    request = Request(quota=dict.fromkeys(cells, 8), strata=Strata.CELL, seed=seed)
     arm = DirectArm(
         (ANGINA, STENOSIS), {}, name=DIRECT_ARM, budget=3, sink=None, dataset="uci-test"
     )
@@ -348,6 +352,7 @@ def test_the_direct_arms_added_rows_are_pinned():
     assert digest(arm(train, request).added) == ADDED_DIGEST
 
 
-def test_the_direct_arms_params_are_pinned():
-    train, request, arm = varied_arm()
-    assert arm(train, request).params == {"generator": "direct", "seed": 0}
+@pytest.mark.parametrize("seed", [0, 3])
+def test_the_direct_arms_params_are_pinned(seed):
+    train, request, arm = varied_arm(seed)
+    assert arm(train, request).params == {"generator": "direct", "seed": seed}
