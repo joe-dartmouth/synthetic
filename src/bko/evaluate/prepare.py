@@ -108,6 +108,12 @@ def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     return max(out / into for out, into in zip(held, kept, strict=True) if out)
 
 
+def split_line(ablated: Split) -> str:
+    """The harness's `split` line for a holdout's prepared split: seed, row counts, fingerprint."""
+    rows = f"train={len(ablated.train):d} test={len(ablated.test):d}"
+    return f"split seed={ablated.seed:d} {rows} fingerprint={ablated.fingerprint}"
+
+
 def sorted_digest(items: Iterable[Stratum] | Iterable[int]) -> str:
     """The first 12 hex digits of the sha256 of `items`' sorted list's `repr`.
 

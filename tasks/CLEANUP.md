@@ -89,18 +89,6 @@ links to where its blocker is tracked.
   with `Z`), with a test, documented in `docs/DEVELOPMENT.md`.
   **Trigger:** the next change to a `configure_logging`.
 
-- **`cleanup:evaluate/shared-capture-is-process-global`: `shared` captures the harness's log
-  lines by changing a process-global logger.** `bko.evaluate.shared.captured` adds a handler to
-  the `bko.evaluate.run` logger and lowers its level to INFO while a holdout is scored, then
-  restores both, so two rescores in one process at once would read each other's `split` and `arm`
-  lines, and a logger a caller disabled or stopped propagating surfaces as a check 3 or 4
-  mismatch. The CLI rescores once per process. *Filed 2026-11-01 by G6's landing.*
-  **Why deferred.** No caller rescores twice in one process or concurrently.
-  **What discharges it:** `score_holdout` returns or yields the `split` and `arm` lines it logs (or
-  takes a sink for them), and `rescore` checks those instead of a logger handler, with a test that
-  runs two rescores in one process.
-  **Trigger:** `rescore` called in-process twice or concurrently.
-
 - **`cleanup:evaluate/removal-log-test-order`: a removal test fails after the CLI tests in one
   process.** `uv run --no-sync pytest tests/test_evaluate_cli.py tests/test_evaluate_removal.py -q
   -p no:cacheprovider --no-cov` fails
