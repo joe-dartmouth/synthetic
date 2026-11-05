@@ -152,6 +152,20 @@ links to where its blocker is tracked.
   **What discharges it:** `params` carries `over_ask` for a ranking arm, with a test.
   **Trigger:** the next change to `GuidedArm`.
 
+- **`cleanup:evaluate/stamp-every-stage`: seven entry points log no time and repeat one
+  `basicConfig` block.** The `baselines`, `datasets`, `fusion`, `gaps`, `generate` and `ontology`
+  `__main__` modules and `bko.generate.local` each format a line as `%(levelname)s %(name)s:
+  %(message)s`, while `bko.evaluate.logs.stamped_handler` writes the local time and UTC offset for
+  `evaluate` and the app. Evidence: `grep -rn "basicConfig(" src/bko` lists the seven unstamped
+  blocks beside the two stamped ones. *Filed 2026-11-05 by the review of PR #79.*
+  **Why deferred.** PR #79 stamps the two entry points whose logs a run folder keeps; the stages
+  import nothing from `bko.evaluate`, which sits above them.
+  **Blocked on** a home module below `bko.evaluate` that every stage may import, as the package
+  layout in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) allows.
+  **What discharges it:** one shared stamped setup in that module, used by every entry point,
+  with `Stamp` moved to it and the seven blocks deleted.
+  **Trigger:** the next change that adds an entry point or edits one's `configure_logging`.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
