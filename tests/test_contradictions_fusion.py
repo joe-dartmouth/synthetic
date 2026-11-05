@@ -181,9 +181,65 @@ def test_a_shared_s_node_missing_one_of_its_sources_fails_the_check():
         check_fused(tampered, every, normalization=Normalization.COMPONENT_COLLAPSED)
 
 
-@pytest.mark.parametrize("sources", [["a"], ["a", "b", "c"], ["a", "a"]])
-def test_source_names_that_are_not_one_distinct_name_per_fragment_fail_the_check(sources):
+@pytest.mark.parametrize(
+    ("sources", "message"),
+    [
+        (["a"], "2 fragments and 1 source names"),
+        (["a", "b", "c"], "2 fragments and 3 source names"),
+        (["a", "a"], "two fragments share the source name 'a'"),
+        ("ab", "are one string"),
+        (["a", ""], "the source name '' is not a non-empty string"),
+        (["a", 7], "the source name 7 is not a non-empty string"),
+    ],
+)
+def test_source_names_fuse_refuses_fail_the_check(sources, message):
     every = two_fragments()
     fused = fuse(every, [1.0, 1.0])
-    with pytest.raises(FusionError, match="distinct source names"):
+    with pytest.raises(FusionError, match=message):
         check_fused(fused, every, sources=sources)
+
+
+def unprimed(fused: BKB, component: str) -> BKB:
+    """`fused` with every prior on `component`'s source component dropped."""
+    own = source_component(component)
+    return rebuilt(fused, lambda _, s: not (s.head[0] == own and not s.tail), [])
+
+
+@pytest.mark.parametrize(
+    ("normalization", "component"),
+    [
+        (Normalization.COMPONENT, "Y"),
+        (Normalization.COMPONENT_COLLAPSED, "X"),
+        (Normalization.FRAGMENTS, "X"),
+    ],
+)
+def test_a_named_source_component_with_no_prior_fails_where_its_priors_must_be_whole(
+    normalization, component
+):
+    every = two_fragments()
+    fused = fuse(every, [1.0, 3.0], normalization=normalization)
+    with pytest.raises(FusionError, match=r"the priors on .* sum to 0\.0, not 1$"):
+        check_fused(unprimed(fused, component), every, normalization=normalization)
+
+
+def test_a_named_source_component_with_no_prior_passes_under_fragments_where_one_lacks_it():
+    every = two_fragments()
+    check_fused(unprimed(fuse(every, [1.0, 3.0]), "Y"), every)
+
+
+@pytest.mark.parametrize(
+    ("normalization", "state"),
+    [
+        (Normalization.FRAGMENTS, "z"),
+        (Normalization.COMPONENT_COLLAPSED, frozenset({"a", "z"})),
+    ],
+)
+def test_a_prior_on_a_state_naming_no_known_source_fails_the_check(normalization, state):
+    every = two_fragments()
+    fused = fuse(every, [1.0, 1.0], normalization=normalization)
+    own = source_component("X")
+    tampered = rebuilt(fused, lambda *_: True, [])
+    tampered.add_inode(own, state)
+    tampered.add_snode(own, state, 0.0)
+    with pytest.raises(FusionError, match=r"the prior on .* names other than the sources"):
+        check_fused(tampered, every, normalization=normalization)

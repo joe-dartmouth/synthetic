@@ -19,6 +19,9 @@ only when head, tail and probability are exactly equal. Every total is summed le
 under `FRAGMENTS` over the fragments, as Santos et al.'s algorithm sums, and under pybkb's modes
 in pybkb's order, so their priors match pybkb's to the last bit; `sum` compensates from Python
 3.12 and would not.
+
+`check_fused` checks that a fused BKB is one `fuse` could have built from its fragments, the
+validity ADR `research/data-contradiction-handling` (Decision 3) defines.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from enum import StrEnum
 from typing import Final
 
 from bko.bkb.errors import FusionError
-from bko.bkb.structure import BKB, INode, SNode
+from bko.bkb.structure import BKB, INode, SNode, State
 
 
 logger = logging.getLogger(__name__)
@@ -135,9 +138,11 @@ def check_fused(
     tail and its probability unchanged. Every fused S-node other than a source prior maps to an
     input S-node of each source its source state names. Each source component's priors sum to 1
     under pybkb's modes; under `FRAGMENTS` they sum to at most 1, and to 1 where every fragment
-    holds an S-node on the head component, since the total is every fragment's reliability. Every
-    probability is in [0, 1], which `BKB.add_snode` enforces as each S-node is added, so a `BKB`
-    cannot fail it and this check does not repeat it. Mutual exclusion is not required (ADR
+    holds an S-node on the head component, since the total is every fragment's reliability. A
+    source component a fused S-node's tail names but no prior is on sums to 0, and every prior's
+    state must name only sources. Every probability is in [0, 1], which
+    `BKB.add_snode` enforces as each S-node is added, so a `BKB` cannot fail it and this check
+    does not repeat it. Mutual exclusion is not required (ADR
     `research/data-contradiction-handling`).
 
     Args:
@@ -148,12 +153,10 @@ def check_fused(
 
     Raises:
         FusionError: If any of the first three fails, naming the first S-node or component that
-            breaks it, or if `sources` does not give one distinct name per fragment.
+            breaks it, or if `sources` does not give one distinct non-empty name per fragment, as
+            `fuse` refuses.
     """
-    names = [fragment.name for fragment in fragments] if sources is None else list(sources)
-    if len(names) != len(fragments) or len(set(names)) != len(names):
-        msg = f"{len(fragments)} fragments need as many distinct source names, not {names!r}"
-        raise FusionError(msg)
+    names = _source_names(fragments, sources)
     inputs: dict[_Key, set[str]] = {}
     for fragment, source in zip(fragments, names, strict=True):
         for snode in fragment.snodes:
@@ -162,8 +165,14 @@ def check_fused(
     priors: dict[str, list[float]] = {}
     for index, snode in enumerate(fused.snodes):
         if is_source(snode.head[0]) and not snode.tail:
+            if not _state_names(snode.head[1]) <= set(names):
+                msg = f"the prior on {snode.head!r} names other than the sources {names!r}"
+                raise FusionError(msg)
             priors.setdefault(snode.head[0], []).append(snode.prob)
             continue
+        for component, _ in snode.tail:
+            if is_source(component):
+                priors.setdefault(component, [])
         key, named = _unsourced(snode)
         if not named or not named <= inputs.get(key, set()):
             msg = f"S-node {index} on {snode.head!r} maps to no input S-node of {sorted(named)}"
@@ -184,13 +193,30 @@ def _unsourced(snode: SNode) -> tuple[_Key, set[str]]:
     named: set[str] = set()
     for component, state in snode.tail:
         if component == own:
-            named |= {state} if isinstance(state, str) else state
+            named |= _state_names(state)
     return (snode.head, rest, snode.prob), named
+
+
+def _state_names(state: State) -> set[str]:
+    """The source names a source I-node's state names: itself, or each of a collapsed set's."""
+    return {state} if isinstance(state, str) else set(state)
 
 
 def _check_priors(
     component: str, probs: list[float], held: int, fragments: int, normalization: Normalization
 ) -> None:
+    """Refuse priors on `component` that do not sum as `check_fused` says `normalization` sums.
+
+    Args:
+        component: The source component.
+        probs: Its priors; none where no prior is on it, so a sum of 0.
+        held: How many source states it has, so how many fragments hold its head component.
+        fragments: How many fragments were fused.
+        normalization: The mode the BKB was fused under.
+
+    Raises:
+        FusionError: If they sum above 1, or short of 1 where they must sum to 1.
+    """
     total = math.fsum(probs)
     whole = normalization is not Normalization.FRAGMENTS or held == fragments
     if total > 1.0 + _TOLERANCE or (whole and total < 1.0 - _TOLERANCE):
@@ -205,18 +231,31 @@ def _check(
     if not fragments:
         msg = "there are no fragments to fuse"
         raise FusionError(msg)
+    if len(reliabilities) != len(fragments):
+        msg = f"{len(fragments)} fragments and {len(reliabilities)} reliabilities"
+        raise FusionError(msg)
+    for reliability in reliabilities:
+        _check_reliability(reliability)
+    names = _source_names(fragments, sources)
+    for fragment in fragments:
+        _check_fragment(fragment)
+    return names
+
+
+def _source_names(fragments: Sequence[BKB], sources: Sequence[str] | None) -> list[str]:
+    """One distinct non-empty source name per fragment: `sources`, or each fragment's name.
+
+    Raises:
+        FusionError: If `sources` is one string, gives other than one name per fragment, or holds
+            a name that is not a non-empty string or that two fragments share.
+    """
     if isinstance(sources, str):
         msg = f"the source names {sources!r} are one string, not one name per fragment"
         raise FusionError(msg)
     names = [fragment.name for fragment in fragments] if sources is None else list(sources)
-    if not len(fragments) == len(reliabilities) == len(names):
-        msg = (
-            f"{len(fragments)} fragments, {len(reliabilities)} reliabilities "
-            f"and {len(names)} source names"
-        )
+    if len(names) != len(fragments):
+        msg = f"{len(fragments)} fragments and {len(names)} source names"
         raise FusionError(msg)
-    for reliability in reliabilities:
-        _check_reliability(reliability)
     for source in names:
         if not isinstance(source, str) or not source:
             msg = f"the source name {source!r} is not a non-empty string"
@@ -225,8 +264,6 @@ def _check(
     if repeated:
         msg = f"two fragments share the source name {repeated[0]!r}"
         raise FusionError(msg)
-    for fragment in fragments:
-        _check_fragment(fragment)
     return names
 
 
