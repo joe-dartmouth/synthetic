@@ -136,7 +136,8 @@ def check_fused(
     input S-node of each source its source state names. Each source component's priors sum to 1
     under pybkb's modes; under `FRAGMENTS` they sum to at most 1, and to 1 where every fragment
     holds an S-node on the head component, since the total is every fragment's reliability. Every
-    probability is in [0, 1]. Mutual exclusion is not required (ADR
+    probability is in [0, 1], which `BKB.add_snode` enforces as each S-node is added, so a `BKB`
+    cannot fail it and this check does not repeat it. Mutual exclusion is not required (ADR
     `research/data-contradiction-handling`).
 
     Args:
@@ -146,8 +147,8 @@ def check_fused(
         normalization: The mode `fused` was fused under.
 
     Raises:
-        FusionError: If any of the four fails, naming the first S-node or component that breaks
-            it, or if `sources` does not give one distinct name per fragment.
+        FusionError: If any of the first three fails, naming the first S-node or component that
+            breaks it, or if `sources` does not give one distinct name per fragment.
     """
     names = [fragment.name for fragment in fragments] if sources is None else list(sources)
     if len(names) != len(fragments) or len(set(names)) != len(names):
@@ -160,9 +161,6 @@ def check_fused(
     held: dict[_Key, set[str]] = {}
     priors: dict[str, list[float]] = {}
     for index, snode in enumerate(fused.snodes):
-        if not (math.isfinite(snode.prob) and 0.0 <= snode.prob <= 1.0):
-            msg = f"S-node {index} on {snode.head!r} has probability {snode.prob!r}, not in [0, 1]"
-            raise FusionError(msg)
         if is_source(snode.head[0]) and not snode.tail:
             priors.setdefault(snode.head[0], []).append(snode.prob)
             continue

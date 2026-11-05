@@ -1070,7 +1070,7 @@ A fused BKB is valid when `bko.bkb.fusion.check_fused` passes: every input S-nod
 source tail and unchanged probability, every other fused S-node that is not a source prior mapped
 to an input, each source component's priors summing to 1 (under the default `FRAGMENTS`
 normalization, to at most 1, and to 1 where every fragment holds an S-node on the head component),
-and every probability in [0, 1].
+and every probability in [0, 1], which `BKB.add_snode` enforces as each S-node is added.
 
 ## Generation
 

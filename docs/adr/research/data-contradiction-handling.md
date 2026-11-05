@@ -46,7 +46,8 @@ sample, and the direct sampler draws a child without its parent.
    - every fused S-node other than a source prior maps to an input;
    - each source component's priors sum to 1 (under the default `FRAGMENTS` normalization, to
      at most 1, and to 1 where every fragment holds an S-node on the head component);
-   - every probability is in [0, 1].
+   - every probability is in [0, 1], which `BKB.add_snode` enforces as each S-node is added, so
+     `check_fused` does not repeat it.
 
    Mutual exclusion is not required (ADR `research/bko-fragment-encoding`).
 4. **Fusion** keeps both S-nodes: the `is_a` S-node of probability 1 and the dataset prior that
