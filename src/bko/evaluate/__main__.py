@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `likelihood`, `launch` and
-`supervise`.
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `likelihood`, `launch`
+and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the

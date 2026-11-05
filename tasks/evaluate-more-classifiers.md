@@ -39,14 +39,14 @@ calibration.
   reads E4's and E6's AUC-PR results against it.
 - **Phase 2, the panel.**
   - Add to `bko.evaluate.classifier` a random forest, extra trees, a multilayer perceptron and
-    Gaussian naive Bayes, all from scikit-learn, so no new dependency is needed.
-  - Each is opt-in per experiment, so no existing run's scores change and every recorded run
+    naive Bayes over binned fields, all from scikit-learn, so no new dependency is needed.
+  - Each is opt-in per command (`panel`), so no existing run's scores change and every recorded run
     still replays byte for byte.
   - A new ADR under `docs/adr/research/` fixes each model's settings and why.
 - **Phase 3, the reading.** Rescore E6 at both fractions under the panel, on each arm's rows
-  rebuilt from stored files or regenerated locally from the named run's seeds, with no API call.
+  read from the store that `python -m bko.evaluate rows` writes, with no API call.
   Each set of rows must hash to its `arm` line's `sha256` in the slice's `scores.log`.
-  `evaluate-membership-inference` needs the same rebuild; whichever unit lands first builds it,
+  `evaluate-membership-inference` reads the same store; whichever unit lands first builds it,
   and the other reuses it. The holdout subset, if regeneration cost forces one, is fixed in the
   ADR before any run. The result is a new `docs/EVIDENCE.md` entry.
 
