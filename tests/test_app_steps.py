@@ -39,6 +39,7 @@ from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
+from bko.evaluate.logs import stamped_handler
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source
@@ -115,6 +116,34 @@ def test_configure_logging_quiets_the_http_and_sdv_loggers(monkeypatch):
     assert kwargs["level"] == logging.INFO
     assert kwargs["force"] is True
     assert [logger.level for logger in loggers] == [logging.WARNING] * len(loggers)
+
+
+def _root_with(monkeypatch, handler: logging.Handler) -> list[dict[str, object]]:
+    recorded: list[dict[str, object]] = []
+    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: recorded.append(kwargs))
+    monkeypatch.setattr(logging, "captureWarnings", lambda _: None)
+    monkeypatch.setattr(logging.getLogger(), "handlers", [handler])
+    for logger in map(logging.getLogger, (*QUIET_LOGGERS, *HTTP_LOGGERS)):
+        monkeypatch.setattr(logger, "level", logger.level)
+    return recorded
+
+
+def test_configure_logging_keeps_a_stamped_stderr_root_handler_across_reruns(monkeypatch):
+    recorded = _root_with(monkeypatch, stamped_handler(sys.stderr))
+    configure_logging()
+    configure_logging()
+    assert recorded == []
+
+
+def test_configure_logging_replaces_a_root_handler_that_is_not_ours(monkeypatch):
+    for ours_but_elsewhere in (
+        logging.StreamHandler(sys.stderr),
+        stamped_handler(sys.stdout),
+    ):
+        recorded = _root_with(monkeypatch, ours_but_elsewhere)
+        configure_logging()
+        [kwargs] = recorded
+        assert kwargs["force"] is True
 
 
 def test_fillers_are_e1s_row_adding_arms_in_order():
