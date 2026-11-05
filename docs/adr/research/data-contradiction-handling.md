@@ -112,7 +112,8 @@ table does not nest them, a pattern the data shows.
   `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`
 - Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_fusion.py`,
   `tests/test_contradictions_gaps.py`, `tests/test_contradictions_shares.py`,
-  `tests/test_contradictions_direct.py`
+  `tests/test_contradictions_direct.py`, `tests/test_generate_direct.py`,
+  `tests/test_evaluate_direct.py`
 
 ## Reversal Conditions
 
