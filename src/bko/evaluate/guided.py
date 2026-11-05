@@ -10,24 +10,26 @@ the round's short cells whose (sex, label) chains are distinct, its calls are in
 the calls are those a one-call-at-a-time run makes (ADR `research/concurrent-call-waves`). Every
 reply's candidates are validated (`bko.validate`).
 Each accepted one that `check` would refuse is dropped by `bko.baselines.records.drops`, and the
-rest count toward the cell their own values name. An attempt asks for at most `budget` times the
-request's rows, and refuses with a plain `BaselineError` as soon as the rest of its budget cannot
-cover the rows still short. The arm keeps its validity counts itself, since a refused attempt
-returns no `Baseline`, and writes every candidate it saw, with its outcome, to the run's candidates
-file when the harness drains it (`bko.evaluate.holdout_candidates`). An arm given a prescribe step
-(`bko.evaluate.skeleton`) draws each attempt's lines once, hands each planned call its cell's next
-lines at wave planning, drops a record outside the call's cell or matching no line of the call
-left unconsumed, and returns every line no kept record consumed to its cell's queue. ADR
-`research/e1-evaluation-protocol` records the rule. `bko.evaluate.guided_run.guided_arms` builds a
-run's BKO arms over one call log and one candidates file, for the evaluate command and the app
-alike.
+rest count toward the cell their own values name. A ranking arm (`Curation.LIKELIHOOD`) asks each
+cell for `over_ask` times its quota and keeps each call cell's rows its BKB likelihood
+(`bko.evaluate.ranking.scorer`) ranks highest (`bko.evaluate.attempts.Attempt.rows`). An attempt
+asks for at most `budget` times the request's rows, and refuses with a plain `BaselineError` as soon
+as the rest of its budget cannot cover the rows still short. The arm keeps its validity counts
+itself, since a refused attempt returns no `Baseline`, and writes every candidate it saw, with its
+outcome, to the run's candidates file when the harness drains it
+(`bko.evaluate.holdout_candidates`). An arm given a prescribe step (`bko.evaluate.skeleton`) draws
+each attempt's lines once, hands each planned call its cell's next lines at wave planning, drops a
+record outside the call's cell or matching no line of the call left unconsumed, and returns every
+line no kept record consumed to its cell's queue. ADR `research/e1-evaluation-protocol` records the
+rule. `bko.evaluate.guided_run.guided_arms` builds a run's BKO arms over one call log and one
+candidates file, for the evaluate command and the app alike.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -39,12 +41,13 @@ from bko.baselines.records import Baseline, Drop, check, unit_weights
 from bko.baselines.request import Request, Strata
 from bko.bkb.structure import BKB
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.attempts import Attempt, Tally
+from bko.evaluate.attempts import Attempt, Rank, Tally
 from bko.evaluate.cllm import SHOW, Shower
-from bko.evaluate.curation import classifier_discard
+from bko.evaluate.curation import classifier_scores
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import Curation
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
+from bko.evaluate.ranking import record, scorer
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues
 from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
@@ -92,7 +95,7 @@ class GuidedArm:
             the call log's spend.
     """
 
-    def __init__(
+    def __init__(  # ruff: ignore[too-many-arguments]  (one per `MessagesArm` field, all keywords)
         self,
         name: str,
         definition: Definition | None,
@@ -105,6 +108,7 @@ class GuidedArm:
         prescribe: Prescribe | None = None,
         shows: bool = False,
         curation: Curation | None = None,
+        over_ask: int = 1,
     ) -> None:
         """Hold what each attempt needs; nothing is called until the arm runs.
 
@@ -123,18 +127,21 @@ class GuidedArm:
                 carry; None for an arm that prescribes nothing.
             shows: Whether each call shows training records (`bko.evaluate.cllm`).
             curation: How each call's accepted rows are curated before they count
-                (`bko.evaluate.curation`); None keeps every one.
+                (`bko.evaluate.curation`), or ranked once the rounds end
+                (`bko.evaluate.ranking`); None keeps every one.
+            over_ask: The multiple of each cell's quota a ranking arm asks for; 1 for any other.
 
         Raises:
-            EvaluationError: If `curation` names a curator no arm has yet.
+            EvaluationError: If `over_ask` is above 1 without likelihood curation or 1 with it.
         """
-        if curation is not None and curation is not Curation.CLASSIFIER:
-            msg = f"{name} names curation {curation}, which no arm has yet"
+        if over_ask < 1 or (over_ask > 1) != (curation is Curation.LIKELIHOOD):
+            msg = f"{name} asks over_ask {over_ask}, which needs likelihood curation and only it"
             raise EvaluationError(msg)
         self.name = name
         self._prescribe = prescribe
         self._shows = shows
         self._curation = curation
+        self._over_ask = over_ask
         self.totals = self._tally()
         self.spent = 0.0
         self._definition = definition
@@ -150,13 +157,14 @@ class GuidedArm:
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """Fill `request` from the API, guided by `train`'s gaps under the arm's definition.
 
-        A curating arm may return fewer rows than the quota: it gives up a cell its own budget
-        cannot cover, logs the attempt as `partial` and records each such cell's missing rows
-        under `short` in the params.
+        A classifier-curating arm may return fewer rows than the quota: it gives up a cell its own
+        budget cannot cover, logs the attempt as `partial` and records each such cell's missing
+        rows under `short` in the params. A ranking arm ranks its rows once its rounds end, before
+        its candidates are kept for the file.
 
         Raises:
-            BaselineError: Plain, for an arm that does not curate, when the rest of the budget
-                cannot cover the rows still short.
+            BaselineError: Plain, for an arm that does not curate by classifier, when the rest of
+                the budget cannot cover the rows still short.
             EvaluationError: If the request is not by cell; a `StopRuleError` if the run's spend
                 reached the ceiling, or if a call got no reply within the idle limit.
             GenerationError: As `bko.generate.flight.Flight.wave`: a call with no response.
@@ -167,11 +175,7 @@ class GuidedArm:
             raise EvaluationError(msg)
         named = fill_names()
         guidance = self._guidance(train, request.frame)
-        prescribing = self._prescribe is not None
-        discard = None if self._curation is None else classifier_discard(train, frame=request.frame)
-        attempt = Attempt(
-            train, request, self._budget * request.rows, prescribing=prescribing, discard=discard
-        )
+        attempt = self._attempt(train, request, holdout=named[0])
         shower = Shower(train, frame=request.frame, seed=request.seed) if self._shows else None
         self._attempts += 1
         first = self._log.calls + 1
@@ -181,6 +185,9 @@ class GuidedArm:
         try:
             queues = None if self._prescribe is None else Queues(self._prescribe(train, request))
             short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
+            if attempt.rank is not None:
+                # Ranking marks each ranked candidate, so it runs before they are kept below.
+                attempt.rows()
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -205,6 +212,21 @@ class GuidedArm:
                 self._log.usd,
             )
         return self._baseline(attempt, train, first, short)
+
+    def _attempt(self, train: pd.DataFrame, request: Request, *, holdout: int) -> Attempt:
+        """A new attempt at `request`, curating or ranking as the arm does."""
+        curating = self._curation is Curation.CLASSIFIER
+        ranking = self._curation is Curation.LIKELIHOOD
+        return Attempt(
+            train,
+            request,
+            self._budget * request.rows,
+            prescribing=self._prescribe is not None,
+            curator=classifier_scores(train, frame=request.frame) if curating else None,
+            rank=self._rank(train, request) if ranking else None,
+            over_ask=self._over_ask,
+            holdout=holdout,
+        )
 
     def _baseline(
         self, attempt: Attempt, train: pd.DataFrame, first: int, short: Mapping[Cell, int]
@@ -259,8 +281,29 @@ class GuidedArm:
 
     def _tally(self) -> Tally:
         return Attempt.tally_for(
-            prescribing=self._prescribe is not None, curating=self._curation is not None
+            prescribing=self._prescribe is not None,
+            curating=self._curation is Curation.CLASSIFIER,
+            ranking=self._curation is Curation.LIKELIHOOD,
         )
+
+    def _rank(self, train: pd.DataFrame, request: Request) -> Rank:
+        """Each candidate's BKB likelihood at its call cell's shares on `train`.
+
+        One scorer per call cell, built when the cell is first ranked.
+        """
+        frame = request.frame
+        cells = {cell_key(cell): cell for cell in request.quota}
+        scorers: dict[str, Callable[[Mapping[str, float]], float]] = {}
+
+        def rank(seen: Sequence[Seen]) -> list[float]:
+            found: list[float] = []
+            for item in seen:
+                if item.cell not in scorers:
+                    scorers[item.cell] = scorer(train, self._knowledge, frame, cells[item.cell])
+                found.append(scorers[item.cell](record(item.candidate, frame.columns)))
+            return found
+
+        return rank
 
     def _guidance(self, train: pd.DataFrame, frame: FrameSpec) -> dict[Cell, Guidance]:
         known = self._knowledge
@@ -300,15 +343,16 @@ class GuidedArm:
             budget cannot cover them (`bko.evaluate.waves.give_up`); empty when the quota is filled.
 
         Raises:
-            BaselineError: Plain, for an arm that does not curate, when the rest of the attempt's
-                budget cannot cover the rows still short.
+            BaselineError: Plain, for an arm that does not curate by classifier, when the rest of
+                the attempt's budget cannot cover the rows still short.
         """
         per_call = self._log.settings.per_call
-        budget = None if self._curation is None else self._budget
+        curating = self._curation is Curation.CLASSIFIER
+        budget = self._budget if curating else None
         waves = 0
         given_up: dict[Cell, int] = {}
         while short := {c: n for c, n in attempt.short().items() if c not in given_up}:
-            if self._curation is not None:
+            if curating:
                 if self._budget * attempt.request.rows != attempt.limit:
                     msg = f"{self.name}'s cell budgets do not sum to its limit {attempt.limit}"
                     raise EvaluationError(msg)

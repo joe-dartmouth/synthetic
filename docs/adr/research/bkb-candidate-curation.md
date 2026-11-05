@@ -111,8 +111,10 @@ level and effort; a record at minus infinity sorts last and stays in its cell's 
 | `g5-1`'s candidates as the input | not the judged run | 2026-10-31 |
 
 ## Enforcement
-- Owner: `src/bko/gaps/likelihood.py`, `src/bko/evaluate/likelihood.py`, `src/bko/evaluate/ranking.py`
-- Pinned by: `tests/test_gaps_likelihood.py`, `tests/test_evaluate_likelihood.py`
+- Owner: `src/bko/gaps/likelihood.py`, `src/bko/evaluate/likelihood.py`, `src/bko/evaluate/ranking.py`,
+  `src/bko/evaluate/attempts.py`
+- Pinned by: `tests/test_gaps_likelihood.py`, `tests/test_evaluate_likelihood.py`,
+  `tests/test_evaluate_ranked.py`
 
 ## Reversal Conditions
 A fused BKB with more than one state per class, or field-level knowledge in the fragments, gives a

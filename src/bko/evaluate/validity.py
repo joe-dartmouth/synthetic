@@ -2,10 +2,11 @@
 
 Each BKO arm writes per holdout and fill the candidates `bko.validate` saw and passed, and those
 it then dropped, as `Source.CANDIDATES` (the gap fill) and `Source.REPLICA_CANDIDATES` (the replica
-fill) scores; a prescribing arm also writes `OPTIONAL`'s counts, summed only for an arm that holds
-them. The rate is `passed` summed over `generated` summed over both fills; each fill is
-reported apart with no verdict. The criterion is met when the rate reaches `Experiment.validity`,
-read as a point with no interval (ADR `research/e1-evaluation-protocol`).
+fill) scores; a prescribing, curating or ranking arm also writes the one of `OPTIONAL`'s counts
+it drops by, summed only for an arm that holds it. The rate is `passed` summed over `generated`
+summed over both fills; each fill is reported apart with no verdict. The criterion is met when
+the rate reaches `Experiment.validity`, read as a point with no interval (ADR
+`research/e1-evaluation-protocol`).
 """
 
 from __future__ import annotations
@@ -31,9 +32,13 @@ COUNTS: Final = (
 )
 """The `candidates` measures, each summed over the holdouts."""
 
-OPTIONAL: Final = (Measure.DROPPED_CONCEPTS, Measure.DROPPED_CURATION)
-"""The `candidates` measures only a prescribing or a curating arm writes, each summed when the arm
-holds it."""
+OPTIONAL: Final = (
+    Measure.DROPPED_CONCEPTS,
+    Measure.DROPPED_CURATION,
+    Measure.DROPPED_LIKELIHOOD,
+)
+"""The `candidates` measures only a prescribing, a curating or a ranking arm writes, each summed
+when the arm holds it."""
 
 
 FILLS: Final = MappingProxyType({Source.CANDIDATES: "gap", Source.REPLICA_CANDIDATES: "replica"})

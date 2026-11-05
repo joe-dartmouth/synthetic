@@ -798,7 +798,7 @@ top-minus-bottom corrected interval over the holdouts at the largest held-out ra
 bottom half and the training rows, and `gate separated=`, true when every measure's interval lies
 above 0. A sliced run's files log a `candidates` line each and one `likelihood pool` line over
 them all. A single file's `run` must be the named run, while a sliced run's files carry their
-slices' runs; a schema-2 file's data digest must match the
+slices' runs; a schema-2 or schema-3 file's data digest must match the
 loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, for a run that
 scores it.
 

@@ -34,8 +34,10 @@ class Drop(enum.StrEnum):
     """Why an added row is dropped, in the order `drops` tests each reason.
 
     `check` refuses a row for every reason but `CONCEPTS`, which holds only for a request that
-    prescribes each row's concepts (`bko.generate.skeleton`), and `CURATION`, which holds only for
-    an arm that curates its rows (`bko.evaluate.curation`).
+    prescribes each row's concepts (`bko.generate.skeleton`), `CURATION`, which holds only for an
+    arm that curates its rows (`bko.evaluate.curation`), and `LIKELIHOOD`, which holds only for an
+    arm that ranks its rows once its rounds end (`bko.evaluate.attempts.Attempt.rows`), so `drops`
+    never names it.
     """
 
     RANGE = "range"
@@ -50,6 +52,9 @@ class Drop(enum.StrEnum):
     the other label."""
     QUOTA = "quota"
     """Its cell already holds every row the request asks of it."""
+    LIKELIHOOD = "likelihood"
+    """The arm's ranking drops it: its call's cell holds as many rows its BKB likelihood ranks
+    higher as the request asks of the cell (ADR `research/bkb-candidate-curation`)."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)

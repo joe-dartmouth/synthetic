@@ -346,16 +346,6 @@ CLLM_BUDGET: Final = 22
 measured: B3's `cllm` on Synthea kept 0.0707 of replica `<65/female/1`'s rows reaching its curator
 (ADR `research/cllm-arm-design`, Budget)."""
 
-MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
-    {
-        **{name: MessagesArm(definition) for name, definition in BKO_ARMS.items()},
-        SKELETON_ARM: MessagesArm(Definition.SUBGROUP, prescribes=True),
-        CLLM_ARM: MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET),
-        CLLM_RAW_ARM: MessagesArm(None, shows=True, budget=CLLM_BUDGET),
-    }
-)
-"""Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""
-
 E1: Final = Experiment(
     holdout_seeds=tuple(range(HOLDOUTS)),
     arms=(*METHOD_ARMS, *BKO_ARMS),
@@ -364,6 +354,24 @@ E1: Final = Experiment(
     replica_arms=(*ADDS_ROWS, *BKO_ARMS),
 )
 """E1's configuration; `docs/EVIDENCE.md` (E1) names it."""
+
+CURATED_ARM: Final = "bko-curated"
+"""`bko` ranked by its BKB likelihood: each attempt asks every cell for twice its quota and keeps
+each call cell's highest-scoring rows (ADR `research/bkb-candidate-curation`, Arm), at twice E1's
+budget, so it asks per record kept what `bko` asks."""
+
+MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
+    {
+        **{name: MessagesArm(definition) for name, definition in BKO_ARMS.items()},
+        SKELETON_ARM: MessagesArm(Definition.SUBGROUP, prescribes=True),
+        CLLM_ARM: MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET),
+        CLLM_RAW_ARM: MessagesArm(None, shows=True, budget=CLLM_BUDGET),
+        CURATED_ARM: MessagesArm(
+            BKO_ARMS["bko"], curation=Curation.LIKELIHOOD, over_ask=2, budget=E1.budget * 2
+        ),
+    }
+)
+"""Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""
 
 
 def flagged(

@@ -86,14 +86,16 @@ prompt (their section 2.2).
   `numpy.random.default_rng(derived_seed(seed, "cllm"))` at the attempt's seed, made once per
   attempt and advanced call by call in planning order, never at send, so every in-flight count
   and a replay show the same records.
-- **The curator.** `bko.evaluate.curation.classifier_discard` fits scikit-learn's
+- **The curator.** `bko.evaluate.curation.classifier_scores` fits scikit-learn's
   `HistGradientBoostingClassifier` (`curator()`: 100 iterations, learning rate 0.3, maximum depth
   6, L2 regularization 1.0, at least 5 rows per leaf, no early stop, `random_state` 0) once per
   attempt on the holdout's training rows, the frame's features against its label, on one OpenMP
   thread. It reads each row at the first `STAGES` (99) stages: its confidence is the mean
   probability of its own label, its aleatoric uncertainty the mean of p(1 - p). A row is dropped
   when its confidence is at most `CONFIDENCE_AT_MOST` (0.2) and its aleatoric uncertainty at most
-  `ALEATORIC_AT_MOST` (0.15) (`discards`). A training split holding one label is refused.
+  `ALEATORIC_AT_MOST` (0.15) (`discards`; `classifier_discard` reads the rule off the scores).
+  A training split holding one label is refused. Each row that passed validation keeps its two
+  scores as its candidates line's `score`, so a threshold sweep reads them without a refit.
 - **Where curation sits.** Each call's rows that pass validation are curated, and a row the curator
   drops gets the drop reason `Drop.CURATION`, after range and cell and before the quota
   (`bko.baselines.records.assess`), so it never takes a quota slot and the arm asks again for
