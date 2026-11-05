@@ -143,7 +143,10 @@ def main(
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr, and quiet the SDK's HTTP client."""
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
     )
     logging.captureWarnings(True)
     for name in QUIET_LOGGERS:

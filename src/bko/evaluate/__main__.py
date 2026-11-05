@@ -84,6 +84,7 @@ from bko.evaluate.experiment import MESSAGES_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
+from bko.evaluate.logs import stamped_handler
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
@@ -371,11 +372,7 @@ def _named(name: str, context: Context) -> Context:
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    logging.basicConfig(handlers=[stamped_handler(sys.stderr)], level=logging.INFO, force=True)
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)

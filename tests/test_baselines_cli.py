@@ -149,14 +149,23 @@ def test_an_unwritable_data_root_exits_two(tmp_path):
 
 
 def test_configure_logging_quiets_sdv():
+    root = logging.getLogger()
+    handlers = root.handlers[:]
+    level = root.level
     loggers = [logging.getLogger(name) for name in ("sdv", "SingleTableSynthesizer")]
     levels = [logger.level for logger in loggers]
+    root.handlers.clear()
     try:
         configure_logging()
         assert [logger.level for logger in loggers] == [logging.WARNING, logging.WARNING]
     finally:
-        for logger, level in zip(loggers, levels, strict=True):
-            logger.setLevel(level)
+        logging.captureWarnings(False)
+        root.handlers[:] = handlers
+        root.setLevel(level)
+        for logger, saved_level in zip(loggers, levels, strict=True):
+            logger.setLevel(saved_level)
+    assert root.handlers == handlers
+    assert root.level == level
 
 
 def test_the_module_entry_point_runs():

@@ -255,6 +255,7 @@ def test_configure_logging_captures_warnings_and_quiets_sdv():
     loggers = [logging.getLogger(name) for name in ("sdv", "SingleTableSynthesizer")]
     bko_loggers = [logging.getLogger(name) for name in (*QUIET_LOGGERS, *HTTP_LOGGERS)]
     saved = {logger: logger.level for logger in (*loggers, *bko_loggers)}
+    root.handlers.clear()
     try:
         configure_logging()
         assert [logger.level for logger in loggers] == [logging.WARNING] * 2
@@ -265,6 +266,8 @@ def test_configure_logging_captures_warnings_and_quiets_sdv():
         root.setLevel(level)
         for logger, saved_level in saved.items():
             logger.setLevel(saved_level)
+    assert root.handlers == handlers
+    assert root.level == level
 
 
 def test_the_module_entry_point_runs():

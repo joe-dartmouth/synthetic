@@ -88,7 +88,10 @@ def main(
 def configure_logging() -> None:
     """Send INFO and higher to stderr, keeping stdout for the CSV, and quiet SDV's loggers."""
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
     )
     for name in QUIET_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)

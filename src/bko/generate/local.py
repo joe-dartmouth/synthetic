@@ -413,7 +413,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--data-dir", type=Path, default=None, help="for fetch and serve-command")
     args = parser.parse_args(argv)
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
     )
     if args.command == "probe":
         return _probe(args.model)

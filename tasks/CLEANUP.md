@@ -77,18 +77,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
-  `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time
-  with no offset, so a `scores.log` stamp names no zone; `launch.log`'s stamps end in `Z`. The
-  ambiguity bites across a clock change: `runs/g6-1-selfcheck/scores.log` begins
-  `2026-11-01 13:37:13`, in EST, after commit `2a2a405` at `2026-11-01 13:36:55 -0500`, while the
-  G6 runs' stamps of 2026-10-29 and 2026-10-30 are EDT. *Filed 2026-11-01 by G6's landing.*
-  **Why deferred.** G6's landing is docs only, and the stamp format is shared by every stage's
-  entry point.
-  **What discharges it:** every `configure_logging` stamps ISO 8601 with its UTC offset (or UTC
-  with `Z`), with a test, documented in `docs/DEVELOPMENT.md`.
-  **Trigger:** the next change to a `configure_logging`.
-
 - **`cleanup:evaluate/ranking-log-lines`: a ranked attempt logs no per-cell counts.** A ranking
   attempt (`bko.evaluate.attempts`, `bko.evaluate.guided`) ranks each call cell's rows once its
   rounds end, and logs neither how many rows each cell ranked, how many scores tied at the cut,
@@ -164,6 +152,20 @@ links to where its blocker is tracked.
   **What discharges it:** `params` carries `over_ask` for a ranking arm, with a test.
   **Trigger:** the next change to `GuidedArm`.
 
+- **`cleanup:evaluate/stamp-every-stage`: seven entry points log no time and repeat one
+  `basicConfig` block.** The `baselines`, `datasets`, `fusion`, `gaps`, `generate` and `ontology`
+  `__main__` modules and `bko.generate.local` each format a line as `%(levelname)s %(name)s:
+  %(message)s`, while `bko.evaluate.logs.stamped_handler` writes the local time and UTC offset for
+  `evaluate` and the app. Evidence: `grep -rn "basicConfig(" src/bko` lists the seven unstamped
+  blocks beside the two stamped ones. *Filed 2026-11-05 by the review of PR #79.*
+  **Why deferred.** PR #79 stamps the two entry points whose logs a run folder keeps; the stages
+  import nothing from `bko.evaluate`, which sits above them.
+  **Blocked on** a home module below `bko.evaluate` that every stage may import, as the package
+  layout in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) allows.
+  **What discharges it:** one shared stamped setup in that module, used by every entry point,
+  with `Stamp` moved to it and the seven blocks deleted.
+  **Trigger:** the next change that adds an entry point or edits one's `configure_logging`.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
@@ -176,18 +178,6 @@ links to where its blocker is tracked.
   **What discharges it:** the replacement runner is made in a `finally` around `_settle`, pinned by
   a test whose `fail` raises.
   **Trigger:** the next change to `Flight._run` or `Flight._settle`.
-
-- **`cleanup:generate/anthropic-log-root-handler`: `ANTHROPIC_LOG` silences the bko INFO lines.**
-  With `ANTHROPIC_LOG` set, importing the SDK runs its own `logging.basicConfig`, which installs a
-  root handler first, so each command's `configure_logging` `basicConfig` does nothing and the
-  root logger stays at WARNING: every `spend`, `guided` and `validity` line is lost. Evidence: the
-  SDK's `anthropic/_utils/_logs.py` `_basic_config`. *Filed 2026-10-30 by the pre-run diff review
-  of PR6.*
-  **Why deferred.** It predates PR6, and no documented command sets `ANTHROPIC_LOG`
-  (`docs/DEVELOPMENT.md` says never to set it to `debug`).
-  **What discharges it:** each `configure_logging` passes `force=True`, pinned by a test that
-  imports the SDK with `ANTHROPIC_LOG` set.
-  **Trigger:** the next change to a `configure_logging`, or a run that sets `ANTHROPIC_LOG`.
 
 - **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking
   id's reasoning mode.** `bko.generate.local.check_server` compares the `/props` alias and weights

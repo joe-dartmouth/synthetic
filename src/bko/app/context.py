@@ -23,6 +23,7 @@ from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
+from bko.evaluate.logs import Stamp, stamped_handler
 from bko.evaluate.run import ARMS
 from bko.generate.api import HTTP_LOGGERS, default_async_send
 from bko.generate.messages import AnySend
@@ -35,12 +36,18 @@ SPEND_CEILING: Final = 0.25
 
 
 def configure_logging() -> None:
-    """Send INFO and higher, and every warning, to stderr; a second call changes nothing."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    """Send INFO and higher, and every warning, to stderr, replacing any root handler but ours.
+
+    Streamlit reruns the script on every interaction, so a root that already holds a stamped
+    handler on stderr is left alone; any other root handler, such as an SDK's, is replaced.
+    """
+    if not any(
+        isinstance(h, logging.StreamHandler)
+        and h.stream is sys.stderr
+        and isinstance(h.formatter, Stamp)
+        for h in logging.getLogger().handlers
+    ):
+        logging.basicConfig(handlers=[stamped_handler(sys.stderr)], level=logging.INFO, force=True)
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
