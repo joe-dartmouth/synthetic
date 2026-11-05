@@ -89,7 +89,7 @@ from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
-from bko.evaluate.rows import store
+from bko.evaluate.rows import creatable, store
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.shared import rescore
@@ -333,7 +333,11 @@ def _shared(args: argparse.Namespace, context: Context) -> str:
 
 
 def _rows(args: argparse.Namespace, context: Context) -> str:
-    """Rescore the folder's run and store every checked holdout's fills at `--rows`."""
+    """Rescore the folder's run and store every checked holdout's fills at `--rows`.
+
+    A `--rows` path that exists, or whose directory does not, is refused before any file is read.
+    """
+    creatable(args.rows)
     named = _named(args.run, context)
     folder = read_folder(args.folder)
     data = load(named.dataset, data_dir(args), named)

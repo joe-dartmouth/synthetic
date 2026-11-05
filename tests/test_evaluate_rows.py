@@ -7,12 +7,14 @@ import io
 import json
 import logging
 import math
+import os
 import re
 import shutil
+import stat
 from collections.abc import Mapping
 from hashlib import sha256
 from pathlib import Path
-from typing import TypedDict, Unpack
+from typing import IO, TypedDict, Unpack
 
 import numpy as np
 import pandas as pd
@@ -142,6 +144,8 @@ def test_rows_stores_every_fill_whose_sha256_is_its_arm_lines(tmp_path, caplog, 
     assert {"replicas": "bko-replica", "baseline": "smote-replica", "real": REAL_ARM}[kind] in names
     assert f"rows holdout=1 stored={len(arms) // 2} differing=0" in caplog.messages
     assert re.search(r"rows folder=\S+ run=e1 holdouts=2 started_utc=\S+ pid=\d+", caplog.text)
+    whole = sha256((tmp_path / "rows.jsonl").read_bytes()).hexdigest()
+    assert caplog.messages[-1] == f"rows done holdouts=2 stored={len(arms)} sha256={whole}"
 
 
 def records(frame: FrameSpec, count: int) -> pd.DataFrame:
@@ -214,7 +218,7 @@ def test_the_writer_refuses_a_non_finite_value(tmp_path, value):
     ("prefix", "old", "new", "kept"),
     [
         ("arm holdout=1 arm=bko ", "sha256=", "sha256=0", {0}),
-        ("arm holdout=0 arm=bko ", "sha256=", "sha256=0", set()),
+        ("arm holdout=0 arm=bko ", "sha256=", "sha256=0", None),
         ("split seed=1 ", "fingerprint=", "fingerprint=0", {0}),
     ],
     ids=["holdout-1", "holdout-0", "split"],
@@ -224,8 +228,15 @@ def test_a_tampered_holdout_exits_3_and_stores_nothing_for_it(
 ):
     folder = run_folder(tmp_path, "run", caplog)
     edit_log(folder, prefix, lambda line: line.replace(old, new, 1))
+    caplog.clear()
     assert stored(tmp_path, folder) == (3, "")
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    if kept is None:
+        assert not (tmp_path / "rows.jsonl").exists()
+        assert not any(w.startswith("rows partial") for w in warnings)
+        return
     assert holdouts(tmp_path) == kept
+    assert f"rows partial path={tmp_path / 'rows.jsonl'} holdouts={len(kept)}" in warnings
 
 
 def test_a_store_a_tampered_holdout_stopped_fails_bind(tmp_path, caplog):
@@ -556,7 +567,7 @@ def test_read_rows_refuses_a_store_with_no_schema_1_header(tmp_path, text):
 def test_read_rows_refuses_a_line_nested_past_the_recursion_limit(tmp_path):
     path = tmp_path / "rows.jsonl"
     path.write_text('{"kind":"header","schema":1}\n' + "[" * 1_000_000 + "\n", encoding="utf-8")
-    with pytest.raises(IdentityError, match="line 2 .* JSON object"):
+    with pytest.raises(IdentityError, match=r"line 2 .* JSON object"):
         read_rows(path)
 
 
@@ -619,3 +630,143 @@ def test_bind_refuses_a_fill_line_the_folder_lacks(tmp_path, caplog):
         handle.write(json.dumps({**last, "holdout": 9}) + "\n")
     with pytest.raises(IdentityError, match=r"missing \[\], extra \[\(9, "):
         bind(read_rows(path), read_folder(folder), UCI_FRAME, run="e1", data=data_of(folder))
+
+
+def test_a_folder_refused_before_any_holdout_leaves_no_store(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    argv = ["rows", "--folder", str(folder), "--rows", str(tmp_path / "rows.jsonl")]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    caplog.clear()
+    assert main(argv, context=dataclasses.replace(rescorer(), arms={}), out=io.StringIO()) == 2
+    assert "no runner for arms ['none']" in caplog.text
+    assert not (tmp_path / "rows.jsonl").exists()
+
+
+@pytest.mark.parametrize("where", ["existing", "missing-dir"])
+def test_a_store_that_cannot_be_created_exits_2_before_the_data_loads(
+    tmp_path, caplog, monkeypatch, where
+):
+    folder = run_folder(tmp_path, "run", caplog)
+    path = tmp_path / "rows.jsonl" if where == "existing" else tmp_path / "missing" / "rows.jsonl"
+    if where == "existing":
+        path.write_text("kept\n", encoding="utf-8")
+    loads: list[object] = []
+    monkeypatch.setattr("bko.evaluate.__main__.load", lambda *args: loads.append(args))
+    argv = ["rows", "--folder", str(folder), "--rows", str(path)]
+    assert main(argv, context=rescorer(), out=io.StringIO()) == 2
+    assert loads == []
+    assert not (tmp_path / "missing").exists()
+
+
+def test_the_writer_refuses_rows_another_than_the_arm_lines(tmp_path):
+    fill = filled(records(UCI_FRAME, 3))
+    more = dataclasses.replace(fill, baseline=filled(records(UCI_FRAME, 4)).baseline)
+    moved = records(UCI_FRAME, 3)
+    moved["oldpeak"] = moved["oldpeak"].add(0.5)
+    other = dataclasses.replace(fill, baseline=filled(moved).baseline)
+    with RowsFile(tmp_path / "rows.jsonl", HEADER) as store:
+        for wrong, match in ((more, r"\(4, "), (other, r"\(3, ")):
+            with pytest.raises(IdentityError, match=f"rows {match}.* are not its arm line"):
+                store.write(0, [wrong], arms=logged(fill))
+        with pytest.raises(IdentityError, match="are not its arm line"):
+            store.write(1, [fill], arms={(1, "ctgan"): fill.line})
+    assert not (tmp_path / "rows.jsonl").exists()
+
+
+@pytest.mark.parametrize(
+    ("dtype", "value"),
+    [("Int64", pd.NA), ("Float64", pd.NA), ("Float64", math.inf), ("Float64", math.nan)],
+    ids=["int64-na", "float64-na", "float64-inf", "float64-nan"],
+)
+def test_the_writer_refuses_a_missing_value_in_a_nullable_column(tmp_path, dtype, value):
+    added = records(UCI_FRAME, 3).astype({"chol": dtype})
+    added.loc[-2, "chol"] = value
+    fill = filled(added)
+    with (
+        RowsFile(tmp_path / "rows.jsonl", HEADER) as store,
+        pytest.raises(IdentityError, match="non-finite"),
+    ):
+        store.write(0, [fill], arms=logged(fill))
+
+
+class Counted:
+    """A store's file that counts its writes and says whether it was closed."""
+
+    def __init__(self, file: IO[str]) -> None:
+        """Wrap `file`."""
+        self.file, self.writes = file, 0
+
+    def write(self, text: str) -> int:
+        """Count, then write `text`."""
+        self.writes += 1
+        return self.file.write(text)
+
+    def __getattr__(self, name: str) -> object:
+        """`file`'s attribute."""
+        return getattr(self.file, name)
+
+
+def counting(monkeypatch: pytest.MonkeyPatch) -> list[Counted]:
+    """Wrap each file `os.fdopen` opens in a `Counted`; return them as they open."""
+    opened: list[Counted] = []
+    real = os.fdopen
+
+    def fdopen(descriptor: int, mode: str, *, encoding: str, newline: str) -> Counted:
+        opened.append(Counted(real(descriptor, mode, encoding=encoding, newline=newline)))
+        return opened[-1]
+
+    monkeypatch.setattr(os, "fdopen", fdopen)
+    return opened
+
+
+def test_the_writer_writes_and_syncs_each_holdout_once(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    opened, real_fsync = counting(monkeypatch), os.fsync
+    synced: list[tuple[str, int]] = []
+
+    def fsync(descriptor: int) -> None:
+        kind = "dir" if stat.S_ISDIR(os.fstat(descriptor).st_mode) else "file"
+        synced.append((kind, len(caplog.records)))
+        real_fsync(descriptor)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    first = [filled(records(UCI_FRAME, 2)), filled(records(UCI_FRAME, 3), name="smote")]
+    second = filled(records(UCI_FRAME, 2), holdout=1)
+    with RowsFile(tmp_path / "rows.jsonl", HEADER) as store:
+        assert synced == []
+        store.write(0, first, arms=logged(*first))
+        assert [kind for kind, _ in synced] == ["file", "dir", "file"]
+        assert opened[0].writes == 2
+        with pytest.raises(IdentityError):
+            store.write(1, [second], arms={})
+        assert len(synced) == 3
+        store.write(1, [second], arms=logged(second))
+        assert [kind for kind, _ in synced] == ["file", "dir", "file", "file"]
+        assert opened[0].writes == 3
+    matches = [
+        i for i, r in enumerate(caplog.records) if r.getMessage().endswith("matches_arm=true")
+    ]
+    assert len(matches) == 3
+    assert synced[2][1] <= matches[0]
+    assert synced[3][1] <= matches[2]
+
+
+def test_a_store_whose_sync_fails_is_closed_and_counts_nothing(tmp_path, monkeypatch):
+    opened = counting(monkeypatch)
+
+    def fsync(descriptor: int) -> None:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    fill = filled(records(UCI_FRAME, 2))
+    store = RowsFile(tmp_path / "rows.jsonl", HEADER)
+    with pytest.raises(OSError, match="disk gone"):
+        store.write(0, [fill], arms=logged(fill))
+    assert opened[0].closed
+    monkeypatch.undo()
+    with RowsFile(tmp_path / "again.jsonl", HEADER) as again:
+        again.open()
+        monkeypatch.setattr(os, "fsync", fsync)
+        with pytest.raises(OSError, match="disk gone"):
+            again.write(0, [fill], arms=logged(fill))
+        assert (again.stored, again.holdouts) == (0, 0)

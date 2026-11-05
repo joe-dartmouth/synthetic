@@ -28,7 +28,7 @@ import numpy as np
 
 from bko.baselines.methods import Runner
 from bko.evaluate.classifier import Factory, Model
-from bko.evaluate.data import Data
+from bko.evaluate.data import Data, digested
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.filling import Filled, Logged
@@ -55,23 +55,46 @@ type ScoreKey = tuple[int, str, str, str, str]
 """A score's holdout, arm, source, measure and scope, as the scores CSV writes them."""
 
 
+def creatable(path: Path) -> None:
+    """Refuse a store path that exists or whose directory does not, before any work.
+
+    Raises:
+        FileExistsError: If `path` exists.
+        FileNotFoundError: If its directory does not exist.
+    """
+    if path.exists():
+        msg = f"the store {path} exists"
+        raise FileExistsError(msg)
+    if not path.parent.is_dir():
+        msg = f"the store's directory {path.parent} does not exist"
+        raise FileNotFoundError(msg)
+
+
 class RowsFile:
-    """A store being written: created with mode 0600 and `O_EXCL`, its header first."""
+    """A store being written, created on the first holdout it stores, mode 0600 and `O_EXCL`.
+
+    Creating it lazily keeps a folder refused before any holdout passes from leaving a store.
+    """
 
     def __init__(self, path: Path, header: Mapping[str, object]) -> None:
-        """Create the store at `path` and write `header`.
+        """Hold `header` for the store at `path`, which `creatable` checks now.
 
         Raises:
-            FileExistsError: If `path` exists.
+            FileExistsError, FileNotFoundError: As `creatable`.
         """
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        creatable(path)
+        self.path, self._header = path, header
+        self._file: TextIO | None = None
         self._written: set[tuple[int, str]] = set()
-        self._put(header)
-        self._sync()
+        self.holdouts = 0
+
+    @property
+    def stored(self) -> int:
+        """The fill lines stored."""
+        return len(self._written)
 
     def __enter__(self) -> Self:
-        """The open store."""
+        """The store."""
         return self
 
     def __exit__(
@@ -80,15 +103,45 @@ class RowsFile:
         error: BaseException | None,
         trace: TracebackType | None,
     ) -> None:
-        """Close the store."""
+        """Close the store; on an error, log the `rows partial` WARNING if it was created."""
+        if self._file is None:
+            return
         self._file.close()
+        if error is not None:
+            logger.warning("rows partial path=%s holdouts=%d", self.path, self.holdouts)
+
+    def open(self) -> TextIO:
+        """The store's file, created with its header, synced with its directory, on first use.
+
+        Raises:
+            FileExistsError: If the store's path exists by now.
+            OSError: If it cannot be created or written; the file is closed first.
+        """
+        if self._file is not None:
+            return self._file
+        descriptor = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        try:
+            file = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        except BaseException:
+            os.close(descriptor)
+            raise
+        try:
+            file.write(_json(self._header))
+            _sync(file)
+            _sync_directory(self.path.parent)
+        except BaseException:
+            file.close()
+            raise
+        self._file = file
+        return file
 
     def write(
         self, holdout: int, fills: Sequence[Filled], *, arms: Mapping[tuple[int, str], str]
     ) -> int:
-        """Append every fill of `holdout`, then flush and sync; return how many.
+        """Append every fill of `holdout` in one write, then flush and sync; return how many.
 
-        Every line is built before any is written, so a refused fill stores none of the holdout.
+        Every line is built and checked before any is written, and a fill counts as stored only
+        once the sync returns. Each fill's `rows ... matches_arm=true` line is logged after it.
 
         Args:
             holdout: The holdout's seed.
@@ -99,6 +152,7 @@ class RowsFile:
             IdentityError: If a fill holds a non-finite value, its rows' sha256 or count is not its
                 `arm` line's, its `arm` line is not the folder's, or its holdout and arm are
                 already stored.
+            OSError: As `open`, or if the write or sync fails.
         """
         lines = [_line(holdout, fill) for fill in fills]
         keys = [(holdout, fill.name) for fill in fills]
@@ -110,9 +164,12 @@ class RowsFile:
         if len(set(keys)) != len(keys) or self._written & set(keys):
             msg = f"holdout {holdout} names a fill twice, or one already stored: {keys}"
             raise IdentityError(msg)
+        file = self.open()
+        file.write("".join(_json(line) for line in lines))
+        _sync(file)
         self._written |= set(keys)
+        self.holdouts += 1
         for line in lines:
-            self._put(line)
             logger.info(
                 "rows holdout=%d arm=%s added=%d sha256=%s matches_arm=true",
                 holdout,
@@ -120,27 +177,37 @@ class RowsFile:
                 line["added"],
                 line["sha256"],
             )
-        self._sync()
         return len(lines)
 
-    def _put(self, line: Mapping[str, object]) -> None:
-        self._file.write(json.dumps(line, sort_keys=True, separators=(",", ":")) + "\n")
 
-    def _sync(self) -> None:
-        """Flush the store and sync it to disk, so a power loss keeps each written holdout."""
-        self._file.flush()
-        os.fsync(self._file.fileno())
+def _json(line: Mapping[str, object]) -> str:
+    """`line` as one store line: sorted keys, no spaces, no NaN."""
+    return json.dumps(line, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+
+
+def _sync(file: TextIO) -> None:
+    """Flush `file` and sync it to disk, so a power loss keeps each written holdout."""
+    file.flush()
+    os.fsync(file.fileno())
+
+
+def _sync_directory(directory: Path) -> None:
+    """Sync `directory`, so a power loss keeps the store's new entry in it."""
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def _line(holdout: int, fill: Filled) -> dict[str, object]:
     """`fill`'s store line, checked against its `arm` line."""
     added = fill.baseline.added
-    numbers = added.select_dtypes("number").to_numpy(dtype=float)
+    numbers = added.select_dtypes("number").to_numpy(dtype=float, na_value=np.nan)
     if not np.isfinite(numbers).all():
         msg = f"holdout {holdout}'s {fill.name} rows hold a non-finite value"
         raise IdentityError(msg)
-    csv = added.to_csv(lineterminator="\n")
-    sha = hashlib.sha256(csv.encode()).hexdigest()
+    csv, sha = digested(added)
     logged = fields(fill.line)
     if (str(holdout), fill.name, str(len(added)), sha) != logged.group(
         "holdout", "arm", "added", "sha256"
@@ -258,7 +325,7 @@ def store(
     """Rescore `folder`, store every checked holdout's fills at `path`; return the scores CSV.
 
     Raises:
-        FileExistsError: If `path` exists.
+        FileExistsError, FileNotFoundError: As `creatable`.
         IdentityError: As `folder_scores`, `rescore`, `compare_holdout` and `RowsFile.write`.
         EvaluationError, BaselineError: As `rescore`.
     """
@@ -293,7 +360,7 @@ def store(
             count = rows.write(holdout, logged.fills, arms=folder.arms)
             logger.info("rows holdout=%d stored=%d differing=%d", holdout, count, differing)
 
-        return rescore(
+        text = rescore(
             folder,
             [],
             run=run,
@@ -304,6 +371,10 @@ def store(
             uci=uci,
             after=after,
         )
+        rows.open()
+    whole = hashlib.sha256(path.read_bytes()).hexdigest()
+    logger.info("rows done holdouts=%d stored=%d sha256=%s", rows.holdouts, rows.stored, whole)
+    return text
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
