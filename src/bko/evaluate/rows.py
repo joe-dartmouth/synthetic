@@ -7,8 +7,8 @@ append every fill of that holdout to the store, so a holdout that fails a check 
 nothing. ADR `research/rebuilt-rows-store` holds the store's format and what a reader checks;
 ADR `research/shared-test-split-reading` holds the strict check 7 and its 50,000-row exception.
 
-`read_rows` reads a store back, `bind` ties it to its folder, and `frame_of` turns one fill line
-into the frame its `arm` line hashes.
+`read_rows` reads a store back, `bind` ties it to its folder, frame and every `arm` line, and
+`frame_of` turns one fill line into the frame its `arm` line hashes.
 """
 
 from __future__ import annotations
@@ -102,8 +102,9 @@ class RowsFile:
         """
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         self._file: TextIO = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        self._written: set[tuple[int, str]] = set()
         self._put(header)
-        self._file.flush()
+        self._sync()
 
     def __enter__(self) -> Self:
         """The open store."""
@@ -118,16 +119,34 @@ class RowsFile:
         """Close the store."""
         self._file.close()
 
-    def write(self, holdout: int, fills: Sequence[Filled]) -> int:
-        """Append every fill of `holdout`, then flush; return how many.
+    def write(
+        self, holdout: int, fills: Sequence[Filled], *, arms: Mapping[tuple[int, str], str]
+    ) -> int:
+        """Append every fill of `holdout`, then flush and sync; return how many.
 
         Every line is built before any is written, so a refused fill stores none of the holdout.
 
+        Args:
+            holdout: The holdout's seed.
+            fills: Its fills.
+            arms: The folder's `arm` lines by holdout and arm; each fill's line must be its own.
+
         Raises:
-            IdentityError: If a fill holds a non-finite value, or its rows' sha256 or count is
-                not its `arm` line's.
+            IdentityError: If a fill holds a non-finite value, its rows' sha256 or count is not its
+                `arm` line's, its `arm` line is not the folder's, or its holdout and arm are
+                already stored.
         """
         lines = [_line(holdout, fill) for fill in fills]
+        keys = [(holdout, fill.name) for fill in fills]
+        for key, fill in zip(keys, fills, strict=True):
+            if arms.get(key) != fill.line:
+                msg = f"holdout {holdout}'s {fill.name} line {fill.line!r} is not the folder's"
+                msg += f" arm line {arms.get(key)!r}"
+                raise IdentityError(msg)
+        if len(set(keys)) != len(keys) or self._written & set(keys):
+            msg = f"holdout {holdout} names a fill twice, or one already stored: {keys}"
+            raise IdentityError(msg)
+        self._written |= set(keys)
         for line in lines:
             self._put(line)
             logger.info(
@@ -137,11 +156,16 @@ class RowsFile:
                 line["added"],
                 line["sha256"],
             )
-        self._file.flush()
+        self._sync()
         return len(lines)
 
     def _put(self, line: Mapping[str, object]) -> None:
         self._file.write(json.dumps(line, sort_keys=True, separators=(",", ":")) + "\n")
+
+    def _sync(self) -> None:
+        """Flush the store and sync it to disk, so a power loss keeps each written holdout."""
+        self._file.flush()
+        os.fsync(self._file.fileno())
 
 
 def _line(holdout: int, fill: Filled) -> dict[str, object]:
@@ -176,11 +200,20 @@ def read_rows(path: Path) -> Rows:
 
     Raises:
         OSError: If it cannot be read.
-        IdentityError: If its first line is not a schema-1 header, a later line is not a fill
-            line, or two lines name one holdout and arm.
+        IdentityError: If a line is not a JSON object, its first line is not a schema-1 header, a
+            later line is not a fill line, or two lines name one holdout and arm.
     """
     text = path.read_text(encoding="utf-8")
-    raw = [json.loads(line) for line in text.splitlines()]
+    raw: list[dict[str, object]] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        try:
+            found = json.loads(line)
+        except ValueError:
+            found = None
+        if not isinstance(found, dict):
+            msg = f"line {number} of {path} is not a JSON object"
+            raise IdentityError(msg)
+        raw.append(found)
     if not raw or raw[0].get("kind") != "header" or raw[0].get("schema") != SCHEMA:
         msg = f"{path} does not open with a schema-{SCHEMA} header line"
         raise IdentityError(msg)
@@ -188,10 +221,10 @@ def read_rows(path: Path) -> Rows:
     for found in raw[1:]:
         try:
             line = RowsLine(
-                int(found["holdout"]),
+                int(str(found["holdout"])),
                 str(found["arm"]),
-                int(found["attempt"]),
-                int(found["added"]),
+                int(str(found["attempt"])),
+                int(str(found["added"])),
                 str(found["sha256"]),
                 str(found["csv"]),
             )
@@ -206,18 +239,33 @@ def read_rows(path: Path) -> Rows:
     return Rows(raw[0], lines)
 
 
-def bind(rows: Rows, folder: Folder) -> None:
-    """Refuse a store written from another folder than `folder`.
+def bind(rows: Rows, folder: Folder, frame: FrameSpec) -> None:
+    """Refuse a store written from another folder or frame, or one missing a fill.
+
+    A store whose run stopped early holds a valid header and only the holdouts checked before the
+    stop, so `bind` requires one fill line for each of the folder's `arm` lines.
 
     Raises:
-        IdentityError: If the header's folder name or `log_sha256` is not `folder`'s.
+        IdentityError: If the header's frame is not `frame`'s, its folder name or `log_sha256` is
+            not `folder`'s, or its fill lines are not one for every `arm` line of `folder`.
     """
+    if rows.header.get("frame") != frame.name:
+        msg = f"the store names the frame {rows.header.get('frame')!r}, not {frame.name!r}"
+        raise IdentityError(msg)
     named, logged = rows.header.get("folder"), rows.header.get("log_sha256")
     if named != folder.path.name:
         msg = f"the store names the folder {named!r}, not {folder.path.name!r}"
         raise IdentityError(msg)
     if logged != folder.log_sha256:
         msg = f"the store's log_sha256 {logged} is not {folder.path}'s {folder.log_sha256}"
+        raise IdentityError(msg)
+    if set(rows.lines) != set(folder.arms):
+        missing, extra = (
+            sorted(set(folder.arms) - set(rows.lines)),
+            sorted(set(rows.lines) - set(folder.arms)),
+        )
+        msg = f"the store's fill lines are not one for every arm line of {folder.path}:"
+        msg += f" missing {missing}, extra {extra}"
         raise IdentityError(msg)
 
 
@@ -226,7 +274,8 @@ def frame_of(line: RowsLine, *, arm_line: str, frame: FrameSpec) -> pd.DataFrame
 
     Raises:
         IdentityError: If `line`'s holdout, arm, attempt, rows or sha256 is not `arm_line`'s, its
-            CSV does not hash to its sha256, or the frame read back does not.
+            CSV does not hash to its sha256 or read at `frame`'s dtypes, its columns are not
+            `frame`'s, or the frame read back does not hash to its sha256.
     """
     logged = fields(arm_line).group("holdout", "arm", "attempt", "added", "sha256")
     ours = (str(line.holdout), line.arm, str(line.attempt), str(line.added), line.sha256)
@@ -237,17 +286,38 @@ def frame_of(line: RowsLine, *, arm_line: str, frame: FrameSpec) -> pd.DataFrame
         msg = f"holdout {line.holdout}'s {line.arm} csv does not hash to its sha256 {line.sha256}"
         raise IdentityError(msg)
     dtypes: dict[Hashable, str] = {**frame.dtypes}
-    read = pd.read_csv(
-        io.StringIO(line.csv),
-        index_col="record_id",
-        dtype=dtypes,
-        float_precision="round_trip",
-    )
+    try:
+        read = pd.read_csv(
+            io.StringIO(line.csv),
+            index_col="record_id",
+            dtype=dtypes,
+            float_precision="round_trip",
+        )
+    except ValueError as exc:
+        msg = f"holdout {line.holdout}'s {line.arm} csv does not read as {frame.name}: {exc}"
+        raise IdentityError(msg) from exc
+    if list(read.columns) != list(frame.columns):
+        msg = f"holdout {line.holdout}'s {line.arm} columns {list(read.columns)} are not"
+        msg += f" {frame.name}'s"
+        raise IdentityError(msg)
     if len(read) != line.added or digest(read) != line.sha256:
         msg = f"holdout {line.holdout}'s {line.arm} rows read back to another sha256"
         msg += f" than {line.sha256}"
         raise IdentityError(msg)
     return read
+
+
+def subsampled(split: str | None) -> bool:
+    """Whether the holdout whose `split` line this is trains on more than `SUBSAMPLED_ABOVE` rows.
+
+    Raises:
+        IdentityError: If there is no split line, or it names no training rows.
+    """
+    found = None if split is None else _TRAIN.search(split)
+    if found is None:
+        msg = f"the split line {split!r} names no training rows"
+        raise IdentityError(msg)
+    return int(found["train"]) > SUBSAMPLED_ABOVE
 
 
 def held_out(key: ScoreKey) -> bool:
@@ -299,6 +369,9 @@ def _rendered(scores: Sequence[Score], holdout: int) -> dict[ScoreKey, str]:
     chosen = [s for s in scores if s.holdout == holdout]
     values = [line.rsplit(",", 1)[1] for line in render(chosen).splitlines()[1:]]
     keys = [(s.holdout, s.arm, s.source.value, s.measure.value, s.scope.value) for s in chosen]
+    if len(set(keys)) != len(keys):
+        msg = f"holdout {holdout}'s scores hold a key twice"
+        raise IdentityError(msg)
     return dict(zip(keys, values, strict=True))
 
 
@@ -358,15 +431,14 @@ def store(
         )
 
         def after(holdout: int, logged: Logged, scored: Sequence[Score]) -> None:
-            found = None if logged.split is None else _TRAIN.search(logged.split)
-            if found is None:
-                msg = f"holdout {holdout}'s split line {logged.split!r} names no training rows"
-                raise IdentityError(msg)
-            subsampled = int(found["train"]) > SUBSAMPLED_ABOVE
             differing = compare_holdout(
-                scored, theirs, holdout=holdout, admitted=held_out, subsampled=subsampled
+                scored,
+                theirs,
+                holdout=holdout,
+                admitted=held_out,
+                subsampled=subsampled(logged.split),
             )
-            count = rows.write(holdout, logged.fills)
+            count = rows.write(holdout, logged.fills, arms=folder.arms)
             logger.info("rows holdout=%d stored=%d differing=%d", holdout, count, differing)
 
         return rescore(

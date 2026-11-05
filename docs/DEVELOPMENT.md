@@ -279,8 +279,10 @@ output folder is `runs/<run-id>-rows`, `<run-id>` and `<run>` the folder and nam
 It runs `shared`'s identity checks (`rescore`) and, on each holdout, the strict check 7 (ADR
 [`research/shared-test-split-reading`](adr/research/shared-test-split-reading.md)); a holdout that
 fails a check exits 3 before its rows are written, and the store keeps the holdouts checked before
-it. Exit codes are `shared`'s; an existing `--rows` file exits 2 too. The panel's shortfall
-WARNING lines are not reproduced, because a stored fill does not run the generator again.
+it, which a reader refuses as incomplete (ADR
+[`research/rebuilt-rows-store`](adr/research/rebuilt-rows-store.md)). Exit codes are `shared`'s;
+an existing `--rows` file exits 2 too. The panel's shortfall WARNING lines are not reproduced,
+because a stored fill does not run the generator again.
 
 `rows.jsonl` holds a header line, then one line per fill of every arm that has a runner, gap and
 replica; its format is in the ADR above. By hand, the fill of holdout 0's `ctgan` arm hashes to its

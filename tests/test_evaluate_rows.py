@@ -113,6 +113,20 @@ def edit_scores(folder: Path, prefix: str, value: str) -> None:
     edit_log(folder, "scores rows=", lambda line: re.sub(r"sha256=\w+", f"sha256={new}", line))
 
 
+def drop_score(folder: Path, prefix: str) -> None:
+    """Delete the first scores row starting `prefix`, and log the new file's rows and sha256."""
+    path = folder / "scores.csv"
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    index = next(i for i, line in enumerate(lines) if line.startswith(prefix))
+    text = "".join(lines[:index] + lines[index + 1 :])
+    path.write_text(text, encoding="utf-8")
+    new, rows = sha256(text.encode()).hexdigest(), text.count("\n") - 1
+    resealed = f"scores rows={rows} sha256={new}"
+    edit_log(
+        folder, "scores rows=", lambda line: re.sub(r"scores rows=\d+ sha256=\w+", resealed, line)
+    )
+
+
 @pytest.mark.parametrize("kind", list(KINDS))
 def test_rows_stores_every_fill_whose_sha256_is_its_arm_lines(tmp_path, caplog, kind):
     folder = run_folder(tmp_path, "run", caplog, **KINDS[kind])
@@ -161,6 +175,11 @@ def filled(added: pd.DataFrame, *, holdout: int = 0, name: str = "ctgan") -> Fil
     return Filled(name, "gap", 1, baseline, line)
 
 
+def logged(*fills: Filled) -> dict[tuple[int, str], str]:
+    """The folder's `arm` lines that hold exactly `fills`."""
+    return {(int(fields(fill.line)["holdout"]), fill.name): fill.line for fill in fills}
+
+
 HEADER = {"kind": "header", "schema": 1, "run": "e1", "folder": "run", "log_sha256": "0" * 64}
 
 
@@ -176,7 +195,7 @@ def test_a_stored_fill_reads_back_to_its_digest(tmp_path, frame):
     fill = filled(added)
     path = tmp_path / "rows.jsonl"
     with RowsFile(path, HEADER) as store:
-        assert store.write(0, [fill]) == 1
+        assert store.write(0, [fill], arms=logged(fill)) == 1
     line = read_rows(path).lines[0, "ctgan"]
     back = frame_of(line, arm_line=fill.line, frame=frame)
     pd.testing.assert_frame_equal(back, added)
@@ -189,9 +208,11 @@ def test_the_writer_refuses_a_non_finite_value(tmp_path, value):
     added.loc[-2, "oldpeak"] = value
     path = tmp_path / "rows.jsonl"
     with RowsFile(path, HEADER) as store:
-        store.write(0, [filled(records(UCI_FRAME, 2), name="smote")])
+        first = filled(records(UCI_FRAME, 2), name="smote")
+        store.write(0, [first], arms=logged(first))
+        fills = [filled(records(UCI_FRAME, 2), holdout=1), filled(added, holdout=1, name="smote")]
         with pytest.raises(IdentityError, match="non-finite"):
-            store.write(1, [filled(records(UCI_FRAME, 2), holdout=1), filled(added, holdout=1)])
+            store.write(1, fills, arms=logged(*fills))
     assert set(read_rows(path).lines) == {(0, "smote")}
 
 
@@ -210,6 +231,28 @@ def test_a_tampered_holdout_exits_3_and_stores_nothing_for_it(
     folder = run_folder(tmp_path, "run", caplog)
     edit_log(folder, prefix, lambda line: line.replace(old, new, 1))
     assert stored(tmp_path, folder) == (3, "")
+    assert holdouts(tmp_path) == kept
+
+
+def test_a_store_a_tampered_holdout_stopped_fails_bind(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    edit_log(folder, "arm holdout=1 arm=bko ", lambda line: line.replace("sha256=", "sha256=0", 1))
+    assert stored(tmp_path, folder) == (3, "")
+    with pytest.raises(IdentityError, match="every arm line"):
+        bind(read_rows(tmp_path / "rows.jsonl"), read_folder(folder), UCI_FRAME)
+
+
+@pytest.mark.parametrize(
+    ("prefix", "result", "kept"),
+    [("1,none,held-out,", 0, {0, 1}), ("1,bko,augmented,recall,all,", 3, {0})],
+    ids=["held-out", "arm"],
+)
+def test_rows_admits_a_new_held_out_key_and_refuses_a_new_arm_key(
+    tmp_path, caplog, prefix, result, kept
+):
+    folder = run_folder(tmp_path, "run", caplog)
+    drop_score(folder, prefix)
+    assert stored(tmp_path, folder)[0] == result
     assert holdouts(tmp_path) == kept
 
 
@@ -243,6 +286,20 @@ def test_a_moved_replica_fidelity_row_passes_only_above_50000_rows(tmp_path, cap
     assert code == 0
     assert holdouts(tmp_path) == {0, 1}
     assert any(re.fullmatch(r"rows holdout=1 stored=\d+ differing=1", m) for m in caplog.messages)
+
+
+@pytest.mark.parametrize(
+    ("train", "expected"), [(50_000, False), (50_001, True)], ids=["50000", "50001"]
+)
+def test_subsampled_reads_the_split_lines_training_rows(train, expected):
+    assert rows_module.subsampled(f"split seed=1 train={train} test=10 fingerprint=ab") is expected
+    assert rows_module.subsampled(f"split seed=1 rows_train={train} train=10 test=1") is False
+
+
+@pytest.mark.parametrize("split", [None, "split seed=1 test=10 fingerprint=ab"])
+def test_subsampled_refuses_a_split_line_with_no_training_rows(split):
+    with pytest.raises(IdentityError, match="names no training rows"):
+        rows_module.subsampled(split)
 
 
 def scores(*extra: Score, value: float = 0.5) -> list[Score]:
@@ -286,6 +343,11 @@ def test_a_new_held_out_key_is_admitted_and_a_new_arm_key_is_not():
         compared(scores(), [*scores()[:2], quality])
 
 
+def test_a_rescore_holding_a_key_twice_is_refused():
+    with pytest.raises(IdentityError, match="twice"):
+        compared(scores(scores()[1]), scores())
+
+
 def test_an_existing_store_is_refused(tmp_path, caplog):
     folder = run_folder(tmp_path, "run", caplog)
     (tmp_path / "rows.jsonl").write_text("kept\n", encoding="utf-8")
@@ -314,36 +376,65 @@ def test_the_header_binds_the_folder(tmp_path, caplog):
         "frame": "uci",
     }
     store = read_rows(tmp_path / "rows.jsonl")
-    bind(store, read_folder(folder))
+    bind(store, read_folder(folder), UCI_FRAME)
+    with pytest.raises(IdentityError, match="names the frame 'uci'"):
+        bind(store, read_folder(folder), SYNTHEA_FRAME)
     other = tmp_path / "other"
     shutil.copytree(folder, other)
     with pytest.raises(IdentityError, match="names the folder 'run'"):
-        bind(store, read_folder(other))
+        bind(store, read_folder(other), UCI_FRAME)
     edit_log(folder, "experiment ", lambda line: line + "\n")
     with pytest.raises(IdentityError, match="log_sha256"):
-        bind(store, read_folder(folder))
+        bind(store, read_folder(folder), UCI_FRAME)
 
 
 def test_frame_of_refuses_a_flipped_byte(tmp_path):
-    fill = filled(records(UCI_FRAME, 4))
-    path = tmp_path / "rows.jsonl"
-    with RowsFile(path, HEADER) as store:
-        store.write(0, [fill])
-    line = read_rows(path).lines[0, "ctgan"]
+    fill, line = stored_line(tmp_path, records(UCI_FRAME, 4))
     last = line.csv[-2]
     flipped = dataclasses.replace(line, csv=line.csv[:-2] + ("1" if last != "1" else "2") + "\n")
     with pytest.raises(IdentityError, match="sha256"):
         frame_of(flipped, arm_line=fill.line, frame=UCI_FRAME)
     resealed = dataclasses.replace(flipped, sha256=sha256(flipped.csv.encode()).hexdigest())
-    with pytest.raises(IdentityError, match="sha256"):
+    with pytest.raises(IdentityError, match="arm line"):
         frame_of(resealed, arm_line=fill.line, frame=UCI_FRAME)
+
+
+def stored_line(tmp_path: Path, added: pd.DataFrame) -> tuple[Filled, rows_module.RowsLine]:
+    """`added`'s fill, written to a store and read back as its line."""
+    fill = filled(added)
+    path = tmp_path / "rows.jsonl"
+    with RowsFile(path, HEADER) as store:
+        store.write(0, [fill], arms=logged(fill))
+    return fill, read_rows(path).lines[0, "ctgan"]
+
+
+def test_frame_of_refuses_a_csv_that_does_not_read_back(tmp_path):
+    added = records(UCI_FRAME, 4)
+    added["age"] = [f"0{value}" for value in added["age"]]
+    fill, line = stored_line(tmp_path, added)
+    with pytest.raises(IdentityError, match="read back"):
+        frame_of(line, arm_line=fill.line, frame=UCI_FRAME)
+
+
+def test_frame_of_refuses_another_frames_columns(tmp_path):
+    fill, line = stored_line(tmp_path, records(UCI_FRAME, 4))
+    with pytest.raises(IdentityError, match="columns"):
+        frame_of(line, arm_line=fill.line, frame=SYNTHEA_FRAME)
+
+
+def test_frame_of_refuses_a_value_its_dtype_cannot_hold(tmp_path):
+    added = records(UCI_FRAME, 4).astype({"age": float})
+    added.loc[-1, "age"] = 1.5
+    fill, line = stored_line(tmp_path, added)
+    with pytest.raises(IdentityError, match="does not read"):
+        frame_of(line, arm_line=fill.line, frame=UCI_FRAME)
 
 
 def test_frame_of_refuses_a_line_whose_arm_line_differs(tmp_path):
     fill, other = filled(records(UCI_FRAME, 4)), filled(records(UCI_FRAME, 5), name="smote")
     path = tmp_path / "rows.jsonl"
     with RowsFile(path, HEADER) as store:
-        store.write(0, [fill, other])
+        store.write(0, [fill, other], arms=logged(fill, other))
     found = read_rows(path).lines
     with pytest.raises(IdentityError, match="arm line"):
         frame_of(found[0, "ctgan"], arm_line=other.line, frame=UCI_FRAME)
@@ -354,8 +445,9 @@ def test_frame_of_refuses_a_line_whose_arm_line_differs(tmp_path):
 
 def test_read_rows_refuses_a_duplicate_key(tmp_path):
     path = tmp_path / "rows.jsonl"
+    fill = filled(records(UCI_FRAME, 2))
     with RowsFile(path, HEADER) as store:
-        store.write(0, [filled(records(UCI_FRAME, 2))])
+        store.write(0, [fill], arms=logged(fill))
     first, line = path.read_text(encoding="utf-8").splitlines(keepends=True)
     doubled = tmp_path / "doubled.jsonl"
     doubled.write_text(first + line + line, encoding="utf-8")
@@ -365,3 +457,32 @@ def test_read_rows_refuses_a_duplicate_key(tmp_path):
     headless.write_text(line, encoding="utf-8")
     with pytest.raises(IdentityError, match="header"):
         read_rows(headless)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ['{"kind":"header","schema":1}\n{"kind":"ro', "[1]\n", '{"kind":"header","schema":1}\n7\n'],
+    ids=["torn", "list-header", "number-line"],
+)
+def test_read_rows_refuses_a_line_that_is_not_a_json_object(tmp_path, text):
+    path = tmp_path / "rows.jsonl"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(IdentityError, match="JSON object"):
+        read_rows(path)
+
+
+def test_the_writer_refuses_a_fill_another_than_the_folders_or_a_repeat(tmp_path):
+    fill, other = filled(records(UCI_FRAME, 2)), filled(records(UCI_FRAME, 3))
+    path = tmp_path / "rows.jsonl"
+    with RowsFile(path, HEADER) as store:
+        with pytest.raises(IdentityError, match="folder's arm line"):
+            store.write(0, [fill], arms=logged(other))
+        with pytest.raises(IdentityError, match="folder's arm line"):
+            store.write(0, [fill], arms={})
+        store.write(0, [fill], arms=logged(fill))
+        with pytest.raises(IdentityError, match="already"):
+            store.write(0, [fill], arms=logged(fill))
+        again = filled(records(UCI_FRAME, 2), holdout=1)
+        with pytest.raises(IdentityError, match="already"):
+            store.write(1, [again, again], arms=logged(again))
+    assert set(read_rows(path).lines) == {(0, "ctgan")}

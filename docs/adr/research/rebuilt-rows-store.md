@@ -30,17 +30,21 @@ sha256, so one rebuild can be checked against it and kept.
   fill of that holdout to the store. The strict check 7, with `rows` admitting held-out keys only,
   and its 50,000-row exception are stated in ADR `research/shared-test-split-reading`.
 - The store is one `rows.jsonl` per output folder: a header line, then one line per fill of every
-  arm that has a runner, gap and replica. Keys are sorted, and the file is flushed after each
-  holdout. The header is
+  arm that has a runner, gap and replica. Keys are sorted, and the file is flushed and synced to
+  disk after each holdout. The header is
   `{"kind":"header","schema":1,"run":<run>,"folder":<folder name>,"log_sha256":<sha256 of the
   folder's scores.log>,"data":<digest>,"frame":<name>}`. A fill line is
   `{"kind":"rows","holdout":h,"arm":<the arm line's arm, "<a>" or "<a>-replica">,"attempt":k,"added":n,"sha256":s,"csv":<digest bytes>}`.
   The `csv` is the text that `bko.evaluate.data.digest` hashes, and its sha256 equals the line's
   `sha256` and the folder's `arm` line's.
-- The writer refuses a non-finite value. It creates the file with mode 0600 and `O_EXCL`, and
-  writes a holdout's lines only after its checks pass.
-- A reader binds on `log_sha256` and the folder name, and checks that `sha256(csv)` equals the
-  line's `sha256` and the folder's `arm` line's, that `added` is the row count, and that
+- The writer refuses a non-finite value, a fill whose `arm` line is not the folder's, and a
+  holdout and arm already stored. It creates the file with mode 0600 and `O_EXCL`, and writes a
+  holdout's lines only after its checks pass.
+- A reader binds on `log_sha256`, the folder name and the header's `frame`, and requires one fill
+  line for each of the folder's `arm` lines, so a store whose run stopped early is refused. It
+  refuses a line that is not a JSON object, and checks that `sha256(csv)` equals the line's
+  `sha256` and the folder's `arm` line's, that `added` is the row count, that the CSV reads at
+  `frame.dtypes` with exactly `frame.columns`, and that
   `digest(pd.read_csv(io.StringIO(csv), index_col="record_id", dtype=frame.dtypes,
   float_precision="round_trip"))` equals `sha256`.
 - A hand check needs only `jq` and `shasum`:
