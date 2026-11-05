@@ -528,16 +528,21 @@ start or the supervisor cannot run.
   `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
   its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
-  header line (`kind` `header`, `schema` 2, the run name, the `frame`'s name, the sha256 of the
+  header line (`kind` `header`, `schema` 3, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
   no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (true for a returned or
   partial attempt, false for a refused or failed one), `call`, the `cell` asked, `position` in
   the call's reply, the decoded `candidate` or the `undecoded` reason, `outcome` (`kept`,
   `rejected`, `dropped-range`, `dropped-cell`, `dropped-concepts`, a prescribing arm's alone,
-  `dropped-curation`, a curating arm's alone, or `dropped-quota`) and the `failed` checks of a
-  rejected one. Lines are written when the harness drains a holdout: after every arm's gap fill,
-  then after every replica fill. A stopped run's file
+  `dropped-curation`, a curating arm's alone, `dropped-quota`, or `dropped-likelihood`, a ranking
+  arm's alone) and the `failed` checks of a rejected one, and, on the lines of a scoring arm, the
+  `score` its curator read: `confidence` and `aleatoric` on each `cllm` line that passed
+  validation (`bko.evaluate.curation`), and `likelihood` on each `bko-curated` line it ranked, the
+  record's BKB log-probability at its call cell's shares, null for minus infinity (ADR
+  [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), Arm). `read` also
+  reads schema 1 and 2 files, whose lines hold no `score`. Lines are written when the harness
+  drains a holdout: after every arm's gap fill, then after every replica fill. A stopped run's file
   holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
   even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
   fill's lines count what its `candidates` or `replica-candidates` rows count;
@@ -664,7 +669,8 @@ start or the supervisor cannot run.
   and at the end of the run, a stopped run included, one `validity` line per Messages arm,
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm and
-  `dropped_curation=%d` there for a curating arm: its counts
+  `dropped_curation=%d` there for a curating arm, and `dropped_likelihood=%d` after
+  `dropped_quota=` for a ranking arm: its counts
   over both fills and its own spend in USD, the sum of each of its attempts' change in the call
   log's spend. A concept-drop rate reads `dropped_concepts` over `passed` from that line, since
   only a candidate that passed validation can be dropped for its concepts. For `cllm`, the rows

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-04
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -61,8 +61,21 @@ all three measures**.
   the fused fragments; the command is `python -m bko.evaluate likelihood`, because it reads
   `holdout_candidates`, `split`, `prepared` and `fidelity`, and `bko.generate` already imports
   `bko.gaps`.
+- **Arm.** `bko-curated` is `bko` with `Curation.LIKELIHOOD` and `over_ask` 2, at twice E1's
+  budget, so it asks per record kept what `bko` asks:
+  - Each attempt asks every cell for `over_ask` times its quota. A row outside its call's cell is
+    dropped for its cell, as in a prescribing call, so every row counts toward its call's cell.
+  - Once the attempt's rounds end, each call cell's valid rows (every row that passed every check)
+    are scored by `Likelihood` at the cell's shares on the holdout's training rows, sorted highest
+    first, and the first quota are kept. This is the gate's grouping, each call's cell, so its
+    evidence carries over. A cell holding no more than its quota keeps every row.
+  - Ties break by `sha256(f"{holdout}:{call}:{position}")`, as in the split.
+  - Ranked-out rows take the outcome `dropped-likelihood`, and each ranked row's candidates line
+    carries its score (candidates schema 3).
+  - Its run holds `none`, `real` and `bko-curated`, on E6's frame and removal, and pairs `beside`
+    with `e6-22`: both keep copies (`decontaminate=False`), so their splits are identical.
 - **Input.** The named run's candidates files as written, one or more slices, over the named run's
-  holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schema 1 beside schema 2,
+  holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schemas 1 to 3,
   checking a schema-1 file's `uci` digest against UCI Heart Disease's. `e1-4`'s
   `holdout-candidates.jsonl` is the first such file.
 
@@ -79,11 +92,12 @@ and an arm that keeps marginal shapes but breaks pairs is not one worth paying f
 ## Consequences
 
 **Gained**: a free, reproducible answer to whether BKB curation is worth a paid arm; a score over
-any candidates file in the schema-1 or schema-2 format; the shares in the stage that owns the fused
-fragments, read by the sampler and the score alike.
-**Accepted**: the score sees only mapped concepts, so two records with the same concepts score the
-same whatever their numeric fields; the gate reads one generator's candidates, at `e1-4`'s level and
-effort; a record at minus infinity sorts last and stays in its cell's bottom half.
+any candidates file in the schema-1, schema-2 or schema-3 format; the shares in the stage that owns
+the fused fragments, read by the sampler and the score alike.
+**Accepted**: `bko-curated` drops a row outside its call's cell, which `bko` keeps when the request
+asks for its cell; the score sees only mapped concepts, so two records with the same concepts score
+the same whatever their numeric fields; the gate reads one generator's candidates, at `e1-4`'s
+level and effort; a record at minus infinity sorts last and stays in its cell's bottom half.
 
 ## Ruled Out
 | Idea | Why ruled out | When |
