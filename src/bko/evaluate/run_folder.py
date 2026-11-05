@@ -225,7 +225,14 @@ def base(arm: str) -> str:
 
 
 def check_folders(
-    folder: Folder, others: Sequence[Folder], *, run: str, current: str, data: Data, uci: bool
+    folder: Folder,
+    others: Sequence[Folder],
+    *,
+    run: str,
+    current: str,
+    data: Data,
+    uci: bool,
+    extend_models: bool = False,
 ) -> None:
     """Identity checks 1, 2, 3 and 5 across `folder` and `others`, before anything is scored.
 
@@ -241,9 +248,9 @@ def check_folders(
         data: The loaded data; every folder's digest is its digest.
         uci: Whether the named run scores UCI Heart Disease, which a schema-1 candidates file
             holds (`bko.evaluate.holdout_candidates.read` checks its archive digest).
-
-    Check 2 holds every `experiment` key equal but `models`, whose current list may extend the
-    folder's (`_extends`), so `bko.evaluate.panel` reads a folder scored at fewer models.
+        extend_models: Whether check 2 lets the current `models` list extend the folder's
+            (`_extends`), so `bko.evaluate.panel` reads a folder scored at fewer models; without
+            it, as for `shared` and `rows`, check 2 holds every `experiment` key equal.
 
     Raises:
         IdentityError: If a check fails.
@@ -265,11 +272,10 @@ def check_folders(
         msg = f"{folder.path} is run {folder.experiment.get('run')!r}'s, not {run!r}'s"
         raise IdentityError(msg)
     now = keys(current, f"the run {run!r}'s")
-    _same_keys(folder.experiment, now, {"models"}, f"{folder.path} and the run {run!r} now")
-    theirs, ours = folder.experiment.get("models", ""), now.get("models", "")
-    if not _extends(theirs, ours):
-        msg = f"{folder.path}'s models={theirs} is not a prefix of the run {run!r}'s models={ours}"
-        raise IdentityError(msg)
+    skip = {"models"} if extend_models else set()
+    _same_keys(folder.experiment, now, skip, f"{folder.path} and the run {run!r} now")
+    if extend_models:
+        _check_models(folder, now, run)
     for each in (folder, *others):
         _complete(each)
     for other in others:
@@ -281,6 +287,21 @@ def check_folders(
             differing = sorted(set(other.baselines().items()) ^ set(folder.baselines().items()))
             msg = f"{other.path}'s baseline arm lines differ from {folder.path}'s: {differing[:2]}"
             raise IdentityError(msg)
+
+
+def _check_models(folder: Folder, now: Mapping[str, str], run: str) -> None:
+    """Refuse a folder whose `models=` list is missing or not a prefix of the run's now.
+
+    Raises:
+        IdentityError: If the check fails.
+    """
+    theirs, ours = folder.experiment.get("models"), now.get("models", "")
+    if theirs is None:
+        msg = f"{folder.path}'s experiment line holds no models"
+        raise IdentityError(msg)
+    if not _extends(theirs, ours):
+        msg = f"{folder.path}'s models={theirs} is not a prefix of the run {run!r}'s models={ours}"
+        raise IdentityError(msg)
 
 
 def _extends(folder_models: str, current_models: str) -> bool:

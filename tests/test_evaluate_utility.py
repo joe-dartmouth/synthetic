@@ -110,6 +110,7 @@ def test_calibration_is_hand_computed_and_off_by_default():
 CALIBRATION_MEASURES = (Measure.BRIER, Measure.CALIBRATION)
 
 
+@pytest.mark.filterwarnings("error")
 def test_calibration_is_nan_on_an_empty_scope():
     test = records()
     scores = utility(

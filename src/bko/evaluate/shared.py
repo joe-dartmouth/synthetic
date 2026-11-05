@@ -287,7 +287,7 @@ def _admit(folder: Folder, others: Sequence[Folder], *, run: str, experiment: Ex
         raise IdentityError(msg)
 
 
-def rescore(
+def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside the shared ones)
     folder: Folder,
     others: Sequence[Folder],
     *,
@@ -299,6 +299,7 @@ def rescore(
     uci: bool,
     after: Callable[[int, Logged, Sequence[Score]], None] | None = None,
     calibration: bool = False,
+    extend_models: bool = False,
 ) -> str:
     """Score `folder`'s run again, less every record `others` copy, and return the scores CSV.
 
@@ -306,7 +307,8 @@ def rescore(
     line's `matches_folder=` says whether its sha256 is the one the folder's `scores` line logs.
     A run scored before a held-out row joined the harness gains that row, so it reads false
     without failing. A given `after` is called with each holdout's seed, its `Logged` lines and
-    its scores, once its checks pass; `calibration` is `score_holdout`'s.
+    its scores, once its checks pass; `calibration` is `score_holdout`'s, and `extend_models`
+    `check_folders`'.
 
     Raises:
         IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are
@@ -317,7 +319,9 @@ def rescore(
     frame = data.frame
     names = [m.value for m in models]
     current = experiment_line(run, experiment, names, frame=frame.name)
-    check_folders(folder, others, run=run, current=current, data=data, uci=uci)
+    check_folders(
+        folder, others, run=run, current=current, data=data, uci=uci, extend_models=extend_models
+    )
     require_cell(experiment.removal, frame)
     stored = {name: StoredArm(name, folder) for name in experiment.arms if name in BKO}
     runners = {**arms, **stored}

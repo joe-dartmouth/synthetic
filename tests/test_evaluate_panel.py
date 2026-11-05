@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import io
 import json
 import logging
@@ -13,11 +14,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from bko.baselines.errors import ShortfallError
+from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, number
 from bko.baselines.request import Request
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import panel as panel_module
+from bko.evaluate import rows as rows_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.classifier import (
     MODELS,
@@ -30,16 +34,18 @@ from bko.evaluate.classifier import (
     build_rf,
 )
 from bko.evaluate.context import Context
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import Experiment, Removal
 from bko.evaluate.panel import StoredBaseline, admitted
+from bko.evaluate.rows import compare_holdout
 from bko.evaluate.rows_read import read_rows
 from bko.evaluate.run_folder import _extends, read_folder
-from bko.evaluate.scores import Measure, Source
+from bko.evaluate.scores import Measure, Scope, Score, Source
 from tests._baselines_fixtures import cell_list
 from tests._evaluate_bko_fixtures import NARROW
 from tests._evaluate_fixtures import FAST_ARMS
-from tests.test_evaluate_shared import rescorer, run_folder
+from tests.test_evaluate_rows import drop_score, edit_scores
+from tests.test_evaluate_shared import edit_log, rescorer, run_folder
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -70,6 +76,10 @@ MIXED = dataclasses.replace(
 replica, and a BKO arm. SMOTE's replica copies test records, so the run keeps them."""
 
 MIXED_ARMS = {name: FAST_ARMS[name] for name in ("none", "class-weight", "smote")}
+
+BASES = ("recall", "precision", "auc-pr")
+CALIBRATION_BASES = ("brier", "calibration-in-the-large")
+SUFFIXES = ("", "-hgb", "-rf", "-et", "-mlp", "-nb")
 
 
 class Spy:
@@ -123,13 +133,22 @@ def error(caplog) -> str:
     return found
 
 
+PANEL_MEASURES = frozenset(
+    {
+        *(f"{base}-{model}" for model in ("rf", "et", "mlp", "nb") for base in BASES),
+        *(f"{base}{suffix}" for suffix in SUFFIXES for base in CALIBRATION_BASES),
+    }
+)
+"""The augmented measures only `panel` writes, spelled out rather than read from `admitted`."""
+
+
 def less_panel(text: str) -> str:
-    """A scores CSV without the rows `panel` admits beyond the folder's."""
+    """A scores CSV without the augmented rows of `PANEL_MEASURES`."""
     lines = text.splitlines(keepends=True)
     kept = [lines[0]]
     for line in lines[1:]:
-        holdout, arm, source, measure, scope, _ = line.split(",")
-        if not admitted((int(holdout), arm, source, measure, scope)):
+        _, _, source, measure, _, _ = line.split(",")
+        if not (source == "augmented" and measure in PANEL_MEASURES):
             kept.append(line)
     return "".join(kept)
 
@@ -143,6 +162,9 @@ def less_panel(text: str) -> str:
         ("lr,hgb", "hgb,lr,rf", False),
         ("lr,hgb", "lr", False),
         ("", "lr", False),
+        ("", "", False),
+        ("lr,h", "lr,hgb", False),
+        ("lr,hgb", "lr,hgbx", False),
     ],
 )
 def test_a_current_models_list_extends_a_folders_only_from_its_end(folder, current, extends):
@@ -211,17 +233,45 @@ def test_panel_output_less_panel_rows_is_the_folders_scores_csv(tmp_path, caplog
     assert code == 0
     assert text != (folder / "scores.csv").read_text(encoding="utf-8")
     assert less_panel(text) == (folder / "scores.csv").read_text(encoding="utf-8")
-    assert r"panel holdout=1 differing=0 subsampled=false" in caplog.text
+    assert "panel holdout=1 differing=0 partial=0 subsampled=false" in caplog.messages
+    assert caplog.messages[-1] == f"panel done holdouts={len(MIXED.holdout_seeds)}"
+    sha = hashlib.sha256(store.read_bytes()).hexdigest()
+    assert f"panel rows={store} sha256={sha}" in caplog.messages
+    scores_line = next(m for m in caplog.messages if m.startswith("scores rows="))
+    assert scores_line.endswith(" matches_folder=false")
+    fits = [m for m in caplog.messages if m.startswith("fit ")]
+    assert len(fits) == len(MIXED.holdout_seeds) * len(MIXED.arms)
+    assert "fit holdout=0 arm=smote model=mlp n_iter=15 converged=false" in fits
 
 
-def test_a_moved_regression_value_exits_3(tmp_path, caplog):
+MOVED_LR = {Model.LR: lambda frame: build(frame).set_params(model__C=0.01)}
+MOVED_HGB = {Model.HGB: lambda frame: build(frame).set_params(model__C=0.01)}
+"""A moved boosting model: the fixture's boosting fits rank every test record alike, so a
+regression stands in for it."""
+
+
+@pytest.mark.parametrize(
+    ("moved", "measure"),
+    [(MOVED_LR, r"[a-z-]+"), (MOVED_HGB, r"[a-z-]+-hgb")],
+    ids=["regression", "boosting"],
+)
+def test_a_moved_regression_or_boosting_value_exits_3(tmp_path, caplog, moved, measure):
     folder, store = folder_and_store(tmp_path, caplog, MIXED, MIXED_ARMS)
-    moved = {**FAST_PANEL, Model.LR: lambda frame: build(frame).set_params(model__C=0.01)}
-    code = paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS, models=moved)
+    models = {**FAST_PANEL, **moved}
+    code = paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS, models=models)
     assert code == (3, "")
     assert re.fullmatch(
-        r"holdout 0's score \(0, '\S+', 'augmented', '\S+', '\S+'\) .*", error(caplog)
+        rf"holdout 0's score \(0, '\S+', 'augmented', '{measure}', '\S+'\) reads .*", error(caplog)
     )
+
+
+def test_a_calibration_key_the_folder_holds_must_match():
+    def brier(value: float) -> list[Score]:
+        return [Score(0, "none", Source.AUGMENTED, Measure.BRIER, Scope.ALL, value)]
+
+    assert compare_holdout(brier(0.1), [], holdout=0, admitted=admitted, sampled=False) == 0
+    with pytest.raises(IdentityError, match=r"reads '0.1', the folder's '0.2'"):
+        compare_holdout(brier(0.1), brier(0.2), holdout=0, admitted=admitted, sampled=False)
 
 
 def test_a_replica_fill_comes_from_the_store(tmp_path, caplog):
@@ -291,6 +341,9 @@ def test_a_last_attempt_partial_fill_reproduces_its_arm_line(tmp_path, caplog):
     logged = reproduces(tmp_path, caplog, ONLY_CART, arms, "cart")
     attempts = ONLY_CART.attempts
     assert all(f" attempt={attempts} " in line and '"short": {' in line for line in logged)
+    partial = [m for m in caplog.messages if m.startswith("panel holdout=")]
+    assert partial
+    assert all(" partial=1 " in m for m in partial)
 
 
 THIN = dataclasses.replace(
@@ -336,7 +389,7 @@ def test_a_stored_baseline_refuses_outside_a_fill(tmp_path, caplog):
         stored(pd.DataFrame(), Request(frame=UCI_FRAME))
 
 
-def test_admitted_holds_the_panel_and_calibration_measures_only():
+def test_admitted_holds_rows_keys_and_the_panel_and_calibration_measures():
     def key(measure: Measure, source: Source = Source.AUGMENTED) -> tuple[int, str, str, str, str]:
         return (0, "none", source.value, measure.value, "all")
 
@@ -346,7 +399,8 @@ def test_admitted_holds_the_panel_and_calibration_measures_only():
     assert admitted(key(Measure.CALIBRATION_HGB))
     assert not admitted(key(Measure.RECALL))
     assert not admitted(key(Measure.AUC_PR_HGB))
-    assert not admitted(key(Measure.HELD_OUT_RATIO, Source.HELD_OUT))
+    assert admitted(key(Measure.HELD_OUT_RATIO, Source.HELD_OUT))
+    assert admitted(key(Measure.FLAGGED_FINGERPRINT, Source.HELD_OUT))
     assert not admitted(key(Measure.RECALL_RF, Source.REPLICA))
     assert set(MODELS) < set(PANEL)
 
@@ -359,3 +413,125 @@ def test_panel_help_exits_0():
 
 def test_the_context_scores_the_whole_panel_by_default():
     assert Context().panel is PANEL
+
+
+def test_shared_and_rows_keep_check_2_exact_on_models(tmp_path, caplog):
+    folder, _ = folder_and_store(tmp_path, caplog, MIXED, MIXED_ARMS)
+    ctx = dataclasses.replace(rescorer(experiment=MIXED, arms=MIXED_ARMS), models=FAST_PANEL)
+    data = ["--data-dir", str(tmp_path / "data")]
+    expected = (
+        rf"the experiment lines of {re.escape(str(folder))} and the run 'e1' now differ:"
+        r" \{'models': \('lr,hgb', 'lr,hgb,rf,et,mlp,nb'\)\}"
+    )
+    for argv in (
+        ["shared", "--folder", str(folder), *data],
+        ["rows", "--folder", str(folder), "--rows", str(tmp_path / "again.jsonl"), *data],
+    ):
+        caplog.clear()
+        assert main(argv, context=ctx, out=io.StringIO()) == 3
+        assert re.fullmatch(expected, error(caplog))
+
+
+def without_models(folder: Path, store: Path) -> None:
+    """Drop `models=` from the folder's `experiment` line and rebind the store to the new log."""
+    edit_log(folder, "experiment run=", lambda line: re.sub(r" models=\S+", "", line))
+    lines = store.read_text(encoding="utf-8").splitlines(keepends=True)
+    header = json.loads(lines[0])
+    header["log_sha256"] = hashlib.sha256((folder / "scores.log").read_bytes()).hexdigest()
+    store.write_text(json.dumps(header) + "\n" + "".join(lines[1:]), encoding="utf-8")
+
+
+def test_a_folder_naming_no_models_is_refused_by_panel_and_rows(tmp_path, caplog):
+    folder, store = folder_and_store(tmp_path, caplog, MIXED, MIXED_ARMS)
+    without_models(folder, store)
+    assert paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS) == (3, "")
+    assert error(caplog) == f"{folder}'s experiment line holds no models"
+    caplog.clear()
+    argv = ["rows", "--folder", str(folder), "--rows", str(tmp_path / "again.jsonl")]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    ctx = rescorer(experiment=MIXED, arms=MIXED_ARMS)
+    assert main(argv, context=ctx, out=io.StringIO()) == 3
+    assert error(caplog).endswith("only one names models, which has no assumed value")
+
+
+def test_a_folder_rows_passes_without_a_held_out_key_also_passes_panel(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog, experiment=MIXED, arms=MIXED_ARMS)
+    drop_score(folder, "1,none,held-out,")
+    store = tmp_path / "rows.jsonl"
+    argv = ["rows", "--folder", str(folder), "--rows", str(store)]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    ctx = rescorer(experiment=MIXED, arms=MIXED_ARMS)
+    assert main(argv, context=ctx, out=io.StringIO()) == 0
+    code, _ = paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS)
+    assert code == 0
+
+
+def test_a_subsampled_holdout_lets_a_replica_fidelity_row_differ(tmp_path, caplog, monkeypatch):
+    folder = run_folder(tmp_path, "run", caplog, experiment=MIXED, arms=MIXED_ARMS)
+    edit_scores(folder, "1,smote,replica,quality,all,", "0.123")
+    monkeypatch.setattr(rows_module, "SUBSAMPLED_ABOVE", 100)
+    store = tmp_path / "rows.jsonl"
+    argv = ["rows", "--folder", str(folder), "--rows", str(store)]
+    argv += ["--data-dir", str(tmp_path / "data")]
+    ctx = rescorer(experiment=MIXED, arms=MIXED_ARMS)
+    assert main(argv, context=ctx, out=io.StringIO()) == 0
+    caplog.clear()
+    with caplog.at_level(logging.INFO):
+        code, _ = paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS)
+    assert code == 0
+    assert "panel holdout=0 differing=0 partial=0 subsampled=true" in caplog.messages
+    assert "panel holdout=1 differing=1 partial=0 subsampled=true" in caplog.messages
+    assert any(
+        re.fullmatch(
+            r"rows differing holdout=1 key=1,smote,replica,quality,all ours=\S+ theirs=0.123", m
+        )
+        for m in caplog.messages
+    )
+
+
+def test_panel_scores_inside_one_thread_for_every_pool(tmp_path, caplog, monkeypatch):
+    folder, store = folder_and_store(tmp_path, caplog, MIXED, MIXED_ARMS)
+    limits: list[dict[str, object]] = []
+    real = panel_module.threadpool_limits
+
+    def spy(**kwargs):
+        limits.append(kwargs)
+        return real(**kwargs)
+
+    seen: list[list[dict[str, object]]] = []
+    rescore = panel_module.rescore
+
+    def inside(*args, **kwargs):
+        seen.append(list(limits))
+        return rescore(*args, **kwargs)
+
+    monkeypatch.setattr(panel_module, "threadpool_limits", spy)
+    monkeypatch.setattr(panel_module, "rescore", inside)
+    assert paneled(tmp_path, folder, store, experiment=MIXED, arms=MIXED_ARMS)[0] == 0
+    assert seen == [[{"limits": 1}]]
+
+
+def refusing_once(runner: Runner) -> Runner:
+    """`runner`, refusing each fill's first seed, so every fill returns attempt 2 on every run."""
+    first: dict[tuple[int, str], int] = {}
+
+    def refuse(train: pd.DataFrame, request: Request) -> Baseline:
+        fill = CURRENT_FILL.get()
+        assert fill is not None
+        if first.setdefault((fill.holdout, fill.kind), request.seed) == request.seed:
+            msg = "refused at the first seed"
+            raise BaselineError(msg)
+        return runner(train, request)
+
+    return refuse
+
+
+def test_a_fill_stored_at_a_later_attempt_replays_its_refusals(tmp_path, caplog):
+    arms = {"none": FAST_ARMS["none"], "cart": refusing_once(FAST_ARMS["cart"])}
+    logged = reproduces(tmp_path, caplog, ONLY_CART, arms, "cart")
+    assert all(" attempt=2 " in line and '"short"' not in line for line in logged)
+    replays = [m for m in caplog.messages if m.startswith("replay ")]
+    assert sorted(replays) == sorted(
+        f"replay holdout={seed} arm=cart attempt=1" for seed in ONLY_CART.holdout_seeds
+    )
+    assert not [r for r in caplog.records if r.getMessage().startswith("retry ")]

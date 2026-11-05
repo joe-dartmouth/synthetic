@@ -372,6 +372,7 @@ def _panel(args: argparse.Namespace, context: Context) -> str:
     return panel(
         folder,
         rows,
+        store=args.rows,
         run=args.run,
         experiment=named.experiment,
         data=data,
