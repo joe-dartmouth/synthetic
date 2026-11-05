@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Mapping
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -12,6 +14,7 @@ from bko.datasets.uci import UCI_FRAME
 from bko.gaps.errors import GapError
 from bko.gaps.observe import Cell
 from bko.gaps.shares import label_only
+from bko.generate import direct
 from bko.generate.direct import Draw, sample
 from bko.generate.errors import SamplingError
 from bko.ontology.schema import shown
@@ -70,8 +73,9 @@ def test_an_unmatched_draw_falls_back_to_the_label_groups_records():
 
 
 def test_a_draw_neither_the_cell_nor_its_group_matches_raises():
+    """Without the overlap code `ca` 2, no record shows both overlapping concepts, yet both draw."""
     planted = plant("code-overlap")
-    train = planted.frame.assign(ca=[(1, 3)[i % 2] for i in range(len(planted.frame))])
+    train = planted.frame.loc[planted.frame["ca"].ne(2)]
     with pytest.raises(
         SamplingError, match=r"^<55/female/1 cannot draw ca: no training record matches the draw$"
     ):
@@ -79,6 +83,7 @@ def test_a_draw_neither_the_cell_nor_its_group_matches_raises():
 
 
 def test_an_empty_label_group_raises_gap_error_once_before_any_draw(caplog):
+    """An empty label group, not an empty cell: any kind does once label 1 is dropped."""
     caplog.set_level(logging.INFO)
     planted = plant("empty-cell")
     train = planted.frame.loc[planted.frame[UCI_FRAME.label].eq(0)]
@@ -93,10 +98,29 @@ def test_an_empty_cell_reads_its_label_group_inside_its_band():
     assert all(d.record["age"] < 55 and "age" in d.fallback for d in draws)
 
 
-def test_a_child_share_above_its_two_row_parents_draws_in_one_pass():
+def test_a_child_share_above_its_two_row_parents_draws_each_record_once(monkeypatch):
+    """Each record draws its concepts once and picks each field once: no draw is retried."""
     planted = plant("child-share-above-parent")
     assert len([row for row in planted.rows if row.concept == BROAD]) == 2
+    calls: Counter[str] = Counter()
+    concepts, pick = direct._Plan._concepts, direct._pick
+
+    def counted_concepts(self: direct._Plan, *args: Any) -> set[str]:
+        calls["concepts"] += 1
+        return concepts(self, *args)
+
+    def counted_pick(*args: Any) -> tuple[dict[str, float], bool]:
+        calls["pick"] += 1
+        return pick(*args)
+
+    monkeypatch.setattr(direct._Plan, "_concepts", counted_concepts)
+    monkeypatch.setattr(direct, "_pick", counted_pick)
+    draw(planted, {YW1: 1})
+    once = calls["pick"]
+    assert once > 0
+    calls.clear()
     first = draw(planted, {YW1: 300})[YW1]
+    assert calls == {"concepts": 300, "pick": 300 * once}
     assert len(first) == 300
     assert first == draw(planted, {YW1: 300})[YW1]
     broad = [d for d in first if BROAD in d.concepts]

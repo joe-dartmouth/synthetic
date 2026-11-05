@@ -55,8 +55,15 @@ def test_each_kinds_shares_are_finite_and_inside_0_and_1(kind):
             assert found == {c: group.holders[c] / group.records for c in found}, cell
 
 
-@pytest.mark.parametrize("kind", KINDS)
+@pytest.mark.parametrize(
+    "kind", ["narrow-without-broad", "child-share-above-parent", "all-show", "code-overlap"]
+)
 def test_the_outer_concept_is_drawn_whenever_the_inner_is(kind):
+    """Each kind whose rows or `restecg` codes differ: `empty-cell` repeats the first's.
+
+    `child-share-above-parent` adds a two-row concept and `code-overlap` an overlapping pair,
+    neither of which `nested` may count; `all-show` shows the inner concept in every record.
+    """
     planted = plant(kind)
     assert nested(planted.rows) == {INNER: OUTER}
     drawn = sample(
