@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-11-04
 ---
 # Python 3.14, without synthcity
 

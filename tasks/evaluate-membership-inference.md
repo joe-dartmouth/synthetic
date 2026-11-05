@@ -52,13 +52,14 @@ expect that second reading.
     API call.
 
   Regeneration costs compute, so the unit may read a seeded subset of E6's holdouts that the ADR
-  fixes before any run. Each regenerated arm line's sha256 must equal the run's.
+  fixes before any run. Each rebuilt or regenerated arm's rows must hash to the `sha256` its
+  `arm holdout=<h> arm=<arm>` line in the slice's `scores.log` records.
 - **Records.**
-  - A new ADR under `docs/adr/` (`research/membership-inference-reading`) fixing the attack, the
-    distance, the low false-positive rate, the holdout subset and the reading's decision rule.
+  - A new ADR under `docs/adr/research/` fixing the attack, the distance, the low false-positive
+    rate, the holdout subset and the reading's decision rule.
   - A new `docs/EVIDENCE.md` entry for both E6 fractions.
-  - A note in `tasks/privacy-identifier-perturbation.md` that its perturbed arm is read with the
-    same attack.
+  - The attack as a reusable reading that `privacy-identifier-perturbation`'s perturbed arm can
+    take, whichever unit lands first.
 
 **Out.**
 - Shadow-model attacks.

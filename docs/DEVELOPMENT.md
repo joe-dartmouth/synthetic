@@ -1332,7 +1332,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   per detector and E2's gap readings per ablation and detector; R1's reproduction rows; a demo
   fill's scores (as means over its one holdout) and training set. It recomputes nothing from
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
-  files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
+  files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
+  reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
   `first-flag.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
   a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
   shows its error in place of its section.

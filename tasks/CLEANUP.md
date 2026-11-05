@@ -79,15 +79,19 @@ links to where its blocker is tracked.
 
 - **`cleanup:docs/e6-replays-unread`: E6's replays are not yet recorded.** E6 landed before the
   byte-for-byte replays of `e6-2` (`e6-thina`) and `e6-12` (`e6-emptya`) at the run commit
-  `22a58c9` finished, so its Runs row says they are running
+  `22a58c9` finished, so its Runs row names the replays and leaves their comparison to this entry
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). They run from the
-  detached worktree `../synthetic-e6` into `runs/e6-2-replay/` and `runs/e6-12-replay/`, so the
-  worktree and the E6 power watcher stay until they end. *Filed 2026-11-05 by E6's landing.*
+  detached worktree `../synthetic-e6` into `runs/e6-2-replay/` and `runs/e6-12-replay/`; at
+  filing, `ls -l` shows each `scores.csv` at 0 bytes and `git worktree list` holds
+  `../synthetic-e6` at `22a58c9`. The worktree and the E6 power watcher (its pid in
+  `scratchpad/e6-power.pid`) stay until both end. *Filed 2026-11-04 by E6's landing.*
   **Why deferred.** The user chose to land E6 and move on rather than wait on the replays.
   **What discharges it:** each replay's `scores.csv` and `holdout-candidates.jsonl` compared with
-  `cmp` against its slice's, the result recorded in E6's Runs row, the power watcher stopped and
-  the worktree removed after `runs/` holds nothing under it.
-  **Trigger:** both replays ending.
+  `cmp` against its slice's, the result recorded in E6's Runs row, the watcher stopped with
+  `kill $(cat scratchpad/e6-power.pid)`, and the worktree removed with `git worktree remove` once
+  `runs/` holds nothing under it.
+  **Trigger:** both replays ending: each `scores.csv` non-empty and each replay's call log ending
+  in an `end` line.
 
 ## evaluate
 

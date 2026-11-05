@@ -110,6 +110,7 @@ synthetic/
 ├── papers/      # the team's source PDFs, gitignored and local only
 ├── tasks/       # the open task sets: one unit per PR (tasks/<set>-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, each with a README
+├── presentations/ # Marp slide decks; `marp` renders PDF or PPTX locally, gitignored
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
 ```

@@ -214,6 +214,7 @@ def test_arm_means_leave_out_the_shared_split_fingerprint():
         for holdout in (0, max(s.holdout for s in SCORES) + 1)
     ]
     means = arm_means([*SCORES, *markers])
+    assert (means["holdouts"] == len(E1.holdout_seeds)).all()
     assert "shared-split" not in set(means.index.get_level_values("measure"))
     assert means.equals(arm_means(SCORES))
 

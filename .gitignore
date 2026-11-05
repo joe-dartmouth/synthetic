@@ -232,5 +232,7 @@ scratchpad/
 /logs/
 /runs/
 
-# The team's source PDFs (proposal, research brief, papers): local only
+# The team's source PDFs (proposal, research brief, papers) and rendered slide exports: local only
 /papers/
+/presentations/*.pdf
+/presentations/*.pptx

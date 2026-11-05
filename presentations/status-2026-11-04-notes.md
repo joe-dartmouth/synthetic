@@ -15,7 +15,7 @@ Question: can medical knowledge, held as a BKO, find coverage gaps in a clinical
 Where BKO's accuracy ties the best generators, it still offers things they cannot. The claims below are tagged by how firmly the evidence supports them.
 
 1. **It works where there is no data.** (Supported: E6 at 100% removal, final.)
-   - SMOTE, ADASYN, CART and TVAE need rows of the group; the Bayesian network adds 1-3 rows. With the group fully removed, they add essentially nothing.
+   - SMOTE, ADASYN, CART and TVAE need rows of the group; the Bayesian network adds 1-4 rows on most holdouts. With the group fully removed, they add essentially nothing.
    - With no true rows at all, BKB-drawn records (`bko-direct`) recover 0.538 removed-group recall against 0.556 for the true rows, the best of every method and ahead of CTGAN. It needs no rows of the group itself: it combines the BKB's concept rates with real field values from patients who share the outcome.
    - Real gaps often look like this: outcomes recorded at another hospital, lost follow-up, suppressed small cells, a new population. A method that needs examples cannot fill a gap it has no examples of.
 
@@ -68,7 +68,7 @@ Earlier results, unchanged:
 - E5: training-set size. BKO minus no augmentation is near zero at every size.
 - B1-B3: classical, Bayesian-network and CLLM baselines.
 
-## 3. In progress: E6, removal test on Diabetes 130
+## 3. E6: removal test on Diabetes 130
 
 ### Setup
 
@@ -131,9 +131,9 @@ Means over 100 holdouts. "Removed group" is men aged 60-79 who were readmitted; 
 **What it shows:**
 1. **The BKB alone is the best method at 100% removal.** `bko-direct` recovers 97% of the true rows' recall on the removed group (0.538 against 0.556). It beats `none`, CTGAN, the Gaussian copula, CLLM and `bko` on recall at both scopes and on AUC-PR over all patients, every paired interval above zero. The other methods have lower means and were not paired against it. Unlike every other row-adding method, it costs no AUC-PR on the removed group: the interval holds 0.
 2. **It also works under HGB:** 0.359 removed-group recall, against 0.274 for CTGAN and under 0.09 for everything else except `real`.
-3. **Knowledge beats examples.** Both BKO arms beat CLLM, the same language model shown real records, so the ontology adds value even when a language model writes the rows.
+3. **Knowledge against examples.** On removed-group recall, both BKO arms beat CLLM, the same language model shown real records (`bko` +0.026 [+0.005, +0.046]). `bko`'s AUC-PR is lower than CLLM's (-0.006 [-0.011, -0.001] on the group), so the ontology helps recall, not ranking, when a language model writes the rows.
 4. **The language model hurts here.** The language-model BKO arm (`bko`) trails `bko-direct` by 0.230 [0.199, 0.261] on removed-group recall, and trails CTGAN. Prescribing BKB concepts in the prompt (`bko-skeleton`) did not close that gap.
-5. **Methods that copy rows fail completely.** SMOTE, ADASYN, TVAE, CART and the Bayesian network add no usable rows to a group with no examples, and score exactly as no augmentation does.
+5. **Methods that copy rows fail completely.** SMOTE, ADASYN, TVAE and CART add no rows, and the Bayesian network 1-4, to a group with no examples, and score exactly as no augmentation does.
 6. **Validity and copies:** `bko-direct` produced 126,900 rows and all of them passed validation; the language-model arms passed 98.7-99.7%. No arm's added rows copied a test record, except 1 row from `bko-frequency`.
 
 ### Final reading, 98.5% removal (19 true rows kept, 100 holdouts, all methods)
@@ -177,37 +177,8 @@ AUC-PR on the removed group: `bko-direct` costs -0.013 [-0.021, -0.004] against 
 2. **The privacy price of that recall differs sharply.** ADASYN's closest 5% of rows sit at distance 0.0000 from a training patient: they effectively are those 19 patients, interpolated between near-identical neighbours. Its median row (0.0032) is closer to a real patient than real patients are to each other (0.0138). `bko-direct` reaches the same recall at 0.0194 / 0.0536, the same distance it showed at 100% removal. **At equal accuracy, `bko-direct` is the private choice.**
 3. **`bko-direct` drops from 0.538 to 0.489 when 19 rows are kept.** Its sampler draws from the group's own records first, so 19 patients supply most values, which narrows its rows. With no rows it borrows from all readmitted patients, which generalizes better. (A possible tuning: lean on the label group even when a few rows exist.)
 4. **Under HGB, CTGAN leads** (0.282 against `bko-direct` 0.207). Both are far below `real` (0.585).
-5. **The language-model BKO arm ties CLLM** at 98.5% (it beat CLLM at 100%), and trails the copiers.
+5. **The language-model BKO arm ties CLLM** on removed-group recall at 98.5% (+0.017 [-0.014, +0.048]), beats it on all-patient recall (+0.020 [+0.002, +0.038]), has lower AUC-PR, and trails the copiers.
 6. **Validity and copies:** `bko-direct` 125,000 rows, all passed. The language-model arms passed 98.7-99.8%. Exact test copies: `bko` 1 added and 16 replica rows; `bko-population` 1; `bko-skeleton` 1; every other arm 0.
-
-The interim reading below is superseded by both final readings.
-
-### Interim reading, BKO only
-
-The interim covers the holdouts finished at reading time: 10 at 98.5% removal and 36 at 100%. It scores `none`, `bko` and `real` only, makes no API calls, and checks each holdout against the run's own records. Each cell is a mean, or a paired difference with its 95% interval (Nadeau-Bengio corrected).
-
-**Recall on the removed group**
-
-| Condition | Classifier | none | bko | real | bko - none | bko - real |
-|---|---|---|---|---|---|---|
-| 98.5% | LR | 0.070 | 0.330 | 0.568 | +0.260 [+0.234, +0.285] | -0.238 [-0.277, -0.199] |
-| 100% | LR | 0.066 | 0.305 | 0.563 | +0.239 [+0.217, +0.260] | -0.258 [-0.285, -0.231] |
-| 98.5% | HGB | 0.001 | 0.047 | 0.595 | +0.047 [+0.029, +0.065] | -0.547 [-0.573, -0.521] |
-| 100% | HGB | 0.000 | 0.044 | 0.588 | +0.044 [+0.030, +0.057] | -0.544 [-0.571, -0.517] |
-
-**Recall on all patients:**
-- LR: bko - none is +0.084 [+0.063, +0.105] at 98.5% and +0.070 [+0.056, +0.084] at 100%.
-- HGB: bko - none is null at both (-0.004 and +0.003, both intervals holding 0).
-
-**AUC-PR, bko - none:**
-- LR, removed group: -0.033 at 98.5% and -0.029 at 100%. All patients: -0.014 and -0.012. Every interval excludes 0.
-- HGB, removed group: -0.021 and -0.019. All patients: null.
-
-**What it shows:**
-1. **LR recall:** BKO beats no augmentation on the removed group in every holdout at both conditions. It closes about half the gap to the true rows, more than on Synthea (about 40%).
-2. **The cost:** BKO lowers AUC-PR. It trades ranking quality for recall at the fixed cutoff, as every method that adds rows did in E4.
-3. **HGB:** BKO's rows help HGB only slightly (+0.04). HGB still misses about 95% of the group's positives, while the true rows bring it to about 0.59. BKO's rows teach LR's smooth boundary but do not match the true rows' feature patterns closely enough for HGB's splits. On Synthea, BKO led under HGB; on Diabetes so far it does not.
-4. **The 100% condition does not hurt BKO:** its recall is nearly the same with 19 true rows (0.330) as with none (0.305). That fits the claim that BKO draws on knowledge rather than on the rows it is shown.
 
 ### First evidence on the other methods: rows each could add
 
@@ -219,15 +190,15 @@ The run logs show how many rows each method added to the removed group in the sl
 | CTGAN, Gaussian copula, uncurated CLLM | full | full |
 | SMOTE, ADASYN | full (built from the 19 kept rows) | **0** |
 | CART | about 420 | **0** |
-| Bayesian network | about 340 | **1-3** |
+| Bayesian network | about 340 | **1-4** |
 | TVAE | **0** | **0** |
 | class weighting, none | 0 by design | 0 by design |
 
 At 100% removal, SMOTE, ADASYN, CART, TVAE and the Bayesian network can produce essentially no rows for a group they never saw. At that level they score close to no augmentation. Only BKO, CTGAN, the Gaussian copula and CLLM can fill the gap.
 
-## 4. Theories and expectations for the full E6 reading
+## 4. Theories and expectations
 
-These are forecasts, not results.
+These were written before the full readings; section 3 holds the results.
 
 ### What the 100% condition models
 
@@ -267,13 +238,9 @@ The two conditions ask different questions:
 
 ## 5. Outstanding work and plans
 
-1. **E6 close-out (after Nov 4, about 22:30 EST):**
-   - Move and back up the run folders.
-   - Replay one slice per condition byte for byte.
-   - Merge the slices of each condition and read every arm against `real` and `none`.
-   - Record E6 in the evidence register and open its PR.
+1. **E6 replays:** E6 lands in PR #74. The byte-for-byte replays of one slice per removal level are still running; a small follow-up PR records them (`cleanup:docs/e6-replays-unread`).
 2. **BKB likelihood gate on Diabetes (free):** split BKO's candidates at the median BKB log-probability and test whether the top half is more faithful. If it separates, run a curated BKO arm once (cap $80). If not, record the result and remove the reserved curation code.
-3. **New task, `privacy-identifier-perturbation` (paid, blocked on E6):**
+3. **New task, `privacy-identifier-perturbation` (paid, ready):**
    - **What:** a language model rewrites the fields a patient could be identified by in `bko-direct`'s rows: race, the 8 count fields (days in hospital, lab procedures, medications and so on), the 8 drug columns, `change` and `diabetesMed`. It must not touch any ontology-mapped concept (diagnoses, lab states), age, sex or the label.
    - **Checks:** a row is refused if any mapped concept or cell coordinate changes. A holdout's perturbation is refused if column shapes or pair trends drift past a threshold, which the task's ADR fixes before any run.
    - **Measures:** a per-method privacy table for both E6 removal levels (5th-percentile and median distance, exact copies). The perturbed arm's paired difference against `bko-direct` on recall, AUC-PR and distance.
@@ -293,7 +260,7 @@ The two conditions ask different questions:
 
 ## 7. Pull requests in this batch
 
-The batch has 6 planned PRs. Four have merged. The fifth (the E6 run) is in progress, and the sixth follows it.
+The batch has 6 planned PRs. Four have merged; the fifth is [#74](https://github.com/joe-dartmouth/synthetic/pull/74), E6; the sixth follows it.
 
 | PR | Title | Merged | What it did |
 |---|---|---|---|
@@ -301,7 +268,7 @@ The batch has 6 planned PRs. Four have merged. The fifth (the E6 run) is in prog
 | [#70](https://github.com/joe-dartmouth/synthetic/pull/70) | Measure what thinking on costs the local generators | Nov 2 | Added thinking-on variants of the local models and a compute metric (FLOPs per record). Measured the cost: Gemma about 3x, Nemotron about 14x counting re-asks after truncation. |
 | [#71](https://github.com/joe-dartmouth/synthetic/pull/71) | Ready Diabetes 130 for E6: frame, ICD-9 rows and power | Nov 2 | Added the Diabetes 130 dataset: 69,283 first encounters, readmission within 30 days as the label. Mapped ICD-9 diagnosis codes to MONDO and HPO. Let each experiment set its own scoring cutoff. Chose E6's target group and size from a 300-seed power dry run. |
 | [#72](https://github.com/joe-dartmouth/synthetic/pull/72) | Ready the harness for E6 and name its runs | Nov 3 | Made the harness fast enough for a 69k-row dataset: memoized the Bayesian network's mutual information, computed privacy distances in blocks, and capped replica size. Let a removal take a whole group (the 100% condition) and filled shortfalls once. Let a run stopped by its spend ceiling resume under a raised ceiling. Named E6's 20 run slices and dropped the curated CLLM arm. |
-| PR5 (open branch `feat/diabetes-runs`) | Run E6 | pending | Runs E6's 20 paid slices, replays a slice per condition, merges the slices, reads every arm and records E6 in the evidence register. |
+| [#74](https://github.com/joe-dartmouth/synthetic/pull/74) | Run E6 on Diabetes 130 | in review | Runs E6's 20 paid slices, replays a slice per condition, merges the slices, reads every arm and records E6 in the evidence register. |
 | PR6 | BKB likelihood gate on Diabetes | pending | Tests whether BKO rows the BKB scores as likelier are more faithful. If they are, runs a curated BKO arm once (cap $80). |
 
 Each merged PR passed the full gate (`make check`) and a six-perspective diff review: code, security, tests, docs, language and observability. Every finding was fixed in the PR or filed in the cleanup backlog.
@@ -375,7 +342,7 @@ Every draw comes from one seeded generator, so a run reproduces byte for byte. T
 | ADASYN | SMOTE, but makes more points near hard-to-classify rows. | No |
 | CART | Fits a decision tree per column and samples values from leaves of real rows (synthpop-style). | No |
 | Gaussian copula | Models each column's distribution plus pairwise correlations, then samples. | Yes, by combining traits from other groups. |
-| Bayesian network | Learns a dependency graph between columns and samples it row by row. | Barely: 1-3 rows in E6. |
+| Bayesian network | Learns a dependency graph between columns and samples it row by row. | Barely: 1-4 rows in E6. |
 | CTGAN | Trains a generative adversarial network on the table; samples conditioned on the group. | Yes, from traits learned elsewhere. |
 | TVAE | Trains a variational autoencoder on the table. | No in E6: it samples the whole table without conditioning, and 1,000,000 draws per attempt held no row of the target group, even at 98.5%. This is a property of TVAE on this data, not a harness defect; the E6 smoke check showed it too. |
 | CLLM (uncurated) | Shows a language model 20 real training records per call and asks for more like them (Seedat et al. 2024). The curated version filters the output with a classifier; dropped from E6. | Yes |
@@ -428,7 +395,7 @@ Every draw comes from one seeded generator, so a run reproduces byte for byte. T
 | CTGAN | 0.0164 | 0.0523 | 0 |
 | `bko-population`, `bko-frequency` | 0.0150 | 0.0784-0.0787 | 0 and 1 |
 | SMOTE, ADASYN, TVAE, CART | no rows added | | |
-| Bayesian network | 0.0378 (1-3 rows, 77 holdouts) | 0.0454 | 0 |
+| Bayesian network | 0.0378 (1-4 rows, 77 holdouts) | 0.0454 | 0 |
 
 **`bko-direct` paired against each rival, 5th percentile (mean difference over 100 holdouts, 95% interval):**
 - vs CTGAN: +0.0030 [+0.0026, +0.0035], farther, so more private.
