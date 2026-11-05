@@ -10,10 +10,14 @@ import pytest
 from bko.baselines.records import Baseline
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.data import load
+from bko.evaluate.errors import IdentityError
 from bko.evaluate.filling import Logged, log_arm
 from bko.evaluate.run import score_holdout
+from bko.evaluate.run_folder import read_folder
+from bko.evaluate.shared import rescore
 from tests._evaluate_fixtures import FAST_ARMS, GRADED
-from tests.test_evaluate_shared import PAIR, run_folder, shared
+from tests.test_evaluate_shared import PAIR, edit_log, rescorer, run_folder, shared
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -81,3 +85,35 @@ def test_log_arm_returns_the_line_it_logs(caplog):
     assert [r.getMessage() for r in caplog.records] == [line]
     assert line.startswith("arm holdout=2 arm=smote attempt=1 seed=7 added=1 sha256=")
     assert line.endswith(' params={"k": 3}')
+
+
+def test_after_is_called_once_per_holdout_after_its_checks(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    ctx = rescorer()
+    data = load(ctx.dataset, tmp_path / "data", ctx)
+    calls: list[tuple[int, str | None, int, set[int]]] = []
+
+    def after(holdout, logged, scored):
+        calls.append((holdout, logged.split, len(logged.fills), {s.holdout for s in scored}))
+
+    def rescored() -> str:
+        return rescore(
+            read_folder(folder),
+            [],
+            run="e1",
+            experiment=ctx.experiment,
+            data=data,
+            arms=ctx.arms,
+            models=ctx.models,
+            uci=True,
+            after=after,
+        )
+
+    assert rescored() == (folder / "scores.csv").read_text(encoding="utf-8")
+    splits = read_folder(folder).splits
+    assert calls == [(seed, splits[seed], 2, {seed}) for seed in (0, 1)]
+    calls.clear()
+    edit_log(folder, "arm holdout=1 arm=bko ", lambda line: line.replace("sha256=", "sha256=0"))
+    with pytest.raises(IdentityError, match="holdout 1 arm bko"):
+        rescored()
+    assert [call[0] for call in calls] == [0]

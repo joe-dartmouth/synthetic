@@ -323,7 +323,7 @@ def rescore(
         parts = split(data.records, seed=seed, edges=frame.edges)
         exclude = None if not others else _exclude(others, parts, experiment, frame)
         logged = Logged()
-        holdout = score_holdout(
+        scored = score_holdout(
             parts,
             experiment,
             runners,
@@ -335,8 +335,8 @@ def rescore(
         )
         _check_holdout(folder, seed, logged)
         if after is not None:
-            after(seed, logged, holdout)
-        scores += holdout
+            after(seed, logged, scored)
+        scores += scored
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
     text = render(scores)

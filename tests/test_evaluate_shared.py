@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import shutil
+from collections.abc import Mapping
 from hashlib import sha256
 from pathlib import Path
 
@@ -15,6 +16,7 @@ import pandas as pd
 import pytest
 
 import bko.evaluate.run as run_module
+from bko.baselines.methods import Runner
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, FRAME_DTYPES, UCI_FRAME
@@ -150,15 +152,16 @@ def run_folder(
     replicas: bool = False,
     experiment: Experiment | None = None,
     send: ScriptedSend | None = None,
+    arms: Mapping[str, Runner] | None = None,
 ) -> Path:
     """A paid run's folder: `scores.csv`, `scores.log` and `holdout-candidates.jsonl`.
 
     The run is `NARROW` over `scripted()` replies, or `REPLICAS` over `replica_script()`, whose
     replica rows copy test records on each holdout, or `experiment` over `scripted()` replies;
-    `send` replaces the replies.
+    `send` replaces the replies, and `arms` the context's runners.
     """
     send = send or (replica_script() if replicas else scripted())
-    ctx = rescorer(replicas=replicas, experiment=experiment, send=send)
+    ctx = rescorer(replicas=replicas, experiment=experiment, send=send, arms=arms)
     folder = tmp_path / name
     folder.mkdir()
     argv = ["score", "--data-dir", str(tmp_path / "data")]
@@ -181,9 +184,13 @@ def rescorer(
     replicas: bool = False,
     experiment: Experiment | None = None,
     send: ScriptedSend | None = None,
+    arms: Mapping[str, Runner] | None = None,
 ) -> Context:
-    """The run's context; with no `send`, any call fails, so a rescore that called would show."""
-    ctx, _ = context(send or ScriptedSend())
+    """The run's context; with no `send`, any call fails, so a rescore that called would show.
+
+    `arms` replaces the context's runners, which are `none`'s alone.
+    """
+    ctx, _ = context(send or ScriptedSend(), arms=arms)
     chosen = REPLICAS if replicas else experiment
     return ctx if chosen is None else dataclasses.replace(ctx, experiment=chosen)
 

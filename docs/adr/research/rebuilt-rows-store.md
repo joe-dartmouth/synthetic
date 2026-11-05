@@ -78,8 +78,8 @@ cannot be stored.
 
 ## Enforcement
 
-- Owner: `bko.evaluate.rows` (the command and the store's reader and writer)
-- Pinned by: the rows test module `test_evaluate_rows`
+- Owner: `src/bko/evaluate/rows.py` (the command and the store's reader and writer)
+- Pinned by: `tests/test_evaluate_rows.py`
 
 ## Reversal Conditions
 
