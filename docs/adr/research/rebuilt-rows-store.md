@@ -82,7 +82,8 @@ cannot be stored.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/rows.py` (the command and the store's reader and writer)
+- Owner: `src/bko/evaluate/rows.py` (the command and the store's writer),
+  `src/bko/evaluate/rows_read.py` (the store's reader)
 - Pinned by: `tests/test_evaluate_rows.py`
 
 ## Reversal Conditions

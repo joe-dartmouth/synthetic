@@ -28,14 +28,8 @@ from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME, digest
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import REAL_ARM, Experiment, Removal
 from bko.evaluate.filling import Filled, arm_line
-from bko.evaluate.rows import (
-    RowsFile,
-    bind,
-    compare_holdout,
-    frame_of,
-    held_out,
-    read_rows,
-)
+from bko.evaluate.rows import RowsFile, compare_holdout, held_out
+from bko.evaluate.rows_read import RowsLine, bind, frame_of, read_rows
 from bko.evaluate.run_folder import fields, read_folder
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from tests._evaluate_bko_fixtures import NARROW
@@ -399,7 +393,7 @@ def test_frame_of_refuses_a_flipped_byte(tmp_path):
         frame_of(resealed, arm_line=fill.line, frame=UCI_FRAME)
 
 
-def stored_line(tmp_path: Path, added: pd.DataFrame) -> tuple[Filled, rows_module.RowsLine]:
+def stored_line(tmp_path: Path, added: pd.DataFrame) -> tuple[Filled, RowsLine]:
     """`added`'s fill, written to a store and read back as its line."""
     fill = filled(added)
     path = tmp_path / "rows.jsonl"
