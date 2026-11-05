@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-02
+updated: 2026-11-04
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -64,13 +64,13 @@ prompt (their section 2.2).
   over_ask, budget)` describes every Messages arm: `definition` None guides by cell alone, `shows`
   makes each call show training records, `curation` curates the accepted rows, and `budget` None
   reads `Experiment.budget`; a spec that both prescribes and shows is refused.
-  `Curation.LIKELIHOOD` and `over_ask` (above 1 with likelihood curation alone) are reserved for
-  a curated `bko` arm that waits on its gate's reading on Diabetes 130 (ADR
-  [`research/bkb-candidate-curation`](bkb-candidate-curation.md)), and no arm runs them
-  (`cleanup:evaluate/likelihood-curation-unused`). `cllm` is
+  `over_ask` is above 1 with `Curation.LIKELIHOOD` alone. `cllm` is
   `MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET)` and
-  `cllm-uncurated` the same with no curation. A `GuidedArm` refuses any curation but `classifier`,
-  which no arm but `cllm` has.
+  `cllm-uncurated` the same with no curation; `bko-curated` is
+  `MessagesArm(Definition.SUBGROUP, curation=Curation.LIKELIHOOD, over_ask=2, budget=2 * E1.budget)`,
+  which ranks each call cell's valid rows by their BKB likelihood (ADR
+  [`research/bkb-candidate-curation`](bkb-candidate-curation.md), Arm). A `GuidedArm` takes `classifier` curation, which no arm but `cllm` has, and `likelihood`
+  curation with its `over_ask`, which no arm but `bko-curated` has.
 - **Guidance by cell alone.** `bko.generate.guidance.cell_guidance` gives each cell its training
   record count and bounds, with no gap, no finding and no ontology.
 - **The prompt.** `bko.generate.prompt.render_shown`: the system text every call shares, then a
