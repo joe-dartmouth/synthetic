@@ -164,7 +164,9 @@ links to where its blocker is tracked.
   boundary, and the census reads them correctly from `bko.evaluate`.
   **What discharges it:** the Synthea and Diabetes 130 frames, indicators and field rows move to
   `bko.datasets`, and the census command moves to `bko.gaps`.
-  **Trigger:** a fourth caller of a frame outside `bko.evaluate`.
+  **Trigger:** a module outside `bko.evaluate` other than `bko.app.steps` imports a frame loader;
+  `grep -rn "^from bko.evaluate.\(data\|diabetes\) import" src/bko | grep -v "^src/bko/evaluate/"`
+  lists only `src/bko/app/steps.py` until then.
 
 - **`cleanup:evaluate/stamp-every-stage`: seven entry points log no time and repeat one
   `basicConfig` block.** The `baselines`, `datasets`, `fusion`, `gaps`, `generate` and `ontology`
