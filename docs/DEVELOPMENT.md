@@ -894,6 +894,29 @@ slices' runs; a schema-2 or schema-3 file's data digest must match the
 loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, for a run that
 scores it.
 
+**`privacy`** reads a run's stored fills for membership inference and NNDR beside distance to
+closest record (ADR [`research/membership-inference-reading`](adr/research/membership-inference-reading.md)).
+`<run>` is the named run whose slices' `rows` stores are read (`e6-thin`); `rows` runs first, one
+store per slice. `--rows` repeats, once per store, and the command refuses stores whose holdouts
+overlap or leave a holdout of the named run out. In zsh, `$(printf -- '--rows %s ' <paths>)`
+expands a list of store paths, or a brace range of them, into the repeated flags. It makes no API
+call:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
+
+Per arm that adds rows, per holdout and fraction, it reads the attack in each scope the ADR fixes
+(AUC, and TPR at FPR 0.01 and 0.001), NNDR, and DCR recomputed under the same distance; an arm with
+no rows on a holdout is NaN and counted. The `privacy.csv` holds the measures `mi-auc`,
+`mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and `-label`; `mi-tpr001` has no
+`-cell`), `nndr-p5`, `nndr-median`, `nndr-ties` and `nndr-exact`, and `dcr-p5` and `dcr-median`,
+each for the added rows and for the held-out rows. Its `privacy.log` holds, per fraction, scope
+and arm, one `privacy arm=` line with the mean, the contrast against the reference arm (`real` for
+E6), its corrected interval, its family, the holdouts read and the holdouts `undefined`, and
+`exceeds_reference=`, true when the interval lies above 0; the last line is `privacy rows=%d
+sha256=%s`. `exceeds_reference` is a reading rule and no criterion. It refuses a store whose header
+does not match its folder's `scores.log`, whose data digest differs, or whose arm does not hash to
+the `arm` line's sha256, and exits 3.
+
 ## BKB fixtures
 
 `bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
@@ -1395,6 +1418,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `criteria.log` | its stderr |
 | `likelihood.csv` | `python -m bko.evaluate likelihood`'s stdout |
 | `likelihood.log` | its stderr |
+| `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
+| `privacy.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
 | `draws.jsonl` | `python -m bko.generate direct`'s draw log |
