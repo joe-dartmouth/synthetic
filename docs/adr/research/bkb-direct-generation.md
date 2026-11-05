@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-10-28
+updated: 2026-11-05
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -51,7 +51,8 @@ concept shares, not the ontology's structure: closure is recorded and never read
    refused.
 3. **Closure upward** (`bko.ontology.terms.ancestors`, within each concept's release) is recorded
    in the draw log and never forces an ancestor's row: an ancestor with a row of its own, drawn
-   absent, keeps its fields' absent side.
+   absent, keeps its fields' absent side. Diabetes 130 shows why: `MONDO:0005016` appears without
+   its ancestor `MONDO:0005300` in most records (ADR `research/data-contradiction-handling`).
 4. **Label-only rows** (`MONDO:0006715`, `HP:0005145`, every row of which reads only the label)
    follow the cell's label: present in a target 1 cell, absent in a target 0 cell, drawing nothing.
 5. **Field groups.** The rows' fields join when one concept's rows read both
@@ -157,3 +158,4 @@ the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Deci
 - [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
 - [Validated records join the training records of their asked cell, and closure is read per gap definition](gap-closure-design.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
+- [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)

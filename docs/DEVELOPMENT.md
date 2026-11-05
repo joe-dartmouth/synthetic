@@ -1054,6 +1054,18 @@ commands, inside `.venv`:
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
 
+**`contradictions`** lists where a mapped frame's data contradicts its ontology, as ADR
+`research/data-contradiction-handling` defines the kinds: `narrow-without-broad`,
+`child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. It reads each frame's
+training split at holdout seed 0 with no removal and lists every cell. It makes no API call, and
+stdout is the same bytes on every run over the same data:
+
+    mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
+
+A fused BKB is valid when `bko.bkb.fusion.check_fused` passes: every input S-node present with its
+source tail and unchanged probability, every other fused S-node that is not a source prior mapped
+to an input, each source component's priors summing to 1, and every probability in [0, 1].
+
 ## Generation
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
@@ -1329,6 +1341,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-synthea.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
+| `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
+| `contradictions.log` | its stderr |
 | `reproduction.csv` | `python -m bko.ontology reproduce`'s stdout |
 | `reproduction.log` | its stderr |
 | `training.csv` | the augmented training set of an app fill |
@@ -1340,6 +1354,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
 - **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
@@ -1388,7 +1403,7 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
   files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
   reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
-  `first-flag.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
+  `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading them. A folder whose name is not a run id,
   a symbolic link, and an entry of the wrong kind are not listed; an artifact that cannot be read
   shows its error in place of its section.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
