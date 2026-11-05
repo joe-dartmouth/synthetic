@@ -7,6 +7,7 @@ import math
 import pytest
 
 from bko.evaluate.errors import ScoresFormatError
+from bko.evaluate.membership import SCOPES
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source, parse, render
 
 
@@ -121,3 +122,29 @@ def test_parse_round_trips_every_new_measure():
 def test_parse_refuses_a_measure_of_an_unknown_model():
     with pytest.raises(ScoresFormatError, match="recall-xgb"):
         parse(render(SCORES).replace("auc-pr", "recall-xgb"))
+
+
+PRIVACY_MEASURES = [
+    *(f"mi-{statistic}-{scope}" for statistic in ("auc", "tpr01") for scope in SCOPES),
+    *(f"mi-tpr001-{scope}" for scope in ("outside", "label")),
+    "nndr-p5",
+    "nndr-median",
+    "nndr-ties",
+    "nndr-exact",
+]
+
+
+def test_parse_round_trips_every_privacy_measure():
+    rows = [
+        Score(0, "real", Source.ADDED, Measure(name), Scope.ALL, 0.5) for name in PRIVACY_MEASURES
+    ]
+    rows.append(Score(0, "none", Source.HELD_OUT, Measure.NNDR_P5, Scope.ALL, math.nan))
+    back = parse(render(rows))
+    assert back[:-1] == rows[:-1]
+    assert math.isnan(back[-1].value)
+
+
+@pytest.mark.parametrize("name", ["mi-auc-all", "mi-tpr001-cell", "mi-tpr05-outside"])
+def test_parse_refuses_a_privacy_measure_the_reading_does_not_write(name):
+    with pytest.raises(ScoresFormatError, match=name):
+        parse(render(SCORES).replace("auc-pr", name))

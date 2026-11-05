@@ -55,7 +55,8 @@ class Context:
         rehearse: Builds the send a rehearsal answers every BKO call with.
         power: Whether the machine runs on battery, for `launch` and each `supervise` resume.
         start: Starts `launch`'s detached run.
-        runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
+        runs_dir: The run folders' root for `launch` and `privacy`; `runs/` at the repository root
+            when None.
         segment: Runs one of `supervise`'s `score` segments to its exit.
         sleep: Waits `supervise`'s backoff before a resume; None waits until it ends or the
             operator stops the run.

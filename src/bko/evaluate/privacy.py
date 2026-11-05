@@ -37,11 +37,7 @@ BLOCK: Final = 2048
 
 def distances(rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec) -> dict[Measure, float]:
     """The 5th percentile and the median of each row's distance to its closest training row."""
-    nearest_distances = pd.Series(nearest(rows, train, frame=frame))
-    return {
-        Measure.DCR_P5: float(nearest_distances.quantile(QUANTILE)),
-        Measure.DCR_MEDIAN: float(nearest_distances.median()),
-    }
+    return _quantiles(nearest(rows, train, frame=frame))
 
 
 def nearest(
@@ -129,8 +125,33 @@ def nndr(rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec) -> dict[M
     Raises:
         ValueError: As `nearest_two`.
     """
+    return _ratios(*nearest_two(rows, train, frame=frame))
+
+
+def distances_and_nndr(
+    rows: pd.DataFrame, train: pd.DataFrame, *, frame: FrameSpec
+) -> dict[Measure, float]:
+    """`distances`, then `nndr`, from one pass of `nearest_two`; its first is `nearest`'s.
+
+    Raises:
+        ValueError: As `nearest_two`.
+    """
     first, second = nearest_two(rows, train, frame=frame)
-    if not len(rows):
+    return {**_quantiles(first), **_ratios(first, second)}
+
+
+def _quantiles(nearest_distances: np.ndarray) -> dict[Measure, float]:
+    """The 5th percentile and the median of `nearest_distances`, as `distances` reads them."""
+    found = pd.Series(nearest_distances)
+    return {
+        Measure.DCR_P5: float(found.quantile(QUANTILE)),
+        Measure.DCR_MEDIAN: float(found.median()),
+    }
+
+
+def _ratios(first: np.ndarray, second: np.ndarray) -> dict[Measure, float]:
+    """`nndr`'s summary of the two nearest distances `first` and `second`."""
+    if not len(first):
         return dict.fromkeys(NNDR_MEASURES, math.nan)
     with np.errstate(invalid="ignore", divide="ignore"):
         ratios = pd.Series(np.where(second == 0, 1.0, first / second))

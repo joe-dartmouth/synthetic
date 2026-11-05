@@ -13,7 +13,15 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.evaluate.fidelity import metadata
-from bko.evaluate.privacy import BLOCK, distances, nearest, nearest_from, nearest_two, nndr
+from bko.evaluate.privacy import (
+    BLOCK,
+    distances,
+    distances_and_nndr,
+    nearest,
+    nearest_from,
+    nearest_two,
+    nndr,
+)
 from bko.evaluate.scores import Measure
 from tests._baselines_fixtures import full_records
 
@@ -40,7 +48,7 @@ def test_one_differing_code_moves_a_row_by_one_column_share():
     assert scores[Measure.DCR_P5] == pytest.approx(1 / 14)
 
 
-def _records(frame: FrameSpec, count: int, seed: int) -> pd.DataFrame:
+def random_records(frame: FrameSpec, count: int, seed: int) -> pd.DataFrame:
     """`count` random records in `frame`'s columns: numbers in range, codes from the codebook."""
     rng = np.random.default_rng(seed)
     bounds = {constraint.field: constraint for constraint in frame.ranges}
@@ -63,8 +71,8 @@ def _records(frame: FrameSpec, count: int, seed: int) -> pd.DataFrame:
 def _cases(frame: FrameSpec) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Rows against training rows that span SDMetrics' chunk, some of them copies of training rows,
     with one numeric column constant in the training rows (a zero range) but not in the rows."""
-    train = _records(frame, 1_100, seed=1)
-    rows = pd.concat([_records(frame, 140, seed=2), train.iloc[:10]], ignore_index=True)
+    train = random_records(frame, 1_100, seed=1)
+    rows = pd.concat([random_records(frame, 140, seed=2), train.iloc[:10]], ignore_index=True)
     constant = frame.numeric[-1]
     train[constant] = train[constant].iloc[0]
     return rows, train
@@ -148,8 +156,8 @@ def test_a_wholly_missing_nullable_training_column_measures_as_sdmetrics_does():
 @pytest.mark.parametrize("crossing", ["rows", "train"])
 def test_blocked_dcr_equals_sdmetrics_across_the_default_block(crossing):
     """`BLOCK` rows or training rows and a few more, so the default blocks split one side."""
-    more = _records(UCI_FRAME, BLOCK + 37, seed=5)
-    few = _records(UCI_FRAME, 23, seed=6)
+    more = random_records(UCI_FRAME, BLOCK + 37, seed=5)
+    few = random_records(UCI_FRAME, 23, seed=6)
     rows, train = (more, few) if crossing == "rows" else (few, more)
     expected = _sdmetrics(rows, train, UCI_FRAME)
     assert np.array_equal(nearest(rows, train, frame=UCI_FRAME), expected)
@@ -175,8 +183,8 @@ def _matrix(rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec) -> np.nda
 
 @pytest.mark.parametrize("block", [7, 64])
 def test_the_second_of_the_two_nearest_is_the_second_smallest_distance(block):
-    train = _records(UCI_FRAME, 40, seed=3)
-    rows = pd.concat([_records(UCI_FRAME, 30, seed=4), train.iloc[:5]], ignore_index=True)
+    train = random_records(UCI_FRAME, 40, seed=3)
+    rows = pd.concat([random_records(UCI_FRAME, 30, seed=4), train.iloc[:5]], ignore_index=True)
     first, second = nearest_two(rows, train, frame=UCI_FRAME, block=block)
     ordered = np.sort(_matrix(rows, train, UCI_FRAME), axis=1)
     assert np.array_equal(first, ordered[:, 0])
@@ -208,7 +216,7 @@ def test_a_span_is_read_from_the_training_split_not_the_reference():
 
 
 def test_nndr_reads_a_tie_at_zero_as_one_and_an_exact_copy_as_zero():
-    train = _records(UCI_FRAME, 50, seed=7)
+    train = random_records(UCI_FRAME, 50, seed=7)
     train = pd.concat([train, train.iloc[[0]]], ignore_index=True)
     rows = train.iloc[[0, 1]].reset_index(drop=True)
     ratios = pd.Series([1.0, 0.0])
@@ -250,3 +258,14 @@ def test_nndr_of_no_rows_is_undefined():
         Measure.NNDR_TIES,
         Measure.NNDR_EXACT,
     }
+
+
+def test_one_pass_gives_distances_then_nndr_bitwise():
+    rows, train = _cases(DIABETES_FRAME)
+    found = distances_and_nndr(rows, train, frame=DIABETES_FRAME)
+    expected = {
+        **distances(rows, train, frame=DIABETES_FRAME),
+        **nndr(rows, train, frame=DIABETES_FRAME),
+    }
+    assert list(found) == list(expected)
+    assert found == expected

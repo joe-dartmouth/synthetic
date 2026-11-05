@@ -433,3 +433,38 @@ its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and
 `E6_CURATED` at `E6_SETTINGS`. A variant adds its own entry
 in its own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling
 and criteria."""
+
+
+def sliced(part: NamedRun, whole: NamedRun) -> bool:
+    """Whether `part` is a holdout slice of `whole`.
+
+    It is when its settings and dataset are `whole`'s, its holdouts are among `whole`'s, and its
+    experiment but for its holdouts and spend ceiling is `whole`'s.
+    """
+    if (part.settings, part.dataset) != (whole.settings, whole.dataset):
+        return False
+    rest = replace(
+        part.experiment,
+        holdout_seeds=whole.experiment.holdout_seeds,
+        spend_ceiling=whole.experiment.spend_ceiling,
+    )
+    held = set(part.experiment.holdout_seeds) <= set(whole.experiment.holdout_seeds)
+    return held and rest == whole.experiment
+
+
+def slice_of(name: str, runs: Mapping[str, NamedRun] = RUNS) -> str | None:
+    """The run of `runs` that the run `name` is a holdout slice of; None for no such run.
+
+    Only a run with more holdouts than `name`'s counts, so a run is not its own slice; of several,
+    the one with the most holdouts.
+    """
+    part = runs.get(name)
+    if part is None:
+        return None
+    count = len(part.experiment.holdout_seeds)
+    wholes = [
+        (len(whole.experiment.holdout_seeds), other)
+        for other, whole in runs.items()
+        if len(whole.experiment.holdout_seeds) > count and sliced(part, whole)
+    ]
+    return max(wholes)[1] if wholes else None
