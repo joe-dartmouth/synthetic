@@ -8,7 +8,7 @@ assume (ADR `research/data-contradiction-handling`):
   map.
 - `empty-cell`: a cell holds no record.
 - `all-show`: every record shows every mapped concept.
-- `code-overlap`: two concepts' codes on one field intersect, neither inside the other.
+- `code-overlap`: two concepts' codes on one field intersect, a pair `nested` does not resolve.
 
 Every kind maps a nested pair on `restecg`, as UCI's own table does, and the `is_a` pair on `cp`
 and `exang`, all under one invented root in one release.

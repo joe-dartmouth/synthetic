@@ -52,11 +52,14 @@ def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
 
 
 def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> frozenset[str]:
-    """The concepts every row of which reads only the label: they follow the cell's label."""
+    """The concepts every row of which reads only the label: they follow the cell's label.
+
+    A row with no clause applies to every record, whatever its label, so its concept is not one.
+    """
     return frozenset(
         concept
         for concept, mapped in by_concept(rows).items()
-        if all(clause.field == frame.label for row in mapped for clause in row.when)
+        if all(row.when and all(c.field == frame.label for c in row.when) for row in mapped)
     )
 
 
