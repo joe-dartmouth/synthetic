@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from bko.evaluate.classifier import Model
 from bko.evaluate.criteria import (
     JUDGED,
+    Absent,
+    Checked,
     Interval,
     checked,
     corrected_interval,
@@ -22,7 +24,7 @@ from bko.evaluate.criteria import (
     paired_scores,
 )
 from bko.evaluate.experiment import Experiment
-from bko.evaluate.scores import Measure, Scope, Score, Source
+from bko.evaluate.scores import Measure, Scope, Score, Source, suffixed
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,9 +57,7 @@ class Unjudged:
 
 def judged_of(model: Model) -> tuple[Measure, ...]:
     """`JUDGED` under `model`'s names: the regression's as they are, others suffixed."""
-    if model is Model.LR:
-        return JUDGED
-    return tuple(Measure(f"{measure}-{model}") for measure in JUDGED)
+    return tuple(suffixed(measure, model) for measure in JUDGED)
 
 
 def models_in(scores: Sequence[Score]) -> list[Model]:
@@ -71,25 +71,50 @@ def unjudged(
     experiment: Experiment,
     *,
     candidate: str | None = None,
-    model: Model = Model.LR,
-) -> list[Unjudged]:
-    """Each contrast `judge` reads for the experiment's criteria, of `model`'s measures, no verdict.
+    models: Sequence[Model],
+) -> dict[Model, list[Unjudged | Absent]]:
+    """Each contrast `judge` reads for the experiment's criteria, of each model's measures.
 
-    A contrast some holdout leaves undefined (a score that is not finite, as when decontamination
-    leaves a holdout no positive test record in the flagged cells) comes with no interval, and the
-    family still counts it. The privacy criterion reads no model, so only the regression's reading
-    holds it.
+    The scores are checked once, then each of `models` is read with no verdict (`_read`).
 
     Raises:
         EvaluationError: As `judge`, for anything but an undefined contrast.
     """
     facts = checked(scores, experiment, candidate)
-    found: list[Unjudged] = []
-    read = families(facts, experiment, measures=judged_of(model))
-    for name, scope, pairs, factor, margin in read:
-        if model is not Model.LR and name == "privacy":
+    return {model: _read(scores, facts, experiment, model) for model in models}
+
+
+def _read(
+    scores: Sequence[Score], facts: Checked, experiment: Experiment, model: Model
+) -> list[Unjudged | Absent]:
+    """`model`'s contrasts, with no verdict.
+
+    A contrast some holdout leaves undefined (a score that is not finite, as when decontamination
+    leaves a holdout no positive test record in the flagged cells) comes with no interval, and the
+    family still counts it. For a model but the regression, a pair of arms either of which holds
+    no augmented row of the model comes first as one `Absent`, as `reported_contrasts` reads it,
+    and the family still counts its contrasts. The privacy criterion reads no model, so only the
+    regression's reading holds it.
+
+    Raises:
+        EvaluationError: As `judge`, for anything but an undefined contrast.
+    """
+    measures = judged_of(model)
+    found: list[Unjudged | Absent] = []
+    held: set[str] | None = None
+    if model is not Model.LR:
+        held = {s.arm for s in scores if s.source is Source.AUGMENTED and s.measure in measures}
+        found += [
+            Absent(model, facts.arm, other)
+            for other in facts.others
+            if not {facts.arm, other} <= held
+        ]
+    for name, scope, pairs, factor, margin in families(facts, experiment, measures=measures):
+        if held is not None and name == "privacy":
             continue
         for left, right in pairs:
+            if held is not None and not {left.arm, right.arm} <= held:
+                continue
             ours, theirs = paired_scores(facts.series, left, right, facts.holdouts)
             contrast = [a - factor * b - margin for a, b in zip(ours, theirs, strict=True)]
             defined = sum(math.isfinite(value) for value in contrast)

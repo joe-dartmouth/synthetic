@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Final, TextIO
 
 from bko.evaluate.beside import Pairing, Skipped, check, pair, pairable
-from bko.evaluate.classifier import Model
+from bko.evaluate.classifier import MODELS, Model
 from bko.evaluate.criteria import (
     JUDGED,
     Absent,
@@ -29,8 +29,8 @@ from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
-from bko.evaluate.scores import Measure, Score, Source, parse
-from bko.evaluate.unjudged import judged_of, models_in, unjudged
+from bko.evaluate.scores import CALIBRATION_MEASURES, Score, Source, parse, suffixed
+from bko.evaluate.unjudged import Unjudged, judged_of, models_in, unjudged
 from bko.evaluate.validity import Validity, reported, validity, verdict
 
 
@@ -38,11 +38,7 @@ logger = logging.getLogger("bko.evaluate")
 
 MEANS: Final = (
     *(measure for model in Model for measure in judged_of(model)),
-    *(
-        Measure(base if model is Model.LR else f"{base}-{model}")
-        for model in Model
-        for base in (Measure.BRIER, Measure.CALIBRATION)
-    ),
+    *(suffixed(measure, model) for model in Model for measure in CALIBRATION_MEASURES),
 )
 """The augmented measures `compare` logs a mean of: each model's judged measures, then each model's
 calibration measures; a scores file without a model's rows gets no line for it."""
@@ -67,8 +63,10 @@ def compare(
     the table, and a pair of arms either of which lacks them is logged as skipped. An experiment
     that judges no criterion, such as `g2`, has a table of its header alone; every interval of
     `CRITERION_NAMES` is then logged after those contrasts as an `unjudged` line, with no verdict,
-    or as an `unjudged skip` line when some holdout leaves its contrast undefined, the
-    regression's first, then each other model's, `model=` naming it.
+    or as an `unjudged skip` line when some holdout leaves its contrast undefined. When the scores
+    hold a model outside `MODELS`, as a `panel` file does, each other model's unjudged lines
+    follow the regression's, `model=` naming it, and a pair of arms either of which lacks its rows
+    is logged as skipped; otherwise only the regression's are logged.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -126,12 +124,13 @@ def compare(
     _log_validity(rows, experiment, candidate)
     log_copies(rows)
     log_means(rows, measures=MEANS)
-    models = [Model.LR, *(model for model in models_in(rows) if model is not Model.LR)]
-    for model in models[1:]:
-        _log_boosted(reported_contrasts(rows, experiment, candidate=candidate, model=model))
+    present = models_in(rows)
+    others = [model for model in present if model is not Model.LR]
+    for model in others:
+        _log_reported(reported_contrasts(rows, experiment, candidate=candidate, model=model))
     if not experiment.criteria:
-        for model in models:
-            _log_unjudged(rows, experiment, candidate, model)
+        panel = any(model not in MODELS for model in present)
+        _log_unjudged(rows, experiment, candidate, [Model.LR, *others] if panel else [Model.LR])
     log_means(rows, source=Source.REPLICA, measures=(*JUDGED, *FIDELITY), tag="replica")
     if reading is not None:
         _log_beside(reading, rows, experiment, run=run, level=level)
@@ -259,19 +258,28 @@ def _log_beside(
 
 
 def _log_unjudged(
-    rows: Sequence[Score], experiment: Experiment, candidate: str, model: Model
+    rows: Sequence[Score], experiment: Experiment, candidate: str, models: Sequence[Model]
 ) -> None:
-    """Log each interval every criterion of `CRITERION_NAMES` reads of `model`, with no verdict.
+    """Log each interval every criterion of `CRITERION_NAMES` reads of each of `models`.
 
     The regression's lines start `unjudged`; every other model's start `unjudged model=<model>`.
-    A contrast some holdout leaves undefined is logged as an `unjudged skip` line instead.
+    A contrast some holdout leaves undefined is logged as a `skip` line with `reason=undefined`,
+    and a pair of arms either of which lacks the model's rows as one with `reason=absent`.
 
     Raises:
         EvaluationError: As `unjudged`.
     """
     every = replace(experiment, criteria=CRITERION_NAMES)
-    tag = "unjudged" if model is Model.LR else f"unjudged model={model}"
-    for c in unjudged(rows, every, candidate=candidate, model=model):
+    for model, readings in unjudged(rows, every, candidate=candidate, models=models).items():
+        _log_readings(readings, "unjudged" if model is Model.LR else f"unjudged model={model}")
+
+
+def _log_readings(readings: Sequence[Unjudged | Absent], tag: str) -> None:
+    """Log one model's unjudged `readings`, each line starting `tag`."""
+    for c in readings:
+        if isinstance(c, Absent):
+            logger.info("%s skip arm=%s against=%s reason=absent", tag, c.arm, c.against)
+            continue
         if c.interval is None:
             logger.info(
                 "%s skip criterion=%s scope=%s arm=%s against=%s measure=%s "
@@ -304,8 +312,8 @@ def _log_unjudged(
         )
 
 
-def _log_boosted(readings: Sequence[Reported | Absent]) -> None:
-    """Log each of the boosting model's contrasts, with no verdict, or the pair it skips."""
+def _log_reported(readings: Sequence[Reported | Absent]) -> None:
+    """Log each of a model's `reported_contrasts`, with no verdict, or the pair it skips."""
     for r in readings:
         if isinstance(r, Absent):
             logger.info(

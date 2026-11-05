@@ -11,7 +11,6 @@ import pytest
 
 from bko.evaluate.classifier import Model
 from bko.evaluate.criteria import (
-    BOOSTED,
     CONTRAST_COLUMNS,
     Absent,
     Interval,
@@ -27,10 +26,13 @@ from bko.evaluate.criteria import (
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
-from bko.evaluate.unjudged import unjudged
+from bko.evaluate.unjudged import Unjudged, judged_of, unjudged
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
+HGB_JUDGED = judged_of(Model.HGB)
+"""The boosting model's judged measures."""
 
 SEEDS = (0, 1, 2, 3)
 EXPERIMENT = dataclasses.replace(
@@ -316,8 +318,8 @@ def boosted(gain, boost, *, flagged=None, boost_flagged=None, comparators=("none
     rows = scored_against(gain, flagged, comparators=comparators)
     return rows + [
         s
-        for s in scored_against(boost, boost_flagged, comparators=comparators, measures=BOOSTED)
-        if s.measure in BOOSTED
+        for s in scored_against(boost, boost_flagged, comparators=comparators, measures=HGB_JUDGED)
+        if s.measure in HGB_JUDGED
     ]
 
 
@@ -343,7 +345,9 @@ def test_the_boosting_contrasts_are_read_as_the_criteria_read_the_regressions():
     contrasts = judge(scored_against(GAIN, FLAGGED_GAIN), EXPERIMENT)
     readings = kept(
         reported_contrasts(
-            boosted(GAIN, GAIN, flagged=FLAGGED_GAIN, boost_flagged=FLAGGED_GAIN), EXPERIMENT
+            boosted(GAIN, GAIN, flagged=FLAGGED_GAIN, boost_flagged=FLAGGED_GAIN),
+            EXPERIMENT,
+            model=Model.HGB,
         )
     )
     assert [(r.criterion, r.scope, r.measure) for r in readings] == [
@@ -367,7 +371,7 @@ def test_the_boosting_contrasts_take_the_criterias_margin_and_family():
     rows = boosted(
         GAIN, GAIN, flagged=FLAGGED_GAIN, boost_flagged=FLAGGED_GAIN, comparators=comparators
     )
-    readings = kept(reported_contrasts(rows, experiment))
+    readings = kept(reported_contrasts(rows, experiment, model=Model.HGB))
     assert len(readings) == len(contrasts) == 8
     assert [(r.against, r.interval) for r in readings] == [
         (c.against, c.interval) for c in contrasts
@@ -380,13 +384,17 @@ def test_a_comparator_without_boosting_rows_is_skipped_once():
     rows = [
         s
         for s in boosted(GAIN, GAIN, comparators=comparators)
-        if not (s.arm == "smote" and s.measure in BOOSTED)
+        if not (s.arm == "smote" and s.measure in HGB_JUDGED)
     ]
-    found = reported_contrasts(rows, experiment)
+    found = reported_contrasts(rows, experiment, model=Model.HGB)
     assert [f for f in found if isinstance(f, Absent)] == [Absent(Model.HGB, "bko", "smote")]
     readings = kept(found)
     assert {r.against for r in readings} == {"none"}
-    full = kept(reported_contrasts(boosted(GAIN, GAIN, comparators=comparators), experiment))
+    full = kept(
+        reported_contrasts(
+            boosted(GAIN, GAIN, comparators=comparators), experiment, model=Model.HGB
+        )
+    )
     assert [r.interval for r in readings] == [r.interval for r in full if r.against == "none"]
 
 
@@ -396,21 +404,21 @@ def test_a_candidate_without_boosting_rows_is_skipped_against_each_comparator():
     rows = [
         s
         for s in boosted(GAIN, GAIN, comparators=comparators)
-        if not (s.arm == "bko" and s.measure in BOOSTED)
+        if not (s.arm == "bko" and s.measure in HGB_JUDGED)
     ]
-    assert reported_contrasts(rows, experiment) == [
+    assert reported_contrasts(rows, experiment, model=Model.HGB) == [
         Absent(Model.HGB, "bko", "none"),
         Absent(Model.HGB, "bko", "smote"),
     ]
 
 
 def test_no_boosting_rows_give_no_boosting_contrasts():
-    assert reported_contrasts(scored_against(GAIN, FLAGGED_GAIN), EXPERIMENT) == []
+    assert reported_contrasts(scored_against(GAIN, FLAGGED_GAIN), EXPERIMENT, model=Model.HGB) == []
 
 
 def test_the_boosting_contrasts_follow_the_criteria_the_experiment_holds():
     primary = dataclasses.replace(EXPERIMENT, criteria=("primary",))
-    found = kept(reported_contrasts(boosted(GAIN, GAIN), primary))
+    found = kept(reported_contrasts(boosted(GAIN, GAIN), primary, model=Model.HGB))
     assert {r.criterion for r in found} == {"primary"}
 
 
@@ -423,7 +431,9 @@ def test_unjudged_reads_judges_intervals_and_skips_an_undefined_contrast():
         else row
         for row in scored(gain)
     ]
-    found = {(u.criterion, u.measure): u for u in unjudged(rows, EXPERIMENT)}
+    readings = unjudged(rows, EXPERIMENT, models=[Model.LR])[Model.LR]
+    found = {(u.criterion, u.measure): u for u in readings if isinstance(u, Unjudged)}
+    assert len(found) == len(readings)
     judged = {(c.criterion, c.measure): c for c in judge(scored(gain), EXPERIMENT)}
     assert found.keys() == judged.keys()
     skipped = found["secondary", Measure.RECALL]
