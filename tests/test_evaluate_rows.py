@@ -233,7 +233,13 @@ def test_a_store_a_tampered_holdout_stopped_fails_bind(tmp_path, caplog):
     edit_log(folder, "arm holdout=1 arm=bko ", lambda line: line.replace("sha256=", "sha256=0", 1))
     assert stored(tmp_path, folder) == (3, "")
     with pytest.raises(IdentityError, match="every arm line"):
-        bind(read_rows(tmp_path / "rows.jsonl"), read_folder(folder), UCI_FRAME)
+        bind(
+            read_rows(tmp_path / "rows.jsonl"),
+            read_folder(folder),
+            UCI_FRAME,
+            run="e1",
+            data=data_of(folder),
+        )
 
 
 @pytest.mark.parametrize(
@@ -370,16 +376,17 @@ def test_the_header_binds_the_folder(tmp_path, caplog):
         "frame": "uci",
     }
     store = read_rows(tmp_path / "rows.jsonl")
-    bind(store, read_folder(folder), UCI_FRAME)
+    data = data_of(folder)
+    bind(store, read_folder(folder), UCI_FRAME, run="e1", data=data)
     with pytest.raises(IdentityError, match="names the frame 'uci'"):
-        bind(store, read_folder(folder), SYNTHEA_FRAME)
+        bind(store, read_folder(folder), SYNTHEA_FRAME, run="e1", data=data)
     other = tmp_path / "other"
     shutil.copytree(folder, other)
     with pytest.raises(IdentityError, match="names the folder 'run'"):
-        bind(store, read_folder(other), UCI_FRAME)
+        bind(store, read_folder(other), UCI_FRAME, run="e1", data=data)
     edit_log(folder, "experiment ", lambda line: line + "\n")
     with pytest.raises(IdentityError, match="log_sha256"):
-        bind(store, read_folder(folder), UCI_FRAME)
+        bind(store, read_folder(folder), UCI_FRAME, run="e1", data=data)
 
 
 def test_frame_of_refuses_a_flipped_byte(tmp_path):
@@ -480,3 +487,135 @@ def test_the_writer_refuses_a_fill_another_than_the_folders_or_a_repeat(tmp_path
         with pytest.raises(IdentityError, match="already"):
             store.write(1, [again, again], arms=logged(again))
     assert set(read_rows(path).lines) == {(0, "ctgan")}
+
+
+FILL = {
+    "kind": "rows",
+    "holdout": 0,
+    "arm": "ctgan",
+    "attempt": 1,
+    "added": 0,
+    "sha256": "0" * 64,
+    "csv": "record_id\n",
+}
+"""A fill line whose fields have the kinds `read_rows` takes."""
+
+
+def written(path: Path, *lines: object) -> Path:
+    """`path` holding `HEADER`, then each of `lines` as a JSON line."""
+    text = "".join(json.dumps(line) + "\n" for line in (HEADER, *lines))
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize(
+    ("edit", "match"),
+    [
+        ({"kind": "header"}, "kind 'header', not rows"),
+        ({"holdout": "0"}, "holdout='0', not a count"),
+        ({"added": True}, "added=True, not a count"),
+        ({"attempt": -1}, "attempt=-1, not a count"),
+        ({"attempt": 1.0}, "attempt=1.0, not a count"),
+        ({"arm": 5}, "arm=5, not text"),
+        ({"csv": None}, "csv=None, not text"),
+        ({"sha256": ["0"]}, r"sha256=\['0'\], not text"),
+    ],
+    ids=["kind", "text-holdout", "bool-added", "negative", "float", "arm", "csv", "sha256"],
+)
+def test_read_rows_refuses_a_field_of_the_wrong_kind(tmp_path, edit, match):
+    assert read_rows(written(tmp_path / "rows.jsonl", FILL)).lines[0, "ctgan"].added == 0
+    with pytest.raises(IdentityError, match=match):
+        read_rows(written(tmp_path / "rows.jsonl", {**FILL, **edit}))
+
+
+@pytest.mark.parametrize("missing", sorted(set(FILL) - {"kind"}))
+def test_read_rows_refuses_a_line_missing_a_field(tmp_path, missing):
+    line = {key: value for key, value in FILL.items() if key != missing}
+    with pytest.raises(IdentityError, match=f"lacks \\['{missing}'\\]"):
+        read_rows(written(tmp_path / "rows.jsonl", line))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        '{"kind":"head","schema":1}\n',
+        '{"kind":"header","schema":2}\n',
+        '{"kind":"header","schema":true}\n',
+        '{"kind":"header"}\n',
+    ],
+    ids=["empty", "kind", "schema-2", "schema-true", "no-schema"],
+)
+def test_read_rows_refuses_a_store_with_no_schema_1_header(tmp_path, text):
+    path = tmp_path / "rows.jsonl"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(IdentityError, match="schema-1 header"):
+        read_rows(path)
+
+
+def test_read_rows_refuses_a_line_nested_past_the_recursion_limit(tmp_path):
+    path = tmp_path / "rows.jsonl"
+    path.write_text('{"kind":"header","schema":1}\n' + "[" * 1_000_000 + "\n", encoding="utf-8")
+    with pytest.raises(IdentityError, match="line 2 .* JSON object"):
+        read_rows(path)
+
+
+def test_frame_of_reads_na_text_as_text(tmp_path):
+    texts = ("NA", "nan", "null", "N/A")
+    added = records(UCI_FRAME, len(texts)).astype({"thal": object})
+    added["thal"] = list(texts)
+    fill, line = stored_line(tmp_path, added)
+    back = frame_of(line, arm_line=fill.line, frame=Coded.of(UCI_FRAME))
+    assert list(back["thal"]) == list(texts)
+    assert digest(back) == line.sha256
+
+
+@dataclasses.dataclass(frozen=True, slots=True, eq=False)
+class Coded(FrameSpec):
+    """A frame whose `thal` column holds text."""
+
+    @classmethod
+    def of(cls, frame: FrameSpec) -> Coded:
+        """`frame` with `thal` read as text."""
+        return cls(**{f.name: getattr(frame, f.name) for f in dataclasses.fields(frame)})
+
+    @property
+    def dtypes(self) -> Mapping[str, str]:
+        """`FrameSpec.dtypes`, `thal` as object."""
+        return {**FrameSpec.dtypes.fget(self), "thal": "object"}
+
+
+def test_frame_of_refuses_an_integer_its_dtype_overflows(tmp_path):
+    added = records(UCI_FRAME, 2).astype({"age": object})
+    added.loc[-1, "age"] = 10**20
+    fill, line = stored_line(tmp_path, added)
+    with pytest.raises(IdentityError, match="does not read"):
+        frame_of(line, arm_line=fill.line, frame=UCI_FRAME)
+
+
+def data_of(folder: Path) -> str:
+    """The data digest `folder`'s candidates header names."""
+    candidates = (folder / "holdout-candidates.jsonl").read_text(encoding="utf-8")
+    return json.loads(candidates.split("\n", 1)[0])["data"]
+
+
+def test_bind_refuses_another_run_or_data(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    assert stored(tmp_path, folder)[0] == 0
+    store, read = read_rows(tmp_path / "rows.jsonl"), read_folder(folder)
+    bind(store, read, UCI_FRAME, run="e1", data=data_of(folder))
+    with pytest.raises(IdentityError, match="names the run 'e1', not 'e2'"):
+        bind(store, read, UCI_FRAME, run="e2", data=data_of(folder))
+    with pytest.raises(IdentityError, match="names the data"):
+        bind(store, read, UCI_FRAME, run="e1", data="0" * 64)
+
+
+def test_bind_refuses_a_fill_line_the_folder_lacks(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog)
+    assert stored(tmp_path, folder)[0] == 0
+    path = tmp_path / "rows.jsonl"
+    last = json.loads(path.read_text(encoding="utf-8").splitlines()[-1])
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({**last, "holdout": 9}) + "\n")
+    with pytest.raises(IdentityError, match=r"missing \[\], extra \[\(9, "):
+        bind(read_rows(path), read_folder(folder), UCI_FRAME, run="e1", data=data_of(folder))
