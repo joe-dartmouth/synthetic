@@ -247,9 +247,12 @@ def test_compare_on_a_run_with_no_criteria_logs_e1s_criteria_unjudged(tmp_path, 
     table = io.StringIO()
     assert main(["compare", "g2", str(path)], context=ctx, out=table) == 0
     assert table.getvalue().count("\n") == 1, "the table holds its header alone"
-    unjudged = [m for m in caplog.messages if m.startswith("unjudged ")]
+    lines = [m for m in caplog.messages if m.startswith("unjudged ")]
+    unjudged = [m for m in lines if not m.startswith("unjudged model=")]
     criteria = {m.split()[1] for m in unjudged}
     assert criteria == {f"criterion={name}" for name in CRITERION_NAMES if name != "validity"}
+    boosted = {m.split()[2] for m in lines if m.startswith("unjudged model=hgb ")}
+    assert boosted == {"criterion=primary", "criterion=secondary"}
     assert any(
         m.startswith("unjudged criterion=primary scope=all arm=bko-direct against=none ")
         and " measure=recall mean=" in m

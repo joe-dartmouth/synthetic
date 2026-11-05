@@ -242,6 +242,9 @@ def check_folders(
         uci: Whether the named run scores UCI Heart Disease, which a schema-1 candidates file
             holds (`bko.evaluate.holdout_candidates.read` checks its archive digest).
 
+    Check 2 holds every `experiment` key equal but `models`, whose current list may extend the
+    folder's (`_extends`), so `bko.evaluate.panel` reads a folder scored at fewer models.
+
     Raises:
         IdentityError: If a check fails.
     """
@@ -262,7 +265,11 @@ def check_folders(
         msg = f"{folder.path} is run {folder.experiment.get('run')!r}'s, not {run!r}'s"
         raise IdentityError(msg)
     now = keys(current, f"the run {run!r}'s")
-    _same_keys(folder.experiment, now, set(), f"{folder.path} and the run {run!r} now")
+    _same_keys(folder.experiment, now, {"models"}, f"{folder.path} and the run {run!r} now")
+    theirs, ours = folder.experiment.get("models", ""), now.get("models", "")
+    if not _extends(theirs, ours):
+        msg = f"{folder.path}'s models={theirs} is not a prefix of the run {run!r}'s models={ours}"
+        raise IdentityError(msg)
     for each in (folder, *others):
         _complete(each)
     for other in others:
@@ -274,6 +281,15 @@ def check_folders(
             differing = sorted(set(other.baselines().items()) ^ set(folder.baselines().items()))
             msg = f"{other.path}'s baseline arm lines differ from {folder.path}'s: {differing[:2]}"
             raise IdentityError(msg)
+
+
+def _extends(folder_models: str, current_models: str) -> bool:
+    """Whether the comma-separated `current_models` list starts with all of `folder_models`.
+
+    An empty folder list extends to nothing, so a folder that names no models is refused.
+    """
+    theirs, ours = folder_models.split(","), current_models.split(",")
+    return bool(folder_models) and ours[: len(theirs)] == theirs
 
 
 def _complete(folder: Folder) -> None:

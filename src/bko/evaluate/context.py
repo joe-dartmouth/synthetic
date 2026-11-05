@@ -11,7 +11,7 @@ from bko.datasets.fetch import UrlOpener, open_https
 from bko.datasets.sources import DIABETES_130, SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
-from bko.evaluate.classifier import MODELS, Factory, Model
+from bko.evaluate.classifier import MODELS, PANEL, Factory, Model
 from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.launch import Power, Spawn, on_battery, spawn
@@ -41,6 +41,7 @@ class Context:
         arms: Each arm's runner; a BKO name present here runs as given, so tests can stand in for
             the API.
         models: Builds each unfitted classifier, by model; it holds `Model.LR`.
+        panel: The classifiers `panel` scores, by model, in order; `models`' come first.
         releases: The ontology releases the BKO arms' gap detection reads, by concept prefix.
         field_rows: The field mappings the BKO arms observe cells by.
         synthea: The pinned Synthea population's run, which a Synthea run's records are
@@ -68,6 +69,7 @@ class Context:
     runs: Mapping[str, NamedRun] = RUNS
     arms: Mapping[str, Runner] = ARMS
     models: Mapping[Model, Factory] = MODELS
+    panel: Mapping[Model, Factory] = PANEL
     releases: Mapping[str, Source] = RELEASES
     field_rows: tuple[FieldMapping, ...] = FIELD_MAPPINGS
     synthea: SyntheaRun = SYNTHEA_RUN

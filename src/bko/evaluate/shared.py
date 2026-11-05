@@ -173,7 +173,9 @@ class StoredArm:
             msg += f" {fill.holdout}'s {arm}, so its params are unknown"
             raise IdentityError(msg)
         where = f"{self._folder.path}'s holdout {fill.holdout} {self.name} {fill.kind} fill"
-        return Baseline(rebuilt(lines, request, where=where), unit_weights(train), _params(logged))
+        return Baseline(
+            rebuilt(lines, request, where=where), unit_weights(train), logged_params(logged)
+        )
 
     def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
         """The fill's candidate counts, read from its lines."""
@@ -181,7 +183,12 @@ class StoredArm:
         return tally(lines, self._template).measures()
 
 
-def _params(line: str) -> dict[str, object]:
+def logged_params(line: str) -> dict[str, object]:
+    """The params an `arm` line logs.
+
+    Raises:
+        IdentityError: If they are not a JSON object.
+    """
     # `json.JSONDecodeError` is a `ValueError`: malformed params fall through to the refusal.
     with suppress(ValueError):
         if isinstance(params := json.loads(fields(line)["params"]), dict):
@@ -291,6 +298,7 @@ def rescore(
     models: Mapping[Model, Factory],
     uci: bool,
     after: Callable[[int, Logged, Sequence[Score]], None] | None = None,
+    calibration: bool = False,
 ) -> str:
     """Score `folder`'s run again, less every record `others` copy, and return the scores CSV.
 
@@ -298,7 +306,7 @@ def rescore(
     line's `matches_folder=` says whether its sha256 is the one the folder's `scores` line logs.
     A run scored before a held-out row joined the harness gains that row, so it reads false
     without failing. A given `after` is called with each holdout's seed, its `Logged` lines and
-    its scores, once its checks pass.
+    its scores, once its checks pass; `calibration` is `score_holdout`'s.
 
     Raises:
         IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are
@@ -332,6 +340,7 @@ def rescore(
             frame=frame,
             exclude=exclude,
             logged=logged,
+            calibration=calibration,
         )
         _check_holdout(folder, seed, logged)
         if after is not None:

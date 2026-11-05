@@ -12,6 +12,7 @@ from pathlib import Path
 from bko.evaluate.contradictions import add_parser as add_contradictions
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.named_runs import DEFAULT_RUN
+from bko.evaluate.panel import add_parser as add_panel
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.generate.flight import IN_FLIGHT
@@ -140,6 +141,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
     )
     add_parser(commands)
     add_rows(commands)
+    add_panel(commands)
     add_contradictions(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"

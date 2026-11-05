@@ -280,14 +280,14 @@ def checked(scores: Sequence[Score], experiment: Experiment, candidate: str | No
 
 
 def families(
-    facts: Checked, experiment: Experiment
+    facts: Checked, experiment: Experiment, *, measures: Sequence[Measure] = JUDGED
 ) -> list[tuple[str, Scope, list[tuple[Key, Key]], float, float]]:
-    """Each criterion the experiment holds: its name, scope, pairs, reference factor and margin."""
+    """Each criterion held: its name, scope, pairs (of `measures`), reference factor and margin."""
     found = [
         (
             name,
             scope,
-            _separation(facts.arm, facts.others, JUDGED, scope),
+            _separation(facts.arm, facts.others, measures, scope),
             1.0,
             experiment.margin,
         )
