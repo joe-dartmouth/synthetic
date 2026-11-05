@@ -77,33 +77,20 @@ links to where its blocker is tracked.
 
 ## docs
 
-- **`cleanup:docs/e6-curated-teardown`: G7's curated run leaves a worktree and a watcher running.**
-  The paid run `e6-24` (`e6-curated`) runs from the detached worktree `../synthetic-e6c` at
-  `135a2c3`, and the E6 power watcher (its pid in `scratchpad/e6-power.pid`) stays running
-  because `e6-24`'s watch script reads its log. On 2026-11-05 `git worktree list` held
-  `../synthetic-e6c` and `ps -p $(cat scratchpad/e6-power.pid)` showed the watcher alive.
-  *Filed 2026-11-05 by PR #77's review.*
-  **Why deferred.** `e6-24` is still running; its record lands with unit
-  `generate-bkb-curation-diabetes`.
-  **What discharges it:** `e6-24`'s folder moved into `runs/` and recorded in G7, the watcher
-  stopped with `kill $(cat scratchpad/e6-power.pid)` after `ps -p` confirms the pid is the
-  watcher, and `git worktree remove ../synthetic-e6c` once `runs/` holds nothing under it.
-  **Trigger:** `e6-24`'s `launch.log` ending in a `supervise done` line.
+- **`cleanup:docs/e6-curated-teardown`: G7's curated run's replay is not yet recorded.** G7
+  landed before the replay of `e6-24` (`e6-curated`) at its run commit, tag `run/e6-24`, finished
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)). It runs from the
+  detached worktree `../synthetic-e6c` into `runs/e6-24-replay/`; on 2026-11-05 its `scores.csv`
+  was 0 bytes and `git worktree list` held `../synthetic-e6c` at `135a2c3`. The worktree stays
+  until it ends. *Filed 2026-11-05 by PR #77's review.*
+  **Why deferred.** The user chose to land each unit and record its replay as it arrives.
+  **What discharges it:** the replay's `scores.csv` and `holdout-candidates.jsonl` compared with
+  `cmp` against `runs/e6-24/`'s, the result recorded in G7's Runs row, and
+  `git worktree remove ../synthetic-e6c` once `runs/` holds nothing under it.
+  **Trigger:** the replay ending: its `scores.csv` non-empty and its call log ending in an `end`
+  line.
 
 ## evaluate
-
-- **`cleanup:evaluate/likelihood-curation-unused`: `Curation.LIKELIHOOD` and `over_ask` have no
-  arm.** `bko.evaluate.experiment.MessagesArm` accepts `curation=Curation.LIKELIHOOD` with an
-  `over_ask` above 1, and `tests/test_evaluate_experiment.py` pins both, but the curated arm they
-  were reserved for does not run: G7's gate read `gate separated=False`
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#g7-bkb-likelihood-curation)), and the arm waits on
-  the gate's reading on Diabetes 130. *Filed 2026-10-31 by PR7's landing.*
-  **Blocked on** unit [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md), which
-  either runs them or finds the gate fails again.
-  **Why deferred.** Removing them changes the Messages arm spec, outside PR7's docs-only landing.
-  **What discharges it:** `Curation.LIKELIHOOD`, `over_ask` and their tests removed, with ADR
-  `research/cllm-arm-design`'s spec bullet; or a scheduled curated arm that runs them.
-  **Trigger:** unit `generate-bkb-curation-diabetes`'s phase 1 verdict.
 
 - **`cleanup:evaluate/log-time-offset`: log stamps carry no UTC offset.** Each stage's
   `configure_logging` (`bko.evaluate.__main__` and its peers) formats `%(asctime)s` as local time

@@ -11,12 +11,6 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
-### Generation
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`generate-bkb-curation-diabetes`](generate-bkb-curation-diabetes.md) | ready | -- | Shirley | final-report |
-
 ### Privacy
 
 | Unit | Status | Depends on | Owner | Milestone |

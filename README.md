@@ -32,33 +32,28 @@ representation. The pipeline:
 These follow the first full evaluation. Each is one task unit, and the set's graph and status
 board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
-**Generation**
-
-1. The BKB likelihood gate on Diabetes 130, then a curated BKO arm if it separates
-   ([`generate-bkb-curation-diabetes`](tasks/generate-bkb-curation-diabetes.md)).
-
 **Privacy**
 
-2. Rewriting `bko-direct`'s identifying fields with an LLM while keeping its concepts and
+1. Rewriting `bko-direct`'s identifying fields with an LLM while keeping its concepts and
    distribution, with distance to closest record tracked per method
    ([`privacy-identifier-perturbation`](tasks/privacy-identifier-perturbation.md)).
-3. Membership-inference attacks and NNDR for every row-adding arm on E6, beside distance to
+2. Membership-inference attacks and NNDR for every row-adding arm on E6, beside distance to
    closest record ([`evaluate-membership-inference`](tasks/evaluate-membership-inference.md)).
 
 **Knowledge**
 
-4. A comparison with the ELK description-logic reasoner, BioGPT and NCATS's Biomedical Data
+3. A comparison with the ELK description-logic reasoner, BioGPT and NCATS's Biomedical Data
    Translator, and a logic-only ablation that measures what the BKB's probabilities add over the
    ontology's structure ([`compare-elk-logic-only`](tasks/compare-elk-logic-only.md)).
-5. Where the data contradicts the ontology, and how each stage handles it
+4. Where the data contradicts the ontology, and how each stage handles it
    ([`evaluate-data-contradictions`](tasks/evaluate-data-contradictions.md)).
-6. A definition of explainability for BKO, a trace from each generated record to the BKB
+5. A definition of explainability for BKO, a trace from each generated record to the BKB
    probabilities and ontology statements behind it, shown in the Streamlit app
    ([`explain-record-provenance`](tasks/explain-record-provenance.md)).
 
 **Evaluation**
 
-7. E6 under more classifiers, with the literature on what row-adding does to AUC-PR
+6. E6 under more classifiers, with the literature on what row-adding does to AUC-PR
    ([`evaluate-more-classifiers`](tasks/evaluate-more-classifiers.md)).
 
 ## Setup

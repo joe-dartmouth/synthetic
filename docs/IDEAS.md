@@ -131,12 +131,11 @@ REaLTabFormer are ruled out: each trains a model on the table, a training cost t
 figures show and the plan's other arms do not pay, and the CLLM arms already ask an LLM for
 records without the ontology.
 
-A curated `bko` arm, keeping each cell's highest-scoring records by their likelihood under the
-fused BKB in place of a classifier's confidence, waits on its free gate: the gate, fixed in ADR
+A curated `bko` arm, `bko-curated`, keeps each cell's highest-scoring records by their likelihood
+under the fused BKB in place of a classifier's confidence. Its gate, fixed in ADR
 [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), did not separate
-fidelity on UCI's judged run's candidates ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)
-G7), and unit [`generate-bkb-curation-diabetes`](../tasks/generate-bkb-curation-diabetes.md) reads
-it again on Diabetes 130 and builds the arm only if it separates there.
+fidelity on UCI and separates it on Diabetes 130, where the arm raises `bko`'s removed-cell recall
+by 0.030 ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation) G7).
 
 **Why it is not in E1's comparison set.** The 2-pager generates through the Anthropic Messages
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the
