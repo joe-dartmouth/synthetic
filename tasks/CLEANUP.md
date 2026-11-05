@@ -89,20 +89,6 @@ links to where its blocker is tracked.
   with `Z`), with a test, documented in `docs/DEVELOPMENT.md`.
   **Trigger:** the next change to a `configure_logging`.
 
-- **`cleanup:evaluate/removal-log-test-order`: a removal test fails after the CLI tests in one
-  process.** `uv run --no-sync pytest tests/test_evaluate_cli.py tests/test_evaluate_removal.py -q
-  -p no:cacheprovider --no-cov` fails
-  `tests/test_evaluate_removal.py::test_each_holdout_logs_its_removal_and_flagged_cells` with a
-  duplicate `removal` line: an earlier CLI test leaves a `bko` logger at INFO, and the test calls
-  `prepared` again after its `caplog.at_level` block exits. `make test` spreads the files over
-  workers and passes. *Filed 2026-11-01 by G6's landing.*
-  **Why deferred.** The two files fail the same way in one process on `origin/main` at `2f5ab89`,
-  so the failure sits outside G6's changes and its files.
-  **What discharges it:** the test reads only the records its own `caplog.at_level` block
-  captured, or the CLI tests restore the logger levels they set, with the two files passing in
-  one process.
-  **Trigger:** the next change to `tests/test_evaluate_removal.py` or to a CLI test's logging.
-
 - **`cleanup:evaluate/ranking-log-lines`: a ranked attempt logs no per-cell counts.** A ranking
   attempt (`bko.evaluate.attempts`, `bko.evaluate.guided`) ranks each call cell's rows once its
   rounds end, and logs neither how many rows each cell ranked, how many scores tied at the cut,

@@ -16,6 +16,7 @@ from fractions import Fraction
 import pandas as pd
 import pytest
 
+from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.evaluate.__main__ import (
     Context,
     configure_logging,
@@ -28,7 +29,7 @@ from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.named_runs import DEFAULT_RUN, E3, RUNS, NamedRun
 from bko.evaluate.provenance import commit, log_experiment
 from bko.evaluate.scores import SCORE_COLUMNS, Measure, Scope, Score, Source
-from bko.generate.api import default_async_send
+from bko.generate.api import HTTP_LOGGERS, default_async_send
 from bko.generate.messages import SETTINGS, Level
 from tests._baselines_fixtures import cleveland_text, full_records
 from tests._corpus import REPO_ROOT
@@ -248,16 +249,22 @@ def test_stderr_carries_the_split_quota_versions_and_digest(tmp_path, caplog):
 
 
 def test_configure_logging_captures_warnings_and_quiets_sdv():
+    root = logging.getLogger()
+    handlers = root.handlers[:]
+    level = root.level
     loggers = [logging.getLogger(name) for name in ("sdv", "SingleTableSynthesizer")]
-    levels = [logger.level for logger in loggers]
+    bko_loggers = [logging.getLogger(name) for name in (*QUIET_LOGGERS, *HTTP_LOGGERS)]
+    saved = {logger: logger.level for logger in (*loggers, *bko_loggers)}
     try:
         configure_logging()
         assert [logger.level for logger in loggers] == [logging.WARNING] * 2
         assert warnings.showwarning.__module__ == "logging"
     finally:
         logging.captureWarnings(False)
-        for logger, level in zip(loggers, levels, strict=True):
-            logger.setLevel(level)
+        root.handlers[:] = handlers
+        root.setLevel(level)
+        for logger, saved_level in saved.items():
+            logger.setLevel(saved_level)
 
 
 def test_the_module_entry_point_runs():
@@ -394,7 +401,11 @@ def test_the_commit_is_unknown_without_git(monkeypatch):
 
 def test_stderr_lines_carry_their_time():
     root = logging.getLogger()
-    handlers = list(root.handlers)
+    handlers = root.handlers[:]
+    level = root.level
+    saved = {
+        logger: logger.level for logger in map(logging.getLogger, (*QUIET_LOGGERS, *HTTP_LOGGERS))
+    }
     root.handlers.clear()
     try:
         configure_logging()
@@ -406,6 +417,9 @@ def test_stderr_lines_carry_their_time():
     finally:
         logging.captureWarnings(False)
         root.handlers[:] = handlers
+        root.setLevel(level)
+        for logger, saved_level in saved.items():
+            logger.setLevel(saved_level)
 
 
 def test_compare_logs_every_replica_arms_utility_and_fidelity_means(scores_file, caplog):
