@@ -100,7 +100,10 @@ def main(
 def configure_logging() -> None:
     """Send INFO and higher log records to stderr, keeping stdout for the report."""
     logging.basicConfig(
-        stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s"
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+        force=True,
     )
 
 

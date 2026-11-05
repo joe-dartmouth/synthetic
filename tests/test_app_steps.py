@@ -107,8 +107,13 @@ def test_configure_logging_quiets_the_http_and_sdv_loggers(monkeypatch):
         monkeypatch.setattr(logger, "level", logger.level)
     configure_logging()
     [kwargs] = recorded
-    assert kwargs["stream"] is sys.stderr
+    handlers = kwargs["handlers"]
+    assert isinstance(handlers, list)
+    [handler] = handlers
+    assert isinstance(handler, logging.StreamHandler)
+    assert handler.stream is sys.stderr
     assert kwargs["level"] == logging.INFO
+    assert kwargs["force"] is True
     assert [logger.level for logger in loggers] == [logging.WARNING] * len(loggers)
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
 import threading
 import time
 from collections.abc import Iterator
@@ -547,6 +548,8 @@ def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, cap
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        # `main` forces its own root handler, which would remove caplog's.
+        monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: None)
         with caplog.at_level("INFO"):
             assert main(["probe", THINKING]) == 2
     warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]

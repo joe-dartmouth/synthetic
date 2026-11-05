@@ -23,6 +23,7 @@ from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
+from bko.evaluate.logs import stamped_handler
 from bko.evaluate.run import ARMS
 from bko.generate.api import HTTP_LOGGERS, default_async_send
 from bko.generate.messages import AnySend
@@ -36,11 +37,7 @@ SPEND_CEILING: Final = 0.25
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr, replacing any root handler."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    logging.basicConfig(handlers=[stamped_handler(sys.stderr)], level=logging.INFO, force=True)
     logging.captureWarnings(True)
     for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
         logging.getLogger(name).setLevel(logging.WARNING)
