@@ -149,7 +149,7 @@ def score_holdout(
     adds the removed rows, with no runner. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
-    receives the `split` line and every fill's `Filled` as they are logged.
+    is reset, then receives the `split` line and every fill's `Filled` as they are logged.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -161,7 +161,7 @@ def score_holdout(
     ablated = ready.ablated
     train, test, seed = ablated.train, ablated.test, ablated.seed
     logged = Logged() if logged is None else logged
-    logged.split = split_line(ablated)
+    logged.split, logged.fills = split_line(ablated), []
     logger.info("%s", logged.split)
     gap = gap_request(train, experiment, seed=seed, frame=frame)
     _log_quota(seed, gap)

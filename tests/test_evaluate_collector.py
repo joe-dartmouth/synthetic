@@ -77,6 +77,15 @@ def test_the_harness_still_logs_its_arm_and_split_lines(caplog):
     ]
 
 
+def test_a_reused_collector_holds_only_its_last_holdouts_fills():
+    logged = Logged()
+    for seed in (1, 0):
+        parts = split(GRADED, seed=seed, edges=UCI_FRAME.edges)
+        score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, logged=logged)
+    assert logged.split == SPLIT_LINE
+    assert tuple(fill.line for fill in logged.fills) == ARM_LINES
+
+
 def test_log_arm_returns_the_line_it_logs(caplog):
     added = pd.DataFrame({"age": [61]})
     baseline = Baseline(added=added, weights=pd.Series([1.0]), params={"k": 3})
