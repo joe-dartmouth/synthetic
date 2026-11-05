@@ -43,6 +43,7 @@ from bko.evaluate.named_runs import (
     E5_FRACTIONS,
     E6_ASKED,
     E6_CAP,
+    E6_CURATED,
     E6_EMPTY,
     E6_SETTINGS,
     E6_SLICES,
@@ -151,6 +152,7 @@ def test_every_run_name_is_pinned():
         "e5-half",
         "e5-quarter",
         "e5-threequarters",
+        "e6-curated",
         "e6-empty",
         *(f"e6-empty{letter}" for letter in "abcdefghij"),
         "e6-thin",
@@ -462,6 +464,25 @@ def test_e6_slices_refuse_holdouts_they_do_not_divide():
     uneven = dataclasses.replace(E6_THIN, holdout_seeds=tuple(range(99)))
     with pytest.raises(ValueError, match="99 holdouts do not divide into 10 slices"):
         _e6_runs("thin", uneven)
+
+
+def test_e6_curated_ceiling_covers_its_estimate():
+    """G7's curated run estimate (`docs/EVIDENCE.md`, G7), written out.
+
+    Rate: `bko`'s measured cost per record asked in `e6-thin`, $104.537 over 326,621 records
+    asked, $3.2006e-4. Records asked per holdout: `over_ask` 2 x (fill_to - R) = 2 x 1250, times
+    1.005, `bko`'s measured re-ask share (326,621 asked for 325,000 kept). Over 100 holdouts:
+    $80.41; the $100 ceiling is 1.24 times it.
+    """
+    rate = 104.537 / 326_621
+    asked = 2 * (1269 - 19) * 326_621 / 325_000
+    estimate = 100 * asked * rate
+    assert estimate == pytest.approx(80.41, abs=0.01)
+    assert E6_CURATED.spend_ceiling == pytest.approx(100.0)
+    assert E6_CURATED.spend_ceiling > estimate
+    assert E6_CURATED.arms == ("none", REAL_ARM, "bko-curated")
+    assert E6_CURATED.holdout_seeds == E6_THIN.holdout_seeds
+    assert RUNS["e6-curated"].experiment is E6_CURATED
 
 
 def test_each_e6_ceiling_covers_its_estimate():
