@@ -4,7 +4,7 @@ Represent, fuse and reason over Bayesian Knowledge Bases: the inference layer a 
 
 The layer is adapted from pybkb, by Chase Yakaboski (GPL-3.0): the BKB structure (`bko.bkb.structure`), source-weighted fusion (`bko.bkb.fusion`), Santos et al.'s by default and pybkb's on request, the log joint mass of a target's states under complete evidence (`bko.bkb.reason`) and a JSON document for BKBs (`bko.bkb.serialize`), and, as this project's own, instantiation from an anchor and the probability of one inference (`bko.bkb.inference`). ADR [`research/bkb-layer-source`](../../../docs/adr/research/bkb-layer-source.md) names the pybkb commit, what was taken and how the port differs; [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#bkb-fixtures) says how its fixtures were exported from pybkb.
 
-A fused BKB is valid when `check_fused` in `bko.bkb.fusion` passes: every input S-node present with its source tail and unchanged probability, every other fused S-node that is not a source prior mapped to an input, each source component's priors summing to 1 (under the default `FRAGMENTS` normalization, to at most 1, and to 1 where every fragment holds an S-node on the head component) and every probability in [0, 1], which `BKB.add_snode` enforces as each S-node is added; mutual exclusion is not required (ADR [`research/data-contradiction-handling`](../../../docs/adr/research/data-contradiction-handling.md)).
+`check_fused` in `bko.bkb.fusion` checks that a fused BKB is valid; its docstring and ADR [`research/data-contradiction-handling`](../../../docs/adr/research/data-contradiction-handling.md) (Decision 3) state what it requires.
 
 - **Dependencies:** No optional extra.
 - **Owner:** Partiban Anathurai

@@ -962,6 +962,9 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
   passes `make check` and shows here. The release tests ([Ontologies](#ontologies)) assert it
   differs nowhere.
 
+`bko.bkb.fusion.check_fused` checks that a fused BKB is valid; its docstring and ADR
+`research/data-contradiction-handling` (Decision 3) state what it requires.
+
 ## Gap detection
 
 `bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
@@ -1054,23 +1057,34 @@ commands, inside `.venv`:
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`).
 
-**`contradictions`** lists where a mapped frame's data contradicts its ontology, as ADR
-`research/data-contradiction-handling` defines the kinds: `narrow-without-broad`,
-`child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. It reads each frame's
-training split at holdout seed 0 with no removal and lists every cell. Each CSV row is one
-finding, in the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
-`child_share,parent_share,field,codes`; the log holds one `census data` line per frame, one
-`census kind` line per frame and kind with its count, 0 included, and one `census rows` line with
-stdout's sha256. It makes no API call, and stdout is the same bytes on every run over the same
-data:
+**`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
+`research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
+`child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. One command, inside
+`.venv`:
 
     mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
 
-A fused BKB is valid when `bko.bkb.fusion.check_fused` passes: every input S-node present with its
-source tail and unchanged probability, every other fused S-node that is not a source prior mapped
-to an input, each source component's priors summing to 1 (under the default `FRAGMENTS`
-normalization, to at most 1, and to 1 where every fragment holds an S-node on the head component),
-and every probability in [0, 1], which `BKB.add_snode` enforces as each S-node is added.
+- **What it needs**: the pinned Synthea population in the data root, which `make synthea`
+  generates and the command never does. It fetches UCI Heart Disease, Diabetes 130 and the pinned
+  MONDO and HPO releases into the data root if absent.
+- **What it does**: it reads each frame's training split at holdout seed 0 with no removal and
+  examines every cell. Each CSV row is one finding, so a cell appears only where it holds one, in
+  the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
+  `child_share,parent_share,field,codes`. It makes no API call.
+- **What it logs**: stderr gets the `versions` line (commit, dirty tree and library versions),
+  `census data_dir=<dir>`, each dataset's `data` line and each release's identity. Then, per
+  frame in frame order: one `census data` line with the training records' count and digest; one
+  `census rows` line with the field rows' count, their digest and the `is_a` pair count; one
+  `census cells` line with the grid's cell count, the cells holding a record and the concepts
+  that follow the label, which `all-show` leaves out; one `census pair frame=<f> concept=<c>
+  parent=<p> shown=<n> without=<n> cells=<k>` line per `is_a` pair, counting over the whole
+  split the records that show the narrow concept, those of them without the broad one, and the
+  cells holding the pair's `narrow-without-broad` finding; and one `census kind` line per kind
+  with its count, 0 included. Last comes one `census rows` line with stdout's row count and
+  sha256.
+- **Reproducibility**: the same bytes on every run over the same data and releases.
+- **The gate does not run it.** `make check` runs it over records, rows and releases built in
+  memory and in `tmp_path` (`tests/test_contradictions_census.py`).
 
 ## Generation
 
