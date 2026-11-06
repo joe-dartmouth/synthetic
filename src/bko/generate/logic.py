@@ -5,13 +5,12 @@ components, joined wherever an `is_a` edge or a nested field pair says one conce
 implies another's. Each component draws one of its consistent assignments uniformly, the maximum
 entropy choice given only those implications: a lone concept is present at 1/2, a pair at each of
 its three allowed assignments at 1/3. A component above `MAX_COMPONENT` concepts refuses rather
-than enumerate its assignments. `bko.generate.direct.sample` takes `Presence.LOGIC` to draw this
-way; `Presence.SHARES` keeps its share draw.
+than enumerate its assignments. `bko.generate.direct.sample` takes `Presence.LOGIC`
+(`bko.generate.presence`) to draw this way; `Presence.SHARES` keeps its share draw.
 """
 
 from __future__ import annotations
 
-import enum
 import functools
 import itertools
 from collections.abc import Iterable
@@ -23,16 +22,6 @@ import numpy as np
 
 MAX_COMPONENT: Final = 12
 """The most concepts a component may hold: its 2 ** 12 assignments are enumerated."""
-
-
-class Presence(enum.StrEnum):
-    """How the direct draw decides each concept's presence."""
-
-    SHARES = "shares"
-    """At its share, read from the fused BKB's data priors (`bko.gaps.shares`)."""
-
-    LOGIC = "logic"
-    """Uniformly over its component's consistent assignments, with no prior."""
 
 
 @dataclass(frozen=True, slots=True)

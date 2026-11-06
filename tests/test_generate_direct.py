@@ -255,11 +255,12 @@ def test_a_field_the_cell_lacks_the_drawn_side_of_falls_back_and_is_logged(caplo
     assert all(d.fallback == {"trestbps"} and d.record["trestbps"] == 150 for d in high)
     assert all(not d.fallback and d.record["trestbps"] == 120 for d in draws if d not in high)
     assert (
-        f"fallback holdout=0 fill=gap key=<55/female/1 field=trestbps draws={len(high)}"
-        in caplog.messages
+        f"fallback holdout=0 fill=gap key=<55/female/1 field=trestbps draws={len(high)} "
+        "presence=shares" in caplog.messages
     )
-    assert "direct holdout=0 fill=gap key=<55/female/1 rows=60 records=5 group_records=20" in (
-        caplog.messages
+    assert (
+        "direct holdout=0 fill=gap key=<55/female/1 rows=60 records=5 group_records=20 "
+        "presence=shares" in caplog.messages
     )
     caplog.clear()
     draw(train, {YOUNG_WOMEN_1: 60})

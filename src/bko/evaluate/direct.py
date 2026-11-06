@@ -1,4 +1,4 @@
-"""The direct arm: a holdout's request filled from the fused BKB's concept shares, with no API call.
+"""The direct arms: a holdout's request drawn from the fused BKB, at its shares or by logic alone.
 
 A `DirectArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it draws every requested row once with
@@ -13,7 +13,7 @@ null call, to the run's candidates file when the harness drains it
 (`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with its direct arms among
 them, one per name of `DIRECT_ARMS`, each drawing presence its own way. ADR
 `research/bkb-direct-generation` records the sampler, and ADR `research/logic-only-ablation` the
-logic-only draw of `bko-logic`.
+logic-only draw of `bko-logic`, whose components `run_direct` checks before any arm fits.
 """
 
 from __future__ import annotations
@@ -38,9 +38,9 @@ from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
-from bko.generate.direct import sample
+from bko.generate.direct import logic_components, sample
 from bko.generate.errors import SamplingError
-from bko.generate.logic import Presence
+from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -105,8 +105,9 @@ class DirectArm:
         fill = CURRENT_FILL.get()
         self._attempts += 1
         outcome = "failed"
+        fell = 0
         try:
-            self._draw(attempt, train, request, fill)
+            fell = self._draw(attempt, train, request, fill)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -116,14 +117,17 @@ class DirectArm:
             self.totals.add(attempt.tally)
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
+            # `bko-direct`'s line stays as its runs of record logged it; a logic-only arm,
+            # which falls back far more often, adds its count of fallen-back draws.
             logger.info(
-                "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s",
+                "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s%s",
                 self.name,
                 -1 if fill is None else fill.holdout,
                 "none" if fill is None else fill.kind,
                 request.seed,
                 outcome,
                 attempt.line(),
+                "" if self._presence is Presence.SHARES else f" fallback_draws={fell}",
             )
         params: dict[str, object] = {"generator": "direct", "seed": request.seed}
         if self._presence is not Presence.SHARES:
@@ -156,10 +160,13 @@ class DirectArm:
 
     def _draw(
         self, attempt: Attempt, train: pd.DataFrame, request: Request, fill: Fill | None
-    ) -> None:
+    ) -> int:
         """Draw every requested row once; a draw copies training values, so none is dropped.
 
         The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill.
+
+        Returns:
+            How many draws read a field from the label group (`Draw.fallback`).
         """
         try:
             drawn = sample(
@@ -180,6 +187,7 @@ class DirectArm:
         if short := attempt.short():
             msg = f"{self.name} left {len(short)} cells short: {attempt.line()}"
             raise BaselineError(msg)
+        return sum(bool(draw.fallback) for draws in drawn.values() for draw in draws)
 
 
 def run_direct(
@@ -201,8 +209,17 @@ def run_direct(
     run's validity sums on the way out, a stopped run included.
 
     Raises:
+        EvaluationError: If a logic-only arm's components cannot be enumerated
+            (`bko.generate.direct.logic_components`); raised before any arm fits.
         As `bko.evaluate.run.run`.
     """
+    for name in names:
+        if DIRECT_ARMS[name] is Presence.LOGIC:
+            try:
+                logic_components(knowledge.field_rows, knowledge.ontologies, frame)
+            except ValueError as exc:
+                msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
+                raise EvaluationError(msg) from exc
     direct = {
         name: DirectArm(
             knowledge.field_rows,

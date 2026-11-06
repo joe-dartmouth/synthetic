@@ -30,7 +30,8 @@ from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import Cell, Observed, by_concept, cell_key, observe_records, record_cells
 from bko.gaps.shares import label_only, nested, shares
 from bko.generate.errors import SamplingError
-from bko.generate.logic import Component, Presence, components, logic_assignment
+from bko.generate.logic import Component, components, logic_assignment
+from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
@@ -153,7 +154,9 @@ def sample(
             name; they read `holdout=-1 fill=none` when None.
         presence: How each concept's presence is drawn: at its share, or by logic alone, which
             reads no share, draws every component of `bko.generate.logic` once per record, in
-            component order, and adds the closure's mapped concepts before any field is read.
+            component order, and then adds every mapped concept the drawn and label-only
+            concepts imply through `is_a` and nesting before any field is read. The `direct` and
+            `fallback` lines name it; omitted, it is `Presence.SHARES`.
 
     Returns:
         Each cell's draws, in quota order.
@@ -163,15 +166,20 @@ def sample(
             group, or a free field has no record to read from.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, or as
-            `bko.generate.logic.components`, for a component too large to enumerate.
+            `bko.generate.logic.components`, for a component too large to enumerate, naming the
+            dataset, the frame, the holdout and the fill.
     """
     mappings = tuple(rows)
     cells = record_cells(train, mappings, name=name, edges=frame.edges)
     keys = cell_keys(train, edges=frame.edges)
-    plan = _Plan(mappings, ontologies, frame, presence)
+    holdout, fill = (-1, "none") if tag is None else tag
+    try:
+        plan = _Plan(mappings, ontologies, frame, presence)
+    except ValueError as exc:
+        msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
+        raise ValueError(msg) from exc
     groups = _label_groups(train, keys, {int(cell[2]) for cell in quota}, mappings, name, frame)
     rng = np.random.default_rng(seed)
-    holdout, fill = (-1, "none") if tag is None else tag
     drawn: dict[Cell, tuple[Draw, ...]] = {}
     for cell, count in quota.items():
         group = groups[int(cell[2])]
@@ -190,26 +198,40 @@ def sample(
             ],
         )
         logger.info(
-            "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d",
+            "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d presence=%s",
             holdout,
             fill,
             cell_key(cell),
             count,
             len(sources.own),
             len(sources.group),
+            presence,
         )
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
-                "fallback holdout=%d fill=%s key=%s field=%s draws=%d",
+                "fallback holdout=%d fill=%s key=%s field=%s draws=%d presence=%s",
                 holdout,
                 fill,
                 cell_key(cell),
                 field,
                 times,
+                presence,
             )
         drawn[cell] = draws
     return drawn
+
+
+def logic_components(
+    rows: Sequence[FieldMapping], ontologies: Mapping[str, Ontology], frame: FrameSpec
+) -> tuple[Component, ...]:
+    """The components a logic-only draw of `rows` enumerates, built before any record is drawn.
+
+    Raises:
+        ValueError: As `nested` and `bko.generate.logic.components`.
+    """
+    plan = _Plan(tuple(rows), ontologies, frame, Presence.LOGIC)
+    return () if plan.components is None else plan.components
 
 
 def draw_line(call: int, position: int, draw: Draw) -> str:
@@ -269,12 +291,12 @@ class _Plan:
         self._first = {group.fields[0]: group for group in groups}
         self._free = frozenset(frame.columns) - grouped - {"age", "sex", frame.label}
         self._ontologies = ontologies
-        self._components: tuple[Component, ...] | None = None
+        self._drawn = frozenset(self._order)
+        self.components: tuple[Component, ...] | None = None
         if presence is Presence.LOGIC:
-            drawn = set(self._order)
             implies = [(inner, outer) for outer, inner in self._inner_of.items()]
             implies += [(c, a) for c in self._order for a in self._closure(frozenset({c})) - {c}]
-            self._components = components(drawn, implies)
+            self.components = components(self._drawn, implies)
 
     def draw(self, sources: _Sources, rng: np.random.Generator) -> Draw:
         """One record: its concepts, then its fields in column order, then the closure."""
@@ -317,8 +339,8 @@ class _Plan:
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share.
 
-        By logic, each other comes from its component's draw, then the closure's concepts that
-        have fields join them.
+        By logic, each other comes from its component's draw, then `_implied` adds what the drawn
+        and label-only concepts imply.
         """
         label = {self._frame.label: int(sources.cell[2])}
         present = {
@@ -326,10 +348,10 @@ class _Plan:
             for concept in self._label_only
             if any(row.applies(label) for row in self._by_concept[concept])
         }
-        if self._components is not None:
-            for component in self._components:
+        if self.components is not None:
+            for component in self.components:
                 present |= logic_assignment(component, rng)
-            return present | (self._closure(frozenset(present)) & set(self._order))
+            return self._implied(present)
         share = sources.share
         for concept in self._order:
             inner = self._inner_of.get(concept)
@@ -343,6 +365,22 @@ class _Plan:
             if rng.random() < chance:
                 present.add(concept)
         return present
+
+    def _implied(self, present: set[str]) -> set[str]:
+        """`present` with every drawn concept its `is_a` closure and nested pairs imply.
+
+        Repeated until nothing joins, so a label-only concept whose ancestor is a nested inner
+        brings that inner's outer too.
+        """
+        while True:
+            grown = (
+                present
+                | (self._closure(frozenset(present)) & self._drawn)
+                | {outer for outer, inner in self._inner_of.items() if inner in present}
+            )
+            if grown == present:
+                return present
+            present = grown
 
     def _closure(self, concepts: frozenset[str]) -> frozenset[str]:
         closed = set(concepts)

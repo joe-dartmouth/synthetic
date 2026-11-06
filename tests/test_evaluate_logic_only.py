@@ -9,13 +9,16 @@ import logging
 import pandas as pd
 import pytest
 
+import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, MESSAGES_ARMS
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
 from bko.evaluate.scoring import _arms
-from bko.generate.logic import Presence
+from bko.generate.presence import Presence
+from bko.ontology.schema import Codes
+from tests._gaps_fixtures import ANGINA
 from tests.test_evaluate_direct import SMALL_G2, g2_context
 
 
@@ -66,6 +69,12 @@ def test_both_direct_arms_run_in_one_run_with_distinct_lines(tmp_path, caplog):
     for name in (DIRECT_ARM, LOGIC_ARM):
         assert any(m.startswith(f"direct arm={name} holdout=0 ") for m in caplog.messages)
         assert any(m.startswith(f"validity arm={name} ") for m in caplog.messages)
+    attempts = [m for m in caplog.messages if m.startswith("direct arm=")]
+    assert all(
+        ("fallback_draws=" in m) == m.startswith(f"direct arm={LOGIC_ARM} ") for m in attempts
+    )
+    inner = [m for m in caplog.messages if m.startswith("direct holdout=")]
+    assert {m.rsplit(" ", 1)[1] for m in inner} == {"presence=shares", "presence=logic"}
     logged = [m for m in caplog.messages if m.startswith("arm ")]
     params = {name: [m for m in logged if f"arm={name} " in m] for name in (DIRECT_ARM, LOGIC_ARM)}
     assert all(params.values()), logged[:4]
@@ -80,3 +89,35 @@ def test_a_run_with_only_bko_logic_needs_a_candidates_file(tmp_path, caplog):
     argv = ["score", "g2", "--data-dir", str(tmp_path / "data")]
     assert main(argv, context=ctx, out=io.StringIO()) == 2
     assert f"--candidates is required: the arms ['{LOGIC_ARM}']" in caplog.text
+
+
+def test_a_logic_component_too_large_stops_the_run_before_any_arm_fits(
+    tmp_path, caplog, monkeypatch
+):
+    monkeypatch.setattr(logic_module, "MAX_COMPONENT", 0)
+    caplog.set_level(logging.INFO)
+    ctx, _ = g2_context()
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(BOTH)})
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    argv = ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert f"{LOGIC_ARM} cannot draw dataset uci-heart-disease on frame " in caplog.text
+    assert "a component of 1 concepts" in caplog.text
+    assert not any(m.startswith(("arm ", "direct ")) for m in caplog.messages)
+
+
+def test_field_rows_nested_in_a_chain_refuse_the_direct_arms_before_any_download(tmp_path, caplog):
+    ctx, _ = g2_context()
+    chain = tuple(
+        dataclasses.replace(ANGINA, concept=f"HP:900000{index}", when=(Codes("cp", codes),))
+        for index, codes in enumerate((frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})))
+    )
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(BOTH)}, field_rows=chain)
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    argv = ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert (
+        f"the direct arms {[DIRECT_ARM, LOGIC_ARM]} cannot draw dataset uci's rows: "
+        "HP:9000000 lies inside 2 concepts" in caplog.text
+    )
+    assert not (tmp_path / "data").exists()

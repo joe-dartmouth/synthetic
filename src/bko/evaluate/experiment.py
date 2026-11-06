@@ -23,7 +23,7 @@ from bko.datasets.split import kept_count
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
-from bko.generate.logic import Presence
+from bko.generate.presence import Presence
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")

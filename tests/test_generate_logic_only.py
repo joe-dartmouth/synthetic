@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import itertools
+import json
 from collections import Counter
 from typing import Final
 
@@ -10,10 +13,13 @@ import numpy as np
 import pytest
 
 import bko.generate.direct as direct_module
+import bko.generate.logic as logic_module
 from bko.datasets.uci import UCI_FRAME
-from bko.generate.direct import sample
-from bko.generate.logic import MAX_COMPONENT, Component, Presence, components, logic_assignment
+from bko.generate.direct import logic_components, sample
+from bko.generate.logic import MAX_COMPONENT, Component, components, logic_assignment
+from bko.generate.presence import Presence
 from bko.ontology.mapping import FIELD_MAPPINGS
+from bko.ontology.terms import Ontology
 from tests._validate_fixtures import planted
 from tests.test_generate_direct import NAME, ONTOLOGIES, YOUNG_WOMEN_0, YOUNG_WOMEN_1, frame
 
@@ -25,6 +31,9 @@ TOLERANCE: Final = 0.015
 
 ANGINA: Final = "HP:0001681"
 CHEST_PAIN: Final = "HP:0100749"
+LVH: Final = "HP:0001712"
+EKG: Final = "HP:0003115"
+CORONARY: Final = "HP:0005145"
 
 
 def spread():
@@ -57,17 +66,26 @@ def shares_of(component: Component, seed: int = 0) -> Counter[frozenset[str]]:
     return Counter(logic_assignment(component, rng) for _ in range(DRAWS))
 
 
-def logic_draw(seed: int = 0, quota: int = 200):
+def logic_draw(seed: int = 0, quota: int = 200, ontologies=ONTOLOGIES, tag=None):
     return sample(
         spread(),
         {YOUNG_WOMEN_1: quota, YOUNG_WOMEN_0: quota},
         rows=FIELD_MAPPINGS,
-        ontologies=ONTOLOGIES,
+        ontologies=ontologies,
         name=NAME,
         seed=seed,
         frame=UCI_FRAME,
+        tag=tag,
         presence=Presence.LOGIC,
     )
+
+
+def under_lvh() -> dict[str, Ontology]:
+    """`ONTOLOGIES` with the label-only coronary stenosis moved under the nested inner LVH."""
+    hpo = ONTOLOGIES["HP"]
+    terms = dict(hpo.terms)
+    terms[CORONARY] = dataclasses.replace(terms[CORONARY], parents=(LVH,))
+    return {**ONTOLOGIES, "HP": dataclasses.replace(hpo, terms=terms)}
 
 
 def test_the_logic_draw_reads_no_share(monkeypatch):
@@ -108,6 +126,23 @@ def test_a_chain_of_three_draws_each_of_its_four_assignments_at_a_quarter():
         assert times / DRAWS == pytest.approx(1 / 4, abs=TOLERANCE)
 
 
+def test_concepts_joined_through_shared_ends_form_one_component_of_eight_assignments():
+    (joined,) = components(["A", "B", "C", "D"], [("A", "C"), ("A", "D"), ("B", "C")])
+    assert joined.concepts == ("A", "B", "C", "D")
+    assert joined.implies == (("A", "C"), ("A", "D"), ("B", "C"))
+    counts = shares_of(joined)
+    allowed = {
+        frozenset(present)
+        for flags in itertools.product((False, True), repeat=4)
+        for present in [{c for c, flag in zip("ABCD", flags, strict=True) if flag}]
+        if ("A" not in present or {"C", "D"} <= present) and ("B" not in present or "C" in present)
+    }
+    assert len(allowed) == 8
+    assert set(counts) == allowed
+    for times in counts.values():
+        assert times / DRAWS == pytest.approx(1 / 8, abs=TOLERANCE)
+
+
 def test_a_component_above_twelve_concepts_refuses():
     concepts = [f"A:{index:02d}" for index in range(MAX_COMPONENT + 1)]
     edges = list(itertools.pairwise(concepts))
@@ -141,3 +176,52 @@ def test_the_logic_draw_builds_components_from_is_a_and_nesting():
     assert all(ekg in d.concepts for d in draws if lvh in d.concepts)
     with_lvh = sum(lvh in d.concepts for d in draws) / len(draws)
     assert with_lvh == pytest.approx(1 / 3, abs=0.05)
+
+
+def test_an_is_a_child_is_present_at_a_third_and_its_parent_at_two_thirds():
+    draws = [d for cell in logic_draw(quota=400).values() for d in cell]
+    with_angina = sum(ANGINA in d.concepts for d in draws) / len(draws)
+    with_chest_pain = sum(CHEST_PAIN in d.concepts for d in draws) / len(draws)
+    assert with_angina == pytest.approx(1 / 3, abs=0.05)
+    assert with_chest_pain == pytest.approx(2 / 3, abs=0.05)
+
+
+def test_a_label_only_concept_under_a_nested_inner_brings_the_outer_too():
+    drawn = logic_draw(quota=200, ontologies=under_lvh())
+    assert all({CORONARY, LVH, EKG} <= d.concepts for d in drawn[YOUNG_WOMEN_1])
+    assert all(d.record["restecg"] == 2 for d in drawn[YOUNG_WOMEN_1])
+    assert any(LVH not in d.concepts for d in drawn[YOUNG_WOMEN_0])
+
+
+def test_a_refused_component_names_the_dataset_frame_holdout_and_fill(monkeypatch):
+    monkeypatch.setattr(logic_module, "MAX_COMPONENT", 1)
+    with pytest.raises(
+        ValueError,
+        match=rf"^{NAME} frame={UCI_FRAME.name} holdout=3 fill=gap cannot draw: a component of 2 ",
+    ):
+        logic_draw(quota=1, tag=(3, "gap"))
+    with pytest.raises(ValueError, match="a component of 2 concepts"):
+        logic_components(FIELD_MAPPINGS, ONTOLOGIES, UCI_FRAME)
+
+
+def test_logic_components_are_the_ones_the_draw_enumerates():
+    found = logic_components(FIELD_MAPPINGS, ONTOLOGIES, UCI_FRAME)
+    pairs = {component.concepts for component in found if len(component.concepts) > 1}
+    assert pairs == {(ANGINA, CHEST_PAIN), (LVH, EKG)}
+
+
+LOGIC_DIGEST: Final = "439a3baef92dd3cb2147d47b0e53f6ff04164b0bfc592db1cada1c9912e53bde"
+"""The sha256 of seeds 0-4's logic-only draws on `spread()`; it guards `bko-logic`'s draw."""
+
+
+def test_the_logic_draw_is_pinned_by_digest():
+    draws = [
+        [
+            [dict(d.record), sorted(d.concepts), sorted(d.closed), sorted(d.fallback)]
+            for cell in logic_draw(seed=seed, quota=30).values()
+            for d in cell
+        ]
+        for seed in range(5)
+    ]
+    found = hashlib.sha256(json.dumps(draws, sort_keys=True).encode()).hexdigest()
+    assert found == LOGIC_DIGEST
