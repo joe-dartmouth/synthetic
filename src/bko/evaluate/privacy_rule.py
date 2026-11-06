@@ -1,10 +1,11 @@
 """The privacy reading rule: each arm's paired contrast with a reference arm, logged per measure.
 
 `readings` reads each arm's contrast with the reference arm per holdout through
-`criteria.corrected_interval`, at Bonferroni's level over its family: the arms with a defined
-contrast in the measure's group times the group's measures. A NaN holdout is counted and left out,
-never read as 0. `log_readings` logs one `privacy arm=` line per reading; no criterion is judged
-(`bko.evaluate.membership`).
+`criteria.corrected_interval`, at Bonferroni's level over its family: the pairs of arm and measure
+in the measure's group with two or more finite contrasts. Each group is its own family, read at
+family-wise `CONFIDENCE`. A NaN holdout is counted and left out, never read as 0. `log_readings`
+logs one `privacy arm=` line per reading, whose `leaks_more` says whether the interval lies on the
+leaking side of 0; no criterion is judged (`bko.evaluate.membership`).
 """
 
 from __future__ import annotations
@@ -39,10 +40,13 @@ class Group:
     Attributes:
         scope: The scope its log lines name.
         measures: Its measures.
+        higher_leaks: Whether a higher value leaks more, as an attack statistic does; a higher
+            distance leaks less.
     """
 
     scope: str
     measures: tuple[Measure, ...]
+    higher_leaks: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,11 +62,13 @@ class Reading:
         contrast: The mean of the defined contrasts.
         low: The interval's lower bound at Bonferroni's level over `family`.
         high: Its upper bound.
-        family: The intervals read together.
+        family: The intervals read together: the group's pairs of arm and measure with a
+            defined interval.
         holdouts: The run's holdouts.
         undefined: The holdouts whose contrast is NaN, which the interval leaves out.
-        exceeds_reference: Whether the interval lies above 0: the arm's value exceeds the
-            reference's. A higher attack statistic leaks more; a higher distance leaks less.
+        leaks_more: Whether the arm leaks more than the reference: for an attack statistic, the
+            interval lies above 0; for a distance, below 0. None with fewer than two finite
+            contrasts, which leaves no interval.
     """
 
     arm: str
@@ -76,7 +82,7 @@ class Reading:
     family: int
     holdouts: int
     undefined: int
-    exceeds_reference: bool
+    leaks_more: bool | None
 
 
 def readings(
@@ -85,8 +91,9 @@ def readings(
     """The rule's reading of every arm but `reference` on every measure of `groups` `scores` holds.
 
     An arm's contrast on a holdout is NaN when either value is; the interval reads the defined
-    ones, and needs two. A family's size is its arms with a defined interval on any of its measures
-    times its measures; an arm with none reads NaN, never 0.
+    ones, and needs two. Each group is a family of its own at family-wise `CONFIDENCE`, whose size
+    is its pairs of arm and measure with a defined interval; a measure `scores` lacks is skipped,
+    and a pair with no interval reads NaN, never 0, and leaves the family.
 
     Raises:
         EvaluationError: If `scores` hold no held-out ratio.
@@ -109,18 +116,17 @@ def readings(
             for arm in others
             for m in present
         }
-        defined = {arm for (arm, _), c in contrasts.items() if np.isfinite(c).sum() >= 2}
-        family = len(defined) * len(group.measures)
+        family = sum(np.isfinite(c).sum() >= 2 for c in contrasts.values())
         for arm in others:
             found.extend(
                 _reading(
                     arm,
-                    group.scope,
+                    group,
                     measure,
                     values.get((arm, measure), {}),
                     contrasts[arm, measure],
                     reference=reference,
-                    family=family,
+                    family=int(family),
                     ratio=ratio,
                 )
                 for measure in present
@@ -141,7 +147,7 @@ def _contrasts(
 
 def _reading(
     arm: str,
-    scope: str,
+    group: Group,
     measure: Measure,
     own: Mapping[int, float],
     contrasts: np.ndarray,
@@ -154,16 +160,16 @@ def _reading(
     present = [v for v in own.values() if math.isfinite(v)]
     mean = float(np.mean(present)) if present else math.nan
     contrast = low = high = math.nan
-    exceeds = False
+    leaks: bool | None = None
     if len(finite) >= 2 and family:
         level = refuting_confidence(CONFIDENCE, family)
         interval = corrected_interval(finite.tolist(), ratio=ratio, confidence=level, family=1)
         contrast, low, high = interval.mean, interval.low, interval.high
-        exceeds = low > 0
+        leaks = low > 0 if group.higher_leaks else high < 0
     undefined = len(contrasts) - len(finite)
     return Reading(
         arm,
-        scope,
+        group.scope,
         measure,
         mean,
         reference,
@@ -173,16 +179,16 @@ def _reading(
         family,
         len(contrasts),
         undefined,
-        exceeds,
+        leaks,
     )
 
 
 def log_readings(found: Iterable[Reading]) -> None:
-    """Log each reading's `privacy arm=` line."""
+    """Log each reading's `privacy arm=` line; `leaks_more` is `true`, `false` or `undefined`."""
     for r in found:
         logger.info(
             "privacy arm=%s scope=%s measure=%s mean=%.6f against=%s contrast=%.6f low=%.6f"
-            " high=%.6f family=%d holdouts=%d undefined=%d exceeds_reference=%s",
+            " high=%.6f family=%d holdouts=%d undefined=%d leaks_more=%s",
             r.arm,
             r.scope,
             r.measure,
@@ -194,5 +200,12 @@ def log_readings(found: Iterable[Reading]) -> None:
             r.family,
             r.holdouts,
             r.undefined,
-            "true" if r.exceeds_reference else "false",
+            shown(r.leaks_more),
         )
+
+
+def shown(leaks: bool | None) -> str:
+    """`leaks_more` as its log line writes it: `true`, `false` or `undefined`."""
+    if leaks is None:
+        return "undefined"
+    return "true" if leaks else "false"

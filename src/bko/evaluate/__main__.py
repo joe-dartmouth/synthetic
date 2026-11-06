@@ -82,7 +82,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
-from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.arguments import parser
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
@@ -208,7 +208,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     found = launch(
         args.run_id,
         name,
-        root=context.runs_dir if context.runs_dir is not None else runs_root(),
+        root=context.runs_root(),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
@@ -386,7 +386,7 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
         experiment=named.experiment,
         data=data,
         runs=named.runs,
-        root=context.runs_dir if context.runs_dir is not None else runs_root(),
+        root=context.runs_root(),
     )
 
 

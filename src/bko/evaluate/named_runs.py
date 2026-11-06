@@ -452,19 +452,18 @@ def sliced(part: NamedRun, whole: NamedRun) -> bool:
     return held and rest == whole.experiment
 
 
-def slice_of(name: str, runs: Mapping[str, NamedRun] = RUNS) -> str | None:
-    """The run of `runs` that the run `name` is a holdout slice of; None for no such run.
+def wholes_of(name: str, runs: Mapping[str, NamedRun] = RUNS) -> frozenset[str]:
+    """Every run of `runs` that the run `name` is a holdout slice of; empty for none.
 
-    Only a run with more holdouts than `name`'s counts, so a run is not its own slice; of several,
-    the one with the most holdouts.
+    Only a run with more holdouts than `name`'s counts, so a run is not its own slice. A caller
+    checks a slice against the run it names, so no whole is preferred over another.
     """
     part = runs.get(name)
     if part is None:
-        return None
+        return frozenset()
     count = len(part.experiment.holdout_seeds)
-    wholes = [
-        (len(whole.experiment.holdout_seeds), other)
+    return frozenset(
+        other
         for other, whole in runs.items()
         if len(whole.experiment.holdout_seeds) > count and sliced(part, whole)
-    ]
-    return max(wholes)[1] if wholes else None
+    )

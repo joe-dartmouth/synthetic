@@ -7,14 +7,16 @@ included; the removed records are neither. It reads three scopes: the records ou
 cell, the removed cell's (undefined with no member in it, as at a removal fraction of 1), and
 label 1's outside the cell. Each scope reads the AUC (`roc_auc_score`, ties at their midrank) and
 the true positive rate at each false positive rate of `FPRS`, by linear interpolation on
-`roc_curve(drop_intermediate=False)`; the cell scope reads no rate at 0.001. Each arm also reads
+`roc_curve(drop_intermediate=False)`; the cell scope reads no rate at 0.001, and a rate below one
+over the scope's non-members reads NaN, below what the curve resolves. Each arm also reads
 the NNDR and DCR of its added rows to the training split, and the held-out rows the same as a
 baseline (`privacy.distances_and_nndr`).
 
 `privacy` reads one or more `rows` stores (`bko.evaluate.rows_read`), one per holdout slice of
 the named run, makes no API call, and writes the scores CSV. It logs the reading rule over
 `GROUPS` against the run family's `REFERENCE` arm (`bko.evaluate.privacy_rule`), which judges no
-criterion. ADR `research/membership-inference-reading` records the attack and the rule.
+criterion; each scope's attack statistics and the distances are separate families. ADR
+`research/membership-inference-reading` records the attack and the rule.
 """
 
 from __future__ import annotations
@@ -41,7 +43,7 @@ from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import REAL_ARM, Experiment
-from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, slice_of
+from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, wholes_of
 from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
 from bko.evaluate.privacy_rule import Group, log_readings, readings
@@ -52,39 +54,35 @@ from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, ren
 
 logger = logging.getLogger("bko.evaluate")
 
-FPRS: Final = (0.01, 0.001)
+_RATES: Final[Mapping[float, str]] = MappingProxyType({0.01: "tpr01", 0.001: "tpr001"})
+
+FPRS: Final = tuple(_RATES)
 """The false positive rates each scope's true positive rate is read at."""
 
 SCOPES: Final = ("outside", "cell", "label")
 """The attack's scopes: outside the removed cell, inside it, and label 1 outside it."""
+
+_SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
+    {"outside": FPRS, "cell": FPRS[:1], "label": FPRS}
+)
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
 )
 """Each run family's reference arm, which every other arm's privacy is read against."""
 
-_RATES: Final = {0.01: "tpr01", 0.001: "tpr001"}
-
 
 def mi(statistic: str, scope: str) -> Measure:
     """The attack's measure of `statistic` (`auc`, `tpr01` or `tpr001`) at `scope`."""
-    return Measure(mi_name(statistic, scope))
-
-
-def mi_name(statistic: str, scope: str) -> str:
-    """The name `mi` gives the measure of `statistic` at `scope`, whether or not it is one."""
-    return f"mi-{statistic}-{scope}"
+    return Measure(f"mi-{statistic}-{scope}")
 
 
 MI_MEASURES: Final = tuple(
     mi(statistic, scope)
     for scope in SCOPES
-    for statistic in ("auc", *_RATES.values())
-    if (scope, statistic) != ("cell", "tpr001")
+    for statistic in ("auc", *(_RATES[rate] for rate in _SCOPE_FPRS[scope]))
 )
 """The attack's measures, by scope; the cell scope's few records define no rate at 0.001."""
-
-_MI_NAMES: Final = frozenset(m.value for m in MI_MEASURES)
 
 DISTANCE_MEASURES: Final = (
     Measure.DCR_P5,
@@ -101,10 +99,11 @@ ADDED_MEASURES: Final = (*MI_MEASURES, *DISTANCE_MEASURES)
 
 GROUPS: Final = (
     *(Group(scope, (mi("auc", scope), mi("tpr01", scope))) for scope in SCOPES),
-    Group(Scope.ALL.value, DISTANCE_MEASURES[:4]),
+    Group(Scope.ALL.value, DISTANCE_MEASURES[:4], higher_leaks=False),
 )
 """The rule's families: each scope's AUC and TPR at 0.01, and the DCR and NNDR quantiles, which
-stay descriptive. A family's size is its arms with a defined contrast times its measures."""
+stay descriptive and leak more the lower they read. Each is a separate family at family-wise
+0.95, whose size is its pairs of arm and measure with a defined contrast."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +120,8 @@ def attack(
     """The attack on members at distances `member_d` and non-members at `nonmember_d`.
 
     Each record's score is minus its distance. With no member, no non-member, or a missing
-    distance, every value is NaN.
+    distance, every value is NaN. A rate below one over the non-members, the least false positive
+    rate one non-member makes, reads NaN: the curve does not resolve it.
     """
     distances = np.concatenate([member_d, nonmember_d])
     if not len(member_d) or not len(nonmember_d) or np.isnan(distances).any():
@@ -129,7 +129,11 @@ def attack(
     truth = np.concatenate([np.ones(len(member_d)), np.zeros(len(nonmember_d))])
     fpr, tpr, _ = roc_curve(truth, -distances, drop_intermediate=False)
     auc = float(roc_auc_score(truth, -distances))
-    return Attack(auc, {rate: float(np.interp(rate, fpr, tpr)) for rate in fprs})
+    floor = 1 / len(nonmember_d)
+    return Attack(
+        auc,
+        {rate: float(np.interp(rate, fpr, tpr)) if rate >= floor else math.nan for rate in fprs},
+    )
 
 
 def exposure(
@@ -158,10 +162,18 @@ def arm_measures(
     test: pd.DataFrame,
     cell: Stratum,
     frame: FrameSpec,
+    holdout: int,
+    arm: str,
 ) -> dict[Measure, float]:
     """One arm's `ADDED_MEASURES` on one holdout: its attack by scope, then its distances.
 
-    Every measure of an arm with no added rows is NaN.
+    Every measure of an arm with no added rows is NaN. An arm with rows whose attack is undefined
+    in a scope logs `privacy holdout=%d arm=%s scope=%s undefined members=%d nonmembers=%d
+    nan_distances=%d`: at INFO for a cell scope with no member, as at a removal fraction of 1,
+    else at WARNING.
+
+    Raises:
+        ValueError: As `privacy.distances_and_nndr`.
     """
     member_d = exposure(train, added, train=train, frame=frame)
     nonmember_d = exposure(test, added, train=train, frame=frame)
@@ -171,11 +183,23 @@ def arm_measures(
     )
     found: dict[Measure, float] = {}
     for scope in SCOPES:
-        read = attack(member_d[members[scope]], nonmember_d[nonmembers[scope]])
-        named = {"auc": read.auc, **{_RATES[rate]: value for rate, value in read.tpr.items()}}
-        for statistic, value in named.items():
-            if mi_name(statistic, scope) in _MI_NAMES:
-                found[mi(statistic, scope)] = value
+        ours, theirs = member_d[members[scope]], nonmember_d[nonmembers[scope]]
+        read = attack(ours, theirs, fprs=_SCOPE_FPRS[scope])
+        found[mi("auc", scope)] = read.auc
+        found |= {mi(_RATES[rate], scope): value for rate, value in read.tpr.items()}
+        if len(added) and math.isnan(read.auc):
+            expected = scope == "cell" and not len(ours)
+            logger.log(
+                logging.INFO if expected else logging.WARNING,
+                "privacy holdout=%d arm=%s scope=%s undefined members=%d nonmembers=%d"
+                " nan_distances=%d",
+                holdout,
+                arm,
+                scope,
+                len(ours),
+                len(theirs),
+                int(np.isnan(ours).sum() + np.isnan(theirs).sum()),
+            )
     if not len(added):
         return {**found, **dict.fromkeys(DISTANCE_MEASURES, math.nan)}
     return {**found, **distances_and_nndr(added, train, frame=frame)}
@@ -184,18 +208,35 @@ def arm_measures(
 def holdout_scores(
     ready: Prepared, fills: Mapping[str, pd.DataFrame], *, cell: Stratum, frame: FrameSpec
 ) -> list[Score]:
-    """One holdout's scores: the held-out rows' own, then each arm's, in `fills`' order."""
+    """One holdout's scores: the held-out rows' own, then each arm's, in `fills`' order.
+
+    It logs each arm's `privacy holdout=%d arm=%s added=%d` line, at WARNING for an arm that adds
+    no row.
+
+    Raises:
+        EvaluationError: If a distance cannot be read, naming the holdout and the arm.
+    """
     train, test, seed = ready.ablated.train, ready.ablated.test, ready.ablated.seed
-    held = {
-        Measure.HELD_OUT_RATIO: held_out_ratio(ready.sized, edges=frame.edges),
-        **distances_and_nndr(test, train, frame=frame),
-    }
+    try:
+        distances = distances_and_nndr(test, train, frame=frame)
+    except ValueError as error:
+        msg = f"holdout {seed}'s held-out rows: {error}"
+        raise EvaluationError(msg) from error
+    held = {Measure.HELD_OUT_RATIO: held_out_ratio(ready.sized, edges=frame.edges), **distances}
     scores = [
         Score(seed, HELD_OUT_ARM, Source.HELD_OUT, measure, Scope.ALL, value)
         for measure, value in held.items()
     ]
     for arm, added in fills.items():
-        found = arm_measures(added, train=train, test=test, cell=cell, frame=frame)
+        level = logging.INFO if len(added) else logging.WARNING
+        logger.log(level, "privacy holdout=%d arm=%s added=%d", seed, arm, len(added))
+        try:
+            found = arm_measures(
+                added, train=train, test=test, cell=cell, frame=frame, holdout=seed, arm=arm
+            )
+        except ValueError as error:
+            msg = f"holdout {seed}'s arm {arm}: {error}"
+            raise EvaluationError(msg) from error
         scores += [
             Score(seed, arm, Source.ADDED, measure, Scope.ALL, value)
             for measure, value in found.items()
@@ -223,10 +264,12 @@ def read(
 ) -> dict[int, Store]:
     """Read and check each store; return the store that holds each of `run`'s holdouts.
 
-    Each store's run is `run` or a slice of it (`slice_of`), its folder is `<root>/<folder>`,
-    which it is bound to (`bind`: run, data digest, frame, folder, `log_sha256` and one fill line
-    per `arm` line), and the stores' holdouts partition `run`'s. Each holdout's fills are the
-    experiment's arms' and their replicas'.
+    Each store's run is `run` or a slice of it (`wholes_of`), its folder is `<root>/<folder>`, a
+    direct child of `root`, which it is bound to (`bind`: run, data digest, frame, folder,
+    `log_sha256` and one fill line per `arm` line), and the stores' holdouts partition `run`'s.
+    Each holdout's fills are the experiment's arms' and their replicas'. Each bound store logs
+    `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
+    bytes it was parsed from. An error echoes at most `SHOWN` characters of a header value.
 
     Raises:
         OSError: If a store or folder cannot be read.
@@ -236,14 +279,24 @@ def read(
     for path in stores:
         rows = read_rows(path)
         name, folder_name = str(rows.header.get("run")), rows.header.get("folder")
-        if name != run and slice_of(name, runs) != run:
-            msg = f"the store {path} is run {name!r}'s, which is not a slice of {run!r}"
+        if name != run and run not in wholes_of(name, runs):
+            msg = f"the store {path} is run {_shown(name)}'s, which is not a slice of {run!r}"
             raise IdentityError(msg)
-        if not isinstance(folder_name, str) or Path(folder_name).name != folder_name:
-            msg = f"the store {path} names the folder {folder_name!r}, not a folder name"
+        if not isinstance(folder_name, str) or not _child(root, folder_name):
+            msg = f"the store {path} names the folder {_shown(folder_name)}, not a folder"
+            msg += f" directly under {root}"
             raise IdentityError(msg)
         folder = read_folder(root / folder_name)
         bind(rows, folder, data.frame, run=name, data=data.digest)
+        logger.info(
+            "privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s",
+            path,
+            name,
+            folder_name,
+            folder.log_sha256,
+            ",".join(str(seed) for seed in sorted(folder.splits)),
+            rows.sha256,
+        )
         overlap = sorted(set(folder.splits) & set(found))
         if overlap:
             msg = f"the store {path}'s holdouts {overlap} are another store's too"
@@ -263,24 +316,51 @@ def read(
     return found
 
 
+SHOWN: Final = 200
+"""The most characters of a store's header value an error echoes."""
+
+
+def _shown(value: object) -> str:
+    """`value`'s repr, cut to `SHOWN` characters."""
+    text = repr(value)
+    return text if len(text) <= SHOWN else f"{text[:SHOWN]}..."
+
+
+def _child(root: Path, name: str) -> bool:
+    """Whether the folder name `name` resolves to a direct child of `root`."""
+    if name in {"", ".", ".."}:
+        return False
+    return (root / name).resolve().parent == root.resolve()
+
+
 def reference_of(
     run: str, experiment: Experiment, runs: Mapping[str, NamedRun]
 ) -> tuple[str, Stratum]:
     """The reference arm of `run`'s family, and the cell its experiment removes.
 
-    The family is `run`'s own `REFERENCE` entry, or else the entry of the run it slices.
+    The family is `run`'s own `REFERENCE` entry, or else the entries of the runs it slices,
+    which must name one arm.
 
     Raises:
-        EvaluationError: If the family has no reference arm, the experiment lacks it, or the
-            experiment removes no cell, which leaves no cell scope.
+        EvaluationError: If the family has no reference arm or names several, the experiment
+            lacks the reference arm, or the experiment removes no cell, which leaves no cell scope.
     """
-    family = run if run in REFERENCE else slice_of(run, runs)
-    reference = REFERENCE.get(family or run)
-    if reference is None:
+    families = {run} if run in REFERENCE else wholes_of(run, runs) & REFERENCE.keys()
+    references = {REFERENCE[family] for family in families}
+    if not references:
         msg = f"run {run!r} has no reference arm; the families read are {sorted(REFERENCE)}"
         raise EvaluationError(msg)
-    if reference not in experiment.arms or experiment.removal is None:
-        msg = f"run {run!r} needs its reference arm {reference!r} and a removed cell"
+    if len(references) > 1:
+        msg = f"run {run!r} slices {sorted(families)}, whose reference arms differ"
+        msg += f": {sorted(references)}"
+        raise EvaluationError(msg)
+    (reference,) = references
+    if reference not in experiment.arms:
+        msg = f"run {run!r} lacks its reference arm {reference!r}; its arms are"
+        msg += f" {list(experiment.arms)}"
+        raise EvaluationError(msg)
+    if experiment.removal is None:
+        msg = f"run {run!r} removes no cell, so its attack has no cell scope"
         raise EvaluationError(msg)
     return reference, experiment.removal.cell
 
@@ -296,44 +376,90 @@ def privacy(
 ) -> str:
     """Read `run`'s privacy from its `stores`; return the scores CSV.
 
-    It logs each store's `privacy store=%s sha256=%s` line, a `privacy holdout=%d done=%d/%d
-    seconds=%.1f` line per holdout, each `Reading`'s line, then `privacy rows=%d sha256=%s`.
+    It logs `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s`, `read`'s store lines,
+    `privacy read stores=%d holdouts=%d`, `holdout_scores`' lines and a `privacy holdout=%d
+    done=%d/%d seconds=%.1f elapsed=%.1f` line per holdout (`privacy holdout=%d failed` at ERROR
+    before a holdout's error), each `Reading`'s line, then `privacy rows=%d sha256=%s readings=%d
+    undefined=%d seconds=%.1f`, `undefined` counting the readings with no interval.
 
     Raises:
-        EvaluationError: As `reference_of`.
+        EvaluationError: As `reference_of` or `holdout_scores`.
         IdentityError: As `read`, or if a holdout's `split` line is not the one its data
-            prepares, or as `frame_of`.
+            prepares, or as `frame_of`, naming the store.
     """
+    begun = time.perf_counter()
     reference, cell = reference_of(run, experiment, runs)
-    for path in stores:
-        sha = hashlib.sha256(path.read_bytes()).hexdigest()
-        logger.info("privacy store=%s sha256=%s", path, sha)
-    held = read(run, stores, data, experiment=experiment, runs=runs, root=root)
-    frame = data.frame
-    scores: list[Score] = []
     total = len(experiment.holdout_seeds)
+    logger.info(
+        "privacy run=%s stores=%d holdouts=%d reference=%s cell=%s",
+        run,
+        len(stores),
+        total,
+        reference,
+        "/".join(str(value) for value in cell),
+    )
+    held = read(run, stores, data, experiment=experiment, runs=runs, root=root)
+    logger.info("privacy read stores=%d holdouts=%d", len(stores), len(held))
+    scores: list[Score] = []
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
-        started, store = time.perf_counter(), held[seed]
-        parts = split(data.records, seed=seed, edges=frame.edges)
-        ready = prepared(parts, experiment, edges=frame.edges)
-        if split_line(ready.ablated) != store.folder.splits[seed]:
-            msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
-            msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}"
-            raise IdentityError(msg)
+        started = time.perf_counter()
+        try:
+            scores += _holdout(seed, held[seed], data, experiment=experiment, cell=cell)
+        except EvaluationError:
+            logger.error("privacy holdout=%d failed", seed)  # ruff: ignore[error-instead-of-exception]
+            raise
+        now = time.perf_counter()
+        logger.info(
+            "privacy holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f",
+            seed,
+            done,
+            total,
+            now - started,
+            now - begun,
+        )
+    found = readings(scores, GROUPS, arms=experiment.arms, reference=reference)
+    log_readings(found)
+    text = render(scores)
+    sha = hashlib.sha256(text.encode()).hexdigest()
+    logger.info(
+        "privacy rows=%d sha256=%s readings=%d undefined=%d seconds=%.1f",
+        len(scores),
+        sha,
+        len(found),
+        sum(r.leaks_more is None for r in found),
+        time.perf_counter() - begun,
+    )
+    return text
+
+
+def _holdout(
+    seed: int, store: Store, data: Data, *, experiment: Experiment, cell: Stratum
+) -> list[Score]:
+    """Holdout `seed`'s scores from `store`, once its split line matches the data's.
+
+    Raises:
+        EvaluationError: As `holdout_scores`.
+        IdentityError: If the split line differs, or as `frame_of`, naming the store.
+    """
+    frame = data.frame
+    parts = split(data.records, seed=seed, edges=frame.edges)
+    ready = prepared(parts, experiment, edges=frame.edges)
+    if split_line(ready.ablated) != store.folder.splits[seed]:
+        msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
+        msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}, which the store"
+        msg += f" {store.path} is bound to"
+        raise IdentityError(msg)
+    try:
         fills = {
             arm: frame_of(
                 store.rows.lines[seed, arm], arm_line=store.folder.arms[seed, arm], frame=frame
             )
             for arm in experiment.arms
         }
-        scores += holdout_scores(ready, fills, cell=cell, frame=frame)
-        elapsed = time.perf_counter() - started
-        logger.info("privacy holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
-    log_readings(readings(scores, GROUPS, arms=experiment.arms, reference=reference))
-    text = render(scores)
-    sha = hashlib.sha256(text.encode()).hexdigest()
-    logger.info("privacy rows=%d sha256=%s", len(scores), sha)
-    return text
+    except IdentityError as error:
+        msg = f"the store {store.path}: {error}"
+        raise IdentityError(msg) from error
+    return holdout_scores(ready, fills, cell=cell, frame=frame)
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

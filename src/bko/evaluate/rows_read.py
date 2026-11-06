@@ -50,10 +50,11 @@ class RowsLine:
 
 @dataclass(frozen=True, slots=True)
 class Rows:
-    """A store read back: its header and each fill line, by holdout and arm."""
+    """A store read back: its header, each fill line by holdout and arm, and the bytes' sha256."""
 
     header: Mapping[str, object]
     lines: Mapping[tuple[int, str], RowsLine]
+    sha256: str
 
 
 def read_rows(path: Path) -> Rows:
@@ -65,7 +66,8 @@ def read_rows(path: Path) -> Rows:
             later line's kind is not `rows`, it lacks a field or holds one of the wrong kind, or
             two lines name one holdout and arm.
     """
-    text = path.read_text(encoding="utf-8")
+    data = path.read_bytes()
+    text = data.decode("utf-8")
     raw: list[dict[str, object]] = []
     for number, line in enumerate(text.splitlines(), start=1):
         try:
@@ -88,7 +90,7 @@ def read_rows(path: Path) -> Rows:
             msg = f"{path} holds two lines for {key}"
             raise IdentityError(msg)
         lines[key] = line
-    return Rows(raw[0], lines)
+    return Rows(raw[0], lines, hashlib.sha256(data).hexdigest())
 
 
 def _fill(found: Mapping[str, object], where: str) -> RowsLine:
