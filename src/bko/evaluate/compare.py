@@ -26,7 +26,7 @@ from bko.evaluate.criteria import (
     table,
 )
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
-from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, PAID_ARMS, Experiment
+from bko.evaluate.experiment import CRITERION_NAMES, PAID_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import CALIBRATION_MEASURES, Score, Source, parse, suffixed
@@ -339,12 +339,12 @@ def _log_reported(readings: Sequence[Reported | Absent]) -> None:
 
 
 def _log_validity(scores: Sequence[Score], experiment: Experiment, candidate: str) -> None:
-    """Judge the candidate's validity if it is a Messages arm, and log every other arm's counts.
+    """Judge the candidate's validity if it is a paid arm or holds candidate scores; log the rest.
 
     Each arm's line is followed by its counts and rate per fill, with no verdict.
     """
     arms = reported(scores)
-    if candidate in MESSAGES_ARMS or candidate in arms:
+    if candidate in PAID_ARMS or candidate in arms:
         found = validity(scores, experiment, candidate)
         if "validity" in experiment.criteria:
             logger.info(

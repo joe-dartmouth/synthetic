@@ -15,7 +15,7 @@ from bko.evaluate.experiment import MESSAGES_ARMS, PAID_ARMS, PERTURBED_ARM
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
-from bko.evaluate.perturb import PerturbedArm
+from bko.evaluate.perturbed import PerturbedArm
 from bko.ontology.mapping import RELEASES
 from tests._diabetes_fixtures import pin, toy_archive
 from tests._evaluate_bko_fixtures import PIN as UCI_PIN

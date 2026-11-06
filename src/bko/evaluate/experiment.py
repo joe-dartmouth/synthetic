@@ -282,8 +282,8 @@ LOGIC_ARM: Final = "bko-logic"
 data prior (ADR `research/logic-only-ablation`)."""
 
 PRAM_ARM: Final = "bko-direct-pram"
-"""The free arm that perturbs `DIRECT_ARM`'s unmapped fields by invariant PRAM
-(`bko.evaluate.perturb`; ADR `research/identifier-perturbation`)."""
+"""The free arm that redraws `DIRECT_ARM`'s unmapped fields by PRAM toward each field's label-group
+training marginal (`bko.evaluate.pram`; ADR `research/identifier-perturbation`)."""
 
 DIRECT_ARMS: Final[Mapping[str, Presence]] = MappingProxyType(
     {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC, PRAM_ARM: Presence.SHARES}
@@ -390,7 +390,7 @@ and keeps rows."""
 
 PERTURBED_ARM: Final = "bko-direct-perturbed"
 """The arm that sends `DIRECT_ARM`'s rows to the Messages API to rewrite their unmapped fields
-(`bko.evaluate.perturb`; ADR `research/identifier-perturbation`)."""
+(`bko.evaluate.perturbed`; ADR `research/identifier-perturbation`)."""
 
 PAID_ARMS: Final = frozenset({*MESSAGES_ARMS, PERTURBED_ARM})
 """Every arm that calls the Messages API: a run holding one needs a call log and may spend."""

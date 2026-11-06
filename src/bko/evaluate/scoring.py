@@ -30,6 +30,7 @@ from bko.evaluate.guided import Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.named_runs import NamedRun
+from bko.evaluate.perturb import refuse_unfixed
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
@@ -104,11 +105,12 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or if a direct arm, or the perturbed arm that draws as
-            one, runs on field rows that nest in a chain (`bko.gaps.shares.nested`), which it
-            cannot draw.
+        EvaluationError: As `_refuse_flags` and `bko.evaluate.perturb.refuse_unfixed`, or if a
+            direct arm, or the perturbed arm that draws as one, runs on field rows that nest in a
+            chain (`bko.gaps.shares.nested`), which it cannot draw.
         FileExistsError: If the call log or candidates file exists.
     """
+    refuse_unfixed(named.experiment, run=args.run, rehearse=args.rehearse)
     guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
     drawing = [*direct, *(name for name in guided if name == PERTURBED_ARM)]

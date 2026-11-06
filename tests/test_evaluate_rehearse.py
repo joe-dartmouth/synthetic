@@ -376,6 +376,8 @@ def test_a_rehearsal_keeps_every_perturbed_candidate_unchanged(tmp_path, caplog)
     assert [line.candidate for line in mine] == theirs
     summaries = [m for m in caplog.messages if m.startswith("perturb holdout=")]
     assert len(summaries) == 2
-    unchanged = r"perturb holdout=\d rows=(\d+) perturbed=0 unchanged=\1 refused_rows=0"
-    assert all(re.fullmatch(rf"{unchanged} refused_invalid=0", m) for m in summaries), summaries
+    unchanged = r"perturb holdout=\d rows=(\d+) perturbed=0 unchanged=\1"
+    refused = " refused_empty=0 refused_short=0 refused_undecodable=0 refused_order=0"
+    refused += " refused_keys=0 refused_validate=0 refused_bounds=0"
+    assert all(re.fullmatch(rf"{unchanged}{refused}", m) for m in summaries), summaries
     assert _lines(log)[-1]["status"] == "complete"

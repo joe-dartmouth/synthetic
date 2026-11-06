@@ -37,7 +37,8 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARMS, PRAM_ARM, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.perturb import THETA, Change, PramArm, delta_for, unmapped
+from bko.evaluate.perturb import Change, delta_for, unmapped
+from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import logic_components, sample
@@ -92,6 +93,11 @@ class DirectArm:
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
+
+    @property
+    def rows(self) -> tuple[FieldMapping, ...]:
+        """The field mappings it draws by."""
+        return self._rows
 
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """Fill `request` from `train`'s concept shares, seeded by the request's seed.
@@ -252,12 +258,13 @@ def run_direct(
     """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
 
     Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence; `PRAM_ARM` then
-    perturbs its draw (`bko.evaluate.perturb.PramArm`). Each arm logs its run's validity sums on
+    perturbs its draw (`bko.evaluate.pram.PramArm`). Each arm logs its run's validity sums on
     the way out, a stopped run included.
 
     Raises:
         EvaluationError: If a logic-only arm's components cannot be enumerated
-            (`bko.generate.direct.logic_components`); raised before any arm fits.
+            (`bko.generate.direct.logic_components`), or the PRAM arm's fields are not the frame's
+            pinned ones (`bko.evaluate.perturb.unmapped`); raised before any arm fits.
         As `bko.evaluate.run.run`.
     """
     for name in names:
@@ -267,11 +274,11 @@ def run_direct(
             except ValueError as exc:
                 msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
                 raise EvaluationError(msg) from exc
-    fields = unmapped(knowledge.field_rows, frame=frame)
     direct: dict[str, DirectArm | PramArm] = {}
     for name in names:
         arm = direct_arm(name, knowledge, experiment, sink)
         if name == PRAM_ARM:
+            fields = unmapped(knowledge.field_rows, frame=frame)
             direct[name] = PramArm(arm, THETA, fields=fields, delta=delta_for(experiment))
         else:
             direct[name] = arm

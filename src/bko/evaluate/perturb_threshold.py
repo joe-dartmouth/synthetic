@@ -1,14 +1,17 @@
-"""`python -m bko.evaluate perturb-threshold`: the distribution check's δ from stored rows.
+"""`python -m bko.evaluate perturb-threshold`: the distribution check's delta from stored rows.
 
 For each holdout of the named run, in seed order, it reads `bko-direct`'s gap fill U from the
 run's `rows` stores (`bko.evaluate.membership.read` binds each store to its folder, and the
 holdout's `split` line must be the one the data prepares) and the label-1 rows R of the holdout's
 prepared training split, and reads SDMetrics' column shapes and pair trends of U against R over
-the unmapped fields (`bko.evaluate.perturb.quality`). δ is the 95th percentile, by linear
-interpolation, of the absolute step in shapes between consecutive holdouts. It writes one CSV row
-per holdout (`holdout,shapes,pair_trends,step`, the step empty on the first), logs
-`perturb threshold run=%s holdouts=%d steps=%d percentile=%d delta=%.6f`, and makes no API call.
-ADR `research/identifier-perturbation` records the check.
+the unmapped fields (`bko.evaluate.perturb.quality`). delta is the 95th percentile, by linear
+interpolation, of the absolute step in shapes between consecutive holdouts; a shape or delta that
+is not finite is refused. It writes one CSV row per holdout (`holdout,shapes,pair_trends,step`,
+the step empty on the first), logs
+`perturb threshold run=%s fraction=%s holdouts=%d steps=%d percentile=%d delta=%.6f`, at WARNING
+under `MIN_STEPS` steps, and makes no API call. The delta logged is what
+`bko.evaluate.perturb.DELTAS` records for the run's removal fraction. ADR
+`research/identifier-perturbation` records the check.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import DIRECT_ARM, Experiment
 from bko.evaluate.membership import read
-from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
+from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import POSITIVE, quality, unmapped
 from bko.evaluate.prepare import prepared, split_line
 from bko.evaluate.rows_read import frame_of
@@ -37,19 +40,26 @@ from bko.evaluate.rows_read import frame_of
 logger = logging.getLogger("bko.evaluate")
 
 PERCENTILE: Final = 95
-"""The percentile of the steps between consecutive holdouts' shapes that δ is."""
+"""The percentile of the steps between consecutive holdouts' shapes that delta is."""
+
+MIN_STEPS: Final = 10
+"""The fewest steps whose percentile the threshold line logs at INFO; fewer log it at WARNING."""
 
 
 def threshold(shapes: Sequence[float]) -> float:
     """The `PERCENTILE`th percentile of `|shapes[h] - shapes[h + 1]|`, linearly interpolated.
 
     Raises:
-        EvaluationError: If fewer than 2 shapes leave no step.
+        EvaluationError: If fewer than 2 shapes leave no step, or a shape is not finite.
     """
     if len(shapes) < 2:
         msg = f"{len(shapes)} holdouts leave no step between consecutive holdouts"
         raise EvaluationError(msg)
-    return float(np.percentile(np.abs(np.diff(np.asarray(shapes, dtype=float))), PERCENTILE))
+    values = np.asarray(shapes, dtype=float)
+    if not np.isfinite(values).all():
+        msg = f"the shapes {list(shapes)} hold a value that is not finite"
+        raise EvaluationError(msg)
+    return float(np.percentile(np.abs(np.diff(values)), PERCENTILE))
 
 
 def perturb_threshold(
@@ -61,7 +71,7 @@ def perturb_threshold(
     runs: Mapping[str, NamedRun],
     root: Path,
 ) -> str:
-    """Read `run`'s `bko-direct` shapes from its `stores`, log δ, and return the CSV.
+    """Read `run`'s `bko-direct` shapes from its `stores`, log delta, and return the CSV.
 
     Raises:
         EvaluationError: If the run lacks `bko-direct`, or as `threshold`.
@@ -107,9 +117,11 @@ def perturb_threshold(
         )
         shapes.append(found)
     delta = threshold(shapes)
-    logger.info(
-        "perturb threshold run=%s holdouts=%d steps=%d percentile=%d delta=%.6f",
+    logger.log(
+        logging.WARNING if len(shapes) - 1 < MIN_STEPS else logging.INFO,
+        "perturb threshold run=%s fraction=%s holdouts=%d steps=%d percentile=%d delta=%.6f",
         run,
+        "none" if experiment.removal is None else experiment.removal.fraction,
         len(shapes),
         len(shapes) - 1,
         PERCENTILE,
@@ -123,7 +135,7 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     reading = commands.add_parser(
         "perturb-threshold", help="read the perturbation check's delta from a run's stores"
     )
-    reading.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
+    reading.add_argument("run", help="the named run whose stored bko-direct rows are read")
     reading.add_argument(
         "--rows",
         dest="stores",

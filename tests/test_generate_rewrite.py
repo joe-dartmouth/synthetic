@@ -7,6 +7,8 @@ import json
 import pytest
 
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
+from bko.evaluate.perturb import DIABETES_UNMAPPED
 from bko.generate.calls import request
 from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.log import CallLog
@@ -72,6 +74,35 @@ def test_a_row_that_lacks_or_adds_a_field_is_refused():
         Rewrite(FIELDS, ({**ROWS[0], "age": 50},), BOUNDS)
     with pytest.raises(ValueError, match="not the fields"):
         Rewrite(FIELDS, ({"chol": 210},), BOUNDS)
+
+
+@pytest.mark.parametrize("cell", ["age", "sex"])
+def test_a_rewrite_of_the_cells_fields_is_refused(cell):
+    with pytest.raises(ValueError, match="the cell's fields"):
+        Rewrite((*FIELDS, cell), tuple({**row, cell: 1} for row in ROWS), BOUNDS)
+
+
+def test_a_rewrite_of_the_label_is_refused():
+    rewrite = Rewrite((*FIELDS, "target"), tuple({**row, "target": 1} for row in ROWS), BOUNDS)
+    with pytest.raises(ValueError, match="the label target"):
+        render_rewrite(rewrite, frame=UCI_FRAME)
+
+
+def test_the_diabetes_rewrite_sends_the_19_pinned_fields_and_nothing_mapped():
+    """Egress pin: a Diabetes rewrite's records hold only `row` and the 19 unmapped fields, never
+    a mapped field, `age`, `sex` or the label."""
+    first = {name: min(DIABETES_FRAME.codebook.get(name, {0: ""})) for name in DIABETES_UNMAPPED}
+    bounds = {
+        name: (0.0, 50.0) for name in DIABETES_UNMAPPED if name not in DIABETES_FRAME.categorical
+    }
+    rewrite = Rewrite(DIABETES_UNMAPPED, (first, first), bounds)
+    _, user = render_rewrite(rewrite, frame=DIABETES_FRAME)
+    sent = [json.loads(line) for line in user.splitlines() if line.startswith("{")]
+    assert [set(row) for row in sent] == [{ROW, *DIABETES_UNMAPPED}] * 2
+    mapped = {c.field for row in DIABETES_FIELD_ROWS for c in row.when}
+    kept = {"age", "sex", DIABETES_FRAME.label, *mapped} - set(DIABETES_UNMAPPED)
+    for name in kept:
+        assert f'"{name}"' not in user, name
 
 
 def test_a_measured_field_with_no_range_is_refused():

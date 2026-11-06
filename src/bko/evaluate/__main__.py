@@ -60,15 +60,17 @@ FILE, and takes no `--log`.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run,
 including an existing call log or candidates file, a `rows` store path that exists or whose
-directory does not, Messages arms with no `--log` or `--candidates`, a direct arm with no
+directory does not, paid arms with no `--log` or `--candidates`, a direct arm with no
 `--candidates` or over field rows that nest in a chain, `--log`, `--replay`, `--resume` or
-`--rehearse` with no Messages arm to build, `--ceiling` with no `--resume`, `--candidates` with no
-Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
+`--rehearse` with no paid arm to build, `--ceiling` with no `--resume`, `--candidates` with no
+paid or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
-ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
-a `privacy` run with no reference arm or removed cell, a `perturb-threshold` run with no
-`bko-direct` arm or under two holdouts, a `trace` of a holdout, arm or record the folder does not
-hold or over a call log line it cannot read, and scores whose validity cannot be read;
+ceiling, projects to it or stalled, a `score` or `launch` but a rehearsal of a run holding a
+perturbation arm whose delta is not fixed, a `launch` on battery power or into a folder that
+holds a run, a `privacy` run with no reference arm or removed cell, a `perturb-threshold` run with
+no `bko-direct` arm, under two holdouts or a non-finite reading, a `trace` of a perturbation arm,
+or of a holdout, arm or record the folder does not hold or over a call log line it cannot read,
+and scores whose validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
 contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`, `perturb-threshold` or
 `trace` run folder or store fails an identity check, a `trace` re-draw included.
@@ -105,6 +107,7 @@ from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
 from bko.evaluate.panel import panel
+from bko.evaluate.perturb import refuse_unfixed
 from bko.evaluate.perturb_threshold import perturb_threshold
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
@@ -197,9 +200,9 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     The named run defaults to the run id's entry, so `launch e1-4` launches `e1`.
 
     Raises:
-        EvaluationError: If the run id is not a run id of record, the run has no Messages arm, so
+        EvaluationError: If the run id is not a run id of record, the run has no paid arm, so
             `score --log` would refuse it, `--ceiling` comes without `--resume`, or as
-            `resumable` and `launch`.
+            `bko.evaluate.perturb.refuse_unfixed`, `resumable` and `launch`.
     """
     match = RUN_ID.fullmatch(args.run_id)
     if match is None or match["entry"] is None:
@@ -208,8 +211,9 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     name = args.run or match["entry"]
     context = _named(name, context)
     if not set(context.experiment.arms) & PAID_ARMS:
-        msg = f"the run {name!r} has no Messages arm, so it spends nothing to launch"
+        msg = f"the run {name!r} has no paid arm, so it spends nothing to launch"
         raise EvaluationError(msg)
+    refuse_unfixed(context.experiment, run=name, rehearse=args.rehearse)
     if args.ceiling is not None and args.resume is None:
         msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
         raise EvaluationError(msg)
@@ -404,7 +408,7 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
 
 
 def _threshold(args: argparse.Namespace, context: Context) -> str:
-    """Read the run's δ from its `--rows` stores, whose folders sit under the runs root."""
+    """Read the run's delta from its `--rows` stores, whose folders sit under the runs root."""
     named = _named(args.run, context)
     data = load(named.dataset, data_dir(args), named)
     return perturb_threshold(

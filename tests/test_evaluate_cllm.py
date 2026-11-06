@@ -29,7 +29,7 @@ from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Candidate, Origin
 from bko.evaluate.named_runs import RUNS
-from bko.evaluate.perturb import PerturbedArm
+from bko.evaluate.perturbed import PerturbedArm
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.waves import asks, spendable
 from bko.generate.flight import Flight, Limits

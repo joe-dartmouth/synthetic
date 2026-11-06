@@ -1,4 +1,4 @@
-"""`bko-direct-pram`: invariant PRAM on `bko-direct`'s unmapped fields, and the check."""
+"""`bko-direct-pram`: PRAM on `bko-direct`'s unmapped fields, and the check."""
 
 from __future__ import annotations
 
@@ -7,25 +7,29 @@ import io
 import logging
 import math
 import re
+from typing import Final
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
+from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from bko.evaluate.direct import DirectArm
+from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import (
-    THETA,
-    PramArm,
+    DIABETES_UNMAPPED,
+    Delta,
     check_distribution,
     passes,
-    pram,
     unmapped,
 )
+from bko.evaluate.pram import PRAM_STREAM, THETA, PramArm, pram
 from bko.evaluate.run_folder import BKO
 from bko.generate.presence import Presence
 from tests._gaps_fixtures import ANGINA, STENOSIS
@@ -58,13 +62,33 @@ PRAMMED = dataclasses.replace(
 )
 """Two holdouts, one baseline, `bko-direct` and `bko-direct-pram`, the PRAM arm the candidate."""
 
+PRAM_DIGEST: Final = "1982f7231e5e798b180db7509983e14ca21980ed90716ad6421c5c3e1ea3f3bc"
+"""`pram` of `varied_arm`'s draw over `FIELDS` at theta 0.5 from `default_rng(7)`: pins each
+field's keep draw, then its pick draw, field by field in column order."""
 
-def pram_arm(theta: float = THETA, *, delta: float = 1.0) -> PramArm:
-    """The PRAM arm over `varied_arm`'s field rows; a δ of 1 never refuses."""
+
+def pram_arm(
+    theta: float = THETA, *, delta: float = 1.0, fields: tuple[str, ...] = FIELDS
+) -> PramArm:
+    """The PRAM arm over `varied_arm`'s field rows; a delta of 1 never refuses."""
     inner = DirectArm(
         (ANGINA, STENOSIS), {}, name=PRAM_ARM, budget=3, sink=None, dataset="uci-test"
     )
-    return PramArm(inner, theta, fields=FIELDS, delta=delta)
+    return PramArm(inner, theta, fields=fields, delta=Delta(delta, "table", None))
+
+
+def test_the_diabetes_unmapped_fields_are_the_pinned_19():
+    assert unmapped(DIABETES_FIELD_ROWS, frame=DIABETES_FRAME) == DIABETES_UNMAPPED
+    assert len(DIABETES_UNMAPPED) == 19
+    with pytest.raises(EvaluationError, match="not its pinned"):
+        unmapped(DIABETES_FIELD_ROWS[1:], frame=DIABETES_FRAME)
+
+
+@pytest.mark.parametrize("field", ["age", "sex", "target", "cp"])
+def test_the_arm_refuses_to_perturb_the_cell_the_label_or_a_mapped_field(field):
+    train, request, _ = varied_arm()
+    with pytest.raises(EvaluationError, match="may not perturb"):
+        pram_arm(fields=(*FIELDS, field))(train, request)
 
 
 def test_the_unmapped_fields_are_every_column_no_field_row_reads_but_age_sex_and_label():
@@ -102,30 +126,91 @@ def test_pram_is_seeded_by_the_request_and_repeatable():
     assert digest(first) != digest(other)
 
 
-def test_pram_leaves_each_codes_share_invariant_in_expectation():
-    train, request, _ = varied_arm()
-    coded = ("fbs", "restecg", "exang", "slope", "ca", "thal")
+@pytest.mark.parametrize("seed", [0, 3])
+def test_pram_draws_from_its_own_stream_at_the_request_seed(seed):
+    train, request, direct = varied_arm(seed)
+    drawn = direct(train, request).added.reset_index(drop=True)
+    rng = np.random.default_rng([seed, PRAM_STREAM])
+    expected = pram(drawn, train, fields=FIELDS, theta=THETA, rng=rng, frame=request.frame)
+    found = pram_arm()(train, request).added.reset_index(drop=True)
+    pd.testing.assert_frame_equal(found, expected, check_dtype=False)
+    shared = pram(
+        drawn,
+        train,
+        fields=FIELDS,
+        theta=THETA,
+        rng=np.random.default_rng(seed),
+        frame=request.frame,
+    )
+    assert digest(shared) != digest(expected)
+
+
+def test_pram_draws_keep_then_pick_field_by_field():
+    train, request, direct = varied_arm()
+    drawn = direct(train, request).added.reset_index(drop=True)
+    out = pram(
+        drawn, train, fields=FIELDS, theta=0.5, rng=np.random.default_rng(7), frame=request.frame
+    )
+    assert digest(out) == PRAM_DIGEST
+
+
+def test_pram_keeps_a_value_at_theta_plus_its_redraw_matching():
+    shares = {3: 0.5, 6: 0.2, 7: 0.3}
+    spread = np.random.default_rng(2)
+    train = pd.DataFrame(
+        {"thal": spread.choice(list(shares), size=10_000, p=list(shares.values())), "target": 1}
+    )
+    rows = pd.DataFrame(
+        {"thal": spread.choice(list(shares), size=20_000, p=list(shares.values())), "target": 1}
+    )
+    out = pram(
+        rows, train, fields=("thal",), theta=THETA, rng=np.random.default_rng(0), frame=UCI_FRAME
+    )
+    found = train["thal"].value_counts(normalize=True)
+    expected = THETA + (1 - THETA) * float((found**2).sum())
+    assert float((out["thal"] == rows["thal"]).mean()) == pytest.approx(expected, abs=0.01)
+
+
+def test_pram_redraws_each_field_toward_its_label_groups_training_marginal():
+    """Rows drawn from each label group's training marginal keep it after PRAM, coded and
+    measured fields alike, though the two groups' marginals differ: within 4 standard errors."""
     spread = np.random.default_rng(1)
-    train = train.assign(
-        **{
-            name: spread.choice(sorted(request.frame.codebook[name]), size=len(train))
-            for name in coded
+    size = 4_000
+    train = pd.DataFrame(
+        {
+            "thal": np.concatenate(
+                [
+                    spread.choice([3, 6, 7], size=size, p=[0.7, 0.2, 0.1]),
+                    spread.choice([3, 6, 7], size=size, p=[0.2, 0.3, 0.5]),
+                ]
+            ),
+            "chol": np.concatenate(
+                [spread.normal(200, 20, size).round(), spread.normal(260, 40, size).round()]
+            ),
+            "target": [0] * size + [1] * size,
         }
     )
-    group = train[train["target"] == 1]
-    rows = pd.concat([group] * math.ceil(20_000 / len(group))).iloc[:20_000]
-    rng = np.random.default_rng(0)
-    out = pram(rows, train, fields=FIELDS, theta=THETA, rng=rng, frame=request.frame)
-    assert len(out) == 20_000
-    changed = 0
-    for name in ("fbs", "restecg", "exang", "slope", "ca", "thal"):
-        expected = rows[name].value_counts(normalize=True)
-        found = out[name].value_counts(normalize=True).reindex(expected.index, fill_value=0.0)
-        assert (found - expected).abs().max() <= 0.01, name
-        changed += int((out[name] != rows[name]).sum())
-    assert changed > 0
-    untouched = [column for column in rows.columns if column not in FIELDS]
-    pd.testing.assert_frame_equal(out[untouched], rows[untouched])
+    rows = train.sample(n=20_000, replace=True, random_state=3).reset_index(drop=True)
+    out = pram(
+        rows,
+        train,
+        fields=("thal", "chol"),
+        theta=THETA,
+        rng=np.random.default_rng(0),
+        frame=UCI_FRAME,
+    )
+    for label in (0, 1):
+        before, after = rows[rows["target"] == label], out[out["target"] == label]
+        group = train[train["target"] == label]
+        n = len(before)
+        for code, share in group["thal"].value_counts(normalize=True).items():
+            sigma = math.sqrt(share * (1 - share) / n)
+            assert abs(float((after["thal"] == code).mean()) - share) <= 4 * sigma, (label, code)
+        sigma = float(group["chol"].std()) / math.sqrt(n)
+        assert abs(float(after["chol"].mean()) - float(group["chol"].mean())) <= 4 * sigma, label
+        assert (after["thal"] != before["thal"]).any()
+        assert (after["chol"] != before["chol"]).any()
+    pd.testing.assert_series_equal(out["target"], rows["target"])
 
 
 def test_the_check_refuses_below_the_reference_less_delta_and_accepts_at_equality():
@@ -143,6 +228,39 @@ def test_rows_equal_to_the_originals_pass_the_check_at_delta_zero():
     assert found.shapes == found.reference
     assert found.passed
     assert 0 < found.pair_trends <= 1
+
+
+def test_the_check_reads_only_its_fields_against_the_label_1_rows():
+    train, request, direct = varied_arm()
+    rows = direct(train, request).added
+    matched = train[train["target"] == 1].reset_index(drop=True)
+    found = check_distribution(
+        matched, rows, train, fields=("chol",), frame=request.frame, delta=0.0
+    )
+    assert found.shapes == pytest.approx(1.0)
+    assert found.reference < 1.0
+    everyone = check_distribution(
+        train, rows, train, fields=("chol",), frame=request.frame, delta=0.0
+    )
+    assert everyone.shapes < 1.0
+    skewed = matched.assign(trestbps=matched["trestbps"].min())
+    alone = check_distribution(
+        skewed, rows, train, fields=("chol",), frame=request.frame, delta=0.0
+    )
+    assert alone.shapes == pytest.approx(1.0)
+    both = check_distribution(
+        skewed, rows, train, fields=("trestbps", "chol"), frame=request.frame, delta=0.0
+    )
+    assert both.shapes < 1.0
+
+
+def test_a_fill_that_drew_no_row_skips_the_check(caplog):
+    caplog.set_level(logging.INFO)
+    train, request, _ = varied_arm()
+    arm = pram_arm()
+    assert arm.checked(train, {}, {}, request.frame) == {}
+    assert arm.counts["empty"] == 1
+    assert not [m for m in caplog.messages if m.startswith("perturb check ")]
 
 
 def _prammed(tmp_path, caplog) -> tuple[pd.DataFrame, Context]:
@@ -173,10 +291,32 @@ def test_a_score_run_with_the_pram_arm_writes_its_candidates(tmp_path, caplog):
     checks = [m for m in caplog.messages if m.startswith("perturb check ")]
     pattern = (
         r"perturb check holdout=(0|1) arm=bko-direct-pram shapes=\d\.\d{6} reference=\d\.\d{6}"
-        r" delta=0\.000000 pair_trends=\d\.\d{6} outcome=(accepted|refused)"
+        r" delta=0\.000000 pair_trends=\d\.\d{6} outcome=(accepted reason=none rows_changed=\d+"
+        r" final=perturbed|refused reason=below_reference rows_changed=0 final=original)"
     )
     assert len(checks) == 2
     assert all(re.fullmatch(pattern, m) for m in checks), checks
+    prammed = [m for m in caplog.messages if m.startswith("perturb pram ")]
+    assert len(prammed) == 2
+    assert all(
+        re.fullmatch(
+            r"perturb pram holdout=(0|1) arm=bko-direct-pram rows=28 rows_changed=\d+"
+            r" values_changed=\d+",
+            m,
+        )
+        for m in prammed
+    ), prammed
+    (configured,) = [m for m in caplog.messages if m.startswith("perturb arm=")]
+    assert configured == (
+        f"perturb arm=bko-direct-pram fields={','.join(FIELDS)} delta=0.000000"
+        " delta_source=default fraction=none theta=0.5"
+    )
+    (summary,) = [m for m in caplog.messages if m.startswith("perturb summary ")]
+    assert re.fullmatch(
+        r"perturb summary arm=bko-direct-pram holdouts=2 accepted=\d refused=\d empty=0 rows=56"
+        r" rows_changed=\d+",
+        summary,
+    )
 
 
 def test_the_stored_arm_rebuilds_the_pram_arms_rows_to_its_arm_sha(tmp_path, caplog):
