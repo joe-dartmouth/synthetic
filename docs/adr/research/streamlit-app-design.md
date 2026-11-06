@@ -58,7 +58,7 @@ We will build the page as follows.
   (`docs/DEVELOPMENT.md`, App, lists what it shows).
 * **Provenance**: the Earlier runs view gets a picker over a folder's `trace.jsonl` and reads
   nothing else for it, so it still recomputes nothing from `data/`; the Demo traces a Messages
-  fill from the fill's in-memory state, and neither the picker nor the download carries a source
+  fill from the fill's own call log and candidates file, and the download carries no source
   record id (ADR `research/record-explainability`).
 
 ## Rationale

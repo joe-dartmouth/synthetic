@@ -942,8 +942,8 @@ It makes no API call. For `bko-direct` it re-draws the fill at the logged attemp
 extra random draw and refuses unless the re-drawn fill's digest equals the sha256 of the folder's
 `arm` line; the other arm kinds read their facts from the run folder. It writes
 `trace.jsonl`, one sorted-key JSON line per record, which holds source training record ids; keep the
-file at mode 0600 and in its run folder. `<run-id>` is the folder read, `<run>` the named run, `<h>` the
-holdout and `<arm>` the arm:
+file in its run folder. `<run-id>` is the folder read, `<run>` the named run, `<h>` the holdout and
+`<arm>` the arm:
 
     mkdir runs/<run-id>-trace && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 
@@ -1521,7 +1521,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   means over its holdouts and each BKO arm's validity counts, with E1's validity verdict on its
   candidate; candidates per call and cell; a closure table's pairs and counts; the UCI gap listing
   per detector and E2's gap readings per ablation and detector; R1's reproduction rows; a demo
-  fill's scores (as means over its one holdout) and training set. It recomputes nothing from
+  fill's scores (as means over its one holdout) and training set; a trace file's records. It
+  recomputes nothing from
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
   files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
   reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
@@ -1529,10 +1530,12 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   them. A folder whose name is not a run id, a symbolic link, and an entry of the wrong kind are
   not listed; an artifact that cannot be read shows its error in place of its section.
 - **Provenance**: a run folder that holds `trace.jsonl` ([Evaluation](#evaluation), `trace`) gets a
-  picker over its records, each shown with the facts that determine it (ADR
-  [`research/record-explainability`](adr/research/record-explainability.md)). The view reads only
-  that file. A demo fill traces a Messages arm's fill from its in-memory state, and the download
-  carries no source record id.
+  picker over its records by arm, holdout and position, each shown with the facts that determine it
+  (ADR [`research/record-explainability`](adr/research/record-explainability.md)). The view reads
+  only that file, again only when its modification time or size changes. A demo fill of a BKO arm,
+  live or replayed, gets a picker over its added rows, each traced from the fill's own call log and
+  candidates file with no API call and no read of the data root. Both render a trace only as
+  frames, JSON and plain code blocks, and the download carries no source record id.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
   only while its confirmation box is ticked, the box clears after each fill, the client is built
   only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.

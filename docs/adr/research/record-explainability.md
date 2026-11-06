@@ -28,8 +28,10 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
 1. **Definition.** A record's explanation is the stored or re-derivable facts that determine it.
 2. **Per arm kind.**
    * `bko-direct`: the cell and quota of the count-based request; per concept, the share, the cell
-     and label-group priors with their counts and `GROUP_WEIGHT`, and the S-node names (head
-     `(concept, present)`, tail `(__Source__[concept], <source>)`); per field, the source training
+     and label-group priors with their counts and `GROUP_WEIGHT`, whether it was drawn present, and
+     the S-node names (head `(concept, "a")`, the class component in its one state
+     `bko.ontology.fragments.INDIVIDUAL`; tail `(__Source__[concept], <source>)`); per field, the
+     source training
      record id; the fallback fields; the closure; and the validation outcome.
    * Messages arms: the call index, the guidance level, the prompt's sections as `prompt.sections`
      returns them (the gap statements with their labels as rendered), and the validation outcome.
@@ -39,11 +41,12 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    with no extra random draw, and refuses unless the re-drawn fill's digest equals the sha256 of
    the folder's `arm` line. It writes `trace.jsonl` with sorted keys, one record per line.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
-4. **Readers.** The app reads only `trace.jsonl` and the Demo's in-memory fill
+4. **Readers.** The app reads only `trace.jsonl` and a Demo fill's own run folder
    (`bko.app.provenance_frames` builds the frames); a Demo fill of a Messages arm is traced from
-   its own call, with no read of `data/` (ADR `research/streamlit-app-design`).
-5. **Source ids stay private.** They live in the `trace.jsonl` file, written at mode 0600, and in
-   the run folder, and never in the app's download.
+   its own call log and candidates file, with no read of `data/` (ADR
+   `research/streamlit-app-design`). It renders a trace only as frames, JSON and plain code blocks.
+5. **Source ids stay private.** They live in the `trace.jsonl` file, kept in its run folder, and
+   never in the app's download.
 
 ## Rationale
 
@@ -72,9 +75,12 @@ folder.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/`, with the draw in `src/bko/generate/direct.py` and the readers in
-  `src/bko/app/`
-- Pinned by: `tests/test_run_folders.py`, `tests/test_generate_direct.py`
+- Owner: `src/bko/evaluate/trace.py`, with `Draw.sources` in `src/bko/generate/direct.py`,
+  `sections` in `src/bko/generate/prompt.py` and the app's frames in
+  `src/bko/app/provenance_frames.py`
+- Pinned by: `tests/test_evaluate_trace.py`, `tests/test_generate_direct.py`,
+  `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
+  `tests/test_app_imports.py`
 
 ## Reversal Conditions
 
