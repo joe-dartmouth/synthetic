@@ -145,3 +145,44 @@ DO: Final = Source(
 The file is the release tag's `src/ontology/doid.obo`: DO's GitHub releases carry no assets, so
 size and sha256 were measured from the bytes at the tag.
 """
+
+MONDO_OWL: Final = Source(
+    name="mondo-owl",
+    url="https://github.com/monarch-initiative/mondo/releases/download/v2026-10-06/mondo.owl",
+    filename="mondo.owl",
+    size=254_759_953,
+    sha256="cbf3e02cc0aefed4fa6925162a5b1d1a48fbf0418586341967d5fd68fd7185d1",
+    agreement=None,
+)
+"""`MONDO`'s release as OWL (CC BY 4.0), which `bko.ontology.elk` classifies with ELK.
+
+Size and sha256 are GitHub's release asset metadata.
+"""
+
+HPO_OWL: Final = Source(
+    name="hpo-owl",
+    url=(
+        "https://github.com/obophenotype/human-phenotype-ontology/releases/download/"
+        "v2026-09-01/hp.owl"
+    ),
+    filename="hp.owl",
+    size=76_854_086,
+    sha256="8da35ec3b4cb494369b249acb9c2b3874a5a5839a91d5fae74b0d215b355138b",
+    agreement=None,
+)
+"""`HPO`'s release as OWL, under the HPO license (its attribution is `HPO`'s), which
+`bko.ontology.elk` classifies with ELK.
+
+Size and sha256 are GitHub's release asset metadata.
+"""
+
+ROBOT_JAR: Final = Source(
+    name="robot-jar",
+    url="https://github.com/ontodev/robot/releases/download/v1.9.11/robot.jar",
+    filename="robot.jar",
+    size=82_708_624,
+    sha256="53cd275c8e4c0dad1fc2c1c34174876795cd7d6b6926e1444adcbb0cb3c7ab26",
+    agreement=None,
+)
+"""ROBOT v1.9.11 (BSD-3-Clause), which runs ELK for `bko.ontology.elk`; size and sha256 are
+GitHub's release asset metadata."""
