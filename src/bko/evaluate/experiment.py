@@ -385,7 +385,15 @@ MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
         ),
     }
 )
-"""Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""
+"""Every arm that calls the Messages API for new records, by name, with how it builds requests
+and keeps rows."""
+
+PERTURBED_ARM: Final = "bko-direct-perturbed"
+"""The arm that sends `DIRECT_ARM`'s rows to the Messages API to rewrite their unmapped fields
+(`bko.evaluate.perturb`; ADR `research/identifier-perturbation`)."""
+
+PAID_ARMS: Final = frozenset({*MESSAGES_ARMS, PERTURBED_ARM})
+"""Every arm that calls the Messages API: a run holding one needs a call log and may spend."""
 
 
 def flagged(

@@ -94,7 +94,7 @@ from bko.evaluate.context import Context
 from bko.evaluate.contradictions import run as census
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import MESSAGES_ARMS
+from bko.evaluate.experiment import PAID_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
@@ -202,7 +202,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         raise EvaluationError(msg)
     name = args.run or match["entry"]
     context = _named(name, context)
-    if not set(context.experiment.arms) & set(MESSAGES_ARMS):
+    if not set(context.experiment.arms) & PAID_ARMS:
         msg = f"the run {name!r} has no Messages arm, so it spends nothing to launch"
         raise EvaluationError(msg)
     if args.ceiling is not None and args.resume is None:

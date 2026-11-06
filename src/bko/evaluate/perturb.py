@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import Counter
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -31,12 +32,19 @@ import pandas as pd
 from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
+from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.fidelity import quality_report
 from bko.evaluate.scores import Measure, Source
+from bko.generate.calls import chunks
+from bko.generate.decode import Undecoded
 from bko.generate.direct import field_groups
+from bko.generate.flight import Flight, Planned
+from bko.generate.guidance import Guidance
+from bko.generate.rewrite import ROW, Rewrite
 from bko.ontology.schema import FieldMapping
+from bko.validate.checks import failures
 
 
 if TYPE_CHECKING:
@@ -211,7 +219,7 @@ def drawn_frame(drawn: Mapping[Stratum, list[Record]], frame: FrameSpec) -> pd.D
     return rows.astype({**frame.dtypes})
 
 
-def native(row: Mapping[Hashable, Any], frame: FrameSpec) -> Record:
+def native(row: Mapping[Hashable, Any] | Mapping[str, Any], frame: FrameSpec) -> Record:
     """`row` with each value a plain `float` for a fractional field and an `int` otherwise."""
     return {
         str(name): float(value) if name in frame.fractional else int(value)
@@ -219,29 +227,18 @@ def native(row: Mapping[Hashable, Any], frame: FrameSpec) -> Record:
     }
 
 
-class PramArm:
-    """`bko-direct-pram`: `bko-direct`'s draw with its unmapped fields perturbed by PRAM.
+class Perturbing:
+    """An arm that draws through a `DirectArm` and perturbs its rows; the inner arm keeps the rest.
 
     Attributes:
         inner: The direct arm that draws, writes the candidate lines and keeps the counts.
-        theta: The probability a value is kept.
         fields: The fields perturbed.
         delta: The check's δ.
     """
 
-    def __init__(
-        self, inner: DirectArm, theta: float = THETA, *, fields: Sequence[str], delta: float
-    ) -> None:
-        """Hold the arm; nothing is drawn until it runs.
-
-        Raises:
-            ValueError: If `theta` is outside [0, 1].
-        """
-        if not 0 <= theta <= 1:
-            msg = f"theta {theta} must lie in [0, 1]"
-            raise ValueError(msg)
+    def __init__(self, inner: DirectArm, *, fields: Sequence[str], delta: float) -> None:
+        """Hold the arm; nothing is drawn until it runs."""
         self.inner = inner
-        self.theta = theta
         self.fields = tuple(fields)
         self.delta = delta
 
@@ -255,6 +252,61 @@ class PramArm:
         """Every attempt's counts over the run."""
         return self.inner.totals
 
+    def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
+        """The inner arm's drain: its counts, and its lines written."""
+        return self.inner.drain(holdout, source)
+
+    def summary(self) -> None:
+        """The inner arm's validity sums."""
+        self.inner.summary()
+
+    def checked(
+        self,
+        train: pd.DataFrame,
+        drawn: Mapping[Stratum, list[Record]],
+        changed: Mapping[Stratum, list[Changed]],
+        frame: FrameSpec,
+    ) -> dict[Stratum, list[Changed]]:
+        """`changed` if it passes the distribution check against `drawn`, else `drawn` unchanged."""
+        original = drawn_frame(drawn, frame)
+        rows = {cell: [row.record for row in found] for cell, found in changed.items()}
+        found = check_distribution(
+            drawn_frame(rows, frame),
+            original,
+            train,
+            fields=self.fields,
+            frame=frame,
+            delta=self.delta,
+        )
+        log_check(found, arm=self.name)
+        if found.passed:
+            return dict(changed)
+        return {
+            cell: [Changed(dict(record)) for record in records] for cell, records in drawn.items()
+        }
+
+
+class PramArm(Perturbing):
+    """`bko-direct-pram`: `bko-direct`'s draw with its unmapped fields perturbed by PRAM.
+
+    Attributes:
+        theta: The probability a value is kept.
+    """
+
+    def __init__(
+        self, inner: DirectArm, theta: float = THETA, *, fields: Sequence[str], delta: float
+    ) -> None:
+        """Hold the arm; nothing is drawn until it runs.
+
+        Raises:
+            ValueError: If `theta` is outside [0, 1].
+        """
+        if not 0 <= theta <= 1:
+            msg = f"theta {theta} must lie in [0, 1]"
+            raise ValueError(msg)
+        super().__init__(inner, fields=fields, delta=delta)
+        self.theta = theta
+
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """Draw as `bko-direct` and perturb, seeded by the request's seed.
 
@@ -264,31 +316,176 @@ class PramArm:
         params = {"perturb": "pram", "theta": self.theta}
         return self.inner.fill(train, request, change=self._change, params=params)
 
-    def drain(self, holdout: int, source: Source) -> dict[Measure, float]:
-        """The inner arm's drain: its counts, and its lines written."""
-        return self.inner.drain(holdout, source)
-
-    def summary(self) -> None:
-        """The inner arm's validity sums."""
-        self.inner.summary()
-
     def _change(
         self, train: pd.DataFrame, request: Request, drawn: Mapping[Stratum, list[Record]]
     ) -> dict[Stratum, list[Changed]]:
         frame = request.frame
-        original = drawn_frame(drawn, frame)
         rng = np.random.default_rng(request.seed)
+        original = drawn_frame(drawn, frame)
         perturbed = pram(
             original, train, fields=self.fields, theta=self.theta, rng=rng, frame=frame
-        )
-        found = check_distribution(
-            perturbed, original, train, fields=self.fields, frame=frame, delta=self.delta
-        )
-        log_check(found, arm=self.name)
-        kept = (perturbed if found.passed else original).to_dict("records")
-        out: dict[Stratum, list[Changed]] = {}
+        ).to_dict("records")
+        changed: dict[Stratum, list[Changed]] = {}
         start = 0
         for cell, records in drawn.items():
-            out[cell] = [Changed(native(row, frame)) for row in kept[start : start + len(records)]]
+            rows = perturbed[start : start + len(records)]
+            changed[cell] = [Changed(native(row, frame)) for row in rows]
             start += len(records)
-        return out
+        return self.checked(train, drawn, changed, frame)
+
+
+@dataclass(frozen=True, slots=True)
+class Merged:
+    """One rewrite call's reply merged into its rows by `row`.
+
+    Attributes:
+        rows: Each row asked, in order: its original with the reply's fields, or its original.
+        outcomes: Each row's: `perturbed` or `unchanged` when it took the reply's fields,
+            `invalid` when its reply failed a check and it kept its original, or `rows` when the
+            reply's row indices were not those asked, so every row kept its original.
+        returned: The rows the reply decoded to.
+    """
+
+    rows: tuple[Record, ...]
+    outcomes: tuple[str, ...]
+    returned: int
+
+    @property
+    def reason(self) -> str:
+        """Why a row kept its original: `rows`, then `invalid`; `none` when none did."""
+        return next((r for r in ("rows", "invalid") if r in self.outcomes), "none")
+
+
+def merge(
+    items: Sequence[object],
+    originals: Sequence[Record],
+    *,
+    fields: Sequence[str],
+    bounds: Mapping[str, tuple[float, float]],
+    frame: FrameSpec,
+) -> Merged:
+    """Merge a rewrite call's decoded `items` into `originals` by `row`.
+
+    The reply's `row` indices must be the indices asked, in order, each an `int`; otherwise every
+    row keeps its original. A row's reply must hold `row` and each of `fields` and no other key,
+    and the merged row must pass `bko.validate` and lie within `bounds`; otherwise that row keeps
+    its original. So mapped fields, `age`, `sex` and the label never change.
+    """
+    decoded = [item for item in items if not isinstance(item, Undecoded)]
+    indices = [item.get(ROW) if isinstance(item, Mapping) else None for item in decoded]
+    if any(type(index) is not int for index in indices) or indices != list(range(len(originals))):
+        return Merged(tuple(originals), ("rows",) * len(originals), len(decoded))
+    rows: list[Record] = []
+    outcomes: list[str] = []
+    for item, original in zip(decoded, originals, strict=True):
+        merged = _merged(item, original, fields=fields, bounds=bounds, frame=frame)
+        rows.append(dict(original) if merged is None else merged)
+        if merged is None:
+            outcomes.append("invalid")
+        else:
+            outcomes.append("unchanged" if merged == original else "perturbed")
+    return Merged(tuple(rows), tuple(outcomes), len(decoded))
+
+
+def _merged(
+    item: object,
+    original: Record,
+    *,
+    fields: Sequence[str],
+    bounds: Mapping[str, tuple[float, float]],
+    frame: FrameSpec,
+) -> Record | None:
+    """`original` with `item`'s fields, or None if `item` fails a check."""
+    if not isinstance(item, Mapping) or set(item) != {ROW, *fields}:
+        return None
+    record = {**original, **{name: item[name] for name in fields}}
+    if failures(record, frame=frame):
+        return None
+    if any(not low <= record[name] <= high for name, (low, high) in bounds.items()):
+        return None
+    return native(record, frame)
+
+
+class PerturbedArm(Perturbing):
+    """`bko-direct-perturbed`: `bko-direct`'s draw with its unmapped fields rewritten by calls.
+
+    Attributes:
+        flight: The run's `Flight`, over its send and call log, shared with every paid arm.
+    """
+
+    def __init__(
+        self, inner: DirectArm, *, flight: Flight, fields: Sequence[str], delta: float
+    ) -> None:
+        """Hold the arm; nothing is drawn or sent until it runs."""
+        super().__init__(inner, fields=fields, delta=delta)
+        self.flight = flight
+
+    def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
+        """Draw as `bko-direct`, then rewrite each row's fields through the run's calls.
+
+        Raises:
+            As `bko.evaluate.direct.DirectArm.fill` and `bko.generate.flight.Flight.wave`.
+        """
+        params = {"perturb": "rewrite"}
+        return self.inner.fill(train, request, change=self._change, params=params)
+
+    def _change(
+        self, train: pd.DataFrame, request: Request, drawn: Mapping[Stratum, list[Record]]
+    ) -> dict[Stratum, list[Changed]]:
+        """Send each cell's rows in chunks of `per_call`, one wave, and merge each reply."""
+        frame = request.frame
+        fill = CURRENT_FILL.get()
+        holdout = -1 if fill is None else fill.holdout
+        bounds = {
+            name: (float(train[name].min()), float(train[name].max()))
+            for name in self.fields
+            if name not in frame.categorical
+        }
+        per_call = self.flight.log.settings.per_call
+        planned: list[Planned] = []
+        spans: list[tuple[Stratum, int, list[Record]]] = []
+        starts = dict.fromkeys(drawn, 0)
+        for cell, count in chunks({cell: len(rows) for cell, rows in drawn.items()}, per_call):
+            start, starts[cell] = starts[cell], starts[cell] + count
+            rows = drawn[cell][start : start + count]
+            sent = tuple({name: row[name] for name in self.fields} for row in rows)
+            rewrite = Rewrite(self.fields, sent, bounds)
+            planned.append(Planned(_guidance(cell), count, rewrite=rewrite))
+            spans.append((cell, start, rows))
+        batches = self.flight.wave(planned, frame=frame) if planned else ()
+        changed = {cell: [Changed(dict(row)) for row in rows] for cell, rows in drawn.items()}
+        counts: Counter[str] = Counter()
+        for batch, (cell, start, rows) in zip(batches, spans, strict=True):
+            merged = merge(batch.candidates, rows, fields=self.fields, bounds=bounds, frame=frame)
+            counts.update(merged.outcomes)
+            for offset, (row, outcome) in enumerate(zip(merged.rows, merged.outcomes, strict=True)):
+                if outcome in {"perturbed", "unchanged"}:
+                    changed[cell][start + offset] = Changed(row, batch.index, offset)
+            refused = sum(o in {"rows", "invalid"} for o in merged.outcomes)
+            logger.info(
+                "perturb call=%d holdout=%d rows=%d returned=%d kept=%d refused=%d reason=%s",
+                batch.index,
+                holdout,
+                len(rows),
+                merged.returned,
+                len(rows) - refused,
+                refused,
+                merged.reason,
+            )
+        logger.info(
+            "perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_rows=%d "
+            "refused_invalid=%d",
+            holdout,
+            sum(len(rows) for rows in drawn.values()),
+            counts["perturbed"],
+            counts["unchanged"],
+            counts["rows"],
+            counts["invalid"],
+        )
+        return self.checked(train, drawn, changed, frame)
+
+
+def _guidance(cell: Stratum) -> Guidance:
+    """A rewrite call's guidance: only its cell, `sex` and label, which `request` reads."""
+    sexes = {meaning: code for code, meaning in SEXES.items()}
+    return Guidance(cell=cell, sex=sexes[str(cell[1])], label=int(cell[2]), records=0, interval={})

@@ -21,7 +21,7 @@ from typing import Final, cast
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.evaluate.data import Data
 from bko.evaluate.errors import IdentityError
-from bko.evaluate.experiment import DIRECT_ARMS, MESSAGES_ARMS
+from bko.evaluate.experiment import DIRECT_ARMS, PAID_ARMS
 from bko.evaluate.holdout_candidates import Candidate, read
 from bko.evaluate.utility import THRESHOLD
 
@@ -29,7 +29,7 @@ from bko.evaluate.utility import THRESHOLD
 SCORES_LOG: Final = "scores.log"
 CANDIDATES: Final = "holdout-candidates.jsonl"
 
-BKO: Final = frozenset({*MESSAGES_ARMS, *DIRECT_ARMS})
+BKO: Final = frozenset({*PAID_ARMS, *DIRECT_ARMS})
 """The arms whose rows a candidates file holds."""
 
 OWN_KEYS: Final = frozenset({"run", "arms", "replica", "spend_ceiling", "criteria"})

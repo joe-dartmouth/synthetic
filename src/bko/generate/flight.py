@@ -45,6 +45,7 @@ from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply, Tries
 from bko.generate.prompt import Shown
+from bko.generate.rewrite import Rewrite
 from bko.generate.skeleton import Skeleton
 from bko.generate.spend import price_of
 
@@ -92,12 +93,15 @@ class Planned:
         skeleton: A prescribing request's lines, one per record asked; None for an arm that
             prescribes none.
         shown: The training records the call shows; None for an arm that shows none.
+        rewrite: The rows a rewrite call sends back to be changed; None for a call that asks for
+            new records.
     """
 
     guidance: Guidance
     rows: int
     skeleton: Skeleton | None = None
     shown: Shown | None = None
+    rewrite: Rewrite | None = None
 
 
 @dataclass(eq=False, slots=True)
@@ -252,8 +256,12 @@ class Flight:
             # An interrupt raised inside a call leaves the others on the loop: they are
             # cancelled and landed, so their `error` lines are written before the caller's next.
             wave.stop(exc)
-            self._settle(self._runner, wave)
-            self._runner = asyncio.Runner()
+            try:
+                self._settle(self._runner, wave)
+            finally:
+                # `_settle` closes the runner before its last step can fail: the next wave needs a
+                # new one either way.
+                self._runner = asyncio.Runner()
             raise
 
     def _settle(self, runner: asyncio.Runner, wave: _Wave) -> None:
@@ -372,6 +380,7 @@ class Flight:
             frame=frame,
             skeleton=item.skeleton,
             shown=item.shown,
+            rewrite=item.rewrite,
         )
 
     async def _afford(self, wave: _Wave) -> None:

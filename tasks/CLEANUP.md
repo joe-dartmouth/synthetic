@@ -197,17 +197,6 @@ links to where its blocker is tracked.
 
 ## generate
 
-- **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the
-  flight on a closed runner.** In `bko.generate.flight.Flight._run`'s persistent-runner branch,
-  `self._runner = asyncio.Runner()` runs after `self._settle(...)`, so if `_settle` raises (a
-  `fail` or call-log write error), `self._runner` stays the runner `_settle` closed and the next
-  `wave` raises `RuntimeError: Runner is closed` instead of the first error. *Filed 2026-10-29 by
-  the diff review of PR #58.*
-  **Why deferred.** It predates PR #58, which touched `_run` only to record what stopped the wave.
-  **What discharges it:** the replacement runner is made in a `finally` around `_settle`, pinned by
-  a test whose `fail` raises.
-  **Trigger:** the next change to `Flight._run` or `Flight._settle`.
-
 - **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking
   id's reasoning mode.** `bko.generate.local.check_server` compares the `/props` alias and weights
   file name only, so a base-model server started under a `-thinking` alias without

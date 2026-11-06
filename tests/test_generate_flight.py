@@ -13,6 +13,7 @@ from typing import Final
 
 import pytest
 
+import bko.generate.flight as flight_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
 from bko.evaluate.waves import spendable
@@ -672,3 +673,32 @@ def test_request_refuses_both_skeleton_and_shown(tmp_path):
         with pytest.raises(ValueError, match="not both"):
             request(GUIDANCE, 1, log=log, frame=UCI_FRAME, skeleton=lines, shown=shown)
         assert log.calls == 0
+
+
+def test_a_failure_inside_settle_leaves_the_flight_a_fresh_runner(tmp_path, monkeypatch):
+    """A call-log write that fails while `_settle` lands an interrupted wave raises that failure,
+    and the next wave runs on a new loop rather than raising `RuntimeError: Runner is closed`."""
+    real = flight_module.fail
+
+    def failing(pending, error, *, log):
+        if pending.index == 3:
+            msg = "the call log could not be written"
+            raise OSError(msg)
+        return real(pending, error, log=log)
+
+    sent: list[Call] = []
+
+    def send(call: Call):
+        sent.append(call)
+        if len(sent) == 1:
+            raise KeyboardInterrupt
+        return Delayed()(call)
+
+    monkeypatch.setattr(flight_module, "fail", failing)
+    log = _log(tmp_path)
+    with log, Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight:
+        with pytest.raises(OSError, match="could not be written"):
+            flight.wave(PLAN, frame=UCI_FRAME)
+        monkeypatch.setattr(flight_module, "fail", real)
+        batches = flight.wave(PLAN[:1], frame=UCI_FRAME)
+    assert [batch.index for batch in batches] == [4]

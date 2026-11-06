@@ -26,7 +26,7 @@ from bko.evaluate.criteria import (
     table,
 )
 from bko.evaluate.errors import EvaluationError, ScoresFormatError
-from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, Experiment
+from bko.evaluate.experiment import CRITERION_NAMES, MESSAGES_ARMS, PAID_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
 from bko.evaluate.scores import CALIBRATION_MEASURES, Score, Source, parse, suffixed
@@ -79,7 +79,7 @@ def compare(
         out: Where the table goes.
         run: The name of the run the scores belong to; the header and the `beside` lines name it.
         level: The guidance level of that run's settings; the `beside` lines name it, and the
-            header does unless the run has no Messages arm, when it reads `none`.
+            header does unless the run has no paid arm, when it reads `none`.
         beside: Another scores file to read the judged arm beside.
         beside_arm: The arm of `beside` read; the judged arm when None.
 
@@ -99,7 +99,7 @@ def compare(
         candidate != experiment.candidate,
         hashlib.sha256(data).hexdigest(),
         run,
-        level if any(arm in MESSAGES_ARMS for arm in experiment.arms) else "none",
+        level if any(arm in PAID_ARMS for arm in experiment.arms) else "none",
         experiment.training_fraction,
     )
     rows = parse(text)

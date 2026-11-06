@@ -11,7 +11,7 @@ import pytest
 
 import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, MESSAGES_ARMS, PRAM_ARM
+from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, PAID_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
@@ -52,7 +52,7 @@ def test_arms_lists_both_direct_arms():
 
 def test_the_run_folder_reads_both_direct_arms_as_bko_arms():
     assert {DIRECT_ARM, LOGIC_ARM} <= BKO
-    assert frozenset({*MESSAGES_ARMS, *DIRECT_ARMS}) == BKO
+    assert frozenset({*PAID_ARMS, *DIRECT_ARMS}) == BKO
 
 
 def test_both_direct_arms_run_in_one_run_with_distinct_lines(tmp_path, caplog):

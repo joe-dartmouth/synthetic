@@ -142,6 +142,8 @@ class Call:
         system: The system prompt.
         user: The user turn.
         frame: The frame whose records the call asks for.
+        schema: The reply's structured-output schema; None for `record_schema`'s, a record call's
+            (`bko.generate.rewrite.rewrite_schema` gives a rewrite call's).
     """
 
     settings: Settings
@@ -150,6 +152,7 @@ class Call:
     system: str
     user: str
     frame: FrameSpec
+    schema: Mapping[str, object] | None = None
 
     def params(self) -> dict[str, object]:
         """Return the request body `bko.generate.api.send_with` sends, as keyword arguments."""
@@ -162,7 +165,11 @@ class Call:
                 "effort": self.settings.effort,
                 "format": {
                     "type": "json_schema",
-                    "schema": record_schema(self.sex, self.label, frame=self.frame),
+                    "schema": (
+                        record_schema(self.sex, self.label, frame=self.frame)
+                        if self.schema is None
+                        else dict(self.schema)
+                    ),
                 },
             },
         }
