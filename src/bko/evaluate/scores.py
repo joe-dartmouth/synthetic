@@ -84,6 +84,26 @@ class Measure(enum.StrEnum):
     ROWS = "rows"
     DCR_P5 = "dcr-p5"
     DCR_MEDIAN = "dcr-median"
+    MI_AUC_OUTSIDE = "mi-auc-outside"
+    """The membership attack's AUC on the records outside the removed cell
+    (`bko.evaluate.membership`); `-cell` reads the removed cell's, `-label` label 1's outside it."""
+    MI_AUC_CELL = "mi-auc-cell"
+    MI_AUC_LABEL = "mi-auc-label"
+    MI_TPR01_OUTSIDE = "mi-tpr01-outside"
+    """The attack's true positive rate at a false positive rate of 0.01, scoped as `MI_AUC_OUTSIDE`;
+    `tpr001` reads it at 0.001, which the removed cell's few records cannot define."""
+    MI_TPR01_CELL = "mi-tpr01-cell"
+    MI_TPR01_LABEL = "mi-tpr01-label"
+    MI_TPR001_OUTSIDE = "mi-tpr001-outside"
+    MI_TPR001_LABEL = "mi-tpr001-label"
+    NNDR_P5 = "nndr-p5"
+    """The 5th percentile of each row's d1/d2, its two nearest training rows' distances
+    (`bko.evaluate.privacy.nndr`); 0/0 reads 1."""
+    NNDR_MEDIAN = "nndr-median"
+    NNDR_TIES = "nndr-ties"
+    """How many rows read 0/0: two training rows at distance 0."""
+    NNDR_EXACT = "nndr-exact"
+    """How many rows read d1 = 0 < d2: a copy of one training row."""
     HELD_OUT_RATIO = "held-out-ratio"
     FLAGGED_FINGERPRINT = "flagged-fingerprint"
     """The holdout's flagged cells, as the first 12 hex digits of the sha256 of their sorted

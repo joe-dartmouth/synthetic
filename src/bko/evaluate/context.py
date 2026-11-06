@@ -8,6 +8,7 @@ from pathlib import Path
 
 from bko.baselines.methods import Runner
 from bko.datasets.fetch import UrlOpener, open_https
+from bko.datasets.run_folders import runs_root
 from bko.datasets.sources import DIABETES_130, SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
@@ -55,7 +56,8 @@ class Context:
         rehearse: Builds the send a rehearsal answers every BKO call with.
         power: Whether the machine runs on battery, for `launch` and each `supervise` resume.
         start: Starts `launch`'s detached run.
-        runs_dir: The run folders' root for `launch`; `runs/` at the repository root when None.
+        runs_dir: The run folders' root for `launch` and `privacy`; `runs/` at the repository root
+            when None.
         segment: Runs one of `supervise`'s `score` segments to its exit.
         sleep: Waits `supervise`'s backoff before a resume; None waits until it ends or the
             operator stops the run.
@@ -83,6 +85,10 @@ class Context:
     runs_dir: Path | None = None
     segment: Segment = run_segment
     sleep: Callable[[float], object] | None = None
+
+    def runs_root(self) -> Path:
+        """The run folders' root: `runs_dir`, or `runs/` at the repository root when None."""
+        return self.runs_dir if self.runs_dir is not None else runs_root()
 
     def sender(self, model: str) -> Callable[[], AnySend]:
         """What builds the send for `model`'s calls.

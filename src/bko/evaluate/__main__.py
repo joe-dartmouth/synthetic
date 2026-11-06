@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `likelihood`,
-`contradictions`, `launch` and `supervise`.
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`,
+`likelihood`, `contradictions`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -26,6 +26,9 @@ and stores every fill of each holdout its checks pass in PATH, which must not ex
 (`bko.evaluate.rows`).
 `panel RUN --folder FOLDER --rows PATH` rescores the run in FOLDER under the classifier panel,
 with calibration, from the store at PATH that `rows` wrote, to stdout (`bko.evaluate.panel`).
+`privacy RUN --rows PATH...` reads the membership attack, NNDR and DCR of RUN's stores, one per
+slice, whose folders sit under the runs root, to stdout, and logs the reading rule
+(`bko.evaluate.membership`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -58,9 +61,10 @@ directory does not, Messages arms with no `--log` or `--candidates`, a direct ar
 Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
-and scores whose validity cannot be read; 3 the data, a method's output, a scores file, a replay
-or a stopped log that cannot be resumed contradicts its contract, or a `shared`, `rows` or `panel`
-run folder or store fails an identity check.
+a `privacy` run with no reference arm or removed cell, and scores whose validity cannot be read;
+3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
+contradicts its contract, or a `shared`, `rows`, `panel` or `privacy` run folder or store fails an
+identity check.
 """
 
 from __future__ import annotations
@@ -78,7 +82,7 @@ from bko.baselines.errors import BaselineError
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
-from bko.datasets.run_folders import RUN_ID, runs_root
+from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.arguments import parser
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
@@ -90,8 +94,9 @@ from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
 from bko.evaluate.logs import stamped_handler
+from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
-from bko.evaluate.named_runs import DEFAULT_RUN
+from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
 from bko.evaluate.panel import panel
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
@@ -164,6 +169,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_rows(args, context))
     elif args.command == "panel":
         sink.write(_panel(args, context))
+    elif args.command == "privacy":
+        sink.write(_privacy(args, context))
     elif args.command == "contradictions":
         sink.write(census(data_dir(args), context))
     else:
@@ -201,7 +208,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     found = launch(
         args.run_id,
         name,
-        root=context.runs_dir if context.runs_dir is not None else runs_root(),
+        root=context.runs_root(),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
@@ -304,23 +311,10 @@ def _slice(name: str, run: str, whole: Context) -> None:
     """Refuse the run `name` unless it is a registered slice of `run`, whose context is `whole`.
 
     Raises:
-        EvaluationError: If `name` is not registered, or its settings, dataset or configuration
-            but for its holdouts and spend ceiling differ from `run`'s, or it holds a holdout
-            `run` lacks.
+        EvaluationError: If `name` is not registered, or is not `sliced` from `run`.
     """
     part = whole.runs.get(name)
-    experiment = whole.experiment
-    if part is None or (part.settings, part.dataset) != (whole.settings, whole.dataset):
-        sliced = False
-    else:
-        rest = replace(
-            part.experiment,
-            holdout_seeds=experiment.holdout_seeds,
-            spend_ceiling=experiment.spend_ceiling,
-        )
-        held = set(part.experiment.holdout_seeds) <= set(experiment.holdout_seeds)
-        sliced = held and rest == experiment
-    if not sliced:
+    if part is None or not sliced(part, NamedRun(whole.experiment, whole.settings, whole.dataset)):
         msg = f"the candidates file is run {name!r}'s, which is not a slice of {run!r}"
         raise EvaluationError(msg)
 
@@ -379,6 +373,20 @@ def _panel(args: argparse.Namespace, context: Context) -> str:
         arms=named.arms,
         models=named.panel,
         uci=named.dataset is Dataset.UCI,
+    )
+
+
+def _privacy(args: argparse.Namespace, context: Context) -> str:
+    """Read the run's privacy from its `--rows` stores, whose folders sit under the runs root."""
+    named = _named(args.run, context)
+    data = load(named.dataset, data_dir(args), named)
+    return privacy(
+        args.run,
+        args.stores,
+        experiment=named.experiment,
+        data=data,
+        runs=named.runs,
+        root=context.runs_root(),
     )
 
 

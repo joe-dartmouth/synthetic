@@ -326,7 +326,7 @@ stays on the regression, its only reading beside fidelity.
 
 The test rows are real records no generator saw, the natural real-data baseline for distance to closest
 record, and the 5th percentile is the reading that catches near-copies
-([`zhao-2021`](../../literature.md#evaluation-and-failure-modes)). The gap cells are cells of women
+([`zhao-2021`](../../literature.md#privacy)). The gap cells are cells of women
 with heart disease, and a training row of the other label or sex already sits 1/14 (0.071) away
 through that one column, against the 0.9 x 0.0225 = 0.020 the share asks of the added rows' 5th
 percentile (the test rows' mean, measured 2026-10-16). A gap row falls under the share only by

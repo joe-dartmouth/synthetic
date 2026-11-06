@@ -31,6 +31,8 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "criteria.log": "its stderr",
         "likelihood.csv": "`python -m bko.evaluate likelihood`'s stdout",
         "likelihood.log": "its stderr",
+        "privacy.csv": "`python -m bko.evaluate privacy`'s stdout",
+        "privacy.log": "its stderr",
         "candidates.jsonl": "`python -m bko.generate`'s stdout",
         "candidates.log": "its stderr",
         "draws.jsonl": "`python -m bko.generate direct`'s draw log",
