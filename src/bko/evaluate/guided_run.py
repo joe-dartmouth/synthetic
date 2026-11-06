@@ -1,7 +1,8 @@
-"""A run's BKO arms over one call log and one candidates file.
+"""A run's paid arms over one call log and one candidates file.
 
-`guided_arms` builds a `bko.evaluate.guided.GuidedArm` for each named Messages arm over one call
-log, one candidates file and one `Flight`, for the evaluate command and the app alike.
+`guided_arms` builds a `bko.evaluate.guided.GuidedArm` for each named Messages arm, and a
+`bko.evaluate.perturbed.PerturbedArm` for `PERTURBED_ARM`, over one call log, one candidates file
+and one `Flight`, for the evaluate command and the app alike.
 """
 
 from __future__ import annotations
@@ -14,11 +15,15 @@ from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 
+from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import permits_sending
+from bko.evaluate.direct import direct_arm
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import MESSAGES_ARMS, Experiment
+from bko.evaluate.experiment import MESSAGES_ARMS, PERTURBED_ARM, Experiment
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
+from bko.evaluate.perturb import delta_for, unmapped
+from bko.evaluate.perturbed import PerturbedArm
 from bko.evaluate.skeleton import prescriber
 from bko.evaluate.watch import Watch
 from bko.evaluate.waves import spendable
@@ -41,7 +46,7 @@ class GuidedRun:
     """
 
     log: CallLog
-    arms: Mapping[str, GuidedArm]
+    arms: Mapping[str, GuidedArm | PerturbedArm]
     watch: Watch
     candidates: CandidateFile
 
@@ -63,7 +68,10 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     rehearsal: bool = False,
     now: Callable[[], datetime] = utc_now,
 ) -> Generator[GuidedRun]:
-    """Build a `GuidedArm` for each of `names` over one new call log, for the body to run.
+    """Build each paid arm of `names` over one new call log, for the body to run.
+
+    Each Messages arm is a `GuidedArm`; `PERTURBED_ARM` is a `PerturbedArm` over a direct arm
+    drawing at shares, rewriting the knowledge's unmapped fields at the experiment's delta.
 
     The candidates file at `candidates` is created before the call log, with a header naming
     `origin` and `settings`, and every arm writes its lines there. The call log names the run `run`
@@ -126,23 +134,15 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
             spendable=partial(spendable, call_log, ceiling),
             ceiling=ceiling,
         )
-        arms = {
-            name: GuidedArm(
-                name,
-                spec.definition,
-                knowledge,
-                log=call_log,
-                budget=experiment.budget if spec.budget is None else spec.budget,
-                flight=flight,
-                candidates=kept,
-                prescribe=prescriber(knowledge) if spec.prescribes else None,
-                shows=spec.shows,
-                curation=spec.curation,
-                over_ask=spec.over_ask,
-            )
-            for name in names
-            for spec in (MESSAGES_ARMS[name],)
-        }
+        arms = _built(
+            names,
+            knowledge,
+            experiment,
+            log=call_log,
+            flight=flight,
+            kept=kept,
+            frame=origin.data.frame,
+        )
     except BaseException:
         call_log.discard()
         kept.discard()
@@ -156,3 +156,41 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
         finally:
             for arm in arms.values():
                 arm.summary()
+
+
+def _built(
+    names: Sequence[str],
+    knowledge: Knowledge,
+    experiment: Experiment,
+    *,
+    log: CallLog,
+    flight: Flight,
+    kept: CandidateFile,
+    frame: FrameSpec,
+) -> dict[str, GuidedArm | PerturbedArm]:
+    """Each paid arm of `names`, in their order, over `log`, `flight` and `kept`."""
+    arms: dict[str, GuidedArm | PerturbedArm] = {}
+    for name in names:
+        if name == PERTURBED_ARM:
+            arms[name] = PerturbedArm(
+                direct_arm(name, knowledge, experiment, kept),
+                flight=flight,
+                fields=unmapped(knowledge.field_rows, frame=frame),
+                delta=delta_for(experiment),
+            )
+            continue
+        spec = MESSAGES_ARMS[name]
+        arms[name] = GuidedArm(
+            name,
+            spec.definition,
+            knowledge,
+            log=log,
+            budget=experiment.budget if spec.budget is None else spec.budget,
+            flight=flight,
+            candidates=kept,
+            prescribe=prescriber(knowledge) if spec.prescribes else None,
+            shows=spec.shows,
+            curation=spec.curation,
+            over_ask=spec.over_ask,
+        )
+    return arms

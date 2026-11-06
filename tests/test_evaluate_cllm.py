@@ -18,11 +18,18 @@ from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.attempts import Attempt
 from bko.evaluate.cllm import SHOW, Shower
 from bko.evaluate.curation import ALEATORIC_AT_MOST, CONFIDENCE_AT_MOST, classifier_scores
-from bko.evaluate.experiment import CLLM_ARM, CLLM_RAW_ARM, MESSAGES_ARMS
+from bko.evaluate.experiment import (
+    CLLM_ARM,
+    CLLM_RAW_ARM,
+    MESSAGES_ARMS,
+    PAID_ARMS,
+    PERTURBED_ARM,
+)
 from bko.evaluate.guided import SEQUENTIAL, GuidedArm, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Candidate, Origin
 from bko.evaluate.named_runs import RUNS
+from bko.evaluate.perturbed import PerturbedArm
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.waves import asks, spendable
 from bko.generate.flight import Flight, Limits
@@ -198,9 +205,9 @@ def shown_in(params: dict[str, object]) -> list[dict[str, object]]:
     return [json.loads(line) for line in user_turn(params).splitlines() if line.startswith("{")]
 
 
-def test_guided_arms_builds_every_messages_arm_of_every_run(tmp_path):
+def test_guided_arms_builds_every_paid_arm_of_every_run(tmp_path):
     names = sorted(
-        {arm for run in RUNS.values() for arm in run.experiment.arms} & set(MESSAGES_ARMS)
+        {arm for run in RUNS.values() for arm in run.experiment.arms} & PAID_ARMS | {PERTURBED_ARM}
     )
     assert {CLLM_ARM, CLLM_RAW_ARM} <= set(names)
     with guided_arms(
@@ -215,7 +222,10 @@ def test_guided_arms_builds_every_messages_arm_of_every_run(tmp_path):
         limits=SEQUENTIAL,
     ) as run:
         assert sorted(run.arms) == names
-        assert all(isinstance(built, GuidedArm) for built in run.arms.values())
+        assert isinstance(run.arms[PERTURBED_ARM], PerturbedArm)
+        guided = [built for name, built in run.arms.items() if name in MESSAGES_ARMS]
+        assert len(guided) == len(names) - 1
+        assert all(isinstance(built, GuidedArm) for built in guided)
 
 
 def built_source() -> Source:

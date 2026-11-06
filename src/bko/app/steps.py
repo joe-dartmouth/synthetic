@@ -24,7 +24,7 @@ from bko.datasets.split import Split, split
 from bko.evaluate.classifier import Model
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import MESSAGES_ARMS, METHOD_ARMS, Experiment
+from bko.evaluate.experiment import METHOD_ARMS, PAID_ARMS, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.guided_run import GuidedRun, guided_arms
 from bko.evaluate.holdout_candidates import Origin
@@ -102,15 +102,13 @@ def analyze(context: Context) -> Analysis:
 
 
 def fillers(experiment: Experiment) -> tuple[str, ...]:
-    """The arms of `experiment` that add rows, in its order: row-adding methods, Messages arms."""
-    return tuple(
-        name for name in experiment.arms if name in MESSAGES_ARMS or Method(name).adds_rows
-    )
+    """The arms of `experiment` that add rows, in its order: row-adding methods, paid arms."""
+    return tuple(name for name in experiment.arms if name in PAID_ARMS or Method(name).adds_rows)
 
 
 def is_paid(name: str) -> bool:
     """Whether filling with `name` calls the Messages API."""
-    return name in MESSAGES_ARMS
+    return name in PAID_ARMS
 
 
 def experiment_for(name: str, context: Context) -> Experiment:

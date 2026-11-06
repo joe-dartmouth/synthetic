@@ -10,6 +10,7 @@ import functools
 import io
 import json
 import logging
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -23,8 +24,8 @@ from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
 from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import E1
-from bko.evaluate.holdout_candidates import read
+from bko.evaluate.experiment import DIRECT_ARM, E1, PERTURBED_ARM
+from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.rehearse import (
     INPUT_PER_RECORD,
@@ -37,6 +38,7 @@ from bko.generate.errors import GenerationError
 from bko.generate.guidance import Basis, Guidance, intervals
 from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
 from bko.generate.prompt import COHERENCE, render, render_shown
+from bko.generate.rewrite import ROW, Rewrite, render_rewrite
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, GRADED_DATA, SMALL, uci_data
@@ -333,3 +335,49 @@ def test_canned_send_answers_a_shown_prompt():
     records = json.loads(send(call).text or "")["records"]
     assert len(records) == 4
     assert validate(records, frame=UCI_FRAME).passed == 4
+
+
+def test_the_canned_rewrite_returns_each_rows_fields_as_sent():
+    send = CannedSend(GRADED_DATA, SMALL, SETTINGS)
+    rows = (
+        {"chol": 210, "fbs": 0, "oldpeak": 1.5, "thal": 3},
+        {"chol": 260, "fbs": 1, "oldpeak": 0.0, "thal": 7},
+    )
+    rewrite = Rewrite(
+        ("chol", "fbs", "oldpeak", "thal"), rows, {"chol": (1, 600), "oldpeak": (0, 7)}
+    )
+    system, user = render_rewrite(rewrite, frame=UCI_FRAME)
+    answer = send(Call(SETTINGS, 0, 1, system, user, frame=UCI_FRAME))
+    assert json.loads(answer.text or "")["records"] == [
+        {ROW: index, **row} for index, row in enumerate(rows)
+    ]
+    assert answer.usage.input_tokens == INPUT_PER_RECORD * 2
+    assert answer.usage.output_tokens == OUTPUT_PER_RECORD * 2
+
+
+def test_a_rehearsal_keeps_every_perturbed_candidate_unchanged(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    ctx, _ = context(ScriptedSend())
+    run = dataclasses.replace(
+        NARROW,
+        arms=("none", DIRECT_ARM, PERTURBED_ARM),
+        candidate=PERTURBED_ARM,
+        comparators=("none", DIRECT_ARM),
+    )
+    ctx = dataclasses.replace(ctx, experiment=run)
+    log = tmp_path / "calls.jsonl"
+    assert main(score_argv(log, tmp_path, "--rehearse"), context=ctx, out=io.StringIO()) == 0
+    found = read(candidates_for(log).read_bytes())
+    mine = [line for line in found.candidates if line.arm == PERTURBED_ARM]
+    assert mine
+    assert {line.outcome for line in mine} == {KEPT}
+    assert None not in {line.call for line in mine}
+    theirs = [line.candidate for line in found.candidates if line.arm == DIRECT_ARM]
+    assert [line.candidate for line in mine] == theirs
+    summaries = [m for m in caplog.messages if m.startswith("perturb holdout=")]
+    assert len(summaries) == 2
+    unchanged = r"perturb holdout=\d rows=(\d+) perturbed=0 unchanged=\1"
+    refused = " refused_empty=0 refused_short=0 refused_undecodable=0 refused_order=0"
+    refused += " refused_keys=0 refused_validate=0 refused_bounds=0"
+    assert all(re.fullmatch(rf"{unchanged}{refused}", m) for m in summaries), summaries
+    assert _lines(log)[-1]["status"] == "complete"

@@ -183,6 +183,14 @@ def test_the_payload_carries_both_turns_the_schema_and_fixed_sampling():
     }
 
 
+def test_a_rewrite_calls_payload_carries_its_own_schema():
+    schema = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
+    call = dataclasses.replace(CALL, schema=schema)
+    assert json.dumps(schema) in json.dumps(payload(call)["response_format"])
+    assert json.dumps(schema) in json.dumps(call.params()["output_config"])
+    assert call.reply_schema() == schema
+
+
 def test_a_response_becomes_a_reply():
     body = completion([RECORD])
     reply = reply_of(body)

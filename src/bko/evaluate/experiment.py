@@ -281,10 +281,14 @@ LOGIC_ARM: Final = "bko-logic"
 """The free arm that draws as `DIRECT_ARM` does with each concept's presence from logic alone, no
 data prior (ADR `research/logic-only-ablation`)."""
 
+PRAM_ARM: Final = "bko-direct-pram"
+"""The free arm that redraws `DIRECT_ARM`'s unmapped fields by PRAM toward each field's label-group
+training marginal (`bko.evaluate.pram`; ADR `research/identifier-perturbation`)."""
+
 DIRECT_ARMS: Final[Mapping[str, Presence]] = MappingProxyType(
-    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC}
+    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC, PRAM_ARM: Presence.SHARES}
 )
-"""Every direct arm, with how it draws each concept's presence."""
+"""Every direct arm, with how its draw decides each concept's presence."""
 
 SKELETON_ARM: Final = "bko-skeleton"
 """The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every
@@ -381,7 +385,15 @@ MESSAGES_ARMS: Final[Mapping[str, MessagesArm]] = MappingProxyType(
         ),
     }
 )
-"""Every arm that calls the Messages API, by name, with how it builds requests and keeps rows."""
+"""Every arm that calls the Messages API for new records, by name, with how it builds requests
+and keeps rows."""
+
+PERTURBED_ARM: Final = "bko-direct-perturbed"
+"""The arm that sends `DIRECT_ARM`'s rows to the Messages API to rewrite their unmapped fields
+(`bko.evaluate.perturbed`; ADR `research/identifier-perturbation`)."""
+
+PAID_ARMS: Final = frozenset({*MESSAGES_ARMS, PERTURBED_ARM})
+"""Every arm that calls the Messages API: a run holding one needs a call log and may spend."""
 
 
 def flagged(

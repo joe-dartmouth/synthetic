@@ -17,6 +17,8 @@ no API call.
   level. A record the log cannot trace is `untraced`, with the reason, and the `trace partial`
   WARNING counts them.
 - A baseline (`trace_baseline`): one line naming its method and its seed.
+- `bko-direct-pram` and `bko-direct-perturbed`: refused (exit 2), since a re-draw gives their
+  unperturbed rows, not the rows their `arm` lines hash (`cleanup:evaluate/trace-logic-arm`).
 
 The source record ids name training records, so the output stays in its run folder.
 """
@@ -45,6 +47,8 @@ from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARM,
     MESSAGES_ARMS,
+    PERTURBED_ARM,
+    PRAM_ARM,
     Experiment,
     gap_request,
     replica_request,
@@ -431,9 +435,18 @@ def run_trace(args: argparse.Namespace, named: Context) -> str:
     """The `trace` command over `named`, the context of the run `args.run`.
 
     The folder and the selection are read before any data is loaded.
+
+    Raises:
+        EvaluationError: Before any data is loaded, if the fill is a perturbation arm's.
     """
     folder = read_folder(args.folder)
     fill = select(folder, holdout=args.holdout, arm=args.arm)
+    if fill.name in {PRAM_ARM, PERTURBED_ARM}:
+        msg = (
+            f"trace cannot explain {fill.name}: a re-draw gives its unperturbed rows, not the rows "
+            "its arm line hashes (cleanup:evaluate/trace-logic-arm)"
+        )
+        raise EvaluationError(msg)
     root = data_dir(args)
     data = load(named.dataset, root, named)
     ontologies = None

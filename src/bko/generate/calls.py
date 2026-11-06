@@ -25,6 +25,7 @@ from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import CALL_NUMBER, Call, Reply, Send, Settings
 from bko.generate.prompt import Shown, render, render_shown
+from bko.generate.rewrite import Rewrite, render_rewrite, rewrite_schema
 from bko.generate.skeleton import Skeleton
 from bko.generate.spend import cost, price_of
 
@@ -104,12 +105,14 @@ class Pending:
         cell: The cell it asks for.
         asked: The records it asks for.
         call: The request to send.
+        rewrite: Whether it is a rewrite call, which reads no guidance level.
     """
 
     index: int
     cell: Cell
     asked: int
     call: Call
+    rewrite: bool = False
 
 
 def request(
@@ -121,6 +124,7 @@ def request(
     frame: FrameSpec,
     skeleton: Skeleton | None = None,
     shown: Shown | None = None,
+    rewrite: Rewrite | None = None,
 ) -> Pending:
     """Render one call for `rows` records of `guidance`'s cell and write its `request` line.
 
@@ -133,15 +137,25 @@ def request(
         skeleton: A prescribing request's lines, one per record asked; None asks for none.
         shown: The training records the call shows (`bko.generate.prompt.render_shown`), which
             reads no guidance level; None shows none.
+        rewrite: The rows a rewrite call sends, one per record asked, whose fields it asks back
+            changed (`bko.generate.rewrite`); its prompt and schema read no guidance level and no
+            guidance but the cell's `sex` and label. None asks for new records.
 
     Returns:
         The call, numbered and logged, to send.
 
     Raises:
         ValueError: Before the `request` line, if `settings` differ from the log's, the
-            skeleton's lines are not one per record asked, or both a skeleton and shown records
-            are given.
+            skeleton's lines or the rewrite's rows are not one per record asked, both a skeleton
+            and shown records are given, or a rewrite comes with either, or as
+            `bko.generate.rewrite.render_rewrite`.
     """
+    if rewrite is not None and (skeleton is not None or shown is not None):
+        msg = "a rewrite request takes neither a skeleton nor shown records"
+        raise ValueError(msg)
+    if rewrite is not None and len(rewrite.rows) != rows:
+        msg = f"the rewrite holds {len(rewrite.rows)} rows for {rows} records asked"
+        raise ValueError(msg)
     if skeleton is not None and shown is not None:
         msg = "a request takes either a skeleton or shown records, not both"
         raise ValueError(msg)
@@ -149,17 +163,21 @@ def request(
         msg = f"the skeleton holds {len(skeleton.lines)} lines for {rows} records asked"
         raise ValueError(msg)
     settings = _settings(log, settings)
-    system, user = (
-        render(guidance, rows, settings.guidance, frame=frame, skeleton=skeleton)
-        if shown is None
-        else render_shown(guidance, rows, shown, frame=frame)
-    )
-    call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame)
+    schema = None
+    if rewrite is not None:
+        system, user = render_rewrite(rewrite, frame=frame)
+        schema = rewrite_schema(rewrite, frame=frame)
+    elif shown is None:
+        system, user = render(guidance, rows, settings.guidance, frame=frame, skeleton=skeleton)
+    else:
+        system, user = render_shown(guidance, rows, shown, frame=frame)
+    call = Call(settings, guidance.sex, guidance.label, system, user, frame=frame, schema=schema)
     index = log.request(guidance.cell, rows, call)
     # The SDK logs its own retries at INFO; this line lets a reader tie them to the call.
     shows = "" if shown is None else f" shown={len(shown)}"
+    shows += "" if rewrite is None else " rewrite=true"
     logger.info("send call=%d cell=%s asked=%d%s", index, cell_key(guidance.cell), rows, shows)
-    return Pending(index, guidance.cell, rows, call)
+    return Pending(index, guidance.cell, rows, call, rewrite=rewrite is not None)
 
 
 def answer(
@@ -186,11 +204,11 @@ def answer(
     if reply.model != settings.model:
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(
-        "generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s "
+        "generate call=%d cell=%s %s asked=%d decoded=%d undecoded=%d stop_reason=%s "
         "input_tokens=%d output_tokens=%d usd=%.6f request_id=%s elapsed_s=%.3f in_flight=%d",
         index,
         key,
-        settings.guidance,
+        "rewrite=true" if pending.rewrite else f"level={settings.guidance}",
         rows,
         len(candidates) - batch.undecoded,
         batch.undecoded,
@@ -205,12 +223,13 @@ def answer(
     if batch.undecoded:
         reason = next(c.reason for c in candidates if isinstance(c, Undecoded))
         logger.warning(
-            "short call=%d cell=%s asked=%d undecoded=%d reason=%s",
+            "short call=%d cell=%s asked=%d undecoded=%d reason=%s%s",
             index,
             key,
             rows,
             batch.undecoded,
             reason,
+            " rewrite=true" if pending.rewrite else "",
         )
     return batch
 

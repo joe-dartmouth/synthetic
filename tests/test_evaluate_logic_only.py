@@ -11,7 +11,7 @@ import pytest
 
 import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, MESSAGES_ARMS
+from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, PAID_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
@@ -35,7 +35,11 @@ BOTH = dataclasses.replace(
 
 
 def test_the_direct_arms_are_bko_direct_on_shares_and_bko_logic_on_logic():
-    assert dict(DIRECT_ARMS) == {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC}
+    assert dict(DIRECT_ARMS) == {
+        DIRECT_ARM: Presence.SHARES,
+        LOGIC_ARM: Presence.LOGIC,
+        PRAM_ARM: Presence.SHARES,
+    }
 
 
 def test_arms_lists_both_direct_arms():
@@ -48,7 +52,7 @@ def test_arms_lists_both_direct_arms():
 
 def test_the_run_folder_reads_both_direct_arms_as_bko_arms():
     assert {DIRECT_ARM, LOGIC_ARM} <= BKO
-    assert frozenset({*MESSAGES_ARMS, *DIRECT_ARMS}) == BKO
+    assert frozenset({*PAID_ARMS, *DIRECT_ARMS}) == BKO
 
 
 def test_both_direct_arms_run_in_one_run_with_distinct_lines(tmp_path, caplog):

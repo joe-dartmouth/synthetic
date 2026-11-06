@@ -92,9 +92,12 @@ KEYS = [
     "e9-emptyi",
     "e9-emptyj",
     "e6-curated",
+    "e10-pilot-thin",
+    "e10-pilot-empty",
     "g5",
 ]
-"""Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's."""
+"""Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's
+and E10's pilots."""
 
 
 def test_the_runs_keys_are_the_literal_list():

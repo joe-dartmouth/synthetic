@@ -25,6 +25,8 @@ from bko.evaluate.experiment import (
     HOLDOUTS,
     LOGIC_ARM,
     METHOD_ARMS,
+    PERTURBED_ARM,
+    PRAM_ARM,
     REAL_ARM,
     SKELETON_ARM,
     Experiment,
@@ -276,6 +278,20 @@ E9_THIN, E9_EMPTY = (
 candidate, no replica and no API call (ADR `research/logic-only-ablation`). The spend ceiling
 kept from E6 is inert: no arm calls the API."""
 
+E10_PILOT_THIN, E10_PILOT_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, PERTURBED_ARM, PRAM_ARM),
+        holdout_seeds=(0, 1),
+        candidate=PERTURBED_ARM,
+        comparators=(DIRECT_ARM, PRAM_ARM, "none"),
+        spend_ceiling=5.0,
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E10's pilots: `E9_THIN` and `E9_EMPTY` on holdouts 0 and 1, both perturbation arms in place of
+`bko-logic`, the perturbed arm the candidate, at $5.00 (ADR `research/identifier-perturbation`)."""
+
 
 def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
     """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `a`.
@@ -412,24 +428,14 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e9", "thin", E9_THIN),
         **_slices("e9", "empty", E9_EMPTY),
         "e6-curated": NamedRun(E6_CURATED, E6_SETTINGS, Dataset.DIABETES),
+        "e10-pilot-thin": NamedRun(E10_PILOT_THIN, E6_SETTINGS, Dataset.DIABETES),
+        "e10-pilot-empty": NamedRun(E10_PILOT_EMPTY, E6_SETTINGS, Dataset.DIABETES),
         "g5": NamedRun(G5, G4_SETTINGS),
     }
 )
-"""Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
-`bko` at that guidance level, judged by no criterion (`docs/EVIDENCE.md`, G3; `g3-summary` is
-E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with effort `low` and
-`medium` (G4; `g4-medium`'s settings equal `e1`'s), `g2` is `G2`, and `g5` is `G5` at `summary` with
-G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
-holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
-`b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, `b2-uci` and `b2-synthea` are `B2_UCI` and
-`B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with its `G6_MODELS` model and
-ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with its `G6_THINKING` model
-on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and `e6-empty` are `E6_THIN` and `E6_EMPTY`
-at `E6_SETTINGS` over the Diabetes frame, each `e6-<fraction><letter>`, `a` to `j`, the next 10
-of its holdouts at a tenth of its ceiling, `e9-thin` and `e9-empty` are `E9_THIN` and `E9_EMPTY`,
-sliced the same way, and `e6-curated` is `E6_CURATED` at `E6_SETTINGS`. A variant adds its own
-entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
-ceiling and criteria."""
+"""Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, and the
+Diabetes runs `e6-*`, `e9-*` and `e10-pilot-*`, each family's experiment saying what it is. A
+variant adds its own entry in its own change, with its arms, candidate, comparators and ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

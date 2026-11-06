@@ -32,7 +32,8 @@ from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.sources import DIABETES_130
 from bko.datasets.split import split
 from bko.evaluate.diabetes import DIABETES_FRAME, DIABETES_INDICATORS
-from bko.evaluate.experiment import E1, Experiment, Removal, flagged
+from bko.evaluate.experiment import E1, Experiment, Removal, flagged, gap_request
+from bko.evaluate.named_runs import RUNS
 from bko.evaluate.prepare import prepared
 
 
@@ -130,3 +131,14 @@ def test_the_removed_cell_is_the_only_flagged_cell_on_every_holdout_seed(fractio
         parts = split(_records(), seed=seed, edges=edges)
         train = prepared(parts, experiment, edges=edges).ablated.train
         assert flagged(train, experiment, edges=edges) == (CELL,), seed
+
+
+@pytest.mark.parametrize(("name", "asked"), [("e10-pilot-thin", 1250), ("e10-pilot-empty", 1269)])
+def test_each_perturbation_pilot_requests_only_the_removed_cell(name, asked):
+    experiment = RUNS[name].experiment
+    edges = DIABETES_FRAME.edges
+    for seed in experiment.holdout_seeds:
+        parts = split(_records(), seed=seed, edges=edges)
+        train = prepared(parts, experiment, edges=edges).ablated.train
+        request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+        assert dict(request.quota) == {CELL: asked}, seed

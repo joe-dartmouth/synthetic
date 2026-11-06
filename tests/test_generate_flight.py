@@ -13,6 +13,7 @@ from typing import Final
 
 import pytest
 
+import bko.generate.flight as flight_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.errors import StopRuleError
 from bko.evaluate.waves import spendable
@@ -672,3 +673,57 @@ def test_request_refuses_both_skeleton_and_shown(tmp_path):
         with pytest.raises(ValueError, match="not both"):
             request(GUIDANCE, 1, log=log, frame=UCI_FRAME, skeleton=lines, shown=shown)
         assert log.calls == 0
+
+
+def test_a_failure_inside_settle_reraises_the_interrupt_and_leaves_a_fresh_runner(
+    tmp_path, monkeypatch
+):
+    """A call-log write that fails while `_settle` lands an interrupted wave is the interrupt's
+    cause, not its replacement; every other unanswered call still gets its `error` line, and the
+    next wave runs on a new loop rather than raising `RuntimeError: Runner is closed`."""
+    real = flight_module.fail
+    refused: list[int] = []
+
+    def failing(pending, error, *, log):
+        # Call 1's own line is written as its send raises; the others are `_settle`'s.
+        if pending.index > 1 and not refused:
+            refused.append(pending.index)
+            msg = "the call log could not be written"
+            raise OSError(msg)
+        return real(pending, error, log=log)
+
+    sent: list[Call] = []
+
+    def send(call: Call):
+        sent.append(call)
+        if len(sent) == 1:
+            raise KeyboardInterrupt
+        return Delayed()(call)
+
+    monkeypatch.setattr(flight_module, "fail", failing)
+    log = _log(tmp_path)
+    with log, Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight:
+        with pytest.raises(KeyboardInterrupt) as raised:
+            flight.wave(PLAN, frame=UCI_FRAME)
+        assert isinstance(raised.value.__cause__, OSError)
+        monkeypatch.setattr(flight_module, "fail", real)
+        batches = flight.wave(PLAN[:1], frame=UCI_FRAME)
+    assert [batch.index for batch in batches] == [4]
+    lines = _lines(log)
+    requested = {line["call"] for line in lines if line["kind"] == "request"}
+    answered = {line["call"] for line in lines if line["kind"] in {"reply", "error"}}
+    assert answered == requested - set(refused)
+    assert len(refused) == 1
+    assert len(requested - {4}) > len(refused)
+
+
+def test_a_wave_after_a_settled_interrupt_runs_on_the_same_flight(tmp_path):
+    send = Delayed(fail={2: KeyboardInterrupt()})
+    log = _log(tmp_path)
+    with log, Flight(send, log, Limits(in_flight=3, idle=None), spendable=lambda: None) as flight:
+        with pytest.raises(KeyboardInterrupt) as raised:
+            flight.wave(PLAN, frame=UCI_FRAME)
+        assert raised.value.__cause__ is None
+        batches = flight.wave(PLAN[:2], frame=UCI_FRAME)
+    assert [batch.index for batch in batches] == [4, 5]
+    assert [len(batch.candidates) for batch in batches] == [1, 2]

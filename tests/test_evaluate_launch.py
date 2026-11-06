@@ -19,6 +19,7 @@ from typing import Any, Final
 import pytest
 
 from bko.app.runs import ROLES
+from bko.datasets.run_folders import RUN_ID
 from bko.evaluate import launch as launching
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
@@ -652,7 +653,7 @@ def test_the_command_refuses_a_run_with_no_bko_arm(tmp_path, caplog):
     context = Context(experiment=unpaid, power=lambda: False, runs_dir=tmp_path, start=start)
     with caplog.at_level(logging.ERROR):
         assert main(["launch", "e1-4"], context=context, out=io.StringIO()) == 2
-    assert "has no Messages arm" in caplog.text
+    assert "has no paid arm" in caplog.text
     assert start.commands == []
     assert not (tmp_path / "e1-4").exists()
 
@@ -711,8 +712,9 @@ def test_each_e6_slice_launches_from_an_e6_run_id(tmp_path, name):
     assert f"run={name} " in (tmp_path / "e6-1" / "launch.log").read_text(encoding="utf-8")
 
 
-def test_every_named_run_is_an_entry_or_a_word_after_it():
-    assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)?", name) for name in RUNS)
+def test_every_named_run_is_an_entry_or_words_after_it():
+    assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)*", name) for name in RUNS)
+    assert not any(RUN_ID.fullmatch(name) for name in RUNS)
 
 
 @pytest.mark.parametrize("argv", [["launch", "g2-3"], ["launch", "g2-3", "--dry-run"]])
@@ -721,7 +723,7 @@ def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder
 ):
     context = named(tmp_path, RUNS)
     assert main(argv, context=context, out=io.StringIO()) == 2
-    assert "the run 'g2' has no Messages arm, so it spends nothing to launch" in caplog.text
+    assert "the run 'g2' has no paid arm, so it spends nothing to launch" in caplog.text
     assert isinstance(context.start, Starts)
     assert context.start.commands == []
     assert not (tmp_path / "g2-3").exists()

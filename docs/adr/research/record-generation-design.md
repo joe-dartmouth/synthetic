@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-10-29
+updated: 2026-11-06
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -271,7 +271,8 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
   values; on the UCI split the reference group is the rest of the cell's label group.
 - Two training values per numeric field leave on every call (the split's minimum and maximum), and
   `summary` adds three more, plus the reference group's record count and each concept's share of it
-  in percent (the `profile` block); every `SETTINGS` run sends them. No BKO arm sends a record, but their exposure grows as the split or a
+  in percent (the `profile` block); every `SETTINGS` run sends them. Of the BKO arms, only `bko-direct-perturbed` sends record values, the 19 unmapped fields of rows of open Diabetes 130 data (ADR
+  `research/identifier-perturbation`); no other BKO arm sends a record, but their exposure grows as the split or a
   reference group shrinks, to a whole record for identical records. A dataset under a DUA needs its
   terms checked for them.
 - A model may reproduce a public Cleveland record. E1 counts each arm's rows equal to a test

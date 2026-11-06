@@ -11,9 +11,11 @@ from bko.datasets.sources import Agreement, Source, permits_sending
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, load
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import MESSAGES_ARMS, PAID_ARMS, PERTURBED_ARM
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import Origin
+from bko.evaluate.perturbed import PerturbedArm
 from bko.ontology.mapping import RELEASES
 from tests._diabetes_fixtures import pin, toy_archive
 from tests._evaluate_bko_fixtures import PIN as UCI_PIN
@@ -42,14 +44,24 @@ def open_arms(tmp_path, agreement: Agreement | None, send=refusing, arm: str = "
     )
 
 
-def test_a_messages_arm_refuses_data_under_an_agreement_without_permission(tmp_path):
+@pytest.mark.parametrize("arm", ["bko", PERTURBED_ARM])
+def test_a_paid_arm_refuses_data_under_an_agreement_without_permission(tmp_path, arm):
     with (
         pytest.raises(EvaluationError, match="agreement"),
-        open_arms(tmp_path, Agreement("toy DUA", sending=None)),
+        open_arms(tmp_path, Agreement("toy DUA", sending=None), arm=arm),
     ):
         pass
     assert not (tmp_path / "calls.jsonl").exists()
     assert not (tmp_path / "holdout-candidates.jsonl").exists()
+
+
+def test_the_perturbed_arm_is_a_paid_arm_built_over_the_shared_flight(tmp_path):
+    assert PERTURBED_ARM in PAID_ARMS
+    assert PERTURBED_ARM not in MESSAGES_ARMS
+    with open_arms(tmp_path, None, ScriptedSend, arm=PERTURBED_ARM) as run:
+        assert set(run.arms) == {PERTURBED_ARM}
+        assert isinstance(run.arms[PERTURBED_ARM], PerturbedArm)
+    assert (tmp_path / "calls.jsonl").exists()
 
 
 @pytest.mark.parametrize(

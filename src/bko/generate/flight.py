@@ -28,6 +28,7 @@ its retry lines name it.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import logging
@@ -45,6 +46,7 @@ from bko.generate.guidance import Guidance
 from bko.generate.log import CallLog
 from bko.generate.messages import ATTEMPTS, CALL_NUMBER, AnySend, Reply, Tries
 from bko.generate.prompt import Shown
+from bko.generate.rewrite import Rewrite
 from bko.generate.skeleton import Skeleton
 from bko.generate.spend import price_of
 
@@ -92,12 +94,15 @@ class Planned:
         skeleton: A prescribing request's lines, one per record asked; None for an arm that
             prescribes none.
         shown: The training records the call shows; None for an arm that shows none.
+        rewrite: The rows a rewrite call sends back to be changed; None for a call that asks for
+            new records.
     """
 
     guidance: Guidance
     rows: int
     skeleton: Skeleton | None = None
     shown: Shown | None = None
+    rewrite: Rewrite | None = None
 
 
 @dataclass(eq=False, slots=True)
@@ -235,60 +240,82 @@ class Flight:
     def _run(
         self, planned: Sequence[Planned], frame: FrameSpec
     ) -> tuple[tuple[Batch, ...], Exception | None]:
-        """The wave's batches before its first failure, and that failure or None."""
+        """The wave's batches before its first failure, and that failure or None.
+
+        A wave that raises leaves the flight a new runner. What stopped it propagates unchanged,
+        a failure while settling it as its `__cause__`, once every call has its `error` line.
+        """
         wave = _Wave(asyncio.Semaphore(self.limits.in_flight))
-        if self._runner is None:
-            runner = asyncio.Runner()
-            try:
-                return runner.run(self._wave(planned, frame, wave))
-            except BaseException as exc:
-                wave.stop(exc)
-                raise
-            finally:
-                self._settle(runner, wave)
+        owned = self._runner is None
+        runner = asyncio.Runner() if self._runner is None else self._runner
         try:
-            return self._runner.run(self._wave(planned, frame, wave))
+            outcome = runner.run(self._wave(planned, frame, wave))
         except BaseException as exc:
             # An interrupt raised inside a call leaves the others on the loop: they are
             # cancelled and landed, so their `error` lines are written before the caller's next.
             wave.stop(exc)
-            self._settle(self._runner, wave)
-            self._runner = asyncio.Runner()
+            if not owned:
+                self._runner = asyncio.Runner()
+            try:
+                self._settle(runner, wave)
+            except BaseException as settle_error:
+                raise exc from settle_error
             raise
+        if owned:
+            self._settle(runner, wave)
+        return outcome
 
     def _settle(self, runner: asyncio.Runner, wave: _Wave) -> None:
         """Land every call still in flight, close `runner`, and log each call that never ran.
 
         A further `KeyboardInterrupt`, as a repeated Ctrl-C raises once the loop's own handler is
         gone, is absorbed until every call has landed, so each requested call gets its `error`
-        line before the call log can close; the first interrupt still propagates.
+        line before the call log can close; the first interrupt still propagates. `runner` is
+        closed, and each call that never ran gets its line, even when landing the others fails.
         """
-        # The wave's own task is among them when an interrupt left it waiting on its calls.
-        others = asyncio.all_tasks(runner.get_loop()) if wave.flying else set()
-        tasks = [*wave.flying.values(), *(others - set(wave.flying.values()))]
-        # Cancelled in call order, so their `error` lines are written in it.
-        for task in tasks:
-            task.cancel()
-        while any(not task.done() for task in tasks):
-            try:
-                runner.get_loop().run_until_complete(asyncio.wait(tasks))
-            except KeyboardInterrupt:
-                continue
-        for task in tasks:
-            # Read, so no exception is reported as never retrieved; the first one propagates.
-            if not task.cancelled():
-                task.exception()
-        while True:
-            try:
-                runner.close()
-                break
-            except KeyboardInterrupt:
-                continue
-        # A call cancelled before its first step never ran the code that writes its line.
+        try:
+            # The wave's own task is among them when an interrupt left it waiting on its calls.
+            others = asyncio.all_tasks(runner.get_loop()) if wave.flying else set()
+            tasks = [*wave.flying.values(), *(others - set(wave.flying.values()))]
+            # Cancelled in call order, so their `error` lines are written in it.
+            for task in tasks:
+                task.cancel()
+            while any(not task.done() for task in tasks):
+                try:
+                    runner.get_loop().run_until_complete(asyncio.wait(tasks))
+                except KeyboardInterrupt:
+                    continue
+            for task in tasks:
+                # Read, so no exception is reported as never retrieved; the first one propagates.
+                if not task.cancelled():
+                    task.exception()
+            while True:
+                try:
+                    runner.close()
+                    break
+                except KeyboardInterrupt:
+                    continue
+        finally:
+            _close(runner)
+            self._log_unran(wave)
+
+    def _log_unran(self, wave: _Wave) -> None:
+        """Write each call's `error` line that a cancel before its first step left unwritten.
+
+        Raises:
+            Exception: The first line's failure, once every other line is written.
+        """
+        first: Exception | None = None
         for index, pending in wave.pending.items():
-            if index not in wave.answered:
+            if index in wave.answered:
+                continue
+            try:
                 fail(pending, wave.cancelled(asyncio.CancelledError()), log=self.log)
-                wave.answered.add(index)
+            except Exception as error:
+                first = first or error
+            wave.answered.add(index)
+        if first is not None:
+            raise first
 
     async def _wave(
         self, planned: Sequence[Planned], frame: FrameSpec, wave: _Wave
@@ -372,6 +399,7 @@ class Flight:
             frame=frame,
             skeleton=item.skeleton,
             shown=item.shown,
+            rewrite=item.rewrite,
         )
 
     async def _afford(self, wave: _Wave) -> None:
@@ -464,3 +492,9 @@ def _outcome(task: asyncio.Task[Batch]) -> Batch | BaseException:
         return asyncio.CancelledError()
     error = task.exception()
     return task.result() if error is None else error
+
+
+def _close(runner: asyncio.Runner) -> None:
+    """Close `runner`, already closed or not, suppressing what closing it raises."""
+    with contextlib.suppress(Exception, KeyboardInterrupt):
+        runner.close()

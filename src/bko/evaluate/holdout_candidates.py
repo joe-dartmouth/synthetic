@@ -2,15 +2,15 @@
 
 The file is JSONL. Its first line is the header, `kind` `header`: the schema, the named run, the
 name of its `frame`, the sha256 of its records under `data` (`bko.evaluate.data.Data.digest`), the
-sha256 of each ontology release, and the generator settings, which a run with no Messages arm
+sha256 of each ontology release, and the generator settings, which a run with no paid arm
 omits. A schema-1 file, written before frames, names the UCI snapshot's sha256 under `uci` in place
 of `frame` and `data`, and `read` checks it against the pinned archive. Every other line
 is one candidate, `kind` `candidate`: the holdout, the arm, the fill (`gap` or `replica`), the
 attempt within that fill counted from 1 and whether it `returned` or was refused, the call (null for
-a direct arm's record, drawn with no call) and the cell it asked for, the candidate's 0-based
-position among the call's, then either the decoded `candidate` or the reason it is `undecoded`, its
-`outcome` and the checks it `failed`. The outcome
-is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
+a direct arm's record, drawn with no call, and for a perturbed arm's row no rewrite call returned)
+and the cell it asked for, the candidate's 0-based position among the call's, then either the
+decoded `candidate` or the reason it is `undecoded`, its `outcome` and the checks it `failed`. The
+outcome is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
 `dropped-cell`, `dropped-concepts` (a prescribing arm's alone), `dropped-curation` (a curating
 arm's alone) or `dropped-quota` (by `bko.baselines.records.drops`), or `dropped-likelihood` (a
 ranking arm's alone, by `bko.evaluate.attempts.Attempt.rows`). A schema-3 line of a scoring arm
@@ -256,7 +256,7 @@ class CandidateFile:
     """
 
     def __init__(self, path: Path, origin: Origin, settings: Settings | None) -> None:
-        """Create the file and write its header; `settings` is None for a run with no Messages arm.
+        """Create the file and write its header; `settings` is None for a run with no paid arm.
 
         Raises:
             FileExistsError: If `path` exists.
@@ -337,7 +337,7 @@ def read(data: bytes) -> HoldoutCandidates:
     if set(first) - {_SETTINGS} != keys:
         msg = (
             f"a schema-{schema} candidates file's header has the keys {sorted(keys)} "
-            f"and, for a run with a Messages arm, {_SETTINGS!r}"
+            f"and, for a run with a paid arm, {_SETTINGS!r}"
         )
         raise CandidatesFormatError(msg)
     if schema == 1 and first["uci"] != UCI_HEART_DISEASE.sha256:

@@ -26,7 +26,7 @@ from bko.evaluate import membership
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import REAL_ARM, Experiment
+from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.membership import (
     GROUPS,
     SCOPES,
@@ -751,9 +751,11 @@ def test_a_run_lacking_its_reference_arm_or_a_removed_cell_is_refused(monkeypatc
         reference_of("e1", dataclasses.replace(lacking, removal=None), {})
 
 
-def test_the_e6_runs_read_against_real():
+def test_the_e6_runs_read_against_real_and_the_e10_pilots_against_bko_direct():
     assert dict(membership.REFERENCE) == {
         "e6-thin": REAL_ARM,
         "e6-empty": REAL_ARM,
         "e6-curated": REAL_ARM,
+        "e10-pilot-thin": DIRECT_ARM,
+        "e10-pilot-empty": DIRECT_ARM,
     }

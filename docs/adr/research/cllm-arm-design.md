@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -181,7 +181,9 @@ prompt (their section 2.2).
   `bko.evaluate.data.Data.agreement` carries it into `score` and the app, and
   `bko.evaluate.guided_run.guided_arms` refuses data whose agreement permits no sending, for every
   Messages arm, with an `EvaluationError` naming the agreement, before the call log or the
-  candidates file exists; `python -m bko.generate` refuses the same before its call log, since its
+  candidates file exists, and the guard covers `PAID_ARMS`, every arm that sends a request,
+  `bko-direct-perturbed`'s rewrite calls among them (ADR `research/identifier-perturbation`);
+  `python -m bko.generate` refuses the same before its call log, since its
   bounds and percentiles are training values too. Importing `bko.generate.api`, the one module
   that imports the SDK, holds the SDK's `anthropic` logger at INFO (`hold_sdk_logger`), so
   `ANTHROPIC_LOG=debug` logs no request body from any entry point.

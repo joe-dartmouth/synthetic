@@ -158,7 +158,9 @@ def test_fillers_are_e1s_row_adding_arms_in_order():
     )
     assert fillers(RUNS["g5"].experiment)[-2:] == ("bko", "bko-skeleton")
     assert is_paid("bko-skeleton")
+    assert is_paid("bko-direct-perturbed")
     assert not is_paid("bko-direct")
+    assert not is_paid("bko-direct-pram")
 
 
 def test_experiment_for_puts_a_paid_fill_first_beside_every_method():

@@ -153,6 +153,8 @@ def test_every_run_name_is_pinned():
         "e5-quarter",
         "e5-threequarters",
         "e6-curated",
+        "e10-pilot-thin",
+        "e10-pilot-empty",
         "e6-empty",
         *(f"e6-empty{letter}" for letter in "abcdefghij"),
         "e6-thin",

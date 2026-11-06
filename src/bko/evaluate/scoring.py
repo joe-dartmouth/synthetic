@@ -25,11 +25,12 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Data, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARMS, MESSAGES_ARMS
+from bko.evaluate.experiment import DIRECT_ARMS, PAID_ARMS, PERTURBED_ARM
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
 from bko.evaluate.named_runs import NamedRun
+from bko.evaluate.perturb import refuse_unfixed
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.run import run
 from bko.evaluate.scores import Score, render
@@ -89,13 +90,13 @@ def score(args: argparse.Namespace, context: Context) -> str:
 
 
 def _arms(named: NamedRun, context: Context) -> tuple[list[str], list[str]]:
-    """The BKO arms the run builds, and the direct arms it builds, each in the run's arm order."""
+    """The paid arms the run builds, and the direct arms it builds, each in the run's arm order."""
     experiment = named.experiment
 
     def built(names: Collection[str]) -> list[str]:
         return [name for name in experiment.arms if name in names and name not in context.arms]
 
-    return built(MESSAGES_ARMS), built(DIRECT_ARMS)
+    return built(PAID_ARMS), built(DIRECT_ARMS)
 
 
 def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Answers | None:
@@ -104,17 +105,20 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or if a direct arm runs on field rows that nest in a
+        EvaluationError: As `_refuse_flags` and `bko.evaluate.perturb.refuse_unfixed`, or if a
+            direct arm, or the perturbed arm that draws as one, runs on field rows that nest in a
             chain (`bko.gaps.shares.nested`), which it cannot draw.
         FileExistsError: If the call log or candidates file exists.
     """
+    refuse_unfixed(named.experiment, run=args.run, rehearse=args.rehearse)
     guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
-    if direct:
+    drawing = [*direct, *(name for name in guided if name == PERTURBED_ARM)]
+    if drawing:
         try:
             nested(field_rows(named.dataset, context))
         except ValueError as exc:
-            msg = f"the direct arms {direct} cannot draw dataset {named.dataset}'s rows: {exc}"
+            msg = f"the direct arms {drawing} cannot draw dataset {named.dataset}'s rows: {exc}"
             raise EvaluationError(msg) from exc
     if args.rehearse:
         # scores.csv carries no marker, so its log says what the run was before anything else.

@@ -93,9 +93,9 @@ root or to see the module's own code, run it directly:
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
-  is None. `score` carries it in `bko.evaluate.data.Data.agreement`, and every Messages arm
-  refuses, exit 2, data whose agreement records no `sending` permission, before the call log or the
-  candidates file exists (ADR
+  is None. `score` carries it in `bko.evaluate.data.Data.agreement`, and every paid arm
+  (`bko.evaluate.experiment.PAID_ARMS`) refuses, exit 2, data whose agreement records no
+  `sending` permission, before the call log or the candidates file exists (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md), Egress).
 - **The ELK pins**: `MONDO_OWL` and `HPO_OWL` pin `mondo.owl` and `hp.owl` from the same MONDO
   and HPO releases as the OBO pins, and `ROBOT_JAR` pins ROBOT v1.9.11's `robot.jar` (BSD-3), each
@@ -152,14 +152,16 @@ command per method, inside `.venv`:
 `bko.evaluate` ([README](../src/bko/evaluate/README.md)) scores every arm of E1 on its repeated
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
-its Messages arms (E1's three BKO arms, B3's CLLM arms beside `bko`, and G7's `bko-curated`)
-call the Anthropic Messages API, so it needs the `llm` extra and an Anthropic
-credential, and every call goes to the call log at `--log`, which must not exist; its `run` line
-names the run's frame under `frame`. Whenever a Messages arm runs, live, with `--replay`, with `--resume`
-or with `--rehearse`, `--candidates <path>` is required and must not exist either: the candidates
-file holds one line per candidate a Messages arm generated,
-with its holdout, fill, attempt, call, cell, record or undecoded reason, and outcome; a direct
-arm's lines (below) carry a null call. `compare`
+its paid arms (`bko.evaluate.experiment.PAID_ARMS`: E1's three BKO arms, B3's CLLM arms beside
+`bko`, G7's `bko-curated` and the perturbation pilot's `bko-direct-perturbed`) call the Anthropic
+Messages API, so it needs the `llm` extra and an Anthropic credential, and every call goes to the
+call log at `--log`, which must not exist; its `run` line names the run's frame under `frame`.
+Whenever a paid arm runs, live, with `--replay`, with `--resume` or with `--rehearse`,
+`--candidates <path>` is required and must not exist either: the candidates file holds one line
+per candidate a BKO arm generated or drew, with its holdout, fill, attempt, call, cell, record or
+undecoded reason, and outcome; a direct arm's lines (below) carry a null call, and
+`bko-direct-perturbed`'s carry the rewrite call that returned the row, null for a row that kept
+its draw. `compare`
 spends nothing. Inside `.venv`, writing to the run's folder under the gitignored `runs/`
 ([Runs](#runs)):
 
@@ -624,7 +626,7 @@ start or the supervisor cannot run.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
   header line (`kind` `header`, `schema` 3, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
-  no Messages arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
+  no paid arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (true for a returned or
   partial attempt, false for a refused or failed one), `call`, the `cell` asked, `position` in
   the call's reply, the decoded `candidate` or the `undecoded` reason, `outcome` (`kept`,
@@ -767,7 +769,8 @@ start or the supervisor cannot run.
   fewer than two labels (`held=` the labels it holds, or `none`), whose classifier measures score
   undefined, as its fidelity does for a replica of fewer than two rows, then after the last
   holdout an `undefined replicas arm=%s holdouts=%d of=%d` WARNING per arm with such a replica,
-  and at the end of the run, a stopped run included, one `validity` line per Messages arm,
+  and at the end of the run, a stopped run included, one `validity` line per Messages arm
+  (a direct arm's and the perturbed arm's end before `usd=`),
   `validity arm=%s generated=%d passed=%d dropped_range=%d dropped_cell=%d dropped_quota=%d
   usd=%.4f`, with `dropped_concepts=%d` before `dropped_quota=` for a prescribing arm and
   `dropped_curation=%d` there for a curating arm, and `dropped_likelihood=%d` after
@@ -785,7 +788,7 @@ start or the supervisor cannot run.
   `contract` error naming the holdout and arm. `compare` logs a
   `compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s training_fraction=%s` line
   with the candidate, whether it is a dry run, the scores file's sha256, the run's name, its
-  guidance level (`none` for a run with no Messages arm) and its training fraction,
+  guidance level (`none` for a run with no paid arm) and its training fraction,
   then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
   `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
   `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure
@@ -863,7 +866,11 @@ start or the supervisor cannot run.
   `e9-empty` (`E9_THIN` and `E9_EMPTY`: `E6_THIN` and `E6_EMPTY` with `none`, `real`, `bko-direct`
   and the candidate `bko-logic`, no replica) and their slices `e9-thina` to `e9-thinj` and
   `e9-emptya` to `e9-emptyj`, sliced as E6's are, the ceiling inert (ADR
-  [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). No flag
+  [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). It holds the perturbation
+  pilot's runs, `e10-pilot-thin` and `e10-pilot-empty` (`E10_PILOT_THIN` and `E10_PILOT_EMPTY`:
+  `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct`, the candidate `bko-direct-perturbed`
+  and `bko-direct-pram`, holdouts 0 and 1, a $5.00 ceiling; ADR
+  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -941,7 +948,8 @@ store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. P
 `privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
 undefined in a scope (INFO for a cell scope with no member), and `privacy holdout=%d done=%d/%d
 seconds=%.1f elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the
-mean, the contrast against the reference arm (`real` for E6; a slice reads its run's), its
+mean, the contrast against the reference arm (`real` for E6, `bko-direct` for the perturbation
+pilots; a slice reads its run's), its
 corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN contrasts), and
 `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or NNDR
 quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
@@ -959,6 +967,73 @@ run is neither the named run nor a slice of it, whose header does not match its 
 `scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,
 whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
 data does not reproduce.
+
+**The perturbation pilot.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
+fraction, each at a $5.00 ceiling, and judge no criterion (ADR
+[`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). Their paid arm
+is `bko-direct-perturbed`, which sends the 19 unmapped fields of rows of open Diabetes 130 data to
+the Messages API ([Generation](#generation), What leaves the machine); `bko-direct-pram` is free.
+A perturbed arm's rows are refused for a holdout, and every drawn row kept, when the ADR's
+distribution check fails at the run's `delta`.
+
+`delta` comes first. `bko.evaluate.perturb.DELTAS` holds each removal fraction's value, None until
+one is recorded there; a run with no removal, or a fraction it does not list, gates at 0, the
+strictest. `score` and `launch` refuse, exit 2, before any file or call, a run that holds
+`bko-direct-perturbed` or `bko-direct-pram` while its fraction's `delta` is None, naming
+`perturb-threshold`; only `--rehearse` runs there, its check at 0, since a rehearsal is free.
+`perturb-threshold` reads `delta` per removal fraction from E6's stored `bko-direct` rows and makes
+no API call. `<run>` is required, the named E6 run (`e6-thin` or `e6-empty`), and `--rows` repeats
+once per store, as for `privacy`:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/threshold.csv && test ! -e runs/<run-id>/threshold.log && uv run --no-sync python -m bko.evaluate perturb-threshold <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/threshold.csv 2> runs/<run-id>/threshold.log </dev/null
+
+`threshold.csv` holds one row per holdout, `holdout,shapes,pair_trends,step`, the step empty on the
+first. `threshold.log` holds a `perturb threshold holdout=%d shapes=%.6f pair_trends=%.6f` line per
+holdout, then `perturb threshold run=%s fraction=%s holdouts=%d steps=%d percentile=95
+delta=%.6f`, at WARNING under 10 steps (`bko.evaluate.perturb_threshold.MIN_STEPS`). The command
+exits 2 for a run with no `bko-direct` arm, under two holdouts or a shape that is not finite, and 3
+as `privacy` does for a store, or for a holdout whose `split` line its data does not prepare. The
+`delta` it logs is the value recorded in `DELTAS` for that fraction, in its own change.
+
+Each pilot is then a paid run, so it starts with `launch` (the paid-run protocol above); the dry
+run writes `launch.log` and starts nothing:
+
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin --dry-run
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-empty --dry-run
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-empty
+
+`<run-id>` is a run of record under entry `e10`: one id for a run's dry run and its launch, another
+for the second run. A recorded pilot's rows store is read through `privacy` against `bko-direct`
+(`privacy` above).
+
+Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
+`bko.evaluate.perturbed`):
+
+- `perturb arm=%s fields=%s delta=%s delta_source=%s fraction=%s` at construction, `delta` `none`
+  while unfixed, `delta_source` `table`, `placeholder` or `default`, ending `theta=%s` for PRAM and
+  `per_call=%d model=%s` for the perturbed arm.
+- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed,
+  before the check.
+- `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
+  checks=%s` per rewrite call: `returned` the items its reply decoded to, `reason` the first
+  refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`, `validate` or
+  `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate` rows failed.
+- `perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_empty=%d refused_short=%d
+  refused_undecodable=%d refused_order=%d refused_keys=%d refused_validate=%d refused_bounds=%d`
+  per holdout: each drawn row's merge outcome.
+- `perturb check holdout=%d arm=%s shapes=%.6f reference=%.6f delta=%.6f pair_trends=%.6f
+  outcome=%s reason=%s rows_changed=%d final=%s` per holdout: `reason` `none`, `nonfinite` or
+  `below_reference`, `rows_changed` the rows that differ from the draw in the rows kept, `final`
+  `perturbed` or `original`. A fill that drew no row has no check.
+- `perturb summary arm=%s holdouts=%d accepted=%d refused=%d empty=%d rows=%d rows_changed=%d` at
+  the end of the run, a stopped run included; the perturbed arm's adds its run's merge outcomes as
+  the holdout line names them.
+
+A rewrite call's `generate` line carries `rewrite=true` in place of `level=`, and its `short`
+WARNING ends `rewrite=true`. Each arm's candidates-file lines are `bko-direct`'s, with a row a
+rewrite call returned carrying that call and its position there; the lines do not say why a row
+kept its draw (`cleanup:evaluate/perturb-refusals-in-candidates`).
 
 **`trace`** explains one arm's fill of one holdout: for each record, the stored or re-derivable facts
 that determine it (ADR [`research/record-explainability`](adr/research/record-explainability.md)).
@@ -1305,33 +1380,43 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   group's record count and each mapped concept's share of it in percent (the `profile` block).
   Every `SETTINGS` run sends them. A `bko-skeleton` request also sends each asked record's drawn
   concept names: ontology labels drawn at the fused BKB's aggregate shares, never a record's values.
-  No BKO arm sends a record. The CLLM arms (`cllm`, `cllm-uncurated`; ADR
+  Of the BKO arms, only `bko-direct-perturbed` sends record values: the 19 unmapped fields of rows
+  of open Diabetes 130 data, as the Diabetes 130 entry below says (ADR
+  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)); no other BKO arm
+  sends a record. The CLLM arms (`cllm`, `cllm-uncurated`; ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)) send, on each call, the system
   text, the cell, its training record count and each numeric field's training-split bounds, then up
   to `bko.evaluate.cllm.SHOW` training records whole, every frame column: the cell's own first, then
   its sex-and-label group's, then its label group's. They send no finding, profile or summary. Per
   frame:
-  - UCI (every named run with a Messages arm whose dataset is UCI, `bko.evaluate.named_runs.RUNS`,
+  - UCI (every named run with a paid arm whose dataset is UCI, `bko.evaluate.named_runs.RUNS`,
     and this command):
     every bound and quartile is a real training value of a de-identified patient record, and a
     small split or reference group exposes them together as a record; a CLLM call sends the
-    records themselves, under the archive's CC BY 4.0 license. Every Messages arm and this command
+    records themselves, under the archive's CC BY 4.0 license. Every paid arm and this command
     refuse data held under an agreement that records no permission to send it ([Data](#data), Agreements); check a
     DUA's terms before recording one ([`RESEARCH.md`](RESEARCH.md#6-datasets)).
-  - Synthea (every named run with a Messages arm whose dataset is Synthea): through the BKO arms, the study and cohort
-    text, the codebook with each indicator's label, age's training-split bounds within the cell's
-    band, the cell and its training record count, and the gap findings with their ontology chains;
+  - Synthea (every named run with a paid arm whose dataset is Synthea): through the BKO arms, the
+    study and cohort text, the codebook with each indicator's label, age's training-split bounds
+    within the cell's band, the cell and its training record count, and the gap findings with their ontology chains;
     at `summary`, also the reference group's (the training records outside the cell that share its
     label) record count, each mapped concept's share of it and its age quartiles; through the CLLM
     arms, whole training records too. Its rows are generated by Synthea from a pinned seed, so no
     bound, quartile, share or record describes a person.
-  - Diabetes 130 (every named run with a Messages arm whose dataset is Diabetes 130): the same
+  - Diabetes 130 (every named run with a paid arm whose dataset is Diabetes 130, the perturbation
+    pilots included): the same
     kinds of quantity as UCI's, over the frame's fields ([Data](#data), The Diabetes frame); every
     bound and quartile is a real training value of a de-identified encounter, and a CLLM call sends
     frame records whole, under the archive's CC BY 4.0 license. The archive's identifiers,
     `encounter_id` and `patient_nbr`, never enter the frame, so no call sends them; nor does any
     call send a column the frame leaves out (`weight`, `payer_code`, `medical_specialty`, the
-    admission and discharge ids, the raw `diag_1` to `diag_3` codes).
+    admission and discharge ids, the raw `diag_1` to `diag_3` codes). A `bko-direct-perturbed`
+    rewrite call sends its system prompt (`bko.generate.rewrite.REWRITE_SYSTEM`), each of the 19
+    unmapped fields' meaning with its codes or unit (`bko.evaluate.perturb.DIABETES_UNMAPPED`),
+    each count field's training-split minimum and maximum, an accepted aggregate disclosure, and
+    each row's values of those 19 fields with its `row` index; no mapped field, `age`, `sex` or
+    label. Each row is one of the holdout's `bko-direct` rows, a mosaic of de-identified
+    encounters' values.
 
   A run whose settings name a model in `bko.generate.weights.LOCAL_MODELS` sends each call to the
   llama.cpp server on `127.0.0.1` instead (Local models below), so nothing leaves the machine.
@@ -1539,6 +1624,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `threshold.csv` | `python -m bko.evaluate perturb-threshold`'s stdout |
+| `threshold.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |

@@ -9,6 +9,7 @@ requires.
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from typing import Any, Final
 
 import pandas as pd
@@ -29,24 +30,32 @@ def metadata(frame: FrameSpec) -> dict[str, object]:
 
 
 def quality_report(
-    reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
+    reference: pd.DataFrame,
+    synthetic: pd.DataFrame,
+    *,
+    frame: FrameSpec,
+    columns: Sequence[str] | None = None,
 ) -> QualityReport:
     """SDMetrics' quality report of `synthetic` against `reference`, generated quietly.
 
-    SDMetrics subsamples each table to 50,000 rows for its contingency column pairs, with no seed,
-    when either is larger, and its single-table report does not pass its own `num_rows_subsample`
-    down to the per-table property that draws the sample (sdmetrics 0.32). `_every_row` sets that
-    property to read every row, so a reading of a larger table replays exactly.
+    It reads `columns` of `frame`, or every column when None. SDMetrics subsamples each table to
+    50,000 rows for its contingency column pairs, with no seed, when either is larger, and its
+    single-table report does not pass its own `num_rows_subsample` down to the per-table property
+    that draws the sample (sdmetrics 0.32). `_every_row` sets that property to read every row, so a
+    reading of a larger table replays exactly.
     """
-    columns = list(frame.columns)
+    chosen = list(frame.columns if columns is None else columns)
+    described = metadata(frame)
+    table: Any = described["tables"]
+    table[frame.name]["columns"] = {name: table[frame.name]["columns"][name] for name in chosen}
     report = QualityReport()
     report.real_correlation_threshold = 0
     report.real_association_threshold = 0
     _every_row(report)
     report.generate(
-        {frame.name: reference.loc[:, columns]},
-        {frame.name: synthetic.loc[:, columns]},
-        metadata(frame),
+        {frame.name: reference.loc[:, chosen]},
+        {frame.name: synthetic.loc[:, chosen]},
+        described,
         verbose=False,
     )
     return report
