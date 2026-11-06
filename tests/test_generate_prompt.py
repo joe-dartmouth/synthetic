@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from typing import Final
 
 import pytest
 
@@ -27,6 +28,9 @@ from bko.generate.guidance import (
 from bko.generate.messages import LEVELS, Level, reaches
 from bko.generate.prompt import (
     COHERENCE,
+    PRESCRIBED,
+    SHOWN,
+    SUMMARY_OPENS,
     SYSTEM,
     UNITS,
     render,
@@ -460,3 +464,45 @@ def test_sections_inverts_render_shown_and_refuses_an_unknown_block():
         sections(f"{user}\n\nSomething no level renders.")
     with pytest.raises(ValueError, match="opening"):
         sections("Keep each numeric field within: age 1 to 2 years.")
+
+
+OPENERS: Final = (
+    "Among comparable patients (the same ",
+    SUMMARY_OPENS,
+    PRESCRIBED,
+    SHOWN,
+)
+"""The sentence each named block of a user turn opens with."""
+
+
+def _opened() -> list[str]:
+    """A rendered user turn's first two blocks: the opening and the bounds."""
+    return render(FULL, 2, Level.SUMMARY, frame=UCI_FRAME)[1].split("\n\n")[:2]
+
+
+@pytest.mark.parametrize("opener", OPENERS, ids=range(len(OPENERS)))
+def test_sections_refuses_a_near_miss_or_mid_text_opener(opener):
+    head = "\n\n".join(_opened())
+    assert sections(f"{head}\n\n{opener} rest.").opening == _opened()[0]
+    for block in (f"{opener[:-2]}X{opener[-1]} rest.", f"Note: {opener} rest."):
+        with pytest.raises(ValueError, match="no section of the prompt opens with"):
+            sections(f"{head}\n\n{block}")
+
+
+@pytest.mark.parametrize(
+    "turn",
+    [
+        lambda opening, bounds: f" {opening}\n\n{bounds}",
+        lambda opening, bounds: f"\n{opening}\n\n{bounds}",
+        lambda opening, bounds: f"{opening}\n\n {bounds}",
+        lambda opening, bounds: f"{bounds}\n\n{bounds}",
+        lambda opening, bounds: f"{opening}\n\n{opening}",
+        lambda opening, bounds: opening,
+    ],
+    ids=["padded", "leading-newline", "padded-bounds", "no-opening", "no-bounds", "one-block"],
+)
+def test_sections_refuses_a_turn_without_its_opening_and_bounds(turn):
+    opening, bounds = _opened()
+    assert sections(f"{opening}\n\n{bounds}").bounds == bounds
+    with pytest.raises(ValueError, match="does not open with the cell's opening and its bounds"):
+        sections(turn(opening, bounds))

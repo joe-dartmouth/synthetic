@@ -120,14 +120,16 @@ def concept_facts(
 
     The label is the term's name in its pinned release, None when the release lacks it. Each
     fragment that holds a prior for the concept names one S-node: head `(concept, INDIVIDUAL)`,
-    tail `(__Source__[concept], <fragment>)`.
+    tail `(__Source__[concept], <fragment>)`. `dataset_fragment` gives a prior to each concept
+    its records hold (`Observed.held`), so the S-node is named by that presence, whatever its
+    probability.
     """
     release = ontologies.get(concept.partition(":")[0])
     term = None if release is None else release.terms.get(concept)
     snodes = [
-        {"head": [concept, INDIVIDUAL], "tail": [[source_component(concept), source]], "prob": p}
-        for source, p in ((cell.name, part.p_cell), (group.name, part.p_group))
-        if p > 0
+        {"head": [concept, INDIVIDUAL], "tail": [[source_component(concept), seen.name]], "prob": p}
+        for seen, p in ((cell, part.p_cell), (group, part.p_group))
+        if concept in seen.held
     ]
     return {
         "concept": concept,

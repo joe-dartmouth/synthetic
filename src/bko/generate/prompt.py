@@ -388,6 +388,15 @@ class Sections:
         return "\n\n".join(part for part in parts if part is not None)
 
 
+_BLOCKS: Final = (
+    ("profile", _PROFILE),
+    ("summary", SUMMARY_OPENS),
+    ("prescribed", PRESCRIBED),
+    ("shown", SHOWN),
+)
+"""Each block `sections` names by its opening sentence, beside the findings block."""
+
+
 def sections(user: str) -> Sections:
     """Read a user turn back into the components `render` or `render_shown` joined.
 
@@ -414,12 +423,3 @@ def sections(user: str) -> Sections:
                 raise ValueError(msg)
             read = dataclasses.replace(read, **{key: block})
     return read
-
-
-_BLOCKS: Final = (
-    ("profile", _PROFILE),
-    ("summary", SUMMARY_OPENS),
-    ("prescribed", PRESCRIBED),
-    ("shown", SHOWN),
-)
-"""Each block `sections` names by its opening sentence, beside the findings block."""

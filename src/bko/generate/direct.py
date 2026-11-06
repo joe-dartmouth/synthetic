@@ -371,6 +371,18 @@ def label_group(
         GapError: As `observe_records`.
     """
     members = train.loc[train[frame.label].eq(label)]
+    return _observe_group(members, label, rows, name=name, frame=frame)
+
+
+def _observe_group(
+    members: pd.DataFrame,
+    label: int,
+    rows: Sequence[FieldMapping],
+    *,
+    name: str,
+    frame: FrameSpec,
+) -> Observed:
+    """`members`, the training records of `label`, observed under the label group's name."""
     return observe_records(members, rows, name=f"{name}/{frame.label}={label}")
 
 
@@ -385,7 +397,7 @@ def _label_groups(
     groups: dict[int, _Group] = {}
     for label in sorted(labels):
         members = train.loc[train[frame.label].eq(label)]
-        observed = label_group(train, label, rows, name=name, frame=frame)
+        observed = _observe_group(members, label, rows, name=name, frame=frame)
         bands = [str(band) for band in keys.loc[members.index, keys.columns[0]]]
         groups[label] = _Group(observed, _records(members, frame), bands)
     return groups
