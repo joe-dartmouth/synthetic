@@ -14,7 +14,7 @@ import hashlib
 import logging
 import signal
 import threading
-from collections.abc import Generator, Sequence
+from collections.abc import Collection, Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -25,7 +25,7 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Data, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, MESSAGES_ARMS
+from bko.evaluate.experiment import DIRECT_ARMS, MESSAGES_ARMS
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
@@ -88,13 +88,14 @@ def score(args: argparse.Namespace, context: Context) -> str:
         return _score(data, named, args, context, answers)
 
 
-def _arms(named: NamedRun, context: Context) -> tuple[list[str], bool]:
-    """The BKO arms the run builds, and whether it builds the direct arm."""
+def _arms(named: NamedRun, context: Context) -> tuple[list[str], list[str]]:
+    """The BKO arms the run builds, and the direct arms it builds, each in the run's arm order."""
     experiment = named.experiment
-    guided = [
-        name for name in experiment.arms if name in MESSAGES_ARMS and name not in context.arms
-    ]
-    return guided, DIRECT_ARM in experiment.arms and DIRECT_ARM not in context.arms
+
+    def built(names: Collection[str]) -> list[str]:
+        return [name for name in experiment.arms if name in names and name not in context.arms]
+
+    return built(MESSAGES_ARMS), built(DIRECT_ARMS)
 
 
 def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Answers | None:
@@ -103,8 +104,8 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or if the direct arm runs on field rows that nest
-            in a chain (`bko.gaps.shares.nested`), which it cannot draw.
+        EvaluationError: As `_refuse_flags`, or if a direct arm runs on field rows that nest in a
+            chain (`bko.gaps.shares.nested`), which it cannot draw.
         FileExistsError: If the call log or candidates file exists.
     """
     guided, direct = _arms(named, context)
@@ -113,7 +114,7 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
         try:
             nested(field_rows(named.dataset, context))
         except ValueError as exc:
-            msg = f"the direct arm {DIRECT_ARM} cannot draw dataset {named.dataset}'s rows: {exc}"
+            msg = f"the direct arms {direct} cannot draw dataset {named.dataset}'s rows: {exc}"
             raise EvaluationError(msg) from exc
     if args.rehearse:
         # scores.csv carries no marker, so its log says what the run was before anything else.
@@ -179,7 +180,9 @@ def log_candidates(path: Path) -> None:
     logger.info("candidates path=%s lines=%d sha256=%s", path, newlines - 1, sha256.hexdigest())
 
 
-def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bool) -> None:
+def _refuse_flags(
+    args: argparse.Namespace, guided: Sequence[str], *, direct: Sequence[str]
+) -> None:
     """Refuse flags the run's arms cannot use, before any download or file is made.
 
     Raises:
@@ -201,7 +204,7 @@ def _refuse_flags(args: argparse.Namespace, guided: Sequence[str], *, direct: bo
     if args.ceiling is not None and args.resume is None:
         msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
         raise EvaluationError(msg)
-    generating = [*guided, *([DIRECT_ARM] if direct else [])]
+    generating = [*guided, *direct]
     if generating and args.candidates is None:
         msg = f"--candidates is required: the arms {generating} generate candidates"
         raise EvaluationError(msg)
@@ -265,12 +268,12 @@ def _guided(
     context: Context,
     answers: Answers | None,
     *,
-    direct: bool,
+    direct: Sequence[str],
 ) -> list[Score]:
     """Run every arm, the BKO arms `names` built by `bko.evaluate.guided_run.guided_arms`.
 
-    With `direct`, the direct arm runs too, writing the same candidates file; with no BKO arm, it
-    writes that file alone, with no settings in its header, and no call log is made. Each BKO or
+    The direct arms `direct` run too, writing the same candidates file; with no BKO arm, they
+    write that file alone, with no settings in its header, and no call log is made. Each BKO or
     direct arm logs its run's validity sums on the way out, a stopped run included.
     """
     rows = data.field_rows
@@ -291,6 +294,7 @@ def _guided(
                 experiment,
                 context.arms,
                 knowledge,
+                names=direct,
                 sink=kept,
                 models=context.models,
                 frame=frame,
@@ -322,6 +326,7 @@ def _guided(
                 experiment,
                 arms,
                 knowledge,
+                names=direct,
                 sink=paid.candidates,
                 models=context.models,
                 drains=drains,

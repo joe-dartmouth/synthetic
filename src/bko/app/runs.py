@@ -50,6 +50,8 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "contradictions.log": "its stderr",
         "reproduction.csv": "`python -m bko.ontology reproduce`'s stdout",
         "reproduction.log": "its stderr",
+        "hierarchy.csv": "`python -m bko.ontology elk`'s stdout",
+        "hierarchy.log": "its stderr",
         "training.csv": "the augmented training set of an app fill",
         "pytest": "a `live` test's `--basetemp` directory",
     }

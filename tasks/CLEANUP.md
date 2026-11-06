@@ -182,6 +182,19 @@ links to where its blocker is tracked.
   with `Stamp` moved to it and the seven blocks deleted.
   **Trigger:** the next change that adds an entry point or edits one's `configure_logging`.
 
+- **`cleanup:evaluate/trace-logic-arm`: `trace` re-draws only `bko-direct`.**
+  `bko.evaluate.trace.trace` re-draws a logged attempt through `trace_direct` only when the fill's
+  arm is `DIRECT_ARM`; a `bko-logic` fill falls through to `trace_baseline` and gets a
+  baseline-style line with no sources, and `run_trace` loads no ontology for it (`trace.py`, the
+  `fill.name == DIRECT_ARM` branches of `trace` and `run_trace`). *Filed 2026-11-05 by the review
+  of PR #84.*
+  **Why deferred.** No `e9` folder has been traced; extending `trace` is outside PR #84's
+  boundary.
+  **What discharges it:** `trace` and `run_trace` treat every arm of `DIRECT_ARMS`
+  as a direct arm, re-drawing with that arm's `Presence`, with a test that traces a `bko-logic`
+  fill.
+  **Trigger:** the first trace of an `e9` folder.
+
 ## generate
 
 - **`cleanup:generate/flight-runner-after-settle-error`: a failure inside `_settle` leaves the

@@ -15,10 +15,111 @@ pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 LETTERS = "abcdefghij"
 
 
+KEYS = [
+    "e1",
+    "g3-cell",
+    "g3-coherent",
+    "g3-findings",
+    "g3-ontology",
+    "g3-profile",
+    "g3-summary",
+    "g4-low",
+    "g4-medium",
+    "e3",
+    "e3-a",
+    "e3-b",
+    "e4-thirty",
+    "e4-forty",
+    "e4-eighty",
+    "e5-quarter",
+    "e5-half",
+    "e5-threequarters",
+    "g2",
+    "b1-uci",
+    "b1-synthea",
+    "b2-uci",
+    "b2-synthea",
+    "b3-uci",
+    "b3-synthea",
+    "g6-sonnet",
+    "g6-gemma",
+    "g6-nemotron",
+    "g6-olmo",
+    "g6-gemmathink",
+    "g6-nemotronthink",
+    "e6-thin",
+    "e6-thina",
+    "e6-thinb",
+    "e6-thinc",
+    "e6-thind",
+    "e6-thine",
+    "e6-thinf",
+    "e6-thing",
+    "e6-thinh",
+    "e6-thini",
+    "e6-thinj",
+    "e6-empty",
+    "e6-emptya",
+    "e6-emptyb",
+    "e6-emptyc",
+    "e6-emptyd",
+    "e6-emptye",
+    "e6-emptyf",
+    "e6-emptyg",
+    "e6-emptyh",
+    "e6-emptyi",
+    "e6-emptyj",
+    "e9-thin",
+    "e9-thina",
+    "e9-thinb",
+    "e9-thinc",
+    "e9-thind",
+    "e9-thine",
+    "e9-thinf",
+    "e9-thing",
+    "e9-thinh",
+    "e9-thini",
+    "e9-thinj",
+    "e9-empty",
+    "e9-emptya",
+    "e9-emptyb",
+    "e9-emptyc",
+    "e9-emptyd",
+    "e9-emptye",
+    "e9-emptyf",
+    "e9-emptyg",
+    "e9-emptyh",
+    "e9-emptyi",
+    "e9-emptyj",
+    "e6-curated",
+    "g5",
+]
+"""Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's."""
+
+
+def test_the_runs_keys_are_the_literal_list():
+    assert list(RUNS) == KEYS
+
+
+@pytest.mark.parametrize("entry", ["e6", "e9"])
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))
-def test_each_e6_slice_maps_to_its_fractions_run(fraction, letter):
-    assert wholes_of(f"e6-{fraction}{letter}") == {f"e6-{fraction}"}
+def test_each_slice_maps_to_its_fractions_run(entry, fraction, letter):
+    assert wholes_of(f"{entry}-{fraction}{letter}") == {f"{entry}-{fraction}"}
+
+
+@pytest.mark.parametrize("fraction", ["thin", "empty"])
+def test_an_e9_run_is_its_e6_run_with_the_two_direct_arms_and_no_paid_arm(fraction):
+    e6, e9 = RUNS[f"e6-{fraction}"], RUNS[f"e9-{fraction}"]
+    assert (e9.settings, e9.dataset) == (e6.settings, e6.dataset)
+    assert e9.experiment == dataclasses.replace(
+        e6.experiment,
+        arms=("none", "real", "bko-direct", "bko-logic"),
+        replica_arms=(),
+        replica_rows=None,
+        candidate="bko-logic",
+        comparators=("none", "bko-direct"),
+    )
 
 
 @pytest.mark.parametrize("name", ["e3-a", "e3-b"])
@@ -26,7 +127,9 @@ def test_each_e3_slice_maps_to_e3(name):
     assert wholes_of(name) == {"e3"}
 
 
-@pytest.mark.parametrize("name", ["e1", "e6-thin", "e6-empty", "e6-curated", "e3", "unregistered"])
+@pytest.mark.parametrize(
+    "name", ["e1", "e6-thin", "e6-empty", "e9-thin", "e9-empty", "e6-curated", "e3", "unregistered"]
+)
 def test_a_run_that_slices_no_other_maps_to_nothing(name):
     assert wholes_of(name) == frozenset()
 

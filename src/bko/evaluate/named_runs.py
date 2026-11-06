@@ -1,15 +1,6 @@
 """Every named run of the harness: its experiment, its settings and the dataset it scores.
 
-`RUNS` holds `e1`, G3's guidance-level runs, `g3-<level>`, one per level, `g3-summary` being E1's
-level (`docs/EVIDENCE.md`, G3), the effort sweep's runs, `g4-low` and `g4-medium` (G4), `g2`, the
-direct arm's run (`G2`), and `g5`, the prescribing arm's run (`G5`), and E3's runs over the Synthea
-frame, `e3` and its holdout slices `e3-a` and `e3-b` (ADR `research/synthea-downstream-design`),
-B1's classical-baseline runs, `b1-uci` and `b1-synthea`, B2's Bayesian network runs, `b2-uci` and
-`b2-synthea`, and G6's generator-comparison runs,
-`g6-sonnet`, `g6-gemma`, `g6-nemotron` and `g6-olmo`, and the two thinking-cost runs,
-`g6-gemmathink` and `g6-nemotronthink`, and E6's runs over the Diabetes frame, `e6-thin` and
-`e6-empty` and their holdout slices `e6-thina` to `e6-thinj` and `e6-emptya` to `e6-emptyj` (ADR
-`research/diabetes-subgroup-removal-design`), and G7's curated run `e6-curated`.
+`RUNS` holds every named run, by name, and its docstring says what each one is.
 No command-line flag changes a value here.
 """
 
@@ -32,6 +23,7 @@ from bko.evaluate.experiment import (
     DIRECT_ARM,
     E1,
     HOLDOUTS,
+    LOGIC_ARM,
     METHOD_ARMS,
     REAL_ARM,
     SKELETON_ARM,
@@ -269,8 +261,24 @@ E6_CURATED: Final = replace(
 there."""
 
 
-def _e6_runs(name: str, whole: Experiment) -> dict[str, NamedRun]:
-    """E6 fraction `name`'s whole run and its `E6_SLICES` slices, `e6-<name>a` onwards.
+E9_THIN, E9_EMPTY = (
+    replace(
+        e6,
+        arms=("none", REAL_ARM, DIRECT_ARM, LOGIC_ARM),
+        replica_arms=(),
+        replica_rows=None,
+        candidate=LOGIC_ARM,
+        comparators=("none", DIRECT_ARM),
+    )
+    for e6 in (E6_THIN, E6_EMPTY)
+)
+"""E9's runs, `E6_THIN` and `E6_EMPTY` with `none`, `real` and both direct arms, `bko-logic` the
+candidate, no replica and no API call (ADR `research/logic-only-ablation`). The spend ceiling
+kept from E6 is inert: no arm calls the API."""
+
+
+def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
+    """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `a`.
 
     Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
 
@@ -281,14 +289,14 @@ def _e6_runs(name: str, whole: Experiment) -> dict[str, NamedRun]:
     if left:
         msg = f"{len(whole.holdout_seeds)} holdouts do not divide into {E6_SLICES} slices"
         raise ValueError(msg)
-    runs = {f"e6-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
+    runs = {f"{prefix}-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
     for index, letter in enumerate("abcdefghij"[:E6_SLICES]):
         sliced = replace(
             whole,
             holdout_seeds=whole.holdout_seeds[index * size : (index + 1) * size],
             spend_ceiling=whole.spend_ceiling / E6_SLICES,
         )
-        runs[f"e6-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, Dataset.DIABETES)
+        runs[f"{prefix}-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, Dataset.DIABETES)
     return runs
 
 
@@ -336,6 +344,11 @@ class NamedRun:
     dataset: Dataset = Dataset.UCI
 
 
+G4_SETTINGS: Final = Settings(
+    model="claude-haiku-5-5", effort="medium", max_tokens=16000, per_call=20, guidance=Level.SUMMARY
+)
+"""Haiku 5.5 at `summary` and effort `medium`: G4's medium run's settings and G5's."""
+
 DEFAULT_RUN: Final = "e1"
 """The run `score` and `compare` take when none is named."""
 
@@ -350,16 +363,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             for level in LEVELS
         },
         **{
-            f"g4-{effort}": NamedRun(
-                SETTINGS_SWEEP,
-                Settings(
-                    model="claude-haiku-5-5",
-                    effort=effort,
-                    max_tokens=16000,
-                    per_call=20,
-                    guidance=Level.SUMMARY,
-                ),
-            )
+            f"g4-{effort}": NamedRun(SETTINGS_SWEEP, replace(G4_SETTINGS, effort=effort))
             for effort in ("low", "medium")
         },
         "e3": NamedRun(E3, SETTINGS, Dataset.SYNTHEA),
@@ -403,19 +407,12 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             )
             for name, model in G6_THINKING.items()
         },
-        **_e6_runs("thin", E6_THIN),
-        **_e6_runs("empty", E6_EMPTY),
+        **_slices("e6", "thin", E6_THIN),
+        **_slices("e6", "empty", E6_EMPTY),
+        **_slices("e9", "thin", E9_THIN),
+        **_slices("e9", "empty", E9_EMPTY),
         "e6-curated": NamedRun(E6_CURATED, E6_SETTINGS, Dataset.DIABETES),
-        "g5": NamedRun(
-            G5,
-            Settings(
-                model="claude-haiku-5-5",
-                effort="medium",
-                max_tokens=16000,
-                per_call=20,
-                guidance=Level.SUMMARY,
-            ),
-        ),
+        "g5": NamedRun(G5, G4_SETTINGS),
     }
 )
 """Every named run, by name: `e1` is `E1` at `SETTINGS`, each `g3-<level>` is E1's methods and
@@ -425,14 +422,14 @@ E1's level), `g4-low` and `g4-medium` are the same experiment at `summary` with 
 G4's effort, `medium` (G5), and `e3` is `E3` at `SETTINGS` over the Synthea frame, `e3-a` its
 holdouts 0 to 49 and `e3-b` its holdouts 50 to 99, each slice at half its ceiling, `b1-uci` and
 `b1-synthea` are `B1_UCI` and `B1_SYNTHEA`, `b2-uci` and `b2-synthea` are `B2_UCI` and
-`B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with
-its `G6_MODELS` model and ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with
-its `G6_THINKING` model on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and `e6-empty` are
-`E6_THIN` and `E6_EMPTY` at `E6_SETTINGS` over the Diabetes frame, each `e6-<fraction><letter>`,
-`a` to `j`, the next 10 of its holdouts at a tenth of its ceiling, and `e6-curated` is
-`E6_CURATED` at `E6_SETTINGS`. A variant adds its own entry
-in its own change, listing its arms, candidate, comparators, holdout seeds, fill target, ceiling
-and criteria."""
+`B2_SYNTHEA`, and each `g6-<model>` is `G6_BASE` at `SETTINGS` with its `G6_MODELS` model and
+ceiling (G6), and each `g6-<model>think` is `G6_BASE` at `SETTINGS` with its `G6_THINKING` model
+on holdouts 0 to 4 at a $1.00 ceiling, and `e6-thin` and `e6-empty` are `E6_THIN` and `E6_EMPTY`
+at `E6_SETTINGS` over the Diabetes frame, each `e6-<fraction><letter>`, `a` to `j`, the next 10
+of its holdouts at a tenth of its ceiling, `e9-thin` and `e9-empty` are `E9_THIN` and `E9_EMPTY`,
+sliced the same way, and `e6-curated` is `E6_CURATED` at `E6_SETTINGS`. A variant adds its own
+entry in its own change, listing its arms, candidate, comparators, holdout seeds, fill target,
+ceiling and criteria."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

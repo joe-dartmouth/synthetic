@@ -56,7 +56,7 @@ from bko.evaluate.named_runs import (
     RUNS,
     SETTINGS_SWEEP,
     NamedRun,
-    _e6_runs,
+    _slices,
 )
 from bko.evaluate.run import ARMS, run, score_holdout
 from bko.evaluate.scores import Measure, Scope, Source
@@ -157,6 +157,10 @@ def test_every_run_name_is_pinned():
         *(f"e6-empty{letter}" for letter in "abcdefghij"),
         "e6-thin",
         *(f"e6-thin{letter}" for letter in "abcdefghij"),
+        "e9-empty",
+        *(f"e9-empty{letter}" for letter in "abcdefghij"),
+        "e9-thin",
+        *(f"e9-thin{letter}" for letter in "abcdefghij"),
         "g2",
         "g3-cell",
         "g3-coherent",
@@ -463,7 +467,7 @@ def test_a_replica_cap_below_one_row_is_refused(rows):
 def test_e6_slices_refuse_holdouts_they_do_not_divide():
     uneven = dataclasses.replace(E6_THIN, holdout_seeds=tuple(range(99)))
     with pytest.raises(ValueError, match="99 holdouts do not divide into 10 slices"):
-        _e6_runs("thin", uneven)
+        _slices("e6", "thin", uneven)
 
 
 def test_e6_curated_ceiling_covers_its_estimate():

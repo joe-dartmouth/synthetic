@@ -1,4 +1,4 @@
-"""The direct arm: a holdout's request filled from the fused BKB's concept shares, with no API call.
+"""The direct arms: a holdout's request drawn from the fused BKB, at its shares or by logic alone.
 
 A `DirectArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it draws every requested row once with
@@ -10,8 +10,10 @@ anyway, or whose draw no training record matches, refuses with a plain `Baseline
 harness retries with a derived seed.
 The arm keeps its validity counts itself and writes every record it drew, with its outcome and a
 null call, to the run's candidates file when the harness drains it
-(`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with the direct arm among
-them. ADR `research/bkb-direct-generation` records the sampler.
+(`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with its direct arms among
+them, one per name of `DIRECT_ARMS`, each drawing presence its own way. ADR
+`research/bkb-direct-generation` records the sampler, and ADR `research/logic-only-ablation` the
+logic-only draw of `bko-logic`, whose components `run_direct` checks before any arm fits.
 """
 
 from __future__ import annotations
@@ -31,13 +33,14 @@ from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, Experiment
+from bko.evaluate.experiment import DIRECT_ARMS, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
-from bko.generate.direct import sample
+from bko.generate.direct import logic_components, sample
 from bko.generate.errors import SamplingError
+from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -62,6 +65,7 @@ class DirectArm:
         budget: int,
         sink: CandidateFile | None,
         dataset: str,
+        presence: Presence = Presence.SHARES,
     ) -> None:
         """Hold what each attempt needs; nothing is drawn until the arm runs.
 
@@ -73,6 +77,7 @@ class DirectArm:
                 of the request's rows always fits it.
             sink: The run's candidates file; None keeps no lines.
             dataset: The dataset's source name; each cell's fragment takes it.
+            presence: How each draw decides a concept's presence (`bko.generate.direct.sample`).
         """
         self.name = name
         self.totals = Tally()
@@ -81,6 +86,7 @@ class DirectArm:
         self._budget = budget
         self._sink = sink
         self._dataset = dataset
+        self._presence = presence
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -99,8 +105,9 @@ class DirectArm:
         fill = CURRENT_FILL.get()
         self._attempts += 1
         outcome = "failed"
+        fell = 0
         try:
-            self._draw(attempt, train, request, fill)
+            fell = self._draw(attempt, train, request, fill)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -110,16 +117,21 @@ class DirectArm:
             self.totals.add(attempt.tally)
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
+            # `bko-direct`'s line stays as its runs of record logged it; a logic-only arm,
+            # which falls back far more often, adds its count of fallen-back draws.
             logger.info(
-                "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s",
+                "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s%s",
                 self.name,
                 -1 if fill is None else fill.holdout,
                 "none" if fill is None else fill.kind,
                 request.seed,
                 outcome,
                 attempt.line(),
+                "" if self._presence is Presence.SHARES else f" fallback_draws={fell}",
             )
-        params = {"generator": "direct", "seed": request.seed}
+        params: dict[str, object] = {"generator": "direct", "seed": request.seed}
+        if self._presence is not Presence.SHARES:
+            params["presence"] = str(self._presence)
         baseline = Baseline(attempt.rows(), unit_weights(train), params)
         check(baseline, train, request)
         return baseline
@@ -148,10 +160,13 @@ class DirectArm:
 
     def _draw(
         self, attempt: Attempt, train: pd.DataFrame, request: Request, fill: Fill | None
-    ) -> None:
+    ) -> int:
         """Draw every requested row once; a draw copies training values, so none is dropped.
 
         The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill.
+
+        Returns:
+            How many draws read a field from the label group (`Draw.fallback`).
         """
         try:
             drawn = sample(
@@ -163,6 +178,7 @@ class DirectArm:
                 seed=request.seed,
                 frame=request.frame,
                 tag=None if fill is None else (fill.holdout, fill.kind),
+                presence=self._presence,
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc
@@ -171,6 +187,7 @@ class DirectArm:
         if short := attempt.short():
             msg = f"{self.name} left {len(short)} cells short: {attempt.line()}"
             raise BaselineError(msg)
+        return sum(bool(draw.fallback) for draws in drawn.values() for draw in draws)
 
 
 def run_direct(
@@ -179,36 +196,52 @@ def run_direct(
     arms: Mapping[str, Runner],
     knowledge: Knowledge,
     *,
+    names: Sequence[str],
     sink: CandidateFile,
     models: Mapping[Model, Factory],
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
 ) -> list[Score]:
-    """Score every arm of `experiment` with a `DirectArm` named `DIRECT_ARM` writing `sink`.
+    """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
 
-    The arm logs its run's validity sums on the way out, a stopped run included.
+    Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence. Each arm logs its
+    run's validity sums on the way out, a stopped run included.
 
     Raises:
+        EvaluationError: If a logic-only arm's components cannot be enumerated
+            (`bko.generate.direct.logic_components`); raised before any arm fits.
         As `bko.evaluate.run.run`.
     """
-    arm = DirectArm(
-        knowledge.field_rows,
-        knowledge.ontologies,
-        name=DIRECT_ARM,
-        budget=experiment.budget,
-        sink=sink,
-        dataset=knowledge.name,
-    )
+    for name in names:
+        if DIRECT_ARMS[name] is Presence.LOGIC:
+            try:
+                logic_components(knowledge.field_rows, knowledge.ontologies, frame)
+            except ValueError as exc:
+                msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
+                raise EvaluationError(msg) from exc
+    direct = {
+        name: DirectArm(
+            knowledge.field_rows,
+            knowledge.ontologies,
+            name=name,
+            budget=experiment.budget,
+            sink=sink,
+            dataset=knowledge.name,
+            presence=DIRECT_ARMS[name],
+        )
+        for name in names
+    }
     try:
         return run(
             records,
             experiment,
-            {**arms, DIRECT_ARM: arm},
+            {**arms, **direct},
             models=models,
-            drains={**drains, DIRECT_ARM: arm.drain},
+            drains={**drains, **{name: arm.drain for name, arm in direct.items()}},
             on_holdout=on_holdout,
             frame=frame,
         )
     finally:
-        arm.summary()
+        for arm in direct.values():
+            arm.summary()

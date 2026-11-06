@@ -21,8 +21,11 @@ reproducing the fusion of MONDO with DO from Santos et al. (2-pager section 6), 
 
 Description logic is the formal logic behind the OWL web ontology language (general background); the
 brief identifies OWL 2 DL with the description logic SROIQ(D). A description-logic reasoner derives
-statements that an ontology implies without stating them (general background). Those implied
-statements are what the plan's gap detector tests against the data.
+statements that an ontology implies without stating them (general background). The plan's gap
+detector runs no reasoner: it tests the `is_a` links a release states and their transitive
+ancestors. MONDO's release build classifies MONDO with the ELK reasoner, so its `is_a` links are
+ELK's subsumptions reduced to direct links; HPO's primary release is built with no reasoner
+([RESEARCH.md](RESEARCH.md#10-related-work), which also compares ELK with a BKO).
 
 ### Bayesian Knowledge Bases
 
