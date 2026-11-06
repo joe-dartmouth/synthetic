@@ -43,6 +43,7 @@ from bko.app.views import (
 from bko.baselines.errors import BaselineError
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
+from bko.evaluate.call_prompts import CALLS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.scores import Measure, Scope
 from bko.gaps.definitions import Definition
@@ -334,10 +335,26 @@ def _results(analysis: Analysis, outcome: Outcome) -> None:
     )
 
 
+type Stamp = tuple[int, int] | None
+"""A file's modification time and size, or None when it is absent."""
+
+
+def _stamp(path: Path) -> Stamp:
+    """`path`'s modification time and size, or None when it does not exist."""
+    try:
+        status = path.stat()
+    except FileNotFoundError:
+        return None
+    return status.st_mtime_ns, status.st_size
+
+
 @st.cache_resource(max_entries=4, show_spinner=False)
-def _traces(folder: str, mtime_ns: int, size: int, _outcome: Outcome) -> tuple[Line, ...]:
-    """A Messages fill's trace lines, read once per change of its candidates file."""
-    logger.info("trace fill folder=%s mtime_ns=%d size=%d", folder, mtime_ns, size)
+def _traces(folder: str, candidates: Stamp, calls: Stamp, _outcome: Outcome) -> tuple[Line, ...]:
+    """A Messages fill's trace lines, read once per change of its candidates file or call log.
+
+    The lines are `frozen`, so no session edits what another reads.
+    """
+    logger.info("trace fill folder=%s candidates=%s calls=%s", folder, candidates, calls)
     return demo_traces(_outcome)
 
 
@@ -347,7 +364,9 @@ def _added_trace(outcome: Outcome) -> None:
     st.caption(TRACE_CAPTION)
     try:
         status = (outcome.folder / CANDIDATES).stat()
-        lines = _traces(str(outcome.folder), status.st_mtime_ns, status.st_size, outcome)
+        candidates = status.st_mtime_ns, status.st_size
+        calls = _stamp(outcome.folder / CALLS)
+        lines = _traces(str(outcome.folder), candidates, calls, outcome)
     except UNREADABLE as exc:
         logger.warning("untraced folder=%s error=%s: %s", outcome.folder, type(exc).__name__, exc)
         st.error(TRACE_FAILED)

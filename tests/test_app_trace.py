@@ -10,9 +10,18 @@ from pathlib import Path
 from typing import Any, Final
 
 import pandas as pd
+import pytest
 from streamlit.testing.v1 import AppTest
 
-from bko.app.page import OUTCOME_KEY
+from bko.app.page import OUTCOME_KEY, TRACE_FAILED
+from bko.app.provenance_frames import (
+    CANDIDATES,
+    demo_traces,
+    plain,
+    request_shown,
+    snode_frame,
+    trace_index,
+)
 from bko.app.steps import Outcome, analyze, fill_and_score
 from bko.evaluate.call_prompts import UNTRACED
 from bko.evaluate.holdout_candidates import KEPT, read
@@ -339,3 +348,113 @@ def test_the_download_carries_no_source_record_id(tmp_path):
     _, _, outcome = _paid(tmp_path)
     columns = pd.read_csv(outcome.folder / "training.csv", nrows=0).columns
     assert not [column for column in columns if "source" in column]
+
+
+def test_a_free_fill_shows_no_record_trace_and_no_error(tmp_path):
+    at = analyzed(app_context(tmp_path, send=never)[0])
+    at = settled(at.selectbox(key="bko.method").select("smote").run())
+    at = settled(at.button(key="bko.fill").click().run())
+    assert at.session_state[OUTCOME_KEY].value.log is None
+    assert "Record trace" not in {subheader.value for subheader in at.subheader}
+    assert not at.error
+
+
+def _recorded(tmp_path: Path) -> Outcome:
+    send = varied()
+    context, _ = app_context(tmp_path, send=lambda: send)
+    return fill_and_score(analyze(context), "bko", context)
+
+
+def test_demo_traces_read_only_the_fills_own_arm_and_gap_lines(tmp_path):
+    outcome = _recorded(tmp_path)
+    expected = demo_traces(outcome)
+    assert expected
+    path = outcome.folder / CANDIDATES
+    text = path.read_text(encoding="utf-8")
+    others = []
+    for raw in text.splitlines():
+        line = json.loads(raw)
+        if line.get("kind") == "candidate":
+            others += [{**line, "arm": "bko-cllm"}, {**line, "fill": "replica", "call": None}]
+    path.write_text(text + "".join(json.dumps(o, sort_keys=True) + "\n" for o in others))
+    assert demo_traces(outcome) == expected
+    assert demo_traces(dataclasses.replace(outcome, name="bko-cllm")) != ()
+    assert demo_traces(dataclasses.replace(outcome, name="bko-skeleton")) == ()
+
+
+def test_trace_lines_are_read_only_all_the_way_down(tmp_path):
+    index = trace_index("".join(line.line() for line in LINES))
+    line = index.lines("bko", 0)[0]
+    demo = demo_traces(_recorded(tmp_path))[0]
+    for held in (line, demo):
+        with pytest.raises(TypeError):
+            held["arm"] = "edited"  # ty: ignore[invalid-assignment]
+        with pytest.raises(TypeError):
+            held["record"]["age"] = 0  # ty: ignore[invalid-assignment]
+    assert plain(line) == json.loads(LINES[5].line())
+
+
+def test_a_paid_fills_trace_follows_a_rewritten_call_log_and_candidates_file(tmp_path):
+    at, _, outcome = _paid(tmp_path)
+    key = f"bko.trace.added.{outcome.folder.name}"
+    at = settled(at.selectbox(key=key).select(1).run())
+    assert not at.info
+    (outcome.folder / "calls.jsonl").unlink()
+    at = settled(at.run())
+    assert any("no trace is stored in this file" in info.value for info in at.info)
+    assert UNTRACED in [block.value for block in at.code]
+    (outcome.folder / CANDIDATES).write_text("not a candidates file\n", encoding="utf-8")
+    at = settled(at.run())
+    assert TRACE_FAILED in [error.value for error in at.error]
+
+
+def test_a_holdout_that_is_a_boolean_is_refused():
+    with pytest.raises(TypeError, match="line 2 names no arm and integer holdout"):
+        trace_index(LINES[0].line() + json.dumps({"arm": "bko", "holdout": True}) + "\n")
+
+
+def test_the_request_shown_leaves_the_prompt_sections_to_their_own_sections():
+    line = json.loads(messages(0, 0).line())
+    shown = request_shown(line)
+    assert "sections" not in shown
+    assert shown == {"attempt": 1, "cell": CELL, "guidance": "ontology"}
+
+
+def test_an_s_node_with_several_tail_parts_lists_each():
+    concept = {
+        "concept": "HP:9000003",
+        "snodes": [{"head": ["HP:9000003", "a"], "tail": [["A", "a"], ["B", "b"]], "prob": 0.5}],
+    }
+    frame = snode_frame({"concepts": [concept]})
+    assert frame.values.tolist() == [["HP:9000003 = a", "A = a, B = b", 0.5]]
+
+
+def test_an_empty_trace_file_says_it_holds_no_line(tmp_path):
+    at, _ = _opened(tmp_path, "")
+    assert "The trace file holds no line." in [info.value for info in at.info]
+    assert not at.error
+
+
+def test_a_shorter_holdout_keeps_the_record_picker_inside_its_fill(tmp_path):
+    at = _picked(_opened(tmp_path, LINES)[0], "bko-direct", 0, 2)
+    at = settled(at.selectbox(key=f"bko.trace.holdout.{NAME}").select(1).run())
+    picker = at.number_input(key=f"bko.trace.record.{NAME}")
+    assert (picker.max, picker.value) == (1, 0)
+    assert _fields(at)["age"] == str(_age(1, 0))
+    assert not at.error
+
+
+def test_an_arm_name_in_markdown_is_offered_as_its_raw_text(tmp_path):
+    arm = "**x** [a](http://e)"
+    at, _ = _opened(tmp_path, [dataclasses.replace(messages(0, 0), arm=arm)])
+    assert list(at.selectbox(key=f"bko.trace.arm.{NAME}").options) == [arm]
+    assert not at.error
+
+
+def test_json_nested_too_deep_shows_its_error_in_place(tmp_path):
+    depth = 100_000
+    at, _ = _opened(
+        tmp_path, '{"arm": "bko", "holdout": 0, "record": ' + "[" * depth + "]" * depth + "}\n"
+    )
+    assert [error.value for error in at.error] == ["trace.jsonl could not be shown."]
+    assert any(block.value.startswith("RecursionError: ") for block in at.code)

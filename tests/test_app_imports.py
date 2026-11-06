@@ -145,3 +145,24 @@ def test_the_trace_view_renders_no_dynamic_markdown():
                     if not (literal or final):
                         offenders.add((name, function.name, node.func.attr, ast.unparse(argument)))
     assert offenders == set()
+
+
+MARKDOWN_OPTIONS = frozenset({"radio", "pills", "segmented_control", "select_slider"})
+"""The streamlit widgets whose option labels render as Markdown; `selectbox` renders them as
+text, so the trace views offer a run folder's arm names only through it."""
+
+
+def test_the_trace_views_offer_no_option_as_markdown():
+    offenders = set()
+    for name, functions in TRACE_VIEWS.items():
+        tree = ast.parse((PACKAGE / name).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name in functions:
+                offenders |= {
+                    (name, node.name, call.func.attr)
+                    for call in ast.walk(node)
+                    if isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and call.func.attr in MARKDOWN_OPTIONS
+                }
+    assert offenders == set()

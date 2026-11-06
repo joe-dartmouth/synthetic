@@ -1,8 +1,9 @@
 """The frames behind a record's trace: read from `trace.jsonl` or from a demo fill's run folder.
 
 Nothing here imports streamlit; `bko.app.browse` renders what these return. A trace line is the
-JSON object `bko.evaluate.trace.Trace.line` writes; every field but the arm and the holdout may be
-absent, as in a file written before a field existed (ADR `research/record-explainability`).
+JSON object `bko.evaluate.trace.Trace.line` writes, held read-only (`frozen`); every field but the
+arm and the holdout may be absent, and a frame leaves out what its line lacks (ADR
+`research/record-explainability`).
 """
 
 from __future__ import annotations
@@ -11,12 +12,14 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, cast
 
 import pandas as pd
 
+from bko.evaluate.call_prompts import CALLS
 from bko.evaluate.holdout_candidates import read
-from bko.evaluate.trace import CALLS, Fill, trace_messages
+from bko.evaluate.trace import Fill, trace_messages
 
 
 if TYPE_CHECKING:
@@ -53,8 +56,26 @@ class TraceIndex:
         return self.fills[arm][holdout]
 
 
+def frozen(value: object) -> object:
+    """`value` read-only all the way down: each mapping a `MappingProxyType`, each list a tuple."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: frozen(item) for key, item in value.items()})
+    if isinstance(value, list | tuple):
+        return tuple(frozen(item) for item in value)
+    return value
+
+
+def plain(value: object) -> object:
+    """A `frozen` value as JSON holds it: each mapping a dict, each tuple a list."""
+    if isinstance(value, Mapping):
+        return {key: plain(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [plain(item) for item in value]
+    return value
+
+
 def trace_index(text: str) -> TraceIndex:
-    """Index the trace lines of `text`.
+    """Index the trace lines of `text`, each held `frozen`.
 
     Raises:
         ValueError: If a line is not JSON.
@@ -72,7 +93,7 @@ def trace_index(text: str) -> TraceIndex:
         if not isinstance(arm, str) or not isinstance(holdout, int) or isinstance(holdout, bool):
             msg = f"line {number} names no arm and integer holdout"
             raise TypeError(msg)
-        fills.setdefault(arm, {}).setdefault(holdout, []).append(line)
+        fills.setdefault(arm, {}).setdefault(holdout, []).append(cast(Line, frozen(line)))
     built = {arm: {h: tuple(lines) for h, lines in held.items()} for arm, held in fills.items()}
     return TraceIndex(tuple(fills), built)
 
@@ -167,7 +188,7 @@ def _named(value: object) -> str:
     """An S-node head or tail component, `[name, state]`, as `name = state`."""
     if isinstance(value, list | tuple) and len(value) == 2:
         return f"{value[0]} = {value[1]}"
-    return json.dumps(value)
+    return json.dumps(plain(value))
 
 
 def snode_frame(line: Line) -> pd.DataFrame:
@@ -179,7 +200,7 @@ def snode_frame(line: Line) -> pd.DataFrame:
         for snode in _listed(cast(Line, concept), "snodes"):
             if isinstance(snode, Mapping):
                 tail = snode.get("tail")
-                parts = tail if isinstance(tail, list) else []
+                parts = tail if isinstance(tail, list | tuple) else []
                 rows.append(
                     {
                         "head": _named(snode.get("head")),
@@ -218,14 +239,15 @@ def validation_frame(line: Line) -> pd.DataFrame:
 
 
 def demo_traces(outcome: Outcome) -> tuple[Line, ...]:
-    """A demo Messages fill's trace lines, one per added row in its order, from its run folder.
+    """A demo Messages fill's trace lines, `frozen`, one per added row in its order.
 
-    It reads only the fill's own call log and candidates file, never the data root.
+    It reads only the fill's own call log and candidates file in its run folder, never the data
+    root.
 
     Raises:
         OSError: If the candidates file cannot be read.
         CandidatesFormatError: If it is not a candidates file.
-        IdentityError: As `bko.evaluate.trace.trace_messages`.
+        EvaluationError: As `bko.evaluate.trace.trace_messages`, `IdentityError` included.
     """
     lines = [
         line
@@ -236,4 +258,4 @@ def demo_traces(outcome: Outcome) -> tuple[Line, ...]:
         return ()
     fill = Fill(lines[0].holdout, outcome.name, "")
     traces = trace_messages(fill, lines, outcome.request, calls=outcome.folder / CALLS)
-    return tuple(json.loads(each.line()) for each in traces)
+    return tuple(cast(Line, frozen(json.loads(each.line()))) for each in traces)

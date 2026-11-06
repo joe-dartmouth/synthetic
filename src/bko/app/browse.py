@@ -23,6 +23,7 @@ from bko.app.provenance_frames import (
     closed_frame,
     concept_frame,
     origin_frame,
+    plain,
     prompt_texts,
     read_index,
     record_frame,
@@ -56,13 +57,17 @@ UNREADABLE: Final = (
     EvaluationError,
     CandidatesFormatError,
     ValueError,
-    KeyError,
+    LookupError,
     TypeError,
+    AttributeError,
+    RecursionError,
     OSError,
 )
 """What reading or showing an artifact raises when the file does not hold what its role names,
-shown as a message. `EvaluationError` covers `ScoresFormatError` and `validity`'s refusal of a
-partial E1 run; `TypeError` covers a column the frame display cannot convert.
+shown as a message. `EvaluationError` covers `ScoresFormatError`, `validity`'s refusal of a
+partial E1 run and a call log line a trace cannot read; `LookupError` covers a missing key or
+index; `TypeError` and `AttributeError` a value of the wrong kind, a column the frame display
+cannot convert included; `RecursionError` JSON nested too deep to read.
 """
 
 NO_TRACE: Final = (
@@ -195,7 +200,7 @@ def _trace_view(path: Path) -> None:
     record = st.number_input(
         "Record", min_value=0, max_value=len(lines) - 1, step=1, key=f"bko.trace.record.{run}"
     )
-    show_trace(lines[min(int(record), len(lines) - 1)])
+    show_trace(lines[int(record)])
 
 
 def show_trace(line: Line) -> None:
@@ -209,7 +214,7 @@ def show_trace(line: Line) -> None:
         st.subheader("Request")
         st.dataframe(origin_frame(line), hide_index=True)
         if traced(line):
-            st.json(request_shown(line))
+            st.json(plain(request_shown(line)))
         else:
             st.info(NO_TRACE)
             if isinstance(line.get("untraced"), str):
@@ -237,7 +242,7 @@ def show_trace(line: Line) -> None:
         st.subheader("Validation")
         st.dataframe(validation_frame(line), hide_index=True)
     with st.expander("The stored line"):
-        st.json(dict(line))
+        st.json(plain(line))
 
 
 def _training(path: Path) -> None:
