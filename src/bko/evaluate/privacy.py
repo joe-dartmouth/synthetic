@@ -17,6 +17,7 @@ against.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterator
 from typing import Final
@@ -27,6 +28,8 @@ import pandas as pd
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.scores import Measure
 
+
+logger = logging.getLogger("bko.evaluate")
 
 QUANTILE: Final = 0.05
 """The lower quantile of the distances the privacy criterion reads."""
@@ -102,12 +105,12 @@ def nearest_two(
     for start, stop, block_distances in _blocks(rows, train, frame, train, block):
         low, next_low = np.full(stop - start, np.inf), np.full(stop - start, np.inf)
         for found in block_distances:
-            found = np.where(np.isnan(found), np.inf, found)
-            if found.shape[1] > 1:
-                pair = np.partition(found, 1, axis=1)
+            gaps = np.where(np.isnan(found), np.inf, found)
+            if gaps.shape[1] > 1:
+                pair = np.partition(gaps, 1, axis=1)
                 least, runner_up = pair[:, 0], pair[:, 1]
             else:
-                least, runner_up = found[:, 0], np.full(stop - start, np.inf)
+                least, runner_up = gaps[:, 0], np.full(stop - start, np.inf)
             next_low = np.minimum(np.maximum(low, least), np.minimum(next_low, runner_up))
             low = np.minimum(low, least)
         first[start:stop], second[start:stop] = low, next_low
@@ -150,9 +153,16 @@ def _quantiles(nearest_distances: np.ndarray) -> dict[Measure, float]:
 
 
 def _ratios(first: np.ndarray, second: np.ndarray) -> dict[Measure, float]:
-    """`nndr`'s summary of the two nearest distances `first` and `second`."""
+    """`nndr`'s summary of the two nearest distances `first` and `second`.
+
+    A row with no second distance reads NaN, which the quantiles skip; a WARNING
+    `privacy nndr rows=%d missing_second=%d` line counts such rows.
+    """
     if not len(first):
         return dict.fromkeys(NNDR_MEASURES, math.nan)
+    missing = int(np.isnan(second).sum())
+    if missing:
+        logger.warning("privacy nndr rows=%d missing_second=%d", len(second), missing)
     with np.errstate(invalid="ignore", divide="ignore"):
         ratios = pd.Series(np.where(second == 0, 1.0, first / second))
     return {
@@ -251,9 +261,9 @@ class _Coded:
 
 
 def _column(
-    data: pd.Series, reference: pd.Series, *, numeric: bool, span_from: pd.Series | None = None
+    data: pd.Series, reference: pd.Series, *, numeric: bool, span_from: pd.Series
 ) -> _Numeric | _Coded:
-    """A column's gaps; a measured column's span is `span_from`'s, `reference`'s when None."""
+    """A column's gaps; a measured column's span is `span_from`'s."""
     if not numeric:
         return _Coded(data, reference)
-    return _Numeric(data, reference, reference if span_from is None else span_from)
+    return _Numeric(data, reference, span_from)

@@ -4,6 +4,8 @@ spans from another frame, and the nearest-neighbour distance ratio."""
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,6 +13,7 @@ from sdmetrics.single_table.privacy.dcr_utils import calculate_dcr
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import privacy
 from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.evaluate.fidelity import metadata
 from bko.evaluate.privacy import (
@@ -181,14 +184,31 @@ def _matrix(rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec) -> np.nda
     )
 
 
-@pytest.mark.parametrize("block", [7, 64])
+@pytest.mark.parametrize("block", [7, 13, 64])
 def test_the_second_of_the_two_nearest_is_the_second_smallest_distance(block):
+    # At 13, the 40 training rows end in a block of one.
     train = random_records(UCI_FRAME, 40, seed=3)
     rows = pd.concat([random_records(UCI_FRAME, 30, seed=4), train.iloc[:5]], ignore_index=True)
     first, second = nearest_two(rows, train, frame=UCI_FRAME, block=block)
     ordered = np.sort(_matrix(rows, train, UCI_FRAME), axis=1)
     assert np.array_equal(first, ordered[:, 0])
     assert np.array_equal(second, ordered[:, 1])
+
+
+def test_two_nearest_skip_a_missing_distance_and_count_a_missing_second(monkeypatch, caplog):
+    planted = (np.array([[np.nan, 0.3, 0.1], [0.2, np.nan, np.nan]]), np.array([[0.05], [np.nan]]))
+
+    def blocks(*_args: object) -> Iterator[tuple[int, int, Iterator[np.ndarray]]]:
+        yield 0, 2, iter(planted)
+
+    monkeypatch.setattr(privacy, "_blocks", blocks)
+    train = random_records(UCI_FRAME, 4, seed=1)
+    first, second = nearest_two(train.iloc[:2], train, frame=UCI_FRAME)
+    assert first.tolist() == [0.05, 0.2]
+    assert second[0] == pytest.approx(0.1)
+    assert np.isnan(second[1])
+    nndr(train.iloc[:2], train, frame=UCI_FRAME)
+    assert "privacy nndr rows=2 missing_second=1" in caplog.text
 
 
 def test_two_nearest_need_two_training_rows():
