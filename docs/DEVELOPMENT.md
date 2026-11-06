@@ -936,6 +936,17 @@ run is neither the named run nor a slice of it, whose header does not match its 
 whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
 data does not reproduce.
 
+**`trace`** explains one arm's fill of one holdout: for each record, the stored or re-derivable facts
+that determine it (ADR [`research/record-explainability`](adr/research/record-explainability.md)).
+It makes no API call. For `bko-direct` it re-draws the fill at the logged attempt's seed with no
+extra random draw and refuses unless the re-drawn fill's digest equals the sha256 of the folder's
+`arm` line; the other arm kinds read their facts from the run folder. It writes
+`trace.jsonl`, one sorted-key JSON line per record, which holds source training record ids; keep the
+file at mode 0600 and in its run folder. `<run-id>` is the folder read, `<run>` the named run, `<h>` the
+holdout and `<arm>` the arm:
+
+    mkdir runs/<run-id>-trace && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
+
 ## BKB fixtures
 
 `bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
@@ -1439,6 +1450,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
+| `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
 | `draws.jsonl` | `python -m bko.generate direct`'s draw log |
@@ -1515,6 +1528,11 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading
   them. A folder whose name is not a run id, a symbolic link, and an entry of the wrong kind are
   not listed; an artifact that cannot be read shows its error in place of its section.
+- **Provenance**: a run folder that holds `trace.jsonl` ([Evaluation](#evaluation), `trace`) gets a
+  picker over its records, each shown with the facts that determine it (ADR
+  [`research/record-explainability`](adr/research/record-explainability.md)). The view reads only
+  that file. A demo fill traces a Messages arm's fill from its in-memory state, and the download
+  carries no source record id.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
   only while its confirmation box is ticked, the box clears after each fill, the client is built
   only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.

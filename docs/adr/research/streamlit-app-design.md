@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-21
-updated: 2026-10-28
+updated: 2026-11-05
 ---
 # The Streamlit app: one split of E1's harness, one paid fill per confirmed click
 
@@ -56,6 +56,10 @@ We will build the page as follows.
   stages' public readers (`bko.evaluate.scores.parse`, `bko.evaluate.validity` and
   `bko.generate.candidates.read`) and pandas for the CSVs, and recomputes nothing from `data/`
   (`docs/DEVELOPMENT.md`, App, lists what it shows).
+* **Provenance**: the Earlier runs view gets a picker over a folder's `trace.jsonl` and reads
+  nothing else for it, so it still recomputes nothing from `data/`; the Demo traces a Messages
+  fill from the fill's in-memory state, and neither the picker nor the download carries a source
+  record id (ADR `research/record-explainability`).
 
 ## Rationale
 
@@ -118,6 +122,7 @@ per-batch hook; a criterion reads replica fidelity; a second dataset gains a fil
 - [E1 evaluation protocol](e1-evaluation-protocol.md)
 - [Call-log replay](call-log-replay.md)
 - [Record generation design](record-generation-design.md)
+- [A record's explanation is the stored or re-derivable facts that determine it](record-explainability.md)
 - [Run folders](../tooling/run-folders.md)
 - [uv, ruff and ty](../tooling/uv-ruff-ty.md)
 - [Paid API request guard](../tooling/paid-api-request-guard.md)

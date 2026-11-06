@@ -45,7 +45,7 @@ flowchart LR
 | Generate | A request of rows per cell, each cell's gaps, and a guidance level | Candidate records per cell, decoded and unfiltered, with a placeholder per record that did not decode, through the Anthropic Messages API; or, from the fused BKB's concept shares and a seed, drawn records with no API call |
 | Validate | Candidate records | The records that pass the consistency checks and numeric range constraints |
 | Fuse | The validated records and the training split | The joined records, and each gap definition's pairs before and after the join |
-| Evaluate | Augmented training data, the baselines and the controls; its BKO arms run Detect, Generate and Validate on each holdout's training rows | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)) |
+| Evaluate | Augmented training data, the baselines and the controls; its BKO arms run Detect, Generate and Validate on each holdout's training rows | The success criteria ([RESEARCH.md](RESEARCH.md#4-success-criteria)); `trace` explains each record of an arm's fill ([ADR](adr/research/record-explainability.md)) |
 
 The dotted edge from Evaluate is `bko.evaluate`'s BKO arms, which run gap detection, generation and
 validation (`bko.gaps`, `bko.generate`, `bko.validate`) on each holdout's training rows. The dotted
@@ -98,7 +98,9 @@ and an LLM API.
    ontology differentiator.
 3. **"Fill gaps".** The user picks a method from a dropdown (CLLM, GReaT, CTGAN, TVAE or SMOTE) and
    the app generates synthetic rows targeting the red regions. Ontology or SHACL validation rejects
-   implausible rows live, with a rejected-row counter on screen.
+   implausible rows live, with a rejected-row counter on screen. A Messages fill shows, per record,
+   the prompt sections and call that produced it (ADR
+   [`research/record-explainability`](adr/research/record-explainability.md)).
 4. **"Human-in-the-loop"** (an optional tab). For the thinnest gaps, the app drafts questions for a
    human expert or an LLM to supply real values.
 5. **"Evaluate".** A one-click dashboard: fidelity (KS/TVD, correlation heatmaps), a
