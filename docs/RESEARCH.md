@@ -1,6 +1,6 @@
 # Research plan
 
-Sources: the team's proposal 2-pager (sections 1 to 6) and research brief (TL;DR, A1, B5, D10, D11, F15), both kept outside the repository, of which this document is the plan of record; Santos et al. [`santos-2024`][santos-2024]; facts verified outside those sources (pybkb, synthcity resolution).
+Sources: the team's proposal 2-pager (sections 1 to 6) and research brief (TL;DR, A1, B5, D10, D11, F15), both kept outside the repository, of which this document is the plan of record; Santos et al. [`santos-2024`][santos-2024]; facts verified outside those sources (pybkb, synthcity resolution); for [section 10](#10-related-work), the works in [literature.md](literature.md#ontologies-reasoners-and-knowledge-graphs), each entry saying how far it was read.
 
 This is the plan of record. The 2-pager governs; the brief is background, explained in
 [BACKGROUND.md](BACKGROUND.md). [Section 9](#9-source-reconciliation) records each point where the
@@ -397,19 +397,77 @@ Where the brief and the 2-pager disagree:
 | Privacy criterion | Not discussed | 2-pager: distance to closest record remains above the real-data baseline; repository: the added rows' 5th-percentile distance reaches a share `E1` fixes of the test rows', judged on paired intervals | Repository; ADR [research/e1-evaluation-protocol](adr/research/e1-evaluation-protocol.md) |
 | Validity checks | Ontology or SHACL validation rejects implausible rows | 2-pager: at least 95% of generated records pass the model's consistency checks, which it does not list; repository: each field's number, codebook or range, and decimals, with no check from an ontology relationship | Repository; ADR [research/record-validation-design](adr/research/record-validation-design.md) |
 
+## 10. Related work
+
+**ELK.** ELK classifies ontologies in the EL family of description logics, on which OWL's EL
+profile is based: from an ontology's axioms its calculus derives every entailed subsumption
+between named classes and only those, in polynomial time, and reduces them to a taxonomy of direct
+links [`kazakov-2014`][kazakov-2014]. A derived link is entailed or it is not; ELK weighs no source
+and reads no frequency. The release the paper describes supports the fragment EL+⊥ of OWL EL, not
+every OWL EL feature. A BKO keeps each source's statements and gives conflicting inferences
+probabilities [`santos-2024`][santos-2024], and this pipeline adds dataset fragments whose priors
+are concept shares (ADR
+[`research/dataset-fragment-encoding`](adr/research/dataset-fragment-encoding.md)); ELK has no
+counterpart to either. The two compose rather than compete. MONDO's release build classifies the
+editors' source with ELK through ROBOT [`jackson-2019`][jackson-2019], relaxes and reduces the
+result, and builds `mondo.owl` and `mondo.obo` from it [`mondo-2026`][mondo-2026], so the MONDO
+hierarchy `bko.ontology` loads is ELK's classification reduced to direct links. HPO's build
+configuration, an Ontology Development Kit file [`matentzoglu-2022`][matentzoglu-2022], sets its
+release to use no reasoner, and `hp.obo` is built from the unclassified primary release
+[`hpo-2026`][hpo-2026]. A link that follows from an HPO logical definition and that HPO's editors
+have not asserted is therefore absent from what `bko.ontology` loads. E9 classifies both pinned OWL
+releases with ELK and lists each link among the mapped concepts and their ancestors that one
+hierarchy holds and the other lacks ([DEVELOPMENT.md](DEVELOPMENT.md#ontologies)).
+
+**BioGPT.** Luo et al.'s abstract reports BioGPT as a generative Transformer language model
+pre-trained on large-scale biomedical literature and evaluated on six biomedical language tasks,
+among them end-to-end relation extraction and PubMedQA, with a case study generating descriptions
+of biomedical terms [`luo-2022`][luo-2022]. It is trained to write literature text, not records
+under a schema. To stand in as a generator it would need fine-tuning on the training records, as
+GReaT fine-tunes a language model on the table [`borisov-2023`][borisov-2023]. That moves records
+into model weights, whereas no BKO arm's call carries a training record, though each sends
+training bounds and percentiles ([section 6](#6-datasets)). Nori et al.'s abstract reports that a
+general model steered by prompting alone, GPT-4 with Medprompt, reached state-of-the-art results
+on all nine MultiMedQA benchmarks, ahead of specialist models such as Med-PaLM 2
+[`nori-2023`][nori-2023]. Those benchmarks measure medical question answering, not record
+generation.
+
+**Translator.** The Biomedical Data Translator Consortium set out to build a universal biomedical
+data translator [`translator-2019a`][translator-2019a]. Its reports' abstracts describe a
+federated knowledge-graph system that integrates clinical, genomic, pharmacological and other
+sources under the Biolink Model's classes and predicates, and answers a user's query by retrieval
+and inference, revealing evidence, provenance and confidence [`fecho-2022`][fecho-2022],
+[`unni-2022`][unni-2022], [`fecho-2025`][fecho-2025]. BKO fusion also joins sources and keeps each
+statement's source, but it fuses them into one BKB whose conflicting inferences carry
+probabilities [`santos-2024`][santos-2024]. This pipeline also fuses in a dataset's records, so its
+output is the ontology statements those records do not ground (ADR
+[`research/bko-formal-gap-definition`](adr/research/bko-formal-gap-definition.md)). Translator
+answers questions about biomedical entities; this pipeline asks what a training split lacks.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [carriero-2025]: https://doi.org/10.1002/sim.10320
 [chawla-2002]: https://doi.org/10.1613/jair.953
 [clore-2014]: https://doi.org/10.24432/C5230J
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
 [dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
+[fecho-2022]: https://doi.org/10.1111/cts.13301
+[fecho-2025]: https://doi.org/10.1111/cts.70284
 [he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
+[hpo-2026]: https://github.com/obophenotype/human-phenotype-ontology/tree/920d4eb3608b50a2c19ddb10290224ab35a759c5/src/ontology
+[jackson-2019]: https://doi.org/10.1186/s12859-019-3002-3
 [kallus-2019]: https://arxiv.org/abs/1902.05826
+[kazakov-2014]: https://doi.org/10.1007/s10817-013-9296-3
 [kim-2022]: https://doi.org/10.1371/journal.pone.0271260
+[luo-2022]: https://doi.org/10.1093/bib/bbac409
+[matentzoglu-2022]: https://doi.org/10.1093/database/baac087
+[mondo-2026]: https://github.com/monarch-initiative/mondo/blob/9bfccbe9217cdfa6a225058bfa6e4bd55512b432/src/ontology/Makefile
+[nori-2023]: https://arxiv.org/abs/2311.16452
 [saito-2015]: https://doi.org/10.1371/journal.pone.0118432
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [strack-2014]: https://doi.org/10.1155/2014/781670
+[translator-2019a]: https://doi.org/10.1111/cts.12591
+[unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
 [welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033
 [xu-2019]: https://arxiv.org/abs/1907.00503

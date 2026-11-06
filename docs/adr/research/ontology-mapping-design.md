@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-02
+updated: 2026-11-05
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -31,6 +31,10 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
 - **HPO carries no SNOMED-CT reference.**
 - **pronto read both releases**, with every term converted to standard-library values, no import
   and no warning.
+
+The unit `compare-elk-logic-only` asks whether ELK, the OWL EL classifier, derives subclass links
+the loaded hierarchy lacks, or the reverse. MONDO's and HPO's own builds run ELK through ROBOT, a
+Java command-line tool distributed as a jar.
 
 `bko.datasets.uci` records the codebook of every categorical field, but no unit or range for a
 numeric one. owlready2 is the lock's only package that ships an sdist alone, so it builds Cython on
@@ -112,6 +116,11 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **ICD-9 evidence**: MONDO's `xref: ICD9:<code>` with that exact id and any qualifier, which the
   check requires on the mapped concept; the release's live holders of the xref must equal the
   row's declared holders, and an excluded category must have none.
+- **ELK comparison**: `bko.ontology.elk` runs the pinned ROBOT jar with ELK on the pinned OWL
+  files of the same MONDO and HPO releases, as a Java subprocess outside the gate, and compares its
+  classification with the hierarchy the OBO releases give (`python -m bko.ontology elk`). The
+  pins are `ROBOT_JAR`, `MONDO_OWL` and `HPO_OWL` in `bko.datasets.sources`. No Python module
+  parses OWL.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
   row against the real releases.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
@@ -127,6 +136,12 @@ of every consumer and every test, and removes the order pronto's thread pool wou
 Constants, as `uci.CODEBOOK` holds the codebook, let every stage import the table and let offline
 tests hold it to the codebook and the registry. The releases sit with the other downloads in
 `bko.datasets.sources`, the one home for pins.
+
+ELK runs through ROBOT because that is how the releases' own builds run it, so the comparison uses
+the reasoner and the OWL reader that built MONDO's hierarchy. A subprocess keeps Java out of the
+Python process and out of the gate, as the Synthea run already does, and a Python OWL parser
+would be a second reader whose disagreements with the OWL API would read as hierarchy
+differences.
 
 Guideline cutoffs join the text-named rows because the research tests whether medical knowledge
 guides generation, and a cited guideline is that knowledge. Text-named rows alone ground four of
@@ -156,14 +171,16 @@ attributed in `bko.datasets.sources`); the range checks catch gross errors only;
 presence-only rows, a record check derived from `is_a` alone rejects nothing, so record
 validation leans on the ranges and the codebook; the guideline cutoffs, the Detrano readings and
 the team-specified bounds await clinician review (RESEARCH, Represent); an ICD-9 xref asserts no
-equivalence, so the choice among a category's holders is the team's; load time has no budget.
+equivalence, so the choice among a category's holders is the team's; load time has no budget; the
+ELK comparison needs a JDK and a heap of several gigabytes, and the gate cannot catch a change in
+ROBOT's or ELK's output.
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
 | OLS4 for ontology access | Live and unversioned; needs the network at runtime, and the gate is offline | 2026-10-16 |
-| owlready2 for ontology access | An OWL quadstore, the lock's only sdist-only package, and no unit needs OWL reasoning | 2026-10-16 |
+| owlready2 for ontology access | An OWL quadstore, and the lock's only sdist-only package | 2026-10-16 |
 | A hand-written OBO reader | Re-implements escapes and qualifiers; not a tool the 2-pager names | 2026-10-16 |
 | The pins in `bko.ontology` | A second home for downloads | 2026-10-16 |
 | A `python -m bko.datasets ontologies` fetch command | No fetch-only command exists; baselines and evaluate call `ensure` themselves | 2026-10-16 |
@@ -184,14 +201,16 @@ equivalence, so the choice among a category's holders is the team's; load time h
 | Mapping acute non-ST-elevation myocardial infarction to a broader concept, such as acute myocardial infarction (MONDO:0004781) | A broader concept is not an equivalence; the code rows hold `skos:exactMatch` only | 2026-10-27 |
 | Leaving ST-elevation myocardial infarction out because myocardial infarction already maps | The rule is mechanical; a judgment per code would need a source the release does not give | 2026-10-27 |
 | An out-of-scope row for diabetes mellitus | Once type 2 diabetes maps it is an is_a ancestor and in scope; the check refuses an out-of-scope row above a mapped concept | 2026-10-27 |
+| Parsing the OWL releases in Python, with owlready2 or an RDF library, for the ELK comparison | A second OWL reader beside the OWL API the release builds use, and owlready2 builds an sdist; see Rationale | 2026-11-05 |
 
 ## Enforcement
 
 - Owner: `src/bko/ontology/`
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
-  `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, and
-  `tests/test_ontology_pinned_releases.py` with `--releases`
+  `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
+  comparison and ROBOT's argv, with a fake runner), and `tests/test_ontology_pinned_releases.py`
+  with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
   passed; a person runs one of them after editing the table, re-pinning, or changing
@@ -203,8 +222,9 @@ equivalence, so the choice among a category's holders is the team's; load time h
 resolving pronto or fastobo on Python 3.14**; the check is
 `tests/test_ontology_pinned_releases.py` with `--releases`, and `uv lock`.
 
-**owlready2 returns when a unit's acceptance needs OWL reasoning**; the check is a search of
-`tasks/` for one.
+**A Python OWL library returns when a unit's acceptance needs OWL axioms read inside `make check`,
+where no test runs Java**; the check is a search of `tasks/` for an acceptance that names OWL and
+`make check`.
 
 **OLS4 joins when a unit's acceptance reads a concept outside the pinned releases**; the check is
 a search of `tasks/` for one.

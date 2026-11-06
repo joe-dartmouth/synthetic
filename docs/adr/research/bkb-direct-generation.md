@@ -23,6 +23,8 @@ and close the drawn set upward under `is_a`. The ontology fragments carry no pri
 table says when a record shows a concept, never what values a concept implies (ADR
 `research/ontology-mapping-design`). The arm therefore isolates the mapping table and the data's
 concept shares, not the ontology's structure: closure is recorded and never read into a field.
+A logic-only configuration of the same sampler draws presence from the ontology's constraints
+instead (ADR `research/logic-only-ablation`).
 
 ## Decision Drivers
 
@@ -49,10 +51,11 @@ concept shares, not the ontology's structure: closure is recorded and never read
    the inner is, and otherwise drawn at `(s_outer - s_inner) / (1 - s_inner)`, present outright
    when `s_inner = 1`. Only one level is drawn: a concept inside two others, or holding two, is
    refused.
-3. **Closure upward** (`bko.ontology.terms.ancestors`, within each concept's release) is recorded
-   in the draw log and never forces an ancestor's row: an ancestor with a row of its own, drawn
-   absent, keeps its fields' absent side. Diabetes 130 shows why: `MONDO:0005016` appears without
-   its ancestor `MONDO:0005300` in most records (ADR `research/data-contradiction-handling`).
+3. **Closure upward** (`bko.ontology.terms.ancestors`, within each concept's release) is recorded in
+   the draw log and, for `bko-direct`, never forces an ancestor's row: an ancestor with a row of its
+   own, drawn absent, keeps its fields' absent side. Diabetes 130 shows why: `MONDO:0005016` appears
+   without its ancestor `MONDO:0005300` in most records (ADR
+   `research/data-contradiction-handling`).
 4. **Label-only rows** (`MONDO:0006715`, `HP:0005145`, every row of which reads only the label)
    follow the cell's label: present in a target 1 cell, absent in a target 0 cell, drawing nothing.
 5. **Field groups.** The rows' fields join when one concept's rows read both
@@ -89,6 +92,11 @@ concept shares, not the ontology's structure: closure is recorded and never read
     Keeping it adds no draw, so a seed's records are the same with or without it, and
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
+11. **Presence is a parameter.** At shares, Decisions 1 to 3 apply and the arm is `bko-direct`. At
+    logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
+    concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
+    assignments, and the closure is read into fields in place of Decision 3. Decisions 4 to 6, 8
+    and 10 hold for both, so the two arms differ only in presence and closure.
 
 ## Rationale
 
@@ -125,11 +133,12 @@ the training rows than `bko`'s.
 table and the data's concept shares contribute; candidates `bko.validate` and `bko.fusion` read
 unchanged. The arm `bko-direct` of the named run `g2` (`bko.evaluate.direct`) runs the sampler on
 each of E1's requests, seeded by the request's seed, through the attempt bookkeeping a BKO arm uses,
-writing each record to the per-holdout candidates file with a null call.
-**Accepted**: the arm reads nothing the ontology fragments add beyond the closure it records, so it
-cannot test the ontology's structure; within-group values are copies of training records, so the
-arm's privacy and test-copy readings matter; a cell whose label group shows no record matching a
-draw refuses the attempt.
+writing each record to the per-holdout candidates file with a null call. E9's runs add
+`bko-logic` beside it on E6's frame (ADR `research/logic-only-ablation`).
+**Accepted**: `bko-direct` reads nothing the ontology fragments add beyond the closure it records,
+so it cannot test the ontology's structure, which `bko-logic` reads instead; within-group values are
+copies of training records, so the arm's privacy and test-copy readings matter; a cell whose label
+group shows no record matching a draw refuses the attempt.
 
 ## Ruled Out
 
@@ -148,17 +157,20 @@ draw refuses the attempt.
 
 - Owner: `src/bko/generate/direct.py`, with the shares in `src/bko/gaps/shares.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
-  `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`
+  `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`,
+  and for the presence parameter the modules `tests.test_generate_logic_only` and
+  `tests.test_evaluate_logic_only`
 
 ## Reversal Conditions
 
 **The share and the concept draw change if ADR `research/dataset-fragment-encoding` comes to
-represent co-occurrence**; the check is that record's Decision. **Closure is read into fields if
-the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Decision).
+represent co-occurrence**; the check is that record's Decision. **`bko-direct` reads closure into
+fields if the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Decision).
 
 ## Related
 
 - [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)
+- [The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows](logic-only-ablation.md)
 - [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
 - [Validated records join the training records of their asked cell, and closure is read per gap definition](gap-closure-design.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)

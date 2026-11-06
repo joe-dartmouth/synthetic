@@ -31,11 +31,12 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
-[`bko.datasets`](../src/bko/datasets/README.md) writes there. Each download (UCI Heart Disease,
-UCI Diabetes 130-US Hospitals, the Synthea jar, and the MONDO, HPO and DO releases) is pinned by
-size and sha256 in `bko.datasets.sources`. A download that differs from its pin is refused; the
-commands delete and fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes
-loaders refuse one. A generated population is checked against its own `run.json`: the commands
+[`bko.datasets`](../src/bko/datasets/README.md) writes there, apart from the classified OBO files
+`python -m bko.ontology elk` keeps under `data/elk/` ([Ontologies](#ontologies)). Each download
+(UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
+releases, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
+`bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
+fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A generated population is checked against its own `run.json`: the commands
 regenerate one whose CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
@@ -95,6 +96,10 @@ root or to see the module's own code, run it directly:
   refuses, exit 2, data whose agreement records no `sending` permission, before the call log or the
   candidates file exists (ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md), Egress).
+- **The ELK pins**: `MONDO_OWL` and `HPO_OWL` pin `mondo.owl` and `hp.owl` from the same MONDO
+  and HPO releases as the OBO pins, and `ROBOT_JAR` pins ROBOT v1.9.11's `robot.jar` (BSD-3), each
+  open with no agreement. Only `python -m bko.ontology elk` reads them
+  ([Ontologies](#ontologies)).
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
@@ -1000,8 +1005,8 @@ and the gate never runs pybkb.
 `bko.datasets.sources` pins, and holds the table that maps their concepts to UCI fields, to
 Synthea condition codes, and to Diabetes 130's ICD-9 diagnosis categories and lab states, with the
 codes and categories it excludes (ADR
-[`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). One command, inside
-`.venv`:
+[`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)). The table's check,
+inside `.venv`:
 
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
@@ -1041,6 +1046,31 @@ codes and categories it excludes (ADR
   `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
   `bko.ontology.obo`, or a change to pronto in `uv.lock`, from the checkout whose `data/` holds
   the releases.
+
+- **`elk`**: classifies the pinned MONDO and HPO OWL releases with ELK and compares each
+  classification with the hierarchy `bko.ontology` loads from the OBO release of the same version
+  (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md), ELK
+  comparison). A run of record writes its folder ([Runs](#runs)):
+
+      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null
+
+  It takes `--data-dir <dir>` as `check` does. It fetches the OBO and OWL releases and the ROBOT
+  jar into the data root if absent and verifies each against its pin, refuses an OWL file that
+  names an `owl:imports` before Java runs, and needs a JDK, found as `make synthea` finds one
+  ([Data](#data)). For each release it runs ROBOT as a subprocess, `reason --reasoner ELK` then
+  `convert` to OBO, at the heap `bko.ontology.elk.ELK_MEMORY_GB` sets and under its timeout; the
+  classified OBO file is kept under `data/elk/`, with ROBOT's stderr beside it. The comparison
+  reads transitive ancestor sets over every concept `bko.ontology.mapping.MAPPED` names and the
+  ancestors either side gives it, so a link one side states directly and the other reaches
+  through a chain is no difference. stdout gets a CSV with the columns `release`, `child`,
+  `ancestor` and `side` (`loaded` or `elk`), one row per ancestor link only that side holds; a
+  header alone means the two agree in scope. stderr gets the jar's sha256 and the Java version,
+  each release's classification time, its in-scope concept count and its count of links on each
+  side, and the total of differing links with the CSV's sha256. Exit codes: 0 the report is
+  written, whatever it lists; 1 an unexpected error, with its traceback; 2 the command could not
+  run, including ROBOT failing or timing out; 3 a release contradicts its pin, is not OBO the
+  loader reads, or is OWL that names an import (stdout is empty). **The gate never runs Java**:
+  `make check` tests the comparison and ROBOT's argv with a fake runner and canned OBO text.
 
 ## Fusion reproduction
 
@@ -1482,6 +1512,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `contradictions.log` | its stderr |
 | `reproduction.csv` | `python -m bko.ontology reproduce`'s stdout |
 | `reproduction.log` | its stderr |
+| `hierarchy.csv` | `python -m bko.ontology elk`'s stdout |
+| `hierarchy.log` | its stderr |
 | `training.csv` | the augmented training set of an app fill |
 | `pytest` | a `live` test's `--basetemp` directory |
 
