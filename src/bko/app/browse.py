@@ -17,6 +17,22 @@ import pandas as pd
 import streamlit as st
 
 from bko.app.context import Context
+from bko.app.provenance_frames import (
+    Line,
+    TraceIndex,
+    closed_frame,
+    concept_frame,
+    origin_frame,
+    prompt_texts,
+    read_index,
+    record_frame,
+    request_shown,
+    snode_frame,
+    source_frame,
+    statement_frame,
+    traced,
+    validation_frame,
+)
 from bko.app.runs import Run, call_totals, discover
 from bko.app.views import (
     arm_means,
@@ -48,6 +64,12 @@ UNREADABLE: Final = (
 shown as a message. `EvaluationError` covers `ScoresFormatError` and `validity`'s refusal of a
 partial E1 run; `TypeError` covers a column the frame display cannot convert.
 """
+
+NO_TRACE: Final = (
+    "This record's line names no request: no trace is stored in this file for it, only the "
+    "record itself."
+)
+NO_CALL: Final = "Why the record is not traced:"
 
 
 def earlier_runs(context: Context) -> None:
@@ -151,6 +173,73 @@ def _reproduction(path: Path) -> None:
     st.dataframe(rows, hide_index=True)
 
 
+@st.cache_resource(max_entries=16, show_spinner=False)
+def _cached_index(path: str, mtime_ns: int, size: int) -> TraceIndex:
+    """The trace file at `path`, read once per change of its modification time or size."""
+    logger.info("trace index path=%s mtime_ns=%d size=%d", path, mtime_ns, size)
+    return read_index(Path(path))
+
+
+def _trace_view(path: Path) -> None:
+    """Pick one record of the trace file at `path` by arm, holdout and position, and show it."""
+    status = path.stat()
+    index = _cached_index(str(path), status.st_mtime_ns, status.st_size)
+    st.subheader("Record trace")
+    if not index.arms:
+        st.info("The trace file holds no line.")
+        return
+    run = path.parent.name
+    arm: str = st.selectbox("Arm", index.arms, key=f"bko.trace.arm.{run}")
+    holdout: int = st.selectbox("Holdout", index.holdouts(arm), key=f"bko.trace.holdout.{run}")
+    lines = index.lines(arm, holdout)
+    record = st.number_input(
+        "Record", min_value=0, max_value=len(lines) - 1, step=1, key=f"bko.trace.record.{run}"
+    )
+    show_trace(lines[min(int(record), len(lines) - 1)])
+
+
+def show_trace(line: Line) -> None:
+    """Show one trace line: its record beside the facts that determine it, then the raw line.
+
+    Text read from a run folder reaches the page only through frames, JSON and plain code blocks.
+    """
+    left, right = st.columns([1, 2])
+    left.dataframe(record_frame(line), hide_index=True)
+    with right:
+        st.subheader("Request")
+        st.dataframe(origin_frame(line), hide_index=True)
+        if traced(line):
+            st.json(request_shown(line))
+        else:
+            st.info(NO_TRACE)
+            if isinstance(line.get("untraced"), str):
+                st.caption(NO_CALL)
+                st.code(str(line["untraced"]), language=None)
+        statements = statement_frame(line)
+        if len(statements):
+            st.subheader("Gap statements")
+            st.dataframe(statements, hide_index=True)
+        concepts = concept_frame(line)
+        if len(concepts):
+            st.subheader("Concepts")
+            st.dataframe(concepts, hide_index=True)
+            st.dataframe(snode_frame(line), hide_index=True)
+        sources = source_frame(line)
+        if len(sources):
+            st.subheader("Sources")
+            st.dataframe(sources, hide_index=True)
+            st.dataframe(closed_frame(line), hide_index=True)
+        texts = prompt_texts(line)
+        if texts:
+            st.subheader("Prompt")
+            for text in texts:
+                st.code(text, language=None)
+        st.subheader("Validation")
+        st.dataframe(validation_frame(line), hide_index=True)
+    with st.expander("The stored line"):
+        st.json(dict(line))
+
+
 def _training(path: Path) -> None:
     st.subheader("Training set")
     st.dataframe(pd.read_csv(path), hide_index=True)
@@ -167,6 +256,7 @@ SHOWN: Final[Mapping[str, Callable[[Path], None]]] = MappingProxyType(
         "gaps-synthea.csv": _gaps("E2 gap readings", ("ablation", "detector")),
         "reproduction.csv": _reproduction,
         "training.csv": _training,
+        "trace.jsonl": _trace_view,
     }
 )
 """Each role the view reads, and how; every other role, such as a log, `first-flag.csv`,
