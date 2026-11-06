@@ -69,7 +69,7 @@ import it (ADR `tooling/agent-config-single-home`).
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes
   no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
-- `mkdir runs/<run-id>-trace && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null`:
+- `mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> [--record N] > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null`:
   write the stored or re-derivable facts behind each record of one arm's fill of one holdout,
   refusing a `bko-direct` re-draw whose digest differs from the `arm` line's sha256. It makes no
   API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).

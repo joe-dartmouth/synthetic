@@ -31,15 +31,16 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      and label-group priors with their counts and `GROUP_WEIGHT`, whether it was drawn present, and
      the S-node names (head `(concept, "a")`, the class component in its one state
      `bko.ontology.fragments.INDIVIDUAL`; tail `(__Source__[concept], <source>)`); per field, the
-     source training
-     record id; the fallback fields; the closure; and the validation outcome.
+     source training record id; the fallback fields; the closure; and the validation outcome.
    * Messages arms: the call index, the guidance level, the prompt's sections as `prompt.sections`
      returns them (the gap statements with their labels as rendered), and the validation outcome.
    * Baselines: the method and the seed.
    * Not traceable: a model's choice of value within its prompt.
 3. **Mechanism.** `bko.evaluate.trace` re-draws a `bko-direct` fill at the logged attempt's seed
-   with no extra random draw, and refuses unless the re-drawn fill's digest equals the sha256 of
-   the folder's `arm` line. It writes `trace.jsonl` with sorted keys, one record per line.
+   with no extra random draw. It refuses (exit 3) a holdout whose `split` line the data does not
+   reproduce, a re-drawn fill whose digest is not the sha256 of the folder's `arm` line, and
+   re-drawn kept records that are not the candidates file's kept lines. It writes `trace.jsonl`
+   with sorted keys, one line per record, one per fill for a baseline.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
 4. **Readers.** The app reads only `trace.jsonl` and a Demo fill's own run folder
    (`bko.app.provenance_frames` builds the frames); a Demo fill of a Messages arm is traced from
@@ -69,13 +70,14 @@ folder.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| New fields in the candidates file (a schema 4) | The user chose to keep the file's schema; a re-draw holds the same facts | 2026-11-05 |
+| New fields in the candidates file (a schema 4) | A re-draw holds the same facts, so the file's schema need not change | 2026-11-05 |
 | Source ids in the app's download | They name training records; the download is the one artifact that leaves the folder | 2026-11-05 |
 | A guess at a model's choice of value | Nothing stored or re-derivable determines it | 2026-11-05 |
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/trace.py`, with `Draw.sources` in `src/bko/generate/direct.py`,
+- Owner: `src/bko/evaluate/trace.py`, with the call log's reading in
+  `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`
 - Pinned by: `tests/test_evaluate_trace.py`, `tests/test_generate_direct.py`,

@@ -98,9 +98,7 @@ and an LLM API.
    ontology differentiator.
 3. **"Fill gaps".** The user picks a method from a dropdown (CLLM, GReaT, CTGAN, TVAE or SMOTE) and
    the app generates synthetic rows targeting the red regions. Ontology or SHACL validation rejects
-   implausible rows live, with a rejected-row counter on screen. A Messages fill shows, per record,
-   the prompt sections and call that produced it (ADR
-   [`research/record-explainability`](adr/research/record-explainability.md)).
+   implausible rows live, with a rejected-row counter on screen.
 4. **"Human-in-the-loop"** (an optional tab). For the thinnest gaps, the app drafts questions for a
    human expert or an LLM to supply real values.
 5. **"Evaluate".** A one-click dashboard: fidelity (KS/TVD, correlation heatmaps), a
