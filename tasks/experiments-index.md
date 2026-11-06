@@ -23,7 +23,6 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`compare-elk-logic-only`](compare-elk-logic-only.md) | ready | -- | Joe | final-report |
-| [`explain-record-provenance`](explain-record-provenance.md) | ready | -- | Joe | final-report |
 
 ### Evaluation
 
