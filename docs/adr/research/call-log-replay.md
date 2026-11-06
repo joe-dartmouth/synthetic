@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-11-02
+updated: 2026-11-06
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -38,6 +38,11 @@ rows in `docs/EVIDENCE.md`).
     joined, thinking blocks ignored, or a chat-completions body's first choice's
     `message.content`, reasoning ignored; None when there is none;
   - or that call's `error` line, raised again as `GenerationError`.
+
+  A rewrite call of the perturbation arm (ADR `research/identifier-perturbation`) is one more
+  request in the log, in plan order, and `Replay` answers it like any other: its parameters are
+  compared as JSON and its reply read by `bko.generate.messages.text_of`. Replay and resume
+  change for no call kind.
 
   `ReplayError` (exit 3) is raised for:
   - a call past the log's end;

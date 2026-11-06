@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -144,7 +144,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
   (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct
-  arm of ADR `research/bkb-direct-generation`, which makes none), cell and outcome when
+  arm of ADR `research/bkb-direct-generation`, which makes none; a row `bko-direct-perturbed`
+  rewrote carries its rewrite call, and a row it kept as the original carries `call: null`, ADR
+  `research/identifier-perturbation`), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
   single candidates needs no new run; its header, schema 3, names the frame and the sha256 of the
   run's data, and a run with no Messages arm writes no settings; a curating or ranking arm's line

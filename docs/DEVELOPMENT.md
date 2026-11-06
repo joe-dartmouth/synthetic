@@ -863,7 +863,11 @@ start or the supervisor cannot run.
   `e9-empty` (`E9_THIN` and `E9_EMPTY`: `E6_THIN` and `E6_EMPTY` with `none`, `real`, `bko-direct`
   and the candidate `bko-logic`, no replica) and their slices `e9-thina` to `e9-thinj` and
   `e9-emptya` to `e9-emptyj`, sliced as E6's are, the ceiling inert (ADR
-  [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). No flag
+  [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). It holds the perturbation
+  pilot's runs, `e10-pilot-thin` and `e10-pilot-empty` (`E6_THIN` and `E6_EMPTY` with `none`,
+  `real`, `bko-direct`, the candidate `bko-direct-perturbed` and `bko-direct-pram`, no replica,
+  holdouts 0 and 1, a $5.00 ceiling; ADR
+  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -959,6 +963,31 @@ run is neither the named run nor a slice of it, whose header does not match its 
 `scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,
 whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
 data does not reproduce.
+
+**The perturbation pilot.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
+fraction, each at a $5.00 ceiling, and judge no criterion (ADR
+[`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). Their Messages arm
+is `bko-direct-perturbed`, which sends rows of open Diabetes 130 data to the Messages API
+([Generation](#generation), What leaves the machine); `bko-direct-pram` is free. Each run is a
+paid run, so each starts with `launch` (the paid-run protocol above); the dry run
+writes `launch.log` and starts nothing:
+
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin --dry-run
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-empty --dry-run
+    uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-empty
+
+`<run-id>` is a run of record under entry `e10`: one id for a run's dry run and its launch, another
+for the second run. A perturbed
+arm's rows are refused for a holdout, and every original kept, when the distribution check of the
+ADR fails; the threshold `delta` of that check is not yet fixed. `perturb-threshold` computes it,
+per removal fraction, from E6's stored `bko-direct` rows, and makes no API call. `<run>` is the
+named E6 run (`e6-thin` or `e6-empty`) and `--rows` repeats once per store, as for `privacy`:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/threshold.csv && test ! -e runs/<run-id>/threshold.log && uv run --no-sync python -m bko.evaluate perturb-threshold <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/threshold.csv 2> runs/<run-id>/threshold.log </dev/null
+
+No run has applied a value of `delta`, and the pilot has not run. A recorded pilot's rows store is
+read through `privacy` against `bko-direct` like any run's (`privacy` above).
 
 **`trace`** explains one arm's fill of one holdout: for each record, the stored or re-derivable facts
 that determine it (ADR [`research/record-explainability`](adr/research/record-explainability.md)).
@@ -1305,7 +1334,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   group's record count and each mapped concept's share of it in percent (the `profile` block).
   Every `SETTINGS` run sends them. A `bko-skeleton` request also sends each asked record's drawn
   concept names: ontology labels drawn at the fused BKB's aggregate shares, never a record's values.
-  No BKO arm sends a record. The CLLM arms (`cllm`, `cllm-uncurated`; ADR
+  Of the BKO arms, only `bko-direct-perturbed` sends records, rows of open Diabetes 130 data (ADR
+  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)); no other BKO arm
+  sends a record. The CLLM arms (`cllm`, `cllm-uncurated`; ADR
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)) send, on each call, the system
   text, the cell, its training record count and each numeric field's training-split bounds, then up
   to `bko.evaluate.cllm.SHOW` training records whole, every frame column: the cell's own first, then
@@ -1539,6 +1570,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `threshold.csv` | `python -m bko.evaluate perturb-threshold`'s stdout |
+| `threshold.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
