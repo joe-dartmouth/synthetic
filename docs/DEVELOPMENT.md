@@ -936,6 +936,32 @@ run is neither the named run nor a slice of it, whose header does not match its 
 whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
 data does not reproduce.
 
+**`trace`** explains one arm's fill of one holdout: for each record, the stored or re-derivable facts
+that determine it (ADR [`research/record-explainability`](adr/research/record-explainability.md)).
+It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a replica fill,
+`--record N` writes the record at 0-based position N alone, and `--data-dir` sets the data root.
+It reads the data the run used from the data root, and for `bko-direct` the pinned ontology
+releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)). For
+`bko-direct` it re-draws the fill at its `arm` line's seed with no extra random draw; the other
+arm kinds read their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes
+`trace.jsonl`, one sorted-key JSON line per record (one per fill for a baseline), which holds
+source training record ids; keep the file in its run folder. `<run-id>` is the folder read,
+`<run>` the named run, `<h>` the holdout and `<arm>` the arm:
+
+    mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
+
+- **Log lines**: `trace start` names the folder, run, holdout, arm, fill and seed before any
+  re-draw; for `bko-direct`, `trace arm` names the `arm` line's sha256 and the re-drawn one, with
+  `kept_lines=` and `matches=`, at WARNING when either check fails; for a Messages arm, the
+  `trace partial` WARNING counts the records left `untraced`, names the calls the log lacks
+  (`missing=`) and each reason; and `trace rows=` closes with the output's sha256, the record
+  written (`record=`) and the untraced count.
+- **Exit codes**: 0 the trace is written; 1 an unexpected error, with its traceback; 2 a holdout,
+  arm or record the folder does not hold, or a `calls.jsonl` line that is not one the call log
+  writes, named by path and line number; 3 a folder that fails its identity checks: a holdout's
+  `split` line the data does not reproduce, a `bko-direct` re-draw whose rows do not hash to the
+  `arm` line's sha256, or whose kept records are not the candidates file's kept lines.
+
 ## BKB fixtures
 
 `bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
@@ -1439,6 +1465,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
+| `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
 | `draws.jsonl` | `python -m bko.generate direct`'s draw log |
@@ -1508,13 +1536,22 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   means over its holdouts and each BKO arm's validity counts, with E1's validity verdict on its
   candidate; candidates per call and cell; a closure table's pairs and counts; the UCI gap listing
   per detector and E2's gap readings per ablation and detector; R1's reproduction rows; a demo
-  fill's scores (as means over its one holdout) and training set. It recomputes nothing from
+  fill's scores (as means over its one holdout) and training set; a trace file's records. It
+  recomputes nothing from
   `data/` and writes nothing; it derives only means, counts and E1's validity from the stored
   files, and leaves the `shared-split` fingerprint out of the means, since it is no quantity. It
   reads only the last 64 KiB of a call log, for its `end` line, and lists `.log` files,
   `first-flag.csv`, `contradictions.csv` and a `live` test's `pytest` directory without reading
   them. A folder whose name is not a run id, a symbolic link, and an entry of the wrong kind are
   not listed; an artifact that cannot be read shows its error in place of its section.
+- **Provenance**: a run folder that holds `trace.jsonl` ([Evaluation](#evaluation), `trace`) gets a
+  picker over its records by arm, holdout and position, each shown with the facts that determine it
+  (ADR [`research/record-explainability`](adr/research/record-explainability.md)). The view reads
+  only that file, again only when its modification time or size changes. A demo fill of a
+  Messages arm, live or replayed, gets a picker over its added rows, each traced from the fill's own
+  call log and candidates file with no API call and no read of the data root, again only when
+  either file changes. Both render a trace only as
+  frames, JSON and plain code blocks, and the download carries no source record id.
 - **What spends money**: only a live fill by an arm of `bko.evaluate.experiment.BKO_ARMS`. It starts
   only while its confirmation box is ticked, the box clears after each fill, the client is built
   only then, and the fill stops once its call log's spend reaches `bko.app.context.SPEND_CEILING`.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from typing import Final
 
 import pytest
 
@@ -24,8 +25,20 @@ from bko.generate.guidance import (
     Spread,
     intervals,
 )
-from bko.generate.messages import LEVELS, Level
-from bko.generate.prompt import COHERENCE, SYSTEM, UNITS, render, render_shown, system
+from bko.generate.messages import LEVELS, Level, reaches
+from bko.generate.prompt import (
+    COHERENCE,
+    PRESCRIBED,
+    SHOWN,
+    SUMMARY_OPENS,
+    SYSTEM,
+    UNITS,
+    render,
+    render_shown,
+    sections,
+    system,
+)
+from bko.generate.skeleton import Named, Skeleton
 from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
 from bko.ontology.schema import FieldMapping
 from tests._frame_fixtures import TOY
@@ -413,3 +426,83 @@ def test_render_shown_opens_with_the_render_sentence_and_lists_json_lines():
     assert all(tuple(record) == UCI_FRAME.columns for record in listed)
     first = render(GUIDANCE, 5, Level.CELL, frame=UCI_FRAME)[1].split("\n\n")
     assert user.split("\n\n")[:2] == first[:2]
+
+
+@pytest.mark.parametrize("level", LEVELS, ids=str)
+def test_sections_inverts_render(level):
+    skeleton = Skeleton(
+        (Named("HP:0003124", "Hypercholesterolemia", (CHOLESTEROL,)),),
+        (frozenset({"HP:0003124"}), frozenset()),
+    )
+    for prescribed in (None, skeleton):
+        _, user = render(FULL, 2, level, frame=UCI_FRAME, skeleton=prescribed)
+        found = sections(user)
+        assert found.text() == user
+        assert [found.opening, found.bounds] == user.split("\n\n")[:2]
+        assert found.coherence is reaches(level, Level.COHERENT)
+        findings = reaches(level, Level.FINDINGS)
+        lines = CHAINED_LINES if reaches(level, Level.ONTOLOGY) else FINDING_LINES
+        assert found.findings == (lines if findings else ())
+        assert found.basis is (Basis.ABSENT if findings else None)
+        profile = "\n".join(PROFILE_BLOCK) if reaches(level, Level.PROFILE) else None
+        assert found.profile == profile
+        summary = "\n".join(SUMMARY_BLOCK) if reaches(level, Level.SUMMARY) else None
+        assert found.summary == summary
+        assert found.shown is None
+        assert (found.prescribed is None) is (prescribed is None)
+        if prescribed is not None:
+            assert found.prescribed == user.split("\n\n")[-1]
+
+
+def test_sections_inverts_render_shown_and_refuses_an_unknown_block():
+    _, user = render_shown(GUIDANCE, 5, shown_rows(3), frame=UCI_FRAME)
+    found = sections(user)
+    assert found.text() == user
+    assert found.shown == user.split("\n\n")[-1]
+    assert (found.findings, found.coherence, found.profile) == ((), False, None)
+    with pytest.raises(ValueError, match="no section of the prompt opens"):
+        sections(f"{user}\n\nSomething no level renders.")
+    with pytest.raises(ValueError, match="opening"):
+        sections("Keep each numeric field within: age 1 to 2 years.")
+
+
+OPENERS: Final = (
+    "Among comparable patients (the same ",
+    SUMMARY_OPENS,
+    PRESCRIBED,
+    SHOWN,
+)
+"""The sentence each named block of a user turn opens with."""
+
+
+def _opened() -> list[str]:
+    """A rendered user turn's first two blocks: the opening and the bounds."""
+    return render(FULL, 2, Level.SUMMARY, frame=UCI_FRAME)[1].split("\n\n")[:2]
+
+
+@pytest.mark.parametrize("opener", OPENERS, ids=range(len(OPENERS)))
+def test_sections_refuses_a_near_miss_or_mid_text_opener(opener):
+    head = "\n\n".join(_opened())
+    assert sections(f"{head}\n\n{opener} rest.").opening == _opened()[0]
+    for block in (f"{opener[:-2]}X{opener[-1]} rest.", f"Note: {opener} rest."):
+        with pytest.raises(ValueError, match="no section of the prompt opens with"):
+            sections(f"{head}\n\n{block}")
+
+
+@pytest.mark.parametrize(
+    "turn",
+    [
+        lambda opening, bounds: f" {opening}\n\n{bounds}",
+        lambda opening, bounds: f"\n{opening}\n\n{bounds}",
+        lambda opening, bounds: f"{opening}\n\n {bounds}",
+        lambda opening, bounds: f"{bounds}\n\n{bounds}",
+        lambda opening, bounds: f"{opening}\n\n{opening}",
+        lambda opening, bounds: opening,
+    ],
+    ids=["padded", "leading-newline", "padded-bounds", "no-opening", "no-bounds", "one-block"],
+)
+def test_sections_refuses_a_turn_without_its_opening_and_bounds(turn):
+    opening, bounds = _opened()
+    assert sections(f"{opening}\n\n{bounds}").bounds == bounds
+    with pytest.raises(ValueError, match="does not open with the cell's opening and its bounds"):
+        sections(turn(opening, bounds))

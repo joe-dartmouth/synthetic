@@ -109,7 +109,7 @@ def test_a_child_share_above_its_two_row_parents_draws_each_record_once(monkeypa
         calls["concepts"] += 1
         return concepts(self, *args)
 
-    def counted_pick(*args: Any) -> tuple[dict[str, float], bool]:
+    def counted_pick(*args: Any) -> tuple[tuple[int, dict[str, float]], bool]:
         calls["pick"] += 1
         return pick(*args)
 

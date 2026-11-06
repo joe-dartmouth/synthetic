@@ -16,6 +16,7 @@ from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import add_parser as add_panel
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
+from bko.evaluate.trace import add_parser as add_trace
 from bko.generate.flight import IN_FLIGHT
 
 
@@ -145,6 +146,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
     add_panel(commands)
     add_privacy(commands)
     add_contradictions(commands)
+    add_trace(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
     )

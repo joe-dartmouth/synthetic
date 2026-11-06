@@ -16,8 +16,9 @@ from typing import Final
 
 import streamlit as st
 
-from bko.app.browse import earlier_runs
+from bko.app.browse import UNREADABLE, earlier_runs, show_trace
 from bko.app.context import Context
+from bko.app.provenance_frames import CANDIDATES, Line, demo_traces
 from bko.app.steps import (
     Analysis,
     Outcome,
@@ -42,6 +43,7 @@ from bko.app.views import (
 from bko.baselines.errors import BaselineError
 from bko.bkb.errors import BKBError
 from bko.datasets.errors import DatasetError
+from bko.evaluate.call_prompts import CALLS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.scores import Measure, Scope
 from bko.gaps.definitions import Definition
@@ -95,6 +97,14 @@ STEPS: Final = {
     ),
 }
 """The caption under each step's header."""
+
+TRACE_FAILED: Final = "The fill's records could not be traced."
+"""The message in place of a demo fill's trace that its run folder cannot give."""
+
+TRACE_CAPTION: Final = (
+    "Each added row with the call that generated it and the sections of that call's prompt, read "
+    "from the fill's run folder; why the model chose a value is not stored."
+)
 
 RECALL_COLUMNS: Final = tuple(prediction_column(Measure.RECALL, scope) for scope in Scope)
 """The `prediction_table` columns the results chart draws: recall, overall and on the flagged
@@ -306,6 +316,8 @@ def _results(analysis: Analysis, outcome: Outcome) -> None:
     st.dataframe(prediction, hide_index=True)
     with st.expander("Every measure"):
         st.dataframe(score_table(outcome.scores))
+    if outcome.log is not None:
+        _added_trace(outcome)
     st.subheader("Download")
     st.download_button(
         "Augmented training set (CSV)",
@@ -321,3 +333,49 @@ def _results(analysis: Analysis, outcome: Outcome) -> None:
         mime="text/csv",
         on_click="ignore",
     )
+
+
+type Stamp = tuple[int, int] | None
+"""A file's modification time and size, or None when it is absent."""
+
+
+def _stamp(path: Path) -> Stamp:
+    """`path`'s modification time and size, or None when it does not exist."""
+    try:
+        status = path.stat()
+    except FileNotFoundError:
+        return None
+    return status.st_mtime_ns, status.st_size
+
+
+@st.cache_resource(max_entries=4, show_spinner=False)
+def _traces(folder: str, candidates: Stamp, calls: Stamp, _outcome: Outcome) -> tuple[Line, ...]:
+    """A Messages fill's trace lines, read once per change of its candidates file or call log.
+
+    The lines are `frozen`, so no session edits what another reads.
+    """
+    logger.info("trace fill folder=%s candidates=%s calls=%s", folder, candidates, calls)
+    return demo_traces(_outcome)
+
+
+def _added_trace(outcome: Outcome) -> None:
+    """Pick one row a Messages fill added and show its trace; its run folder holds the facts."""
+    st.subheader("Record trace")
+    st.caption(TRACE_CAPTION)
+    try:
+        status = (outcome.folder / CANDIDATES).stat()
+        candidates = status.st_mtime_ns, status.st_size
+        calls = _stamp(outcome.folder / CALLS)
+        lines = _traces(str(outcome.folder), candidates, calls, outcome)
+    except UNREADABLE as exc:
+        logger.warning("untraced folder=%s error=%s: %s", outcome.folder, type(exc).__name__, exc)
+        st.error(TRACE_FAILED)
+        st.code(f"{type(exc).__name__}: {exc}", language=None)
+        return
+    if not lines:
+        st.info("The fill added no row.")
+        return
+    row: int = st.selectbox(
+        "Added row", range(len(lines)), key=f"bko.trace.added.{outcome.folder.name}"
+    )
+    show_trace(lines[row])

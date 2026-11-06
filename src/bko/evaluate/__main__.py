@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
 The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`,
-`likelihood`, `contradictions`, `launch` and `supervise`.
+`likelihood`, `contradictions`, `trace`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -35,6 +35,9 @@ RUN's, whose columns differ, whose holdouts hold different scores' keys, or whos
 `scores.log` is missing or names other data, versions or configuration.
 `contradictions` counts each data contradiction in the cells of every dataset's training split
 at holdout seed 0, to stdout as CSV, with no API call (`bko.evaluate.contradictions`).
+`trace RUN --folder FOLDER --holdout H --arm ARM [--record N]` writes one JSON line per record of
+ARM's fill of holdout H in FOLDER with the facts that determine it, to stdout, with no API call
+(`bko.evaluate.trace`).
 `likelihood [RUN] --candidates FILE...` reads one run's candidates files, one per slice of a sliced
 run, as one, and logs G7's gate (`bko.evaluate.likelihood`).
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
@@ -61,10 +64,12 @@ directory does not, Messages arms with no `--log` or `--candidates`, a direct ar
 Messages or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
-a `privacy` run with no reference arm or removed cell, and scores whose validity cannot be read;
+a `privacy` run with no reference arm or removed cell, a `trace` of a holdout, arm or record the
+folder does not hold or over a call log line it cannot read, and scores whose validity cannot be
+read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
-contradicts its contract, or a `shared`, `rows`, `panel` or `privacy` run folder or store fails an
-identity check.
+contradicts its contract, or a `shared`, `rows`, `panel`, `privacy` or `trace` run folder or store
+fails an identity check, a `trace` re-draw included.
 """
 
 from __future__ import annotations
@@ -106,6 +111,7 @@ from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.shared import rescore
 from bko.evaluate.supervise import supervise
+from bko.evaluate.trace import run_trace
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
 from bko.generate.resume_guard import Ceiling
@@ -173,6 +179,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_privacy(args, context))
     elif args.command == "contradictions":
         sink.write(census(data_dir(args), context))
+    elif args.command == "trace":
+        sink.write(run_trace(args, _named(args.run, context)))
     else:
         _compare(args, context, sink)
     return 0

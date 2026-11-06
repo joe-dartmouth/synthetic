@@ -85,6 +85,10 @@ concept shares, not the ontology's structure: closure is recorded and never read
    out, become one line of a Messages request, which the model fills (ADR
    `research/record-generation-design`, What every level sends). The lines equal the draws
    `bko-direct` makes for the same request.
+10. **Sources.** `Draw.sources` keeps, per field, the id of the training record the pick read.
+    Keeping it adds no draw, so a seed's records are the same with or without it, and
+    `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
+    `research/record-explainability`).
 
 ## Rationale
 
@@ -158,4 +162,5 @@ the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Deci
 - [Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes](bko-fragment-encoding.md)
 - [Validated records join the training records of their asked cell, and closure is read per gap definition](gap-closure-design.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
+- [A record's explanation is the stored or re-derivable facts that determine it](record-explainability.md)
 - [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)

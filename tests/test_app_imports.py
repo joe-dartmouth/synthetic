@@ -87,3 +87,82 @@ def test_the_page_renders_no_html():
             ):
                 offenders.add((path.name, node.attr))
     assert offenders == set()
+
+
+def test_the_app_renders_no_table():
+    """`st.table` renders each cell's text as Markdown; frames render it as text."""
+    offenders = {
+        path.name
+        for path in PACKAGE.rglob("*.py")
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Attribute) and node.attr == "table"
+    }
+    assert offenders == set()
+
+
+SINKS = frozenset({"markdown", "write", "caption", "info", "error"})
+"""The streamlit calls that render their argument as Markdown."""
+
+TRACE_VIEWS = {"browse.py": {"_trace_view", "show_trace"}, "page.py": {"_added_trace"}}
+"""The functions that render a record's trace, whose text comes from a run folder."""
+
+
+def _finals(tree: ast.Module) -> set[str]:
+    """The module-level names annotated `Final`."""
+    return {
+        node.target.id
+        for node in tree.body
+        if isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and "Final" in ast.unparse(node.annotation)
+    }
+
+
+def test_the_trace_view_renders_no_dynamic_markdown():
+    """Inside the trace views a Markdown sink takes only a literal or a module-level `Final`."""
+    offenders = set()
+    for name, functions in TRACE_VIEWS.items():
+        tree = ast.parse((PACKAGE / name).read_text(encoding="utf-8"))
+        finals = _finals(tree)
+        found = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and node.name in functions
+        }
+        assert set(found) == functions
+        for function in found.values():
+            for node in ast.walk(function):
+                if not (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in SINKS
+                ):
+                    continue
+                arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
+                for argument in arguments:
+                    literal = isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+                    final = isinstance(argument, ast.Name) and argument.id in finals
+                    if not (literal or final):
+                        offenders.add((name, function.name, node.func.attr, ast.unparse(argument)))
+    assert offenders == set()
+
+
+MARKDOWN_OPTIONS = frozenset({"radio", "pills", "segmented_control", "select_slider"})
+"""The streamlit widgets whose option labels render as Markdown; `selectbox` renders them as
+text, so the trace views offer a run folder's arm names only through it."""
+
+
+def test_the_trace_views_offer_no_option_as_markdown():
+    offenders = set()
+    for name, functions in TRACE_VIEWS.items():
+        tree = ast.parse((PACKAGE / name).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name in functions:
+                offenders |= {
+                    (name, node.name, call.func.attr)
+                    for call in ast.walk(node)
+                    if isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and call.func.attr in MARKDOWN_OPTIONS
+                }
+    assert offenders == set()

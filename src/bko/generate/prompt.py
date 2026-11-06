@@ -6,14 +6,17 @@ record count and each numeric field's training-split bounds, then adds one compo
 reached, and for a prescribing request (`bko.generate.skeleton`) one line per asked record naming
 the concepts it must show. Both read the frame given, a required keyword. The BKO prompts hold no
 record; `render_shown` shows training records to the CLLM arms (ADR `research/cllm-arm-design`).
+`sections` reads a user turn back into those components, as `bko.evaluate.trace` names them.
 ADR `research/record-generation-design` records what each level sends.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
@@ -83,6 +86,15 @@ PRESCRIBED: Final = (
 
 NO_FINDING: Final = "none of these findings"
 """A record line's text for a record that must show no named finding."""
+
+SUMMARY_OPENS: Final = (
+    "Among the same patients, numeric fields run as follows (median; middle half):"
+)
+"""The sentence that opens the `summary` level's block."""
+
+_OPENING: Final = "Write exactly "
+_BOUNDS: Final = "Keep each numeric field within: "
+_PROFILE: Final = "Among comparable patients (the same "
 
 
 @functools.cache
@@ -166,7 +178,7 @@ def _number(name: str, value: float, frame: FrameSpec) -> str:
 def _profile(profile: Profile, frame: FrameSpec) -> str:
     lines = [
         (
-            f"Among comparable patients (the same {frame.label}, other age and sex groups; "
+            f"{_PROFILE}{frame.label}, other age and sex groups; "
             f"{profile.records} records), these findings occur at these rates:"
         ),
         *(
@@ -181,7 +193,7 @@ def _profile(profile: Profile, frame: FrameSpec) -> str:
 def _summary(summary: Mapping[str, Spread], frame: FrameSpec) -> str:
     units = field_units(frame)
     lines = [
-        "Among the same patients, numeric fields run as follows (median; middle half):",
+        SUMMARY_OPENS,
         *(
             f"- {name}: {_number(name, spread.median, frame)}; "
             f"{_number(name, spread.low, frame)} to {_number(name, spread.high, frame)} "
@@ -322,10 +334,92 @@ def _opening(guidance: Guidance, rows: int, frame: FrameSpec) -> list[str]:
     )
     return [
         (
-            f"Write exactly {rows} records of patients in this group: sex {guidance.sex} "
+            f"{_OPENING}{rows} records of patients in this group: sex {guidance.sex} "
             f"({_codes('sex', frame)[guidance.sex]}), {frame.label} {guidance.label} "
             f"({frame.label_meanings[guidance.label]}), age {low:g} to {high:g} "
             f"{units['age']}. The training data holds {guidance.records} records of this group."
         ),
-        f"Keep each numeric field within: {within}.",
+        f"{_BOUNDS}{within}.",
     ]
+
+
+@dataclass(frozen=True, slots=True)
+class Sections:
+    """A user turn's components, as `render` or `render_shown` wrote them.
+
+    Attributes:
+        opening: The cell, its record count and the training records it holds.
+        bounds: Each numeric field's training-split bounds.
+        coherence: Whether the `coherent` level's sentence is present.
+        basis: Why the findings were chosen, by the block's opening sentence; None with no block.
+        findings: Each finding line as rendered: its field states, its labels and, from the
+            `ontology` level, its `is_a` chain.
+        profile: The `profile` level's block, or None.
+        summary: The `summary` level's block, or None.
+        prescribed: A prescribing request's block of record lines, or None.
+        shown: A CLLM request's block of training records, or None.
+    """
+
+    opening: str
+    bounds: str
+    coherence: bool = False
+    basis: Basis | None = None
+    findings: tuple[str, ...] = ()
+    profile: str | None = None
+    summary: str | None = None
+    prescribed: str | None = None
+    shown: str | None = None
+
+    def text(self) -> str:
+        """The user turn the sections were read from."""
+        findings = None
+        if self.basis is not None:
+            findings = "\n".join([BASES[self.basis], *self.findings])
+        parts = [
+            self.opening,
+            self.bounds,
+            COHERENCE if self.coherence else None,
+            findings,
+            self.profile,
+            self.summary,
+            self.prescribed,
+            self.shown,
+        ]
+        return "\n\n".join(part for part in parts if part is not None)
+
+
+_BLOCKS: Final = (
+    ("profile", _PROFILE),
+    ("summary", SUMMARY_OPENS),
+    ("prescribed", PRESCRIBED),
+    ("shown", SHOWN),
+)
+"""Each block `sections` names by its opening sentence, beside the findings block."""
+
+
+def sections(user: str) -> Sections:
+    """Read a user turn back into the components `render` or `render_shown` joined.
+
+    Raises:
+        ValueError: If the turn does not open with the cell and its bounds, or a block opens
+            with a sentence no component writes.
+    """
+    blocks = user.split("\n\n")
+    if len(blocks) < 2 or not (blocks[0].startswith(_OPENING) and blocks[1].startswith(_BOUNDS)):
+        msg = "the prompt does not open with the cell's opening and its bounds"
+        raise ValueError(msg)
+    read = Sections(blocks[0], blocks[1])
+    bases = {sentence: basis for basis, sentence in BASES.items()}
+    for block in blocks[2:]:
+        first, *rest = block.split("\n")
+        if block == COHERENCE:
+            read = dataclasses.replace(read, coherence=True)
+        elif first in bases:
+            read = dataclasses.replace(read, basis=bases[first], findings=tuple(rest))
+        else:
+            key = next((k for k, opens in _BLOCKS if first.startswith(opens)), None)
+            if key is None:
+                msg = f"no section of the prompt opens with {first!r}"
+                raise ValueError(msg)
+            read = dataclasses.replace(read, **{key: block})
+    return read
