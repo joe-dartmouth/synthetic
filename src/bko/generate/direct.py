@@ -12,6 +12,7 @@ in quota, record and column order, so `bko.bkb` stays standard-library only. ADR
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from collections import Counter
@@ -34,6 +35,8 @@ from bko.ontology.terms import Ontology, ancestors
 logger = logging.getLogger(__name__)
 
 type Record = Mapping[str, int | float]
+type _Source = tuple[int, dict[str, float]]
+"""A training record with its id."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +51,8 @@ class Draw:
             never read into a field.
         fallback: The fields read from the label group's records because the cell's showed no
             record matching the draw.
+        sources: The training record id each copied field was read from; `sex` and the label
+            follow the cell and have none.
     """
 
     cell: Cell
@@ -55,9 +60,11 @@ class Draw:
     concepts: frozenset[str]
     closed: frozenset[str]
     fallback: frozenset[str]
+    sources: Mapping[str, int] = dataclasses.field(default_factory=lambda: MappingProxyType({}))
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "record", MappingProxyType(dict(self.record)))
+        object.__setattr__(self, "sources", MappingProxyType(dict(self.sources)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,7 +219,7 @@ class _Group:
     """A label's training records: observed, as records, and each record's age band."""
 
     observed: Observed
-    records: list[dict[str, float]]
+    records: list[_Source]
     bands: list[str]
 
 
@@ -222,9 +229,9 @@ class _Sources:
 
     cell: Cell
     share: Mapping[str, float]
-    own: list[dict[str, float]]
-    group: list[dict[str, float]]
-    banded: list[dict[str, float]]
+    own: list[_Source]
+    group: list[_Source]
+    banded: list[_Source]
 
 
 class _Plan:
@@ -252,10 +259,11 @@ class _Plan:
         present = self._concepts(sources, rng)
         record: dict[str, int | float] = {}
         fallback: set[str] = set()
+        read: dict[str, int] = {}
         cell = sources.cell
         for column in self._frame.columns:
             if column == "age":
-                chosen, fell = _pick(cell, (column,), sources.own, sources.banded, rng)
+                (source, chosen), fell = _pick(cell, (column,), sources.own, sources.banded, rng)
                 fields: tuple[str, ...] = (column,)
             elif column == "sex":
                 record[column] = next(code for code, sex in SEXES.items() if sex == cell[1])
@@ -266,20 +274,23 @@ class _Plan:
             elif column in self._first:
                 fields = self._first[column].fields
                 shows = self._pattern(self._first[column], present)
-                own = [r for r in sources.own if shows(r)]
-                chosen, fell = _pick(cell, fields, own, [r for r in sources.group if shows(r)], rng)
+                own = [r for r in sources.own if shows(r[1])]
+                other = [r for r in sources.group if shows(r[1])]
+                (source, chosen), fell = _pick(cell, fields, own, other, rng)
             elif column in self._free:
                 fields = (column,)
-                chosen, fell = _pick(cell, fields, sources.own, sources.group, rng)
+                (source, chosen), fell = _pick(cell, fields, sources.own, sources.group, rng)
             else:
                 continue
-            for field in fields:
-                record[field] = self._value(field, chosen)
+            for name in fields:
+                record[name] = self._value(name, chosen)
+                read[name] = source
             if fell:
                 fallback.update(fields)
         ordered = {column: record[column] for column in self._frame.columns}
         concepts = frozenset(present)
-        return Draw(cell, ordered, concepts, self._closure(concepts), frozenset(fallback))
+        closed = self._closure(concepts)
+        return Draw(cell, ordered, concepts, closed, frozenset(fallback), read)
 
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share."""
@@ -334,11 +345,11 @@ class _Plan:
 def _pick(
     cell: Cell,
     fields: tuple[str, ...],
-    own: Sequence[dict[str, float]],
-    other: Sequence[dict[str, float]],
+    own: Sequence[_Source],
+    other: Sequence[_Source],
     rng: np.random.Generator,
-) -> tuple[dict[str, float], bool]:
-    """A record drawn from `own`, else from `other`, and whether it fell back to `other`.
+) -> tuple[_Source, bool]:
+    """A record drawn from `own`, else from `other`, with its id, and whether it fell back.
 
     Raises:
         SamplingError: If both are empty.
@@ -368,9 +379,10 @@ def _label_groups(
     return groups
 
 
-def _records(frame: pd.DataFrame, spec: FrameSpec) -> list[dict[str, float]]:
+def _records(frame: pd.DataFrame, spec: FrameSpec) -> list[_Source]:
+    """Each record of `frame` with its id, in row order."""
     columns = [str(column) for column in spec.columns]
     return [
-        dict(zip(columns, values, strict=True))
-        for values in frame[columns].itertuples(index=False, name=None)
+        (int(index), dict(zip(columns, values, strict=True)))
+        for index, *values in frame[columns].itertuples(name=None)
     ]

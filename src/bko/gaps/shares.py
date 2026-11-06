@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Final
 
 from bko.bkb.structure import BKB
@@ -24,13 +25,50 @@ GROUP_WEIGHT: Final = UNDERREPRESENTED_BELOW
 """The label group's weight in a share, in records: a cell this small weighs as its group does."""
 
 
-def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
-    """Each mapped concept's share: `(n_c p_c + GROUP_WEIGHT p_g) / (n_c + GROUP_WEIGHT)`.
+@dataclass(frozen=True, slots=True)
+class SharePart:
+    """What one concept's share in a cell is composed of.
 
-    `p_c` is the cell's dataset-fragment prior and `p_g` its label group's, each 0 where the
-    fragment holds no S-node for the concept; `n_c` is the cell's record count. A cell of no
-    record takes `p_g` itself, since multiplying by `GROUP_WEIGHT` and dividing back can move it
-    by one ulp.
+    Attributes:
+        n_cell: The cell's record count.
+        p_cell: The cell's dataset-fragment prior; 0 where the fragment holds no S-node for it.
+        p_group: The label group's prior, likewise.
+    """
+
+    n_cell: int
+    p_cell: float
+    p_group: float
+
+    @property
+    def share(self) -> float:
+        """`(n_c p_c + GROUP_WEIGHT p_g) / (n_c + GROUP_WEIGHT)`, or `p_g` for a cell of no record.
+
+        Multiplying by `GROUP_WEIGHT` and dividing back can move `p_g` by one ulp.
+        """
+        if self.n_cell == 0:
+            return self.p_group
+        weighted = self.n_cell * self.p_cell + GROUP_WEIGHT * self.p_group
+        return weighted / (self.n_cell + GROUP_WEIGHT)
+
+
+def share_parts(cell: CellRecords, group: Observed) -> dict[str, SharePart]:
+    """Each mapped concept's share parts, in the sorted order of the concepts `group` counts.
+
+    Args:
+        cell: The cell's records.
+        group: The records of the cell's label, observed over the same rows.
+    """
+    mine = _priors(dataset_fragment(cell.observed))
+    theirs = _priors(dataset_fragment(group))
+    records = cell.observed.records
+    return {
+        concept: SharePart(records, mine.get(concept, 0.0), theirs.get(concept, 0.0))
+        for concept in group.holders
+    }
+
+
+def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
+    """Each mapped concept's share: `SharePart.share` of its `share_parts`.
 
     Args:
         cell: The cell's records.
@@ -39,16 +77,7 @@ def shares(cell: CellRecords, group: Observed) -> dict[str, float]:
     Returns:
         The share of every concept `group` counts, in its sorted order.
     """
-    mine = _priors(dataset_fragment(cell.observed))
-    theirs = _priors(dataset_fragment(group))
-    records = cell.observed.records
-    return {
-        concept: theirs.get(concept, 0.0)
-        if records == 0
-        else (records * mine.get(concept, 0.0) + GROUP_WEIGHT * theirs.get(concept, 0.0))
-        / (records + GROUP_WEIGHT)
-        for concept in group.holders
-    }
+    return {concept: part.share for concept, part in share_parts(cell, group).items()}
 
 
 def label_only(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> frozenset[str]:

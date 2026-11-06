@@ -12,11 +12,11 @@ import pandas as pd
 import pytest
 
 from bko.bkb.fusion import fuse, source_component
-from bko.datasets.cells import LABEL
+from bko.datasets.cells import LABEL, cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.detect import ontology_fragments
 from bko.gaps.observe import Cell, dataset_fragment, observe_records, record_cells
-from bko.gaps.shares import GROUP_WEIGHT, label_only, nested, shares
+from bko.gaps.shares import GROUP_WEIGHT, SharePart, label_only, nested, share_parts, shares
 from bko.generate.direct import Draw, FieldGroup, draw_line, field_groups, sample
 from bko.generate.errors import SamplingError
 from bko.ontology.mapping import FIELD_MAPPINGS
@@ -460,3 +460,72 @@ def test_the_default_draw_is_pinned_by_digest():
     ]
     found = hashlib.sha256(json.dumps(draws, sort_keys=True).encode()).hexdigest()
     assert found == DRAW_DIGEST
+
+
+def reindexed(train: pd.DataFrame) -> pd.DataFrame:
+    """`train` under non-monotonic record ids from 1000, so an id is never a position."""
+    ids = [1000 + (7 * position) % len(train) * 3 for position in range(len(train))]
+    return train.set_axis(pd.Index(ids, name="record_id"))
+
+
+def _sources_of(train: pd.DataFrame, seed: int = 0) -> list[Draw]:
+    quota = {YOUNG_WOMEN_1: 30, YOUNG_WOMEN_0: 30}
+    return [d for draws in draw(train, quota, seed=seed).values() for d in draws]
+
+
+def test_each_source_record_id_holds_the_copied_values():
+    train = reindexed(varied())
+    drawn = _sources_of(train)
+    copied = set(UCI_FRAME.columns) - {"sex", LABEL}
+    for found in drawn:
+        assert set(found.sources) == copied
+        for field, record_id in found.sources.items():
+            assert record_id in train.index
+            assert train.loc[record_id, field] == found.record[field]
+    assert [dict(d.record) for d in drawn] == [dict(d.record) for d in _sources_of(varied())]
+
+
+def test_fallback_sources_are_label_group_records():
+    train = reindexed(varied())
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    fell = [(d, field) for d in _sources_of(train) for field in d.fallback]
+    assert fell, "seed 0 on varied() falls back for cp and exang"
+    for found, field in fell:
+        source = found.sources[field]
+        assert train.loc[source, LABEL] == found.cell[2]
+        assert tuple(keys.loc[source]) != found.cell, f"{field} fell back inside its own cell"
+
+
+def _group(train: pd.DataFrame, label: int):
+    return observe_records(train.loc[train[LABEL].eq(label)], FIELD_MAPPINGS, name=f"{NAME}/g")
+
+
+def test_each_trace_share_equals_shares_at_that_cell():
+    train = reindexed(varied())
+    cells = record_cells(train, FIELD_MAPPINGS, name=NAME, edges=UCI_FRAME.edges)
+    for cell, records in cells.each.items():
+        group = _group(train, int(cell[2]))
+        parts = share_parts(records, group)
+        assert all(isinstance(part, SharePart) for part in parts.values())
+        assert {c: part.share for c, part in parts.items()} == shares(records, group)
+        assert {part.n_cell for part in parts.values()} == {records.observed.records}
+
+
+def test_share_parts_recompose_shares():
+    train = reindexed(varied())
+    cells = record_cells(train, FIELD_MAPPINGS, name=NAME, edges=UCI_FRAME.edges)
+    for cell, records in cells.each.items():
+        group = _group(train, int(cell[2]))
+        mine = {s.head[0]: s.prob for s in dataset_fragment(records.observed).snodes}
+        theirs = {s.head[0]: s.prob for s in dataset_fragment(group).snodes}
+        expected = shares(records, group)
+        for concept, part in share_parts(records, group).items():
+            assert part.p_cell == mine.get(concept, 0.0)
+            assert part.p_group == theirs.get(concept, 0.0)
+            n = part.n_cell
+            recomposed = (
+                part.p_group
+                if n == 0
+                else (n * part.p_cell + GROUP_WEIGHT * part.p_group) / (n + GROUP_WEIGHT)
+            )
+            assert recomposed == expected[concept]
