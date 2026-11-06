@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from types import MappingProxyType
 
 import pandas as pd
@@ -33,9 +34,10 @@ from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARMS, Experiment
+from bko.evaluate.experiment import DIRECT_ARMS, PRAM_ARM, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
+from bko.evaluate.perturb import THETA, Change, PramArm, delta_for, unmapped
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import logic_components, sample
@@ -98,6 +100,30 @@ class DirectArm:
             BaselineError: Plain, when a cell is left short or no training record matches a draw.
             EvaluationError: If the request is not by cell.
         """
+        return self.fill(train, request)
+
+    def fill(
+        self,
+        train: pd.DataFrame,
+        request: Request,
+        *,
+        change: Change | None = None,
+        params: Mapping[str, object] = MappingProxyType({}),
+    ) -> Baseline:
+        """Fill `request` as `__call__` does, each cell's drawn records first passed to `change`.
+
+        Args:
+            train: The holdout's training rows.
+            request: The request to fill.
+            change: Takes the training rows, the request and every cell's drawn records, in quota
+                order, and returns each cell's rows in the same order, each carrying the call that
+                changed it; None keeps the draw (`bko.evaluate.perturb`).
+            params: What the baseline's params add.
+
+        Raises:
+            BaselineError: Plain, when a cell is left short or no training record matches a draw.
+            EvaluationError: If the request is not by cell.
+        """
         if request.strata is not Strata.CELL:
             msg = f"{self.name} fills cells only, not {request.strata}"
             raise EvaluationError(msg)
@@ -107,7 +133,7 @@ class DirectArm:
         outcome = "failed"
         fell = 0
         try:
-            fell = self._draw(attempt, train, request, fill)
+            fell = self._draw(attempt, train, request, fill, change)
             outcome = "returned"
         except BaselineError:
             outcome = "refused"
@@ -129,10 +155,10 @@ class DirectArm:
                 attempt.line(),
                 "" if self._presence is Presence.SHARES else f" fallback_draws={fell}",
             )
-        params: dict[str, object] = {"generator": "direct", "seed": request.seed}
+        logged: dict[str, object] = {"generator": "direct", "seed": request.seed}
         if self._presence is not Presence.SHARES:
-            params["presence"] = str(self._presence)
-        baseline = Baseline(attempt.rows(), unit_weights(train), params)
+            logged["presence"] = str(self._presence)
+        baseline = Baseline(attempt.rows(), unit_weights(train), {**logged, **params})
         check(baseline, train, request)
         return baseline
 
@@ -140,7 +166,8 @@ class DirectArm:
         """The counts since the last drain, as candidate measures; then start again.
 
         The fill's records go to the candidates file as lines of `holdout` and the fill `source`
-        counts, each attempt numbered from 1 within the fill, each line's call null.
+        counts, each attempt numbered from 1 within the fill, each line's call null unless a call
+        changed its row.
         """
         if self._sink is not None:
             fill = FILLS[source]
@@ -159,11 +186,18 @@ class DirectArm:
         logger.info("validity arm=%s %s", self.name, self.totals.line())
 
     def _draw(
-        self, attempt: Attempt, train: pd.DataFrame, request: Request, fill: Fill | None
+        self,
+        attempt: Attempt,
+        train: pd.DataFrame,
+        request: Request,
+        fill: Fill | None,
+        change: Change | None,
     ) -> int:
         """Draw every requested row once; a draw copies training values, so none is dropped.
 
-        The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill.
+        The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill. With
+        `change`, each cell's rows are its changed rows, and each one a call changed carries that
+        call and its position there on its candidate line.
 
         Returns:
             How many draws read a field from the label group (`Draw.fallback`).
@@ -182,8 +216,20 @@ class DirectArm:
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc
-        for cell, draws in drawn.items():
-            attempt.add(None, cell, len(draws), [dict(draw.record) for draw in draws])
+        records = {cell: [dict(draw.record) for draw in draws] for cell, draws in drawn.items()}
+        changed = None if change is None else change(train, request, records)
+        for cell, rows in records.items():
+            if changed is None:
+                attempt.add(None, cell, len(rows), rows)
+                continue
+            first = len(attempt.seen)
+            attempt.add(None, cell, len(rows), [row.record for row in changed[cell]])
+            for offset, row in enumerate(changed[cell]):
+                if row.call is not None:
+                    at = first + offset
+                    attempt.seen[at] = replace(
+                        attempt.seen[at], call=row.call, position=row.position
+                    )
         if short := attempt.short():
             msg = f"{self.name} left {len(short)} cells short: {attempt.line()}"
             raise BaselineError(msg)
@@ -205,8 +251,9 @@ def run_direct(
 ) -> list[Score]:
     """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
 
-    Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence. Each arm logs its
-    run's validity sums on the way out, a stopped run included.
+    Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence; `PRAM_ARM` then
+    perturbs its draw (`bko.evaluate.perturb.PramArm`). Each arm logs its run's validity sums on
+    the way out, a stopped run included.
 
     Raises:
         EvaluationError: If a logic-only arm's components cannot be enumerated
@@ -220,18 +267,14 @@ def run_direct(
             except ValueError as exc:
                 msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
                 raise EvaluationError(msg) from exc
-    direct = {
-        name: DirectArm(
-            knowledge.field_rows,
-            knowledge.ontologies,
-            name=name,
-            budget=experiment.budget,
-            sink=sink,
-            dataset=knowledge.name,
-            presence=DIRECT_ARMS[name],
-        )
-        for name in names
-    }
+    fields = unmapped(knowledge.field_rows, frame=frame)
+    direct: dict[str, DirectArm | PramArm] = {}
+    for name in names:
+        arm = direct_arm(name, knowledge, experiment, sink)
+        if name == PRAM_ARM:
+            direct[name] = PramArm(arm, THETA, fields=fields, delta=delta_for(experiment))
+        else:
+            direct[name] = arm
     try:
         return run(
             records,
@@ -245,3 +288,21 @@ def run_direct(
     finally:
         for arm in direct.values():
             arm.summary()
+
+
+def direct_arm(
+    name: str, knowledge: Knowledge, experiment: Experiment, sink: CandidateFile | None
+) -> DirectArm:
+    """The `DirectArm` named `name` over `knowledge`, drawing presence as `DIRECT_ARMS` says.
+
+    Its draw is `DIRECT_ARM`'s whenever its presence is shares, whatever its name.
+    """
+    return DirectArm(
+        knowledge.field_rows,
+        knowledge.ontologies,
+        name=name,
+        budget=experiment.budget,
+        sink=sink,
+        dataset=knowledge.name,
+        presence=DIRECT_ARMS.get(name, Presence.SHARES),
+    )

@@ -281,10 +281,14 @@ LOGIC_ARM: Final = "bko-logic"
 """The free arm that draws as `DIRECT_ARM` does with each concept's presence from logic alone, no
 data prior (ADR `research/logic-only-ablation`)."""
 
+PRAM_ARM: Final = "bko-direct-pram"
+"""The free arm that perturbs `DIRECT_ARM`'s unmapped fields by invariant PRAM
+(`bko.evaluate.perturb`; ADR `research/identifier-perturbation`)."""
+
 DIRECT_ARMS: Final[Mapping[str, Presence]] = MappingProxyType(
-    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC}
+    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC, PRAM_ARM: Presence.SHARES}
 )
-"""Every direct arm, with how it draws each concept's presence."""
+"""Every direct arm, with how its draw decides each concept's presence."""
 
 SKELETON_ARM: Final = "bko-skeleton"
 """The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every

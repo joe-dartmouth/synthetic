@@ -11,7 +11,7 @@ import pytest
 
 import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, MESSAGES_ARMS
+from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, MESSAGES_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
@@ -35,7 +35,11 @@ BOTH = dataclasses.replace(
 
 
 def test_the_direct_arms_are_bko_direct_on_shares_and_bko_logic_on_logic():
-    assert dict(DIRECT_ARMS) == {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC}
+    assert dict(DIRECT_ARMS) == {
+        DIRECT_ARM: Presence.SHARES,
+        LOGIC_ARM: Presence.LOGIC,
+        PRAM_ARM: Presence.SHARES,
+    }
 
 
 def test_arms_lists_both_direct_arms():
