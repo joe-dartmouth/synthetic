@@ -186,16 +186,31 @@ links to where its blocker is tracked.
   `bko.evaluate.trace.trace` re-draws a logged attempt through `trace_direct` only when the fill's
   arm is `DIRECT_ARM`; a `bko-logic` fill falls through to `trace_baseline` and gets a
   baseline-style line with no sources, and `run_trace` loads no ontology for it (`trace.py`, the
-  `fill.name == DIRECT_ARM` branches of `trace` and `run_trace`). `bko-direct-pram`, a key of
-  `DIRECT_ARMS`, and `bko-direct-perturbed` fall through the same way, and a re-draw alone would
+  `fill.name == DIRECT_ARM` branches of `trace` and `run_trace`). `run_trace` refuses, exit 2,
+  a `bko-direct-pram` or `bko-direct-perturbed` fill, naming this key, since a re-draw alone would
   give their unperturbed rows, not the rows their `arm` lines hash. *Filed 2026-11-05 by the review
   of PR #84.*
   **Why deferred.** No `e9` or `e10` folder has been traced; extending `trace` is outside PR #84's
   boundary.
   **What discharges it:** `trace` and `run_trace` treat every arm of `DIRECT_ARMS`
   as a direct arm, re-drawing with that arm's `Presence`, with a test that traces a `bko-logic`
-  fill; a perturbation arm's trace reads its rows from its candidate lines over the re-draw.
+  fill; a perturbation arm's trace reads its rows from its candidate lines over the re-draw, and
+  its refusal goes.
   **Trigger:** the first trace of an `e9` or `e10` folder.
+- **`cleanup:evaluate/perturb-refusals-in-candidates`: a perturbation arm's candidate lines do not
+  say why a row kept its draw.** A `bko-direct-perturbed` line carries its rewrite call or `call:
+  null`, but not whether the row was rewritten, returned unchanged or refused, nor which refusal
+  (`perturb holdout=` and `perturb call=` in `scores.log` count them), and a `bko-direct-pram`
+  line does not say whether PRAM changed it. Evidence: `bko.evaluate.holdout_candidates.read`
+  refuses a line holding any key beyond `_LINE`, `score` and one of `candidate` or `undecoded`
+  (`set(line) - _LINE`), so a `perturb` field fails every reader of schema 3. *Filed 2026-11-06 by
+  the review of PR #85.*
+  **Why deferred.** An optional `perturb` key needs a schema 4 and a reader change in
+  `holdout_candidates` and every `StoredArm` rebuild, beyond PR #85's fixes.
+  **What discharges it:** a schema-4 line key `perturb` (`perturbed`, `unchanged`, or the refusal
+  as the `perturb holdout=` line names it) on perturbed-arm lines and a changed flag on PRAM lines,
+  read by `read` and ignored by the rebuild, with a test that a schema-3 file still reads.
+  **Trigger:** the first reading of a pilot that needs per-row refusals beside `scores.log`.
 
 ## generate
 

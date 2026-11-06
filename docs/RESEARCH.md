@@ -261,9 +261,10 @@ level), that reference group's record count and each mapped concept's share of i
 `profile` block, which `summary` includes), and ontology guidance to the Anthropic Messages API.
 Every run at `SETTINGS`' level, `summary`, sends them. A `bko-skeleton` call also sends each asked
 record's drawn concept names: ontology labels drawn at the fused BKB's aggregate shares, never a
-record's values. Of the BKO arms, only `bko-direct-perturbed` sends records, rows of open Diabetes 130 data (ADR
-[`research/identifier-perturbation`](adr/research/identifier-perturbation.md)); every other BKO call carries none, but every bound
-and percentile is a real training value: two per numeric field leave on each call, three more per
+record's values. Of the BKO arms, only `bko-direct-perturbed` sends record values, the 19
+unmapped fields of rows of open Diabetes 130 data with each count field's training range (ADR
+[`research/identifier-perturbation`](adr/research/identifier-perturbation.md)); every other BKO
+call carries none, but every bound and percentile is a real training value: two per numeric field leave on each call, three more per
 field at `summary`. Their exposure grows as the split or a reference group shrinks, since
 a group of one record sends that record's values and a split of identical records sends a whole
 record. The CLLM arms, a comparison baseline, send training records whole (ADR

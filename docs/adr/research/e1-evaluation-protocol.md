@@ -144,8 +144,9 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   spend is the call log's whole spend, a resumed log's replayed calls included. Every candidate an
   arm generates, refused attempts included, goes to the run's candidates file
   (`bko.evaluate.holdout_candidates`) with its holdout, fill, attempt, call (null for the direct
-  arm of ADR `research/bkb-direct-generation`, which makes none; a row `bko-direct-perturbed`
-  rewrote carries its rewrite call, and a row it kept as the original carries `call: null`, ADR
+  arm of ADR `research/bkb-direct-generation`, which makes none; a row a `bko-direct-perturbed`
+  rewrite call returned, changed or unchanged, carries that call, and only a row whose rewrite was
+  refused, or whose holdout the distribution check refused, carries `call: null`, ADR
   `research/identifier-perturbation`), cell and outcome when
   the harness drains the holdout's gap fills and then its replica fills, so a later reading of
   single candidates needs no new run; its header, schema 3, names the frame and the sha256 of the

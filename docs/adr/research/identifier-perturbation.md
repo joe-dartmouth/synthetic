@@ -30,11 +30,11 @@ mechanism, and an invariant matrix keeps the variable's distribution in expectat
 ([`gouweleeuw-1998`](../../literature.md#privacy)). Staab and colleagues report an LLM-based
 anonymizer for text ([`staab-2025`](../../literature.md#privacy)); the work is not fetched beyond
 its arXiv abstract, so each statement here about it is that work's report. `gouweleeuw-1998` is
-read: its invariance condition, that the transition matrix leave the variable's distribution
-unchanged, is the property the free arm below keeps for each field's label-group marginal.
+read: its invariance condition is that the transition matrix leave the variable's distribution
+unchanged. The free arm below redraws toward each field's label-group training marginal, which
+equals that condition only when the rows it perturbs already follow that marginal.
 
-Two arms rewrite the same rows. The distribution check, the pilot and its ceiling are fixed here
-before any run.
+Two arms rewrite the same rows. The distribution check, the pilot and its ceiling are fixed here.
 
 ## Decision Drivers
 
@@ -49,34 +49,50 @@ before any run.
 
 ## Decision
 
-- **Fields.** The 19 unmapped Diabetes fields above. No other field is rewritten.
+- **Fields.** The 19 unmapped Diabetes fields above, pinned as
+  `bko.evaluate.perturb.DIABETES_UNMAPPED`. Where either arm is built, the fields no field row
+  reads must equal that constant, or the run is refused; each arm refuses a field set holding
+  `age`, `sex`, the label or a mapped field, and a rewrite call refuses to send `age`, `sex` or the
+  label. No other field is rewritten.
 - **LLM arm `bko-direct-perturbed`.**
   - It takes `bko-direct`'s rows for a holdout and sends them to the Messages API at `SETTINGS`'
     model in chunks of `settings.per_call` rows, cut by `bko.generate.calls.chunks`. A rewrite call
     carries a `row` index on each row and asks for the 19 fields per `row`.
-  - The reply schema pins each coded field to its codebook and each count field to the range of
-    the holdout's training split.
+  - The reply schema pins each coded field to its codebook and each count field to an integer
+    `enum` over the range of the holdout's training split. A fractional field, which Diabetes
+    lacks, is a plain `number`, bounded by the prompt and by the merge's range check.
   - The harness merges the reply by `row`. Mapped fields, `age`, `sex` and the label are not in
     the schema, so no reply can change them.
-  - A call whose set of `row` values differs from the set asked keeps every original row
-    (`reason=rows`). A row that fails `bko.validate`, including a row with an extra key such as
-    `age` or a mapped field, keeps its original (`reason=invalid`). Each refusal is counted by
-    reason, and so is each row the reply returned unchanged.
-- **PRAM arm `bko-direct-pram`.** Invariant PRAM with theta = 0.5 on all 19 fields: each value is
-  kept with probability 0.5 and otherwise redrawn from the holdout's label-group training
-  marginal of that field. It is seeded by the request seed and makes no API call. It writes
-  candidates lines as `bko-direct` does, so `StoredArm` rebuilds it.
+  - A call's reply keeps every original row when it decodes to nothing (`empty`), to another
+    count of items than rows sent (`short`), to an item that is not an object with an integer
+    `row` (`undecodable`), or to `row` indices other than those asked, in order (`order`); a
+    permuted reply is refused. A row keeps its original when its item holds another key than
+    `row` and the 19 fields, such as `age` or a mapped field (`keys`, the harness's key-set check),
+    when the merged row fails `bko.validate` (`validate`, with the checks it failed), or when a
+    count field leaves the training range (`bounds`). Each refusal is counted by reason, and so
+    is each row the reply returned unchanged.
+- **PRAM arm `bko-direct-pram`.** PRAM with theta = 0.5 on all 19 fields: each value is kept
+  with probability 0.5 and otherwise redrawn from the holdout's label-group training marginal of
+  that field, so each field redraws toward that marginal. Each field is redrawn on its own, so a
+  redrawn row need not keep a coherent combination of its fields. It draws from
+  `numpy.random.default_rng([seed, 1])` at the request seed, a stream apart from `bko-direct`'s
+  draw at that seed, and makes no API call. It writes candidates lines as `bko-direct` does, so
+  `StoredArm` rebuilds it.
 - **Distribution check, per holdout and per arm.** Let U be the unperturbed rows, P the arm's
   perturbed rows and R the label-1 training rows of the holdout. The check refuses the arm's
   rewrite for the holdout, and every original row is kept, when `shapes(P, R) <
   shapes(U, R) - delta`, `shapes` being SDMetrics' column-shapes score over the 19 columns.
   - `delta` is the 95th percentile, per removal fraction, of `|shapes(U_h, R_h) - shapes(U_{h+1},
     R_{h+1})|` over consecutive holdouts h and h+1 of E6's stored `bko-direct` rows.
-  - `delta` is not yet fixed. The `perturb-threshold` command of `python -m bko.evaluate`
-    computes it from the stage-1 rows stores and writes `threshold.csv` and `threshold.log`
-    (`docs/DEVELOPMENT.md`, Evaluation); no run has applied a value.
+  - The `perturb-threshold` command of `python -m bko.evaluate` computes `delta` from E6's rows
+    stores, and its value is recorded per removal fraction in `bko.evaluate.perturb.DELTAS`,
+    None until then. A run with no removal, or a fraction `DELTAS` does not list, gates at 0, the
+    strictest. `score` and `launch` refuse a run holding either perturbation arm while its
+    fraction's `delta` is None; only a rehearsal, which spends nothing, runs there, checking at 0
+    (`docs/DEVELOPMENT.md`, Evaluation, holds the commands).
   - Column pair trends are reported beside the check and gate nothing.
-- **Pilot.** Two named runs, `e10-pilot-thin` and `e10-pilot-empty`, each `E6_THIN` or `E6_EMPTY`
+- **Pilot.** Two named runs, `e10-pilot-thin` and `e10-pilot-empty` (`E10_PILOT_THIN` and
+  `E10_PILOT_EMPTY`, built from `E9_THIN` and `E9_EMPTY`), each `E6_THIN` or `E6_EMPTY`
   with `arms=("none", REAL_ARM, DIRECT_ARM, "bko-direct-perturbed", "bko-direct-pram")`,
   `replica_arms=()`, `replica_rows=None`, `holdout_seeds=(0, 1)`,
   `candidate="bko-direct-perturbed"`, `comparators=(DIRECT_ARM, "bko-direct-pram", "none")` and
@@ -84,8 +100,11 @@ before any run.
   E6's holdouts are not part of this decision.
 - **Egress.** The arm runs inside `guided_arms` over the shared `Flight` and `CallLog`, under the
   spend ceiling and the agreement refusal every Messages arm meets (ADR `research/cllm-arm-design`,
-  Egress). A rewrite call sends rows of the holdout's `bko-direct` fill, which are mosaics of
-  rows of open Diabetes 130 data; no other BKO arm sends a record.
+  Egress). A rewrite call sends its system prompt, each of the 19 fields' meaning with its codes
+  or unit, each count field's training-split minimum and maximum, an accepted aggregate
+  disclosure, and each row's values of the 19 fields with its `row` index. The rows are the
+  holdout's `bko-direct` fill, mosaics of rows of open Diabetes 130 data; no other BKO arm sends
+  a record.
 - **Privacy.** The `privacy` command reads `bko-direct-perturbed` and `bko-direct-pram` against
   `bko-direct` from their rows stores (ADR `research/membership-inference-reading`).
 
@@ -93,8 +112,9 @@ before any run.
 
 **Rewriting only unmapped fields leaves the concepts alone by construction.** A reply that cannot
 name a mapped field, `age`, `sex` or the label cannot change one. The harness then has no
-refusal list to maintain for them, and the one a row can still trip is `bko.validate`, which
-already reads range and state.
+refusal list to maintain for them; a row can still trip the harness's key-set check, which
+refuses any key beyond `row` and the 19 fields, `bko.validate`, which already reads range and
+state, and the training-range check.
 
 **The merge is by `row`, and a wrong row set voids the call.** A reply that skips, repeats or
 invents a row index cannot be aligned to its input. Keeping all of that call's originals avoids
@@ -106,22 +126,22 @@ rows, which the rewrite is meant to move away from. `shapes(U, R)` is what the u
 already score, and the rewrite is refused only when it scores lower by more than the change
 between neighbouring holdouts' unperturbed scores, the noise a holdout's draw already carries.
 
-**Pair trends are reported, not gated.** A planning measurement of 2026-11-05, which the pilot
-supersedes, found that an ideal redraw of the 19 fields lowers SDMetrics' column pair trends
-(0.9376 to 0.9450 against the unperturbed rows) further than it lowers column shapes (0.9869 to
-0.9881), and that shuffling the 19 columns on their own scored 1.0000 on shapes and 0.9898 on
+**Pair trends are reported, not gated.** A planning measurement, not a recorded run, found that
+an ideal redraw of the 19 fields lowers SDMetrics' column pair trends further than it lowers
+column shapes, and that shuffling the 19 columns on their own keeps shapes exact while lowering
 pair trends. Any rewrite that breaks a source record's field combination lowers pair trends, so
-pair trends cannot tell a useful rewrite from a damaging one; shapes can. The same measurements
-found `bko-direct`'s 19-field combination equal to some training record's for 0.39% of rows at
-f = 1.0 and 0.56% at f = 0.985, against 1.10% for `real`. These are planning figures, not a
-recorded run.
+pair trends cannot tell a useful rewrite from a damaging one; shapes can. The same measurement
+found `bko-direct`'s 19-field combination equal to some training record's for fewer rows than
+`real`'s.
 
-**PRAM is the free comparator.** A keep-or-redraw matrix whose redraw follows the marginal leaves that
-marginal unchanged in expectation, the invariance condition of
-[`gouweleeuw-1998`](../../literature.md#privacy), and needs no model. A language
-model's rewrite earns its cost only where it beats the redraw on distance or utility at the same
-shape. theta = 0.5 changes about half the values of each row, so a row's 19-field combination
-rarely survives.
+**PRAM is the free comparator.** A keep-or-redraw step whose redraw follows the label-group
+training marginal moves each field's marginal toward that one, and leaves it unchanged in
+expectation when the rows already follow it, the invariance condition of
+[`gouweleeuw-1998`](../../literature.md#privacy); it needs no model. A language model's rewrite
+earns its cost only where it beats the redraw on distance or utility at the same shape. theta =
+0.5 redraws about half the values of each row, and a redraw can equal the value it replaces, so
+fewer than half change; with 19 fields a row's combination still rarely survives. Its own seed
+stream keeps its keep and pick draws from replaying `bko-direct`'s draw at the same seed.
 
 **The pilot is two holdouts per fraction.** It exists to read the arms' counts, refusals and
 spend before a full run is planned. Two holdouts cannot carry an interval, so the pilot reports
@@ -132,9 +152,10 @@ and judges nothing.
 **Gained**: a free comparator beside the language model's rewrite; a refusal that keeps every
 original row, so a distorting rewrite never enters a training set; counts of refused and unchanged
 rows.
-**Accepted**: a rewrite call sends rows that are mosaics of real encounters; the check refuses a
-whole holdout, not a row; `delta` is estimated from E6's `bko-direct` rows and holds for the
-unperturbed arm's noise, not for a perturbed arm's; the 19 fields are the unmapped ones, so a
+**Accepted**: a rewrite call sends rows that are mosaics of real encounters, and each count
+field's training range; PRAM's redrawn rows need not keep a coherent combination of their 19
+fields; the check refuses a whole holdout, not a row; `delta` is estimated from E6's
+`bko-direct` rows and holds for the unperturbed arm's noise, not for a perturbed arm's; the 19 fields are the unmapped ones, so a
 mapped field is never perturbed and a patient found by a mapped combination is not protected.
 
 ## Ruled Out
@@ -148,12 +169,16 @@ mapped field is never perturbed and a patient found by a mapped combination is n
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/` and `src/bko/generate/`. The modules `bko.evaluate.perturb` (the
-  arms' runner and the distribution check) and `bko.generate.rewrite` (the rewrite call and its
-  reply schema) are named here before they exist, and the `perturb-threshold` command and the
-  pilot runs join `python -m bko.evaluate` and its named runs.
-- Pinned by: nothing -- convention only. The tests for the arms, the check and the pilot runs
-  land with those modules.
+- Owner: `src/bko/evaluate/` and `src/bko/generate/`: `src/bko/evaluate/perturb.py` (the fields,
+  `delta`, the check and the refusal of an unfixed `delta`), `src/bko/evaluate/pram.py` (the PRAM
+  arm), `src/bko/evaluate/perturbed.py` (the rewrite arm and its merge),
+  `src/bko/evaluate/perturb_threshold.py` (the command) and `src/bko/generate/rewrite.py` (the
+  rewrite call and its reply schema).
+- Pinned by: `tests/test_evaluate_perturb.py` (the merge's refusals, the arm's calls, egress and
+  the check's refusal), `tests/test_evaluate_pram.py` (the pinned fields, PRAM's stream, keep rate
+  and marginals, the check), `tests/test_evaluate_perturb_runs.py` (the pilots, their ceilings,
+  `delta` and its refusal, the threshold) and `tests/test_generate_rewrite.py` (the call, its
+  schema and its refusals).
 
 ## Reversal Conditions
 
