@@ -121,6 +121,13 @@ def field_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[Fie
     return tuple(sorted(groups, key=lambda group: order[group.fields[0]]))
 
 
+def free_fields(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[str, ...]:
+    """`frame`'s columns no field group reads, but `age`, `sex` and the label, in column order."""
+    grouped = {name for group in field_groups(rows, frame=frame) for name in group.fields}
+    cell = {"age", "sex", frame.label}
+    return tuple(name for name in frame.columns if name not in grouped and name not in cell)
+
+
 def sample(
     train: pd.DataFrame,
     quota: Mapping[Cell, int],
@@ -287,9 +294,8 @@ class _Plan:
             key=lambda concept: (concept in self._inner_of, concept),
         )
         groups = field_groups(rows, frame=frame)
-        grouped = {field for group in groups for field in group.fields}
         self._first = {group.fields[0]: group for group in groups}
-        self._free = frozenset(frame.columns) - grouped - {"age", "sex", frame.label}
+        self._free = frozenset(free_fields(rows, frame=frame))
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None

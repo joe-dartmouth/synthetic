@@ -3,8 +3,8 @@
 `local_send` posts each `Call` to `llama-server`'s OpenAI-compatible `/v1/chat/completions` on
 `127.0.0.1`, over `http.client` (no proxy, no redirect), with the call's system and user turns, its
 `max_tokens`, sampling fixed at temperature 1.0 and top-p 1.0 (the Messages API's default
-temperature), the call's `record_schema` as a `json_schema` response format, and thinking off
-unless the model's id is a `-thinking` variant.
+temperature), the call's reply schema (`Call.reply_schema`, a rewrite call's included) as a
+`json_schema` response format, and thinking off unless the model's id is a `-thinking` variant.
 Nothing leaves the machine. Its first call reads the server's `/props` and refuses a server whose
 alias or weights file is not the model's, logging the server's build and file. A cancelled call,
 by the idle rule or an interrupt, shuts its socket so the worker thread and the server's slot are
@@ -46,7 +46,7 @@ from bko.datasets.uci import UCI_FRAME
 from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
-from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, record_schema, text_of
+from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, text_of
 from bko.generate.prompt import render
 from bko.generate.weights import LOCAL_MODELS, fetch, model_path
 
@@ -106,7 +106,7 @@ def payload(call: Call) -> dict[str, object]:
             "json_schema": {
                 "name": "records",
                 "strict": True,
-                "schema": record_schema(call.sex, call.label, frame=call.frame),
+                "schema": call.reply_schema(),
             },
         },
         "chat_template_kwargs": {"enable_thinking": pin.thinking},

@@ -105,12 +105,14 @@ class Pending:
         cell: The cell it asks for.
         asked: The records it asks for.
         call: The request to send.
+        rewrite: Whether it is a rewrite call, which reads no guidance level.
     """
 
     index: int
     cell: Cell
     asked: int
     call: Call
+    rewrite: bool = False
 
 
 def request(
@@ -175,7 +177,7 @@ def request(
     shows = "" if shown is None else f" shown={len(shown)}"
     shows += "" if rewrite is None else " rewrite=true"
     logger.info("send call=%d cell=%s asked=%d%s", index, cell_key(guidance.cell), rows, shows)
-    return Pending(index, guidance.cell, rows, call)
+    return Pending(index, guidance.cell, rows, call, rewrite=rewrite is not None)
 
 
 def answer(
@@ -202,11 +204,11 @@ def answer(
     if reply.model != settings.model:
         logger.warning("served call=%d model=%s settings=%s", index, reply.model, settings.model)
     logger.info(
-        "generate call=%d cell=%s level=%s asked=%d decoded=%d undecoded=%d stop_reason=%s "
+        "generate call=%d cell=%s %s asked=%d decoded=%d undecoded=%d stop_reason=%s "
         "input_tokens=%d output_tokens=%d usd=%.6f request_id=%s elapsed_s=%.3f in_flight=%d",
         index,
         key,
-        settings.guidance,
+        "rewrite=true" if pending.rewrite else f"level={settings.guidance}",
         rows,
         len(candidates) - batch.undecoded,
         batch.undecoded,
@@ -221,12 +223,13 @@ def answer(
     if batch.undecoded:
         reason = next(c.reason for c in candidates if isinstance(c, Undecoded))
         logger.warning(
-            "short call=%d cell=%s asked=%d undecoded=%d reason=%s",
+            "short call=%d cell=%s asked=%d undecoded=%d reason=%s%s",
             index,
             key,
             rows,
             batch.undecoded,
             reason,
+            " rewrite=true" if pending.rewrite else "",
         )
     return batch
 

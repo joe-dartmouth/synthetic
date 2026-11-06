@@ -1,14 +1,15 @@
 """The rewrite call: rows sent with a `row` index each, and their fields asked back changed.
 
-A `Rewrite` holds one call's rows, each only the fields to rewrite, and each measured field's
-range in the holdout's training split. `render_rewrite` writes its prompt: `REWRITE`'s first
-sentence, each field's meaning, the ranges, then each row as a JSON object on its own line, its
-`row` index first. `rewrite_schema` fixes the reply: a `records` array whose every object holds a
-`row` from the indices asked and each field rewritten, and no other key, each coded field an
-`enum` over its codebook and each whole-number field an `enum` over its range, since structured
-outputs cannot bound a number. A fractional field is a plain `number`, bounded in the prompt
-alone. `bko.generate.calls.request` sends it; `bko.evaluate.perturb` merges the reply by `row`.
-ADR `research/identifier-perturbation` records the call.
+A `Rewrite` holds one call's rows, each only the fields to rewrite, never `age`, `sex` or the
+label, and each measured field's range in the holdout's training split. `render_rewrite` writes
+its prompt: `REWRITE`'s first sentence, each field's meaning, the ranges, then each row as a JSON
+object on its own line, its `row` index first. `rewrite_schema` fixes the reply: a `records`
+array whose every object holds a `row` from the indices asked and each field rewritten, and no
+other key, each coded field an `enum` over its codebook and each whole-number field an `enum` over
+its range, since structured outputs cannot bound a number. A fractional field is a plain
+`number`, bounded in the prompt alone. `bko.generate.calls.request` sends it;
+`bko.evaluate.perturbed` merges the reply by `row`. ADR `research/identifier-perturbation` records
+the call.
 """
 
 from __future__ import annotations
@@ -56,11 +57,15 @@ class Rewrite:
     bounds: Mapping[str, tuple[float, float]]
 
     def __post_init__(self) -> None:
-        """Refuse a row that lacks or adds a field.
+        """Refuse `age` or `sex` among the fields, and a row that lacks or adds a field.
 
         Raises:
-            ValueError: If a row's keys are not `fields`.
+            ValueError: If `fields` holds `age` or `sex`, or a row's keys are not `fields`.
         """
+        cell = sorted({"age", "sex"} & set(self.fields))
+        if cell:
+            msg = f"a rewrite may not send the cell's fields {cell}"
+            raise ValueError(msg)
         for index, row in enumerate(self.rows):
             if set(row) != set(self.fields):
                 msg = f"row {index} holds {sorted(row)}, not the fields {list(self.fields)}"
@@ -71,8 +76,11 @@ def render_rewrite(rewrite: Rewrite, *, frame: FrameSpec) -> tuple[str, str]:
     """The system prompt and user turn of `rewrite`'s call.
 
     Raises:
-        ValueError: If a measured field of `rewrite` has no bounds.
+        ValueError: If `rewrite` sends `frame`'s label, or a measured field of it has no bounds.
     """
+    if frame.label in rewrite.fields:
+        msg = f"a rewrite may not send the label {frame.label}"
+        raise ValueError(msg)
     units = field_units(frame)
     measured = [name for name in rewrite.fields if name not in frame.categorical]
     missing = [name for name in measured if name not in rewrite.bounds]
