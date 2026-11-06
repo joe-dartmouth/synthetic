@@ -2,8 +2,9 @@
 
 A record's explanation is the stored or re-derivable facts that determine it (ADR
 `research/record-explainability`). `trace` reads one holdout's fill of one arm from a run folder
-and writes one `Trace` per record as a sorted-key JSON line, in the order `bko.evaluate.shared.
-rebuilt` places the fill's rows, so record i is row i of the fill. It makes no API call.
+and writes one `Trace` per record as a sorted-key JSON line, in the order
+`bko.evaluate.shared.rebuilt` places the fill's rows, so record i is row i of the fill. It makes
+no API call.
 
 - `bko-direct` (`trace_direct`): the fill is re-drawn at its `arm` line's seed through
   `bko.generate.direct.sample`, which draws nothing more to name its sources, and refused
@@ -12,9 +13,9 @@ rebuilt` places the fill's rows, so record i is row i of the fill. It makes no A
   each field was read from, its fallback fields and its closure; labels come from the pinned
   releases.
 - A Messages arm (`trace_messages`): each record names its call and the sections of that call's
-  prompt in the folder's `calls.jsonl` (`bko.generate.prompt.sections`), under the log's guidance
-  level. A folder without the log, or a call it lacks, leaves the record `untraced` and logs the
-  `trace partial` WARNING.
+  prompt in the folder's `calls.jsonl` (`bko.evaluate.call_prompts`), under the log's guidance
+  level. A record the log cannot trace is `untraced`, with the reason, and the `trace partial`
+  WARNING counts them.
 - A baseline (`trace_baseline`): one line naming its method and its seed.
 
 The source record ids name training records, so the output stays in its run folder.
@@ -28,7 +29,7 @@ import hashlib
 import json
 import logging
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -38,6 +39,7 @@ import pandas as pd
 
 from bko.baselines.request import Request, Strata, stratum_keys
 from bko.datasets.split import split
+from bko.evaluate.call_prompts import CALLS, Prompts, asked, read_prompts
 from bko.evaluate.data import Data, Dataset, digest, load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
@@ -57,7 +59,6 @@ from bko.evaluate.scoring import data_dir
 from bko.evaluate.shared import returned_attempt
 from bko.gaps.observe import cell_key
 from bko.gaps.scope import load_scope
-from bko.generate.prompt import sections
 from bko.ontology.terms import Ontology
 from bko.validate.checks import validate
 
@@ -67,12 +68,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("bko.evaluate")
-
-CALLS: Final = "calls.jsonl"
-"""The run folder's call log, which a Messages arm's prompts are read from."""
-
-UNTRACED: Final = f"no {CALLS}"
-"""A Messages record's `untraced` reason in a folder without a call log."""
 
 _SEED: Final = re.compile(r" seed=(?P<seed>\d+) ")
 
@@ -230,20 +225,24 @@ def trace_direct(
     tag = (fill.holdout, fill.kind)
     redrawn = redraw(train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag)
     logged, rebuilt = fields(fill.line)["sha256"], digest(redrawn.rows)
-    if rebuilt != logged:
-        msg = f"holdout {fill.holdout}'s {fill.arm} fill re-drawn at seed {fill.seed} hashes to"
-        msg += f" {rebuilt}, not its arm line's {logged}"
-        raise IdentityError(msg)
-    logger.info(
-        "trace arm holdout=%d arm=%s arm_sha256=%s rebuilt_sha256=%s matches=true",
+    kept = redrawn.kept
+    attempt, stored = _kept(lines)
+    same = [dict(draw.record) for draw in kept] == [line.candidate for line in stored]
+    logger.log(
+        logging.INFO if same and rebuilt == logged else logging.WARNING,
+        "trace arm holdout=%d arm=%s arm_sha256=%s rebuilt_sha256=%s kept_lines=%s matches=%s",
         fill.holdout,
         fill.arm,
         logged,
         rebuilt,
+        str(same).lower(),
+        str(same and rebuilt == logged).lower(),
     )
-    kept = redrawn.kept
-    attempt, stored = _kept(lines)
-    if [dict(draw.record) for draw in kept] != [line.candidate for line in stored]:
+    if rebuilt != logged:
+        msg = f"holdout {fill.holdout}'s {fill.arm} fill re-drawn at seed {fill.seed} hashes to"
+        msg += f" {rebuilt}, not its arm line's {logged}"
+        raise IdentityError(msg)
+    if not same:
         msg = f"holdout {fill.holdout}'s {fill.arm} re-drawn records are not its kept lines"
         raise IdentityError(msg)
     facts = Shares(train, seeded.quota, data=data, ontologies=ontologies)
@@ -280,28 +279,24 @@ def trace_messages(
 ) -> list[Trace]:
     """Explain each kept record of a Messages arm's fill by its call and its prompt's sections.
 
-    A record whose call the log at `calls` lacks, or every record when there is no log, is
-    `untraced`; the `trace partial` WARNING names what is missing.
+    A record the log at `calls` cannot trace, every record when there is no log, is `untraced`
+    with its reason (`bko.evaluate.call_prompts.asked`); the `trace partial` WARNING counts them.
 
     Raises:
         IdentityError: As `ordered`.
+        EvaluationError: As `bko.evaluate.call_prompts.read_prompts`.
     """
     attempt, kept = _kept(lines)
     candidates = [line.candidate for line in kept]
     order = ordered(candidates, request, where=f"holdout {fill.holdout}'s {fill.arm} fill")
     wanted = {line.call for line in kept if line.call is not None}
-    prompts, level = _prompts(calls, wanted) if calls.is_file() else (None, None)
-    missing = CALLS if prompts is None else ",".join(map(str, sorted(wanted - set(prompts))))
-    if missing:
-        logger.warning(
-            "trace partial holdout=%d arm=%s missing=%s", fill.holdout, fill.arm, missing
-        )
+    prompts = read_prompts(calls, wanted) if calls.is_file() else None
     rows = validate(candidates, frame=request.frame).accepted
     values = {int(at): row for at, row in zip(rows.index, rows.to_dict("records"), strict=True)}
     traces = []
     for record_id, k in enumerate(order):
         line = kept[k]
-        asked, untraced = _asked(line, prompts, {"attempt": attempt, "guidance": level})
+        request_of, untraced = asked(line, prompts, {"attempt": attempt})
         record = {str(name): _number(value) for name, value in values[k].items()}
         traces.append(
             Trace(
@@ -313,56 +308,38 @@ def trace_messages(
                 record,
                 line.outcome,
                 line.failed,
-                asked,
+                request_of,
                 call=line.call,
                 untraced=untraced,
             )
         )
+    _partial(fill, traces, prompts, wanted)
     return traces
 
 
-def _asked(
-    line: Candidate, prompts: Mapping[int, str] | None, known: Json
-) -> tuple[Json | None, str | None]:
-    """A Messages record's request, `known` beside its cell and prompt sections, or why not."""
-    if prompts is None:
-        return None, UNTRACED
-    user = prompts.get(line.call or 0)
-    if user is None:
-        return None, f"call {line.call} is not in {CALLS}"
-    try:
-        read = sections(user)
-    except ValueError as exc:
-        return None, f"call {line.call}'s prompt: {exc}"
-    shown = {part.name: getattr(read, part.name) for part in dataclasses.fields(read)}
-    return {**known, "cell": line.cell, "sections": shown}, None
+def _partial(
+    fill: Fill, traces: Sequence[Trace], prompts: Prompts | None, wanted: set[int]
+) -> None:
+    """Log the `trace partial` WARNING when a record is `untraced`: how many, and why."""
+    reasons = [each.untraced for each in traces if each.untraced is not None]
+    if not reasons:
+        return
+    absent = CALLS if prompts is None else ",".join(map(str, sorted(wanted - set(prompts.users))))
+    logger.warning(
+        "trace partial holdout=%d arm=%s untraced=%d of %d missing=%s reasons=%s",
+        fill.holdout,
+        fill.arm,
+        len(reasons),
+        len(traces),
+        absent or "none",
+        " | ".join(sorted(set(reasons))),
+    )
 
 
 def _number(value: object) -> object:
     """A frame's value as JSON writes it: numpy's ints and floats as Python's."""
     item = getattr(value, "item", None)
     return item() if callable(item) else value
-
-
-def _prompts(path: Path, wanted: Collection[int]) -> tuple[dict[int, str], str | None]:
-    """The user turn of each call in `wanted` that the call log at `path` asks, and its level."""
-    prompts: dict[int, str] = {}
-    level = None
-    with path.open(encoding="utf-8") as log:
-        for text in log:
-            line = json.loads(text)
-            if line.get("kind") == "run":
-                level = line.get("settings", {}).get("guidance")
-            elif line.get("kind") == "request" and line.get("call") in wanted:
-                prompts[int(line["call"])] = _user(line["params"]["messages"][0]["content"])
-    return prompts, level
-
-
-def _user(content: str | Sequence[Json]) -> str:
-    """A message's text: the string itself, or its text blocks joined."""
-    if isinstance(content, str):
-        return content
-    return "".join(str(block.get("text", "")) for block in content)
 
 
 def trace_baseline(fill: Fill) -> list[Trace]:
@@ -386,11 +363,22 @@ def trace(
 ) -> str:
     """Every record of `fill`, or record `record` alone, as `Trace` lines.
 
+    `record` is checked against the fill's kept lines before any re-draw.
+
     Raises:
         IdentityError: As `check_folders`, if the holdout's split is not the folder's, or as
             `trace_direct` and `trace_messages`.
-        EvaluationError: If `record` is not a record of the fill.
+        EvaluationError: If `record` is not a record of the fill, or as `trace_messages`.
     """
+    logger.info(
+        "trace start folder=%s run=%s holdout=%d arm=%s fill=%s seed=%d",
+        folder.path,
+        run,
+        fill.holdout,
+        fill.arm,
+        fill.kind,
+        fill.seed,
+    )
     frame = data.frame
     current = experiment_line(run, experiment, models, frame=frame.name)
     check_folders(folder, [], run=run, current=current, data=data, uci=uci)
@@ -405,6 +393,10 @@ def trace(
     asked = gap_request if fill.kind == "gap" else replica_request
     request = asked(train, experiment, seed=fill.holdout, frame=frame)
     lines = folder.lines.get((fill.holdout, fill.name, fill.kind), ())
+    count = len(_kept(lines)[1]) if fill.name == DIRECT_ARM or fill.name in MESSAGES_ARMS else 1
+    if record is not None and not 0 <= record < count:
+        msg = f"record {record} is not one of the fill's {count} records"
+        raise EvaluationError(msg)
     if fill.name == DIRECT_ARM:
         traces = trace_direct(
             fill,
@@ -420,21 +412,18 @@ def trace(
     else:
         traces = trace_baseline(fill)
     if record is not None:
-        if not 0 <= record < len(traces):
-            msg = f"record {record} is not one of the fill's {len(traces)} records"
-            raise EvaluationError(msg)
         traces = [traces[record]]
     text = "".join(each.line() for each in traces)
     logger.info(
-        "trace folder=%s run=%s holdout=%d arm=%s fill=%s records=%d",
+        "trace rows=%d sha256=%s folder=%s holdout=%d arm=%s record=%s untraced=%d",
+        len(traces),
+        hashlib.sha256(text.encode()).hexdigest(),
         folder.path,
-        run,
         fill.holdout,
         fill.arm,
-        fill.kind,
-        len(traces),
+        "all" if record is None else record,
+        sum(each.untraced is not None for each in traces),
     )
-    logger.info("trace rows=%d sha256=%s", len(traces), hashlib.sha256(text.encode()).hexdigest())
     return text
 
 

@@ -65,7 +65,8 @@ Messages or direct arm, one path for both files, more than one of `--replay`, `-
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a run,
 a `privacy` run with no reference arm or removed cell, a `trace` of a holdout, arm or record the
-folder does not hold, and scores whose validity cannot be read;
+folder does not hold or over a call log line it cannot read, and scores whose validity cannot be
+read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
 contradicts its contract, or a `shared`, `rows`, `panel`, `privacy` or `trace` run folder or store
 fails an identity check, a `trace` re-draw included.
