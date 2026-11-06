@@ -10,8 +10,10 @@ anyway, or whose draw no training record matches, refuses with a plain `Baseline
 harness retries with a derived seed.
 The arm keeps its validity counts itself and writes every record it drew, with its outcome and a
 null call, to the run's candidates file when the harness drains it
-(`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with the direct arm among
-them. ADR `research/bkb-direct-generation` records the sampler.
+(`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with its direct arms among
+them, one per name of `DIRECT_ARMS`, each drawing presence its own way. ADR
+`research/bkb-direct-generation` records the sampler, and ADR `research/logic-only-ablation` the
+logic-only draw of `bko-logic`.
 """
 
 from __future__ import annotations
@@ -31,13 +33,14 @@ from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, Experiment
+from bko.evaluate.experiment import DIRECT_ARMS, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import sample
 from bko.generate.errors import SamplingError
+from bko.generate.logic import Presence
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -62,6 +65,7 @@ class DirectArm:
         budget: int,
         sink: CandidateFile | None,
         dataset: str,
+        presence: Presence = Presence.SHARES,
     ) -> None:
         """Hold what each attempt needs; nothing is drawn until the arm runs.
 
@@ -73,6 +77,7 @@ class DirectArm:
                 of the request's rows always fits it.
             sink: The run's candidates file; None keeps no lines.
             dataset: The dataset's source name; each cell's fragment takes it.
+            presence: How each draw decides a concept's presence (`bko.generate.direct.sample`).
         """
         self.name = name
         self.totals = Tally()
@@ -81,6 +86,7 @@ class DirectArm:
         self._budget = budget
         self._sink = sink
         self._dataset = dataset
+        self._presence = presence
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -119,7 +125,9 @@ class DirectArm:
                 outcome,
                 attempt.line(),
             )
-        params = {"generator": "direct", "seed": request.seed}
+        params: dict[str, object] = {"generator": "direct", "seed": request.seed}
+        if self._presence is not Presence.SHARES:
+            params["presence"] = str(self._presence)
         baseline = Baseline(attempt.rows(), unit_weights(train), params)
         check(baseline, train, request)
         return baseline
@@ -163,6 +171,7 @@ class DirectArm:
                 seed=request.seed,
                 frame=request.frame,
                 tag=None if fill is None else (fill.holdout, fill.kind),
+                presence=self._presence,
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc
@@ -179,36 +188,43 @@ def run_direct(
     arms: Mapping[str, Runner],
     knowledge: Knowledge,
     *,
+    names: Sequence[str],
     sink: CandidateFile,
     models: Mapping[Model, Factory],
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
 ) -> list[Score]:
-    """Score every arm of `experiment` with a `DirectArm` named `DIRECT_ARM` writing `sink`.
+    """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
 
-    The arm logs its run's validity sums on the way out, a stopped run included.
+    Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence. Each arm logs its
+    run's validity sums on the way out, a stopped run included.
 
     Raises:
         As `bko.evaluate.run.run`.
     """
-    arm = DirectArm(
-        knowledge.field_rows,
-        knowledge.ontologies,
-        name=DIRECT_ARM,
-        budget=experiment.budget,
-        sink=sink,
-        dataset=knowledge.name,
-    )
+    direct = {
+        name: DirectArm(
+            knowledge.field_rows,
+            knowledge.ontologies,
+            name=name,
+            budget=experiment.budget,
+            sink=sink,
+            dataset=knowledge.name,
+            presence=DIRECT_ARMS[name],
+        )
+        for name in names
+    }
     try:
         return run(
             records,
             experiment,
-            {**arms, DIRECT_ARM: arm},
+            {**arms, **direct},
             models=models,
-            drains={**drains, DIRECT_ARM: arm.drain},
+            drains={**drains, **{name: arm.drain for name, arm in direct.items()}},
             on_holdout=on_holdout,
             frame=frame,
         )
     finally:
-        arm.summary()
+        for arm in direct.values():
+            arm.summary()

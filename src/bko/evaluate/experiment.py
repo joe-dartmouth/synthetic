@@ -23,6 +23,7 @@ from bko.datasets.split import kept_count
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
+from bko.generate.logic import Presence
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -275,6 +276,15 @@ BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
 
 DIRECT_ARM: Final = "bko-direct"
 """The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
+
+LOGIC_ARM: Final = "bko-logic"
+"""The free arm that draws as `DIRECT_ARM` does with each concept's presence from logic alone, no
+data prior (ADR `research/logic-only-ablation`)."""
+
+DIRECT_ARMS: Final[Mapping[str, Presence]] = MappingProxyType(
+    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC}
+)
+"""Every direct arm, with how it draws each concept's presence."""
 
 SKELETON_ARM: Final = "bko-skeleton"
 """The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every
