@@ -19,6 +19,7 @@ from typing import Any, Final
 import pytest
 
 from bko.app.runs import ROLES
+from bko.datasets.run_folders import RUN_ID
 from bko.evaluate import launch as launching
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.errors import EvaluationError
@@ -711,8 +712,9 @@ def test_each_e6_slice_launches_from_an_e6_run_id(tmp_path, name):
     assert f"run={name} " in (tmp_path / "e6-1" / "launch.log").read_text(encoding="utf-8")
 
 
-def test_every_named_run_is_an_entry_or_a_word_after_it():
-    assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)?", name) for name in RUNS)
+def test_every_named_run_is_an_entry_or_words_after_it():
+    assert all(re.fullmatch(r"[a-z]\d+(?:-[a-z]+)*", name) for name in RUNS)
+    assert not any(RUN_ID.fullmatch(name) for name in RUNS)
 
 
 @pytest.mark.parametrize("argv", [["launch", "g2-3"], ["launch", "g2-3", "--dry-run"]])

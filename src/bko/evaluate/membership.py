@@ -42,7 +42,7 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
-from bko.evaluate.experiment import REAL_ARM, Experiment
+from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, wholes_of
 from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
@@ -68,8 +68,10 @@ _SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
+    | {"e10-pilot-thin": DIRECT_ARM, "e10-pilot-empty": DIRECT_ARM}
 )
-"""Each run family's reference arm, which every other arm's privacy is read against."""
+"""Each run family's reference arm, which every other arm's privacy is read against: `real`, or
+`bko-direct` for the perturbation pilots, whose arms perturb its rows."""
 
 
 def mi(statistic: str, scope: str) -> Measure:

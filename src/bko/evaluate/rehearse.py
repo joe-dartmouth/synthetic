@@ -4,7 +4,8 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked. A
+none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked; a
+rewrite call gets each of its rows back as sent. A
 prescribing call's records each show exactly the concepts its record line names, by the run's field
 rows (`bko.generate.skeleton`), so a rehearsal drops none for concepts. Its
 records are in the run's frame (`bko.evaluate.data.Data`), so it refuses a call for another frame,
@@ -33,6 +34,7 @@ from bko.evaluate.prepare import prepared
 from bko.generate.errors import GenerationError
 from bko.generate.messages import Call, Reply, Send, Settings, Usage
 from bko.generate.prompt import NO_FINDING, field_units
+from bko.generate.rewrite import REWRITE
 from bko.generate.skeleton import Named, skeleton
 from bko.ontology.schema import AtLeast, FieldMapping, shown
 
@@ -164,6 +166,9 @@ class CannedSend:
     def __call__(self, call: Call) -> Reply:
         """Answer `call` with its records, billed at the tokens per record.
 
+        A rewrite call (`bko.generate.rewrite.REWRITE`) is answered with each of its rows as
+        sent, so every row comes back unchanged.
+
         Raises:
             GenerationError: If the call is for another frame than the run's, or its user turn
                 does not read as the prompt renders it, gives age in another unit than the
@@ -177,6 +182,9 @@ class CannedSend:
                 f"for frame {call.frame.name}"
             )
             raise GenerationError(msg)
+        if REWRITE.match(call.user):
+            rows = [json.loads(line) for line in call.user.splitlines() if line.startswith("{")]
+            return self._reply(rows)
         found = PROMPT.match(call.user)
         if found is None:
             msg = f"the user turn does not read as the prompt renders it: {call.user[:200]!r}"
@@ -202,8 +210,13 @@ class CannedSend:
             self._next(call.sex, call.label, ages, None if lines is None else lines[position])
             for position in range(rows)
         ]
+        return self._reply(batch)
+
+    def _reply(self, batch: Sequence[object]) -> Reply:
+        """A reply holding `batch`'s records, billed at the tokens per record."""
+        rows = len(batch)
         self.calls += 1
-        text = json.dumps({"records": batch})
+        text = json.dumps({"records": list(batch)})
         return Reply(
             request_id=f"req_rehearsal_{self.calls}",
             model=self._model,

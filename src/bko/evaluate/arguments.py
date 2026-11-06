@@ -14,6 +14,7 @@ from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.membership import add_parser as add_privacy
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import add_parser as add_panel
+from bko.evaluate.perturb_threshold import add_parser as add_threshold
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.evaluate.trace import add_parser as add_trace
@@ -141,12 +142,16 @@ def parser(description: str | None) -> argparse.ArgumentParser:
     comparing.add_argument(
         "--beside-arm", default=None, help="the arm of --beside read; default: the judged arm"
     )
-    add_parser(commands)
-    add_rows(commands)
-    add_panel(commands)
-    add_privacy(commands)
-    add_contradictions(commands)
-    add_trace(commands)
+    for add in (
+        add_parser,
+        add_rows,
+        add_panel,
+        add_privacy,
+        add_threshold,
+        add_contradictions,
+        add_trace,
+    ):
+        add(commands)
     liking = commands.add_parser(
         "likelihood", help="score a run's candidates by their BKB likelihood and read G7's gate"
     )

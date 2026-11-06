@@ -186,14 +186,16 @@ links to where its blocker is tracked.
   `bko.evaluate.trace.trace` re-draws a logged attempt through `trace_direct` only when the fill's
   arm is `DIRECT_ARM`; a `bko-logic` fill falls through to `trace_baseline` and gets a
   baseline-style line with no sources, and `run_trace` loads no ontology for it (`trace.py`, the
-  `fill.name == DIRECT_ARM` branches of `trace` and `run_trace`). *Filed 2026-11-05 by the review
+  `fill.name == DIRECT_ARM` branches of `trace` and `run_trace`). `bko-direct-pram`, a key of
+  `DIRECT_ARMS`, and `bko-direct-perturbed` fall through the same way, and a re-draw alone would
+  give their unperturbed rows, not the rows their `arm` lines hash. *Filed 2026-11-05 by the review
   of PR #84.*
-  **Why deferred.** No `e9` folder has been traced; extending `trace` is outside PR #84's
+  **Why deferred.** No `e9` or `e10` folder has been traced; extending `trace` is outside PR #84's
   boundary.
   **What discharges it:** `trace` and `run_trace` treat every arm of `DIRECT_ARMS`
   as a direct arm, re-drawing with that arm's `Presence`, with a test that traces a `bko-logic`
-  fill.
-  **Trigger:** the first trace of an `e9` folder.
+  fill; a perturbation arm's trace reads its rows from its candidate lines over the re-draw.
+  **Trigger:** the first trace of an `e9` or `e10` folder.
 
 ## generate
 

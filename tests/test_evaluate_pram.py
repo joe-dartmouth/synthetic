@@ -19,8 +19,6 @@ from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import (
-    DELTA_EMPTY,
-    DELTA_THIN,
     THETA,
     PramArm,
     check_distribution,
@@ -145,10 +143,6 @@ def test_rows_equal_to_the_originals_pass_the_check_at_delta_zero():
     assert found.shapes == found.reference
     assert found.passed
     assert 0 < found.pair_trends <= 1
-
-
-def test_the_deltas_are_not_yet_fixed():
-    assert (DELTA_THIN, DELTA_EMPTY) == (0.0, 0.0)
 
 
 def _prammed(tmp_path, caplog) -> tuple[pd.DataFrame, Context]:
