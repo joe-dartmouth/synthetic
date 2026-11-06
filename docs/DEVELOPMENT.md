@@ -32,12 +32,13 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
 [`bko.datasets`](../src/bko/datasets/README.md) writes there, apart from the classified OBO files
-`python -m bko.ontology elk` keeps under `data/elk/` ([Ontologies](#ontologies)). Each download
-(UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
+`python -m bko.ontology elk` keeps under `data/elk/` ([ELK comparison](#elk-comparison)). Each
+download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
 releases, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
-fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A generated population is checked against its own `run.json`: the commands
-regenerate one whose CSVs or recorded settings differ.
+fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A
+generated population is checked against its own `run.json`: the commands regenerate one whose
+CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
 their report to stdout as CSV and their logs to stderr. The module exits 0 when done, 1 on an
@@ -99,7 +100,7 @@ root or to see the module's own code, run it directly:
 - **The ELK pins**: `MONDO_OWL` and `HPO_OWL` pin `mondo.owl` and `hp.owl` from the same MONDO
   and HPO releases as the OBO pins, and `ROBOT_JAR` pins ROBOT v1.9.11's `robot.jar` (BSD-3), each
   open with no agreement. Only `python -m bko.ontology elk` reads them
-  ([Ontologies](#ontologies)).
+  ([ELK comparison](#elk-comparison)).
 - **Layout**: a download's snapshot is `data/<source>/<first 16 hex digits of its sha256>/`, for
   example `data/uci-heart-disease/b17cd273da9ce1ca/`, holding the download and `source.json`. A
   population is `data/synthea/<key>/`, the key naming the jar's sha256 prefix, the seeds, the size,
@@ -186,12 +187,25 @@ Its stderr carries, from logger `bko.evaluate.direct`, a
 `direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s` line per attempt (the attempt's counts
 last) and the arm's `validity` sums at the end, as a BKO arm's; and from logger
 `bko.generate.direct`, for every fill, a
-`direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d` line per cell (rows, the
-cell's records, its label group's records) and a
-`fallback holdout=%d fill=%s key=%s field=%s draws=%d` line per cell and field read from the label
-group. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a harness fill
-they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone, since `G2`
-judges no criterion, and logs every criterion's intervals as `unjudged` lines.
+`direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d presence=%s` line per cell
+(rows, the cell's records, its label group's records, how presence is drawn) and a
+`fallback holdout=%d fill=%s key=%s field=%s draws=%d presence=%s` line per cell and field read
+from the label group. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a
+harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone,
+since `G2` judges no criterion, and logs every criterion's intervals as `unjudged` lines.
+
+E9's runs, `e9-thin` and `e9-empty` and their slices `e9-thina` to `e9-thinj` and `e9-emptya` to
+`e9-emptyj`, spend nothing either: beside `none`, `real` and `bko-direct` they run the logic-only
+direct arm `bko-logic` as the candidate (ADR
+[`research/logic-only-ablation`](adr/research/logic-only-ablation.md), which defines E9). Like
+`g2`, they refuse `--log`, `--replay`, `--resume` and `--rehearse` and require `--candidates`; the
+spend ceiling they keep from E6 is inert. `bko-logic` logs the lines `bko-direct` does, its
+`direct` and `fallback` lines reading `presence=logic`, and its `direct arm=` line ends in
+`fallback_draws=%d`, the attempt's draws that read a field from the label group. A component of
+its concepts above `bko.generate.logic.MAX_COMPONENT` exits 2 once the releases load, before any
+arm fits:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e9-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -845,7 +859,11 @@ start or the supervisor cannot run.
   [EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). It also holds G7's curated run,
   `e6-curated` (`E6_CURATED` at `E6_SETTINGS`, unsliced, a $100 ceiling; ADR
   [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md);
-  [EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)). No flag
+  [EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)), and E9's logic-only runs, `e9-thin` and
+  `e9-empty` (`E9_THIN` and `E9_EMPTY`: `E6_THIN` and `E6_EMPTY` with `none`, `real`, `bko-direct`
+  and the candidate `bko-logic`, no replica) and their slices `e9-thina` to `e9-thinj` and
+  `e9-emptya` to `e9-emptyj`, sliced as E6's are, the ceiling inert (ADR
+  [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -857,8 +875,9 @@ start or the supervisor cannot run.
   existing call log or candidates file, data held under an agreement that grants no permission to
   send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a
   direct arm with no `--candidates`, a direct arm whose field rows nest in a chain
-  (`bko.gaps.shares.nested`), `--log`, `--replay`, `--resume` or `--rehearse` with no BKO arm to
-  build, `--candidates` with no BKO or direct arm, one path for
+  (`bko.gaps.shares.nested`), a logic-only arm with a component above
+  `bko.generate.logic.MAX_COMPONENT` concepts, `--log`, `--replay`, `--resume` or `--rehearse`
+  with no BKO arm to build, `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
   response, a failed gap query, a run whose spend reached `E1.spend_ceiling` and `candidates` or
   `replica-candidates` rows whose validity cannot be read; 3 also for a replay that does not match
@@ -1047,30 +1066,55 @@ inside `.venv`:
   `bko.ontology.obo`, or a change to pronto in `uv.lock`, from the checkout whose `data/` holds
   the releases.
 
-- **`elk`**: classifies the pinned MONDO and HPO OWL releases with ELK and compares each
-  classification with the hierarchy `bko.ontology` loads from the OBO release of the same version
-  (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md), ELK
-  comparison). A run of record writes its folder ([Runs](#runs)):
+### ELK comparison
 
-      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null
+`python -m bko.ontology elk` classifies the pinned MONDO and HPO OWL releases with ELK and compares
+each classification with the hierarchy `bko.ontology` loads from the OBO release of the same
+version (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md), ELK
+comparison); it is E9's hierarchy comparison (ADR
+[`research/logic-only-ablation`](adr/research/logic-only-ablation.md)). A run of record writes its
+folder ([Runs](#runs)):
 
-  It takes `--data-dir <dir>` as `check` does. It fetches the OBO and OWL releases and the ROBOT
-  jar into the data root if absent and verifies each against its pin, refuses an OWL file that
-  names an `owl:imports` before Java runs, and needs a JDK, found as `make synthea` finds one
-  ([Data](#data)). For each release it runs ROBOT as a subprocess, `reason --reasoner ELK` then
-  `convert` to OBO, at the heap `bko.ontology.elk.ELK_MEMORY_GB` sets and under its timeout; the
-  classified OBO file is kept under `data/elk/`, with ROBOT's stderr beside it. The comparison
-  reads transitive ancestor sets over every concept `bko.ontology.mapping.MAPPED` names and the
-  ancestors either side gives it, so a link one side states directly and the other reaches
-  through a chain is no difference. stdout gets a CSV with the columns `release`, `child`,
-  `ancestor` and `side` (`loaded` or `elk`), one row per ancestor link only that side holds; a
-  header alone means the two agree in scope. stderr gets the jar's sha256 and the Java version,
-  each release's classification time, its in-scope concept count and its count of links on each
-  side, and the total of differing links with the CSV's sha256. Exit codes: 0 the report is
-  written, whatever it lists; 1 an unexpected error, with its traceback; 2 the command could not
-  run, including ROBOT failing or timing out; 3 a release contradicts its pin, is not OBO the
-  loader reads, or is OWL that names an import (stdout is empty). **The gate never runs Java**:
-  `make check` tests the comparison and ROBOT's argv with a fake runner and canned OBO text.
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null
+
+- **What it needs**: a JDK, found as `make synthea` finds one ([Data](#data)) and resolved before
+  anything is fetched, and a machine with the 16 GB Java heap `bko.ontology.elk.ELK_MEMORY_GB`
+  sets free. It takes `--data-dir <dir>` as `check` does.
+- **What it does**: it fetches the OBO and OWL releases and the ROBOT jar into the data root if
+  absent and verifies each against its pin, and refuses an OWL file whose bytes name an import
+  (`bko.ontology.elk.IMPORTS`) before Java runs; the sha256 pin guarantees the bytes, and the
+  import check is a tripwire on them. For each release it runs ROBOT as a subprocess in the OWL
+  file's snapshot directory, `reason --reasoner ELK --equivalent-classes-allowed all` then
+  `convert --check false` to OBO, under `bko.ontology.elk.ELK_TIMEOUT_SECONDS`; the classified
+  OBO file is kept under `data/elk/`, with ROBOT's stderr written beside it as it runs, and a
+  stale pair is removed first. The comparison reads transitive ancestor sets over every concept
+  `bko.ontology.mapping.MAPPED` names and the ancestors either side gives it, so a link one side
+  states directly and the other reaches through a chain is no difference; ROBOT's
+  `equivalent_to:` lines read as `is_a` both ways.
+- **What it writes**: stdout gets a CSV with the columns `release`, `child`, `ancestor` and `side`
+  (`loaded` or `elk`), one row per ancestor pair only that side holds, the loaded side's rows
+  first; a header alone means the two agree in scope. One missing direct link adds an ancestor
+  pair for every class below it and every ancestor above it, so the row count is not a count of
+  links; the `minimal_` counts below are.
+- **What it logs**: the `elk tool` line (ROBOT's URL and sha256, the Java version, the heap in
+  GB and the timeout in seconds); per release an `elk classify` line before ROBOT runs (the OWL
+  file's sha256, the heap, the timeout), an `elk classified` line (seconds, the classified file's
+  path, bytes and sha256) and an `elk compare` line: `loaded_terms=` and `elk_classes=` (each
+  side's classes), `concepts=` (the scope), `absent_loaded=` and `absent_elk=` (classes in scope
+  a side has no term for), `only_loaded=` and `only_elk=` (ancestor pairs) and `minimal_loaded=`
+  and `minimal_elk=` (pairs no other pair on that side implies); then
+  `elk differing ancestor_pairs=%d sha256=%s`, the CSV's sha256.
+- **HPO caveat**: HPO's build makes `hp.owl` as a merge of the editors' file and `hp.obo` from its
+  simple non-classified release, with no reasoner (ADR
+  [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md), Context), so an
+  HPO pair that differs can come from that build difference as well as from classification.
+- **Exit codes**: 0 the report is written, whatever it lists; 1 an unexpected error, with its
+  traceback; 2 the command could not run, including no JDK, ROBOT failing, timing out or writing
+  no file, whose message names the stderr file and quotes its last lines; 3 a release contradicts
+  its pin, is not OBO the loader reads, or is OWL that names an import, or ROBOT's OBO has an
+  `id:`, `is_a:` or `equivalent_to:` line with no value (stdout is empty).
+- **The gate never runs Java**: `make check` tests the comparison and ROBOT's argv with a fake
+  runner and canned OBO text.
 
 ## Fusion reproduction
 

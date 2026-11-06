@@ -403,37 +403,43 @@ Where the brief and the 2-pager disagree:
 profile is based: from an ontology's axioms its calculus derives every entailed subsumption
 between named classes and only those, in polynomial time, and reduces them to a taxonomy of direct
 links [`kazakov-2014`][kazakov-2014]. A derived link is entailed or it is not; ELK weighs no source
-and reads no frequency. The release the paper describes supports the fragment EL+⊥ of OWL EL, not
-every OWL EL feature. A BKO keeps each source's statements and gives conflicting inferences
-probabilities [`santos-2024`][santos-2024], and this pipeline adds dataset fragments whose priors
-are concept shares (ADR
+and reads no frequency. The release the paper describes supports EL+bottom (EL with the bottom
+concept), a fragment of OWL EL, not every OWL EL feature. A BKO keeps each source's statements and
+gives conflicting inferences probabilities [`santos-2024`][santos-2024], and this pipeline adds
+dataset fragments whose priors are concept shares (ADR
 [`research/dataset-fragment-encoding`](adr/research/dataset-fragment-encoding.md)); ELK has no
 counterpart to either. The two compose rather than compete. MONDO's release build classifies the
-editors' source with ELK through ROBOT [`jackson-2019`][jackson-2019], relaxes and reduces the
-result, and builds `mondo.owl` and `mondo.obo` from it [`mondo-2026`][mondo-2026], so the MONDO
-hierarchy `bko.ontology` loads is ELK's classification reduced to direct links. HPO's build
-configuration, an Ontology Development Kit file [`matentzoglu-2022`][matentzoglu-2022], sets its
-release to use no reasoner, and `hp.obo` is built from the unclassified primary release
-[`hpo-2026`][hpo-2026]. A link that follows from an HPO logical definition and that HPO's editors
-have not asserted is therefore absent from what `bko.ontology` loads. E9 classifies both pinned OWL
-releases with ELK and lists each link among the mapped concepts and their ancestors that one
-hierarchy holds and the other lacks ([DEVELOPMENT.md](DEVELOPMENT.md#ontologies)).
+editors' source with ELK through ROBOT, relaxes and reduces the result, and builds `mondo.owl` and
+`mondo.obo` from it [`mondo-2026`][mondo-2026], the `reason`, `relax` and `reduce` chain ROBOT's
+paper describes for a release [`jackson-2019`][jackson-2019], so the MONDO hierarchy
+`bko.ontology` loads is ELK's classification reduced to direct links. HPO's build configuration,
+an Ontology Development Kit file [`matentzoglu-2022`][matentzoglu-2022], sets its release to use
+no reasoner, and `hp.obo` is built from the unclassified primary release, while `hp.owl` is a
+merge of the editors' file [`hpo-2026`][hpo-2026]. On this project's reading of those build
+files, a link that follows from an HPO logical definition and that HPO's editors have not asserted
+is absent from what `bko.ontology` loads. E9's hierarchy comparison classifies both pinned OWL
+releases with ELK and lists each ancestor pair among the mapped concepts and their ancestors that
+one hierarchy holds and the other lacks; an HPO pair can also come from the two files' different
+builds (ADR [`research/logic-only-ablation`](adr/research/logic-only-ablation.md) defines E9;
+[DEVELOPMENT.md](DEVELOPMENT.md#elk-comparison)).
 
 **BioGPT.** Luo et al.'s abstract reports BioGPT as a generative Transformer language model
 pre-trained on large-scale biomedical literature and evaluated on six biomedical language tasks,
 among them end-to-end relation extraction and PubMedQA, with a case study generating descriptions
 of biomedical terms [`luo-2022`][luo-2022]. It is trained to write literature text, not records
 under a schema. To stand in as a generator it would need fine-tuning on the training records, as
-GReaT fine-tunes a language model on the table [`borisov-2023`][borisov-2023]. That moves records
-into model weights, whereas no BKO arm's call carries a training record, though each sends
-training bounds and percentiles ([section 6](#6-datasets)). Nori et al.'s abstract reports that a
+the brief's fine-tuned GReaT would ([section 9](#9-source-reconciliation)); GReaT's abstract
+reports sampling realistic tabular records from an auto-regressive generative language model
+[`borisov-2023`][borisov-2023]. Fine-tuning moves records into model weights, whereas no BKO arm's
+call carries a training record, though each sends training bounds and percentiles
+([section 6](#6-datasets)). Nori et al.'s abstract reports that a
 general model steered by prompting alone, GPT-4 with Medprompt, reached state-of-the-art results
 on all nine MultiMedQA benchmarks, ahead of specialist models such as Med-PaLM 2
 [`nori-2023`][nori-2023]. Those benchmarks measure medical question answering, not record
 generation.
 
 **Translator.** The Biomedical Data Translator Consortium set out to build a universal biomedical
-data translator [`translator-2019a`][translator-2019a]. Its reports' abstracts describe a
+data translator [`translator-2019`][translator-2019]. Its reports' abstracts describe a
 federated knowledge-graph system that integrates clinical, genomic, pharmacological and other
 sources under the Biolink Model's classes and predicates, and answers a user's query by retrieval
 and inference, revealing evidence, provenance and confidence [`fecho-2022`][fecho-2022],
@@ -466,7 +472,7 @@ answers questions about biomedical entities; this pipeline asks what a training 
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [strack-2014]: https://doi.org/10.1155/2014/781670
-[translator-2019a]: https://doi.org/10.1111/cts.12591
+[translator-2019]: https://doi.org/10.1111/cts.12591
 [unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
 [welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033

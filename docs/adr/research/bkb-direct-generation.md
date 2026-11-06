@@ -21,8 +21,9 @@ and every `is_a` S-node has probability 1. There is no absent state, so a sample
 BKB choosing states; it can draw each concept's presence at a share read from the dataset priors,
 and close the drawn set upward under `is_a`. The ontology fragments carry no prior, and the mapping
 table says when a record shows a concept, never what values a concept implies (ADR
-`research/ontology-mapping-design`). The arm therefore isolates the mapping table and the data's
-concept shares, not the ontology's structure: closure is recorded and never read into a field.
+`research/ontology-mapping-design`). `bko-direct` therefore isolates the mapping table and the
+data's concept shares, not the ontology's structure: its closure is recorded and never read into a
+field.
 A logic-only configuration of the same sampler draws presence from the ontology's constraints
 instead (ADR `research/logic-only-ablation`).
 
@@ -116,9 +117,9 @@ EKG, a pattern no record shows, and the conditional keeps both shares as margina
 Copying a group's fields from one matching record, instead of drawing each value inside its side,
 keeps every value a training value and every within-group combination one a record holds, so a
 record passes validation by construction and the numeric fallback the unit asked for is the same
-record draw at the label group. Closure is recorded rather than read into fields because the
-ontology fragments carry no prior: forcing an ancestor's row would assert values no share
-supports.
+record draw at the label group. `bko-direct` records closure rather than reading it into fields
+because the ontology fragments carry no prior: forcing an ancestor's row would assert values no
+share supports.
 
 Run `g2-2` over E1's 100 holdouts
 ([EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb), G2) measured validity
@@ -158,8 +159,8 @@ group shows no record matching a draw refuses the attempt.
 - Owner: `src/bko/generate/direct.py`, with the shares in `src/bko/gaps/shares.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
   `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`,
-  and for the presence parameter the modules `tests.test_generate_logic_only` and
-  `tests.test_evaluate_logic_only`
+  and for the presence parameter `tests/test_generate_logic_only.py` and
+  `tests/test_evaluate_logic_only.py`
 
 ## Reversal Conditions
 

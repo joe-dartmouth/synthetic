@@ -32,9 +32,13 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
 - **pronto read both releases**, with every term converted to standard-library values, no import
   and no warning.
 
-The unit `compare-elk-logic-only` asks whether ELK, the OWL EL classifier, derives subclass links
-the loaded hierarchy lacks, or the reverse. MONDO's and HPO's own builds run ELK through ROBOT, a
-Java command-line tool distributed as a jar.
+The unit `compare-elk-logic-only` asks whether ELK, a classifier for EL+bottom (EL with the bottom
+concept) within the OWL 2 EL profile, derives subclass links the loaded hierarchy lacks, or the
+reverse. MONDO's release build runs ELK through ROBOT, a Java command-line tool distributed as a
+jar ([`mondo-2026`](../../literature.md#ontologies-reasoners-and-knowledge-graphs)); HPO's release
+build runs no reasoner, builds `hp.owl` as a merge of the editors' file and builds `hp.obo` from a
+different artefact, its simple non-classified release
+([`hpo-2026`](../../literature.md#ontologies-reasoners-and-knowledge-graphs)).
 
 `bko.datasets.uci` records the codebook of every categorical field, but no unit or range for a
 numeric one. owlready2 is the lock's only package that ships an sdist alone, so it builds Cython on
@@ -118,9 +122,15 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   row's declared holders, and an excluded category must have none.
 - **ELK comparison**: `bko.ontology.elk` runs the pinned ROBOT jar with ELK on the pinned OWL
   files of the same MONDO and HPO releases, as a Java subprocess outside the gate, and compares its
-  classification with the hierarchy the OBO releases give (`python -m bko.ontology elk`). The
-  pins are `ROBOT_JAR`, `MONDO_OWL` and `HPO_OWL` in `bko.datasets.sources`. No Python module
-  parses OWL.
+  classification with the hierarchy the OBO releases give (`python -m bko.ontology elk`), as
+  ancestor pairs a class holds on one side only. ROBOT runs `reason` with
+  `--equivalent-classes-allowed all`, so an inferred equivalence is kept rather than stopping the
+  run, then `convert --check false`, so the OBO writer skips its document-structure checks rather
+  than refusing a class they reject. The pins are `ROBOT_JAR`, `MONDO_OWL` and `HPO_OWL` in
+  `bko.datasets.sources`. No Python module parses OWL; `bko.ontology.elk.read_hierarchy` reads
+  ROBOT's classified OBO output (Ruled Out, the hand-written reader's carve-out), an
+  `equivalent_to:` line as `is_a` both ways. An HPO pair that differs can come from the build as
+  well as from classification: `hp.owl` and `hp.obo` are built from different artefacts.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
   row against the real releases.
 - **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
@@ -137,7 +147,7 @@ Constants, as `uci.CODEBOOK` holds the codebook, let every stage import the tabl
 tests hold it to the codebook and the registry. The releases sit with the other downloads in
 `bko.datasets.sources`, the one home for pins.
 
-ELK runs through ROBOT because that is how the releases' own builds run it, so the comparison uses
+ELK runs through ROBOT because that is how MONDO's release build runs it, so the comparison uses
 the reasoner and the OWL reader that built MONDO's hierarchy. A subprocess keeps Java out of the
 Python process and out of the gate, as the Synthea run already does, and a Python OWL parser
 would be a second reader whose disagreements with the OWL API would read as hierarchy
@@ -172,8 +182,8 @@ presence-only rows, a record check derived from `is_a` alone rejects nothing, so
 validation leans on the ranges and the codebook; the guideline cutoffs, the Detrano readings and
 the team-specified bounds await clinician review (RESEARCH, Represent); an ICD-9 xref asserts no
 equivalence, so the choice among a category's holders is the team's; load time has no budget; the
-ELK comparison needs a JDK and a heap of several gigabytes, and the gate cannot catch a change in
-ROBOT's or ELK's output.
+ELK comparison needs a JDK and a 16 GB Java heap (`bko.ontology.elk.ELK_MEMORY_GB`), and the gate
+cannot catch a change in ROBOT's or ELK's output.
 
 ## Ruled Out
 
@@ -181,7 +191,7 @@ ROBOT's or ELK's output.
 |------|---------------|------|
 | OLS4 for ontology access | Live and unversioned; needs the network at runtime, and the gate is offline | 2026-10-16 |
 | owlready2 for ontology access | An OWL quadstore, and the lock's only sdist-only package | 2026-10-16 |
-| A hand-written OBO reader | Re-implements escapes and qualifiers; not a tool the 2-pager names | 2026-10-16 |
+| A hand-written OBO reader | Re-implements escapes and qualifiers; not a tool the 2-pager names. One carve-out: `bko.ontology.elk.read_hierarchy` reads ROBOT's classified OBO output, not a release, because pronto refuses the classified HPO file (a `SyntaxError` on an imported term's cross-reference `[Pathbase: Curation]`); it reads only the `id:`, `is_a:` and `equivalent_to:` lines of term stanzas (carve-out added 2026-11-05) | 2026-10-16 |
 | The pins in `bko.ontology` | A second home for downloads | 2026-10-16 |
 | A `python -m bko.datasets ontologies` fetch command | No fetch-only command exists; baselines and evaluate call `ensure` themselves | 2026-10-16 |
 | Returning `pronto.Ontology` | Leaks pronto into every consumer and test, with thread and hash order | 2026-10-16 |

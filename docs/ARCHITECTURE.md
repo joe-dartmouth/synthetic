@@ -15,7 +15,7 @@ The tools the 2-pager names (section 4):
 | Concern | Tool | Notes |
 |---|---|---|
 | Front end | Streamlit over a Python backend | |
-| Ontology access | owlready2, pronto, OLS4 | The repository reads pinned OBO releases with pronto; owlready2 and OLS4 are not dependencies. For E9's hierarchy comparison, a pinned ROBOT jar classifies the pinned OWL releases with ELK as a Java subprocess outside the gate (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)) |
+| Ontology access | owlready2, pronto, OLS4 | The repository reads pinned OBO releases with pronto; owlready2 and OLS4 are not dependencies. For E9's hierarchy comparison (E9 is defined in ADR [`research/logic-only-ablation`](adr/research/logic-only-ablation.md)), a pinned ROBOT jar classifies the pinned OWL releases with ELK as a Java subprocess outside the gate (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)) |
 | Record generation | Anthropic Messages API | |
 | Baselines | CTGAN (Conditional Tabular GAN), TVAE (Tabular Variational AutoEncoder), SMOTE (Synthetic Minority Over-sampling Technique), ADASYN (Adaptive Synthetic Sampling) | CTGAN and TVAE come from SDV, SMOTE and ADASYN from imbalanced-learn |
 | Evaluation | scikit-learn, SDMetrics, synthcity | synthcity is not a dependency: it does not resolve on Python 3.14 (ADR [tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)). Evaluation uses scikit-learn and SDMetrics ([RESEARCH.md](RESEARCH.md#5-evaluation-contract)) |

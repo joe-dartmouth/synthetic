@@ -10,8 +10,9 @@ updated: 2026-11-05
 
 `bko-direct` draws each mapped concept present at its share, read from the fused BKB's dataset
 priors, and records the `is_a` closure without reading it into a field (ADR
-`research/bkb-direct-generation`). On E6's frame it was the strongest arm with the cell wholly
-removed ([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). How much of that
+`research/bkb-direct-generation`). On E6's frame, with the cell wholly removed, it had the highest
+removed-cell recall among the generating arms
+([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). How much of that
 comes from the logical structure and how much from the probabilities has not been measured, and
 the unit `compare-elk-logic-only` asks for a configuration in which presence comes from logic
 alone, its draw fixed before any run.
@@ -41,7 +42,7 @@ share of a concept with its label group's (ADR `research/frequency-aware-gap-sco
 
 ## Decision
 
-1. **Presence is a parameter of the direct sampler** (`Presence` in `bko.generate.logic`). At
+1. **Presence is a parameter of the direct sampler** (`Presence` in `bko.generate.presence`). At
    shares it is `bko-direct` (ADR `research/bkb-direct-generation`); at logic it is `bko-logic`,
    below. Field groups, record picks, the other fields and the candidates file are the direct
    sampler's for both.
@@ -55,22 +56,33 @@ share of a concept with its label group's (ADR `research/frequency-aware-gap-sco
    the sampler's seeded generator per component, in component order. A lone concept is present at
    1/2; a child and its parent draw each of their three consistent assignments at 1/3; a chain of
    three draws each of its four at 1/4. A component above `bko.generate.logic.MAX_COMPONENT`, 12
-   concepts, is refused before any draw rather than enumerated.
-4. **Closure is read into fields for `bko-logic` only.** The drawn set is closed upward under
-   `is_a`, and every closed concept with a row of its own reads its present side. `bko-direct`
-   keeps its rule: closure recorded, never read.
+   concepts, is refused rather than enumerated: `bko.evaluate.direct.run_direct` checks the
+   components once the releases load, before any arm fits.
+4. **Closure is read into fields for `bko-logic` only.** The drawn and label-only concepts are
+   closed under every implication, `is_a` upward and nested inner to outer, repeated until nothing
+   joins, and every implied concept with a row of its own reads its present side. A label-only
+   concept whose ancestor is a nested inner so brings that inner's outer too. `bko-direct` keeps
+   its rule: closure recorded, never read.
 5. **Label-only concepts follow the label**, present in a target 1 cell and absent in a target 0
-   cell, as in `bko-direct`; the team chose this so the arms differ in no other concept.
-6. **E9's runs.** The named runs `e9-thin` and `e9-empty` take E6's frame, removal and holdouts at
-   each fraction, with the arms `none`, `real`, `bko-direct` and `bko-logic`, no replica, the
-   candidate `bko-logic` and the comparators `none` and `bko-direct`; their holdout slices are
-   `e9-thina` to `e9-thinj` and `e9-emptya` to `e9-emptyj`. `bko-logic` is read against
-   `bko-direct` on removed-cell recall, AUC-PR and distance to closest record, per holdout.
+   cell, as in `bko-direct`, so the arms differ in no other concept.
+6. **E9 is the ELK hierarchy comparison and the logic-only runs**, recorded in
+   [EVIDENCE.md](../../EVIDENCE.md) when run. The comparison is `python -m bko.ontology elk` (ADR
+   `research/ontology-mapping-design`, ELK comparison). The named runs `e9-thin` and `e9-empty`
+   take E6's frame, removal and holdouts at each fraction, with the arms `none`, `real`,
+   `bko-direct` and `bko-logic`, no replica, the candidate `bko-logic` and the comparators `none`
+   and `bko-direct`; their holdout slices are `e9-thina` to `e9-thinj` and `e9-emptya` to
+   `e9-emptyj`. The spend ceiling they keep from E6 is inert, since no arm calls the API.
+   `bko-logic` is read against `bko-direct` on removed-cell recall, AUC-PR and distance to closest
+   record, per holdout.
 7. **E2 gets no logic-only run.** Per-subgroup and population-level grounding read no prior, so a
    logic-only prior leaves their gap lists as they are. The frequency-aware score has no
    logic-only analogue: a logic-only share is the same in every cell, so no cell reads below its
-   label group. If E9's hierarchy comparison lists a differing link, E2's readings also run on the
-   ELK-classified hierarchy, as the unit's Scope asks.
+   label group.
+8. **A differing ancestor pair adds readings on the classified hierarchy**, as the unit's Scope
+   asks. For each frame where E9's comparison lists an ancestor pair whose two classes are both
+   mapped concepts of that frame, `bko-logic` also runs on the ELK-classified hierarchy. If a pair
+   differs among the MONDO classes in Synthea's scope, `python -m bko.gaps synthea` also runs on
+   the classified hierarchy and its gap lists are compared with the loaded hierarchy's.
 
 ## Rationale
 
@@ -103,7 +115,7 @@ field selection, measures what the data shares add to the logical structure; an 
 needs no run.
 **Accepted**: rates such as 1/2 and 1/3 are not clinical, so `bko-logic`'s records show
 combinations at frequencies no data supports, and its utility can fall below `none`; a component
-above the bound stops the run before any draw, and a forced pattern no record matches refuses an
+above the bound stops the run before any arm fits, and a forced pattern no record matches refuses an
 attempt, counted, not hidden; label-only concepts keep the label's rule in both arms, so neither
 arm tests them.
 
@@ -119,13 +131,15 @@ arm tests them.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/direct.py` and the module `bko.generate.logic`, with the runs in
-  `src/bko/evaluate/named_runs.py`
-- Pinned by: `tests/test_generate_direct.py`, `tests/test_evaluate_direct.py`, and the modules
-  `tests.test_generate_logic_only` (the draw reads no share, the 1/2, 1/3 and 1/4 rates, closure
-  forced into fields, the refusal above 12 concepts), `tests.test_evaluate_logic_only` (both direct
-  arms in one run) and `tests.test_gaps_logic_only` (every dataset prior at 0.5 leaves the
-  per-subgroup and population listings on the Synthea fixture unchanged)
+- Owner: `src/bko/generate/direct.py`, `src/bko/generate/logic.py` and
+  `src/bko/generate/presence.py`, with the runs in `src/bko/evaluate/named_runs.py`
+- Pinned by: `tests/test_generate_direct.py`, `tests/test_evaluate_direct.py`,
+  `tests/test_generate_logic_only.py` (the draw reads no share, the 1/2, 1/3, 1/4 and 1/8 rates,
+  an `is_a` child at 1/3 in the sampler, closure forced into fields, a label-only concept under a
+  nested inner, the refusal above 12 concepts, and the seeded draw by digest),
+  `tests/test_evaluate_logic_only.py` (both direct arms in one run, the refusal before any arm
+  fits) and `tests/test_gaps_logic_only.py` (every dataset prior at 0.5 leaves the per-subgroup
+  and population listings on the Synthea fixture unchanged)
 
 ## Reversal Conditions
 

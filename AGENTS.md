@@ -87,8 +87,8 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null`:
   classify the pinned MONDO and HPO OWL releases with ELK through ROBOT and list each in-scope
-  ancestor link that the classification or the loaded hierarchy holds and the other lacks. It
-  needs a JDK and makes no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
+  ancestor pair that the classification or the loaded hierarchy holds and the other lacks. It
+  needs a JDK and makes no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#elk-comparison)).
 - `uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null`:
   check the table and the fusion reproduction against the pinned releases already in `data/`
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
