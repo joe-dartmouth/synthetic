@@ -1,7 +1,6 @@
 """Every named run of the harness: its experiment, its settings and the dataset it scores.
 
-`RUNS` holds every named run, by name, and its docstring lists them; each experiment's docstring
-names the `docs/EVIDENCE.md` entry or ADR that defines it.
+`RUNS` holds every named run, by name, and its docstring says what each one is.
 No command-line flag changes a value here.
 """
 
@@ -274,11 +273,12 @@ E9_THIN, E9_EMPTY = (
     for e6 in (E6_THIN, E6_EMPTY)
 )
 """E9's runs, `E6_THIN` and `E6_EMPTY` with `none`, `real` and both direct arms, `bko-logic` the
-candidate, no replica and no API call (ADR `research/logic-only-ablation`)."""
+candidate, no replica and no API call (ADR `research/logic-only-ablation`). The spend ceiling
+kept from E6 is inert: no arm calls the API."""
 
 
-def _slices(prefix: str, name: str, whole: Experiment, settings: Settings) -> dict[str, NamedRun]:
-    """Diabetes run `<prefix>-<name>` and its `E6_SLICES` slices, `<prefix>-<name>a` onwards.
+def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
+    """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `a`.
 
     Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
 
@@ -289,14 +289,14 @@ def _slices(prefix: str, name: str, whole: Experiment, settings: Settings) -> di
     if left:
         msg = f"{len(whole.holdout_seeds)} holdouts do not divide into {E6_SLICES} slices"
         raise ValueError(msg)
-    runs = {f"{prefix}-{name}": NamedRun(whole, settings, Dataset.DIABETES)}
+    runs = {f"{prefix}-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
     for index, letter in enumerate("abcdefghij"[:E6_SLICES]):
         sliced = replace(
             whole,
             holdout_seeds=whole.holdout_seeds[index * size : (index + 1) * size],
             spend_ceiling=whole.spend_ceiling / E6_SLICES,
         )
-        runs[f"{prefix}-{name}{letter}"] = NamedRun(sliced, settings, Dataset.DIABETES)
+        runs[f"{prefix}-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, Dataset.DIABETES)
     return runs
 
 
@@ -407,10 +407,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
             )
             for name, model in G6_THINKING.items()
         },
-        **_slices("e6", "thin", E6_THIN, E6_SETTINGS),
-        **_slices("e6", "empty", E6_EMPTY, E6_SETTINGS),
-        **_slices("e9", "thin", E9_THIN, E6_SETTINGS),
-        **_slices("e9", "empty", E9_EMPTY, E6_SETTINGS),
+        **_slices("e6", "thin", E6_THIN),
+        **_slices("e6", "empty", E6_EMPTY),
+        **_slices("e9", "thin", E9_THIN),
+        **_slices("e9", "empty", E9_EMPTY),
         "e6-curated": NamedRun(E6_CURATED, E6_SETTINGS, Dataset.DIABETES),
         "g5": NamedRun(G5, G4_SETTINGS),
     }

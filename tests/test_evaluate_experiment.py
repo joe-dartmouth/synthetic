@@ -467,7 +467,7 @@ def test_a_replica_cap_below_one_row_is_refused(rows):
 def test_e6_slices_refuse_holdouts_they_do_not_divide():
     uneven = dataclasses.replace(E6_THIN, holdout_seeds=tuple(range(99)))
     with pytest.raises(ValueError, match="99 holdouts do not divide into 10 slices"):
-        _slices("e6", "thin", uneven, E6_SETTINGS)
+        _slices("e6", "thin", uneven)
 
 
 def test_e6_curated_ceiling_covers_its_estimate():
