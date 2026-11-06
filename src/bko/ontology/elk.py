@@ -1,15 +1,22 @@
 """Classify the pinned OWL releases with ELK through ROBOT and compare the result with the loader's.
 
-`python -m bko.ontology elk` runs this. ROBOT reasons over each pinned OWL release with ELK, the
-OWL 2 EL classifier, and writes the classified hierarchy as OBO; `compare_hierarchies` then sets
-its `is_a` links beside those `bko.ontology.obo` loads from the same release's OBO file. Both
-sides are compared as transitive ancestor sets, so a link one side states directly and the other
-reaches through a chain is no difference. The scope is the mapped concepts and their ancestors
-on either side; a link from a class outside it is ignored.
+`python -m bko.ontology elk` runs this. ROBOT reasons over each pinned OWL release with ELK, a
+classifier for EL+bottom (EL with the bottom concept), part of the OWL 2 EL profile, and writes the
+classified hierarchy as OBO; `compare_hierarchies` then sets its `is_a` links beside those
+`bko.ontology.obo` loads from the same release's OBO file. Both sides are compared as transitive
+ancestor sets, so a link one side states directly and the other reaches through a chain is no
+difference, and each difference is an ancestor pair: a class and an ancestor only one side gives
+it. The scope is the mapped concepts and their ancestors on either side; a pair whose class lies
+outside it is ignored.
+
+`read_hierarchy` is a reader of ROBOT's output, not of a release: pronto refuses the classified
+HPO file, whose imported terms carry cross-references it cannot parse, so the `id:`, `is_a:` and
+`equivalent_to:` lines of term stanzas are read by hand, an equivalence as `is_a` both ways (ADR
+`research/ontology-mapping-design`, Ruled Out). The loaded OBO releases state no equivalence.
 
 Java runs only through a `Runner`, so a test passes a fake one. The real runner gives Java the
-environment `bko.datasets.synthea_run.child_environment` builds and keeps ROBOT's stderr byte for
-byte beside the classified file.
+environment `bko.datasets.synthea_run.child_environment` builds, runs it in the OWL file's
+snapshot directory, and writes ROBOT's stderr byte for byte beside the classified file.
 """
 
 from __future__ import annotations
@@ -33,7 +40,7 @@ from bko.ontology.terms import Ontology
 logger = logging.getLogger(__name__)
 
 ELK_MEMORY_GB: Final = 16
-"""ROBOT's Java heap in GB: MONDO's classification peaked at 8.7 GB resident in the probe."""
+"""ROBOT's Java heap in GB, which the machine running `elk` must have free."""
 
 ELK_TIMEOUT_SECONDS: Final = 7200.0
 """How long one classification may run before it is killed."""
@@ -42,15 +49,19 @@ OWL_RELEASES: Final[Mapping[str, Source]] = MappingProxyType({"HP": HPO_OWL, "MO
 """The OWL release ELK classifies for each concept prefix: the same release as the OBO pin."""
 
 COLUMNS: Final = ("release", "child", "ancestor", "side")
-"""The report's columns: a link `child` to `ancestor` that only `side` holds."""
+"""The report's columns: an ancestor pair `child` to `ancestor` that only `side` holds."""
 
-IMPORTS: Final = (b"owl:imports", b"owl#imports")
-"""How an OWL file names an import, in RDF/XML and in Turtle."""
+IMPORTS: Final = (b"owl:imports", b"owl#imports", b"Import(", b"<Import")
+"""How an OWL file names an import: RDF/XML or Turtle, functional syntax, and OWL/XML."""
+
+TAIL_LINES: Final = 5
+"""How many of ROBOT's last stderr lines a failure's message quotes."""
 
 _CHUNK: Final = 1 << 20
 
-type Runner = Callable[[Sequence[str], float], tuple[int, bytes]]
-"""Run ROBOT's argv with a timeout in seconds and return its exit status and stderr bytes."""
+type Runner = Callable[[Sequence[str], float, Path, Path], int]
+"""Run ROBOT's argv with a timeout in seconds in a working directory, writing its stderr to a
+file, and return its exit status."""
 
 type Hierarchy = Mapping[str, Sequence[str]]
 """Each class's direct `is_a` targets."""
@@ -58,21 +69,29 @@ type Hierarchy = Mapping[str, Sequence[str]]
 
 @dataclass(frozen=True, slots=True)
 class Comparison:
-    """The links one hierarchy holds and the other lacks, within the scope.
+    """The ancestor pairs one hierarchy holds and the other lacks, within the scope.
 
     Attributes:
         concepts: The classes in scope: the given concepts and their ancestors on either side.
-        only_loaded: `(child, ancestor)` links only the loaded release holds, sorted.
-        only_elk: `(child, ancestor)` links only ELK's classification holds, sorted.
+        only_loaded: `(child, ancestor)` pairs only the loaded release holds, sorted.
+        only_elk: `(child, ancestor)` pairs only ELK's classification holds, sorted.
+        minimal_loaded: How many of `only_loaded` no other of them implies.
+        minimal_elk: How many of `only_elk` no other of them implies.
+        absent_loaded: How many classes in scope the loaded release has no term for.
+        absent_elk: How many classes in scope ELK's classification has no term for.
     """
 
     concepts: int
     only_loaded: tuple[tuple[str, str], ...]
     only_elk: tuple[tuple[str, str], ...]
+    minimal_loaded: int
+    minimal_elk: int
+    absent_loaded: int
+    absent_elk: int
 
     @property
     def differing(self) -> int:
-        """How many links one side holds and the other lacks."""
+        """How many ancestor pairs one side holds and the other lacks."""
         return len(self.only_loaded) + len(self.only_elk)
 
 
@@ -98,7 +117,35 @@ def compare_hierarchies(
         mine, theirs = _ancestors(loaded, child), _ancestors(classified, child)
         only_loaded += [(child, ancestor) for ancestor in sorted(mine - theirs)]
         only_elk += [(child, ancestor) for ancestor in sorted(theirs - mine)]
-    return Comparison(len(scope), tuple(only_loaded), tuple(only_elk))
+    return Comparison(
+        concepts=len(scope),
+        only_loaded=tuple(only_loaded),
+        only_elk=tuple(only_elk),
+        minimal_loaded=minimal(loaded, only_loaded),
+        minimal_elk=minimal(classified, only_elk),
+        absent_loaded=len(scope - loaded.keys()),
+        absent_elk=len(scope - classified.keys()),
+    )
+
+
+def minimal(hierarchy: Hierarchy, pairs: Collection[tuple[str, str]]) -> int:
+    """How many of `pairs` no other of them implies under `hierarchy`.
+
+    `(c, a)` implies `(d, b)` when `d` is `c` or below it and `b` is `a` or above it, so one
+    missing link counts once however many ancestor pairs it adds. Two pairs that imply each other,
+    as an equivalence makes, both count.
+    """
+    up = {term: _ancestors(hierarchy, term) | {term} for pair in pairs for term in pair}
+
+    def implies(first: tuple[str, str], second: tuple[str, str]) -> bool:
+        return first[0] in up[second[0]] and second[1] in up[first[1]]
+
+    return sum(
+        not any(
+            other != pair and implies(other, pair) and not implies(pair, other) for other in pairs
+        )
+        for pair in pairs
+    )
 
 
 def loaded_hierarchy(ontology: Ontology) -> dict[str, tuple[str, ...]]:
@@ -107,25 +154,39 @@ def loaded_hierarchy(ontology: Ontology) -> dict[str, tuple[str, ...]]:
 
 
 def read_hierarchy(path: Path) -> dict[str, tuple[str, ...]]:
-    """Each `[Term]` stanza's `is_a` targets in the OBO file at `path`, qualifiers dropped.
+    """Each `[Term]` stanza's `is_a` targets in ROBOT's OBO file at `path`, qualifiers dropped.
 
-    Only `id:` and `is_a:` lines of term stanzas are read: ROBOT's output carries constructs, such
-    as class expressions, that the comparison does not read.
+    Only `id:`, `is_a:` and `equivalent_to:` lines of term stanzas are read: ROBOT's output
+    carries constructs, such as class expressions, that the comparison does not read. An
+    equivalence is read as `is_a` both ways; an obsolete stanza is read as any other.
+
+    Raises:
+        ReleaseFormatError: If one of those lines has no value.
     """
-    found: dict[str, list[str]] = {}
+    found: dict[str, set[str]] = {}
     current: str | None = None
     in_term = False
     with path.open(encoding="utf-8") as handle:
-        for raw in handle:
+        for number, raw in enumerate(handle, start=1):
             line = raw.strip()
             if line.startswith("["):
                 in_term, current = line == "[Term]", None
-            elif in_term and line.startswith("id:"):
-                current = line.removeprefix("id:").split()[0]
-                found.setdefault(current, [])
-            elif in_term and current is not None and line.startswith("is_a:"):
-                found[current].append(line.removeprefix("is_a:").split()[0])
-    return {curie: tuple(sorted(set(parents))) for curie, parents in found.items()}
+                continue
+            tag, _, value = line.partition(":")
+            if not in_term or tag not in {"id", "is_a", "equivalent_to"}:
+                continue
+            words = value.split()
+            if not words:
+                msg = f"{path}:{number}: `{tag}:` has no value"
+                raise ReleaseFormatError(msg)
+            if tag == "id":
+                current = words[0]
+                found.setdefault(current, set())
+            elif current is not None:
+                found[current].add(words[0])
+                if tag == "equivalent_to":
+                    found.setdefault(words[0], set()).add(current)
+    return {curie: tuple(sorted(parents)) for curie, parents in found.items()}
 
 
 def robot_argv(*, java: Path, jar: Path, owl: Path, out: Path) -> list[str]:
@@ -152,29 +213,39 @@ def robot_argv(*, java: Path, jar: Path, owl: Path, out: Path) -> list[str]:
     ]
 
 
-def run_robot(argv: Sequence[str], timeout: float) -> tuple[int, bytes]:
-    """Run `argv` with `child_environment` and no stdin; return its status and stderr bytes.
+def run_robot(argv: Sequence[str], timeout: float, cwd: Path, stderr: Path) -> int:
+    """Run `argv` in `cwd` with `child_environment` and no stdin, its stderr written to `stderr`.
+
+    Returns:
+        Its exit status.
 
     Raises:
-        subprocess.TimeoutExpired: If it runs past `timeout`; it is killed first.
+        subprocess.TimeoutExpired: If it runs past `timeout`; it is killed first, and what it
+            wrote to stderr stays in the file.
     """
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-        list(argv),
-        env=child_environment(),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        timeout=timeout,
-        check=False,
-    )
-    return result.returncode, result.stderr or b""
+    with stderr.open("wb") as kept:
+        result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+            list(argv),
+            cwd=cwd,
+            env=child_environment(),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=kept,
+            timeout=timeout,
+            check=False,
+        )
+    return result.returncode
 
 
 def refuse_imports(path: Path) -> None:
-    """Refuse an OWL file that names an import, which ROBOT would fetch.
+    """Refuse an OWL file whose bytes name an import, which ROBOT would fetch.
+
+    A tripwire, not a parse: the sha256 pin is what guarantees the bytes, and this check catches
+    a pinned release that names an import in any syntax `IMPORTS` lists, a literal holding one of
+    those spellings included.
 
     Raises:
-        ReleaseFormatError: If its bytes hold `owl:imports`.
+        ReleaseFormatError: If its bytes hold a spelling of `IMPORTS`.
     """
     overlap = max(len(marker) for marker in IMPORTS) - 1
     tail = b""
@@ -182,7 +253,7 @@ def refuse_imports(path: Path) -> None:
         while chunk := handle.read(_CHUNK):
             window = tail + chunk
             if any(marker in window for marker in IMPORTS):
-                msg = f"{path} names an owl:imports; a pinned release must be self-contained"
+                msg = f"{path} names an import; a pinned release must be self-contained"
                 raise ReleaseFormatError(msg)
             tail = window[-overlap:]
 
@@ -198,34 +269,44 @@ def classify(
 ) -> float:
     """Classify `owl` into `out` and return the seconds it took.
 
-    ROBOT's stderr is kept byte for byte at `out` with `.stderr` added.
+    ROBOT runs in `owl`'s directory, and its stderr is kept byte for byte at `out` with `.stderr`
+    added; a stale `out` or stderr file is removed first.
 
     Raises:
-        UnavailableError: If ROBOT times out, exits non-zero, or writes no `out`.
+        UnavailableError: If ROBOT times out, exits non-zero, or writes no `out`; the message
+            names the stderr file and quotes its last `TAIL_LINES` lines.
     """
     argv = robot_argv(java=java, jar=jar, owl=owl, out=out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.unlink(missing_ok=True)
     kept = out.with_name(out.name + ".stderr")
+    out.unlink(missing_ok=True)
+    kept.unlink(missing_ok=True)
     started = time.monotonic()
     try:
-        status, stderr = runner(argv, timeout)
+        status = runner(argv, timeout, owl.parent, kept)
     except subprocess.TimeoutExpired as exc:
-        msg = f"ROBOT did not finish in {exc.timeout} s classifying {owl}"
+        msg = f"ROBOT did not finish in {exc.timeout} s classifying {owl}; {_tail(kept)}"
         raise UnavailableError(msg) from exc
     seconds = time.monotonic() - started
-    kept.write_bytes(stderr)
     if status != 0:
-        msg = f"ROBOT exited {status} classifying {owl}; its stderr is at {kept}"
+        msg = f"ROBOT exited {status} after {seconds:.1f} s classifying {owl}; {_tail(kept)}"
         raise UnavailableError(msg)
     if not out.is_file():
-        msg = f"ROBOT exited 0 but wrote no {out}"
+        msg = f"ROBOT exited 0 after {seconds:.1f} s but wrote no {out}; {_tail(kept)}"
         raise UnavailableError(msg)
     return seconds
 
 
+def _tail(kept: Path) -> str:
+    """Where ROBOT's stderr is, with its last `TAIL_LINES` lines."""
+    if not kept.is_file():
+        return f"no stderr at {kept}"
+    lines = kept.read_bytes().decode("utf-8", errors="replace").splitlines()[-TAIL_LINES:]
+    return f"its stderr is at {kept}, ending: {' | '.join(lines)}"
+
+
 def rows(release: str, comparison: Comparison) -> Iterable[tuple[str, str, str, str]]:
-    """The report's rows for one release: the loaded side's links, then ELK's."""
+    """The report's rows for one release: the loaded side's ancestor pairs, then ELK's."""
     for side, found in (("loaded", comparison.only_loaded), ("elk", comparison.only_elk)):
         for child, ancestor in found:
             yield release, child, ancestor, side

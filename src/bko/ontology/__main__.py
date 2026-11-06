@@ -5,10 +5,11 @@ and parses them, and writes one CSV row per checked row of `bko.ontology.mapping
 or how the release disagrees. `reproduce` does the same for the pinned MONDO and DO releases,
 rebuilds Santos et al.'s fusion example with `bko.ontology.santos`, and writes one CSV row per
 quantity of the example. `elk` fetches the pinned OWL releases and ROBOT, classifies each release
-with ELK (`bko.ontology.elk`), which needs a JDK, and writes one CSV row per subclass link, within
-the mapped concepts and their ancestors, that the classification or the loaded OBO release holds
-and the other lacks. The parser's version, each release's identity, a warning per disagreeing
-row, and `elk`'s tool, timings and per-release counts go to stderr through logging.
+with ELK (`bko.ontology.elk`), which needs a JDK, and writes one CSV row per ancestor pair,
+within the mapped concepts and their ancestors, that the classification or the loaded OBO release
+holds and the other lacks; it finds Java before it fetches anything. The parser's version, each
+release's identity, a warning per disagreeing row, and `elk`'s tool, heap, timeout, timings,
+classified files and per-release counts go to stderr through logging.
 `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce` or `elk` wrote its report, whatever its
@@ -41,6 +42,7 @@ from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
 from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
 from bko.ontology.schema import CheckedRow
+from bko.ontology.terms import Ontology
 
 
 logger = logging.getLogger("bko.ontology")
@@ -177,6 +179,7 @@ def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:
 
 
 def _elk(data_dir: Path, context: Context, out: TextIO) -> int:
+    java, version = context.resolve_java()
     loaded = load_releases(context.releases, data_dir, open_url=context.open_url)
     owls = {
         prefix: ensure(source, data_dir, open_url=context.open_url)
@@ -184,38 +187,86 @@ def _elk(data_dir: Path, context: Context, out: TextIO) -> int:
     }
     for path in owls.values():
         elk.refuse_imports(path)
-    java, version = context.resolve_java()
     jar = ensure(context.robot, data_dir, open_url=context.open_url)
-    logger.info("elk tool robot_sha256=%s java=%s", context.robot.sha256, version)
+    logger.info(
+        "elk tool robot_url=%s robot_sha256=%s java=%s xmx_gb=%d timeout_s=%d",
+        context.robot.url,
+        context.robot.sha256,
+        version,
+        elk.ELK_MEMORY_GB,
+        elk.ELK_TIMEOUT_SECONDS,
+    )
     text = io.StringIO()
     writer = csv.writer(text, lineterminator="\n")
     writer.writerow(elk.COLUMNS)
     differing = 0
     for prefix, owl in owls.items():
         release = loaded[prefix].name
-        source = context.owl_releases[prefix]
-        classified = data_dir / "elk" / f"{source.name}-{source.sha256[:16]}.obo"
-        seconds = elk.classify(owl, classified, java=java, jar=jar, runner=context.robot_runner)
-        logger.info("elk classified release=%s seconds=%.1f", release, seconds)
-        comparison = elk.compare_hierarchies(
-            elk.loaded_hierarchy(loaded[prefix]),
-            elk.read_hierarchy(classified),
-            {concept for concept in context.concepts if concept.startswith(f"{prefix}:")},
-        )
-        logger.info(
-            "elk compare release=%s concepts=%d only_loaded=%d only_elk=%d",
-            release,
-            comparison.concepts,
-            len(comparison.only_loaded),
-            len(comparison.only_elk),
+        comparison = _classify_and_compare(
+            prefix, owl, loaded[prefix], data_dir, context, java=java, jar=jar
         )
         writer.writerows(elk.rows(release, comparison))
         differing += comparison.differing
     report = text.getvalue()
     digest = hashlib.sha256(report.encode()).hexdigest()
-    logger.info("elk differing links=%d sha256=%s", differing, digest)
+    logger.info("elk differing ancestor_pairs=%d sha256=%s", differing, digest)
     out.write(report)
     return 0
+
+
+def _classify_and_compare(
+    prefix: str,
+    owl: Path,
+    ontology: Ontology,
+    data_dir: Path,
+    context: Context,
+    *,
+    java: Path,
+    jar: Path,
+) -> elk.Comparison:
+    """Classify one prefix's OWL release, compare it with `ontology`, and log both steps."""
+    release = ontology.name
+    source = context.owl_releases[prefix]
+    classified = data_dir / "elk" / f"{source.name}-{source.sha256[:16]}.obo"
+    logger.info(
+        "elk classify release=%s owl_sha256=%s xmx_gb=%d timeout_s=%d",
+        release,
+        source.sha256,
+        elk.ELK_MEMORY_GB,
+        elk.ELK_TIMEOUT_SECONDS,
+    )
+    seconds = elk.classify(owl, classified, java=java, jar=jar, runner=context.robot_runner)
+    body = classified.read_bytes()
+    logger.info(
+        "elk classified release=%s seconds=%.1f path=%s bytes=%d sha256=%s",
+        release,
+        seconds,
+        classified,
+        len(body),
+        hashlib.sha256(body).hexdigest(),
+    )
+    mine, theirs = elk.loaded_hierarchy(ontology), elk.read_hierarchy(classified)
+    comparison = elk.compare_hierarchies(
+        mine,
+        theirs,
+        {concept for concept in context.concepts if concept.startswith(f"{prefix}:")},
+    )
+    logger.info(
+        "elk compare release=%s loaded_terms=%d elk_classes=%d concepts=%d "
+        "absent_loaded=%d absent_elk=%d only_loaded=%d only_elk=%d "
+        "minimal_loaded=%d minimal_elk=%d",
+        release,
+        len(mine),
+        len(theirs),
+        comparison.concepts,
+        comparison.absent_loaded,
+        comparison.absent_elk,
+        len(comparison.only_loaded),
+        len(comparison.only_elk),
+        comparison.minimal_loaded,
+        comparison.minimal_elk,
+    )
+    return comparison
 
 
 if __name__ == "__main__":
