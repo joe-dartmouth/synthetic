@@ -362,6 +362,18 @@ def _pick(
     raise SamplingError(msg)
 
 
+def label_group(
+    train: pd.DataFrame, label: int, rows: Sequence[FieldMapping], *, name: str, frame: FrameSpec
+) -> Observed:
+    """The training records of `label`, observed as the label group whose prior a share reads.
+
+    Raises:
+        GapError: As `observe_records`.
+    """
+    members = train.loc[train[frame.label].eq(label)]
+    return observe_records(members, rows, name=f"{name}/{frame.label}={label}")
+
+
 def _label_groups(
     train: pd.DataFrame,
     keys: pd.DataFrame,
@@ -373,7 +385,7 @@ def _label_groups(
     groups: dict[int, _Group] = {}
     for label in sorted(labels):
         members = train.loc[train[frame.label].eq(label)]
-        observed = observe_records(members, rows, name=f"{name}/{frame.label}={label}")
+        observed = label_group(train, label, rows, name=name, frame=frame)
         bands = [str(band) for band in keys.loc[members.index, keys.columns[0]]]
         groups[label] = _Group(observed, _records(members, frame), bands)
     return groups
