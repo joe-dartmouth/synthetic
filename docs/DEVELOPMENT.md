@@ -904,18 +904,37 @@ call:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
 
-Per arm that adds rows, per holdout and fraction, it reads the attack in each scope the ADR fixes
-(AUC, and TPR at FPR 0.01 and 0.001), NNDR, and DCR recomputed under the same distance; an arm with
-no rows on a holdout is NaN and counted. The `privacy.csv` holds the measures `mi-auc`,
-`mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and `-label`; `mi-tpr001` has no
-`-cell`), `nndr-p5`, `nndr-median`, `nndr-ties` and `nndr-exact`, and `dcr-p5` and `dcr-median`,
-each for the added rows and for the held-out rows. Its `privacy.log` holds, per fraction, scope
-and arm, one `privacy arm=` line with the mean, the contrast against the reference arm (`real` for
-E6), its corrected interval, its family, the holdouts read and the holdouts `undefined`, and
-`exceeds_reference=`, true when the interval lies above 0; the last line is `privacy rows=%d
-sha256=%s`. `exceeds_reference` is a reading rule and no criterion. It refuses a store whose header
-does not match its folder's `scores.log`, whose data digest differs, or whose arm does not hash to
-the `arm` line's sha256, and exits 3.
+Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01
+and 0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is
+NaN and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `privacy.csv` holds the
+measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and
+`-label`; `mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`,
+`nndr-ties`, `nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for
+the held-out rows. Its `privacy.log` opens with `privacy run=%s stores=%d holdouts=%d reference=%s
+cell=%s`, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
+store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
+`privacy holdout=%d arm=%s added=%d` per arm (WARNING for an arm that adds no row), a WARNING
+`privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
+undefined in a scope (INFO for a cell scope with no member), and `privacy holdout=%d done=%d/%d
+seconds=%.1f elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the
+mean, the contrast against the reference arm (`real` for E6; a slice reads its run's), its
+corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN contrasts), and
+`leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or NNDR
+quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
+statistics and the DCR and NNDR quantiles are separate families at family-wise 0.95, sized by
+their pairs of arm and measure with a defined interval; the cell scope's lines are descriptive,
+and where the cell keeps no training record (f = 1.0) its scope reads family=0 and every value
+NaN. `mi-tpr001` has no line. The last line is `privacy rows=%d sha256=%s readings=%d undefined=%d
+seconds=%.1f`, `undefined` counting the readings with no interval. `leaks_more` is a reading rule
+and no criterion.
+
+Each store's folder is the header's folder name directly under the runs root (`runs/`); a name
+that resolves elsewhere is refused. `--data-dir` sets the data root. The command exits 2 for a run
+with no reference arm, a run lacking it, or a run that removes no cell, and 3 for a store whose
+run is neither the named run nor a slice of it, whose header does not match its folder's
+`scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,
+whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
+data does not reproduce.
 
 ## BKB fixtures
 
