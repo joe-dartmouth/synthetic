@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # A classifier panel reads recorded runs under four more models, with calibration, and no verdict
 
@@ -12,15 +12,15 @@ Every run scores each arm with a logistic regression, which E1's criteria judge,
 gradient boosting model reported beside it (`bko.evaluate.classifier.MODELS`, ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)). The instructor's feedback on the
 2026-11-04 status update asked for results under more classifiers, and for the literature on what
-row-adding does to AUC-PR (unit `evaluate-more-classifiers`). E6 shows that the classifier
-matters: at f = 1.0 `bko-direct` reaches removed-cell recall 0.5377 under the regression and
-0.3591 under boosting ([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
-The rebalancing literature reports that row-adding moves a model's predicted risk more than its
-ranking ([`docs/RESEARCH.md` section 7](../../RESEARCH.md#7-augmentation-versus-resampling)), a
-finding the panel tests, and neither recall nor AUC-PR reads that shift. Every recorded run must
-still replay byte for byte, and E1
-ruled out a random forest as a judged model because its own seed moved subgroup recall by one of
-5 positives.
+row-adding does to AUC-PR; [E7](../../EVIDENCE.md#e7-classifier-panel) records the reading. E6 shows
+that the classifier matters: at f = 1.0 `bko-direct` reaches removed-cell recall 0.5377 under the
+regression and 0.3591 under boosting
+([`docs/EVIDENCE.md`](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The rebalancing
+literature reports that row-adding moves a model's predicted risk more than its ranking
+([`docs/RESEARCH.md` section 7](../../RESEARCH.md#7-augmentation-versus-resampling)), a finding the
+panel tests, and neither recall nor AUC-PR reads that shift. Every recorded run must still replay
+byte for byte, and E1 ruled out a random forest as a judged model because its own seed moved
+subgroup recall by one of 5 positives.
 
 Unless noted, every measurement below is a planning measurement: measured 2026-11-05 on E6 holdout 0
 at f = 0.985 (54,177 training rows, 13,856 test rows, 1,250 removed rows, 34 columns, test

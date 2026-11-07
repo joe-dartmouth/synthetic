@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows
 
@@ -14,8 +14,8 @@ priors, and records the `is_a` closure without reading it into a field (ADR
 removed-cell recall among the generating arms
 ([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). How much of that
 comes from the logical structure and how much from the probabilities has not been measured, and
-the unit `compare-elk-logic-only` asks for a configuration in which presence comes from logic
-alone, its draw fixed before any run.
+[E9](../../EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) needs a
+configuration in which presence comes from logic alone, its draw fixed before any run.
 
 Logic alone states constraints, not rates. Among a dataset's mapped concepts the table and the
 releases give three:

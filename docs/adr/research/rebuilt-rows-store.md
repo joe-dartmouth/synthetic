@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # A recorded run's rows are rebuilt once, checked against its log, and stored with their hash
 
@@ -85,7 +85,7 @@ cannot be stored.
 | Gzip on the store | The hand check needs plain `jq` and `shasum` | 2026-11-05 |
 | Pickle or parquet | Neither is checkable by hand, and a pickle runs code on load | 2026-11-05 |
 | Privacy measures (MI, NNDR) as harness measures | They would move every recorded run's bytes | 2026-11-05 |
-| One pass that scores the classifier-panel reading (unit `evaluate-more-classifiers`) while regenerating | A panel failure would repeat the regeneration, and a failed reading would couple the stage-1 checks to stage 2 | 2026-11-05 |
+| One pass that scores the classifier-panel reading ([E7](../../EVIDENCE.md#e7-classifier-panel)) while regenerating | A panel failure would repeat the regeneration, and a failed reading would couple the stage-1 checks to stage 2 | 2026-11-05 |
 
 ## Enforcement
 
