@@ -16,19 +16,6 @@ the ROADMAP heading it serves.
 | Unit | Status | Depends on | Owner | Milestone |
 |---|---|---|---|---|
 | [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | ready | -- | Joe | final-report |
-| [`evaluate-membership-inference`](evaluate-membership-inference.md) | ready | -- | Joe | final-report |
-
-### Knowledge
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`compare-elk-logic-only`](compare-elk-logic-only.md) | ready | -- | Joe | final-report |
-
-### Evaluation
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`evaluate-more-classifiers`](evaluate-more-classifiers.md) | ready | -- | Joe | final-report |
 
 ## What every unit relies on
 

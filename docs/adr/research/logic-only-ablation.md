@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-06
 ---
 # The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows
 
@@ -12,10 +12,10 @@ updated: 2026-11-05
 priors, and records the `is_a` closure without reading it into a field (ADR
 `research/bkb-direct-generation`). On E6's frame, with the cell wholly removed, it had the highest
 removed-cell recall among the generating arms
-([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). How much of that
-comes from the logical structure and how much from the probabilities has not been measured, and
-the unit `compare-elk-logic-only` asks for a configuration in which presence comes from logic
-alone, its draw fixed before any run.
+([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). Separating what
+comes from the logical structure from what comes from the probabilities needs a configuration in
+which presence comes from logic alone, its draw fixed before any run;
+[E9](../../EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) records that comparison.
 
 Logic alone states constraints, not rates. Among a dataset's mapped concepts the table and the
 releases give three:
