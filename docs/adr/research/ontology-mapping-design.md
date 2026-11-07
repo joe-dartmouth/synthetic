@@ -32,7 +32,7 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
 - **pronto read both releases**, with every term converted to standard-library values, no import
   and no warning.
 
-[E9](../../EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) asks whether ELK, a classifier
+[E9](../../EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) records whether ELK, a classifier
 for EL+bottom (EL with the bottom concept) within the OWL 2 EL profile, derives subclass links the
 loaded hierarchy lacks, or the reverse. MONDO's release build runs ELK through ROBOT, a Java
 command-line tool distributed as a jar
