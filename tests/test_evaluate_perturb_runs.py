@@ -126,10 +126,10 @@ def test_the_thin_pilot_asks_its_cells_removed_rows_and_the_empty_one_all_of_the
     assert (quota(E10_PILOT_THIN), quota(E10_PILOT_EMPTY)) == ({cell: 1250}, {cell: 1269})
 
 
-def test_the_pilots_deltas_are_not_yet_fixed():
-    assert (DELTA_THIN, DELTA_EMPTY) == (None, None)
-    assert delta_for(E10_PILOT_THIN) == Delta(None, "placeholder", 0.985)
-    assert delta_for(E10_PILOT_EMPTY) == Delta(None, "placeholder", 1.0)
+def test_the_pilots_deltas_are_the_recorded_thresholds():
+    assert (DELTA_THIN, DELTA_EMPTY) == (0.036399, 0.003108)
+    assert delta_for(E10_PILOT_THIN) == Delta(0.036399, "table", 0.985)
+    assert delta_for(E10_PILOT_EMPTY) == Delta(0.003108, "table", 1.0)
     assert Delta(None, "placeholder", 1.0).gate == pytest.approx(0.0)
 
 
@@ -143,7 +143,13 @@ def test_delta_for_reads_each_fraction_and_gates_any_other_run_at_zero(monkeypat
     assert Delta(0.022, "table", 1.0).gate == pytest.approx(0.022)
 
 
-def test_an_unfixed_delta_refuses_a_perturbing_run_but_a_rehearsal():
+@pytest.fixture
+def unfixed_deltas(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Leave both pilot fractions with no recorded delta."""
+    monkeypatch.setattr(perturb, "DELTAS", {0.985: None, 1.0: None})
+
+
+def test_an_unfixed_delta_refuses_a_perturbing_run_but_a_rehearsal(unfixed_deltas):
     for arm in sorted(PERTURBING_ARMS):
         alone = dataclasses.replace(
             E10_PILOT_THIN,
@@ -163,7 +169,7 @@ def test_an_unfixed_delta_refuses_a_perturbing_run_but_a_rehearsal():
 @pytest.mark.parametrize("name", ["e10-pilot-thin", "e10-pilot-empty"])
 @pytest.mark.parametrize("command", ["score", "launch"])
 def test_score_and_launch_refuse_a_pilot_at_its_unfixed_delta_before_any_file(
-    tmp_path, caplog, name, command
+    tmp_path, caplog, name, command, unfixed_deltas
 ):
     start = Starts()
     context = Context(power=lambda: False, runs_dir=tmp_path / "runs", start=start)
@@ -179,7 +185,7 @@ def test_score_and_launch_refuse_a_pilot_at_its_unfixed_delta_before_any_file(
     assert start.commands == []
 
 
-def test_a_pilot_rehearsal_launches_at_its_unfixed_delta(tmp_path):
+def test_a_pilot_rehearsal_launches_at_its_unfixed_delta(tmp_path, unfixed_deltas):
     start = Starts()
     context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
     argv = ["launch", "e10-1", "e10-pilot-thin", "--rehearse", "--dry-run"]

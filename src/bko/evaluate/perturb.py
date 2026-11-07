@@ -50,12 +50,13 @@ logger = logging.getLogger(__name__)
 POSITIVE: Final = 1
 """The label whose training rows are the check's reference."""
 
-DELTA_THIN: Final[float | None] = None
-"""delta at E6's thinned fraction, 0.985: None until `perturb-threshold` reads it from E6's
-stored `bko-direct` rows and its value is recorded here."""
+DELTA_THIN: Final[float | None] = 0.036399
+"""delta at E6's thinned fraction, 0.985: the `delta=` that `perturb-threshold e6-thin` logged
+over E6's stored `bko-direct` rows (run folder `runs/e10-1`)."""
 
-DELTA_EMPTY: Final[float | None] = None
-"""delta at E6's empty fraction, 1.0: None until recorded, as `DELTA_THIN`."""
+DELTA_EMPTY: Final[float | None] = 0.003108
+"""delta at E6's empty fraction, 1.0: the `delta=` that `perturb-threshold e6-empty` logged
+(run folder `runs/e10-2`)."""
 
 DELTAS: Final[Mapping[float, float | None]] = MappingProxyType(
     {0.985: DELTA_THIN, 1.0: DELTA_EMPTY}
