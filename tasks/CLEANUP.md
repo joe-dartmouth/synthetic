@@ -212,6 +212,31 @@ links to where its blocker is tracked.
   read by `read` and ignored by the rebuild, with a test that a schema-3 file still reads.
   **Trigger:** the first reading of a pilot that needs per-row refusals beside `scores.log`.
 
+- **`cleanup:evaluate/privacy-runs-root-in-worktree`: `privacy` and `perturb-threshold` find the
+  stores' folders only under `runs/` beside the code.** `_privacy` and `_threshold` in
+  `bko.evaluate.__main__` pass `root=context.runs_root()`, which is `runs/` beside the checkout
+  the code runs from (`bko.datasets.run_folders.runs_root`) unless a test sets `runs_dir`. A run
+  from a frozen worktree, as the paid-run protocol and E8 use, finds no `runs/` there, so E8 ran
+  through a gitignored wrapper, `scratchpad/main-with-runs.py`, that calls `main` with
+  `Context(runs_dir=<repo>/runs)` ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md), E8's Runs). *Filed
+  2026-11-06 by the E7 to E9 results change.*
+  **Why deferred.** The results change records runs and changes no code.
+  **What discharges it:** a `--runs-dir` flag on both commands, or a root derived from the
+  `--rows` paths' folders, with a test that reads stores outside the code's checkout, and the
+  wrapper no longer needed.
+  **Trigger:** the next change to either command, or the next privacy or threshold reading run
+  from a worktree.
+- **`cleanup:evaluate/privacy-logs-no-versions`: `privacy` and `perturb-threshold` log no
+  `versions commit=` line.** Neither `bko.evaluate.membership` nor
+  `bko.evaluate.perturb_threshold` calls `bko.evaluate.provenance.log_versions`, so
+  `runs/e8-1/privacy.log` to `runs/e8-3/privacy.log` and `runs/e10-1/threshold.log` name no commit
+  and E8's commit rests on its tag alone. Evidence: `grep -l 'versions commit' runs/e8-*/privacy.log
+  runs/e10-*/threshold.log` prints nothing. *Filed 2026-11-06 by the E7 to E9 results change.*
+  **Why deferred.** The results change records runs and changes no code.
+  **What discharges it:** both commands log the `versions` line first, as `score`, `rows` and
+  `contradictions` do, with a test on each log's first lines.
+  **Trigger:** the next change to either command.
+
 ## generate
 
 - **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking
