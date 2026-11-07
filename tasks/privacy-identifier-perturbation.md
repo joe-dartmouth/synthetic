@@ -1,6 +1,6 @@
 ---
 id: privacy-identifier-perturbation
-title: Perturb identifying fields with an LLM, keeping concepts and distribution, and track distance per method
+title: Run the identifier-perturbation arms in full and read distance and membership inference per method
 status: ready
 depends_on: --
 blocks: --
@@ -11,7 +11,7 @@ paid: true
 adrs: research/identifier-perturbation
 ---
 
-# Perturb identifying fields with an LLM, keeping concepts and distribution, and track distance per method
+# Run the identifier-perturbation arms in full and read distance and membership inference per method
 
 The set's graph is [`experiments-index.md`](experiments-index.md).
 
@@ -33,22 +33,17 @@ without changing what the arm teaches a classifier. The privacy criterion
 ([`docs/RESEARCH.md`](../docs/RESEARCH.md#4-success-criteria)) reads distance to closest record,
 so the question is measured per method on the same holdouts.
 
-## Findings so far
+## Pilot findings
 
 The arms, the check and the pilots exist (ADR
-[`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md)). Every
-Diabetes field group is a single field, and `bko-direct` picks each free field from its own
-record, so its rows are already mosaics: their 19-field combination matches a training record for
-under 1% of rows, below `real`'s rate. The pilots on holdouts 0 and 1
-([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) cost about 0.00019 USD per
-row asked. The rewrite returned every row asked, but the distribution check refused
-`bko-direct-perturbed` on 3 of 4 holdouts, both at the empty fraction, keeping the original rows;
-PRAM passed on all four. Read descriptively on two holdouts, both arms lowered membership-inference
-AUC in the removed cell at the thin fraction and moved the added rows' 5th-percentile distance
-away from the training records, with recall and AUC-PR within a few points of `bko-direct`. The
-ADR's reversal condition on a check that refuses every holdout of a fraction is met for the
-rewrite arm at the empty fraction, so its reference is reopened before a full run. A full run of
-both arms at both fractions over E6's 100 holdouts is estimated in E10's Configuration.
+[`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md), which also
+says why `bko-direct`'s rows are already mosaics). E10's Runs field
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) holds the pilots'
+readings and Configuration the full-run estimate. What they settle for this unit: the rewrite
+returns every row asked, but the distribution check refused it on thin holdout 1 and on both empty
+holdouts, which meets the ADR's reversal condition for a check that refuses every holdout of a
+fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide both
+arms' privacy and utility.
 
 ## Scope
 
@@ -71,6 +66,10 @@ both arms at both fractions over E6's 100 holdouts is estimated in E10's Configu
 
 ## Acceptance
 
+- The ADR names the rewrite arm's check reference, and a pilot or rehearsal at that reference is
+  recorded, before any full run.
+- Each full run's spend is estimated in E10's Runs row before it starts and stays under its
+  ceiling.
 - The full runs are recorded with their spend and replay byte for byte.
 - E10's Result reports both arms' paired differences against `bko-direct` on utility, distance
   and membership inference at both fractions, read from the stored rows with no API call.
