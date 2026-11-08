@@ -66,13 +66,6 @@ import it (ADR `tooling/agent-config-single-home`).
   perturbation pilots) per scope. `--rows` repeats,
   once per slice's store. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
-- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/threshold.csv && test ! -e runs/<run-id>/threshold.log && uv run --no-sync python -m bko.evaluate perturb-threshold <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/threshold.csv 2> runs/<run-id>/threshold.log </dev/null`:
-  compute, per removal fraction, the threshold the perturbation arms' distribution check refuses
-  below from E6's stored `bko-direct` rows. It makes no API call; the pilot runs `e10-pilot-thin`
-  and `e10-pilot-empty` spend money through `launch`, which refuses them, as `score` does, until
-  that threshold is recorded
-  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds both, and ADR
-  `research/identifier-perturbation` the arms).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes

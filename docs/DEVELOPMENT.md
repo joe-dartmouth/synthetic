@@ -979,21 +979,8 @@ distribution check fails at the run's `delta`.
 `delta` comes first. `bko.evaluate.perturb.DELTAS` holds each removal fraction's value, None until
 one is recorded there; a run with no removal, or a fraction it does not list, gates at 0, the
 strictest. `score` and `launch` refuse, exit 2, before any file or call, a run that holds
-`bko-direct-perturbed` or `bko-direct-pram` while its fraction's `delta` is None, naming
-`perturb-threshold`; only `--rehearse` runs there, its check at 0, since a rehearsal is free.
-`perturb-threshold` reads `delta` per removal fraction from E6's stored `bko-direct` rows and makes
-no API call. `<run>` is required, the named E6 run (`e6-thin` or `e6-empty`), and `--rows` repeats
-once per store, as for `privacy`:
-
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/threshold.csv && test ! -e runs/<run-id>/threshold.log && uv run --no-sync python -m bko.evaluate perturb-threshold <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/threshold.csv 2> runs/<run-id>/threshold.log </dev/null
-
-`threshold.csv` holds one row per holdout, `holdout,shapes,pair_trends,step`, the step empty on the
-first. `threshold.log` holds a `perturb threshold holdout=%d shapes=%.6f pair_trends=%.6f` line per
-holdout, then `perturb threshold run=%s fraction=%s holdouts=%d steps=%d percentile=95
-delta=%.6f`, at WARNING under 10 steps (`bko.evaluate.perturb_threshold.MIN_STEPS`). The command
-exits 2 for a run with no `bko-direct` arm, under two holdouts or a shape that is not finite, and 3
-as `privacy` does for a store, or for a holdout whose `split` line its data does not prepare. The
-`delta` it logs is the value recorded in `DELTAS` for that fraction, in its own change.
+`bko-direct-perturbed` or `bko-direct-pram` while its fraction's `delta` is None; only `--rehearse`
+runs there, its check at 0, since a rehearsal is free.
 
 Each pilot is then a paid run, so it starts with `launch` (the paid-run protocol above); the dry
 run writes `launch.log` and starts nothing:
@@ -1629,7 +1616,7 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
-| `threshold.csv` | `python -m bko.evaluate perturb-threshold`'s stdout |
+| `threshold.csv` | the delta readings of runs e10-1 and e10-2 |
 | `threshold.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |

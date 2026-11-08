@@ -1,7 +1,7 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
 The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`,
-`perturb-threshold`, `likelihood`, `contradictions`, `trace`, `launch` and `supervise`.
+`likelihood`, `contradictions`, `trace`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
 into the data root if it is absent), runs every arm of E1 on each of its holdouts and writes the
@@ -29,8 +29,6 @@ with calibration, from the store at PATH that `rows` wrote, to stdout (`bko.eval
 `privacy RUN --rows PATH...` reads the membership attack, NNDR and DCR of RUN's stores, one per
 slice, whose folders sit under the runs root, to stdout, and logs the reading rule
 (`bko.evaluate.membership`).
-`perturb-threshold RUN --rows PATH...` reads the perturbation check's delta from `bko-direct`'s
-rows in RUN's stores, as `privacy` reads them, to stdout (`bko.evaluate.perturb_threshold`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -67,12 +65,11 @@ paid or direct arm, one path for both files, more than one of `--replay`, `--res
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `score` or `launch` but a rehearsal of a run holding a
 perturbation arm whose delta is not fixed, a `launch` on battery power or into a folder that
-holds a run, a `privacy` run with no reference arm or removed cell, a `perturb-threshold` run with
-no `bko-direct` arm, under two holdouts or a non-finite reading, a `trace` of a perturbation arm,
+holds a run, a `privacy` run with no reference arm or removed cell, a `trace` of a perturbation arm,
 or of a holdout, arm or record the folder does not hold or over a call log line it cannot read,
 and scores whose validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
-contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`, `perturb-threshold` or
+contradicts its contract, or a `shared`, `rows`, `panel`, `privacy` or
 `trace` run folder or store fails an identity check, a `trace` re-draw included.
 """
 
@@ -108,7 +105,6 @@ from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
 from bko.evaluate.panel import panel
 from bko.evaluate.perturb import refuse_unfixed
-from bko.evaluate.perturb_threshold import perturb_threshold
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
 from bko.evaluate.rows import creatable, store
@@ -183,8 +179,6 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_panel(args, context))
     elif args.command == "privacy":
         sink.write(_privacy(args, context))
-    elif args.command == "perturb-threshold":
-        sink.write(_threshold(args, context))
     elif args.command == "contradictions":
         sink.write(census(data_dir(args), context))
     elif args.command == "trace":
@@ -398,20 +392,6 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
     named = _named(args.run, context)
     data = load(named.dataset, data_dir(args), named)
     return privacy(
-        args.run,
-        args.stores,
-        experiment=named.experiment,
-        data=data,
-        runs=named.runs,
-        root=context.runs_root(),
-    )
-
-
-def _threshold(args: argparse.Namespace, context: Context) -> str:
-    """Read the run's delta from its `--rows` stores, whose folders sit under the runs root."""
-    named = _named(args.run, context)
-    data = load(named.dataset, data_dir(args), named)
-    return perturb_threshold(
         args.run,
         args.stores,
         experiment=named.experiment,

@@ -10,10 +10,9 @@ fields, and `PerturbedArm` rewrites them through calls merged by `bko.evaluate.r
 `check_distribution` gates a holdout's perturbed rows: SDMetrics' column shapes of the perturbed
 rows against the label-1 training rows, over the unmapped fields, must reach the unperturbed rows'
 less delta, or every original row is kept. Column pair trends are logged, not gated. delta is
-fixed per removal fraction (`DELTAS`) by `perturb-threshold` (`bko.evaluate.perturb_threshold`);
-a fraction listed with None has no value yet, and `refuse_unfixed` refuses a run that would gate
-at it, a rehearsal excepted. ADR `research/identifier-perturbation` records both arms and the
-check.
+fixed per removal fraction (`DELTAS`); a fraction listed with None has no value yet, and
+`refuse_unfixed` refuses a run that would gate at it, a rehearsal excepted. ADR
+`research/identifier-perturbation` records both arms and the check.
 """
 
 from __future__ import annotations
@@ -51,12 +50,11 @@ POSITIVE: Final = 1
 """The label whose training rows are the check's reference."""
 
 DELTA_THIN: Final[float | None] = 0.036399
-"""delta at E6's thinned fraction, 0.985: the `delta=` that `perturb-threshold e6-thin` logged
-over E6's stored `bko-direct` rows (run folder `runs/e10-1`)."""
+"""delta at E6's thinned fraction, 0.985: the delta reading of run `e10-1`
+over E6's stored `bko-direct` rows."""
 
 DELTA_EMPTY: Final[float | None] = 0.003108
-"""delta at E6's empty fraction, 1.0: the `delta=` that `perturb-threshold e6-empty` logged
-(run folder `runs/e10-2`)."""
+"""delta at E6's empty fraction, 1.0: the delta reading of run `e10-2`."""
 
 DELTAS: Final[Mapping[float, float | None]] = MappingProxyType(
     {0.985: DELTA_THIN, 1.0: DELTA_EMPTY}
@@ -140,7 +138,7 @@ def refuse_unfixed(experiment: Experiment, *, run: str, rehearse: bool) -> None:
     if arms and delta.value is None and not rehearse:
         msg = (
             f"the run {run!r} holds {', '.join(arms)}, whose delta at removal fraction "
-            f"{delta.fraction} is not fixed: run `perturb-threshold` and record its value in "
+            f"{delta.fraction} is not fixed: record its value in "
             "bko.evaluate.perturb.DELTAS first; only --rehearse runs at an unfixed delta"
         )
         raise EvaluationError(msg)

@@ -14,7 +14,6 @@ from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.membership import add_parser as add_privacy
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import add_parser as add_panel
-from bko.evaluate.perturb_threshold import add_parser as add_threshold
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.evaluate.trace import add_parser as add_trace
@@ -147,7 +146,6 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         add_rows,
         add_panel,
         add_privacy,
-        add_threshold,
         add_contradictions,
         add_trace,
     ):
