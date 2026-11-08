@@ -35,7 +35,7 @@ so the question is measured per method on the same holdouts.
 
 ## Pilot findings
 
-The arms, the check and the pilots exist (ADR
+The arms, the reading, the quotas and the pilots exist (ADR
 [`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md), which also
 says why `bko-direct`'s rows are already mosaics). E10's Runs field
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) holds the pilots'
@@ -43,14 +43,15 @@ readings and Configuration the full-run estimate. What they settle for this unit
 returns every row asked, but the distribution check refused it on thin holdout 1 and on both empty
 holdouts, which meets the ADR's reversal condition for a check that refuses every holdout of a
 fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide both
-arms' privacy and utility.
+arms' privacy and utility. The ADR's Rationale says why a reading replaces the check and quotas aim
+the rewrite.
 
 ## Scope
 
 **In.**
 
-- Settle the rewrite arm's check reference under the ADR's reversal condition, recorded in the ADR
-  before any full run.
+- Replace the rewrite arm's check with a reading that never changes a row, and give each rewrite
+  call per-call value quotas from the cell's label group, recorded in the ADR before any full run.
 - Full runs of both arms at both fractions over E6's holdouts, as named runs in
   `bko.evaluate.named_runs.RUNS`, each with its spend estimated in the Runs row before the run,
   under its ceiling and the paid-run protocol
@@ -62,12 +63,12 @@ arms' privacy and utility.
 **Out.**
 - Formal privacy guarantees: differential privacy and k-anonymity proofs.
 - Perturbing arms other than `bko-direct`.
-- Any change to an existing arm's calls. E6's logs must stay replayable.
+- Any change to an E6 arm's calls; E6's logs must stay replayable.
 
 ## Acceptance
 
-- The ADR names the rewrite arm's check reference, and a pilot or rehearsal at that reference is
-  recorded, before any full run.
+- The ADR records the reading and the quotas, and a paid re-pilot at them is recorded before any
+  full run.
 - Each full run's spend is estimated in E10's Runs row before it starts and stays under its
   ceiling.
 - The full runs are recorded with their spend and replay byte for byte.

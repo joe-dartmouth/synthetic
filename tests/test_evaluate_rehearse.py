@@ -44,6 +44,7 @@ from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_
 from tests._evaluate_fixtures import GRADED, GRADED_DATA, SMALL, uci_data
 from tests._frame_fixtures import TOY, toy_records
 from tests._generate_fixtures import GUIDANCE, OTHER_GUIDANCE, ScriptedSend
+from tests.test_generate_rewrite import quotas_for
 
 
 SEXES_BY_LABEL = {label: code for code, label in SEXES.items()}
@@ -343,9 +344,9 @@ def test_the_canned_rewrite_returns_each_rows_fields_as_sent():
         {"chol": 210, "fbs": 0, "oldpeak": 1.5, "thal": 3},
         {"chol": 260, "fbs": 1, "oldpeak": 0.0, "thal": 7},
     )
-    rewrite = Rewrite(
-        ("chol", "fbs", "oldpeak", "thal"), rows, {"chol": (1, 600), "oldpeak": (0, 7)}
-    )
+    fields = ("chol", "fbs", "oldpeak", "thal")
+    bounds = {"chol": (1.0, 600.0), "oldpeak": (0.0, 7.0)}
+    rewrite = Rewrite(fields, rows, bounds, quotas_for(fields, rows))
     system, user = render_rewrite(rewrite, frame=UCI_FRAME)
     answer = send(Call(SETTINGS, 0, 1, system, user, frame=UCI_FRAME))
     assert json.loads(answer.text or "")["records"] == [

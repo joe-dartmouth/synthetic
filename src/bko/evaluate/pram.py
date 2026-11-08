@@ -24,7 +24,7 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.perturb import Changed, Delta, Perturbing, Record, drawn_frame, native
+from bko.evaluate.perturb import Changed, Perturbing, Record, drawn_frame, native
 
 
 if TYPE_CHECKING:
@@ -80,9 +80,7 @@ class PramArm(Perturbing):
         theta: The probability a value is kept.
     """
 
-    def __init__(
-        self, inner: DirectArm, theta: float = THETA, *, fields: Sequence[str], delta: Delta
-    ) -> None:
+    def __init__(self, inner: DirectArm, theta: float = THETA, *, fields: Sequence[str]) -> None:
         """Hold the arm and log its configuration; nothing is drawn until it runs.
 
         Raises:
@@ -92,7 +90,7 @@ class PramArm(Perturbing):
             msg = f"theta {theta} must lie in [0, 1]"
             raise ValueError(msg)
         self.theta = theta
-        super().__init__(inner, fields=fields, delta=delta, configuration=f"theta={theta}")
+        super().__init__(inner, fields=fields, configuration=f"theta={theta}")
 
     def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
         """Draw as `bko-direct` and perturb, seeded by the request's seed.
@@ -137,4 +135,5 @@ class PramArm(Perturbing):
             moved,
             values,
         )
-        return self.checked(train, drawn, changed, frame)
+        self.read(train, drawn, changed, frame)
+        return changed

@@ -22,6 +22,7 @@ import pytest
 
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
+from bko.evaluate.arguments import parser
 from bko.evaluate.launch import REHEARSAL, score_command
 from bko.evaluate.supervise import Outcome, backoff, outcome, run_segment, supervise
 from bko.generate.calls import ask
@@ -49,6 +50,9 @@ CRASHED: Final = "crashed"
 """A segment that exits on its own, code 1, with no `end` line: a crash, not a kill."""
 ABSENT: Final = "absent"
 """A segment that exits before it makes its call log."""
+
+CEILING_PLACEHOLDER: Final = " --ceiling <USD above projected_usd>"
+"""The end of a spend stop's resume hint, which the operator fills in."""
 
 EXIT: Final = {"complete": 0, "failed": 2, "interrupted": 130}
 """The exit code each scripted status returns; a killed child returns -9."""
@@ -123,6 +127,7 @@ def _supervise(
     run_id: str = "e1-4",
     platform: str = "darwin",
     holdouts: int | None = None,
+    data_dir: Path | None = None,
 ) -> tuple[int, list[float]]:
     """Supervise `run_id` under `tmp_path` through `segments`; return its code and its waits."""
     folder = tmp_path / run_id / REHEARSAL if rehearse else tmp_path / run_id
@@ -132,6 +137,7 @@ def _supervise(
         run_id,
         "e1",
         root=tmp_path,
+        data_dir=data_dir,
         rehearse=rehearse,
         in_flight=in_flight,
         retries=retries,
@@ -437,9 +443,42 @@ def test_a_spend_stop_names_its_spend_projection_and_the_resume_under_a_raised_c
     assert warning == (
         f"supervise stop={end['stop']} usd=3.0000 holdouts=2 projected_usd=15.0000 "
         f"resume=launch <fresh-run-id> e1 --resume {tmp_path / 'e1-4' / 'calls.jsonl'} "
-        "--ceiling <USD above projected_usd>"
+        f"--runs-dir {tmp_path} --ceiling <USD above projected_usd>"
     )
     assert done == "supervise done segments=1 last=e1-4 outcome=stop exit=2"
+
+
+def test_a_spend_stops_resume_hint_carries_the_runs_flags(tmp_path):
+    data = tmp_path / "data"
+    _supervise(tmp_path, Segments(CEILING), in_flight=4, data_dir=data)
+    warning = _record(tmp_path)[-2]
+    assert warning.endswith(
+        f"--resume {tmp_path / 'e1-4' / 'calls.jsonl'} --runs-dir {tmp_path} --data-dir {data} "
+        "--in-flight 4 --ceiling <USD above projected_usd>"
+    )
+
+
+def test_a_spend_stops_resume_hint_parses_as_launch_under_a_root_with_a_space(tmp_path):
+    root = tmp_path / "my runs"
+    data = tmp_path / "my data"
+    _supervise(root, Segments(CEILING), in_flight=4, data_dir=data)
+    warning = _record(root)[-2]
+    hint = warning.split(" resume=", 1)[1]
+    assert hint.endswith(CEILING_PLACEHOLDER)
+    command = hint.removesuffix(CEILING_PLACEHOLDER).removeprefix("launch <fresh-run-id> ")
+    found = parser(None).parse_args(["launch", "e1-5", *shlex.split(command)])
+    assert found.run == "e1"
+    assert found.resume == root / "e1-4" / "calls.jsonl"
+    assert found.runs_dir == root.resolve()
+    assert found.data_dir == data
+    assert found.in_flight == 4
+
+
+def test_supervise_resolves_its_runs_root_and_refuses_an_empty_one():
+    found = parser(None).parse_args(["supervise", "e1-4", "e1", "--runs-dir", "runs"])
+    assert found.runs_dir == Path("runs").resolve()
+    with pytest.raises(SystemExit):
+        parser(None).parse_args(["supervise", "e1-4", "e1", "--runs-dir", ""])
 
 
 def test_a_spend_stop_with_no_holdouts_recorded_projects_none(tmp_path):

@@ -7,6 +7,7 @@ below both.
 
 from __future__ import annotations
 
+import argparse
 import re
 from pathlib import Path
 from typing import Final
@@ -30,3 +31,15 @@ def runs_root() -> Path:
         UnavailableError: As `default_data_dir`, outside a checkout.
     """
     return default_data_dir().parent / "runs"
+
+
+def runs_dir_argument(text: str) -> Path:
+    """`--runs-dir`'s argparse type: the run folders' root, resolved.
+
+    Raises:
+        argparse.ArgumentTypeError: If `text` is empty, which would name the working directory.
+    """
+    if not text:
+        msg = "the runs root must not be empty"
+        raise argparse.ArgumentTypeError(msg)
+    return Path(text).resolve()

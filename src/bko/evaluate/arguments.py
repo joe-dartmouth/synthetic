@@ -9,12 +9,12 @@ import argparse
 import math
 from pathlib import Path
 
+from bko.datasets.run_folders import runs_dir_argument
 from bko.evaluate.contradictions import add_parser as add_contradictions
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.membership import add_parser as add_privacy
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import add_parser as add_panel
-from bko.evaluate.perturb_threshold import add_parser as add_threshold
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.evaluate.trace import add_parser as add_trace
@@ -91,6 +91,12 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         "--data-dir", type=Path, default=None, help="the data root `score` reads"
     )
     launching.add_argument(
+        "--runs-dir",
+        type=runs_dir_argument,
+        default=None,
+        help="the run folders' root; default: runs/ beside the code",
+    )
+    launching.add_argument(
         "--dry-run", action="store_true", help="write the folder's roles and start nothing"
     )
     launching.add_argument(
@@ -147,7 +153,6 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         add_rows,
         add_panel,
         add_privacy,
-        add_threshold,
         add_contradictions,
         add_trace,
     ):
@@ -179,7 +184,9 @@ def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) 
     )
     supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
     supervising.add_argument("run", help="the named run")
-    supervising.add_argument("--runs-dir", type=Path, required=True, help="the run folders' root")
+    supervising.add_argument(
+        "--runs-dir", type=runs_dir_argument, required=True, help="the run folders' root"
+    )
     supervising.add_argument("--data-dir", type=Path, default=None, help="the data root")
     supervising.add_argument("--in-flight", type=in_flight, default=None, help="as score's")
     supervising.add_argument("--retries", type=retries, default=RETRIES, help="as launch's")

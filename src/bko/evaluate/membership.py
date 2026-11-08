@@ -39,6 +39,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 from bko.baselines.request import Stratum
 from bko.datasets.cells import LABEL, cell_keys
 from bko.datasets.frames import FrameSpec
+from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
@@ -378,11 +379,12 @@ def privacy(
 ) -> str:
     """Read `run`'s privacy from its `stores`; return the scores CSV.
 
-    It logs `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s`, `read`'s store lines,
-    `privacy read stores=%d holdouts=%d`, `holdout_scores`' lines and a `privacy holdout=%d
-    done=%d/%d seconds=%.1f elapsed=%.1f` line per holdout (`privacy holdout=%d failed` at ERROR
-    before a holdout's error), each `Reading`'s line, then `privacy rows=%d sha256=%s readings=%d
-    undefined=%d seconds=%.1f`, `undefined` counting the readings with no interval.
+    It logs `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `read`'s
+    store lines, `privacy read stores=%d holdouts=%d`, `holdout_scores`' lines and a `privacy
+    holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f` line per holdout (`privacy holdout=%d
+    failed` at ERROR before a holdout's error), each `Reading`'s line, then `privacy rows=%d
+    sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined` counting the readings with no
+    interval.
 
     Raises:
         EvaluationError: As `reference_of` or `holdout_scores`.
@@ -393,12 +395,13 @@ def privacy(
     reference, cell = reference_of(run, experiment, runs)
     total = len(experiment.holdout_seeds)
     logger.info(
-        "privacy run=%s stores=%d holdouts=%d reference=%s cell=%s",
+        "privacy run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s",
         run,
         len(stores),
         total,
         reference,
         "/".join(str(value) for value in cell),
+        root,
     )
     held = read(run, stores, data, experiment=experiment, runs=runs, root=root)
     logger.info("privacy read stores=%d holdouts=%d", len(stores), len(held))
@@ -481,4 +484,10 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     )
     reading.add_argument(
         "--data-dir", type=Path, default=None, help="the data root; default: the repository's"
+    )
+    reading.add_argument(
+        "--runs-dir",
+        type=runs_dir_argument,
+        default=None,
+        help="the root the stores' folders sit under; default: runs/ beside the code",
     )

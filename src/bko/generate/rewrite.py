@@ -1,15 +1,17 @@
 """The rewrite call: rows sent with a `row` index each, and their fields asked back changed.
 
 A `Rewrite` holds one call's rows, each only the fields to rewrite, never `age`, `sex` or the
-label, and each measured field's range in the holdout's training split. `render_rewrite` writes
-its prompt: `REWRITE`'s first sentence, each field's meaning, the ranges, then each row as a JSON
-object on its own line, its `row` index first. `rewrite_schema` fixes the reply: a `records`
-array whose every object holds a `row` from the indices asked and each field rewritten, and no
-other key, each coded field an `enum` over its codebook and each whole-number field an `enum` over
-its range, since structured outputs cannot bound a number. A fractional field is a plain
-`number`, bounded in the prompt alone. `bko.generate.calls.request` sends it;
-`bko.evaluate.perturbed` merges the reply by `row`. ADR `research/identifier-perturbation` records
-the call.
+label, each measured field's range in the holdout's training split, and each field's quotas: how
+many of the call's rows each value or inclusive range must hold (`Share`), which
+`bko.evaluate.quotas` sets from the cell's label-group training rows. `render_rewrite` writes its
+prompt: `REWRITE`'s first sentence and `OPENING`, each field's meaning, the ranges, the counts
+under `COUNTS_HEADER`, then each row as a JSON object on its own line, its `row` index first.
+`rewrite_schema` fixes the reply: a `records` array whose every object holds a `row` from the
+indices asked and each field rewritten, and no other key, each coded field an `enum` over its
+codebook and each whole-number field an `enum` over its range, since structured outputs cannot
+bound a number. A fractional field is a plain `number`, bounded in the prompt alone.
+`bko.generate.calls.request` sends it; `bko.evaluate.perturbed` merges the reply by `row`. ADR
+`research/identifier-perturbation` records the call.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Final
 
 from bko.datasets.frames import FrameSpec
@@ -35,11 +38,34 @@ REWRITE: Final = re.compile(
 
 REWRITE_SYSTEM: Final = (
     "You rewrite fields of patient records so that no rewritten record can be matched to the "
-    "patient it came from, while each record stays a plausible hospital encounter. You change "
-    "only the fields you are given, keep every value within the codes and ranges stated, and "
-    "reply with JSON that follows the schema."
+    "patient it came from, while each record stays a plausible, internally consistent hospital "
+    "encounter. You change only the fields you are given, keep every value within the codes, "
+    "ranges and counts stated, and reply with JSON that follows the schema."
 )
 """The system prompt of every rewrite call."""
+
+OPENING: Final = (
+    "Change each record so that its combination of values no longer matches the patient it was "
+    "drawn from; a field may keep its value. Across the records, each field must hold exactly the "
+    f'counts listed below. Return one object per record, in the order given, holding its "{ROW}" '
+    "and every field listed, and no other key."
+)
+"""What every rewrite user turn asks after `REWRITE`'s first sentence."""
+
+COUNTS_HEADER: Final = (
+    "Each field's counts across these records (a value or an inclusive range, then x and its "
+    "number of records):"
+)
+"""The first line of the quota block, which precedes the records."""
+
+
+@dataclass(frozen=True, slots=True)
+class Share:
+    """How many of a call's rows must hold a field's value from `low` to `high` inclusive."""
+
+    low: int | float
+    high: int | float
+    count: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,17 +76,26 @@ class Rewrite:
         fields: The fields rewritten, in frame order.
         rows: Each row's value of each field, in row order; a row's index is its position.
         bounds: Each measured field's lowest and highest value in the training split.
+        quotas: Each field's shares of the rows, strictly ascending and apart (each share's
+            `low` above the previous share's `high`), each non-empty, together summing to the
+            rows.
     """
 
     fields: tuple[str, ...]
     rows: tuple[Mapping[str, int | float], ...]
     bounds: Mapping[str, tuple[float, float]]
+    quotas: Mapping[str, tuple[Share, ...]]
 
     def __post_init__(self) -> None:
-        """Refuse `age` or `sex` among the fields, and a row that lacks or adds a field.
+        """Refuse the cell's fields, a row's other keys, and quotas that do not fit the rows.
+
+        The quotas must be one set of shares per field, each summing to the rows.
 
         Raises:
-            ValueError: If `fields` holds `age` or `sex`, or a row's keys are not `fields`.
+            ValueError: If `fields` holds `age` or `sex`, a row's keys are not `fields`, the
+                quotas' fields are not `fields`, a field's shares do not sum to the rows, a
+                share's `low` exceeds its `high` or it holds no row, or a share's `low` does not
+                exceed the previous share's `high`.
         """
         cell = sorted({"age", "sex"} & set(self.fields))
         if cell:
@@ -70,6 +105,23 @@ class Rewrite:
             if set(row) != set(self.fields):
                 msg = f"row {index} holds {sorted(row)}, not the fields {list(self.fields)}"
                 raise ValueError(msg)
+        if set(self.quotas) != set(self.fields):
+            msg = f"the quotas name {sorted(self.quotas)}, not the fields {list(self.fields)}"
+            raise ValueError(msg)
+        for name in self.fields:
+            shares = self.quotas[name]
+            total = sum(share.count for share in shares)
+            if total != len(self.rows):
+                msg = f"{name}'s quotas sum to {total}, not the {len(self.rows)} rows"
+                raise ValueError(msg)
+            for share in shares:
+                if share.low > share.high or share.count <= 0:
+                    msg = f"{name}'s share {share} is inverted or holds no row"
+                    raise ValueError(msg)
+            for before, share in pairwise(shares):
+                if share.low <= before.high:
+                    msg = f"{name}'s shares do not ascend apart: {share} follows {before}"
+                    raise ValueError(msg)
 
 
 def render_rewrite(rewrite: Rewrite, *, frame: FrameSpec) -> tuple[str, str]:
@@ -96,16 +148,16 @@ def render_rewrite(rewrite: Rewrite, *, frame: FrameSpec) -> tuple[str, str]:
         json.dumps({ROW: index, **{name: row[name] for name in rewrite.fields}})
         for index, row in enumerate(rewrite.rows)
     )
-    opening = (
-        f"Rewrite these {len(rewrite.rows)} records' fields: {', '.join(rewrite.fields)}. "
-        "Change each record so that it no longer matches the patient it was drawn from. Return "
-        f'one object per record, in the order given, holding its "{ROW}" and every field listed, '
-        "and no other key."
+    opening = f"Rewrite these {len(rewrite.rows)} records' fields: {', '.join(rewrite.fields)}. "
+    counts = "\n".join(
+        f"- {name}: " + ", ".join(_share(share) for share in rewrite.quotas[name])
+        for name in rewrite.fields
     )
     parts = [
-        opening,
+        opening + OPENING,
         f"The fields:\n{meanings}",
         *([f"Each measured field's range in the training data: {ranges}."] if ranges else []),
+        f"{COUNTS_HEADER}\n{counts}",
         f"The records:\n{listed}",
     ]
     return REWRITE_SYSTEM, "\n\n".join(parts)
@@ -139,6 +191,17 @@ def rewrite_schema(rewrite: Rewrite, *, frame: FrameSpec) -> dict[str, object]:
         "required": ["records"],
         "additionalProperties": False,
     }
+
+
+def _share(share: Share) -> str:
+    """`share` as the prompt states it: its value or inclusive range, then x and its count.
+
+    Each end is written in full, an `int` as its digits and a `float` as its shortest round-trip
+    form, so no end is rounded.
+    """
+    if share.low == share.high:
+        return f"{share.low} x{share.count}"
+    return f"{share.low}-{share.high} x{share.count}"
 
 
 def _meaning(name: str, frame: FrameSpec) -> str:

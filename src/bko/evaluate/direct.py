@@ -37,7 +37,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARMS, PRAM_ARM, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.perturb import Change, delta_for, unmapped
+from bko.evaluate.perturb import Change, unmapped
 from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
@@ -279,7 +279,7 @@ def run_direct(
         arm = direct_arm(name, knowledge, experiment, sink)
         if name == PRAM_ARM:
             fields = unmapped(knowledge.field_rows, frame=frame)
-            direct[name] = PramArm(arm, THETA, fields=fields, delta=delta_for(experiment))
+            direct[name] = PramArm(arm, THETA, fields=fields)
         else:
             direct[name] = arm
     try:

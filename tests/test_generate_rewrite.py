@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
+from collections.abc import Mapping, Sequence
 
 import pytest
 
@@ -14,7 +16,16 @@ from bko.generate.flight import Flight, Limits, Planned
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, Reply
 from bko.generate.prompt import field_units
-from bko.generate.rewrite import REWRITE, ROW, Rewrite, render_rewrite, rewrite_schema
+from bko.generate.rewrite import (
+    COUNTS_HEADER,
+    OPENING,
+    REWRITE,
+    ROW,
+    Rewrite,
+    Share,
+    render_rewrite,
+    rewrite_schema,
+)
 from bko.generate.skeleton import Skeleton
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, reply
@@ -31,7 +42,23 @@ ROWS = (
 
 BOUNDS = {"chol": (180.0, 300.0), "oldpeak": (0.0, 4.0)}
 
-REWRITTEN = Rewrite(FIELDS, ROWS, BOUNDS)
+
+def quotas_for(
+    fields: Sequence[str], rows: Sequence[Mapping[str, int | float]]
+) -> dict[str, tuple[Share, ...]]:
+    """One `Share` per distinct value of each field in `rows`, counted from them."""
+    return {
+        name: tuple(
+            Share(value, value, count)
+            for value, count in sorted(Counter(row[name] for row in rows).items())
+        )
+        for name in fields
+    }
+
+
+QUOTAS = quotas_for(FIELDS, ROWS)
+
+REWRITTEN = Rewrite(FIELDS, ROWS, BOUNDS, QUOTAS)
 
 
 def _log(tmp_path) -> CallLog:
@@ -54,6 +81,103 @@ def test_the_render_shows_every_row_with_its_index():
         assert f'"{name}"' not in user
 
 
+def _counts(user: str) -> dict[str, str]:
+    """Each field's counts line in `user`'s quota block, which ends before the records."""
+    block = user.split(COUNTS_HEADER + "\n", 1)[1].split("\n\nThe records:", 1)[0]
+    lines = [line.removeprefix("- ").split(": ", 1) for line in block.splitlines()]
+    return dict(lines)
+
+
+def test_the_render_states_each_fields_counts_between_the_ranges_and_the_records():
+    _, user = render_rewrite(REWRITTEN, frame=UCI_FRAME)
+    parts = user.split("\n\n")
+    (block,) = [part for part in parts if part.startswith(COUNTS_HEADER)]
+    assert parts.index(block) == len(parts) - 2
+    assert parts[-3].startswith("Each measured field's range in the training data: ")
+    assert parts[-1].startswith("The records:")
+    assert _counts(user) == {
+        "chol": "199 x1, 210 x1, 260 x1",
+        "fbs": "0 x2, 1 x1",
+        "oldpeak": "0.0 x1, 1.5 x1, 2.3 x1",
+        "thal": "3 x1, 6 x1, 7 x1",
+    }
+    ranged = Rewrite(
+        FIELDS, ROWS, BOUNDS, {**QUOTAS, "chol": (Share(180, 249, 2), Share(250, 300, 1))}
+    )
+    assert _counts(render_rewrite(ranged, frame=UCI_FRAME)[1])["chol"] == "180-249 x2, 250-300 x1"
+
+
+def test_a_share_states_its_ends_exactly():
+    quotas = {
+        **QUOTAS,
+        "chol": (Share(180, 1234567, 2), Share(1234568, 1234568, 1)),
+        "oldpeak": (Share(0.0, 0.1234567, 2), Share(2.3, 4.0, 1)),
+    }
+    counts = _counts(render_rewrite(Rewrite(FIELDS, ROWS, BOUNDS, quotas), frame=UCI_FRAME)[1])
+    assert counts["chol"] == "180-1234567 x2, 1234568 x1"
+    assert counts["oldpeak"] == "0.0-0.1234567 x2, 2.3-4.0 x1"
+
+
+def test_only_record_lines_start_with_a_brace():
+    _, user = render_rewrite(REWRITTEN, frame=UCI_FRAME)
+    assert sum(line.startswith("{") for line in user.splitlines()) == len(ROWS)
+
+
+def test_the_quota_block_names_exactly_the_fields_rewritten():
+    _, user = render_rewrite(REWRITTEN, frame=UCI_FRAME)
+    assert tuple(_counts(user)) == FIELDS
+
+
+def test_the_opening_lets_a_field_keep_its_value():
+    _, user = render_rewrite(REWRITTEN, frame=UCI_FRAME)
+    opening = f"Rewrite these {len(ROWS)} records' fields: {', '.join(FIELDS)}. {OPENING}"
+    assert user.split("\n\n", 1)[0] == opening
+    assert "a field may keep its value" in OPENING
+    assert REWRITE.match(user)
+
+
+def test_a_quota_for_a_field_not_rewritten_is_refused():
+    quotas = {**QUOTAS, "cp": (Share(1, 1, 3),)}
+    with pytest.raises(ValueError, match="quotas"):
+        Rewrite(FIELDS, ROWS, BOUNDS, quotas)
+
+
+def test_a_rewritten_field_with_no_quota_is_refused():
+    quotas = {name: shares for name, shares in QUOTAS.items() if name != "thal"}
+    with pytest.raises(ValueError, match="quotas"):
+        Rewrite(FIELDS, ROWS, BOUNDS, quotas)
+
+
+def test_a_fields_quota_that_does_not_sum_to_the_rows_is_refused():
+    quotas = {**QUOTAS, "fbs": (Share(0, 0, 2),)}
+    with pytest.raises(ValueError, match="sum to 2, not the 3 rows"):
+        Rewrite(FIELDS, ROWS, BOUNDS, quotas)
+
+
+@pytest.mark.parametrize(
+    "shares",
+    [(Share(1, 0, 3),), (*QUOTAS["fbs"], Share(0, 0, 0))],
+    ids=["low-above-high", "empty"],
+)
+def test_an_inverted_or_empty_share_is_refused(shares):
+    with pytest.raises(ValueError, match="share"):
+        Rewrite(FIELDS, ROWS, BOUNDS, {**QUOTAS, "fbs": shares})
+
+
+@pytest.mark.parametrize(
+    "shares",
+    [
+        (Share(0, 0, 1), Share(1, 1, 1), Share(0, 0, 1)),
+        (Share(180, 220, 2), Share(220, 300, 1)),
+        (Share(180, 250, 2), Share(200, 300, 1)),
+    ],
+    ids=["descending", "touching", "overlapping"],
+)
+def test_shares_that_do_not_strictly_ascend_are_refused(shares):
+    with pytest.raises(ValueError, match="ascend"):
+        Rewrite(FIELDS, ROWS, BOUNDS, {**QUOTAS, "chol": shares})
+
+
 def test_the_schema_pins_codebooks_rows_and_whole_number_ranges():
     schema = json.loads(json.dumps(rewrite_schema(REWRITTEN, frame=UCI_FRAME)))
     items = schema["properties"]["records"]["items"]
@@ -71,19 +195,21 @@ def test_the_schema_pins_codebooks_rows_and_whole_number_ranges():
 
 def test_a_row_that_lacks_or_adds_a_field_is_refused():
     with pytest.raises(ValueError, match="not the fields"):
-        Rewrite(FIELDS, ({**ROWS[0], "age": 50},), BOUNDS)
+        Rewrite(FIELDS, ({**ROWS[0], "age": 50},), BOUNDS, quotas_for(FIELDS, ROWS[:1]))
     with pytest.raises(ValueError, match="not the fields"):
-        Rewrite(FIELDS, ({"chol": 210},), BOUNDS)
+        Rewrite(FIELDS, ({"chol": 210},), BOUNDS, quotas_for(FIELDS, ROWS[:1]))
 
 
 @pytest.mark.parametrize("cell", ["age", "sex"])
 def test_a_rewrite_of_the_cells_fields_is_refused(cell):
+    rows = tuple({**row, cell: 1} for row in ROWS)
     with pytest.raises(ValueError, match="the cell's fields"):
-        Rewrite((*FIELDS, cell), tuple({**row, cell: 1} for row in ROWS), BOUNDS)
+        Rewrite((*FIELDS, cell), rows, BOUNDS, quotas_for((*FIELDS, cell), rows))
 
 
 def test_a_rewrite_of_the_label_is_refused():
-    rewrite = Rewrite((*FIELDS, "target"), tuple({**row, "target": 1} for row in ROWS), BOUNDS)
+    rows = tuple({**row, "target": 1} for row in ROWS)
+    rewrite = Rewrite((*FIELDS, "target"), rows, BOUNDS, quotas_for((*FIELDS, "target"), rows))
     with pytest.raises(ValueError, match="the label target"):
         render_rewrite(rewrite, frame=UCI_FRAME)
 
@@ -95,7 +221,8 @@ def test_the_diabetes_rewrite_sends_the_19_pinned_fields_and_nothing_mapped():
     bounds = {
         name: (0.0, 50.0) for name in DIABETES_UNMAPPED if name not in DIABETES_FRAME.categorical
     }
-    rewrite = Rewrite(DIABETES_UNMAPPED, (first, first), bounds)
+    quotas = quotas_for(DIABETES_UNMAPPED, (first, first))
+    rewrite = Rewrite(DIABETES_UNMAPPED, (first, first), bounds, quotas)
     _, user = render_rewrite(rewrite, frame=DIABETES_FRAME)
     sent = [json.loads(line) for line in user.splitlines() if line.startswith("{")]
     assert [set(row) for row in sent] == [{ROW, *DIABETES_UNMAPPED}] * 2
@@ -103,11 +230,12 @@ def test_the_diabetes_rewrite_sends_the_19_pinned_fields_and_nothing_mapped():
     kept = {"age", "sex", DIABETES_FRAME.label, *mapped} - set(DIABETES_UNMAPPED)
     for name in kept:
         assert f'"{name}"' not in user, name
+    assert list(_counts(user)) == list(DIABETES_UNMAPPED)
 
 
 def test_a_measured_field_with_no_range_is_refused():
     with pytest.raises(ValueError, match="no training range"):
-        render_rewrite(Rewrite(FIELDS, ROWS, {"chol": (180.0, 300.0)}), frame=UCI_FRAME)
+        render_rewrite(Rewrite(FIELDS, ROWS, {"chol": (180.0, 300.0)}, QUOTAS), frame=UCI_FRAME)
 
 
 def test_request_sends_the_rewrite_and_its_schema(tmp_path):

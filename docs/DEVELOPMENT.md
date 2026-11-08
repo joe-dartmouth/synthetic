@@ -153,7 +153,7 @@ command per method, inside `.venv`:
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
 its paid arms (`bko.evaluate.experiment.PAID_ARMS`: E1's three BKO arms, B3's CLLM arms beside
-`bko`, G7's `bko-curated` and the perturbation pilot's `bko-direct-perturbed`) call the Anthropic
+`bko`, G7's `bko-curated` and the perturbation runs' `bko-direct-perturbed`) call the Anthropic
 Messages API, so it needs the `llm` extra and an Anthropic credential, and every call goes to the
 call log at `--log`, which must not exist; its `run` line names the run's frame under `frame`.
 Whenever a paid arm runs, live, with `--replay`, with `--resume` or with `--rehearse`,
@@ -442,60 +442,61 @@ judged run keeps `compare`'s stdout and stderr in its folder:
 **The paid-run protocol.** A new paid run starts with `launch`, which a Runs row cites instead of
 the `score --log` command above; a resume and a rehearsal start with it too:
 
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
-    uv run --no-sync python -m bko.evaluate launch <new-run-id> [<run>] --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] [--data-dir <dir>]
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--data-dir <dir>]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--runs-dir <dir>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
+    uv run --no-sync python -m bko.evaluate launch <new-run-id> [<run>] --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] [--runs-dir <dir>] [--data-dir <dir>] [--in-flight N]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--runs-dir <dir>] [--data-dir <dir>]
 
 `<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
-into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a run of record
-(`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
-`scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports battery power
-or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
-`power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
-launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
+into `runs/g3-1/` as `launch g3-1 g3-cell`. `--runs-dir <dir>` sets the run folders' root, resolved
+to an absolute path; it defaults to `runs/` beside the code, and an empty value is refused. A run
+launched from a frozen worktree, with `PYTHONPATH=<worktree>/src`, passes the main checkout's
+`runs/` as `--runs-dir`, because the worktree holds no `runs/`. It refuses a run id that is not a
+run of record (`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds
+`calls.jsonl`, `scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports
+battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and
+records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a
+second launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
 `resume=`), for a raised ceiling a `ceiling=%.4f stop=%s usd=%.4f live_usd=%.4f holdouts=%d
 projected_usd=%.4f` line (the ceiling it accepted and the stopped log's spend and projection), the
-power reading, the keep-awake and the command to `launch.log`, and starts
-`supervise <run-id> <run> --retries R --runs-dir <runs>` in its own session, held awake by
-`caffeinate -i -s` on macOS, with stdout and stderr in those two files; `--data-dir` is forwarded
-as an absolute path, and `--in-flight` when given. `supervise` is internal to `launch`: it runs
-`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its
-child, with the same stdout and stderr (supervision, below). It appends the process id to
-`launch.log` as `pid=` and prints the command that watches the folder
-(`tail -f <runs>/<run-id>/scores.log`, its path absolute; for `--rehearse`,
-`tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it appends
-`error=<type>: <message>` and then removes the two files; it also removes them when `launch.log`'s
-first lines cannot be written, and a failed claim writes nothing, so a failed launch leaves the
-folder free. A started process whose `pid=` line cannot be written is still reported started, with a
-WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
-retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
-and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ... --candidates ...`
-with the stopped log's path made absolute, and `--ceiling` forwarded to that segment alone, and
-refuses a stopped log that is not a file or lies inside the new folder, and the logs the resume
-guard above refuses. `launch` refuses, before it reads the power, a run id whose first resume
-folder name, `<run-id>-resume-1`, is not a `RUN_ID` (such as `e1-4-resume`, whose
-`e1-4-resume-resume-1` is not), unless `--retries 0` or `--rehearse` asks for no resume. `--rehearse` supervises
-`score <run> --log ... --candidates ... --rehearse` with the same checks inside
-`<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
-and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
-folder stays free to launch. The power is read at launch and again before each resume, which
-refuses on battery; between those reads a machine unplugged is not caught, and `caffeinate -s`
-holds it awake on mains power only. The run itself stops, exit 2 with the call log ending `failed`,
-on any of three rules, each logged as `stop rule=<name>` with the measure that fired: the spend
-ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend before the call it
-refuses), the projection (the run's whole spend after `projection_after` holdouts, scaled to every
-holdout, reaching the ceiling; a resume counts the holdouts it replays and the spend it carries and
-replays, so it projects as the fresh run would; a rehearsal is projected, a replay is not, and
-`stop rules projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call
-to get a reply, its retries included, timed by `asyncio.timeout` around the awaited send; on expiry
-no later call is sent, and the calls beside it land under their own idle limits, so their replies
-and spend are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the
-ceiling and the idle limit. `--in-flight N` sets the calls in flight,
-`bko.generate.flight.IN_FLIGHT` by default (ADR
-[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the call
-it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call log
-writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
-the runner before any replay.
+power reading, the keep-awake and the command to `launch.log`, and starts `supervise <run-id> <run>
+--retries R --runs-dir <runs>` in its own session, held awake by `caffeinate -i -s` on macOS, with
+stdout and stderr in those two files; `--data-dir` is forwarded as an absolute path, and
+`--in-flight` when given. `supervise` is internal to `launch`: it runs `score <run> --log
+<folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its child, with the same
+stdout and stderr (supervision, below). It appends the process id to `launch.log` as `pid=` and
+prints the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute;
+for `--rehearse`, `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it
+appends `error=<type>: <message>` and then removes the two files; it also removes them when
+`launch.log`'s first lines cannot be written, and a failed claim writes nothing, so a failed launch
+leaves the folder free. A started process whose `pid=` line cannot be written is still reported
+started, with a WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=`
+line survives a retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the
+same power check and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ...
+--candidates ...` with the stopped log's path made absolute, and `--ceiling` forwarded to that
+segment alone, and refuses a stopped log that is not a file or lies inside the new folder, and the
+logs the resume guard above refuses. `launch` refuses, before it reads the power, a run id whose
+first resume folder name, `<run-id>-resume-1`, is not a `RUN_ID` (such as `e1-4-resume`, whose
+`e1-4-resume-resume-1` is not), unless `--retries 0` or `--rehearse` asks for no resume.
+`--rehearse` supervises `score <run> --log ... --candidates ... --rehearse` with the same checks
+inside `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run.
+`--resume` and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing,
+so the folder stays free to launch. The power is read at launch and again before each resume, which
+refuses on battery; between those reads a machine unplugged is not caught, and `caffeinate -s` holds
+it awake on mains power only. The run itself stops, exit 2 with the call log ending `failed`, on any
+of three rules, each logged as `stop rule=<name>` with the measure that fired: the spend ceiling
+(`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend before the call it refuses),
+the projection (the run's whole spend after `projection_after` holdouts, scaled to every holdout,
+reaching the ceiling; a resume counts the holdouts it replays and the spend it carries and replays,
+so it projects as the fresh run would; a rehearsal is projected, a replay is not, and `stop rules
+projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call to get a
+reply, its retries included, timed by `asyncio.timeout` around the awaited send; on expiry no later
+call is sent, and the calls beside it land under their own idle limits, so their replies and spend
+are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the ceiling and
+the idle limit. `--in-flight N` sets the calls in flight, `bko.generate.flight.IN_FLIGHT` by default
+(ADR [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the
+call it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call
+log writes as it closes, belongs to a process that is still running or was killed. Copy the call log
+off the runner before any replay.
 
 **Supervision.** `launch` supervises its run (ADR
 [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)): `supervise` runs each
@@ -561,10 +562,12 @@ folder's `scores.log`, which the `next=` line's `watch=` names. The lines, in or
   and `rate_limited` `true` or `false`, as the supervisor reads them. When a resume is scheduled the
   line ends `reason=retryable backoff_s=%d`.
 - `supervise stop=%s usd=%.4f holdouts=%s projected_usd=%s resume=launch <fresh-run-id> <run>
-  --resume <folder>/calls.jsonl --ceiling <USD above projected_usd>`, one line: after a ceiling or
-  projection stop's segment line, a WARNING with the `end` line's spend and holdouts, the
-  projection over the named run's holdouts (`none` when the `end` line records no holdouts), and
-  the command that resumes it.
+  --resume <folder>/calls.jsonl --runs-dir <runs> [--data-dir <dir>] [--in-flight N] --ceiling
+  <USD above projected_usd>`, one line: after a ceiling or projection stop's segment line, a
+  WARNING with the `end` line's spend and holdouts, the projection over the named run's holdouts
+  (`none` when the `end` line records no holdouts), and the command that resumes it under the
+  run's runs root, its data root when set and the stopped segment's in-flight when set, each path
+  quoted for a POSIX shell.
 - `supervise next=%s in_flight=%s watch=tail -f <runs>/<next>/scores.log`: the resume folder, once
   claimed (no line names a resume that was not claimed); `in_flight` is a number or `default`.
 - `supervise resume=%s refused=%s`: a resume a check refused, an ERROR, with the refusal's message.
@@ -933,7 +936,7 @@ overlap or leave a holdout of the named run out. In zsh, `$(printf -- '--rows %s
 expands a list of store paths, or a brace range of them, into the repeated flags. It makes no API
 call:
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
 
 Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01
 and 0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is
@@ -941,9 +944,10 @@ NaN and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `priv
 measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and
 `-label`; `mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`,
 `nndr-ties`, `nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for
-the held-out rows. Its `privacy.log` opens with `privacy run=%s stores=%d holdouts=%d reference=%s
-cell=%s`, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
-store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
+the held-out rows. Its `privacy.log` opens with the `versions commit=` line, then `privacy run=%s
+stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
+store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the
+bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
 `privacy holdout=%d arm=%s added=%d` per arm (WARNING for an arm that adds no row), a WARNING
 `privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
 undefined in a scope (INFO for a cell scope with no member), and `privacy holdout=%d done=%d/%d
@@ -960,42 +964,25 @@ NaN. `mi-tpr001` has no line. The last line is `privacy rows=%d sha256=%s readin
 seconds=%.1f`, `undefined` counting the readings with no interval. `leaks_more` is a reading rule
 and no criterion.
 
-Each store's folder is the header's folder name directly under the runs root (`runs/`); a name
-that resolves elsewhere is refused. `--data-dir` sets the data root. The command exits 2 for a run
-with no reference arm, a run lacking it, or a run that removes no cell, and 3 for a store whose
-run is neither the named run nor a slice of it, whose header does not match its folder's
-`scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,
-whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
-data does not reproduce.
+Each store's folder is the header's folder name directly under the runs root, `--runs-dir DIR`
+(resolved to an absolute path; an empty value is refused) or else `runs/` beside the code; a name
+that resolves elsewhere, such as a symbolic link out of the root, is refused. A reading run from a
+frozen worktree passes the main checkout's `runs/` as `--runs-dir`. `--data-dir` sets the data
+root. The command exits 2 for a run with no reference arm, a run lacking it, or a run that removes
+no cell, and 3 for a store whose run is neither the named run nor a slice of it, whose header does
+not match its folder's `scores.log`, whose data digest differs, whose arm does not hash to the `arm`
+line's sha256, whose holdouts overlap another store's or leave one of the run's out, or whose
+`split` line the data does not reproduce.
 
-**The perturbation pilot.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
+**The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR
 [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). Their paid arm
 is `bko-direct-perturbed`, which sends the 19 unmapped fields of rows of open Diabetes 130 data to
 the Messages API ([Generation](#generation), What leaves the machine); `bko-direct-pram` is free.
-A perturbed arm's rows are refused for a holdout, and every drawn row kept, when the ADR's
-distribution check fails at the run's `delta`.
+Each arm keeps its own rows on every holdout; each holdout logs the ADR's distribution reading of
+them, which changes no row.
 
-`delta` comes first. `bko.evaluate.perturb.DELTAS` holds each removal fraction's value, None until
-one is recorded there; a run with no removal, or a fraction it does not list, gates at 0, the
-strictest. `score` and `launch` refuse, exit 2, before any file or call, a run that holds
-`bko-direct-perturbed` or `bko-direct-pram` while its fraction's `delta` is None, naming
-`perturb-threshold`; only `--rehearse` runs there, its check at 0, since a rehearsal is free.
-`perturb-threshold` reads `delta` per removal fraction from E6's stored `bko-direct` rows and makes
-no API call. `<run>` is required, the named E6 run (`e6-thin` or `e6-empty`), and `--rows` repeats
-once per store, as for `privacy`:
-
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/threshold.csv && test ! -e runs/<run-id>/threshold.log && uv run --no-sync python -m bko.evaluate perturb-threshold <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/threshold.csv 2> runs/<run-id>/threshold.log </dev/null
-
-`threshold.csv` holds one row per holdout, `holdout,shapes,pair_trends,step`, the step empty on the
-first. `threshold.log` holds a `perturb threshold holdout=%d shapes=%.6f pair_trends=%.6f` line per
-holdout, then `perturb threshold run=%s fraction=%s holdouts=%d steps=%d percentile=95
-delta=%.6f`, at WARNING under 10 steps (`bko.evaluate.perturb_threshold.MIN_STEPS`). The command
-exits 2 for a run with no `bko-direct` arm, under two holdouts or a shape that is not finite, and 3
-as `privacy` does for a store, or for a holdout whose `split` line its data does not prepare. The
-`delta` it logs is the value recorded in `DELTAS` for that fraction, in its own change.
-
-Each pilot is then a paid run, so it starts with `launch` (the paid-run protocol above); the dry
+Each pilot is a paid run, so it starts with `launch` (the paid-run protocol above); the dry
 run writes `launch.log` and starts nothing:
 
     uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin --dry-run
@@ -1010,25 +997,38 @@ for the second run. A recorded pilot's rows store is read through `privacy` agai
 Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 `bko.evaluate.perturbed`):
 
-- `perturb arm=%s fields=%s delta=%s delta_source=%s fraction=%s` at construction, `delta` `none`
-  while unfixed, `delta_source` `table`, `placeholder` or `default`, ending `theta=%s` for PRAM and
+- `perturb arm=%s fields=%s` at construction, ending `theta=%s` for PRAM and
   `per_call=%d model=%s` for the perturbed arm.
-- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed,
-  before the check.
+- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed.
 - `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
-  checks=%s` per rewrite call: `returned` the items its reply decoded to, `reason` the first
-  refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`, `validate` or
-  `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate` rows failed.
+  checks=%s quota_off=%d` per rewrite call: `returned` the items its reply decoded to, `reason`
+  the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
+  `validate` or `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate`
+  rows failed, `quota_off` how far the call's final rows fall short of its stated counts, summed
+  over the fields and their categories (`bko.evaluate.quotas`). It reads each row as the merge
+  left it, so a refused row's or call's originals count against the quotas.
 - `perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_empty=%d refused_short=%d
   refused_undecodable=%d refused_order=%d refused_keys=%d refused_validate=%d refused_bounds=%d`
   per holdout: each drawn row's merge outcome.
-- `perturb check holdout=%d arm=%s shapes=%.6f reference=%.6f delta=%.6f pair_trends=%.6f
-  outcome=%s reason=%s rows_changed=%d final=%s` per holdout: `reason` `none`, `nonfinite` or
-  `below_reference`, `rows_changed` the rows that differ from the draw in the rows kept, `final`
-  `perturbed` or `original`. A fill that drew no row has no check.
-- `perturb summary arm=%s holdouts=%d accepted=%d refused=%d empty=%d rows=%d rows_changed=%d` at
-  the end of the run, a stopped run included; the perturbed arm's adds its run's merge outcomes as
-  the holdout line names them.
+- `perturb shapes holdout=%d arm=%s shapes=%.6f unperturbed=%.6f difference=%.6f
+  pair_trends=%.6f unperturbed_pair_trends=%.6f incoherent=%s unperturbed_incoherent=%s
+  rows_changed=%d values_changed=%d` per holdout: SDMetrics' column shapes of the arm's rows and
+  of the drawn rows against the holdout's label-1 training rows over the perturbed fields,
+  `difference` the first less the second, both column pair trends, the share of each set's rows
+  breaking any of the ADR's three Diabetes rules (`none` off Diabetes), and the rows and values
+  that differ from the draw. A score SDMetrics cannot read logs `nan`. A fill that drew no row
+  logs `perturb shapes holdout=%d arm=%s empty=true` in its place.
+- `perturb columns holdout=%d arm=%s kind=%s <field>=%.6f ...` twice per holdout, `kind`
+  `perturbed` then `unperturbed`: each perturbed field's column shape, in field order. A fill that
+  drew no row logs neither line.
+- `perturb unscored holdout=%d field=%s`, a WARNING: a field SDMetrics' column-shapes details
+  lack, whose column shape logs `nan`.
+- `perturb summary arm=%s holdouts=%d read=%d empty=%d rows=%d rows_changed=%d values_changed=%d
+  mean_shapes=%s mean_unperturbed=%s` at the end of the run, a stopped run included: the holdouts
+  read and with no row drawn, and the mean column shapes of the arm's and the drawn rows over the
+  read holdouts, at six places, `nan` when a read holdout's shape is `nan` and `none` when no
+  holdout was read; the perturbed arm's adds its run's merge outcomes as the holdout line names
+  them.
 
 A rewrite call's `generate` line carries `rewrite=true` in place of `level=`, and its `short`
 WARNING ends `rewrite=true`. Each arm's candidates-file lines are `bko-direct`'s, with a row a
@@ -1413,10 +1413,13 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
     admission and discharge ids, the raw `diag_1` to `diag_3` codes). A `bko-direct-perturbed`
     rewrite call sends its system prompt (`bko.generate.rewrite.REWRITE_SYSTEM`), each of the 19
     unmapped fields' meaning with its codes or unit (`bko.evaluate.perturb.DIABETES_UNMAPPED`),
-    each count field's training-split minimum and maximum, an accepted aggregate disclosure, and
-    each row's values of those 19 fields with its `row` index; no mapped field, `age`, `sex` or
-    label. Each row is one of the holdout's `bko-direct` rows, a mosaic of de-identified
-    encounters' values.
+    each count field's training-split minimum and maximum, an accepted aggregate disclosure, the
+    call's value counts per field (`bko.evaluate.quotas`), each a count over a value or range of the
+    cell's label-group training rows (a range's ends are real training values, and each range holds
+    at least 1% of the label group's rows, so a label group under 100 rows can expose a single
+    row's value), and each row's values of those 19 fields with its `row` index; no mapped field,
+    `age`, `sex` or label. Each row is one of the holdout's `bko-direct` rows, a mosaic of
+    de-identified encounters' values.
 
   A run whose settings name a model in `bko.generate.weights.LOCAL_MODELS` sends each call to the
   llama.cpp server on `127.0.0.1` instead (Local models below), so nothing leaves the machine.
@@ -1624,8 +1627,6 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
-| `threshold.csv` | `python -m bko.evaluate perturb-threshold`'s stdout |
-| `threshold.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |

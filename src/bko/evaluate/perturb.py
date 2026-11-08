@@ -1,19 +1,18 @@
-"""Perturbing `bko-direct`'s unmapped fields: the fields, delta, the check and the shared arm.
+"""Perturbing `bko-direct`'s unmapped fields: the fields, the reading and the shared arm.
 
 `bko-direct` copies each field no field row reads from its own training record
 (`bko.generate.direct`), so its rows are mosaics of training values. `unmapped` names those fields:
 every column but the field rows' fields, `age`, `sex` and the label. On the Diabetes frame they
 must be `DIABETES_UNMAPPED`, the 19 a rewrite call may send; `unmapped` refuses another set there.
 `Perturbing` holds what both perturbation arms share; `bko.evaluate.pram.PramArm` redraws the
-fields, and `PerturbedArm` rewrites them through calls merged by `bko.evaluate.rewrite_merge`.
+fields, and `bko.evaluate.perturbed.PerturbedArm` rewrites them through calls merged by
+`bko.evaluate.perturbed.merge`.
 
-`check_distribution` gates a holdout's perturbed rows: SDMetrics' column shapes of the perturbed
-rows against the label-1 training rows, over the unmapped fields, must reach the unperturbed rows'
-less delta, or every original row is kept. Column pair trends are logged, not gated. delta is
-fixed per removal fraction (`DELTAS`) by `perturb-threshold` (`bko.evaluate.perturb_threshold`);
-a fraction listed with None has no value yet, and `refuse_unfixed` refuses a run that would gate
-at it, a rehearsal excepted. ADR `research/identifier-perturbation` records both arms and the
-check.
+`read_distribution` reads a holdout's perturbed rows and its unperturbed rows against the label-1
+training rows over the perturbed fields: SDMetrics' column shapes, column pair trends and each
+column's shape, and on the Diabetes frame the share of rows `incoherent` counts. The reading never
+changes a row; each arm keeps its own rows on every holdout. ADR
+`research/identifier-perturbation` records both arms and the reading.
 """
 
 from __future__ import annotations
@@ -30,10 +29,10 @@ import pandas as pd
 
 from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.request import Request, Stratum
+from bko.datasets.diabetes import CHANGE_CODES, DIABETES_MED_CODES, DRUG_CODES, DRUGS
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.diabetes import DIABETES_NAME
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import PERTURBED_ARM, PRAM_ARM, Experiment
 from bko.evaluate.fidelity import quality_report
 from bko.evaluate.scores import Measure, Source
 from bko.generate.direct import field_groups, free_fields
@@ -48,23 +47,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 POSITIVE: Final = 1
-"""The label whose training rows are the check's reference."""
-
-DELTA_THIN: Final[float | None] = 0.036399
-"""delta at E6's thinned fraction, 0.985: the `delta=` that `perturb-threshold e6-thin` logged
-over E6's stored `bko-direct` rows (run folder `runs/e10-1`)."""
-
-DELTA_EMPTY: Final[float | None] = 0.003108
-"""delta at E6's empty fraction, 1.0: the `delta=` that `perturb-threshold e6-empty` logged
-(run folder `runs/e10-2`)."""
-
-DELTAS: Final[Mapping[float, float | None]] = MappingProxyType(
-    {0.985: DELTA_THIN, 1.0: DELTA_EMPTY}
-)
-"""Each listed removal fraction's delta, None where no value is recorded."""
-
-PERTURBING_ARMS: Final = frozenset({PERTURBED_ARM, PRAM_ARM})
-"""The arms whose rows the distribution check gates."""
+"""The label whose training rows are the reading's reference."""
 
 DIABETES_UNMAPPED: Final = (
     "race",
@@ -94,56 +77,6 @@ PINNED: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType({DIABETES_NAME: 
 
 type Record = dict[str, int | float]
 """One drawn row's value per column."""
-
-
-@dataclass(frozen=True, slots=True)
-class Delta:
-    """A run's delta and where it comes from.
-
-    Attributes:
-        value: The delta; None while no value is recorded for its fraction.
-        source: `table` for a fixed `DELTAS` value, `placeholder` for a listed None, `default` for
-            a run with no removal or an unlisted fraction, which gates at 0, the strictest.
-        fraction: The run's removal fraction; None with no removal.
-    """
-
-    value: float | None
-    source: str
-    fraction: float | None
-
-    @property
-    def gate(self) -> float:
-        """The delta the check applies: `value`, or 0, the strictest, for a rehearsal at None."""
-        return 0.0 if self.value is None else self.value
-
-
-def delta_for(experiment: Experiment) -> Delta:
-    """`experiment`'s delta: its removal fraction's in `DELTAS`, else 0."""
-    removal = experiment.removal
-    if removal is None:
-        return Delta(0.0, "default", None)
-    if removal.fraction not in DELTAS:
-        return Delta(0.0, "default", removal.fraction)
-    value = DELTAS[removal.fraction]
-    return Delta(value, "placeholder" if value is None else "table", removal.fraction)
-
-
-def refuse_unfixed(experiment: Experiment, *, run: str, rehearse: bool) -> None:
-    """Refuse a run with a perturbing arm whose delta is not fixed, unless it is a rehearsal.
-
-    Raises:
-        EvaluationError: If `experiment` holds a perturbing arm, its delta is None and `rehearse`
-            is false.
-    """
-    arms = sorted(PERTURBING_ARMS & set(experiment.arms))
-    delta = delta_for(experiment)
-    if arms and delta.value is None and not rehearse:
-        msg = (
-            f"the run {run!r} holds {', '.join(arms)}, whose delta at removal fraction "
-            f"{delta.fraction} is not fixed: run `perturb-threshold` and record its value in "
-            "bko.evaluate.perturb.DELTAS first; only --rehearse runs at an unfixed delta"
-        )
-        raise EvaluationError(msg)
 
 
 def unmapped(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[str, ...]:
@@ -184,67 +117,114 @@ type Change = Callable[
 quota order, each cell's rows in the same order (`bko.evaluate.direct.DirectArm.fill`)."""
 
 
-def passes(shapes: float, reference: float, delta: float) -> bool:
-    """Whether perturbed rows reading `shapes` pass against unperturbed ones reading `reference`.
-
-    They pass at or above `reference - delta`; a shape that is not finite never passes.
-    """
-    return math.isfinite(shapes) and math.isfinite(reference) and shapes >= reference - delta
-
-
 @dataclass(frozen=True, slots=True)
-class Check:
-    """One holdout's distribution check.
+class Quality:
+    """SDMetrics' reading of some rows against a reference, over the fields read.
 
     Attributes:
-        shapes: The perturbed rows' column shapes against the reference rows.
-        reference: The unperturbed rows' column shapes against them.
-        pair_trends: The perturbed rows' column pair trends against them, reported only.
-        delta: How far below `reference` the perturbed rows may read.
+        shapes: The column shapes score.
+        pair_trends: The column pair trends score.
+        columns: Each field's column shape, in the fields' order.
     """
 
     shapes: float
-    reference: float
     pair_trends: float
-    delta: float
-
-    @property
-    def passed(self) -> bool:
-        """Whether the perturbed rows are kept."""
-        return passes(self.shapes, self.reference, self.delta)
-
-    @property
-    def reason(self) -> str:
-        """Why the check refused: `nonfinite` or `below_reference`; `none` when it passed."""
-        if self.passed:
-            return "none"
-        finite = math.isfinite(self.shapes) and math.isfinite(self.reference)
-        return "below_reference" if finite else "nonfinite"
+    columns: Mapping[str, float]
 
 
 def quality(
     rows: pd.DataFrame, reference: pd.DataFrame, *, fields: Sequence[str], frame: FrameSpec
-) -> tuple[float, float]:
-    """SDMetrics' column shapes and pair trends of `rows` against `reference`, on `fields`."""
+) -> Quality:
+    """SDMetrics' column shapes, pair trends and each column's shape of `rows` against `reference`.
+
+    A field SDMetrics' column-shapes details lack reads NaN, with a `perturb unscored` WARNING.
+    """
     report = quality_report(reference, rows, frame=frame, columns=fields)
     properties = report.get_properties().set_index("Property")["Score"]
-    return float(properties["Column Shapes"]), float(properties["Column Pair Trends"])
+    details = report.get_details("Column Shapes").set_index("Column")["Score"]
+    for name in fields:
+        if name not in details.index:
+            logger.warning("perturb unscored holdout=%d field=%s", _holdout(), name)
+    columns = {name: float(details.get(name, math.nan)) for name in fields}
+    return Quality(
+        float(properties["Column Shapes"]), float(properties["Column Pair Trends"]), columns
+    )
 
 
-def check_distribution(
+def incoherent(rows: pd.DataFrame) -> float:
+    """The share of Diabetes `rows` that break any of three rules every real training row keeps.
+
+    The rules: a drug of `DRUGS` not `No` with `diabetesMed` `No`; `change` `Ch` with
+    `diabetesMed` `No`; a drug `Up` or `Down` with `change` `No`. NaN for no rows.
+    """
+    drugs = rows[list(DRUGS)]
+    unmedicated = rows["diabetesMed"] == DIABETES_MED_CODES["No"]
+    prescribed = (drugs != DRUG_CODES["No"]).any(axis=1)
+    dosed = drugs.isin([DRUG_CODES["Up"], DRUG_CODES["Down"]]).any(axis=1)
+    broken = (
+        (prescribed & unmedicated)
+        | ((rows["change"] == CHANGE_CODES["Ch"]) & unmedicated)
+        | (dosed & (rows["change"] == CHANGE_CODES["No"]))
+    )
+    return float(broken.mean()) if len(rows) else math.nan
+
+
+@dataclass(frozen=True, slots=True)
+class Reading:
+    """One holdout's reading of an arm's perturbed rows beside its unperturbed rows.
+
+    Attributes:
+        perturbed: The perturbed rows' quality against the reference rows.
+        unperturbed: The unperturbed rows' quality against them.
+        incoherent: The perturbed rows' share breaking a Diabetes rule; None off Diabetes.
+        unperturbed_incoherent: The unperturbed rows' share; None off Diabetes.
+    """
+
+    perturbed: Quality
+    unperturbed: Quality
+    incoherent: float | None
+    unperturbed_incoherent: float | None
+
+    @property
+    def difference(self) -> float:
+        """The perturbed rows' column shapes less the unperturbed rows'."""
+        return self.perturbed.shapes - self.unperturbed.shapes
+
+
+def read_distribution(
     perturbed: pd.DataFrame,
     original: pd.DataFrame,
-    train: pd.DataFrame,
+    reference: pd.DataFrame,
     *,
     fields: Sequence[str],
     frame: FrameSpec,
-    delta: float,
-) -> Check:
-    """Read `perturbed` and `original` against `train`'s label-1 rows over `fields`."""
-    reference = train[train[frame.label] == POSITIVE]
-    shapes, trends = quality(perturbed, reference, fields=fields, frame=frame)
-    unperturbed, _ = quality(original, reference, fields=fields, frame=frame)
-    return Check(shapes, unperturbed, trends, delta)
+) -> Reading:
+    """Read `perturbed` and `original` against `reference` over `fields`.
+
+    `incoherent` is read only on the Diabetes frame.
+    """
+    diabetes = frame.name == DIABETES_NAME
+    return Reading(
+        quality(perturbed, reference, fields=fields, frame=frame),
+        quality(original, reference, fields=fields, frame=frame),
+        incoherent(perturbed) if diabetes else None,
+        incoherent(original) if diabetes else None,
+    )
+
+
+def _share(value: float | None) -> str:
+    """`value` at six places, or `none`."""
+    return "none" if value is None else f"{value:.6f}"
+
+
+def _columns(read: Quality) -> str:
+    """Each field's column shape as `field=value`, in the fields' order."""
+    return " ".join(f"{name}={value:.6f}" for name, value in read.columns.items())
+
+
+def _mean(values: Sequence[float]) -> str:
+    """The mean of `values` at six places; `none` for none."""
+    return f"{math.fsum(values) / len(values):.6f}" if values else "none"
 
 
 def drawn_frame(drawn: Mapping[Stratum, list[Record]], frame: FrameSpec) -> pd.DataFrame:
@@ -252,6 +232,11 @@ def drawn_frame(drawn: Mapping[Stratum, list[Record]], frame: FrameSpec) -> pd.D
     records = [record for records in drawn.values() for record in records]
     rows = pd.DataFrame(records, columns=list(frame.columns))
     return rows.astype({**frame.dtypes})
+
+
+def label_rows(train: pd.DataFrame, frame: FrameSpec, label: int) -> pd.DataFrame:
+    """`train`'s rows whose label is `label`, a cell's label group."""
+    return train[train[frame.label] == label]
 
 
 def native(row: Mapping[Any, Any], frame: FrameSpec) -> Record:
@@ -278,34 +263,23 @@ class Perturbing:
     Attributes:
         inner: The direct arm that draws, writes the candidate lines and keeps the counts.
         fields: The fields perturbed.
-        delta: The check's delta and its source.
-        counts: The run's holdouts by check outcome, and its rows and rows changed.
+        counts: The run's holdouts read and empty, and its rows, rows changed and values changed.
+        shapes: Each read holdout's perturbed and unperturbed column shapes, in run order.
     """
 
-    def __init__(
-        self, inner: DirectArm, *, fields: Sequence[str], delta: Delta, configuration: str
-    ) -> None:
+    def __init__(self, inner: DirectArm, *, fields: Sequence[str], configuration: str) -> None:
         """Hold the arm and log its configuration; nothing is drawn until it runs.
 
         Args:
             inner: The direct arm that draws.
             fields: The fields perturbed.
-            delta: The check's delta.
-            configuration: What the arm's configuration line adds to its fields and delta.
+            configuration: What the arm's configuration line adds to its fields.
         """
         self.inner = inner
         self.fields = tuple(fields)
-        self.delta = delta
         self.counts: Counter[str] = Counter()
-        logger.info(
-            "perturb arm=%s fields=%s delta=%s delta_source=%s fraction=%s %s",
-            self.name,
-            ",".join(self.fields),
-            "none" if delta.value is None else f"{delta.value:.6f}",
-            delta.source,
-            "none" if delta.fraction is None else delta.fraction,
-            configuration,
-        )
+        self.shapes: list[tuple[float, float]] = []
+        logger.info("perturb arm=%s fields=%s %s", self.name, ",".join(self.fields), configuration)
 
     @property
     def name(self) -> str:
@@ -329,15 +303,17 @@ class Perturbing:
         """The run's `perturb summary` line ending `extra`, then the inner arm's validity sums."""
         counts = self.counts
         logger.info(
-            "perturb summary arm=%s holdouts=%d accepted=%d refused=%d empty=%d rows=%d "
-            "rows_changed=%d%s",
+            "perturb summary arm=%s holdouts=%d read=%d empty=%d rows=%d rows_changed=%d "
+            "values_changed=%d mean_shapes=%s mean_unperturbed=%s%s",
             self.name,
-            counts["accepted"] + counts["refused"] + counts["empty"],
-            counts["accepted"],
-            counts["refused"],
+            counts["read"] + counts["empty"],
+            counts["read"],
             counts["empty"],
             counts["rows"],
             counts["rows_changed"],
+            counts["values_changed"],
+            _mean([shapes for shapes, _ in self.shapes]),
+            _mean([unperturbed for _, unperturbed in self.shapes]),
             extra,
         )
         self.inner.summary()
@@ -356,55 +332,66 @@ class Perturbing:
             msg = f"{self.name} may not perturb {held}: the cell, the label and mapped fields stay"
             raise EvaluationError(msg)
 
-    def checked(
+    def read(
         self,
         train: pd.DataFrame,
         drawn: Mapping[Stratum, list[Record]],
         changed: Mapping[Stratum, list[Changed]],
         frame: FrameSpec,
-    ) -> dict[Stratum, list[Changed]]:
-        """`changed` if it passes the distribution check against `drawn`, else `drawn` unchanged.
+    ) -> None:
+        """Log the holdout's reading of `changed` beside `drawn`; it changes no row.
 
-        A fill that drew no row has nothing to check, and its rows are `changed`'s.
+        A fill that drew no row is counted `empty` and logs its `perturb shapes` line with
+        `empty=true` alone.
         """
         rows = sum(len(records) for records in drawn.values())
         self.counts["rows"] += rows
+        holdout = _holdout()
         if not rows:
             self.counts["empty"] += 1
-            return dict(changed)
-        records = {cell: [row.record for row in found] for cell, found in changed.items()}
-        found = check_distribution(
-            drawn_frame(records, frame),
-            drawn_frame(drawn, frame),
-            train,
-            fields=self.fields,
-            frame=frame,
-            delta=self.delta.gate,
-        )
-        moved = sum(
-            row.record != record
+            logger.info("perturb shapes holdout=%d arm=%s empty=true", holdout, self.name)
+            return
+        pairs = [
+            (row.record, record)
             for cell, originals in drawn.items()
             for row, record in zip(changed[cell], originals, strict=True)
+        ]
+        moved = sum(new != old for new, old in pairs)
+        values = sum(new[name] != old[name] for new, old in pairs for name in self.fields)
+        records = {cell: [row.record for row in held] for cell, held in changed.items()}
+        reading = read_distribution(
+            drawn_frame(records, frame),
+            drawn_frame(drawn, frame),
+            label_rows(train, frame, POSITIVE),
+            fields=self.fields,
+            frame=frame,
         )
-        final = moved if found.passed else 0
-        self.counts["accepted" if found.passed else "refused"] += 1
-        self.counts["rows_changed"] += final
+        self.counts.update(read=1, rows_changed=moved, values_changed=values)
+        self.shapes.append((reading.perturbed.shapes, reading.unperturbed.shapes))
         logger.info(
-            "perturb check holdout=%d arm=%s shapes=%.6f reference=%.6f delta=%.6f "
-            "pair_trends=%.6f outcome=%s reason=%s rows_changed=%d final=%s",
-            _holdout(),
+            "perturb shapes holdout=%d arm=%s shapes=%.6f unperturbed=%.6f difference=%.6f "
+            "pair_trends=%.6f unperturbed_pair_trends=%.6f incoherent=%s "
+            "unperturbed_incoherent=%s rows_changed=%d values_changed=%d",
+            holdout,
             self.name,
-            found.shapes,
-            found.reference,
-            found.delta,
-            found.pair_trends,
-            "accepted" if found.passed else "refused",
-            found.reason,
-            final,
-            "perturbed" if found.passed else "original",
+            reading.perturbed.shapes,
+            reading.unperturbed.shapes,
+            reading.difference,
+            reading.perturbed.pair_trends,
+            reading.unperturbed.pair_trends,
+            _share(reading.incoherent),
+            _share(reading.unperturbed_incoherent),
+            moved,
+            values,
         )
-        if found.passed:
-            return dict(changed)
-        return {
-            cell: [Changed(dict(record)) for record in records] for cell, records in drawn.items()
-        }
+        for kind, quality_read in (
+            ("perturbed", reading.perturbed),
+            ("unperturbed", reading.unperturbed),
+        ):
+            logger.info(
+                "perturb columns holdout=%d arm=%s kind=%s %s",
+                holdout,
+                self.name,
+                kind,
+                _columns(quality_read),
+            )

@@ -74,10 +74,12 @@ STAMP: Final = "%Y-%m-%dT%H:%M:%SZ"
 
 SPEND_STOP: Final = (
     "supervise stop=%s usd=%.4f holdouts=%s projected_usd=%s resume=launch <fresh-run-id> %s "
-    "--resume %s --ceiling <USD above projected_usd>"
+    "--resume %s%s --ceiling <USD above projected_usd>"
 )
 """The WARNING after a ceiling or projection stop's segment line: the stopped log's spend, its
-finished holdouts and projection (`none` when unrecorded), and the command that resumes it."""
+finished holdouts and projection (`none` when unrecorded), and the command that resumes it with
+the run's runs root, and its data root and the segment's in-flight when set, each path quoted for
+a POSIX shell."""
 
 REASONS: Final = (
     "complete",
@@ -290,19 +292,23 @@ class _Plan:
             ),
         )
 
-    def spend_stop(self, folder: Path, found: Outcome) -> None:
-        """Write the `SPEND_STOP` WARNING for a segment in `folder` a spend rule stopped."""
+    def spend_stop(self, folder: Path, found: Outcome, flight: int | None) -> None:
+        """Write the `SPEND_STOP` WARNING for a segment in `folder` stopped at `flight`."""
         projected = "none"
         if found.usd is not None and found.holdouts is not None and self.holdouts is not None:
             scaled = found.usd / max(found.holdouts, 1) * self.holdouts
             projected = f"{max(found.usd, scaled):.4f}"
+        flags = f" --runs-dir {shlex.quote(str(self.root))}"
+        flags += "" if self.data_dir is None else f" --data-dir {shlex.quote(str(self.data_dir))}"
+        flags += "" if flight is None else f" --in-flight {flight}"
         line = SPEND_STOP % (
             found.stop,
             found.usd or 0.0,
             "none" if found.holdouts is None else found.holdouts,
             projected,
             self.run,
-            folder / "calls.jsonl",
+            shlex.quote(str(folder / "calls.jsonl")),
+            flags,
         )
         self.write(line, level=logging.WARNING)
 
@@ -355,7 +361,7 @@ def _supervise(
         line = LINE % (k, folder, code, *_fields(found), why)
         plan.write(line + (SCHEDULED % backoff(k + 1) if why == "retryable" else ""))
         if why == "stop":
-            plan.spend_stop(folder, found)
+            plan.spend_stop(folder, found, flight)
         if why != "retryable":
             return plan.done(k, folder, why, exit_code(code))
         if found.rate_limited:

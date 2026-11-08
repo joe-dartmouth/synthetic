@@ -22,7 +22,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import MESSAGES_ARMS, PERTURBED_ARM, Experiment
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.holdout_candidates import CandidateFile, Origin
-from bko.evaluate.perturb import delta_for, unmapped
+from bko.evaluate.perturb import unmapped
 from bko.evaluate.perturbed import PerturbedArm
 from bko.evaluate.skeleton import prescriber
 from bko.evaluate.watch import Watch
@@ -71,7 +71,7 @@ def guided_arms(  # ruff: ignore[too-many-arguments]
     """Build each paid arm of `names` over one new call log, for the body to run.
 
     Each Messages arm is a `GuidedArm`; `PERTURBED_ARM` is a `PerturbedArm` over a direct arm
-    drawing at shares, rewriting the knowledge's unmapped fields at the experiment's delta.
+    drawing at shares, rewriting the knowledge's unmapped fields.
 
     The candidates file at `candidates` is created before the call log, with a header naming
     `origin` and `settings`, and every arm writes its lines there. The call log names the run `run`
@@ -176,7 +176,6 @@ def _built(
                 direct_arm(name, knowledge, experiment, kept),
                 flight=flight,
                 fields=unmapped(knowledge.field_rows, frame=frame),
-                delta=delta_for(experiment),
             )
             continue
         spec = MESSAGES_ARMS[name]

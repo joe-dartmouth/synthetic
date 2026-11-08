@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-21
-updated: 2026-10-26
+updated: 2026-11-08
 ---
 # Run folders: one gitignored folder per run of record, artifacts under fixed role names
 
@@ -29,6 +29,8 @@ a run that checks or extends another takes that run's id and a suffix, such as `
 `c1-2-closure`; an entry holds named runs, `<entry>` or `<entry>-<word>`, and a run id's entry is
 the part of its name before the first dash: a run registered as `g3-cell` launches into `runs/g3-1/`
 as `launch g3-1 g3-cell`; an app fill, which is not a run of record, takes `app-<UTC time>-<arm>`.
+The runs root is `runs/` beside the code by default; `launch` and `privacy` take `--runs-dir DIR`
+for another, so a run from a frozen worktree writes and reads the main checkout's `runs/`.
 A role is one regular file, except `pytest` and `rehearsal`, directories: a run's per-holdout
 candidates are one file, `holdout-candidates.jsonl`, whose every line names its holdout, and a
 run's rehearsal (`launch <run-id> [<run>] --rehearse`) writes its own roles into
