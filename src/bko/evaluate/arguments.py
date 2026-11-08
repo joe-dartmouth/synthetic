@@ -9,6 +9,7 @@ import argparse
 import math
 from pathlib import Path
 
+from bko.datasets.run_folders import runs_dir_argument
 from bko.evaluate.contradictions import add_parser as add_contradictions
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.membership import add_parser as add_privacy
@@ -88,6 +89,12 @@ def parser(description: str | None) -> argparse.ArgumentParser:
     )
     launching.add_argument(
         "--data-dir", type=Path, default=None, help="the data root `score` reads"
+    )
+    launching.add_argument(
+        "--runs-dir",
+        type=runs_dir_argument,
+        default=None,
+        help="the run folders' root; default: runs/ beside the code",
     )
     launching.add_argument(
         "--dry-run", action="store_true", help="write the folder's roles and start nothing"

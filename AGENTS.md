@@ -60,7 +60,7 @@ import it (ADR `tooling/agent-config-single-home`).
   multilayer perceptron and naive Bayes beside the regression and the boosting model, with their
   calibration and no verdict, after `rows` has written the store. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
-- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null`:
+- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null`:
   read a run's stored fills for membership inference and NNDR beside distance to closest record,
   each arm's contrast against the run's reference arm (`real` for E6, `bko-direct` for the
   perturbation pilots) per scope. `--rows` repeats,
@@ -74,7 +74,7 @@ import it (ADR `tooling/agent-config-single-home`).
   write the stored or re-derivable facts behind each record of one arm's fill of one holdout,
   refusing a `bko-direct` re-draw whose digest differs from the `arm` line's sha256. It makes no
   API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
-- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl> [--ceiling USD]]`:
+- `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--runs-dir DIR] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl> [--ceiling USD]]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money. It supervises the
   run and resumes an API-caused stop into `runs/<run-id>-resume-<k>/`, at most R times (its

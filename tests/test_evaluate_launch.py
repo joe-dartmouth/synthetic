@@ -475,6 +475,32 @@ def test_launch_forwards_in_flight_when_given(tmp_path):
     assert "--in-flight" not in start.commands[-1]
 
 
+def test_launch_claims_its_folder_under_the_runs_dir_given(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    start = Starts()
+    context = Context(power=lambda: False, runs_dir=tmp_path / "empty", start=start)
+    argv = ["launch", "e1-4", "--runs-dir", "elsewhere"]
+    assert main(argv, context=context, out=io.StringIO()) == 0
+    root = tmp_path / "elsewhere"
+    assert (root / "e1-4" / "launch.log").is_file()
+    assert not (tmp_path / "empty").exists()
+    (command,) = start.commands
+    assert command[command.index("--runs-dir") + 1] == str(root)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["launch", "e1-4"], ["privacy", "--rows", "store.jsonl"]],
+    ids=["launch", "privacy"],
+)
+def test_an_empty_runs_dir_is_refused(tmp_path, capsys, argv):
+    context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())
+    with pytest.raises(SystemExit) as exited:
+        main([*argv, "--runs-dir", ""], context=context, out=io.StringIO())
+    assert exited.value.code == 2
+    assert "argument --runs-dir: the runs root must not be empty" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("value", ["0", "-2", "two"])
 def test_launch_refuses_an_in_flight_below_one(tmp_path, value):
     context = Context(power=lambda: False, runs_dir=tmp_path, start=Starts())

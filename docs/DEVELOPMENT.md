@@ -442,12 +442,15 @@ judged run keeps `compare`'s stdout and stderr in its folder:
 **The paid-run protocol.** A new paid run starts with `launch`, which a Runs row cites instead of
 the `score --log` command above; a resume and a rehearsal start with it too:
 
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
-    uv run --no-sync python -m bko.evaluate launch <new-run-id> [<run>] --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] [--data-dir <dir>]
-    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--data-dir <dir>]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--runs-dir <dir>] [--data-dir <dir>] [--in-flight N] [--retries R] [--dry-run]
+    uv run --no-sync python -m bko.evaluate launch <new-run-id> [<run>] --resume runs/<last-segment>/calls.jsonl [--ceiling <usd>] [--runs-dir <dir>] [--data-dir <dir>] [--in-flight N]
+    uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] --rehearse [--runs-dir <dir>] [--data-dir <dir>]
 
 `<run>` defaults to the run id's entry and must share it: a run registered as `g3-cell` launches
-into `runs/g3-1/` as `launch g3-1 g3-cell`. It refuses a run id that is not a run of record
+into `runs/g3-1/` as `launch g3-1 g3-cell`. `--runs-dir <dir>` sets the run folders' root, resolved
+to an absolute path; it defaults to `runs/` beside the code, and an empty value is refused. A run
+launched from a frozen worktree, with `PYTHONPATH=<worktree>/src`, passes the main checkout's
+`runs/` as `--runs-dir`, because the worktree holds no `runs/`. It refuses a run id that is not a run of record
 (`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
 `scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports battery power
 or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
@@ -561,10 +564,11 @@ folder's `scores.log`, which the `next=` line's `watch=` names. The lines, in or
   and `rate_limited` `true` or `false`, as the supervisor reads them. When a resume is scheduled the
   line ends `reason=retryable backoff_s=%d`.
 - `supervise stop=%s usd=%.4f holdouts=%s projected_usd=%s resume=launch <fresh-run-id> <run>
-  --resume <folder>/calls.jsonl --ceiling <USD above projected_usd>`, one line: after a ceiling or
-  projection stop's segment line, a WARNING with the `end` line's spend and holdouts, the
-  projection over the named run's holdouts (`none` when the `end` line records no holdouts), and
-  the command that resumes it.
+  --resume <folder>/calls.jsonl --runs-dir <runs> [--data-dir <dir>] [--in-flight N] --ceiling
+  <USD above projected_usd>`, one line: after a ceiling or projection stop's segment line, a
+  WARNING with the `end` line's spend and holdouts, the projection over the named run's holdouts
+  (`none` when the `end` line records no holdouts), and the command that resumes it under the
+  run's runs root, its data root when set and the stopped segment's in-flight when set.
 - `supervise next=%s in_flight=%s watch=tail -f <runs>/<next>/scores.log`: the resume folder, once
   claimed (no line names a resume that was not claimed); `in_flight` is a number or `default`.
 - `supervise resume=%s refused=%s`: a resume a check refused, an ERROR, with the refusal's message.
@@ -933,7 +937,7 @@ overlap or leave a holdout of the named run out. In zsh, `$(printf -- '--rows %s
 expands a list of store paths, or a brace range of them, into the repeated flags. It makes no API
 call:
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
 
 Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01
 and 0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is
@@ -941,8 +945,8 @@ NaN and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `priv
 measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and
 `-label`; `mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`,
 `nndr-ties`, `nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for
-the held-out rows. Its `privacy.log` opens with `privacy run=%s stores=%d holdouts=%d reference=%s
-cell=%s`, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
+the held-out rows. Its `privacy.log` opens with the `versions commit=` line, then `privacy run=%s
+stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
 store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
 `privacy holdout=%d arm=%s added=%d` per arm (WARNING for an arm that adds no row), a WARNING
 `privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
@@ -960,8 +964,11 @@ NaN. `mi-tpr001` has no line. The last line is `privacy rows=%d sha256=%s readin
 seconds=%.1f`, `undefined` counting the readings with no interval. `leaks_more` is a reading rule
 and no criterion.
 
-Each store's folder is the header's folder name directly under the runs root (`runs/`); a name
-that resolves elsewhere is refused. `--data-dir` sets the data root. The command exits 2 for a run
+Each store's folder is the header's folder name directly under the runs root, `--runs-dir DIR`
+(resolved to an absolute path; an empty value is refused) or else `runs/` beside the code; a name
+that resolves elsewhere, such as a symbolic link out of the root, is refused. A reading run from a
+frozen worktree passes the main checkout's `runs/` as `--runs-dir`. `--data-dir` sets the data
+root. The command exits 2 for a run
 with no reference arm, a run lacking it, or a run that removes no cell, and 3 for a store whose
 run is neither the named run nor a slice of it, whose header does not match its folder's
 `scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,

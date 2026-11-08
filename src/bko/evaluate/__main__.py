@@ -103,7 +103,7 @@ from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
 from bko.evaluate.panel import panel
-from bko.evaluate.provenance import log_experiment
+from bko.evaluate.provenance import log_experiment, log_versions
 from bko.evaluate.resumes import resumable
 from bko.evaluate.rows import creatable, store
 from bko.evaluate.rows_read import read_rows
@@ -216,7 +216,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     found = launch(
         args.run_id,
         name,
-        root=context.runs_root(),
+        root=_runs_root(args, context),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
@@ -386,6 +386,7 @@ def _panel(args: argparse.Namespace, context: Context) -> str:
 
 def _privacy(args: argparse.Namespace, context: Context) -> str:
     """Read the run's privacy from its `--rows` stores, whose folders sit under the runs root."""
+    log_versions()
     named = _named(args.run, context)
     data = load(named.dataset, data_dir(args), named)
     return privacy(
@@ -394,8 +395,13 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
         experiment=named.experiment,
         data=data,
         runs=named.runs,
-        root=context.runs_root(),
+        root=_runs_root(args, context),
     )
+
+
+def _runs_root(args: argparse.Namespace, context: Context) -> Path:
+    """The run folders' root: `--runs-dir` when given, else the context's."""
+    return args.runs_dir if args.runs_dir is not None else context.runs_root()
 
 
 def _named(name: str, context: Context) -> Context:

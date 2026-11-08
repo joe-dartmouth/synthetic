@@ -457,15 +457,19 @@ def _no_send() -> object:
 
 
 def _context(
-    tmp_path: Path, *, experiment: Experiment = PRIVATE, runs: dict | None = None
+    tmp_path: Path,
+    *,
+    experiment: Experiment = PRIVATE,
+    runs: dict | None = None,
+    runs_dir: Path | None = None,
 ) -> Context:
-    """A context over `DISTINCT` with `experiment`, whose any call fails."""
+    """A context over `DISTINCT` with `experiment`, whose any call fails, its runs root
+    `runs_dir` or else `tmp_path`."""
     ctx = rescorer(experiment=experiment, arms=BASELINE_ARMS)
     _, served = ladder_releases()
     opener = RoutingOpener({**served, DISTINCT_PIN.url: DISTINCT})
-    ctx = dataclasses.replace(
-        ctx, open_url=opener, uci=DISTINCT_PIN, send=_no_send, runs_dir=tmp_path
-    )
+    root = tmp_path if runs_dir is None else runs_dir
+    ctx = dataclasses.replace(ctx, open_url=opener, uci=DISTINCT_PIN, send=_no_send, runs_dir=root)
     return ctx if runs is None else dataclasses.replace(ctx, runs=runs)
 
 
@@ -477,12 +481,18 @@ def reference(monkeypatch):
 
 
 def _stored(
-    tmp_path: Path, caplog, *, name: str = "run", experiment: Experiment = PRIVATE
+    tmp_path: Path,
+    caplog,
+    *,
+    name: str = "run",
+    experiment: Experiment = PRIVATE,
+    root: Path | None = None,
 ) -> tuple[Path, Path]:
-    """`experiment`'s folder `name` under `tmp_path`, scored on `DISTINCT`, and its store."""
+    """`experiment`'s folder `name` under `root`, default `tmp_path`, scored on `DISTINCT`, and
+    its store, in `tmp_path`."""
     ctx = _context(tmp_path, experiment=experiment)
-    folder = tmp_path / name
-    folder.mkdir()
+    folder = (tmp_path if root is None else root) / name
+    folder.mkdir(parents=True)
     out = io.StringIO()
     caplog.set_level(logging.INFO)
     caplog.clear()
@@ -499,13 +509,18 @@ def _stored(
 
 
 def _privacy(
-    tmp_path: Path, *stores: Path, run: str = "e1", runs: dict | None = None
+    tmp_path: Path,
+    *stores: Path,
+    run: str = "e1",
+    runs: dict | None = None,
+    runs_dir: Path | None = None,
+    flags: tuple[str, ...] = (),
 ) -> tuple[int, str]:
-    argv = ["privacy", run, "--data-dir", str(tmp_path / "data")]
+    argv = ["privacy", run, "--data-dir", str(tmp_path / "data"), *flags]
     for store in stores:
         argv += ["--rows", str(store)]
     out = io.StringIO()
-    code = main(argv, context=_context(tmp_path, runs=runs), out=out)
+    code = main(argv, context=_context(tmp_path, runs=runs, runs_dir=runs_dir), out=out)
     return code, out.getvalue()
 
 
@@ -549,13 +564,61 @@ def test_the_privacy_command_reads_a_store_with_no_api_call(tmp_path, caplog):
     assert "measure=mi-tpr01-outside" in caplog.text
     assert "undefined=2 leaks_more=undefined" in caplog.text
     assert "privacy arm=none scope=outside measure=mi-auc-outside" in caplog.text
-    assert "privacy run=e1 stores=1 holdouts=2 reference=real cell=<55/female/1" in caplog.text
+    header = f"privacy run=e1 stores=1 holdouts=2 reference=real cell=<55/female/1 root={tmp_path}"
+    assert header in caplog.messages
     assert f"privacy store={store} run=e1 folder=run log_sha256=" in caplog.text
     assert f"holdouts=0,1 sha256={hashlib.sha256(store.read_bytes()).hexdigest()}" in caplog.text
     assert "privacy read stores=1 holdouts=2" in caplog.text
     assert re.search(r"privacy holdout=1 done=2/2 seconds=\S+ elapsed=\S+", caplog.text)
     (added,) = [r for r in caplog.records if r.getMessage() == "privacy holdout=0 arm=none added=0"]
     assert added.levelno == logging.WARNING
+
+
+@pytest.mark.usefixtures("reference")
+def test_privacy_reads_stores_from_a_runs_dir_outside_the_codes_checkout(tmp_path, caplog):
+    elsewhere = tmp_path / "elsewhere" / "runs"
+    _, store = _stored(tmp_path, caplog, root=elsewhere)
+    caplog.set_level(logging.INFO)
+    flags = ("--runs-dir", str(elsewhere))
+    code, text = _privacy(tmp_path, store, runs_dir=tmp_path / "empty", flags=flags)
+    assert code == 0
+    assert text.splitlines()[0] == "holdout,arm,source,measure,scope,value"
+    assert f" root={elsewhere.resolve()}" in caplog.text
+
+
+@pytest.mark.usefixtures("reference")
+def test_privacy_without_the_runs_dir_reads_the_contexts_root_and_misses_the_folder(
+    tmp_path, caplog
+):
+    elsewhere = tmp_path / "elsewhere" / "runs"
+    _, store = _stored(tmp_path, caplog, root=elsewhere)
+    assert _privacy(tmp_path, store, runs_dir=tmp_path / "empty") == (2, "")
+    errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert str(tmp_path / "empty" / "run") in errors[-1]
+
+
+@pytest.mark.usefixtures("reference")
+def test_a_symlinked_run_folder_outside_the_root_is_refused(tmp_path, caplog):
+    outside = tmp_path / "outside"
+    _stored(tmp_path, caplog, root=outside)
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "run").symlink_to(outside / "run", target_is_directory=True)
+    store = tmp_path / "run.jsonl"
+    assert _privacy(tmp_path, store, flags=("--runs-dir", str(root))) == (3, "")
+    errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert "not a folder directly under" in errors[-1]
+
+
+@pytest.mark.usefixtures("reference")
+@pytest.mark.parametrize("run", ["e1", "nowhere"], ids=["read", "refused"])
+def test_privacys_log_opens_with_its_versions_line(tmp_path, caplog, run):
+    _, store = _stored(tmp_path, caplog)
+    caplog.set_level(logging.INFO)
+    code, _ = _privacy(tmp_path, store, run=run)
+    assert code == (0 if run == "e1" else 2)
+    logged = [r.getMessage() for r in caplog.records]
+    assert logged[0].startswith("versions commit=")
 
 
 def _rewrite(store: Path, edit) -> None:

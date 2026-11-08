@@ -123,6 +123,7 @@ def _supervise(
     run_id: str = "e1-4",
     platform: str = "darwin",
     holdouts: int | None = None,
+    data_dir: Path | None = None,
 ) -> tuple[int, list[float]]:
     """Supervise `run_id` under `tmp_path` through `segments`; return its code and its waits."""
     folder = tmp_path / run_id / REHEARSAL if rehearse else tmp_path / run_id
@@ -132,6 +133,7 @@ def _supervise(
         run_id,
         "e1",
         root=tmp_path,
+        data_dir=data_dir,
         rehearse=rehearse,
         in_flight=in_flight,
         retries=retries,
@@ -437,9 +439,19 @@ def test_a_spend_stop_names_its_spend_projection_and_the_resume_under_a_raised_c
     assert warning == (
         f"supervise stop={end['stop']} usd=3.0000 holdouts=2 projected_usd=15.0000 "
         f"resume=launch <fresh-run-id> e1 --resume {tmp_path / 'e1-4' / 'calls.jsonl'} "
-        "--ceiling <USD above projected_usd>"
+        f"--runs-dir {tmp_path} --ceiling <USD above projected_usd>"
     )
     assert done == "supervise done segments=1 last=e1-4 outcome=stop exit=2"
+
+
+def test_a_spend_stops_resume_hint_carries_the_runs_flags(tmp_path):
+    data = tmp_path / "data"
+    _supervise(tmp_path, Segments(CEILING), in_flight=4, data_dir=data)
+    warning = _record(tmp_path)[-2]
+    assert warning.endswith(
+        f"--resume {tmp_path / 'e1-4' / 'calls.jsonl'} --runs-dir {tmp_path} --data-dir {data} "
+        "--in-flight 4 --ceiling <USD above projected_usd>"
+    )
 
 
 def test_a_spend_stop_with_no_holdouts_recorded_projects_none(tmp_path):
