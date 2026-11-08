@@ -10,7 +10,6 @@ import pytest
 
 from bko.baselines.request import Stratum
 from bko.datasets.ablation import removed_count
-from bko.evaluate import membership
 from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import (
     DIRECT_ARM,
@@ -50,7 +49,7 @@ rounded up, for a reply that rewrites 19 of a record's fields."""
 
 
 def quota(experiment: Experiment) -> dict[Stratum, int]:
-    """A pilot holdout's gap request: every cell under the threshold, filled to `fill_to`.
+    """A holdout's gap request: every cell under the threshold, filled to `fill_to`.
 
     On Diabetes 130 the removed cell is the only one under E6's threshold on every holdout seed
     (`tests/test_datasets_diabetes_pinned.py`, which reads the pinned archive under `--releases`),
@@ -68,8 +67,6 @@ def estimate(experiment: Experiment, settings: Settings) -> float:
     `INPUT_PER_ROW`, `OUTPUT_PER_ROW` and `OVERHEAD_TOKENS` per call, each cell cut into calls of
     `per_call` rows, input at the higher of `input` and `cache_write`; 0 for a run with no arm
     that calls the API."""
-    if not PAID_ARMS & set(experiment.arms):
-        return 0.0
     holdouts = len(experiment.holdout_seeds)
     cells = quota(experiment).values()
     rows = sum(cells) * holdouts
@@ -115,10 +112,13 @@ def test_the_thin_pilot_asks_its_cells_removed_rows_and_the_empty_one_all_of_the
 
 
 @pytest.mark.parametrize(
-    ("name", "full", "e9"),
-    [("e10-pram-thin", E10_PRAM_THIN, E9_THIN), ("e10-pram-empty", E10_PRAM_EMPTY, E9_EMPTY)],
+    ("name", "full", "e9", "e6"),
+    [
+        ("e10-pram-thin", E10_PRAM_THIN, E9_THIN, E6_THIN),
+        ("e10-pram-empty", E10_PRAM_EMPTY, E9_EMPTY, E6_EMPTY),
+    ],
 )
-def test_runs_holds_each_pram_full_run_on_e6s_holdouts(name, full, e9):
+def test_runs_holds_each_pram_full_run_on_e6s_holdouts(name, full, e9, e6):
     assert RUNS[name] == NamedRun(full, E6_SETTINGS, Dataset.DIABETES)
     assert full == dataclasses.replace(
         e9,
@@ -126,13 +126,12 @@ def test_runs_holds_each_pram_full_run_on_e6s_holdouts(name, full, e9):
         candidate=PRAM_ARM,
         comparators=(DIRECT_ARM, "none"),
     )
-    assert full.holdout_seeds == E6_THIN.holdout_seeds
+    assert full.holdout_seeds == e6.holdout_seeds
 
 
 @pytest.mark.parametrize("full", [E10_PRAM_THIN, E10_PRAM_EMPTY], ids=["thin", "empty"])
-def test_each_pram_full_run_calls_no_api_and_estimates_nothing(full):
+def test_each_pram_full_run_calls_no_api(full):
     assert not PAID_ARMS & set(full.arms)
-    assert estimate(full, E6_SETTINGS) == pytest.approx(0.0, abs=0.0)
 
 
 def _perturbing() -> list[str]:
@@ -144,9 +143,9 @@ def _perturbing() -> list[str]:
 
 def test_every_run_that_perturbs_is_an_e10_run_on_the_pinned_diabetes_frame():
     perturbing = _perturbing()
-    assert {"e10-pilot-thin", "e10-pilot-empty", "e10-pram-thin", "e10-pram-empty"} <= set(
-        perturbing
-    )
+    wholes = ["e10-pilot-thin", "e10-pilot-empty", "e10-pram-thin", "e10-pram-empty"]
+    slices = [f"{whole}{letter}" for whole in wholes[2:] for letter in "abcdefghij"]
+    assert set(perturbing) == {*wholes, *slices}
     assert all(name.startswith("e10-") for name in perturbing)
     assert {RUNS[name].dataset for name in perturbing} == {Dataset.DIABETES}
 
@@ -155,8 +154,3 @@ def test_every_run_that_perturbs_is_an_e10_run_on_the_pinned_diabetes_frame():
 def test_every_run_that_perturbs_reads_its_privacy_against_bko_direct(name):
     reference, _ = reference_of(name, RUNS[name].experiment, RUNS)
     assert reference == DIRECT_ARM
-
-
-def test_the_e10_wholes_read_their_privacy_against_bko_direct():
-    for name in ("e10-pilot-thin", "e10-pilot-empty", "e10-pram-thin", "e10-pram-empty"):
-        assert membership.REFERENCE[name] == DIRECT_ARM

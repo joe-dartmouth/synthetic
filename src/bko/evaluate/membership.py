@@ -69,8 +69,11 @@ _SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
-    | {"e10-pilot-thin": DIRECT_ARM, "e10-pilot-empty": DIRECT_ARM}
-    | {"e10-pram-thin": DIRECT_ARM, "e10-pram-empty": DIRECT_ARM}
+    | {
+        f"e10-{family}-{cell}": DIRECT_ARM
+        for family in ("pilot", "pram")
+        for cell in ("thin", "empty")
+    }
 )
 """Each run family's reference arm, which every other arm's privacy is read against: `real`, or
 `bko-direct` for the perturbation runs, whose arms perturb its rows."""

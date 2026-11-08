@@ -494,8 +494,9 @@ call is sent, and the calls beside it land under their own idle limits, so their
 are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the ceiling and
 the idle limit. `--in-flight N` sets the calls in flight, `bko.generate.flight.IN_FLIGHT` by default
 (ADR [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the
-call it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call
-log writes as it closes, belongs to a process that is still running or was killed. Copy the call log
+call it lands at with one call in flight. For a run with a call log, a `scores.log` with no
+`run status=` line, which the call log writes as it closes, belongs to a process that is still
+running or was killed. Copy the call log
 off the runner before any replay.
 
 **Supervision.** `launch` supervises its run (ADR
@@ -999,11 +1000,13 @@ for the second run. A recorded pilot's rows store is read through `privacy` agai
 (`privacy` above).
 
 The PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty`, hold no paid arm, so they spend
-nothing and need no credential. `launch` always passes `--log`, which a run with no paid arm
-refuses, so each slice runs through `score` directly, as E9's do, refusing `--log`, `--replay`,
-`--resume` and `--rehearse` and requiring `--candidates`:
-
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e10-pram-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+nothing and need no credential. `launch` refuses a run with no paid arm, so each slice runs
+through `score` directly, as E9's do (the guarded command in E9's paragraph above, with
+`e10-pram-thina` for the run name), refusing `--log`, `--replay`, `--resume` and `--rehearse` and
+requiring `--candidates`. Run all ten slices of a run at one commit: `merge` refuses slices whose
+`versions` lines differ. A slice with no call log writes no `run status=` line, so its completion
+is the last `holdout=... done=N/N` line of `scores.log` plus a non-empty `scores.csv`. `score` run
+directly has no keep-awake or battery guard, so keep the machine on AC power and awake.
 
 `merge` joins each run's ten slices, and `rows`, `panel` and `privacy` read them against
 `bko-direct`.

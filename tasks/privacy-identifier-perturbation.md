@@ -1,6 +1,6 @@
 ---
 id: privacy-identifier-perturbation
-title: Run the identifier-perturbation arms in full and read distance and membership inference per method
+title: Run the PRAM perturbation arm in full and read distance and membership inference against bko-direct
 status: ready
 depends_on: --
 blocks: --
@@ -11,7 +11,7 @@ paid: false
 adrs: research/identifier-perturbation
 ---
 
-# Run the identifier-perturbation arms in full and read distance and membership inference per method
+# Run the PRAM perturbation arm in full and read distance and membership inference against bko-direct
 
 The set's graph is [`experiments-index.md`](experiments-index.md).
 
@@ -42,11 +42,11 @@ says why `bko-direct`'s rows are already mosaics). E10's Runs field
 readings and Configuration the full runs. What they settle for this unit: the rewrite
 returns every row asked, but the distribution check refused it on thin holdout 1 and on both empty
 holdouts, which meets the ADR's reversal condition for a check that refuses every holdout of a
-fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide both
-arms' privacy and utility. The ADR's Rationale says why a reading replaces the check and quotas aim
-the rewrite. The re-pilot at the reading and the quotas passed G1 to G5 and failed G6, the
-rewrite's added-row `dcr-p5` exceeding `bko-direct`'s on 1 of 4 holdouts, so the rewrite returns
-to design (E10's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)).
+fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide PRAM's
+privacy and utility. The ADR's Rationale says why a reading replaces the check and quotas aim
+the rewrite. The re-pilot at the reading and the quotas passed G1 to G5 and failed G6: the
+rewrite's `dcr-p5` exceeded `bko-direct`'s on 1 of 4 holdouts, so the every-holdout bar failed and
+the rewrite returns to design (E10's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)).
 
 ## Scope
 

@@ -135,9 +135,9 @@ and the full runs are fixed here.
     measured USD per row asked. An operational G1 failure resumes under the paid-run protocol. G3
     failing is a regression to fix first. G2 failing meets the schema reversal below. G4, G5 or G6
     failing records the re-pilot alone and returns the prompt to design.
-  - **Outcome.** G1 to G5 passed and G6 failed: the rewrite's added-row `dcr-p5` stayed at or
-    below `bko-direct`'s on 3 of 4 holdouts and exceeded it on 1 (`docs/EVIDENCE.md`, E10). Per
-    the branches, the rewrite returns to design.
+  - **Outcome.** G1 to G5 passed and G6 failed: the rewrite's `dcr-p5` exceeded `bko-direct`'s on
+    1 of 4 holdouts, so the every-holdout bar failed (`docs/EVIDENCE.md`, E10). Per the branches,
+    the rewrite returns to design.
 - **Full runs.** PRAM alone: `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
   `E10_PRAM_EMPTY`, built from `E9_THIN` and `E9_EMPTY`) with
   `arms=("none", REAL_ARM, DIRECT_ARM, "bko-direct-pram")`, `candidate="bko-direct-pram"` and

@@ -34,10 +34,11 @@ board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
 
 **Privacy**
 
-1. Full runs of the arms that rewrite `bko-direct`'s identifying fields with an LLM or redraw
-   them by PRAM, keeping its concepts and distribution, with distance to closest record and
-   membership inference read per method
-   ([`privacy-identifier-perturbation`](tasks/privacy-identifier-perturbation.md)).
+1. Full runs of the PRAM arm, which redraws `bko-direct`'s identifying fields while keeping its
+   concepts and distribution, with distance to closest record and membership inference read
+   against `bko-direct`; the LLM rewrite arm is back in design
+   ([`privacy-identifier-perturbation`](tasks/privacy-identifier-perturbation.md), ADR
+   `research/identifier-perturbation`).
 
 ## Setup
 
