@@ -11,9 +11,6 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
-### Privacy
-
-
 ## What every unit relies on
 
 - **Replay pairs calls by order and refuses a differing request** (ADR

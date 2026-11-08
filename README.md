@@ -29,7 +29,7 @@ representation. The pipeline:
 
 ## Pending experiments
 
-None is open. The set's graph and status board is
+None is open. The experiments set's graph and status board is
 [`tasks/experiments-index.md`](tasks/experiments-index.md), and unscheduled research is in
 [`docs/IDEAS.md`](docs/IDEAS.md).
 

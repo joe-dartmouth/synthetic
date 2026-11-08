@@ -264,8 +264,8 @@ fields, so that its added rows sit farther from training records than `bko-direc
 keeping the label-1 distributions. With per-call label-group quotas the rewrite reached column
 shapes of 0.977 to 0.979 against the label-1 training rows, but its added-row `dcr-p5` exceeded
 `bko-direct`'s on 1 of 4 re-pilot holdouts and its NNDR p5 was lower on all 4 (E10's Read against
-in [EVIDENCE.md](EVIDENCE.md#e10-identifier-perturbation)): matching the label group's marginals
-draws the rows toward its dense region.
+in [EVIDENCE.md](EVIDENCE.md#e10-identifier-perturbation)). A likely reason, not yet tested, is
+that matching the label group's marginals draws the rows toward its dense region.
 
 **Why it is not in the plan.** The re-pilot failed G6, so the rewrite returns to design (ADR
 [research/identifier-perturbation](adr/research/identifier-perturbation.md), Reversal Conditions),

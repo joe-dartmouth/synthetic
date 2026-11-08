@@ -145,7 +145,8 @@ and the full runs are fixed here.
   `e10-pram-thina` to `e10-pram-thinj` and `e10-pram-emptya` to `e10-pram-emptyj`. No arm calls
   the API, so they spend nothing and the ceiling kept from E6 is inert. They are read against
   `bko-direct` through `rows`, `panel`, `merge`, `privacy` and `compare`, as paired differences
-  with each tool's corrected intervals; they judge no criterion, so `compare` gives no verdict.
+  with each tool's corrected intervals; they judge no criterion, so `compare` gives no verdict,
+  and [E10](../../EVIDENCE.md#e10-identifier-perturbation) records them.
   The rewrite arm has no full run until a redesign passes a new re-pilot.
 - **Egress.** The arm runs inside `guided_arms` over the shared `Flight` and `CallLog`, under the
   spend ceiling and the agreement refusal every Messages arm meets (ADR `research/cllm-arm-design`,
@@ -192,7 +193,7 @@ against 0.105 in R. Quotas from each call's own rows keep, at thin, reusing the 
 values, the source of E8's cell leak. Exact counts from the label group make each call's rows sum
 to R's marginals across the holdout. The quotas and the reading share R, so G4 reads whether the
 quotas were followed, not fidelity; at thin, both arms repair `bko-direct`'s marginals toward R,
-so thin contrasts mix repair with anonymization; at f=1.0, where U is already about R, the
+so thin contrasts mix repair with perturbation; at f=1.0, where U is already about R, the
 contrast is the clean test of utility cost.
 
 **Pair trends are reported, not gated.** A planning measurement, not a recorded run, found that
@@ -223,7 +224,7 @@ arm's own rows, read and not gated; counts of refused and unchanged rows.
 **Accepted**: a rewrite call sends rows that are mosaics of real encounters, and each count
 field's training range; PRAM's redrawn rows need not keep a coherent combination of their 19
 fields; a distorting rewrite enters the training set and is read, not refused; the quota block
-discloses label-group value counts; thin contrasts mix repair with anonymization; the 19 fields
+discloses label-group value counts; thin contrasts mix repair with perturbation; the 19 fields
 are the unmapped ones, so a
 mapped field is never perturbed and a patient found by a mapped combination is not protected.
 
