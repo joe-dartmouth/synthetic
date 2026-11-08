@@ -18,15 +18,17 @@ from typing import Final
 import pandas as pd
 import pytest
 
+from bko.datasets.diabetes import CHANGE_CODES, DIABETES_MED_CODES, DRUG_CODES, DRUGS
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, PAID_ARMS, PERTURBED_ARM, PRAM_ARM
+from bko.evaluate.fidelity import quality_report
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
-from bko.evaluate.perturb import Delta, label_rows
+from bko.evaluate.perturb import POSITIVE, incoherent, label_rows
 from bko.evaluate.perturbed import Merged, PerturbedArm, _guidance, merge
 from bko.evaluate.quotas import allot, categories, category_of
 from bko.evaluate.run_folder import BKO
@@ -223,7 +225,8 @@ class Rewriter:
     Rotating a measure within a call keeps its values on the training split, so every rewritten
     row passes and the fill's values stay the drawn ones; `invalid` names the calls whose second
     row carries an `age`, which keeps its values, `short` the calls whose last row is left out,
-    and `skew` sets every row's measures to the call's least, which the check refuses.
+    and `skew` sets every row's measures to the call's least, which reads below the unperturbed
+    rows.
 
     Attributes:
         calls: Every call made, in order.
@@ -267,7 +270,7 @@ class Rewriter:
 
 
 def _flown(
-    tmp_path: Path, send: Rewriter, delta: float = 1.0, train: pd.DataFrame | None = None
+    tmp_path: Path, send: Rewriter, train: pd.DataFrame | None = None
 ) -> tuple[pd.DataFrame, list[Call], PerturbedArm]:
     varied, request, _ = varied_arm()
     train = varied if train is None else train
@@ -276,7 +279,7 @@ def _flown(
     )
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS, now=lambda: FIXED_NOW, frame="uci")
     with log, Flight(send, log, Limits(2, None), spendable=lambda: None) as flight:
-        arm = PerturbedArm(inner, flight=flight, fields=FIELDS, delta=Delta(delta, "table", None))
+        arm = PerturbedArm(inner, flight=flight, fields=FIELDS)
         added = arm(train, request).added
     return added, send.calls, arm
 
@@ -449,33 +452,83 @@ def test_the_perturbed_arm_logs_each_calls_counts_and_reason(tmp_path, caplog):
     assert short.endswith(" rewrite=true")
     (configured,) = [m for m in caplog.messages if m.startswith("perturb arm=")]
     assert configured == (
-        f"perturb arm={PERTURBED_ARM} fields={','.join(FIELDS)} delta=1.000000"
-        f" delta_source=table fraction=none per_call={SETTINGS.per_call} model={SETTINGS.model}"
+        f"perturb arm={PERTURBED_ARM} fields={','.join(FIELDS)}"
+        f" per_call={SETTINGS.per_call} model={SETTINGS.model}"
     )
     caplog.clear()
     arm.summary()
     (line,) = [m for m in caplog.messages if m.startswith("perturb summary ")]
     assert re.fullmatch(
-        rf"perturb summary arm={PERTURBED_ARM} holdouts=1 accepted=1 refused=0 empty=0"
-        r" rows=\d+ rows_changed=\d+ perturbed=\d+ unchanged=\d+ refused_empty=0"
+        rf"perturb summary arm={PERTURBED_ARM} holdouts=1 read=1 empty=0 rows=\d+"
+        r" rows_changed=\d+ values_changed=\d+ mean_shapes=\d\.\d{6} mean_unperturbed=\d\.\d{6}"
+        r" perturbed=\d+ unchanged=\d+ refused_empty=0"
         r" refused_short=8 refused_undecodable=0 refused_order=0 refused_keys=1"
         r" refused_validate=0 refused_bounds=0",
         line,
     )
 
 
-def test_a_check_below_the_reference_keeps_every_drawn_row(tmp_path, caplog):
+def test_a_perturbed_reading_below_the_unperturbed_keeps_the_arms_rows(tmp_path, caplog):
     caplog.set_level(logging.INFO)
-    added, calls, arm = _flown(tmp_path, Rewriter(skew=True), delta=0.0)
+    added, calls, arm = _flown(tmp_path, Rewriter(skew=True))
     assert calls
-    assert digest(added) == ADDED_DIGEST
-    (check,) = [m for m in caplog.messages if m.startswith("perturb check ")]
-    assert check.endswith(
-        " delta=0.000000 pair_trends="
-        + check.split("pair_trends=")[1].split(" ")[0]
-        + " outcome=refused reason=below_reference rows_changed=0 final=original"
+    assert digest(added) != ADDED_DIGEST
+    assert arm.counts["rows_changed"] > 0
+    (line,) = [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    assert float(line.split(" difference=")[1].split(" ")[0]) < 0, line
+
+
+def test_the_reading_logs_perturbed_and_unperturbed_column_lines(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    added, _, arm = _flown(tmp_path, Rewriter(skew=True))
+    train, request, direct = varied_arm()
+    drawn = direct(train, request).added
+    reference = label_rows(train, UCI_FRAME, POSITIVE)
+    lines = [m for m in caplog.messages if m.startswith("perturb columns ")]
+    assert [line.split(" rows=")[1].split(" ")[0] for line in lines] == ["perturbed", "unperturbed"]
+    for line, rows in zip(lines, (added, drawn), strict=True):
+        head, _, tail = line.partition(" rows=")
+        assert head == f"perturb columns holdout=-1 arm={arm.name}"
+        tokens = tail.split(" ")[1:]
+        assert [token.split("=")[0] for token in tokens] == list(FIELDS)
+        for token in tokens:
+            name, value = token.split("=")
+            report = quality_report(reference, rows, frame=UCI_FRAME, columns=[name])
+            shape = float(report.get_properties().set_index("Property")["Score"]["Column Shapes"])
+            assert value == f"{shape:.6f}", name
+
+
+def test_incoherence_counts_rows_breaking_any_of_the_three_rules():
+    no, steady, up = DRUG_CODES["No"], DRUG_CODES["Steady"], DRUG_CODES["Up"]
+    rows = pd.DataFrame(
+        [
+            {
+                **dict.fromkeys(DRUGS, no),
+                "insulin": steady,
+                "change": CHANGE_CODES["No"],
+                "diabetesMed": DIABETES_MED_CODES["No"],
+            },
+            {
+                **dict.fromkeys(DRUGS, no),
+                "change": CHANGE_CODES["Ch"],
+                "diabetesMed": DIABETES_MED_CODES["No"],
+            },
+            {
+                **dict.fromkeys(DRUGS, no),
+                "metformin": up,
+                "change": CHANGE_CODES["No"],
+                "diabetesMed": DIABETES_MED_CODES["Yes"],
+            },
+            {
+                **dict.fromkeys(DRUGS, no),
+                "metformin": up,
+                "change": CHANGE_CODES["Ch"],
+                "diabetesMed": DIABETES_MED_CODES["Yes"],
+            },
+        ]
     )
-    assert (arm.counts["refused"], arm.counts["rows_changed"]) == (1, 0)
+    assert incoherent(rows) == pytest.approx(0.75)
+    assert incoherent(rows.iloc[[3]]) == pytest.approx(0.0)
 
 
 def test_the_perturbed_arm_is_a_paid_bko_arm():
@@ -526,27 +579,24 @@ def test_a_perturbed_rows_line_carries_its_call_and_a_kept_original_none(tmp_pat
     for call in (2, 3, 4):
         positions = sorted(line.position for line in called if line.call == call)
         assert positions == list(range(len(positions))), call
-    checks = [
-        m for m in caplog.messages if m.startswith(f"perturb check holdout=0 arm={PERTURBED_ARM}")
+    (shapes,) = [
+        m for m in caplog.messages if m.startswith(f"perturb shapes holdout=0 arm={PERTURBED_ARM} ")
     ]
-    assert checks
-    assert " outcome=accepted reason=none rows_changed=" in checks[0]
-    assert checks[0].endswith(" final=perturbed")
+    assert " incoherent=none unperturbed_incoherent=none rows_changed=" in shapes
 
 
-def test_a_refused_holdouts_rows_lines_carry_no_call(tmp_path, caplog):
+def test_every_perturbed_row_carries_its_call(tmp_path, caplog):
     folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(skew=True))
     found = read((folder / "holdout-candidates.jsonl").read_bytes())
     mine = [line for line in found.candidates if line.arm == PERTURBED_ARM]
     assert len(mine) == 2 * 28
-    assert {line.call for line in mine} == {None}
-    checks = [m for m in caplog.messages if m.startswith("perturb check holdout=")]
-    mine_checks = [m for m in checks if f" arm={PERTURBED_ARM} " in m]
-    assert len(mine_checks) == 2
-    assert all(
-        m.endswith(" outcome=refused reason=below_reference rows_changed=0 final=original")
-        for m in mine_checks
-    ), mine_checks
+    assert None not in {line.call for line in mine}
+    shapes = [m for m in caplog.messages if m.startswith("perturb shapes holdout=")]
+    mine_shapes = [m for m in shapes if f" arm={PERTURBED_ARM} " in m]
+    assert len(mine_shapes) == 2
+    assert all(float(m.split(" difference=")[1].split(" ")[0]) < 0 for m in mine_shapes), (
+        mine_shapes
+    )
 
 
 def test_the_stored_arm_rebuilds_the_perturbed_arms_rows_to_its_arm_sha(tmp_path, caplog):

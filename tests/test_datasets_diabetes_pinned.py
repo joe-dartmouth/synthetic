@@ -34,6 +34,7 @@ from bko.datasets.split import split
 from bko.evaluate.diabetes import DIABETES_FRAME, DIABETES_INDICATORS
 from bko.evaluate.experiment import E1, Experiment, Removal, flagged, gap_request
 from bko.evaluate.named_runs import RUNS
+from bko.evaluate.perturb import incoherent
 from bko.evaluate.prepare import prepared
 
 
@@ -68,6 +69,11 @@ def test_every_frame_range_holds_the_cohorts_least_and_greatest_value(bound) -> 
 
 def test_the_mappings_expired_and_hospice_discharges_are_the_pinned_set() -> None:
     assert excluded_discharges(_member(IDS_MEMBER)) == EXCLUDED_DISCHARGES
+
+
+def test_every_real_training_row_keeps_the_three_rules() -> None:
+    """The cohort holds every holdout's training split, so no real training row breaks a rule."""
+    assert incoherent(_records()) == pytest.approx(0.0)
 
 
 def test_the_drug_columns_read_are_the_eight_most_often_prescribed() -> None:

@@ -153,7 +153,7 @@ command per method, inside `.venv`:
 holdouts and judges a candidate arm against E1's criteria (ADR
 [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). `score` spends money:
 its paid arms (`bko.evaluate.experiment.PAID_ARMS`: E1's three BKO arms, B3's CLLM arms beside
-`bko`, G7's `bko-curated` and the perturbation pilot's `bko-direct-perturbed`) call the Anthropic
+`bko`, G7's `bko-curated` and the perturbation runs' `bko-direct-perturbed`) call the Anthropic
 Messages API, so it needs the `llm` extra and an Anthropic credential, and every call goes to the
 call log at `--log`, which must not exist; its `run` line names the run's frame under `frame`.
 Whenever a paid arm runs, live, with `--replay`, with `--resume` or with `--rehearse`,
@@ -968,21 +968,15 @@ run is neither the named run nor a slice of it, whose header does not match its 
 whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
 data does not reproduce.
 
-**The perturbation pilot.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
+**The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR
 [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). Their paid arm
 is `bko-direct-perturbed`, which sends the 19 unmapped fields of rows of open Diabetes 130 data to
 the Messages API ([Generation](#generation), What leaves the machine); `bko-direct-pram` is free.
-A perturbed arm's rows are refused for a holdout, and every drawn row kept, when the ADR's
-distribution check fails at the run's `delta`.
+Each arm keeps its own rows on every holdout; each holdout logs the ADR's distribution reading of
+them, which changes no row.
 
-`delta` comes first. `bko.evaluate.perturb.DELTAS` holds each removal fraction's value, None until
-one is recorded there; a run with no removal, or a fraction it does not list, gates at 0, the
-strictest. `score` and `launch` refuse, exit 2, before any file or call, a run that holds
-`bko-direct-perturbed` or `bko-direct-pram` while its fraction's `delta` is None; only `--rehearse`
-runs there, its check at 0, since a rehearsal is free.
-
-Each pilot is then a paid run, so it starts with `launch` (the paid-run protocol above); the dry
+Each pilot is a paid run, so it starts with `launch` (the paid-run protocol above); the dry
 run writes `launch.log` and starts nothing:
 
     uv run --no-sync python -m bko.evaluate launch <run-id> e10-pilot-thin --dry-run
@@ -997,11 +991,9 @@ for the second run. A recorded pilot's rows store is read through `privacy` agai
 Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 `bko.evaluate.perturbed`):
 
-- `perturb arm=%s fields=%s delta=%s delta_source=%s fraction=%s` at construction, `delta` `none`
-  while unfixed, `delta_source` `table`, `placeholder` or `default`, ending `theta=%s` for PRAM and
+- `perturb arm=%s fields=%s` at construction, ending `theta=%s` for PRAM and
   `per_call=%d model=%s` for the perturbed arm.
-- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed,
-  before the check.
+- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed.
 - `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
   checks=%s quota_off=%d` per rewrite call: `returned` the items its reply decoded to, `reason`
   the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
@@ -1011,13 +1003,21 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 - `perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_empty=%d refused_short=%d
   refused_undecodable=%d refused_order=%d refused_keys=%d refused_validate=%d refused_bounds=%d`
   per holdout: each drawn row's merge outcome.
-- `perturb check holdout=%d arm=%s shapes=%.6f reference=%.6f delta=%.6f pair_trends=%.6f
-  outcome=%s reason=%s rows_changed=%d final=%s` per holdout: `reason` `none`, `nonfinite` or
-  `below_reference`, `rows_changed` the rows that differ from the draw in the rows kept, `final`
-  `perturbed` or `original`. A fill that drew no row has no check.
-- `perturb summary arm=%s holdouts=%d accepted=%d refused=%d empty=%d rows=%d rows_changed=%d` at
-  the end of the run, a stopped run included; the perturbed arm's adds its run's merge outcomes as
-  the holdout line names them.
+- `perturb shapes holdout=%d arm=%s shapes=%.6f unperturbed=%.6f difference=%.6f
+  pair_trends=%.6f unperturbed_pair_trends=%.6f incoherent=%s unperturbed_incoherent=%s
+  rows_changed=%d values_changed=%d` per holdout: SDMetrics' column shapes of the arm's rows and
+  of the drawn rows against the holdout's label-1 training rows over the perturbed fields,
+  `difference` the first less the second, both column pair trends, the share of each set's rows
+  breaking any of the ADR's three Diabetes rules (`none` off Diabetes), and the rows and values
+  that differ from the draw. A score SDMetrics cannot read logs `nan`.
+- `perturb columns holdout=%d arm=%s rows=%s <field>=%.6f ...` twice per holdout, `rows`
+  `perturbed` then `unperturbed`: each perturbed field's column shape, in field order. A fill that
+  drew no row logs neither line.
+- `perturb summary arm=%s holdouts=%d read=%d empty=%d rows=%d rows_changed=%d values_changed=%d
+  mean_shapes=%.6f mean_unperturbed=%.6f` at the end of the run, a stopped run included: the
+  holdouts read and with no row drawn, and the read holdouts' mean column shapes of the arm's and
+  the drawn rows, `nan` when a read holdout's shape is `nan`; the perturbed arm's adds its run's merge outcomes as the holdout line names
+  them.
 
 A rewrite call's `generate` line carries `rewrite=true` in place of `level=`, and its `short`
 WARNING ends `rewrite=true`. Each arm's candidates-file lines are `bko-direct`'s, with a row a

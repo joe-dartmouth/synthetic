@@ -236,9 +236,13 @@ mapped field is never perturbed and a patient found by a mapped combination is n
   and the reading), `src/bko/evaluate/pram.py` (the PRAM arm), `src/bko/evaluate/perturbed.py`
   (the rewrite arm and its merge), `src/bko/evaluate/quotas.py` (the per-call value quotas) and
   `src/bko/generate/rewrite.py` (the rewrite call and its reply schema).
-- Pinned by: `tests/test_evaluate_perturb.py` (the merge's refusals, the arm's calls and egress),
-  `tests/test_evaluate_pram.py` (the pinned fields, PRAM's stream, keep rate and marginals),
-  `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings),
+- Pinned by: `tests/test_evaluate_perturb.py` (the merge's refusals, the arm's calls and egress,
+  the column lines, the three rules, and a reading below the unperturbed rows keeping the arm's
+  rows), `tests/test_evaluate_pram.py` (the pinned fields, PRAM's stream, keep rate and marginals,
+  and the reading of shapes, pair trends and columns against the label-1 rows),
+  `tests/test_evaluate_perturb_replay.py` (a reading below the unperturbed rows replays byte for
+  byte), `tests/test_datasets_diabetes_pinned.py` (every real training row keeps the three rules,
+  under `--releases`), `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings),
   `tests/test_evaluate_quotas.py` (the categories, apportionment and spread of the quotas) and
   `tests/test_generate_rewrite.py` (the call, its quota block, its schema and its refusals).
 

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import io
-import logging
 import math
 from typing import Final
 
@@ -12,17 +10,14 @@ import pytest
 
 from bko.baselines.request import Stratum
 from bko.datasets.ablation import removed_count
-from bko.evaluate import membership, perturb
-from bko.evaluate.__main__ import Context, main
+from bko.evaluate import membership
 from bko.evaluate.data import Dataset
-from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     DIRECT_ARM,
     PERTURBED_ARM,
     PRAM_ARM,
     REAL_ARM,
     Experiment,
-    Removal,
 )
 from bko.evaluate.named_runs import (
     E6_EMPTY,
@@ -33,19 +28,9 @@ from bko.evaluate.named_runs import (
     RUNS,
     NamedRun,
 )
-from bko.evaluate.perturb import (
-    DELTA_EMPTY,
-    DELTA_THIN,
-    PERTURBING_ARMS,
-    Delta,
-    delta_for,
-    refuse_unfixed,
-)
 from bko.generate.flight import OVERHEAD_TOKENS
 from bko.generate.messages import Settings
 from bko.generate.spend import PRICES
-from tests.test_evaluate_direct import SMALL_G2
-from tests.test_evaluate_launch import Starts
 
 
 INPUT_PER_ROW: Final = 800
@@ -120,74 +105,10 @@ def test_the_thin_pilot_asks_its_cells_removed_rows_and_the_empty_one_all_of_the
     assert (quota(E10_PILOT_THIN), quota(E10_PILOT_EMPTY)) == ({cell: 1250}, {cell: 1269})
 
 
-def test_the_pilots_deltas_are_the_recorded_thresholds():
-    assert (DELTA_THIN, DELTA_EMPTY) == (0.036399, 0.003108)
-    assert delta_for(E10_PILOT_THIN) == Delta(0.036399, "table", 0.985)
-    assert delta_for(E10_PILOT_EMPTY) == Delta(0.003108, "table", 1.0)
-    assert Delta(None, "placeholder", 1.0).gate == pytest.approx(0.0)
-
-
-def test_delta_for_reads_each_fraction_and_gates_any_other_run_at_zero(monkeypatch):
-    monkeypatch.setattr(perturb, "DELTAS", {0.985: 0.011, 1.0: 0.022})
-    assert delta_for(E10_PILOT_THIN) == Delta(0.011, "table", 0.985)
-    assert delta_for(E10_PILOT_EMPTY) == Delta(0.022, "table", 1.0)
-    assert delta_for(SMALL_G2) == Delta(0.0, "default", None)
-    halved = dataclasses.replace(E10_PILOT_THIN, removal=Removal(("6-7", "male", 1), 0.5))
-    assert delta_for(halved) == Delta(0.0, "default", 0.5)
-    assert Delta(0.022, "table", 1.0).gate == pytest.approx(0.022)
-
-
-@pytest.fixture
-def unfixed_deltas(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Leave both pilot fractions with no recorded delta."""
-    monkeypatch.setattr(perturb, "DELTAS", {0.985: None, 1.0: None})
-
-
-def test_an_unfixed_delta_refuses_a_perturbing_run_but_a_rehearsal(unfixed_deltas):
-    for arm in sorted(PERTURBING_ARMS):
-        alone = dataclasses.replace(
-            E10_PILOT_THIN,
-            arms=("none", DIRECT_ARM, arm),
-            candidate=arm,
-            comparators=("none", DIRECT_ARM),
-        )
-        with pytest.raises(EvaluationError, match="is not fixed"):
-            refuse_unfixed(alone, run="x", rehearse=False)
-        refuse_unfixed(alone, run="x", rehearse=True)
-    unperturbed = dataclasses.replace(
-        E10_PILOT_THIN, arms=("none", DIRECT_ARM), candidate=DIRECT_ARM, comparators=("none",)
-    )
-    refuse_unfixed(unperturbed, run="x", rehearse=False)
-
-
-@pytest.mark.parametrize("name", ["e10-pilot-thin", "e10-pilot-empty"])
-@pytest.mark.parametrize("command", ["score", "launch"])
-def test_score_and_launch_refuse_a_pilot_at_its_unfixed_delta_before_any_file(
-    tmp_path, caplog, name, command, unfixed_deltas
-):
-    start = Starts()
-    context = Context(power=lambda: False, runs_dir=tmp_path / "runs", start=start)
-    if command == "score":
-        argv = ["score", name, "--log", str(tmp_path / "calls.jsonl")]
-        argv += ["--candidates", str(tmp_path / "c.jsonl"), "--data-dir", str(tmp_path / "data")]
-    else:
-        argv = ["launch", "e10-1", name, "--dry-run"]
-    with caplog.at_level(logging.ERROR):
-        assert main(argv, context=context, out=io.StringIO()) == 2
-    assert "is not fixed" in caplog.text
-    assert sorted(path.name for path in tmp_path.iterdir()) == []
-    assert start.commands == []
-
-
-def test_a_pilot_rehearsal_launches_at_its_unfixed_delta(tmp_path, unfixed_deltas):
-    start = Starts()
-    context = Context(power=lambda: False, runs_dir=tmp_path, start=start)
-    argv = ["launch", "e10-1", "e10-pilot-thin", "--rehearse", "--dry-run"]
-    assert main(argv, context=context, out=io.StringIO()) == 0
-
-
 def test_every_run_that_perturbs_is_on_the_pinned_diabetes_frame():
-    perturbing = [name for name, run in RUNS.items() if PERTURBING_ARMS & set(run.experiment.arms)]
+    perturbing = [
+        name for name, run in RUNS.items() if {PERTURBED_ARM, PRAM_ARM} & set(run.experiment.arms)
+    ]
     assert perturbing == ["e10-pilot-thin", "e10-pilot-empty"]
     assert {RUNS[name].dataset for name in perturbing} == {Dataset.DIABETES}
 

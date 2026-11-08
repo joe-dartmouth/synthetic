@@ -63,9 +63,8 @@ directory does not, paid arms with no `--log` or `--candidates`, a direct arm wi
 `--rehearse` with no paid arm to build, `--ceiling` with no `--resume`, `--candidates` with no
 paid or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
-ceiling, projects to it or stalled, a `score` or `launch` but a rehearsal of a run holding a
-perturbation arm whose delta is not fixed, a `launch` on battery power or into a folder that
-holds a run, a `privacy` run with no reference arm or removed cell, a `trace` of a perturbation arm,
+ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a
+run, a `privacy` run with no reference arm or removed cell, a `trace` of a perturbation arm,
 or of a holdout, arm or record the folder does not hold or over a call log line it cannot read,
 and scores whose validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
@@ -104,7 +103,6 @@ from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
 from bko.evaluate.panel import panel
-from bko.evaluate.perturb import refuse_unfixed
 from bko.evaluate.provenance import log_experiment
 from bko.evaluate.resumes import resumable
 from bko.evaluate.rows import creatable, store
@@ -196,7 +194,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     Raises:
         EvaluationError: If the run id is not a run id of record, the run has no paid arm, so
             `score --log` would refuse it, `--ceiling` comes without `--resume`, or as
-            `bko.evaluate.perturb.refuse_unfixed`, `resumable` and `launch`.
+            `resumable` and `launch`.
     """
     match = RUN_ID.fullmatch(args.run_id)
     if match is None or match["entry"] is None:
@@ -207,7 +205,6 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     if not set(context.experiment.arms) & PAID_ARMS:
         msg = f"the run {name!r} has no paid arm, so it spends nothing to launch"
         raise EvaluationError(msg)
-    refuse_unfixed(context.experiment, run=name, rehearse=args.rehearse)
     if args.ceiling is not None and args.resume is None:
         msg = "--ceiling raises a resumed run's spend ceiling, so it needs --resume"
         raise EvaluationError(msg)

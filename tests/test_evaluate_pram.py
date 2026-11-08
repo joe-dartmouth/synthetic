@@ -1,4 +1,4 @@
-"""`bko-direct-pram`: PRAM on `bko-direct`'s unmapped fields, and the check."""
+"""`bko-direct-pram`: PRAM on `bko-direct`'s unmapped fields, and the reading."""
 
 from __future__ import annotations
 
@@ -13,7 +13,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from bko.baselines.request import Stratum
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import perturb
+from bko.evaluate import pram as pram_module
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
@@ -24,9 +27,13 @@ from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import (
     DIABETES_UNMAPPED,
-    Delta,
-    check_distribution,
-    passes,
+    POSITIVE,
+    Changed,
+    Quality,
+    Record,
+    label_rows,
+    native,
+    read_distribution,
     unmapped,
 )
 from bko.evaluate.pram import PRAM_STREAM, THETA, PramArm, pram
@@ -67,14 +74,12 @@ PRAM_DIGEST: Final = "1982f7231e5e798b180db7509983e14ca21980ed90716ad6421c5c3e1e
 field's keep draw, then its pick draw, field by field in column order."""
 
 
-def pram_arm(
-    theta: float = THETA, *, delta: float = 1.0, fields: tuple[str, ...] = FIELDS
-) -> PramArm:
-    """The PRAM arm over `varied_arm`'s field rows; a delta of 1 never refuses."""
+def pram_arm(theta: float = THETA, *, fields: tuple[str, ...] = FIELDS) -> PramArm:
+    """The PRAM arm over `varied_arm`'s field rows."""
     inner = DirectArm(
         (ANGINA, STENOSIS), {}, name=PRAM_ARM, budget=3, sink=None, dataset="uci-test"
     )
-    return PramArm(inner, theta, fields=fields, delta=Delta(delta, "table", None))
+    return PramArm(inner, theta, fields=fields)
 
 
 def test_the_diabetes_unmapped_fields_are_the_pinned_19():
@@ -213,54 +218,84 @@ def test_pram_redraws_each_field_toward_its_label_groups_training_marginal():
     pd.testing.assert_series_equal(out["target"], rows["target"])
 
 
-def test_the_check_refuses_below_the_reference_less_delta_and_accepts_at_equality():
-    assert passes(0.90, 0.90, 0.0)
-    assert passes(0.89, 0.90, 0.01)
-    assert not passes(0.889, 0.90, 0.01)
-    assert not passes(math.nan, 0.90, 0.01)
-    assert not passes(0.90, math.nan, 0.01)
-
-
-def test_rows_equal_to_the_originals_pass_the_check_at_delta_zero():
+def test_a_nonfinite_shape_is_read_and_logged_nan(caplog, monkeypatch):
+    caplog.set_level(logging.INFO)
     train, request, direct = varied_arm()
     rows = direct(train, request).added
-    found = check_distribution(rows, rows, train, fields=FIELDS, frame=request.frame, delta=0.0)
-    assert found.shapes == found.reference
-    assert found.passed
-    assert 0 < found.pair_trends <= 1
+    cell: Stratum = ("x", "male", 1)
+    records = [native(row, request.frame) for row in rows.to_dict("records")]
+    drawn: dict[Stratum, list[Record]] = {cell: records}
+    changed: dict[Stratum, list[Changed]] = {cell: [Changed(dict(row)) for row in records]}
+    nan = Quality(math.nan, math.nan, dict.fromkeys(FIELDS, math.nan))
+    monkeypatch.setattr(perturb, "quality", lambda *_, **__: nan)
+    arm = pram_arm()
+    assert arm.read(train, drawn, changed, request.frame) is None
+    (line,) = [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    assert " shapes=nan unperturbed=nan difference=nan pair_trends=nan " in line
+    assert arm.counts["read"] == 1
 
 
-def test_the_check_reads_only_its_fields_against_the_label_1_rows():
+def test_rows_equal_to_the_originals_read_no_difference():
     train, request, direct = varied_arm()
     rows = direct(train, request).added
-    matched = train[train["target"] == 1].reset_index(drop=True)
-    found = check_distribution(
-        matched, rows, train, fields=("chol",), frame=request.frame, delta=0.0
-    )
-    assert found.shapes == pytest.approx(1.0)
-    assert found.reference < 1.0
-    everyone = check_distribution(
-        train, rows, train, fields=("chol",), frame=request.frame, delta=0.0
-    )
-    assert everyone.shapes < 1.0
+    reference = label_rows(train, request.frame, POSITIVE)
+    found = read_distribution(rows, rows, reference, fields=FIELDS, frame=request.frame)
+    assert found.perturbed == found.unperturbed
+    assert found.difference == pytest.approx(0.0)
+    assert 0 < found.perturbed.pair_trends <= 1
+    assert tuple(found.perturbed.columns) == FIELDS
+    assert (found.incoherent, found.unperturbed_incoherent) == (None, None)
+
+
+def test_the_reading_reads_only_its_fields_against_the_reference():
+    train, request, direct = varied_arm()
+    rows = direct(train, request).added
+    frame = request.frame
+    reference = label_rows(train, frame, POSITIVE)
+    matched = reference.reset_index(drop=True)
+    found = read_distribution(matched, rows, reference, fields=("chol",), frame=frame)
+    assert found.perturbed.shapes == pytest.approx(1.0)
+    assert found.unperturbed.shapes < 1.0
+    assert found.difference > 0
+    everyone = read_distribution(train, rows, reference, fields=("chol",), frame=frame)
+    assert everyone.perturbed.shapes < 1.0
     skewed = matched.assign(trestbps=matched["trestbps"].min())
-    alone = check_distribution(
-        skewed, rows, train, fields=("chol",), frame=request.frame, delta=0.0
-    )
-    assert alone.shapes == pytest.approx(1.0)
-    both = check_distribution(
-        skewed, rows, train, fields=("trestbps", "chol"), frame=request.frame, delta=0.0
-    )
-    assert both.shapes < 1.0
+    alone = read_distribution(skewed, rows, reference, fields=("chol",), frame=frame)
+    assert alone.perturbed.shapes == pytest.approx(1.0)
+    both = read_distribution(skewed, rows, reference, fields=("trestbps", "chol"), frame=frame)
+    assert both.perturbed.shapes < 1.0
+    assert both.perturbed.columns["trestbps"] < both.perturbed.columns["chol"]
 
 
-def test_a_fill_that_drew_no_row_skips_the_check(caplog):
+def test_a_fill_that_drew_no_row_is_not_read(caplog):
     caplog.set_level(logging.INFO)
     train, request, _ = varied_arm()
     arm = pram_arm()
-    assert arm.checked(train, {}, {}, request.frame) == {}
+    assert arm.read(train, {}, {}, request.frame) is None
     assert arm.counts["empty"] == 1
-    assert not [m for m in caplog.messages if m.startswith("perturb check ")]
+    assert not [m for m in caplog.messages if m.startswith("perturb shapes ")]
+
+
+def test_a_pram_reading_below_the_unperturbed_keeps_the_arms_rows(caplog, monkeypatch):
+    """A redraw that sets every field to its least value reads below the drawn rows, and the arm
+    keeps it."""
+    caplog.set_level(logging.INFO)
+    train, request, direct = varied_arm()
+    drawn = direct(train, request).added.reset_index(drop=True)
+
+    def least(
+        rows: pd.DataFrame, *_: object, fields: tuple[str, ...], **__: object
+    ) -> pd.DataFrame:
+        return rows.assign(**{name: rows[name].min() for name in fields})
+
+    monkeypatch.setattr(pram_module, "pram", least)
+    arm = pram_arm()
+    found = arm(train, request).added.reset_index(drop=True)
+    pd.testing.assert_frame_equal(found, least(drawn, fields=FIELDS), check_dtype=False)
+    assert digest(found) != ADDED_DIGEST
+    (line,) = [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    assert float(line.split(" difference=")[1].split(" ")[0]) < 0, line
+    assert arm.counts["rows_changed"] > 0
 
 
 def _prammed(tmp_path, caplog) -> tuple[pd.DataFrame, Context]:
@@ -288,14 +323,18 @@ def test_a_score_run_with_the_pram_arm_writes_its_candidates(tmp_path, caplog):
     assert len(mine) == 2 * 28
     assert {line.call for line in mine} == {None}
     assert {line.outcome for line in mine} == {KEPT}
-    checks = [m for m in caplog.messages if m.startswith("perturb check ")]
+    shapes = [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    number = r"-?\d\.\d{6}"
     pattern = (
-        r"perturb check holdout=(0|1) arm=bko-direct-pram shapes=\d\.\d{6} reference=\d\.\d{6}"
-        r" delta=0\.000000 pair_trends=\d\.\d{6} outcome=(accepted reason=none rows_changed=\d+"
-        r" final=perturbed|refused reason=below_reference rows_changed=0 final=original)"
+        rf"perturb shapes holdout=(0|1) arm=bko-direct-pram shapes={number}"
+        rf" unperturbed={number} difference={number} pair_trends={number}"
+        rf" unperturbed_pair_trends={number} incoherent=none unperturbed_incoherent=none"
+        r" rows_changed=\d+ values_changed=\d+"
     )
-    assert len(checks) == 2
-    assert all(re.fullmatch(pattern, m) for m in checks), checks
+    assert len(shapes) == 2
+    assert all(re.fullmatch(pattern, m) for m in shapes), shapes
+    columns = [m for m in caplog.messages if m.startswith("perturb columns ")]
+    assert len(columns) == 4
     prammed = [m for m in caplog.messages if m.startswith("perturb pram ")]
     assert len(prammed) == 2
     assert all(
@@ -307,14 +346,11 @@ def test_a_score_run_with_the_pram_arm_writes_its_candidates(tmp_path, caplog):
         for m in prammed
     ), prammed
     (configured,) = [m for m in caplog.messages if m.startswith("perturb arm=")]
-    assert configured == (
-        f"perturb arm=bko-direct-pram fields={','.join(FIELDS)} delta=0.000000"
-        " delta_source=default fraction=none theta=0.5"
-    )
+    assert configured == (f"perturb arm=bko-direct-pram fields={','.join(FIELDS)} theta=0.5")
     (summary,) = [m for m in caplog.messages if m.startswith("perturb summary ")]
     assert re.fullmatch(
-        r"perturb summary arm=bko-direct-pram holdouts=2 accepted=\d refused=\d empty=0 rows=56"
-        r" rows_changed=\d+",
+        r"perturb summary arm=bko-direct-pram holdouts=2 read=2 empty=0 rows=56"
+        r" rows_changed=\d+ values_changed=\d+ mean_shapes=\d\.\d{6} mean_unperturbed=\d\.\d{6}",
         summary,
     )
 

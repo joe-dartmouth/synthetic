@@ -35,7 +35,7 @@ so the question is measured per method on the same holdouts.
 
 ## Pilot findings
 
-The arms, the check and the pilots exist (ADR
+The arms, the reading, the quotas and the pilots exist (ADR
 [`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md), which also
 says why `bko-direct`'s rows are already mosaics). E10's Runs field
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) holds the pilots'

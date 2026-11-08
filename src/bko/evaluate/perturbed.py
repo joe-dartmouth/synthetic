@@ -36,7 +36,7 @@ from bko.baselines.request import Request, Stratum
 from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.perturb import Changed, Delta, Perturbing, Record, label_rows, native
+from bko.evaluate.perturb import Changed, Perturbing, Record, label_rows, native
 from bko.evaluate.quotas import Category, allot, categories, category_of
 from bko.generate.calls import chunks
 from bko.generate.decode import Undecoded
@@ -151,15 +151,13 @@ class PerturbedArm(Perturbing):
         merged: The run's rows by merge outcome.
     """
 
-    def __init__(
-        self, inner: DirectArm, *, flight: Flight, fields: Sequence[str], delta: Delta
-    ) -> None:
+    def __init__(self, inner: DirectArm, *, flight: Flight, fields: Sequence[str]) -> None:
         """Hold the arm and log its configuration; nothing is drawn or sent until it runs."""
         self.flight = flight
         self.merged: Counter[str] = Counter()
         settings = flight.log.settings
         configuration = f"per_call={settings.per_call} model={settings.model}"
-        super().__init__(inner, fields=fields, delta=delta, configuration=configuration)
+        super().__init__(inner, fields=fields, configuration=configuration)
 
     def summary(self) -> None:
         """The run's `perturb summary` line with its rows by merge outcome (`counted`)."""
@@ -225,7 +223,8 @@ class PerturbedArm(Perturbing):
             sum(len(rows) for rows in drawn.values()),
             counted(counts),
         )
-        return self.checked(train, drawn, changed, frame)
+        self.read(train, drawn, changed, frame)
+        return changed
 
     def _spans(
         self,
