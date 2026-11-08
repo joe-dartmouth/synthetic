@@ -292,6 +292,19 @@ E10_PILOT_THIN, E10_PILOT_EMPTY = (
 """E10's pilots: `E9_THIN` and `E9_EMPTY` on holdouts 0 and 1, both perturbation arms in place of
 `bko-logic`, the perturbed arm the candidate, at $5.00 (ADR `research/identifier-perturbation`)."""
 
+E10_PRAM_THIN, E10_PRAM_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, PRAM_ARM),
+        candidate=PRAM_ARM,
+        comparators=(DIRECT_ARM, "none"),
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E10's PRAM-only full runs: `E9_THIN` and `E9_EMPTY` on E6's holdouts with `bko-direct-pram` in
+place of `bko-logic` as the candidate, and no API call, so the ceiling kept from E6 is inert
+(ADR `research/identifier-perturbation`, Full runs)."""
+
 
 def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
     """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `a`.
@@ -430,12 +443,15 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         "e6-curated": NamedRun(E6_CURATED, E6_SETTINGS, Dataset.DIABETES),
         "e10-pilot-thin": NamedRun(E10_PILOT_THIN, E6_SETTINGS, Dataset.DIABETES),
         "e10-pilot-empty": NamedRun(E10_PILOT_EMPTY, E6_SETTINGS, Dataset.DIABETES),
+        **_slices("e10", "pram-thin", E10_PRAM_THIN),
+        **_slices("e10", "pram-empty", E10_PRAM_EMPTY),
         "g5": NamedRun(G5, G4_SETTINGS),
     }
 )
 """Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, and the
-Diabetes runs `e6-*`, `e9-*` and `e10-pilot-*`, each family's experiment saying what it is. A
-variant adds its own entry in its own change, with its arms, candidate, comparators and ceiling."""
+Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM-only full runs
+`e10-pram-*`, each family's experiment saying what it is. A variant adds its own entry in its own
+change, with its arms, candidate, comparators and ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

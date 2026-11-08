@@ -873,7 +873,11 @@ start or the supervisor cannot run.
   pilot's runs, `e10-pilot-thin` and `e10-pilot-empty` (`E10_PILOT_THIN` and `E10_PILOT_EMPTY`:
   `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct`, the candidate `bko-direct-perturbed`
   and `bko-direct-pram`, holdouts 0 and 1, a $5.00 ceiling; ADR
-  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)). No flag
+  [`research/identifier-perturbation`](adr/research/identifier-perturbation.md)), and its
+  PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
+  `E10_PRAM_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
+  `bko-direct-pram`, the ceiling inert) and their slices `e10-pram-thina` to `e10-pram-thinj` and
+  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -953,7 +957,7 @@ bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
 undefined in a scope (INFO for a cell scope with no member), and `privacy holdout=%d done=%d/%d
 seconds=%.1f elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the
 mean, the contrast against the reference arm (`real` for E6, `bko-direct` for the perturbation
-pilots; a slice reads its run's), its
+runs; a slice reads its run's), its
 corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN contrasts), and
 `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or NNDR
 quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
@@ -993,6 +997,16 @@ run writes `launch.log` and starts nothing:
 `<run-id>` is a run of record under entry `e10`: one id for a run's dry run and its launch, another
 for the second run. A recorded pilot's rows store is read through `privacy` against `bko-direct`
 (`privacy` above).
+
+The PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty`, hold no paid arm, so they spend
+nothing and need no credential. `launch` always passes `--log`, which a run with no paid arm
+refuses, so each slice runs through `score` directly, as E9's do, refusing `--log`, `--replay`,
+`--resume` and `--rehearse` and requiring `--candidates`:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e10-pram-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+
+`merge` joins each run's ten slices, and `rows`, `panel` and `privacy` read them against
+`bko-direct`.
 
 Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 `bko.evaluate.perturbed`):

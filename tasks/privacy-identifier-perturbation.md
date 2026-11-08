@@ -7,7 +7,7 @@ blocks: --
 parallel_safe: true
 owner: Joe
 milestone: final-report
-paid: true
+paid: false
 adrs: research/identifier-perturbation
 ---
 
@@ -39,12 +39,14 @@ The arms, the reading, the quotas and the pilots exist (ADR
 [`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md), which also
 says why `bko-direct`'s rows are already mosaics). E10's Runs field
 ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) holds the pilots'
-readings and Configuration the full-run estimate. What they settle for this unit: the rewrite
+readings and Configuration the full runs. What they settle for this unit: the rewrite
 returns every row asked, but the distribution check refused it on thin holdout 1 and on both empty
 holdouts, which meets the ADR's reversal condition for a check that refuses every holdout of a
 fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide both
 arms' privacy and utility. The ADR's Rationale says why a reading replaces the check and quotas aim
-the rewrite.
+the rewrite. The re-pilot at the reading and the quotas passed G1 to G5 and failed G6, the
+rewrite's added-row `dcr-p5` exceeding `bko-direct`'s on 1 of 4 holdouts, so the rewrite returns
+to design (E10's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)).
 
 ## Scope
 
@@ -52,13 +54,15 @@ the rewrite.
 
 - Replace the rewrite arm's check with a reading that never changes a row, and give each rewrite
   call per-call value quotas from the cell's label group, recorded in the ADR before any full run.
-- Full runs of both arms at both fractions over E6's holdouts, as named runs in
-  `bko.evaluate.named_runs.RUNS`, each with its spend estimated in the Runs row before the run,
-  under its ceiling and the paid-run protocol
-  ([`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation)).
-- Their `rows`, `privacy` and `compare` readings: each arm's paired difference against
-  `bko-direct` on recall, AUC-PR, distance to closest record and membership inference, each with
-  its corrected interval, recorded as E10's Result.
+- Full runs of PRAM alone, by the decision of 2026-11-08, at both fractions over E6's holdouts:
+  `e10-pram-thin` and `e10-pram-empty` and their slices in `bko.evaluate.named_runs.RUNS`, free,
+  each slice through `score` ([`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation)). The
+  rewrite arm returns to design and has no full run until a redesign passes a new re-pilot (ADR
+  [`research/identifier-perturbation`](../docs/adr/research/identifier-perturbation.md), Full
+  runs).
+- Their `rows`, `panel`, `merge`, `privacy` and `compare` readings: PRAM's paired difference
+  against `bko-direct` on recall, AUC-PR, distance to closest record and membership inference,
+  each with its corrected interval, recorded as E10's Result.
 
 **Out.**
 - Formal privacy guarantees: differential privacy and k-anonymity proofs.
@@ -69,9 +73,10 @@ the rewrite.
 
 - The ADR records the reading and the quotas, and a paid re-pilot at them is recorded before any
   full run.
-- Each full run's spend is estimated in E10's Runs row before it starts and stays under its
-  ceiling.
-- The full runs are recorded with their spend and replay byte for byte.
-- E10's Result reports both arms' paired differences against `bko-direct` on utility, distance
-  and membership inference at both fractions, read from the stored rows with no API call.
+- The full runs are PRAM only, by the decision of 2026-11-08, and E10's Configuration records
+  their estimate of 0 USD; the rewrite returns to design (ADR).
+- The full runs are recorded, and `rows` reproduces each slice's scores
+  (`matches_folder=true`).
+- E10's Result reports PRAM's paired differences against `bko-direct` on utility, distance and
+  membership inference at both fractions, read from the stored rows with no API call.
 - `make check`.

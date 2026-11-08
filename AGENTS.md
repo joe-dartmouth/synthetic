@@ -63,7 +63,7 @@ import it (ADR `tooling/agent-config-single-home`).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null`:
   read a run's stored fills for membership inference and NNDR beside distance to closest record,
   each arm's contrast against the run's reference arm (`real` for E6, `bko-direct` for the
-  perturbation pilots) per scope. `--rows` repeats,
+  perturbation runs) per scope. `--rows` repeats,
   once per slice's store. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:

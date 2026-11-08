@@ -34,8 +34,8 @@ read: its invariance condition is that the transition matrix leave the variable'
 unchanged. The free arm below redraws toward each field's label-group training marginal, which
 equals that condition only when the rows it perturbs already follow that marginal.
 
-Two arms rewrite the same rows. The reading, the quotas, the pilots, the re-pilot and its gate are
-fixed here.
+Two arms rewrite the same rows. The reading, the quotas, the pilots, the re-pilot and its gate,
+and the full runs are fixed here.
 
 ## Decision Drivers
 
@@ -111,8 +111,7 @@ fixed here.
   with `arms=("none", REAL_ARM, DIRECT_ARM, "bko-direct-perturbed", "bko-direct-pram")`,
   `replica_arms=()`, `replica_rows=None`, `holdout_seeds=(0, 1)`,
   `candidate="bko-direct-perturbed"`, `comparators=(DIRECT_ARM, "bko-direct-pram", "none")` and
-  `spend_ceiling=5.0`. Each run covers two holdouts and spends at most 5.0 USD. Full runs over
-  E6's holdouts are not part of this decision.
+  `spend_ceiling=5.0`. Each run covers two holdouts and spends at most 5.0 USD.
 - **Re-pilot.** `e10-pilot-thin` and `e10-pilot-empty` rerun at the commit that merges the reading
   and the quotas, under one tag. Its gate, every bar set before the run:
   - **G1, integrity:** both supervisor outcomes `complete`; the `versions` line names the tagged
@@ -136,6 +135,18 @@ fixed here.
     measured USD per row asked. An operational G1 failure resumes under the paid-run protocol. G3
     failing is a regression to fix first. G2 failing meets the schema reversal below. G4, G5 or G6
     failing records the re-pilot alone and returns the prompt to design.
+  - **Outcome.** G1 to G5 passed and G6 failed: the rewrite's added-row `dcr-p5` stayed at or
+    below `bko-direct`'s on 3 of 4 holdouts and exceeded it on 1 (`docs/EVIDENCE.md`, E10). Per
+    the branches, the rewrite returns to design.
+- **Full runs.** PRAM alone: `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
+  `E10_PRAM_EMPTY`, built from `E9_THIN` and `E9_EMPTY`) with
+  `arms=("none", REAL_ARM, DIRECT_ARM, "bko-direct-pram")`, `candidate="bko-direct-pram"` and
+  `comparators=(DIRECT_ARM, "none")` on E6's holdouts, each sliced as E6's runs are into
+  `e10-pram-thina` to `e10-pram-thinj` and `e10-pram-emptya` to `e10-pram-emptyj`. No arm calls
+  the API, so they spend nothing and the ceiling kept from E6 is inert. They are read against
+  `bko-direct` through `rows`, `panel`, `merge`, `privacy` and `compare`, as paired differences
+  with each tool's corrected intervals; they judge no criterion, so `compare` gives no verdict.
+  The rewrite arm has no full run until a redesign passes a new re-pilot.
 - **Egress.** The arm runs inside `guided_arms` over the shared `Flight` and `CallLog`, under the
   spend ceiling and the agreement refusal every Messages arm meets (ADR `research/cllm-arm-design`,
   Egress). A rewrite call sends its system prompt, each of the 19 fields' meaning with its codes
@@ -243,15 +254,19 @@ mapped field is never perturbed and a patient found by a mapped combination is n
   and the reading of shapes, pair trends and columns against the label-1 rows),
   `tests/test_evaluate_perturb_replay.py` (a reading below the unperturbed rows replays byte for
   byte), `tests/test_datasets_diabetes_pinned.py` (every real training row keeps the three rules,
-  under `--releases`), `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings),
+  under `--releases`), `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings,
+  the PRAM full runs and their 0 USD estimate, every perturbing run an `e10-*` run on Diabetes
+  read against `bko-direct`), `tests/test_named_runs_slices.py` (the PRAM full runs' slices),
   `tests/test_evaluate_quotas.py` (the categories, apportionment and spread of the quotas) and
   `tests/test_generate_rewrite.py` (the call, its quota block, its schema and its refusals).
 
 ## Reversal Conditions
 
-Full runs in which `bko-direct-pram` matches `bko-direct-perturbed` on distance and utility at
-the same column shapes would remove the language-model arm and keep the redraw. A re-pilot failing
-G4, G5 or G6 returns the prompt to design. A pilot whose rewrite calls return a `row` set that
+A rewrite full run, once a redesign passes a new re-pilot, in which `bko-direct-pram` matches
+`bko-direct-perturbed` on distance and utility at the same column shapes would remove the
+language-model arm and keep the redraw. A re-pilot failing G4, G5 or G6 returns the prompt to
+design; the re-pilot failed G6, so the prompt is in design, and a redesign passing a new re-pilot
+would register rewrite full runs. A pilot whose rewrite calls return a `row` set that
 differs from the set asked on most calls would send the reply schema to a different format.
 
 ## Related

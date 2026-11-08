@@ -94,17 +94,39 @@ KEYS = [
     "e6-curated",
     "e10-pilot-thin",
     "e10-pilot-empty",
+    "e10-pram-thin",
+    "e10-pram-thina",
+    "e10-pram-thinb",
+    "e10-pram-thinc",
+    "e10-pram-thind",
+    "e10-pram-thine",
+    "e10-pram-thinf",
+    "e10-pram-thing",
+    "e10-pram-thinh",
+    "e10-pram-thini",
+    "e10-pram-thinj",
+    "e10-pram-empty",
+    "e10-pram-emptya",
+    "e10-pram-emptyb",
+    "e10-pram-emptyc",
+    "e10-pram-emptyd",
+    "e10-pram-emptye",
+    "e10-pram-emptyf",
+    "e10-pram-emptyg",
+    "e10-pram-emptyh",
+    "e10-pram-emptyi",
+    "e10-pram-emptyj",
     "g5",
 ]
-"""Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's
-and E10's pilots."""
+"""Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
+E10's pilots and E10's PRAM-only runs."""
 
 
 def test_the_runs_keys_are_the_literal_list():
     assert list(RUNS) == KEYS
 
 
-@pytest.mark.parametrize("entry", ["e6", "e9"])
+@pytest.mark.parametrize("entry", ["e6", "e9", "e10-pram"])
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))
 def test_each_slice_maps_to_its_fractions_run(entry, fraction, letter):
@@ -131,7 +153,20 @@ def test_each_e3_slice_maps_to_e3(name):
 
 
 @pytest.mark.parametrize(
-    "name", ["e1", "e6-thin", "e6-empty", "e9-thin", "e9-empty", "e6-curated", "e3", "unregistered"]
+    "name",
+    [
+        "e1",
+        "e6-thin",
+        "e6-empty",
+        "e9-thin",
+        "e9-empty",
+        "e6-curated",
+        "e10-pilot-thin",
+        "e10-pram-thin",
+        "e10-pram-empty",
+        "e3",
+        "unregistered",
+    ],
 )
 def test_a_run_that_slices_no_other_maps_to_nothing(name):
     assert wholes_of(name) == frozenset()
