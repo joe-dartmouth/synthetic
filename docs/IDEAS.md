@@ -242,6 +242,21 @@ compute depends on that choice. Either fix changes what a call sends: raise `max
 
 **Sources.** None in the brief or the 2-pager.
 
+## Coherent free-field draws for `bko-direct`
+
+**What it is.** Draw a cell's free fields jointly from one record, so the Diabetes drug, `change`
+and `diabetesMed` fields keep a coherent combination. A planning measurement, not a recorded run:
+`bko-direct`'s E10 pilot rows break one of three implications (a drug not `No` implies
+`diabetesMed=Yes`; `change=Ch` implies `diabetesMed=Yes`; `Up` or `Down` implies `change=Ch`) on
+24.7% to 29.6% of rows, where `real`'s rows break none.
+
+**Why it is not in the plan.** E10 reads coherence beside the perturbation arms (ADR
+[research/identifier-perturbation](adr/research/identifier-perturbation.md)); changing
+`bko-direct`'s draw changes E6's arm and its replay. Adopting it means changing
+[RESEARCH.md](RESEARCH.md) and a new arm.
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

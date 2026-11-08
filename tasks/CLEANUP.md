@@ -212,6 +212,17 @@ links to where its blocker is tracked.
   read by `read` and ignored by the rebuild, with a test that a schema-3 file still reads.
   **Trigger:** the first reading of a pilot that needs per-row refusals beside `scores.log`.
 
+- **`cleanup:evaluate/merge-compare-log-no-versions`: `merge` and `compare` log no `versions
+  commit=` line.** Neither `bko.evaluate.merge` nor `bko.evaluate.compare` calls
+  `bko.evaluate.provenance.log_versions`, so a merged or judged folder names no commit. Evidence:
+  `grep -n "log_versions\|log_experiment" src/bko/evaluate/merge.py src/bko/evaluate/compare.py`
+  prints nothing, and the first line of `runs/e10-3-judged/criteria-bko-direct-perturbed.log` is
+  `2026-11-06 21:56:07,624-0500 INFO bko.evaluate: compare candidate=bko-direct-perturbed dry_run=False scores_sha256=4509d26cf2236031fb47a1deac9cc16f08de35ca901e6b9c0196229f911ea890 run=e10-pilot-thin level=summary training_fraction=1`.
+  *Filed 2026-11-08 by the E10 reading and quotas change.*
+  **Why deferred.** Outside that change's surface.
+  **What discharges it:** both log the `versions` line first, with a test on each log's first
+  line.
+  **Trigger:** the next change to `merge.py` or `compare.py`.
 - **`cleanup:evaluate/privacy-runs-root-in-worktree`: `privacy` and `perturb-threshold` find the
   stores' folders only under `runs/` beside the code.** `_privacy` and `_threshold` in
   `bko.evaluate.__main__` pass `root=context.runs_root()`, which is `runs/` beside the checkout
