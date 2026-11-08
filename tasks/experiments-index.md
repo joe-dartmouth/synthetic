@@ -13,9 +13,6 @@ the ROADMAP heading it serves.
 
 ### Privacy
 
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | ready | -- | Joe | final-report |
 
 ## What every unit relies on
 
