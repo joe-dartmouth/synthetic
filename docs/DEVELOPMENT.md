@@ -1016,9 +1016,11 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 - `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed,
   before the check.
 - `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
-  checks=%s` per rewrite call: `returned` the items its reply decoded to, `reason` the first
-  refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`, `validate` or
-  `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate` rows failed.
+  checks=%s quota_off=%d` per rewrite call: `returned` the items its reply decoded to, `reason`
+  the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
+  `validate` or `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate`
+  rows failed, `quota_off` how far the call's final rows fall short of its stated counts, summed
+  over the fields and their categories (`bko.evaluate.quotas`).
 - `perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_empty=%d refused_short=%d
   refused_undecodable=%d refused_order=%d refused_keys=%d refused_validate=%d refused_bounds=%d`
   per holdout: each drawn row's merge outcome.
@@ -1413,10 +1415,13 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
     admission and discharge ids, the raw `diag_1` to `diag_3` codes). A `bko-direct-perturbed`
     rewrite call sends its system prompt (`bko.generate.rewrite.REWRITE_SYSTEM`), each of the 19
     unmapped fields' meaning with its codes or unit (`bko.evaluate.perturb.DIABETES_UNMAPPED`),
-    each count field's training-split minimum and maximum, an accepted aggregate disclosure, and
-    each row's values of those 19 fields with its `row` index; no mapped field, `age`, `sex` or
-    label. Each row is one of the holdout's `bko-direct` rows, a mosaic of de-identified
-    encounters' values.
+    each count field's training-split minimum and maximum, an accepted aggregate disclosure, the
+    call's value counts per field (`bko.evaluate.quotas`), each a count over a value or range of the
+    cell's label-group training rows (a range's ends are real training values, and each range holds
+    at least 1% of the label group's rows, so a label group under 100 rows can expose a single
+    row's value), and each row's values of those 19 fields with its `row` index; no mapped field,
+    `age`, `sex` or label. Each row is one of the holdout's `bko-direct` rows, a mosaic of
+    de-identified encounters' values.
 
   A run whose settings name a model in `bko.generate.weights.LOCAL_MODELS` sends each call to the
   llama.cpp server on `127.0.0.1` instead (Local models below), so nothing leaves the machine.

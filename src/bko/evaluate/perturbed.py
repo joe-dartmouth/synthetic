@@ -2,7 +2,10 @@
 
 `PerturbedArm` draws exactly as `bko-direct` does, then sends each cell's rows, only the unmapped
 fields (`bko.evaluate.perturb.unmapped`) with a `row` index each, in chunks of `per_call` rows, one
-wave of rewrite calls (`bko.generate.rewrite`) per holdout, and merges each reply by `row`.
+wave of rewrite calls (`bko.generate.rewrite`) per holdout, and merges each reply by `row`. Each
+call states its rows' value counts per field, which `bko.evaluate.quotas` allots from the cell's
+label-group training rows; the `perturb call=` line's `quota_off` sums, over the fields and their
+categories, how far the call's final rows fall short of each count.
 
 `merge` takes a call's decoded items (`bko.generate.decode.decode`) and the rows the call sent,
 whole, and returns each row as it ends up and why. A call's reply is refused whole, every row
@@ -33,12 +36,13 @@ from bko.baselines.request import Request, Stratum
 from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.perturb import Changed, Delta, Perturbing, Record, native
+from bko.evaluate.perturb import Changed, Delta, Perturbing, Record, label_rows, native
+from bko.evaluate.quotas import Category, allot, categories, category_of
 from bko.generate.calls import chunks
 from bko.generate.decode import Undecoded
 from bko.generate.flight import Flight, Planned
 from bko.generate.guidance import Guidance
-from bko.generate.rewrite import ROW, Rewrite
+from bko.generate.rewrite import ROW, Rewrite, Share
 from bko.validate.checks import failures
 
 
@@ -185,21 +189,16 @@ class PerturbedArm(Perturbing):
             for name in self.fields
             if name not in frame.categorical
         }
-        per_call = self.flight.log.settings.per_call
-        planned: list[Planned] = []
-        spans: list[tuple[Stratum, int, list[Record]]] = []
-        starts = dict.fromkeys(drawn, 0)
-        for cell, count in chunks({cell: len(rows) for cell, rows in drawn.items()}, per_call):
-            start, starts[cell] = starts[cell], starts[cell] + count
-            rows = drawn[cell][start : start + count]
-            sent = tuple({name: row[name] for name in self.fields} for row in rows)
-            rewrite = Rewrite(self.fields, sent, bounds)
-            planned.append(Planned(_guidance(cell), count, rewrite=rewrite))
-            spans.append((cell, start, rows))
+        found = {
+            cell: categories(label_rows(train, frame, int(cell[2])), self.fields, frame, bounds)
+            for cell in drawn
+        }
+        spans = self._spans(drawn, found, bounds)
+        planned = [Planned(_guidance(cell), len(rows), rewrite=r) for cell, _, rows, r in spans]
         batches = self.flight.wave(planned, frame=frame) if planned else ()
         changed = {cell: [Changed(dict(row)) for row in rows] for cell, rows in drawn.items()}
         counts: Counter[str] = Counter()
-        for batch, (cell, start, rows) in zip(batches, spans, strict=True):
+        for batch, (cell, start, rows, rewrite) in zip(batches, spans, strict=True):
             merged = merge(batch.candidates, rows, fields=self.fields, bounds=bounds, frame=frame)
             counts.update(merged.outcomes)
             for offset, (row, outcome) in enumerate(zip(merged.rows, merged.outcomes, strict=True)):
@@ -207,7 +206,7 @@ class PerturbedArm(Perturbing):
                     changed[cell][start + offset] = Changed(row, batch.index, offset)
             logger.info(
                 "perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s "
-                "stop_reason=%s checks=%s",
+                "stop_reason=%s checks=%s quota_off=%d",
                 batch.index,
                 holdout,
                 len(rows),
@@ -217,6 +216,7 @@ class PerturbedArm(Perturbing):
                 merged.reason,
                 batch.reply.stop_reason,
                 ",".join(merged.checks) or "none",
+                quota_off(rewrite, found[cell], merged.rows),
             )
         self.merged.update(counts)
         logger.info(
@@ -226,6 +226,62 @@ class PerturbedArm(Perturbing):
             counted(counts),
         )
         return self.checked(train, drawn, changed, frame)
+
+    def _spans(
+        self,
+        drawn: Mapping[Stratum, list[Record]],
+        found: Mapping[Stratum, Mapping[str, Sequence[Category]]],
+        bounds: Mapping[str, tuple[float, float]],
+    ) -> list[tuple[Stratum, int, list[Record], Rewrite]]:
+        """Each call's cell, first row, rows and `Rewrite`, chunked by `per_call`, with quotas."""
+        per_call = self.flight.log.settings.per_call
+        calls = chunks({cell: len(rows) for cell, rows in drawn.items()}, per_call)
+        allotted = {
+            cell: iter(allot(found[cell], [count for at, count in calls if at == cell]))
+            for cell in drawn
+        }
+        spans: list[tuple[Stratum, int, list[Record], Rewrite]] = []
+        starts = dict.fromkeys(drawn, 0)
+        for cell, count in calls:
+            start, starts[cell] = starts[cell], starts[cell] + count
+            rows = drawn[cell][start : start + count]
+            sent = tuple({name: row[name] for name in self.fields} for row in rows)
+            quotas = _shares(found[cell], next(allotted[cell]))
+            spans.append((cell, start, rows, Rewrite(self.fields, sent, bounds, quotas)))
+        return spans
+
+
+def _shares(
+    found: Mapping[str, Sequence[Category]], counts: Mapping[str, Sequence[int]]
+) -> dict[str, tuple[Share, ...]]:
+    """Each field's non-empty categories as the call's `Share`s."""
+    return {
+        name: tuple(
+            Share(category.low, category.high, count)
+            for category, count in zip(held, counts[name], strict=True)
+            if count
+        )
+        for name, held in found.items()
+    }
+
+
+def quota_off(
+    rewrite: Rewrite, found: Mapping[str, Sequence[Category]], rows: Sequence[Record]
+) -> int:
+    """How far `rows` fall short of `rewrite`'s quotas, summed over its fields' categories.
+
+    A row counts toward the category `bko.evaluate.quotas.category_of` gives its value, and each
+    share is the category with its `low` and `high`.
+    """
+    off = 0
+    for name, shares in rewrite.quotas.items():
+        actual = Counter(category_of(row[name], found[name]) for row in rows)
+        for share in shares:
+            index = next(
+                k for k, c in enumerate(found[name]) if (c.low, c.high) == (share.low, share.high)
+            )
+            off += max(0, share.count - actual[index])
+    return off
 
 
 def counted(counts: Mapping[str, int]) -> str:

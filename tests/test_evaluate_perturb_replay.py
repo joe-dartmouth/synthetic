@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import dataclasses
 import io
+import json
 
 from bko.evaluate.__main__ import main
 from bko.generate.messages import Call, Reply
+from bko.generate.rewrite import COUNTS_HEADER
 from tests.test_evaluate_perturb import Rewriter, perturbed_folder
 
 
@@ -28,4 +30,6 @@ def test_a_replay_rewrites_the_scores_and_candidates_bytes(tmp_path, caplog):
     assert out.getvalue() == (folder / "scores.csv").read_text(encoding="utf-8")
     candidates = (again / "holdout-candidates.jsonl").read_bytes()
     assert candidates == (folder / "holdout-candidates.jsonl").read_bytes()
+    logged = (folder / "calls.jsonl").read_text(encoding="utf-8")
+    assert json.dumps(COUNTS_HEADER)[1:-1] in logged
     assert any(m.startswith("perturb call=1 ") for m in caplog.messages)

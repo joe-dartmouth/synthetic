@@ -254,6 +254,11 @@ def drawn_frame(drawn: Mapping[Stratum, list[Record]], frame: FrameSpec) -> pd.D
     return rows.astype({**frame.dtypes})
 
 
+def label_rows(train: pd.DataFrame, frame: FrameSpec, label: int) -> pd.DataFrame:
+    """`train`'s rows whose label is `label`, a cell's label group."""
+    return train[train[frame.label] == label]
+
+
 def native(row: Mapping[Any, Any], frame: FrameSpec) -> Record:
     """`row` with each value a plain `float` for a fractional field and an `int` otherwise.
 

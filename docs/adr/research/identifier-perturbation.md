@@ -76,7 +76,9 @@ fixed here.
     each of the 19 fields. The categories come from the cell's label-group training rows: every
     code of a coded field, zero-count codes included, and for a measured field contiguous ranges
     in ascending order, each closed once it holds at least 1% of those rows, the remainder joining
-    the last, the ranges tiling the field's training range. A holdout's rows are apportioned to
+    the last. Coded and integer fields' ranges tile the training range; a fractional field's
+    ranges start at the next observed value, and `category_of` assigns a value between ranges to
+    the next range. A holdout's rows are apportioned to
     the categories by largest remainder, ties to the earlier category, then spread across the
     holdout's calls: category k's T tokens sit at ((j + 1/2) / T + k / K) mod 1, sorted and cut
     into the calls' sizes, so a category's calls are evenly spaced and categories with one token
@@ -138,10 +140,11 @@ fixed here.
   spend ceiling and the agreement refusal every Messages arm meets (ADR `research/cllm-arm-design`,
   Egress). A rewrite call sends its system prompt, each of the 19 fields' meaning with its codes
   or unit, each count field's training-split minimum and maximum, an accepted aggregate
-  disclosure, the call's quotas, which are aggregates of the cell's label-group training rows with
-  no per-row value, and each row's values of the 19 fields with its `row` index. The rows are the
-  holdout's `bko-direct` fill, mosaics of rows of open Diabetes 130 data; no other BKO arm sends
-  a record.
+  disclosure, the call's quotas, and each row's values of the 19 fields with its `row` index. The
+  rows are the holdout's `bko-direct` fill, mosaics of rows of open Diabetes 130 data; no other
+  BKO arm sends a record. Each quota is a count over a value or range of the cell's label-group training rows.
+  A range's ends are real label-group training values, and each range holds at least 1% of the
+  label group's rows, so a label group under 100 rows can expose a single row's value.
 - **Privacy.** The `privacy` command reads `bko-direct-perturbed` and `bko-direct-pram` against
   `bko-direct` from their rows stores (ADR `research/membership-inference-reading`).
 
@@ -231,12 +234,13 @@ mapped field is never perturbed and a patient found by a mapped combination is n
 
 - Owner: `src/bko/evaluate/` and `src/bko/generate/`: `src/bko/evaluate/perturb.py` (the fields
   and the reading), `src/bko/evaluate/pram.py` (the PRAM arm), `src/bko/evaluate/perturbed.py`
-  (the rewrite arm and its merge) and `src/bko/generate/rewrite.py` (the rewrite call and its
-  reply schema).
+  (the rewrite arm and its merge), `src/bko/evaluate/quotas.py` (the per-call value quotas) and
+  `src/bko/generate/rewrite.py` (the rewrite call and its reply schema).
 - Pinned by: `tests/test_evaluate_perturb.py` (the merge's refusals, the arm's calls and egress),
   `tests/test_evaluate_pram.py` (the pinned fields, PRAM's stream, keep rate and marginals),
-  `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings) and
-  `tests/test_generate_rewrite.py` (the call, its schema and its refusals).
+  `tests/test_evaluate_perturb_runs.py` (the pilots and their ceilings),
+  `tests/test_evaluate_quotas.py` (the categories, apportionment and spread of the quotas) and
+  `tests/test_generate_rewrite.py` (the call, its quota block, its schema and its refusals).
 
 ## Reversal Conditions
 

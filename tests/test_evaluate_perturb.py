@@ -10,6 +10,7 @@ import logging
 import math
 import operator
 import re
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Final
@@ -17,6 +18,7 @@ from typing import Final
 import pandas as pd
 import pytest
 
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.direct import DirectArm
@@ -24,14 +26,15 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, PAID_ARMS, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
-from bko.evaluate.perturb import Delta
+from bko.evaluate.perturb import Delta, label_rows
 from bko.evaluate.perturbed import Merged, PerturbedArm, _guidance, merge
+from bko.evaluate.quotas import allot, categories, category_of
 from bko.evaluate.run_folder import BKO
 from bko.generate.decode import Reason, Undecoded
 from bko.generate.flight import Flight, Limits
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, Reply
-from bko.generate.rewrite import REWRITE, ROW
+from bko.generate.rewrite import COUNTS_HEADER, REWRITE, ROW
 from bko.ontology.schema import Codes
 from tests._datasets_fixtures import FIXED_NOW
 from tests._gaps_fixtures import ANGINA, STENOSIS
@@ -264,9 +267,10 @@ class Rewriter:
 
 
 def _flown(
-    tmp_path: Path, send: Rewriter, delta: float = 1.0
+    tmp_path: Path, send: Rewriter, delta: float = 1.0, train: pd.DataFrame | None = None
 ) -> tuple[pd.DataFrame, list[Call], PerturbedArm]:
-    train, request, _ = varied_arm()
+    varied, request, _ = varied_arm()
+    train = varied if train is None else train
     inner = DirectArm(
         (ANGINA, STENOSIS), {}, name=PERTURBED_ARM, budget=3, sink=None, dataset="uci-test"
     )
@@ -299,16 +303,113 @@ def test_the_perturbed_arms_inner_draw_is_bko_directs_rows(tmp_path, caplog):
     ) in caplog.messages
 
 
-def test_a_rewrite_call_sends_only_the_unmapped_fields_and_their_training_ranges(tmp_path):
+def _bounds(train: pd.DataFrame) -> dict[str, tuple[float, float]]:
+    return {
+        name: (float(train[name].min()), float(train[name].max()))
+        for name in FIELDS
+        if name not in UCI_FRAME.categorical
+    }
+
+
+def _block(call: Call) -> dict[str, dict[str, int]]:
+    """Each field's counts in `call`'s quota block, keyed by the value or range stated."""
+    block = call.user.split(COUNTS_HEADER + "\n", 1)[1].split("\n\nThe records:", 1)[0]
+    found: dict[str, dict[str, int]] = {}
+    for line in block.splitlines():
+        name, counts = line.removeprefix("- ").split(": ", 1)
+        found[name] = {
+            stated: int(count) for stated, count in (s.split(" x") for s in counts.split(", "))
+        }
+    return found
+
+
+def _stated(low: float, high: float) -> str:
+    return f"{low:g}" if low == high else f"{low:g}-{high:g}"
+
+
+def _quota_off(call: Call, train: pd.DataFrame, rows: list[dict]) -> int:
+    """Each quota's shortfall in `rows`, summed over the fields and their categories."""
+    found = categories(label_rows(train, UCI_FRAME, call.label), FIELDS, UCI_FRAME, _bounds(train))
+    stated = _block(call)
+    off = 0
+    for name in FIELDS:
+        actual = Counter(category_of(row[name], found[name]) for row in rows)
+        for index, category in enumerate(found[name]):
+            quota = stated[name].get(_stated(category.low, category.high), 0)
+            off += max(0, quota - actual[index])
+    return off
+
+
+def _sent(call: Call) -> list[dict]:
+    return [json.loads(line) for line in call.user.splitlines() if line.startswith("{")]
+
+
+def test_a_rewrite_call_sends_only_the_unmapped_fields_their_ranges_and_quotas(tmp_path):
     train, _, _ = varied_arm()
     _, calls, _ = _flown(tmp_path, Rewriter())
     for call in calls:
-        sent = [json.loads(line) for line in call.user.splitlines() if line.startswith("{")]
+        sent = _sent(call)
         assert sent
         assert all(set(row) == {ROW, *FIELDS} for row in sent)
         for name in ("trestbps", "chol", "thalach", "oldpeak"):
             low, high = float(train[name].min()), float(train[name].max())
             assert f"{name} {low:g} to {high:g} " in call.user, name
+        block = _block(call)
+        assert tuple(block) == FIELDS
+        assert all(sum(counts.values()) == len(sent) for counts in block.values())
+
+
+def test_a_rewrite_call_sends_the_label_groups_quotas(tmp_path):
+    train, _, _ = varied_arm()
+    train = train.reset_index(drop=True)
+    ones = train.index.to_series().groupby(train["target"]).cumcount() % 10
+    train["fbs"] = ((train["target"] == 1) == (ones != 0)).astype(int)
+    _, calls, _ = _flown(tmp_path, Rewriter(), train=train)
+    assert {call.label for call in calls} == {0, 1}
+    for call in calls:
+        found = categories(
+            label_rows(train, UCI_FRAME, call.label), FIELDS, UCI_FRAME, _bounds(train)
+        )
+        (quotas,) = allot(found, [len(_sent(call))])
+        expected = {
+            _stated(c.low, c.high): n for c, n in zip(found["fbs"], quotas["fbs"], strict=True) if n
+        }
+        assert _block(call)["fbs"] == expected
+    by_label = {call.label: _block(call)["fbs"] for call in calls}
+    assert by_label == {1: {"0": 1, "1": 7}, 0: {"0": 7, "1": 1}}
+
+
+def test_each_call_logs_its_quota_off(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    train, _, _ = varied_arm()
+    _, calls, _ = _flown(tmp_path, Rewriter())
+    lines = [m for m in caplog.messages if m.startswith("perturb call=")]
+    assert len(lines) == len(calls)
+    offs = [_quota_off(call, train, _sent(call)) for call in calls]
+    assert any(offs)
+    for index, (line, off) in enumerate(zip(lines, offs, strict=True)):
+        assert line.startswith(f"perturb call={index + 1} "), line
+        assert line.endswith(f" checks=none quota_off={off}"), line
+
+
+def test_a_calls_quota_off_reads_the_replys_rows_not_the_sent_ones(tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    train, _, _ = varied_arm()
+    _, calls, _ = _flown(tmp_path, Rewriter(skew=True))
+    lines = [m for m in caplog.messages if m.startswith("perturb call=")]
+    assert len(lines) == len(calls)
+    differs = 0
+    for line, call in zip(lines, calls, strict=True):
+        sent = _sent(call)
+        replied = [dict(row) for row in sent]
+        for name in ("trestbps", "chol", "thalach"):
+            least = min(row[name] for row in sent)
+            for row in replied:
+                row[name] = least
+        off = _quota_off(call, train, replied)
+        assert line.endswith(f" quota_off={off}"), line
+        differs += off != _quota_off(call, train, sent)
+    assert differs
 
 
 def test_the_perturbed_arm_logs_each_calls_counts_and_reason(tmp_path, caplog):
@@ -320,17 +421,18 @@ def test_the_perturbed_arm_logs_each_calls_counts_and_reason(tmp_path, caplog):
     pd.testing.assert_frame_equal(added[kept], theirs[kept])
     lines = [m for m in caplog.messages if m.startswith("perturb call=")]
     assert len(lines) == len(calls)
+    offs = [_quota_off(call, train, _sent(call)) for call in calls]
     assert lines[0] == (
         "perturb call=1 holdout=-1 rows=8 returned=8 accepted=7 refused=1 reason=keys"
-        " stop_reason=end_turn checks=none"
+        f" stop_reason=end_turn checks=none quota_off={offs[0]}"
     )
     assert lines[1] == (
         "perturb call=2 holdout=-1 rows=8 returned=7 accepted=0 refused=8 reason=short"
-        " stop_reason=end_turn checks=none"
+        f" stop_reason=end_turn checks=none quota_off={offs[1]}"
     )
     assert all(
-        line.endswith(" refused=0 reason=none stop_reason=end_turn checks=none")
-        for line in lines[2:]
+        line.endswith(f" refused=0 reason=none stop_reason=end_turn checks=none quota_off={off}")
+        for line, off in zip(lines[2:], offs[2:], strict=True)
     )
     summary = [m for m in caplog.messages if m.startswith("perturb holdout=")]
     assert len(summary) == 1
