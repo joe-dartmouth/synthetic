@@ -98,13 +98,24 @@ def test_the_render_states_each_fields_counts_between_the_ranges_and_the_records
     assert _counts(user) == {
         "chol": "199 x1, 210 x1, 260 x1",
         "fbs": "0 x2, 1 x1",
-        "oldpeak": "0 x1, 1.5 x1, 2.3 x1",
+        "oldpeak": "0.0 x1, 1.5 x1, 2.3 x1",
         "thal": "3 x1, 6 x1, 7 x1",
     }
     ranged = Rewrite(
         FIELDS, ROWS, BOUNDS, {**QUOTAS, "chol": (Share(180, 249, 2), Share(250, 300, 1))}
     )
     assert _counts(render_rewrite(ranged, frame=UCI_FRAME)[1])["chol"] == "180-249 x2, 250-300 x1"
+
+
+def test_a_share_states_its_ends_exactly():
+    quotas = {
+        **QUOTAS,
+        "chol": (Share(180, 1234567, 2), Share(1234568, 1234568, 1)),
+        "oldpeak": (Share(0.0, 0.1234567, 2), Share(2.3, 4.0, 1)),
+    }
+    counts = _counts(render_rewrite(Rewrite(FIELDS, ROWS, BOUNDS, quotas), frame=UCI_FRAME)[1])
+    assert counts["chol"] == "180-1234567 x2, 1234568 x1"
+    assert counts["oldpeak"] == "0.0-0.1234567 x2, 2.3-4.0 x1"
 
 
 def test_only_record_lines_start_with_a_brace():
@@ -151,6 +162,20 @@ def test_a_fields_quota_that_does_not_sum_to_the_rows_is_refused():
 def test_an_inverted_or_empty_share_is_refused(shares):
     with pytest.raises(ValueError, match="share"):
         Rewrite(FIELDS, ROWS, BOUNDS, {**QUOTAS, "fbs": shares})
+
+
+@pytest.mark.parametrize(
+    "shares",
+    [
+        (Share(0, 0, 1), Share(1, 1, 1), Share(0, 0, 1)),
+        (Share(180, 220, 2), Share(220, 300, 1)),
+        (Share(180, 250, 2), Share(200, 300, 1)),
+    ],
+    ids=["descending", "touching", "overlapping"],
+)
+def test_shares_that_do_not_strictly_ascend_are_refused(shares):
+    with pytest.raises(ValueError, match="ascend"):
+        Rewrite(FIELDS, ROWS, BOUNDS, {**QUOTAS, "chol": shares})
 
 
 def test_the_schema_pins_codebooks_rows_and_whole_number_ranges():

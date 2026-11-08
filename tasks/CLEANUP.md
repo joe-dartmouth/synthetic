@@ -224,6 +224,18 @@ links to where its blocker is tracked.
   line.
   **Trigger:** the next change to `merge.py` or `compare.py`.
 
+- **`cleanup:evaluate/pram-values-changed-twice`: PRAM's changed rows and values are computed
+  twice.** `PramArm._change` computes and logs them on its `perturb pram` line, and
+  `Perturbing.read` recomputes them for `perturb shapes`. Evidence: `src/bko/evaluate/pram.py:115`
+  (`values`) and `src/bko/evaluate/pram.py:125` (`moved`) in `PramArm._change`, and
+  `src/bko/evaluate/perturb.py:359` (`moved`) and `src/bko/evaluate/perturb.py:360` (`values`) in
+  `Perturbing.read`. *Filed 2026-11-08 by the review of PR #89.*
+  **Why deferred.** The two log lines document the same numbers by design today; merging them
+  changes a documented log.
+  **What discharges it:** one computation passed to both lines, or the `perturb pram` line drops
+  the counts.
+  **Trigger:** the next change to `pram.py`.
+
 ## generate
 
 - **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking

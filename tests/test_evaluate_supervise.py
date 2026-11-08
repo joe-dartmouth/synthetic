@@ -22,6 +22,7 @@ import pytest
 
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import Context, main
+from bko.evaluate.arguments import parser
 from bko.evaluate.launch import REHEARSAL, score_command
 from bko.evaluate.supervise import Outcome, backoff, outcome, run_segment, supervise
 from bko.generate.calls import ask
@@ -49,6 +50,9 @@ CRASHED: Final = "crashed"
 """A segment that exits on its own, code 1, with no `end` line: a crash, not a kill."""
 ABSENT: Final = "absent"
 """A segment that exits before it makes its call log."""
+
+CEILING_PLACEHOLDER: Final = " --ceiling <USD above projected_usd>"
+"""The end of a spend stop's resume hint, which the operator fills in."""
 
 EXIT: Final = {"complete": 0, "failed": 2, "interrupted": 130}
 """The exit code each scripted status returns; a killed child returns -9."""
@@ -452,6 +456,29 @@ def test_a_spend_stops_resume_hint_carries_the_runs_flags(tmp_path):
         f"--resume {tmp_path / 'e1-4' / 'calls.jsonl'} --runs-dir {tmp_path} --data-dir {data} "
         "--in-flight 4 --ceiling <USD above projected_usd>"
     )
+
+
+def test_a_spend_stops_resume_hint_parses_as_launch_under_a_root_with_a_space(tmp_path):
+    root = tmp_path / "my runs"
+    data = tmp_path / "my data"
+    _supervise(root, Segments(CEILING), in_flight=4, data_dir=data)
+    warning = _record(root)[-2]
+    hint = warning.split(" resume=", 1)[1]
+    assert hint.endswith(CEILING_PLACEHOLDER)
+    command = hint.removesuffix(CEILING_PLACEHOLDER).removeprefix("launch <fresh-run-id> ")
+    found = parser(None).parse_args(["launch", "e1-5", *shlex.split(command)])
+    assert found.run == "e1"
+    assert found.resume == root / "e1-4" / "calls.jsonl"
+    assert found.runs_dir == root.resolve()
+    assert found.data_dir == data
+    assert found.in_flight == 4
+
+
+def test_supervise_resolves_its_runs_root_and_refuses_an_empty_one():
+    found = parser(None).parse_args(["supervise", "e1-4", "e1", "--runs-dir", "runs"])
+    assert found.runs_dir == Path("runs").resolve()
+    with pytest.raises(SystemExit):
+        parser(None).parse_args(["supervise", "e1-4", "e1", "--runs-dir", ""])
 
 
 def test_a_spend_stop_with_no_holdouts_recorded_projects_none(tmp_path):

@@ -20,6 +20,7 @@ import pytest
 
 from bko.datasets.diabetes import CHANGE_CODES, DIABETES_MED_CODES, DRUG_CODES, DRUGS
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import perturbed as perturbed_module
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.direct import DirectArm
@@ -327,7 +328,7 @@ def _block(call: Call) -> dict[str, dict[str, int]]:
 
 
 def _stated(low: float, high: float) -> str:
-    return f"{low:g}" if low == high else f"{low:g}-{high:g}"
+    return f"{low}" if low == high else f"{low}-{high}"
 
 
 def _quota_off(call: Call, train: pd.DataFrame, rows: list[dict]) -> int:
@@ -380,6 +381,21 @@ def test_a_rewrite_call_sends_the_label_groups_quotas(tmp_path):
         assert _block(call)["fbs"] == expected
     by_label = {call.label: _block(call)["fbs"] for call in calls}
     assert by_label == {1: {"0": 1, "1": 7}, 0: {"0": 7, "1": 1}}
+
+
+def test_a_cell_whose_label_group_has_no_training_row_is_refused_before_any_call(
+    tmp_path, monkeypatch
+):
+    def no_label_zero(train: pd.DataFrame, frame: object, label: int) -> pd.DataFrame:
+        return train.iloc[:0] if label == 0 else label_rows(train, UCI_FRAME, label)
+
+    monkeypatch.setattr(perturbed_module, "label_rows", no_label_zero)
+    send = Rewriter()
+    with pytest.raises(EvaluationError, match="no training row"):
+        _flown(tmp_path, send)
+    assert send.calls == []
+    lines = (tmp_path / "calls.jsonl").read_text(encoding="utf-8").splitlines()
+    assert {json.loads(line)["kind"] for line in lines} <= {"run", "end"}
 
 
 def test_each_call_logs_its_quota_off(tmp_path, caplog):
@@ -485,9 +501,9 @@ def test_the_reading_logs_perturbed_and_unperturbed_column_lines(tmp_path, caplo
     drawn = direct(train, request).added
     reference = label_rows(train, UCI_FRAME, POSITIVE)
     lines = [m for m in caplog.messages if m.startswith("perturb columns ")]
-    assert [line.split(" rows=")[1].split(" ")[0] for line in lines] == ["perturbed", "unperturbed"]
+    assert [line.split(" kind=")[1].split(" ")[0] for line in lines] == ["perturbed", "unperturbed"]
     for line, rows in zip(lines, (added, drawn), strict=True):
-        head, _, tail = line.partition(" rows=")
+        head, _, tail = line.partition(" kind=")
         assert head == f"perturb columns holdout=-1 arm={arm.name}"
         tokens = tail.split(" ")[1:]
         assert [token.split("=")[0] for token in tokens] == list(FIELDS)

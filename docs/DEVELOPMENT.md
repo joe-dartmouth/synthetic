@@ -450,55 +450,53 @@ the `score --log` command above; a resume and a rehearsal start with it too:
 into `runs/g3-1/` as `launch g3-1 g3-cell`. `--runs-dir <dir>` sets the run folders' root, resolved
 to an absolute path; it defaults to `runs/` beside the code, and an empty value is refused. A run
 launched from a frozen worktree, with `PYTHONPATH=<worktree>/src`, passes the main checkout's
-`runs/` as `--runs-dir`, because the worktree holds no `runs/`. It refuses a run id that is not a run of record
-(`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds `calls.jsonl`,
-`scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports battery power
-or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and records
-`power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a second
-launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
+`runs/` as `--runs-dir`, because the worktree holds no `runs/`. It refuses a run id that is not a
+run of record (`RUN_ID`) of `<run>`'s entry, a run with no BKO arm, a folder that already holds
+`calls.jsonl`, `scores.csv`, `scores.log` or `holdout-candidates.jsonl`, and a machine that reports
+battery power or, on macOS, whose power `pmset -g batt` cannot read (elsewhere it cannot check and
+records `power=unchecked`). Otherwise it creates `scores.csv` and `scores.log` exclusively, so a
+second launch into the folder refuses, appends the launch line (`run=`, `dry_run=`, `rehearse=`,
 `resume=`), for a raised ceiling a `ceiling=%.4f stop=%s usd=%.4f live_usd=%.4f holdouts=%d
 projected_usd=%.4f` line (the ceiling it accepted and the stopped log's spend and projection), the
-power reading, the keep-awake and the command to `launch.log`, and starts
-`supervise <run-id> <run> --retries R --runs-dir <runs>` in its own session, held awake by
-`caffeinate -i -s` on macOS, with stdout and stderr in those two files; `--data-dir` is forwarded
-as an absolute path, and `--in-flight` when given. `supervise` is internal to `launch`: it runs
-`score <run> --log <folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its
-child, with the same stdout and stderr (supervision, below). It appends the process id to
-`launch.log` as `pid=` and prints the command that watches the folder
-(`tail -f <runs>/<run-id>/scores.log`, its path absolute; for `--rehearse`,
-`tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it appends
-`error=<type>: <message>` and then removes the two files; it also removes them when `launch.log`'s
-first lines cannot be written, and a failed claim writes nothing, so a failed launch leaves the
-folder free. A started process whose `pid=` line cannot be written is still reported started, with a
-WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=` line survives a
-retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the same power check
-and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ... --candidates ...`
-with the stopped log's path made absolute, and `--ceiling` forwarded to that segment alone, and
-refuses a stopped log that is not a file or lies inside the new folder, and the logs the resume
-guard above refuses. `launch` refuses, before it reads the power, a run id whose first resume
-folder name, `<run-id>-resume-1`, is not a `RUN_ID` (such as `e1-4-resume`, whose
-`e1-4-resume-resume-1` is not), unless `--retries 0` or `--rehearse` asks for no resume. `--rehearse` supervises
-`score <run> --log ... --candidates ... --rehearse` with the same checks inside
-`<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run. `--resume`
-and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing, so the
-folder stays free to launch. The power is read at launch and again before each resume, which
-refuses on battery; between those reads a machine unplugged is not caught, and `caffeinate -s`
-holds it awake on mains power only. The run itself stops, exit 2 with the call log ending `failed`,
-on any of three rules, each logged as `stop rule=<name>` with the measure that fired: the spend
-ceiling (`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend before the call it
-refuses), the projection (the run's whole spend after `projection_after` holdouts, scaled to every
-holdout, reaching the ceiling; a resume counts the holdouts it replays and the spend it carries and
-replays, so it projects as the fresh run would; a rehearsal is projected, a replay is not, and
-`stop rules projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call
-to get a reply, its retries included, timed by `asyncio.timeout` around the awaited send; on expiry
-no later call is sent, and the calls beside it land under their own idle limits, so their replies
-and spend are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the
-ceiling and the idle limit. `--in-flight N` sets the calls in flight,
-`bko.generate.flight.IN_FLIGHT` by default (ADR
-[`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the call
-it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call log
-writes as it closes, belongs to a process that is still running or was killed. Copy the call log off
-the runner before any replay.
+power reading, the keep-awake and the command to `launch.log`, and starts `supervise <run-id> <run>
+--retries R --runs-dir <runs>` in its own session, held awake by `caffeinate -i -s` on macOS, with
+stdout and stderr in those two files; `--data-dir` is forwarded as an absolute path, and
+`--in-flight` when given. `supervise` is internal to `launch`: it runs `score <run> --log
+<folder>/calls.jsonl --candidates <folder>/holdout-candidates.jsonl` as its child, with the same
+stdout and stderr (supervision, below). It appends the process id to `launch.log` as `pid=` and
+prints the command that watches the folder (`tail -f <runs>/<run-id>/scores.log`, its path absolute;
+for `--rehearse`, `tail -f <runs>/<run-id>/rehearsal/scores.log`). When the process cannot start it
+appends `error=<type>: <message>` and then removes the two files; it also removes them when
+`launch.log`'s first lines cannot be written, and a failed claim writes nothing, so a failed launch
+leaves the folder free. A started process whose `pid=` line cannot be written is still reported
+started, with a WARNING. `launch.log` is appended to, never truncated, so a failed launch's `error=`
+line survives a retry. `--resume <calls.jsonl>` resumes a stopped run into a new folder with the
+same power check and keep-awake: its first segment is `score <run> --resume <calls.jsonl> --log ...
+--candidates ...` with the stopped log's path made absolute, and `--ceiling` forwarded to that
+segment alone, and refuses a stopped log that is not a file or lies inside the new folder, and the
+logs the resume guard above refuses. `launch` refuses, before it reads the power, a run id whose
+first resume folder name, `<run-id>-resume-1`, is not a `RUN_ID` (such as `e1-4-resume`, whose
+`e1-4-resume-resume-1` is not), unless `--retries 0` or `--rehearse` asks for no resume.
+`--rehearse` supervises `score <run> --log ... --candidates ... --rehearse` with the same checks
+inside `<run-id>/rehearsal/`; a folder that holds only `rehearsal/` is still free for the run.
+`--resume` and `--rehearse` exclude each other. `--dry-run` writes `launch.log` and starts nothing,
+so the folder stays free to launch. The power is read at launch and again before each resume, which
+refuses on battery; between those reads a machine unplugged is not caught, and `caffeinate -s` holds
+it awake on mains power only. The run itself stops, exit 2 with the call log ending `failed`, on any
+of three rules, each logged as `stop rule=<name>` with the measure that fired: the spend ceiling
+(`E1.spend_ceiling`, logged as `stop rule=ceiling` with the run's spend before the call it refuses),
+the projection (the run's whole spend after `projection_after` holdouts, scaled to every holdout,
+reaching the ceiling; a resume counts the holdouts it replays and the spend it carries and replays,
+so it projects as the fresh run would; a rehearsal is projected, a replay is not, and `stop rules
+projecting=` says which applies), and the idle limit (`idle_limit` seconds for one call to get a
+reply, its retries included, timed by `asyncio.timeout` around the awaited send; on expiry no later
+call is sent, and the calls beside it land under their own idle limits, so their replies and spend
+are recorded). `bko.evaluate.watch` holds the projection and `bko.generate.flight` the ceiling and
+the idle limit. `--in-flight N` sets the calls in flight, `bko.generate.flight.IN_FLIGHT` by default
+(ADR [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)); a stop lands at the
+call it lands at with one call in flight. A `scores.log` with no `run status=` line, which the call
+log writes as it closes, belongs to a process that is still running or was killed. Copy the call log
+off the runner before any replay.
 
 **Supervision.** `launch` supervises its run (ADR
 [`research/concurrent-call-waves`](adr/research/concurrent-call-waves.md)): `supervise` runs each
@@ -568,7 +566,8 @@ folder's `scores.log`, which the `next=` line's `watch=` names. The lines, in or
   <USD above projected_usd>`, one line: after a ceiling or projection stop's segment line, a
   WARNING with the `end` line's spend and holdouts, the projection over the named run's holdouts
   (`none` when the `end` line records no holdouts), and the command that resumes it under the
-  run's runs root, its data root when set and the stopped segment's in-flight when set.
+  run's runs root, its data root when set and the stopped segment's in-flight when set, each path
+  quoted for a POSIX shell.
 - `supervise next=%s in_flight=%s watch=tail -f <runs>/<next>/scores.log`: the resume folder, once
   claimed (no line names a resume that was not claimed); `in_flight` is a number or `default`.
 - `supervise resume=%s refused=%s`: a resume a check refused, an ERROR, with the refusal's message.
@@ -946,8 +945,9 @@ measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-
 `-label`; `mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`,
 `nndr-ties`, `nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for
 the held-out rows. Its `privacy.log` opens with the `versions commit=` line, then `privacy run=%s
-stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
-store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
+stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
+store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the
+bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
 `privacy holdout=%d arm=%s added=%d` per arm (WARNING for an arm that adds no row), a WARNING
 `privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
 undefined in a scope (INFO for a cell scope with no member), and `privacy holdout=%d done=%d/%d
@@ -968,12 +968,11 @@ Each store's folder is the header's folder name directly under the runs root, `-
 (resolved to an absolute path; an empty value is refused) or else `runs/` beside the code; a name
 that resolves elsewhere, such as a symbolic link out of the root, is refused. A reading run from a
 frozen worktree passes the main checkout's `runs/` as `--runs-dir`. `--data-dir` sets the data
-root. The command exits 2 for a run
-with no reference arm, a run lacking it, or a run that removes no cell, and 3 for a store whose
-run is neither the named run nor a slice of it, whose header does not match its folder's
-`scores.log`, whose data digest differs, whose arm does not hash to the `arm` line's sha256,
-whose holdouts overlap another store's or leave one of the run's out, or whose `split` line the
-data does not reproduce.
+root. The command exits 2 for a run with no reference arm, a run lacking it, or a run that removes
+no cell, and 3 for a store whose run is neither the named run nor a slice of it, whose header does
+not match its folder's `scores.log`, whose data digest differs, whose arm does not hash to the `arm`
+line's sha256, whose holdouts overlap another store's or leave one of the run's out, or whose
+`split` line the data does not reproduce.
 
 **The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR
@@ -1006,7 +1005,8 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
   the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
   `validate` or `bounds` for a row; `none`), `checks` the `bko.validate` checks its `validate`
   rows failed, `quota_off` how far the call's final rows fall short of its stated counts, summed
-  over the fields and their categories (`bko.evaluate.quotas`).
+  over the fields and their categories (`bko.evaluate.quotas`). It reads each row as the merge
+  left it, so a refused row's or call's originals count against the quotas.
 - `perturb holdout=%d rows=%d perturbed=%d unchanged=%d refused_empty=%d refused_short=%d
   refused_undecodable=%d refused_order=%d refused_keys=%d refused_validate=%d refused_bounds=%d`
   per holdout: each drawn row's merge outcome.
@@ -1016,14 +1016,18 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
   of the drawn rows against the holdout's label-1 training rows over the perturbed fields,
   `difference` the first less the second, both column pair trends, the share of each set's rows
   breaking any of the ADR's three Diabetes rules (`none` off Diabetes), and the rows and values
-  that differ from the draw. A score SDMetrics cannot read logs `nan`.
-- `perturb columns holdout=%d arm=%s rows=%s <field>=%.6f ...` twice per holdout, `rows`
+  that differ from the draw. A score SDMetrics cannot read logs `nan`. A fill that drew no row
+  logs `perturb shapes holdout=%d arm=%s empty=true` in its place.
+- `perturb columns holdout=%d arm=%s kind=%s <field>=%.6f ...` twice per holdout, `kind`
   `perturbed` then `unperturbed`: each perturbed field's column shape, in field order. A fill that
   drew no row logs neither line.
+- `perturb unscored holdout=%d field=%s`, a WARNING: a field SDMetrics' column-shapes details
+  lack, whose column shape logs `nan`.
 - `perturb summary arm=%s holdouts=%d read=%d empty=%d rows=%d rows_changed=%d values_changed=%d
-  mean_shapes=%.6f mean_unperturbed=%.6f` at the end of the run, a stopped run included: the
-  holdouts read and with no row drawn, and the read holdouts' mean column shapes of the arm's and
-  the drawn rows, `nan` when a read holdout's shape is `nan`; the perturbed arm's adds its run's merge outcomes as the holdout line names
+  mean_shapes=%s mean_unperturbed=%s` at the end of the run, a stopped run included: the holdouts
+  read and with no row drawn, and the mean column shapes of the arm's and the drawn rows over the
+  read holdouts, at six places, `nan` when a read holdout's shape is `nan` and `none` when no
+  holdout was read; the perturbed arm's adds its run's merge outcomes as the holdout line names
   them.
 
 A rewrite call's `generate` line carries `rewrite=true` in place of `level=`, and its `short`
@@ -1623,8 +1627,6 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
-| `threshold.csv` | the delta readings of runs e10-1 and e10-2 |
-| `threshold.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |

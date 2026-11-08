@@ -5,7 +5,8 @@
 every column but the field rows' fields, `age`, `sex` and the label. On the Diabetes frame they
 must be `DIABETES_UNMAPPED`, the 19 a rewrite call may send; `unmapped` refuses another set there.
 `Perturbing` holds what both perturbation arms share; `bko.evaluate.pram.PramArm` redraws the
-fields, and `PerturbedArm` rewrites them through calls merged by `bko.evaluate.rewrite_merge`.
+fields, and `bko.evaluate.perturbed.PerturbedArm` rewrites them through calls merged by
+`bko.evaluate.perturbed.merge`.
 
 `read_distribution` reads a holdout's perturbed rows and its unperturbed rows against the label-1
 training rows over the perturbed fields: SDMetrics' column shapes, column pair trends and each
@@ -136,11 +137,14 @@ def quality(
 ) -> Quality:
     """SDMetrics' column shapes, pair trends and each column's shape of `rows` against `reference`.
 
-    A field SDMetrics could not score reads NaN.
+    A field SDMetrics' column-shapes details lack reads NaN, with a `perturb unscored` WARNING.
     """
     report = quality_report(reference, rows, frame=frame, columns=fields)
     properties = report.get_properties().set_index("Property")["Score"]
     details = report.get_details("Column Shapes").set_index("Column")["Score"]
+    for name in fields:
+        if name not in details.index:
+            logger.warning("perturb unscored holdout=%d field=%s", _holdout(), name)
     columns = {name: float(details.get(name, math.nan)) for name in fields}
     return Quality(
         float(properties["Column Shapes"]), float(properties["Column Pair Trends"]), columns
@@ -213,14 +217,14 @@ def _share(value: float | None) -> str:
     return "none" if value is None else f"{value:.6f}"
 
 
-def _columns(quality: Quality) -> str:
+def _columns(read: Quality) -> str:
     """Each field's column shape as `field=value`, in the fields' order."""
-    return " ".join(f"{name}={value:.6f}" for name, value in quality.columns.items())
+    return " ".join(f"{name}={value:.6f}" for name, value in read.columns.items())
 
 
-def _mean(values: Sequence[float]) -> float:
-    """The mean of `values`; NaN for none."""
-    return math.fsum(values) / len(values) if values else math.nan
+def _mean(values: Sequence[float]) -> str:
+    """The mean of `values` at six places; `none` for none."""
+    return f"{math.fsum(values) / len(values):.6f}" if values else "none"
 
 
 def drawn_frame(drawn: Mapping[Stratum, list[Record]], frame: FrameSpec) -> pd.DataFrame:
@@ -300,7 +304,7 @@ class Perturbing:
         counts = self.counts
         logger.info(
             "perturb summary arm=%s holdouts=%d read=%d empty=%d rows=%d rows_changed=%d "
-            "values_changed=%d mean_shapes=%.6f mean_unperturbed=%.6f%s",
+            "values_changed=%d mean_shapes=%s mean_unperturbed=%s%s",
             self.name,
             counts["read"] + counts["empty"],
             counts["read"],
@@ -337,12 +341,15 @@ class Perturbing:
     ) -> None:
         """Log the holdout's reading of `changed` beside `drawn`; it changes no row.
 
-        A fill that drew no row is counted `empty` and logs nothing.
+        A fill that drew no row is counted `empty` and logs its `perturb shapes` line with
+        `empty=true` alone.
         """
         rows = sum(len(records) for records in drawn.values())
         self.counts["rows"] += rows
+        holdout = _holdout()
         if not rows:
             self.counts["empty"] += 1
+            logger.info("perturb shapes holdout=%d arm=%s empty=true", holdout, self.name)
             return
         pairs = [
             (row.record, record)
@@ -351,8 +358,8 @@ class Perturbing:
         ]
         moved = sum(new != old for new, old in pairs)
         values = sum(new[name] != old[name] for new, old in pairs for name in self.fields)
-        records = {cell: [row.record for row in found] for cell, found in changed.items()}
-        found = read_distribution(
+        records = {cell: [row.record for row in held] for cell, held in changed.items()}
+        reading = read_distribution(
             drawn_frame(records, frame),
             drawn_frame(drawn, frame),
             label_rows(train, frame, POSITIVE),
@@ -360,30 +367,29 @@ class Perturbing:
             frame=frame,
         )
         self.counts.update(read=1, rows_changed=moved, values_changed=values)
-        self.shapes.append((found.perturbed.shapes, found.unperturbed.shapes))
-        holdout = _holdout()
+        self.shapes.append((reading.perturbed.shapes, reading.unperturbed.shapes))
         logger.info(
             "perturb shapes holdout=%d arm=%s shapes=%.6f unperturbed=%.6f difference=%.6f "
             "pair_trends=%.6f unperturbed_pair_trends=%.6f incoherent=%s "
             "unperturbed_incoherent=%s rows_changed=%d values_changed=%d",
             holdout,
             self.name,
-            found.perturbed.shapes,
-            found.unperturbed.shapes,
-            found.difference,
-            found.perturbed.pair_trends,
-            found.unperturbed.pair_trends,
-            _share(found.incoherent),
-            _share(found.unperturbed_incoherent),
+            reading.perturbed.shapes,
+            reading.unperturbed.shapes,
+            reading.difference,
+            reading.perturbed.pair_trends,
+            reading.unperturbed.pair_trends,
+            _share(reading.incoherent),
+            _share(reading.unperturbed_incoherent),
             moved,
             values,
         )
         for kind, quality_read in (
-            ("perturbed", found.perturbed),
-            ("unperturbed", found.unperturbed),
+            ("perturbed", reading.perturbed),
+            ("unperturbed", reading.unperturbed),
         ):
             logger.info(
-                "perturb columns holdout=%d arm=%s rows=%s %s",
+                "perturb columns holdout=%d arm=%s kind=%s %s",
                 holdout,
                 self.name,
                 kind,

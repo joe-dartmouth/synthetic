@@ -184,7 +184,9 @@ def _supervising(commands: argparse._SubParsersAction[argparse.ArgumentParser]) 
     )
     supervising.add_argument("run_id", help="the run's id; its folder under --runs-dir")
     supervising.add_argument("run", help="the named run")
-    supervising.add_argument("--runs-dir", type=Path, required=True, help="the run folders' root")
+    supervising.add_argument(
+        "--runs-dir", type=runs_dir_argument, required=True, help="the run folders' root"
+    )
     supervising.add_argument("--data-dir", type=Path, default=None, help="the data root")
     supervising.add_argument("--in-flight", type=in_flight, default=None, help="as score's")
     supervising.add_argument("--retries", type=retries, default=RETRIES, help="as launch's")

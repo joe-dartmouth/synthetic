@@ -43,9 +43,8 @@ readings and Configuration the full-run estimate. What they settle for this unit
 returns every row asked, but the distribution check refused it on thin holdout 1 and on both empty
 holdouts, which meets the ADR's reversal condition for a check that refuses every holdout of a
 fraction; PRAM passed on all four. Two holdouts read no direction, so the full runs decide both
-arms' privacy and utility. The refusals came from the rewrite, which missed the label-1 shapes
-that real data reaches, and a per-holdout gate biases the paired contrast, so a reading replaces
-the check and quotas aim the rewrite (the ADR's Rationale).
+arms' privacy and utility. The ADR's Rationale says why a reading replaces the check and quotas aim
+the rewrite.
 
 ## Scope
 

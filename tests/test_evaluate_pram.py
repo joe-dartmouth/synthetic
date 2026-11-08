@@ -273,7 +273,42 @@ def test_a_fill_that_drew_no_row_is_not_read(caplog):
     arm = pram_arm()
     assert arm.read(train, {}, {}, request.frame) is None
     assert arm.counts["empty"] == 1
-    assert not [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    shapes = [m for m in caplog.messages if m.startswith("perturb shapes ")]
+    assert shapes == ["perturb shapes holdout=-1 arm=bko-direct-pram empty=true"]
+    assert not [m for m in caplog.messages if m.startswith("perturb columns ")]
+
+
+def test_a_summary_with_no_read_holdout_writes_no_mean(caplog):
+    caplog.set_level(logging.INFO)
+    train, request, _ = varied_arm()
+    arm = pram_arm()
+    arm.read(train, {}, {}, request.frame)
+    arm.summary()
+    (summary,) = [m for m in caplog.messages if m.startswith("perturb summary ")]
+    assert summary.endswith(
+        " read=0 empty=1 rows=0 rows_changed=0 values_changed=0"
+        " mean_shapes=none mean_unperturbed=none"
+    )
+
+
+def test_a_field_sdmetrics_does_not_detail_reads_nan_and_warns(caplog, monkeypatch):
+    class Report:
+        def get_properties(self) -> pd.DataFrame:
+            return pd.DataFrame(
+                {"Property": ["Column Shapes", "Column Pair Trends"], "Score": [0.5, 0.25]}
+            )
+
+        def get_details(self, _: str) -> pd.DataFrame:
+            return pd.DataFrame({"Column": ["chol"], "Score": [0.75]})
+
+    monkeypatch.setattr(perturb, "quality_report", lambda *_, **__: Report())
+    caplog.set_level(logging.INFO)
+    train, _, _ = varied_arm()
+    found = perturb.quality(train, train, fields=("chol", "trestbps"), frame=UCI_FRAME)
+    assert found.columns["chol"] == pytest.approx(0.75)
+    assert math.isnan(found.columns["trestbps"])
+    warned = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert [r.getMessage() for r in warned] == ["perturb unscored holdout=-1 field=trestbps"]
 
 
 def test_a_pram_reading_below_the_unperturbed_keeps_the_arms_rows(caplog, monkeypatch):
@@ -335,6 +370,8 @@ def test_a_score_run_with_the_pram_arm_writes_its_candidates(tmp_path, caplog):
     assert all(re.fullmatch(pattern, m) for m in shapes), shapes
     columns = [m for m in caplog.messages if m.startswith("perturb columns ")]
     assert len(columns) == 4
+    kinds = [m.split(" kind=")[1].split(" ")[0] for m in columns]
+    assert kinds == ["perturbed", "unperturbed"] * 2
     prammed = [m for m in caplog.messages if m.startswith("perturb pram ")]
     assert len(prammed) == 2
     assert all(

@@ -65,6 +65,9 @@ ROW_REFUSALS: Final = ("keys", "validate", "bounds")
 OUTCOMES: Final = (*TAKEN, *CALL_REFUSALS, *ROW_REFUSALS)
 """Every row outcome `merge` names."""
 
+type Span = tuple[Stratum, int, list[Record], Rewrite, dict[str, tuple[int, ...]]]
+"""One call's cell, first row, rows, `Rewrite` and count per category of each field."""
+
 
 @dataclass(frozen=True, slots=True)
 class Merged:
@@ -192,11 +195,11 @@ class PerturbedArm(Perturbing):
             for cell in drawn
         }
         spans = self._spans(drawn, found, bounds)
-        planned = [Planned(_guidance(cell), len(rows), rewrite=r) for cell, _, rows, r in spans]
+        planned = [Planned(_guidance(cell), len(rows), rewrite=r) for cell, _, rows, r, _ in spans]
         batches = self.flight.wave(planned, frame=frame) if planned else ()
         changed = {cell: [Changed(dict(row)) for row in rows] for cell, rows in drawn.items()}
         counts: Counter[str] = Counter()
-        for batch, (cell, start, rows, rewrite) in zip(batches, spans, strict=True):
+        for batch, (cell, start, rows, _, allotted) in zip(batches, spans, strict=True):
             merged = merge(batch.candidates, rows, fields=self.fields, bounds=bounds, frame=frame)
             counts.update(merged.outcomes)
             for offset, (row, outcome) in enumerate(zip(merged.rows, merged.outcomes, strict=True)):
@@ -214,7 +217,7 @@ class PerturbedArm(Perturbing):
                 merged.reason,
                 batch.reply.stop_reason,
                 ",".join(merged.checks) or "none",
-                quota_off(rewrite, found[cell], merged.rows),
+                quota_off(allotted, found[cell], merged.rows),
             )
         self.merged.update(counts)
         logger.info(
@@ -231,22 +234,27 @@ class PerturbedArm(Perturbing):
         drawn: Mapping[Stratum, list[Record]],
         found: Mapping[Stratum, Mapping[str, Sequence[Category]]],
         bounds: Mapping[str, tuple[float, float]],
-    ) -> list[tuple[Stratum, int, list[Record], Rewrite]]:
-        """Each call's cell, first row, rows and `Rewrite`, chunked by `per_call`, with quotas."""
+    ) -> list[Span]:
+        """Each call's cell, first row, rows, `Rewrite` and count per category of each field.
+
+        The counts keep every category, zeros included, in `found`'s order; the `Rewrite`'s
+        quotas hold the non-zero ones.
+        """
         per_call = self.flight.log.settings.per_call
         calls = chunks({cell: len(rows) for cell, rows in drawn.items()}, per_call)
         allotted = {
             cell: iter(allot(found[cell], [count for at, count in calls if at == cell]))
             for cell in drawn
         }
-        spans: list[tuple[Stratum, int, list[Record], Rewrite]] = []
+        spans: list[Span] = []
         starts = dict.fromkeys(drawn, 0)
         for cell, count in calls:
             start, starts[cell] = starts[cell], starts[cell] + count
             rows = drawn[cell][start : start + count]
             sent = tuple({name: row[name] for name in self.fields} for row in rows)
-            quotas = _shares(found[cell], next(allotted[cell]))
-            spans.append((cell, start, rows, Rewrite(self.fields, sent, bounds, quotas)))
+            counts = next(allotted[cell])
+            rewrite = Rewrite(self.fields, sent, bounds, _shares(found[cell], counts))
+            spans.append((cell, start, rows, rewrite, counts))
         return spans
 
 
@@ -265,21 +273,19 @@ def _shares(
 
 
 def quota_off(
-    rewrite: Rewrite, found: Mapping[str, Sequence[Category]], rows: Sequence[Record]
+    counts: Mapping[str, Sequence[int]],
+    found: Mapping[str, Sequence[Category]],
+    rows: Sequence[Record],
 ) -> int:
-    """How far `rows` fall short of `rewrite`'s quotas, summed over its fields' categories.
+    """How far `rows` fall short of a call's `counts`, summed over the fields and categories.
 
-    A row counts toward the category `bko.evaluate.quotas.category_of` gives its value, and each
-    share is the category with its `low` and `high`.
+    `counts` holds each field's count per category of `found`, in its order, and a row counts
+    toward the category `bko.evaluate.quotas.category_of` gives its value.
     """
     off = 0
-    for name, shares in rewrite.quotas.items():
+    for name, held in counts.items():
         actual = Counter(category_of(row[name], found[name]) for row in rows)
-        for share in shares:
-            index = next(
-                k for k, c in enumerate(found[name]) if (c.low, c.high) == (share.low, share.high)
-            )
-            off += max(0, share.count - actual[index])
+        off += sum(max(0, count - actual[index]) for index, count in enumerate(held))
     return off
 
 

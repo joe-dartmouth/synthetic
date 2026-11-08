@@ -36,6 +36,35 @@ def test_measured_ranges_cover_values_between_and_beyond_the_label_groups():
     assert [(c.low, c.high) for c in found["chol"]] == [(0, 0), (1, 4), (5, 12)]
 
 
+def test_a_fractional_fields_later_ranges_start_at_the_next_observed_value():
+    reference = pd.DataFrame({"oldpeak": [0.0] * 50 + [0.5] * 50 + [1.2] * 50 + [3.0] * 50})
+    found = categories(reference, ("oldpeak",), UCI_FRAME, {"oldpeak": (0.0, 6.2)})
+    assert _ranges(found["oldpeak"]) == [
+        (0.0, 0.0, 50),
+        (0.5, 0.5, 50),
+        (1.2, 1.2, 50),
+        (3.0, 6.2, 50),
+    ]
+
+
+def test_a_value_holding_exactly_one_percent_closes_its_range():
+    reference = pd.DataFrame({"chol": [0] * 2 + [1] * 198})
+    found = categories(reference, ("chol",), UCI_FRAME, {"chol": (0.0, 5.0)})
+    assert _ranges(found["chol"]) == [(0, 0, 2), (1, 5, 198)]
+
+
+def test_the_one_percent_is_of_the_rows_holding_a_value_of_the_field():
+    reference = pd.DataFrame({"chol": [float("nan")] * 197 + [0, 1, 1]})
+    found = categories(reference, ("chol",), UCI_FRAME, {"chol": (0.0, 5.0)})
+    assert _ranges(found["chol"]) == [(0, 0, 1), (1, 5, 2)]
+
+
+def test_one_measured_row_among_many_missing_takes_the_whole_range():
+    reference = pd.DataFrame({"chol": [float("nan")] * 199 + [3]})
+    found = categories(reference, ("chol",), UCI_FRAME, {"chol": (0.0, 5.0)})
+    assert _ranges(found["chol"]) == [(0, 5, 1)]
+
+
 def test_apportion_sums_to_the_rows_and_breaks_ties_to_the_earlier_category():
     found = (Category(0, 0, 1), Category(1, 1, 1), Category(2, 2, 1))
     assert apportion(found, 4) == (2, 1, 1)

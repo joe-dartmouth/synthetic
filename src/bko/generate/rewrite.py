@@ -21,6 +21,7 @@ import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Final
 
 from bko.datasets.frames import FrameSpec
@@ -75,8 +76,9 @@ class Rewrite:
         fields: The fields rewritten, in frame order.
         rows: Each row's value of each field, in row order; a row's index is its position.
         bounds: Each measured field's lowest and highest value in the training split.
-        quotas: Each field's shares of the rows, in ascending order, each non-empty, together
-            summing to the rows.
+        quotas: Each field's shares of the rows, strictly ascending and apart (each share's
+            `low` above the previous share's `high`), each non-empty, together summing to the
+            rows.
     """
 
     fields: tuple[str, ...]
@@ -91,8 +93,9 @@ class Rewrite:
 
         Raises:
             ValueError: If `fields` holds `age` or `sex`, a row's keys are not `fields`, the
-                quotas' fields are not `fields`, a field's shares do not sum to the rows, or a
-                share's `low` exceeds its `high` or it holds no row.
+                quotas' fields are not `fields`, a field's shares do not sum to the rows, a
+                share's `low` exceeds its `high` or it holds no row, or a share's `low` does not
+                exceed the previous share's `high`.
         """
         cell = sorted({"age", "sex"} & set(self.fields))
         if cell:
@@ -114,6 +117,10 @@ class Rewrite:
             for share in shares:
                 if share.low > share.high or share.count <= 0:
                     msg = f"{name}'s share {share} is inverted or holds no row"
+                    raise ValueError(msg)
+            for before, share in pairwise(shares):
+                if share.low <= before.high:
+                    msg = f"{name}'s shares do not ascend apart: {share} follows {before}"
                     raise ValueError(msg)
 
 
@@ -187,10 +194,14 @@ def rewrite_schema(rewrite: Rewrite, *, frame: FrameSpec) -> dict[str, object]:
 
 
 def _share(share: Share) -> str:
-    """`share` as the prompt states it: its value or inclusive range, then x and its count."""
+    """`share` as the prompt states it: its value or inclusive range, then x and its count.
+
+    Each end is written in full, an `int` as its digits and a `float` as its shortest round-trip
+    form, so no end is rounded.
+    """
     if share.low == share.high:
-        return f"{share.low:g} x{share.count}"
-    return f"{share.low:g}-{share.high:g} x{share.count}"
+        return f"{share.low} x{share.count}"
+    return f"{share.low}-{share.high} x{share.count}"
 
 
 def _meaning(name: str, frame: FrameSpec) -> str:

@@ -75,8 +75,8 @@ fixed here.
   - **Quotas.** Each call states the exact count of its rows that must hold each value category of
     each of the 19 fields. The categories come from the cell's label-group training rows: every
     code of a coded field, zero-count codes included, and for a measured field contiguous ranges
-    in ascending order, each closed once it holds at least 1% of those rows, the remainder joining
-    the last. Coded and integer fields' ranges tile the training range; a fractional field's
+    in ascending order, each closed once it holds at least 1% of those rows holding a value of the
+    field, the remainder joining the last. Coded and integer fields' ranges tile the training range; a fractional field's
     ranges start at the next observed value, and `category_of` assigns a value between ranges to
     the next range. A holdout's rows are apportioned to
     the categories by largest remainder, ties to the earlier category, then spread across the
@@ -142,9 +142,10 @@ fixed here.
   or unit, each count field's training-split minimum and maximum, an accepted aggregate
   disclosure, the call's quotas, and each row's values of the 19 fields with its `row` index. The
   rows are the holdout's `bko-direct` fill, mosaics of rows of open Diabetes 130 data; no other
-  BKO arm sends a record. Each quota is a count over a value or range of the cell's label-group training rows.
-  A range's ends are real label-group training values, and each range holds at least 1% of the
-  label group's rows, so a label group under 100 rows can expose a single row's value.
+  BKO arm sends a record. Each quota is a count over a value or range of the cell's label-group
+  training rows. A range's ends are real label-group training values, and each range holds at
+  least 1% of the label group's rows holding a value of its field, so a label group under 100
+  such rows can expose a single row's value.
 - **Privacy.** The `privacy` command reads `bko-direct-perturbed` and `bko-direct-pram` against
   `bko-direct` from their rows stores (ADR `research/membership-inference-reading`).
 

@@ -1,14 +1,14 @@
 """Per-call value quotas for the rewrite arm, from the cell's label-group training rows.
 
 `categories` splits each field's values: every code of a coded field, and for a measured field
-contiguous ranges in ascending order, each closed once it holds at least 1% of the rows, the
-remainder joining the last. Coded and integer fields' ranges tile the training range; a fractional
-field's range starts at the next observed value, and `category_of` assigns a value between ranges
-to the next one. `apportion` gives a
-holdout's rows to the categories by largest remainder on integers, ties to the earlier category.
-`spread` places category k's T tokens at ((j + 1/2) / T + k / K) mod 1, sorts them and cuts the
-sequence into the calls' sizes, so a category's calls are evenly spaced and categories with one
-token land apart. ADR `research/identifier-perturbation` records the rule.
+contiguous ranges in ascending order, each closed once it holds at least 1% of the rows holding a
+value of that field, the remainder joining the last. Coded and integer fields' ranges tile the
+training range; a fractional field's range starts at the next observed value, and `category_of`
+assigns a value between ranges to the next one. `apportion` gives a holdout's rows to the
+categories by largest remainder on integers, ties to the earlier category. `spread` places
+category k's T tokens at ((j + 1/2) / T + k / K) mod 1, sorts them and cuts the sequence into the
+calls' sizes, so a category's calls are evenly spaced and categories with one token land apart.
+ADR `research/identifier-perturbation` records the rule.
 """
 
 from __future__ import annotations
@@ -61,13 +61,17 @@ def categories(
             continue
         cast = float if name in frame.fractional else int
         observed = [cast(value) for value in counts.index]
+        measured = int(counts.sum())
         closed: list[tuple[int | float, int]] = []
         held = 0
         for value, count in zip(observed, counts.tolist(), strict=True):
             held += int(count)
-            if held * 100 >= total:
+            if held * 100 >= measured:
                 closed.append((value, held))
                 held = 0
+        if not closed:
+            msg = f"no row of the label group holds a value of {name!r}, so no quota can be set"
+            raise EvaluationError(msg)
         if held:
             top, rows = closed[-1]
             closed[-1] = (top, rows + held)
@@ -80,9 +84,6 @@ def categories(
             if not last:
                 start = top + 1 if cast is int else min(v for v in observed if v > top)
         found[name] = tuple(ranges)
-        if not sum(category.rows for category in found[name]):
-            msg = f"no row of the label group holds a value of {name!r}, so no quota can be set"
-            raise EvaluationError(msg)
     return found
 
 

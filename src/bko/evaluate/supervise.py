@@ -78,7 +78,8 @@ SPEND_STOP: Final = (
 )
 """The WARNING after a ceiling or projection stop's segment line: the stopped log's spend, its
 finished holdouts and projection (`none` when unrecorded), and the command that resumes it with
-the run's runs root, and its data root and the segment's in-flight when set."""
+the run's runs root, and its data root and the segment's in-flight when set, each path quoted for
+a POSIX shell."""
 
 REASONS: Final = (
     "complete",
@@ -297,8 +298,8 @@ class _Plan:
         if found.usd is not None and found.holdouts is not None and self.holdouts is not None:
             scaled = found.usd / max(found.holdouts, 1) * self.holdouts
             projected = f"{max(found.usd, scaled):.4f}"
-        flags = f" --runs-dir {self.root}"
-        flags += "" if self.data_dir is None else f" --data-dir {self.data_dir}"
+        flags = f" --runs-dir {shlex.quote(str(self.root))}"
+        flags += "" if self.data_dir is None else f" --data-dir {shlex.quote(str(self.data_dir))}"
         flags += "" if flight is None else f" --in-flight {flight}"
         line = SPEND_STOP % (
             found.stop,
@@ -306,7 +307,7 @@ class _Plan:
             "none" if found.holdouts is None else found.holdouts,
             projected,
             self.run,
-            folder / "calls.jsonl",
+            shlex.quote(str(folder / "calls.jsonl")),
             flags,
         )
         self.write(line, level=logging.WARNING)
