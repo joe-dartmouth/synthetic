@@ -755,6 +755,16 @@ def test_launch_refuses_g2_whose_only_generator_is_free_before_claiming_a_folder
     assert not (tmp_path / "g2-3").exists()
 
 
+@pytest.mark.parametrize("name", ["e10-pram-thin", "e10-pram-thina"])
+def test_launch_refuses_the_pram_full_runs_which_hold_no_paid_arm(tmp_path, caplog, name):
+    context = named(tmp_path, RUNS)
+    assert main(["launch", "e10-1", name], context=context, out=io.StringIO()) == 2
+    assert f"the run {name!r} has no paid arm, so it spends nothing to launch" in caplog.text
+    assert isinstance(context.start, Starts)
+    assert context.start.commands == []
+    assert not (tmp_path / "e10-1").exists()
+
+
 @pytest.mark.parametrize(
     ("run_id", "flags"),
     [("e1-4-resume", {"retries": 0}), ("e1-4-resume", {"rehearse": True}), ("e1-4", {})],

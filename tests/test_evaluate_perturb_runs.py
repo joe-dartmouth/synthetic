@@ -1,4 +1,4 @@
-"""The perturbation pilot's named runs, their ceilings and their reference."""
+"""The perturbation runs: the pilots and the PRAM-only full runs, their ceilings and reference."""
 
 from __future__ import annotations
 
@@ -10,21 +10,26 @@ import pytest
 
 from bko.baselines.request import Stratum
 from bko.datasets.ablation import removed_count
-from bko.evaluate import membership
 from bko.evaluate.data import Dataset
 from bko.evaluate.experiment import (
     DIRECT_ARM,
+    PAID_ARMS,
     PERTURBED_ARM,
     PRAM_ARM,
     REAL_ARM,
     Experiment,
 )
+from bko.evaluate.membership import reference_of
 from bko.evaluate.named_runs import (
     E6_EMPTY,
     E6_SETTINGS,
     E6_THIN,
+    E9_EMPTY,
+    E9_THIN,
     E10_PILOT_EMPTY,
     E10_PILOT_THIN,
+    E10_PRAM_EMPTY,
+    E10_PRAM_THIN,
     RUNS,
     NamedRun,
 )
@@ -44,7 +49,7 @@ rounded up, for a reply that rewrites 19 of a record's fields."""
 
 
 def quota(experiment: Experiment) -> dict[Stratum, int]:
-    """A pilot holdout's gap request: every cell under the threshold, filled to `fill_to`.
+    """A holdout's gap request: every cell under the threshold, filled to `fill_to`.
 
     On Diabetes 130 the removed cell is the only one under E6's threshold on every holdout seed
     (`tests/test_datasets_diabetes_pinned.py`, which reads the pinned archive under `--releases`),
@@ -58,9 +63,10 @@ def quota(experiment: Experiment) -> dict[Stratum, int]:
 
 
 def estimate(experiment: Experiment, settings: Settings) -> float:
-    """A pilot's rewrite spend in USD: every requested cell's rows on every holdout at
+    """A run's rewrite spend in USD: every requested cell's rows on every holdout at
     `INPUT_PER_ROW`, `OUTPUT_PER_ROW` and `OVERHEAD_TOKENS` per call, each cell cut into calls of
-    `per_call` rows, input at the higher of `input` and `cache_write`."""
+    `per_call` rows, input at the higher of `input` and `cache_write`; 0 for a run with no arm
+    that calls the API."""
     holdouts = len(experiment.holdout_seeds)
     cells = quota(experiment).values()
     rows = sum(cells) * holdouts
@@ -105,14 +111,46 @@ def test_the_thin_pilot_asks_its_cells_removed_rows_and_the_empty_one_all_of_the
     assert (quota(E10_PILOT_THIN), quota(E10_PILOT_EMPTY)) == ({cell: 1250}, {cell: 1269})
 
 
-def test_every_run_that_perturbs_is_on_the_pinned_diabetes_frame():
-    perturbing = [
+@pytest.mark.parametrize(
+    ("name", "full", "e9", "e6"),
+    [
+        ("e10-pram-thin", E10_PRAM_THIN, E9_THIN, E6_THIN),
+        ("e10-pram-empty", E10_PRAM_EMPTY, E9_EMPTY, E6_EMPTY),
+    ],
+)
+def test_runs_holds_each_pram_full_run_on_e6s_holdouts(name, full, e9, e6):
+    assert RUNS[name] == NamedRun(full, E6_SETTINGS, Dataset.DIABETES)
+    assert full == dataclasses.replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, PRAM_ARM),
+        candidate=PRAM_ARM,
+        comparators=(DIRECT_ARM, "none"),
+    )
+    assert full.holdout_seeds == e6.holdout_seeds
+
+
+@pytest.mark.parametrize("full", [E10_PRAM_THIN, E10_PRAM_EMPTY], ids=["thin", "empty"])
+def test_each_pram_full_run_calls_no_api(full):
+    assert not PAID_ARMS & set(full.arms)
+
+
+def _perturbing() -> list[str]:
+    """Every run holding a perturbation arm, in `RUNS`' order."""
+    return [
         name for name, run in RUNS.items() if {PERTURBED_ARM, PRAM_ARM} & set(run.experiment.arms)
     ]
-    assert perturbing == ["e10-pilot-thin", "e10-pilot-empty"]
+
+
+def test_every_run_that_perturbs_is_an_e10_run_on_the_pinned_diabetes_frame():
+    perturbing = _perturbing()
+    wholes = ["e10-pilot-thin", "e10-pilot-empty", "e10-pram-thin", "e10-pram-empty"]
+    slices = [f"{whole}{letter}" for whole in wholes[2:] for letter in "abcdefghij"]
+    assert set(perturbing) == {*wholes, *slices}
+    assert all(name.startswith("e10-") for name in perturbing)
     assert {RUNS[name].dataset for name in perturbing} == {Dataset.DIABETES}
 
 
-def test_the_pilots_read_their_privacy_against_bko_direct():
-    assert membership.REFERENCE["e10-pilot-thin"] == DIRECT_ARM
-    assert membership.REFERENCE["e10-pilot-empty"] == DIRECT_ARM
+@pytest.mark.parametrize("name", _perturbing())
+def test_every_run_that_perturbs_reads_its_privacy_against_bko_direct(name):
+    reference, _ = reference_of(name, RUNS[name].experiment, RUNS)
+    assert reference == DIRECT_ARM

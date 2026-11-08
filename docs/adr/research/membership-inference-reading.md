@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-06
+updated: 2026-11-08
 ---
 # Membership inference and NNDR read an arm's added rows against a null arm, outside the removed cell
 
@@ -58,10 +58,11 @@ real records the attacker has not seen as members.
 - **Reference arm.** Each run family reads every arm against the arm `REFERENCE` in
   `bko.evaluate.membership` names; for E6 that is `real`, the empirical null. Its added rows are
   real records the attack has not seen as members, so its AUC shows what the removal alone does to
-  the statistic. For the perturbation pilots, `e10-pilot-thin` and `e10-pilot-empty`, it is
-  `bko-direct`: both perturbation arms rewrite its rows (ADR `research/identifier-perturbation`), so
-  each contrast reads what the perturbation changes against the unperturbed rows, not against the
-  null. A slice reads against the reference of the run it slices.
+  the statistic. For E10's perturbation runs, the pilots `e10-pilot-thin` and `e10-pilot-empty`
+  and the PRAM-only full runs `e10-pram-thin` and `e10-pram-empty`, it is `bko-direct`: every
+  perturbation arm rewrites its rows (ADR `research/identifier-perturbation`), so each contrast
+  reads what the perturbation changes against the unperturbed rows, not against the null. A
+  slice reads against the reference of the run it slices.
 - **The rule.** Each arm's per-holdout contrast with the reference arm, on each statistic, goes
   to `bko.evaluate.criteria.corrected_interval` with `confidence` set by
   `refuting_confidence(0.95, k)`, `family=1` and `ratio` the largest held-out ratio across the

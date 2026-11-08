@@ -139,8 +139,16 @@ def test_the_removed_cell_is_the_only_flagged_cell_on_every_holdout_seed(fractio
         assert flagged(train, experiment, edges=edges) == (CELL,), seed
 
 
-@pytest.mark.parametrize(("name", "asked"), [("e10-pilot-thin", 1250), ("e10-pilot-empty", 1269)])
-def test_each_perturbation_pilot_requests_only_the_removed_cell(name, asked):
+@pytest.mark.parametrize(
+    ("name", "asked"),
+    [
+        ("e10-pilot-thin", 1250),
+        ("e10-pilot-empty", 1269),
+        ("e10-pram-thin", 1250),
+        ("e10-pram-empty", 1269),
+    ],
+)
+def test_each_perturbation_run_requests_only_the_removed_cell(name, asked):
     experiment = RUNS[name].experiment
     edges = DIABETES_FRAME.edges
     for seed in experiment.holdout_seeds:

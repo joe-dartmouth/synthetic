@@ -814,11 +814,13 @@ def test_a_run_lacking_its_reference_arm_or_a_removed_cell_is_refused(monkeypatc
         reference_of("e1", dataclasses.replace(lacking, removal=None), {})
 
 
-def test_the_e6_runs_read_against_real_and_the_e10_pilots_against_bko_direct():
+def test_the_e6_runs_read_against_real_and_the_e10_runs_against_bko_direct():
     assert dict(membership.REFERENCE) == {
         "e6-thin": REAL_ARM,
         "e6-empty": REAL_ARM,
         "e6-curated": REAL_ARM,
         "e10-pilot-thin": DIRECT_ARM,
         "e10-pilot-empty": DIRECT_ARM,
+        "e10-pram-thin": DIRECT_ARM,
+        "e10-pram-empty": DIRECT_ARM,
     }
