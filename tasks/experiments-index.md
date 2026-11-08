@@ -11,12 +11,6 @@ the ROADMAP heading it serves.
 
 ## Graph and status
 
-### Privacy
-
-| Unit | Status | Depends on | Owner | Milestone |
-|---|---|---|---|---|
-| [`privacy-identifier-perturbation`](privacy-identifier-perturbation.md) | ready | -- | Joe | final-report |
-
 ## What every unit relies on
 
 - **Replay pairs calls by order and refuses a differing request** (ADR

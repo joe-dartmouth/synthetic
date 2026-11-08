@@ -1677,9 +1677,9 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
 
 - **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
   each such entry also has a folder whose files are hard links to those artifacts, with write
-  permission removed: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5` and `r1-2`. A hard link is
-  the same file under a second name, sharing its bytes and its mode, so the row's paths, sha256 and
-  commands stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never
+  permission removed: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5`, `r1-2` and `e10-37`. A
+  hard link is the same file under a second name, sharing its bytes and its mode, so the row's
+  paths, sha256 and commands stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never
   write into a linked folder or restore a linked file's write permission: a redirect into a
   writable link empties the register's artifact before the command runs.
 - **Another machine**: a run shows there only after its folder is copied into that machine's `runs/`.

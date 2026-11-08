@@ -29,16 +29,9 @@ representation. The pipeline:
 
 ## Pending experiments
 
-These follow the first full evaluation. Each is one task unit, and the set's graph and status
-board is [`tasks/experiments-index.md`](tasks/experiments-index.md).
-
-**Privacy**
-
-1. Full runs of the PRAM arm, which redraws `bko-direct`'s identifying fields while keeping its
-   concepts and distribution, with distance to closest record and membership inference read
-   against `bko-direct`; the LLM rewrite arm is back in design
-   ([`privacy-identifier-perturbation`](tasks/privacy-identifier-perturbation.md), ADR
-   `research/identifier-perturbation`).
+None is open. The experiments set's graph and status board is
+[`tasks/experiments-index.md`](tasks/experiments-index.md), and unscheduled research is in
+[`docs/IDEAS.md`](docs/IDEAS.md).
 
 ## Setup
 

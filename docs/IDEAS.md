@@ -257,6 +257,23 @@ and `diabetesMed` fields keep a coherent combination. A planning measurement, no
 
 **Sources.** None in the brief or the 2-pager.
 
+## A rewrite arm that moves records
+
+**What it is.** A redesign of E10's language-model rewrite of `bko-direct`'s 19 unmapped Diabetes
+fields, so that its added rows sit farther from training records than `bko-direct`'s while
+keeping the label-1 distributions. With per-call label-group quotas the rewrite reached column
+shapes of 0.977 to 0.979 against the label-1 training rows, but its added-row `dcr-p5` exceeded
+`bko-direct`'s on 1 of 4 re-pilot holdouts and its NNDR p5 was lower on all 4 (E10's Read against
+in [EVIDENCE.md](EVIDENCE.md#e10-identifier-perturbation)). A likely reason, not yet tested, is
+that matching the label group's marginals draws the rows toward its dense region.
+
+**Why it is not in the plan.** The re-pilot failed G6, so the rewrite returns to design (ADR
+[research/identifier-perturbation](adr/research/identifier-perturbation.md), Reversal Conditions),
+and E10's full runs are PRAM only. Adopting it means a new prompt or arm recorded in that ADR and a
+new paid re-pilot that passes its gate before any full run.
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694
