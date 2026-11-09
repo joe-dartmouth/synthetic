@@ -17,11 +17,15 @@ no API call.
   level. A record the log cannot trace is `untraced`, with the reason, and the `trace partial`
   WARNING counts them.
 - A baseline (`trace_baseline`): one line naming its method and its seed.
-- `bko-direct-pram` and `bko-direct-perturbed`: refused (exit 2), since a re-draw gives their
-  unperturbed rows, not the rows their `arm` lines hash (`cleanup:evaluate/trace-logic-arm`).
+- `bko-direct-pram` and `bko-direct-perturbed` (`trace_perturbation`): the fill's rows are
+  rebuilt from its candidate lines and refused unless they hash to the `arm` line's sha256; the
+  draw underneath is re-drawn, and each record adds its line's `perturb` result, the fields that
+  differ from the draw and the draw's values for them. `PRAM_ARM` is among `DIRECT_ARMS`, so it
+  is dispatched first.
 
 `bko.evaluate.trace_lines` holds the lines, the fill and the arm kinds that need no re-draw, and
-`bko.evaluate.trace_direct` the re-draw; this module dispatches the command.
+`bko.evaluate.trace_direct` the re-draw, `bko.evaluate.trace_perturb` the perturbation arms;
+this module dispatches the command.
 
 The source record ids name training records, so the output stays in its run folder.
 """
@@ -41,6 +45,7 @@ from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARM,
+    DIRECT_ARMS,
     MESSAGES_ARMS,
     PERTURBED_ARM,
     PRAM_ARM,
@@ -51,10 +56,11 @@ from bko.evaluate.experiment import (
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, split_line
 from bko.evaluate.provenance import experiment_line
-from bko.evaluate.run_folder import Folder, check_folders, read_folder
+from bko.evaluate.run_folder import BKO, Folder, check_folders, read_folder
 from bko.evaluate.scoring import data_dir
 from bko.evaluate.trace_direct import trace_direct
 from bko.evaluate.trace_lines import Fill, kept_lines, select, trace_baseline, trace_messages
+from bko.evaluate.trace_perturb import trace_perturbation
 from bko.gaps.scope import load_scope
 from bko.ontology.terms import Ontology
 
@@ -110,13 +116,21 @@ def trace(
     asked = gap_request if fill.kind == "gap" else replica_request
     request = asked(train, experiment, seed=fill.holdout, frame=frame)
     lines = folder.lines.get((fill.holdout, fill.name, fill.kind), ())
-    count = (
-        len(kept_lines(lines)[1]) if fill.name == DIRECT_ARM or fill.name in MESSAGES_ARMS else 1
-    )
+    count = len(kept_lines(lines)[1]) if fill.name in BKO else 1
     if record is not None and not 0 <= record < count:
         msg = f"record {record} is not one of the fill's {count} records"
         raise EvaluationError(msg)
-    if fill.name == DIRECT_ARM:
+    if fill.name in {PRAM_ARM, PERTURBED_ARM}:
+        traces = trace_perturbation(
+            fill,
+            lines,
+            train,
+            request,
+            data=data,
+            ontologies=ontologies or {},
+            budget=experiment.budget,
+        )
+    elif fill.name == DIRECT_ARM:
         traces = trace_direct(
             fill,
             lines,
@@ -150,22 +164,13 @@ def run_trace(args: argparse.Namespace, named: Context) -> str:
     """The `trace` command over `named`, the context of the run `args.run`.
 
     The folder and the selection are read before any data is loaded.
-
-    Raises:
-        EvaluationError: Before any data is loaded, if the fill is a perturbation arm's.
     """
     folder = read_folder(args.folder)
     fill = select(folder, holdout=args.holdout, arm=args.arm)
-    if fill.name in {PRAM_ARM, PERTURBED_ARM}:
-        msg = (
-            f"trace cannot explain {fill.name}: a re-draw gives its unperturbed rows, not the rows "
-            "its arm line hashes (cleanup:evaluate/trace-logic-arm)"
-        )
-        raise EvaluationError(msg)
     root = data_dir(args)
     data = load(named.dataset, root, named)
     ontologies = None
-    if fill.name == DIRECT_ARM:
+    if fill.name in {*DIRECT_ARMS, PERTURBED_ARM}:
         concepts = {row.concept for row in data.field_rows}
         ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
     return trace(

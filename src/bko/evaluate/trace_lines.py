@@ -59,6 +59,9 @@ class Trace:
         closed: A direct record's drawn concepts closed upward under `is_a`.
         call: A Messages record's call index.
         untraced: Why a Messages record's prompt is not traced, or None.
+        perturb: A perturbation record's step: its `result`, the `fields` that differ from the
+            direct draw and the draw's values for them (`drawn`); None, and left out of the
+            line, for any other record.
     """
 
     holdout: int
@@ -76,10 +79,13 @@ class Trace:
     closed: tuple[str, ...] = ()
     call: int | None = None
     untraced: str | None = None
+    perturb: Json | None = None
 
     def line(self) -> str:
         """The trace as one JSON line, its keys sorted, ending in a newline."""
         found = {name.name: getattr(self, name.name) for name in dataclasses.fields(self)}
+        if self.perturb is None:
+            del found["perturb"]
         return json.dumps(found, sort_keys=True, allow_nan=False, default=_plain) + "\n"
 
 

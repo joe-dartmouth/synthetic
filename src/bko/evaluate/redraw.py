@@ -36,10 +36,12 @@ class Redrawn:
     Attributes:
         rows: The rows the arm returns.
         kept: The draws those rows came from, in generation order.
+        drawn: Every draw, in generation order, as the attempt's candidate lines hold them.
     """
 
     rows: pd.DataFrame
     kept: tuple[Draw, ...]
+    drawn: tuple[Draw, ...] = ()
 
 
 def redraw(
@@ -72,7 +74,7 @@ def redraw(
         attempt.add(None, cell, len(each), [dict(draw.record) for draw in each])
         draws += each
     kept = tuple(draws[j] for j, seen in enumerate(attempt.seen) if seen.outcome == KEPT)
-    return Redrawn(attempt.rows(), kept)
+    return Redrawn(attempt.rows(), kept, tuple(draws))
 
 
 class Shares:

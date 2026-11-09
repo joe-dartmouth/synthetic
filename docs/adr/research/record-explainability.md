@@ -97,12 +97,14 @@ folder.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/trace.py`, with the trace lines in `src/bko/evaluate/trace_lines.py`,
-  the direct arms' in `src/bko/evaluate/trace_direct.py`, the call log's reading in
+  the direct arms' in `src/bko/evaluate/trace_direct.py`, the perturbation arms' in
+  `src/bko/evaluate/trace_perturb.py`, the call log's reading in
   `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
   `src/bko/evaluate/holdout_candidates.py`
-- Pinned by: `tests/test_evaluate_trace.py`, `tests/test_generate_direct.py`,
+- Pinned by: `tests/test_evaluate_trace.py`, `tests/test_evaluate_trace_perturb.py`,
+  `tests/test_generate_direct.py`,
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
   `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
   `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`
