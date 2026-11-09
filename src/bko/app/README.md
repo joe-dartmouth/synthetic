@@ -14,5 +14,4 @@ design.
 
 - **Dependencies:** The `app` extra (`pyproject.toml`), and the stages it calls with their extras:
   `bko.datasets`, `bko.gaps`, `bko.fusion`, `bko.baselines`, `bko.evaluate` and `bko.generate`.
-- **Owner:** Krish Sapru
 - **Status:** built.

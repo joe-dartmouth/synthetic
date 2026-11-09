@@ -6,7 +6,7 @@ Testing whether medical knowledge can guide synthetic patient-data generation to
 and improve heart-disease prediction for underrepresented groups.
 
 > **Status: every pipeline stage is built.** The toolchain and the `make check` gate run. Each
-> stage under `src/bko/` has a README naming its role, its owner and its status.
+> stage under `src/bko/` has a README naming its role and its status.
 
 ## Overview
 

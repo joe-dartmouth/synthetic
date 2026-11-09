@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-11-08
 ---
 # One home per kind of statement
 
@@ -37,7 +37,7 @@ Each kind of statement has one home:
 | Environment, platforms, every Make target, gate hazards | `docs/DEVELOPMENT.md` |
 | A design decision, its alternatives and its reversal conditions | `docs/adr/<topic>/<slug>.md` |
 | What each repository checker does and its exit-code contract | `tools/README.md` |
-| A pipeline stage's role, extra, owner and status | `src/bko/<stage>/README.md` |
+| A pipeline stage's role, extra and status | `src/bko/<stage>/README.md` |
 | A constant's value | The one module that defines it (for example `CAPS` in `tools/check_file_size.py`) |
 
 A new kind of statement adds a row here. Other documents link to the home, and quote nothing from

@@ -2,14 +2,14 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-27
+updated: 2026-11-08
 ---
 # src layout, one subpackage per pipeline stage
 
 ## Context
 
 The project's pipeline ([`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md)) has distinct stages
-(Represent, Detect, Generate, Validate, Fuse, Evaluate, and a user interface) with different owners
+(Represent, Detect, Generate, Validate, Fuse, Evaluate, and a user interface) with different workstreams
 and different heavy dependencies. Each teammate needs a home for their stage that exists before
 any code does, so work can start in parallel without arguing about where files go.
 
@@ -17,7 +17,7 @@ any code does, so work can start in parallel without arguing about where files g
 
 * **Must import the installed package, not the working directory**, so a packaging error fails
   locally.
-* **Should give each owner a directory** with a stated role before the code exists.
+* **Should give each stage a directory** with a stated role before the code exists.
 * **Should map each stage to the one extra it will import.**
 
 ## Decision
@@ -38,7 +38,7 @@ pipeline stage:
 | `evaluate` | Utility, fidelity, privacy and validity metrics, and the BKO arms | `eval` |
 | `app` | The Streamlit interface | `app` |
 
-Every subpackage carries a `README.md` giving its role, its extra, its owner and its status; the
+Every subpackage carries a `README.md` giving its role, its extra and its status; the
 READMEs are excluded from the wheel. The package carries a `py.typed` marker, which the wheel ships
 because it sits inside the package. Tests live in a top-level `tests/`.
 
@@ -48,7 +48,7 @@ With a flat layout the working directory shadows the installed package, so an im
 works from the repository root passes every local run and fails for anyone installing the package.
 The `src/` layout makes the test suite import what was installed.
 
-One subpackage per stage gives each owner a boundary that matches the team's division of work,
+One subpackage per stage gives each stage a boundary that matches the team's division of work,
 and keeps a stage's heavy imports out of every other stage.
 
 ## Consequences
@@ -71,7 +71,7 @@ needs a deliberate home rather than an ad-hoc import across stages.
 - Owner: `src/bko/`
 - Pinned by: `tests/test_package_layout.py`
 - The test asserts that this table, `SUBPACKAGES` and the directories under `src/bko/` name the
-  same stages; that every subpackage imports and its README carries the dependency, owner and
+  same stages; that every subpackage imports and its README carries the dependency and
   status lines; that each README's extra matches this table's; that every named extra exists in
   `pyproject.toml`; and that `py.typed` exists.
 

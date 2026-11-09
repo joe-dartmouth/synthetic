@@ -30,7 +30,7 @@ SUBPACKAGES = (
 PACKAGE_ROOT = REPO_ROOT / "src" / "bko"
 LAYOUT_ADR = REPO_ROOT / "docs" / "adr" / "tooling" / "src-layout.md"
 
-README_FIELDS = ("- **Dependencies:**", "- **Owner:**", "- **Status:**")
+README_FIELDS = ("- **Dependencies:**", "- **Status:**")
 """The lines every stage README carries after its role paragraph."""
 
 _ADR_ROW = re.compile(r"^\|\s*`([a-z]+)`\s*\|[^|]*\|\s*(?:`([a-z]+)`|none)\s*\|\s*$", re.MULTILINE)
@@ -63,6 +63,13 @@ def test_subpackage_imports_and_has_a_readme(name: str) -> None:
     text = readme.read_text(encoding="utf-8")
     missing = [field for field in README_FIELDS if field not in text]
     assert not missing, f"src/bko/{name}/README.md lacks {missing}"
+
+
+@pytest.mark.parametrize("name", SUBPACKAGES)
+def test_no_readme_names_an_owner(name: str) -> None:
+    """A stage README names its role and status, not a person."""
+    text = (PACKAGE_ROOT / name / "README.md").read_text(encoding="utf-8")
+    assert "- **Owner:**" not in text
 
 
 def test_no_subpackage_is_unlisted() -> None:

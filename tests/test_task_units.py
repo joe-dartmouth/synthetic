@@ -3,7 +3,7 @@
 A unit is one pull request's worth of planned work. This module checks every set:
 
 - the frontmatter keys, once each and in order, an `id` matching the file and a known `status`;
-- an `owner` from the `docs/ROADMAP.md` Workload members and `adrs` naming existing ADR topics;
+- `adrs` naming existing ADR topics;
 - the three sections a unit must have, each with a body;
 - a `blocks` list that mirrors `depends_on`, every dependency a unit, and an acyclic graph;
 - a status that agrees with the graph: no unit `blocked` once its dependencies have landed, and none
@@ -38,7 +38,6 @@ UNIT_KEYS = (
     "depends_on",
     "blocks",
     "parallel_safe",
-    "owner",
     "milestone",
     "paid",
     "adrs",
@@ -79,7 +78,7 @@ _UNSUPPORTED_ARROWS = ("-.->", "==>", "---", "-->|", "&")
 """Mermaid edge forms the diagram check does not read, so a line using one is reported."""
 
 type Units = dict[str, dict[str, str]]
-type BoardRow = tuple[int, str, str, str, str, str, str]
+type BoardRow = tuple[int, str, str, str, str, str]
 
 
 def roadmap_milestones(text: str) -> frozenset[str]:
@@ -93,27 +92,8 @@ def roadmap_milestones(text: str) -> frozenset[str]:
     return frozenset(found)
 
 
-def roadmap_owners(text: str) -> frozenset[str]:
-    """The first names in the ROADMAP Workload table, the "All members" row excluded."""
-    lines = [line for _, line in numbered_prose_lines(text)]
-    if WORKLOAD not in (line.strip() for line in lines):
-        return frozenset()
-    section = lines[[line.strip() for line in lines].index(WORKLOAD) + 1 :]
-    rows: list[str] = []
-    for line in section:
-        if line.startswith("## "):
-            break
-        if line.startswith("|"):
-            rows.append(line)
-    members = (row.strip().strip("|").split("|")[0].strip() for row in rows[2:])
-    return frozenset(m.split()[0] for m in members if m and not m.lower().startswith("all "))
-
-
 MILESTONES = roadmap_milestones(ROADMAP.read_text(encoding="utf-8"))
 """The milestone anchors `docs/ROADMAP.md` defines today."""
-
-OWNERS = roadmap_owners(ROADMAP.read_text(encoding="utf-8"))
-"""The member first names `docs/ROADMAP.md` lists today."""
 
 
 def _frontmatter(text: str) -> tuple[list[str], dict[str, str]] | None:
@@ -145,7 +125,6 @@ def unit_problems(
     tasks: Path,
     *,
     milestones: frozenset[str] = MILESTONES,
-    owners: frozenset[str] = OWNERS,
     adr_root: Path = ADR_ROOT,
 ) -> list[str]:
     """Every way the units under ``tasks`` break the schema, one sentence each.
@@ -153,7 +132,6 @@ def unit_problems(
     Args:
         tasks: The directory holding the units and their indexes.
         milestones: The anchors a unit's `milestone` may name.
-        owners: The names a unit's `owner` may be.
         adr_root: The directory whose subdirectories are the ADR topics.
 
     Returns:
@@ -164,7 +142,7 @@ def unit_problems(
     for path in sorted(tasks.glob("*.md")):
         if path.name.endswith("-index.md") or path.name == BACKLOG:
             continue
-        fields = _file_problems(path, problems, owners=owners, adr_root=adr_root)
+        fields = _file_problems(path, problems, adr_root=adr_root)
         if fields is not None:
             units[path.stem] = fields
     problems.extend(milestone_problems(milestones, units))
@@ -210,9 +188,7 @@ def _adr_problems(name: str, value: str, adr_root: Path) -> list[str]:
     return problems
 
 
-def _file_problems(
-    path: Path, problems: list[str], *, owners: frozenset[str], adr_root: Path
-) -> dict[str, str] | None:
+def _file_problems(path: Path, problems: list[str], *, adr_root: Path) -> dict[str, str] | None:
     """Append one unit file's own problems, returning its frontmatter when it has one."""
     text = path.read_text(encoding="utf-8")
     parsed = _frontmatter(text)
@@ -232,10 +208,6 @@ def _file_problems(
         for key in ("parallel_safe", "paid")
         if fields.get(key) not in BOOLEANS
     )
-    if fields.get("owner") not in owners:
-        problems.append(
-            f"{path.name}: owner {fields.get('owner')!r} is not a ROADMAP member {sorted(owners)}"
-        )
     problems.extend(_adr_problems(path.name, fields.get("adrs", ""), adr_root))
     bodies = _section_bodies(text)
     for section in REQUIRED_SECTIONS:
@@ -290,23 +262,23 @@ def _cycles(graph: dict[str, list[str]]) -> list[str]:
     return on_cycle
 
 
-def board_row(line: str) -> tuple[str, str, str, str, str, str] | None:
-    """One board row's unit, linked file and Status, Depends on, Owner and Milestone cells.
+def board_row(line: str) -> tuple[str, str, str, str, str] | None:
+    """One board row's unit, linked file and Status, Depends on and Milestone cells.
 
     Split on ``|`` rather than matched by one pattern: a pattern of lazy cells between optional
     whitespace backtracks cubically on a long run of spaces with no closing ``|``.
 
     Returns:
-        ``None`` when the row does not have exactly five cells or its first is not a unit link.
+        ``None`` when the row does not have exactly four cells or its first is not a unit link.
     """
     stripped = line.strip()
     if not (stripped.startswith("|") and stripped.endswith("|")):
         return None
     cells = [cell.strip() for cell in stripped[1:-1].split("|")]
-    if len(cells) != 5 or (unit := _UNIT_CELL.fullmatch(cells[0])) is None:
+    if len(cells) != 4 or (unit := _UNIT_CELL.fullmatch(cells[0])) is None:
         return None
     row_id, row_file = unit.groups()
-    return row_id, row_file, cells[1], cells[2], cells[3], cells[4]
+    return row_id, row_file, cells[1], cells[2], cells[3]
 
 
 def _board_rows(index: Path, problems: list[str]) -> list[BoardRow]:
@@ -331,9 +303,7 @@ def _board_problems(tasks: Path, units: Units) -> list[str]:
     problems: list[str] = []
     rows: dict[str, list[str]] = {}
     for index in sorted(tasks.glob("*-index.md")):
-        for number, row_id, row_file, status, depends, owner, milestone in _board_rows(
-            index, problems
-        ):
+        for number, row_id, row_file, status, depends, milestone in _board_rows(index, problems):
             if row_id != row_file:
                 problems.append(f"{index.name}: line {number}: row {row_id!r} links {row_file}.md")
             rows.setdefault(row_id, []).append(index.name)
@@ -344,7 +314,6 @@ def _board_problems(tasks: Path, units: Units) -> list[str]:
             cells = {
                 "Status": (status, fields.get("status", "")),
                 "Depends on": (sorted(_names(depends)), declared_depends),
-                "Owner": (owner, fields.get("owner", "")),
                 "Milestone": (milestone, fields.get("milestone", "")),
             }
             problems.extend(
@@ -426,11 +395,10 @@ def test_every_unit_in_the_repository_holds_the_schema() -> None:
     assert problems == [], "task units break the schema:\n" + "\n".join(problems)
 
 
-def test_the_roadmap_still_yields_milestones_and_owners() -> None:
-    """Both vocabularies are read from `docs/ROADMAP.md`; an empty read would refuse every unit,
+def test_the_roadmap_still_yields_milestones() -> None:
+    """The vocabulary is read from `docs/ROADMAP.md`; an empty read would refuse every unit,
     or, with `tasks/` empty, pass silently while the doc lost its structure."""
     assert MILESTONES, f"no `## ` milestone heading before {WORKLOAD!r} in {ROADMAP.name}"
-    assert OWNERS, f"no member row under {WORKLOAD!r} in {ROADMAP.name}"
 
 
 def test_the_milestone_check_refuses_a_name_outside_the_given_set() -> None:
@@ -441,14 +409,13 @@ def test_the_milestone_check_refuses_a_name_outside_the_given_set() -> None:
 
 
 def test_the_roadmap_readers_take_only_their_sections() -> None:
-    """Headings after the Workload are not milestones, and "All members" owns nothing."""
+    """Headings after the Workload are not milestones."""
     text = (
         "# Roadmap\n\n## Status Update 1\n\nx\n\n## Final Report\n\n## Workload\n\n"
         "| Member | Workstream |\n|---|---|\n| Ada Lovelace | Engines. |\n"
         "| All members | Reviews. |\n\n## Beyond the proposal\n"
     )
     assert roadmap_milestones(text) == {"status-update-1", "final-report"}
-    assert roadmap_owners(text) == {"Ada"}
 
 
 def test_the_board_row_parser_does_not_backtrack_on_a_long_run() -> None:
@@ -470,7 +437,6 @@ status: {status}
 depends_on: {depends}
 blocks: {blocks}
 parallel_safe: false
-owner: Joe
 milestone: final-report
 paid: false
 adrs:{adrs}
@@ -510,12 +476,11 @@ def _plant(tmp_path: Path, units: dict[str, tuple[str, str]], board: list[str]) 
     for name in board:
         depends = units[name][0] if name in units else ""
         rows.append(
-            f"| [`{name}`]({name}.md) | {_status(depends)} | {depends or '--'} "
-            "| Joe | final-report |"
+            f"| [`{name}`]({name}.md) | {_status(depends)} | {depends or '--'} | final-report |"
         )
     edges = [f"    {d} --> {name}" for name, (depends, _) in units.items() for d in _names(depends)]
     diagram = "```mermaid\nflowchart LR\n" + "\n".join(edges) + "\n```\n" if edges else ""
-    table = "| Unit | Status | Depends on | Owner | Milestone |\n|---|---|---|---|---|\n"
+    table = "| Unit | Status | Depends on | Milestone |\n|---|---|---|---|\n"
     text = f"# Set\n\n{table}" + "\n".join(rows) + f"\n\n{diagram}"
     (tmp_path / "set-index.md").write_text(text, encoding="utf-8")
     return tmp_path
@@ -537,7 +502,12 @@ def test_a_well_formed_synthetic_set_passes(tmp_path: Path) -> None:
 
 _DEFECTS: list[tuple[str, str, Callable[[str], str], str]] = [
     ("status", "a.md", lambda t: t.replace("status: ready", "status: done"), "status 'done'"),
-    ("missing-key", "a.md", lambda t: t.replace("owner: Joe\n", ""), "frontmatter keys"),
+    (
+        "missing-key",
+        "a.md",
+        lambda t: t.replace("milestone: final-report\n", ""),
+        "frontmatter keys",
+    ),
     (
         "duplicate-key",
         "a.md",
@@ -569,10 +539,10 @@ _DEFECTS: list[tuple[str, str, Callable[[str], str], str]] = [
         "is not a topic/slug id",
     ),
     (
-        "owner-not-a-member",
+        "owner-is-not-a-key",
         "a.md",
-        lambda t: t.replace("owner: Joe", "owner: Nobody"),
-        "owner 'Nobody' is not a ROADMAP member",
+        lambda t: t.replace("paid: false\n", "paid: false\nowner: Joe\n"),
+        "frontmatter keys",
     ),
     (
         "milestone-not-a-roadmap-milestone",
@@ -655,10 +625,9 @@ _DEFECTS: list[tuple[str, str, Callable[[str], str], str]] = [
     (
         "depends-cell",
         "set-index.md",
-        lambda t: t.replace("| a | Joe", "| -- | Joe"),
+        lambda t: t.replace("| a | final-report", "| -- | final-report"),
         "Depends on cell",
     ),
-    ("owner-cell", "set-index.md", lambda t: t.replace("| Joe |", "| Krish |", 1), "Owner cell"),
     (
         "milestone-cell",
         "set-index.md",

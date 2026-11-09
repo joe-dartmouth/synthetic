@@ -5,7 +5,7 @@ Sources: [RESEARCH.md](RESEARCH.md), the plan of record; facts verified outside 
 > **Status: built.** Each stage's README says what the stage holds.
 
 How the system fits together. The method each stage implements is in
-[RESEARCH.md](RESEARCH.md#3-approach); each stage's README is the home for its role, extra, owner
+[RESEARCH.md](RESEARCH.md#3-approach); each stage's README is the home for its role, extra
 and status.
 
 ## Tools
@@ -63,8 +63,8 @@ location and API spend. Each run's artifacts live in its folder under `runs/`
 
 ## Package map
 
-Which pipeline stage each subpackage serves. Each stage README is the one home for its role, extra,
-owner and status, and ADR [`tooling/src-layout`](adr/tooling/src-layout.md) records the layout; what
+Which pipeline stage each subpackage serves. Each stage README is the one home for its role, extra
+and status, and ADR [`tooling/src-layout`](adr/tooling/src-layout.md) records the layout; what
 each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 
 | Subpackage | Stage |
