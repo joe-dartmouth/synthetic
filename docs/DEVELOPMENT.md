@@ -1491,12 +1491,31 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `probe` waits for the server's `/health` while it loads, sends one call for four records of
   `<55/female/1`, and logs each decoded record, the seconds it took and the reply's reasoning
   length as `reasoning_chars=`; it exits 2 if the server does not ready, serves another model
-  (a base id's server for its `-thinking` id, or the reverse, included), nothing decodes, or a
-  `-thinking` id's reply carries no reasoning (a `WARNING` names it). Stop the server with `pkill`
-  whether or not the probe passes. One model is served at a time; a local model bills nothing. A
-  run's first call logs the `local server` line (the model, whether it thinks, the served file,
-  the server's build and the file's pinned sha256) and refuses a server serving another model, and a local run keeps at most four calls in flight
-  (`bko.generate.local.SLOTS`), logging `local in_flight=` when `--in-flight` asked for more.
+  (a base id's server for its `-thinking` id, or the reverse, included), fails the pre-flight
+  below, or nothing decodes. Its own no-reasoning `WARNING` fires only when the pre-flight
+  reasoned and the full call did not. Stop the server with `pkill` whether or not the probe
+  passes. One model is served at a time; a local model bills nothing. A run's first call refuses a
+  server serving another model. For a `-thinking` id it then sends one pre-flight call, the
+  probe's at `max_tokens` 64, and refuses a server whose reply carries no `reasoning_content`,
+  such as one started with `--reasoning-format none`: the run fails before its first call with
+  `the local server for <model> does not reason: build=<build> path=<path> sha256=<sha256> preflight_reasoning_chars=0 stop_reason=<reason> content_chars=<n>`,
+  each later call of the run fails with the same message without another pre-flight, and `probe`
+  exits 2 with that `ERROR` line. A pre-flight that fails retryably, such as a status of 500 or
+  above, leaves the next call to check again. A checked server logs the `local server` line (the
+  model, `thinking=` from the model id's pin rather than read from the server, the served file,
+  the server's build and the file's pinned sha256, and for a `-thinking` id
+  `preflight_reasoning_chars=`). Each live call of a `-thinking` id logs one `reasoning` line from
+  `bko.generate.reasoning`:
+  `reasoning request_id=<id> stop_reason=<reason> reasoning_chars=<n> reasoning_tokens=<n> content_chars=<n> output_tokens=<n>`,
+  its request id and stop reason with whitespace and unprintable characters written as `\u`
+  escapes and cut at `bko.generate.reasoning.FIELD_CHARS`. Its reasoning tokens are the server's
+  `/tokenize` re-tokenization of `reasoning_content`, not a count kept while generating; a
+  `/tokenize` that fails or waits past `TOKENIZE_SECONDS` logs them as `unknown`, and the run's
+  first such failure logs one `tokenize failed: <status or exception>` `WARNING`. The line is a
+  `WARNING` ending ` reason=truncated_while_reasoning` when the reply stopped at `max_tokens` with
+  reasoning and no content. A replay logs no `reasoning` line, as it logs no `local server` line.
+  A local run keeps at most four calls in flight (`bko.generate.local.SLOTS`), logging
+  `local in_flight=` when `--in-flight` asked for more.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

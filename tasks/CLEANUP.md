@@ -55,36 +55,6 @@ links to where its blocker is tracked.
   `grep -rn "^from bko.evaluate.\(data\|diabetes\) import" src/bko | grep -v "^src/bko/evaluate/"`
   lists only `src/bko/app/steps.py` until then.
 
-## generate
-
-- **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking
-  id's reasoning mode.** `bko.generate.local.check_server` compares the `/props` alias and weights
-  file name only, so a base-model server started under a `-thinking` alias without
-  `--reasoning on --reasoning-format deepseek` passes it and the run measures thinking off under
-  the thinking id; only `probe`'s `reasoning_chars=0` shows it. Evidence: `check_server`
-  (`src/bko/generate/local.py`) and the PR #70 review (observability and security lenses). *Filed
-  2026-11-02 by the thinking-cost landing.*
-  **Why deferred.** The two thinking-cost runs are done and `probe` now exits 2 on a thinking id
-  that returns no reasoning; a `/props` field for the reasoning setting needs a server build to
-  check against.
-  **What discharges it:** `check_server` reads the server's reasoning setting from `/props` (or
-  refuses a thinking id when it cannot), pinned by a test whose server reports reasoning off.
-  **Trigger:** the next thinking-on local run.
-
-- **`cleanup:generate/thinking-reasoning-per-call-log`: no per-call reasoning share and no
-  truncated-while-reasoning reason in the logs.** The `generate` line in `bko.generate.calls` has
-  no reasoning split (`reasoning_chars` is logged only by `probe`), and a `max_tokens` stop after
-  reasoning reads as `short ... reason=truncated` with no reasoning length, so thinking that ate
-  the budget cannot be told from an answer cut short without `/tokenize` over the call log.
-  Evidence: `src/bko/generate/calls.py` and the PR #70 review (observability lens). *Filed
-  2026-11-02 by the thinking-cost landing.*
-  **Why deferred.** The landed thinking-cost runs hold the split from `/tokenize` over their call
-  logs, and the `generate` line's bytes are shared with every paid arm, so changing it is its own
-  change.
-  **What discharges it:** a local-only per-call line carries reasoning tokens and characters, and
-  a truncated reply with reasoning logs its own reason, pinned by tests over a thinking reply.
-  **Trigger:** the next thinking-on local run.
-
 ## tests
 
 - **`cleanup:tests/root-guard-misses-warnings-and-quiet-levels`: the root-logger guard misses

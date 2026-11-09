@@ -5,10 +5,8 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
-import threading
 import time
 from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
@@ -16,145 +14,42 @@ import bko.generate.local as local_module
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.scoring import _in_flight
 from bko.generate.calls import ask
+from bko.generate.chat import reply_of
 from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.local import (
+    PREFLIGHT_TOKENS,
+    PROBE_ROWS,
     SLOTS,
+    check_server,
     local_send,
     loopback,
     main,
     payload,
     probe,
-    reasoning_chars,
-    reply_of,
+    probe_call,
     serve_command,
     wait_ready,
 )
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, Reply, record_schema
+from bko.generate.reasoning import reasoning_chars
 from bko.generate.replay import Replay
 from bko.generate.weights import LOCAL_MODELS, model_path
-from tests._generate_fixtures import GUIDANCE
-
-
-MODEL = "olmo-3-7b-instruct-q8_0"
-BASE = "gemma-4-26b-a4b-q8_0"
-THINKING = "gemma-4-26b-a4b-q8_0-thinking"
-CALL = Call(dataclasses.replace(SETTINGS, model=MODEL), 0, 1, "sys", "usr", frame=UCI_FRAME)
-RECORD: dict[str, int | float] = {
-    "age": 45,
-    "sex": 0,
-    "cp": 4,
-    "trestbps": 130,
-    "chol": 250,
-    "fbs": 0,
-    "restecg": 0,
-    "thalach": 150,
-    "exang": 1,
-    "oldpeak": 1.5,
-    "slope": 2,
-    "ca": 0,
-    "thal": 7,
-    "target": 1,
-}
-PROPS: dict[str, object] = {
-    "model_alias": MODEL,
-    "model_path": f"/w/{LOCAL_MODELS[MODEL].filename}",
-    "build_info": "b1-test",
-    "total_slots": 4,
-}
-
-
-def completion(
-    records: list[dict[str, int | float]],
-    finish: str = "stop",
-    reasoning_content: object = None,
-    content: str | None = None,
-) -> dict[str, object]:
-    message: dict[str, object] = {
-        "role": "assistant",
-        "content": json.dumps({"records": records}) if content is None else content,
-    }
-    if reasoning_content is not None:
-        message["reasoning_content"] = reasoning_content
-    return {
-        "id": "chatcmpl-1",
-        "model": MODEL,
-        "choices": [
-            {
-                "index": 0,
-                "finish_reason": finish,
-                "message": message,
-            }
-        ],
-        "usage": {"prompt_tokens": 900, "completion_tokens": 120},
-    }
-
-
-class Server:
-    """A llama-server fake on an ephemeral loopback port: `/props`, `/health`, and each chat POST
-    answered in turn with a status and a body (bytes sent as they are, else JSON).
-
-    Attributes:
-        requests: Each POST's method, path, content type and JSON body.
-        closed: Set when a delayed POST sees the client hang up.
-    """
-
-    def __init__(
-        self,
-        answers: list[tuple[int, object]],
-        *,
-        props: dict[str, object] = PROPS,
-        delay: float = 0.0,
-    ) -> None:
-        self.answers = answers
-        self.requests: list[tuple[str, str, str, object]] = []
-        self.closed = threading.Event()
-        fake = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def _send(self, status: int, body: object) -> None:
-                data = body if isinstance(body, bytes) else json.dumps(body).encode()
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-
-            def do_GET(self) -> None:
-                self._send(200, props if self.path == "/props" else {"status": "ok"})
-
-            def do_POST(self) -> None:
-                length = int(self.headers["Content-Length"])
-                body = json.loads(self.rfile.read(length))
-                kind = self.headers["Content-Type"]
-                fake.requests.append((self.command, self.path, kind, body))
-                if delay:
-                    # Wait for the client to hang up, as llama-server notices a closed socket.
-                    self.connection.settimeout(delay)
-                    try:
-                        if self.connection.recv(1) == b"":
-                            fake.closed.set()
-                            return
-                    except TimeoutError:
-                        pass
-                self._send(*fake.answers.pop(0))
-
-            def log_message(self, format: str, *args: object) -> None:  # ruff: ignore[builtin-argument-shadowing]
-                return
-
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.port = self.httpd.server_address[1]
-        self.url = f"http://127.0.0.1:{self.port}"
-        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
-
-    def __enter__(self) -> Server:
-        self.thread.start()
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self.httpd.shutdown()
-        self.httpd.server_close()
+from tests._generate_fixtures import (
+    BASE,
+    CALL,
+    GUIDANCE,
+    MODEL,
+    PREFLIGHT,
+    PROPS,
+    RECORD,
+    THINKING,
+    THINKING_CALL,
+    THINKING_PROPS,
+    Server,
+    completion,
+)
 
 
 @pytest.fixture
@@ -424,9 +319,6 @@ def test_a_local_log_replays_its_text_and_decodes_as_logged(tmp_path):
     assert len(batch.candidates) == 2
 
 
-THINKING_CALL = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=THINKING))
-
-
 def test_the_thinking_payload_differs_from_the_plain_one_in_model_and_thinking_alone():
     plain = payload(dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE)))
     thinking = payload(THINKING_CALL)
@@ -500,8 +392,7 @@ def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(mo
 
 def test_the_server_line_names_thinking_for_a_variant(caplog):
     caplog.set_level("INFO")
-    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
-    with Server([(200, completion([RECORD]))], props=props) as fake:
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
         asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
     lines = [m for m in caplog.messages if m.startswith("local server ")]
     assert [m.split()[:4] for m in lines] == [
@@ -544,14 +435,8 @@ def test_a_thinking_reply_decodes_from_content_alone():
     assert candidates[: len(candidates) - undecoded_in(candidates)] == (RECORD,)
 
 
-@pytest.mark.parametrize("thoughts", [7, ["a"], {"a": 1}, True])
-def test_reasoning_that_is_not_text_counts_zero(thoughts):
-    assert reasoning_chars(reply_of(completion([RECORD], reasoning_content=thoughts))) == 0
-
-
 def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, caplog):
-    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
-    with Server([(200, completion([RECORD]))], props=props) as fake:
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
@@ -564,8 +449,146 @@ def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, cap
 def test_a_thinking_probe_with_reasoning_exits_zero(monkeypatch):
     props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
     body = completion([RECORD], reasoning_content="think")
-    with Server([(200, body)], props=props) as fake:
+    with Server([PREFLIGHT, (200, body)], props=props) as fake:
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
         assert main(["probe", THINKING]) == 0
+
+
+def test_a_thinking_id_whose_preflight_holds_no_reasoning_is_refused(monkeypatch, caplog):
+    """A server that does not parse reasoning out, as under `--reasoning-format none`, answers
+    the pre-flight with its thoughts in the content; the run stops before its first call."""
+    unsplit = completion([], finish="length", content="<|channel>thought\n plan")
+    with Server([(200, unsplit), (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
+        with pytest.raises(GenerationError, match="does not reason") as caught:
+            asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        fake.answers.insert(0, (200, unsplit))
+        with caplog.at_level("INFO"):
+            assert main(["probe", THINKING]) == 2
+    assert not caught.value.retryable
+    preflight = payload(probe_call(THINKING, 4, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight, preflight]
+    assert preflight["max_tokens"] == PREFLIGHT_TOKENS == 64
+    assert fake.answers == [(200, completion([RECORD]))]
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert errors == [_refusal(len("<|channel>thought\n plan"))]
+    assert not [m for m in caplog.messages if m.startswith("local server ")]
+
+
+def test_a_thinking_id_whose_preflight_reasons_passes(caplog):
+    caplog.set_level("INFO")
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
+        reply = asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    assert reply.text == json.dumps({"records": [RECORD]})
+    preflight = payload(probe_call(THINKING, 4, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight, payload(THINKING_CALL)]
+    lines = [m for m in caplog.messages if m.startswith("local server ")]
+    assert lines == [
+        (
+            f"local server model={THINKING} thinking=true path={THINKING_PROPS['model_path']} "
+            f"build=b1-test slots=4 sha256={LOCAL_MODELS[THINKING].sha256} "
+            "preflight_reasoning_chars=4"
+        )
+    ]
+
+
+def test_a_base_id_sends_no_preflight():
+    props = {**PROPS, "model_alias": BASE, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    base_call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE))
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        asyncio.run(local_send(BASE, url=fake.url)(base_call))
+    assert [request[3] for request in fake.requests] == [payload(base_call)]
+    assert fake.tokenized == []
+
+
+def _refusal(content_chars: int) -> str:
+    return (
+        f"the local server for {THINKING} does not reason: build=b1-test "
+        f"path={THINKING_PROPS['model_path']} sha256={LOCAL_MODELS[THINKING].sha256} "
+        f"preflight_reasoning_chars=0 stop_reason=max_tokens content_chars={content_chars}"
+    )
+
+
+def test_a_refused_preflight_is_kept_so_later_calls_fail_at_once():
+    unsplit = completion([], finish="length", content="")
+    with Server([(200, unsplit)], props=THINKING_PROPS) as fake:
+        send = local_send(THINKING, url=fake.url)
+        for _ in range(3):
+            with pytest.raises(GenerationError) as caught:
+                asyncio.run(send(THINKING_CALL))
+            assert str(caught.value) == _refusal(0)
+            assert not caught.value.retryable
+    preflight = payload(probe_call(THINKING, PROBE_ROWS, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight]
+
+
+def test_a_failed_preflight_is_retryable_and_the_next_call_checks_again():
+    answers: list[tuple[int, object]] = [
+        (503, {"error": "busy"}),
+        PREFLIGHT,
+        (200, completion([RECORD])),
+    ]
+    with Server(answers, props=THINKING_PROPS) as fake:
+        send = local_send(THINKING, url=fake.url)
+        with pytest.raises(GenerationError, match="status=503") as caught:
+            asyncio.run(send(THINKING_CALL))
+        reply = asyncio.run(send(THINKING_CALL))
+    assert caught.value.retryable
+    assert reply.text == json.dumps({"records": [RECORD]})
+    preflight = payload(probe_call(THINKING, PROBE_ROWS, max_tokens=PREFLIGHT_TOKENS))
+    assert [r[3] for r in fake.requests] == [preflight, preflight, payload(THINKING_CALL)]
+
+
+def test_a_preflight_whose_reasoning_is_not_text_is_refused():
+    body = completion([], finish="length", reasoning_content=["plan"], content="")
+    with (
+        Server([(200, body)], props=THINKING_PROPS) as fake,
+        pytest.raises(GenerationError, match="does not reason") as caught,
+    ):
+        check_server(THINKING, fake.port)
+    assert not caught.value.retryable
+
+
+def test_the_server_check_refuses_an_unlisted_model_by_name():
+    with pytest.raises(GenerationError, match="no-such-model is not a local model") as caught:
+        check_server("no-such-model", 9)
+    assert not caught.value.retryable
+
+
+def test_a_call_cancelled_while_another_checks_the_server_posts_nothing():
+    """The second call waits on the check's lock; cancelled there, it never posts once the lock
+    frees, though its closed connection would reconnect."""
+    answers: list[tuple[int, object]] = [
+        PREFLIGHT,
+        (200, completion([RECORD])),
+        (200, completion([RECORD])),
+    ]
+    with Server(answers, props=THINKING_PROPS, delay=1.0) as fake:
+        send = local_send(THINKING, url=fake.url)
+
+        async def race() -> Reply:
+            first = asyncio.ensure_future(send(THINKING_CALL))
+            await asyncio.sleep(0.2)
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.3):
+                    await send(THINKING_CALL)
+            return await first
+
+        reply = asyncio.run(race())
+    assert reply.text == json.dumps({"records": [RECORD]})
+    preflight = payload(probe_call(THINKING, PROBE_ROWS, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight, payload(THINKING_CALL)]
+
+
+def test_a_body_nested_past_the_parsers_limit_is_not_json():
+    deep = b"[" * 1_000_000 + b"]" * 1_000_000
+    with (
+        Server([(200, deep)]) as fake,
+        pytest.raises(GenerationError, match="not JSON") as caught,
+    ):
+        asyncio.run(local_send(MODEL, url=fake.url)(CALL))
+    assert not caught.value.retryable

@@ -59,10 +59,16 @@ def test_generate_imports_no_release_loader():
 
 def test_generate_opens_no_other_network_client():
     """`bko.generate.local` alone opens one, `http.client` to the loopback llama.cpp server, and
-    parses its address with `urllib.parse`; `bko.generate.weights` names `http.client` for its
-    exceptions and downloads through `bko.datasets.fetch.open_https`."""
+    parses its address with `urllib.parse`; `bko.generate.reasoning` posts `/tokenize` on the
+    connection `local` opened, naming `http.client` for its type and exceptions;
+    `bko.generate.weights` names `http.client` for its exceptions and downloads through
+    `bko.datasets.fetch.open_https`. No call in `reasoning` opens a connection."""
     clients = ("urllib", "http.client", "httpx2", "httpx", "requests")
-    allowed = {Path("src/bko/generate/local.py"), Path("src/bko/generate/weights.py")}
+    allowed = {
+        Path("src/bko/generate/local.py"),
+        Path("src/bko/generate/reasoning.py"),
+        Path("src/bko/generate/weights.py"),
+    }
     assert _importers(*clients) == allowed
     for path in allowed:
         used = {
@@ -71,6 +77,25 @@ def test_generate_opens_no_other_network_client():
             if any(name == c or name.startswith(f"{c}.") for c in clients)
         }
         assert used <= {"http.client", "urllib.parse", "urllib.parse.urlsplit"}, path
+    assert _connections(PACKAGE / "reasoning.py") == []
+
+
+def _connections(path: Path) -> list[str]:
+    """Each call in `path` to a name, or an attribute, ending `Connection`, as written."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return [
+        ast.unparse(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and (
+            (isinstance(node.func, ast.Name) and node.func.id.endswith("Connection"))
+            or (isinstance(node.func, ast.Attribute) and node.func.attr.endswith("Connection"))
+        )
+    ]
+
+
+def test_the_connection_check_finds_the_local_connections():
+    assert _connections(PACKAGE / "local.py").count("http.client.HTTPConnection") >= 1
 
 
 SOURCE = REPO_ROOT / "src"
