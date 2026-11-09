@@ -124,6 +124,7 @@ def test_cllm_keeps_an_exact_set_at_one_seed(tmp_path):
     assert baseline.added["thalach"].tolist() == [100, 105, 110]
     assert baseline.params["curation"] == "classifier"
     assert baseline.params["shows"] == SHOW
+    assert "over_ask" not in baseline.params
     assert built.drain(0, built_source())[dropped("curation")] == 1
 
 

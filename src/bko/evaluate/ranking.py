@@ -89,6 +89,24 @@ class Scorers:
         return Likelihood(shares(found, self._groups[label]), rows, self._frame)
 
 
+def over_ask_error(over_ask: int, *, ranks: bool) -> str | None:
+    """Why `over_ask` is invalid for an arm that ranks its candidates or not; None if valid.
+
+    `over_ask` is 1 or more, and above 1 exactly when the arm ranks.
+
+    Args:
+        over_ask: The multiple of each cell's quota the arm asks for.
+        ranks: Whether the arm ranks its candidates (`Curation.LIKELIHOOD`, or an attempt's
+            `rank`).
+
+    Returns:
+        The refusal's message, or None for a valid `over_ask`.
+    """
+    if over_ask < 1 or (over_ask > 1) != ranks:
+        return f"over_ask {over_ask} is 1 or more, and above 1 exactly when the arm ranks"
+    return None
+
+
 def tie(holdout: int, call: int | None, position: int) -> str:
     """The order equal scores break by: `sha256(f"{holdout}:{call}:{position}")`, hex.
 

@@ -47,7 +47,7 @@ from bko.evaluate.curation import classifier_scores
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import Curation
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.ranking import Scorers, record
+from bko.evaluate.ranking import Scorers, over_ask_error, record
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues
 from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
@@ -132,10 +132,12 @@ class GuidedArm:
             over_ask: The multiple of each cell's quota a ranking arm asks for; 1 for any other.
 
         Raises:
-            EvaluationError: If `over_ask` is above 1 without likelihood curation or 1 with it.
+            EvaluationError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule
+                for likelihood curation.
         """
-        if over_ask < 1 or (over_ask > 1) != (curation is Curation.LIKELIHOOD):
-            msg = f"{name} asks over_ask {over_ask}, which needs likelihood curation and only it"
+        msg = over_ask_error(over_ask, ranks=curation is Curation.LIKELIHOOD)
+        if msg is not None:
+            msg = f"{name} asks {msg}"
             raise EvaluationError(msg)
         self.name = name
         self._prescribe = prescribe
@@ -242,6 +244,8 @@ class GuidedArm:
             params["shows"] = SHOW
         if self._curation is not None:
             params["curation"] = self._curation.value
+        if self._over_ask > 1:
+            params["over_ask"] = self._over_ask
         if short:
             params["short"] = {cell_key(cell): rows for cell, rows in short.items()}
         request = attempt.request

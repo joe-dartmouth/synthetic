@@ -89,16 +89,6 @@ links to where its blocker is tracked.
   and its rows at minus infinity, with a test that reads it.
   **Trigger:** the next change to `attempts.py` or `guided.py`.
 
-- **`cleanup:evaluate/over-ask-rule-three-places`: the `over_ask` rule is written three times.**
-  `Experiment`'s `MessagesArm` check (`experiment.py:325`), `GuidedArm.__init__` (`guided.py:137`)
-  and `Attempt.__init__` (`attempts.py:137`) each state when `over_ask` is valid, with three
-  messages and two different conditions (likelihood curation in two, a `rank` in the third).
-  *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The three agree today; the fix touches three modules.
-  **What discharges it:** one function states the rule and the other two call it, with a test per
-  condition.
-  **Trigger:** a change to what `over_ask` means or a fourth reader of it.
-
 - **`cleanup:evaluate/ranked-replay-test-drained-measures`: the ranked replay test does not
   compare drained measures.** `tests/test_evaluate_ranked.py::test_a_ranked_arm_replays_byte_for_byte`
   compares the candidates file bytes and `added` between a live and a replayed run, and discards
@@ -119,15 +109,6 @@ links to where its blocker is tracked.
   **What discharges it:** the test reads `fill_to` and the removed count off `E6_CURATED`, keeping
   the measured rate as the one literal.
   **Trigger:** the next change to `E6_THIN`, `E6_CURATED` or that test.
-
-- **`cleanup:evaluate/guided-arm-params-lack-over-ask`: `GuidedArm`'s logged params omit
-  `over_ask`.** The `params` that `GuidedArm` hands each `Baseline` (`guided.py:235` to `245`)
-  hold `shows`, `curation` and `short` and not `over_ask`, so a ranked arm's attempt records how it
-  curated but not how many rows it asked per quota. *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The value is in `MESSAGES_ARMS` and in the call log's requests, and the change
-  is to `src/`.
-  **What discharges it:** `params` carries `over_ask` for a ranking arm, with a test.
-  **Trigger:** the next change to `GuidedArm`.
 
 - **`cleanup:evaluate/frames-below-evaluate`: `bko.gaps` cannot import the Synthea and Diabetes
   frames.** The `contradictions` census is a gap-stage reading, but it lives in

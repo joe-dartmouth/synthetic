@@ -38,7 +38,7 @@ from bko.evaluate.holdout_candidates import (
     REJECTED,
     Seen,
 )
-from bko.evaluate.ranking import tie
+from bko.evaluate.ranking import over_ask_error, tie
 from bko.evaluate.scores import Measure
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.calls import Batch
@@ -139,10 +139,11 @@ class Attempt:
         on `holdout`, and counts `Drop.LIKELIHOOD`.
 
         Raises:
-            ValueError: If `over_ask` is above 1 without a `rank`, or below 1.
+            ValueError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule for an
+                attempt with or without a `rank`.
         """
-        if over_ask < 1 or (over_ask > 1 and rank is None):
-            msg = f"over_ask {over_ask} needs a rank, and is 1 or more"
+        msg = over_ask_error(over_ask, ranks=rank is not None)
+        if msg is not None:
             raise ValueError(msg)
         self.train = train
         self.request = request

@@ -146,6 +146,7 @@ def test_a_ranked_arm_asks_over_ask_times_the_quota_and_keeps_the_best(tmp_path,
     assert [asked_of(call) for call in send.calls] == [spec.over_ask * QUOTA]
     assert baseline.added["thalach"].tolist() == [101, 103, 105]
     assert baseline.params["curation"] == "likelihood"
+    assert baseline.params["over_ask"] == 2
     assert [(s.outcome, s.score) for s in seen_of(built)] == [
         ("kept" if value in {101, 103, 105} else "dropped-likelihood", {"likelihood": score})
         for value, score in scores.items()
@@ -372,7 +373,7 @@ def test_record_reads_every_column_as_a_float_and_refuses_anything_else():
 def test_a_guided_arm_asks_over_ask_with_likelihood_curation_only(tmp_path, over_ask, curation):
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
     flight = Flight(ScriptedSend(), log, Limits(1, None), spendable=partial(spendable, log, 50.0))
-    with pytest.raises(EvaluationError, match="needs likelihood curation and only it"):
+    with pytest.raises(EvaluationError, match="above 1 exactly when the arm ranks"):
         GuidedArm(
             CURATED,
             None,
@@ -387,7 +388,7 @@ def test_a_guided_arm_asks_over_ask_with_likelihood_curation_only(tmp_path, over
 
 @pytest.mark.parametrize(("over_ask", "ranks"), [(2, False), (0, True), (0, False)])
 def test_an_attempt_asks_over_ask_with_a_rank_only(over_ask, ranks):
-    with pytest.raises(ValueError, match="needs a rank"):
+    with pytest.raises(ValueError, match="above 1 exactly when the arm ranks"):
         Attempt(
             train(),
             REQUEST,
@@ -395,6 +396,57 @@ def test_an_attempt_asks_over_ask_with_a_rank_only(over_ask, ranks):
             rank=(lambda seen: [0.0] * len(seen)) if ranks else None,
             over_ask=over_ask,
         )
+
+
+@pytest.mark.parametrize(
+    ("over_ask", "ranks", "valid"),
+    [
+        (1, False, True),
+        (2, True, True),
+        (2, False, False),
+        (1, True, False),
+        (0, False, False),
+        (0, True, False),
+    ],
+)
+def test_every_reader_of_over_ask_states_one_rule(tmp_path, over_ask, ranks, valid):
+    """`MessagesArm`, `GuidedArm` and `Attempt` accept and refuse the same `over_ask`."""
+    rule = "above 1 exactly when the arm ranks"
+    curation = Curation.LIKELIHOOD if ranks else None
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
+    flight = Flight(ScriptedSend(), log, Limits(1, None), spendable=partial(spendable, log, 50.0))
+    readers: list[tuple[type[Exception], Callable[[], object]]] = [
+        (ValueError, lambda: MessagesArm(None, curation=curation, over_ask=over_ask)),
+        (
+            EvaluationError,
+            lambda: GuidedArm(
+                CURATED,
+                None,
+                Knowledge("uci", {}, (), ()),
+                log=log,
+                budget=1,
+                flight=flight,
+                curation=curation,
+                over_ask=over_ask,
+            ),
+        ),
+        (
+            ValueError,
+            lambda: Attempt(
+                train(),
+                REQUEST,
+                12,
+                rank=(lambda seen: [0.0] * len(seen)) if ranks else None,
+                over_ask=over_ask,
+            ),
+        ),
+    ]
+    for error, build in readers:
+        if valid:
+            build()
+        else:
+            with pytest.raises(error, match=rule):
+                build()
 
 
 @pytest.mark.parametrize("bad", [math.nan, math.inf])

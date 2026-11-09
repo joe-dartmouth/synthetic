@@ -21,6 +21,7 @@ from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import kept_count
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.ranking import over_ask_error
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
 from bko.generate.presence import Presence
@@ -336,8 +337,8 @@ class MessagesArm:
         Raises:
             ValueError: If the spec is inconsistent.
         """
-        if self.over_ask < 1 or (self.over_ask > 1) != (self.curation is Curation.LIKELIHOOD):
-            msg = f"over_ask {self.over_ask} needs likelihood curation and only it"
+        msg = over_ask_error(self.over_ask, ranks=self.curation is Curation.LIKELIHOOD)
+        if msg is not None:
             raise ValueError(msg)
         if self.prescribes and self.shows:
             msg = "a Messages arm prescribes concepts or shows records, not both"
