@@ -10,7 +10,10 @@ updated: 2026-11-08
 
 A reader who sees a generated row asks why it looks as it does. Each arm kind determines its rows
 differently. `bko-direct` draws them from the fused BKB's shares and training records with a seeded
-generator, so every fact behind a record can be recomputed. A Messages arm sends a prompt and keeps
+generator, so every fact behind a record can be recomputed; `bko-logic` draws the same way with
+presence from the ontology's constraints alone. `bko-direct-pram` and `bko-direct-perturbed` change
+a direct draw's unmapped fields, by PRAM or by a rewrite call, and their candidate lines hold the
+changed rows. A Messages arm sends a prompt and keeps
 the model's reply; the prompt and the call are stored, and the model's choice of value within them
 is not. A baseline fits a method at a seed. A run folder keeps the call log, the draw log and the
 `arm` sha256 of each stored fill (ADR `research/rebuilt-rows-store`), but no per-record account.
@@ -20,7 +23,7 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
 * **Must state only facts the run folder stores or a re-draw reproduces**, never a guess at what a
   model did.
 * **Must refuse a re-draw that does not reproduce the stored fill.**
-* **Must add no random draw to `bko-direct`**, so a seed's records stay the same.
+* **Must add no random draw to a direct arm**, so a seed's records stay the same.
 * **Must keep source record ids out of anything a user downloads.**
 
 ## Decision
@@ -32,14 +35,24 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      the S-node names (head `(concept, "a")`, the class component in its one state
      `bko.ontology.fragments.INDIVIDUAL`; tail `(__Source__[concept], <source>)`); per field, the
      source training record id; the fallback fields; the closure; and the validation outcome.
+   * `bko-logic`: as `bko-direct`, drawn with presence `LOGIC`; its concepts are the closed draw
+     (`bko.generate.direct.Draw.closed`), not share priors.
+   * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
+     facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
+     (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when
+     the line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`), the
+     fields that differ from the draw, and the draw's values for them.
    * Messages arms: the call index, the guidance level, the prompt's sections as `prompt.sections`
      returns them (the gap statements with their labels as rendered), and the validation outcome.
    * Baselines: the method and the seed.
    * Not traceable: a model's choice of value within its prompt.
-3. **Mechanism.** `bko.evaluate.trace` re-draws a `bko-direct` fill at the logged attempt's seed
-   with no extra random draw. It refuses (exit 3) a holdout whose `split` line the data does not
-   reproduce, a re-drawn fill whose digest is not the sha256 of the folder's `arm` line, and
-   re-drawn kept records that are not the candidates file's kept lines. It writes `trace.jsonl`
+3. **Mechanism.** `bko.evaluate.trace` re-draws a fill of an arm of `DIRECT_ARMS` at the logged
+   attempt's seed with that arm's presence and no extra random draw, and rebuilds a perturbation
+   arm's fill from its candidate lines over that re-draw. It refuses (exit 3) a holdout whose
+   `split` line the data does not reproduce, a re-drawn fill whose digest is not the sha256 of the
+   folder's `arm` line, re-drawn kept records that are not the candidates file's kept lines, a
+   direct fill whose `arm` line's `presence` is not its arm's, and a perturbation fill whose
+   rebuilt rows miss its `arm` sha256 or whose unperturbed columns differ from the re-draw. It writes `trace.jsonl`
    with sorted keys, one line per record, one per fill for a baseline.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
 4. **Readers.** The app reads only `trace.jsonl` and a Demo fill's own run folder
@@ -66,10 +79,11 @@ not need it.
 
 ## Consequences
 
-**Gained**: a per-record account of a `bko-direct` fill that a digest check keeps honest, and the
-prompt and call behind a Messages record, with no API call.
-**Accepted**: a Messages record's explanation stops at its prompt; a `bko-direct` trace needs the
-data the run used and refuses on any drift; `trace.jsonl` holds record ids and stays in its run
+**Gained**: a per-record account of every direct and perturbation arm's fill that a digest check
+keeps honest, and the prompt and call behind a Messages record, with no API call.
+**Accepted**: a Messages record's explanation stops at its prompt, and a rewrite row's at its
+result and changed fields; a direct or perturbation trace needs the data the run used and refuses
+on any drift; `trace.jsonl` holds record ids and stays in its run
 folder.
 
 ## Ruled Out
