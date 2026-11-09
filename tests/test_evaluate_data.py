@@ -230,15 +230,15 @@ def test_the_validate_entry_points_require_the_frame(check):
         check([planted()])
 
 
-def test_the_candidates_header_names_frame_and_data_and_is_schema_3(tmp_path):
+def test_the_candidates_header_names_frame_and_data_and_is_schema_4(tmp_path):
     data = _toy_data()
     origin = Origin("toy", data, {})
     messages = tmp_path / "messages.jsonl"
     with CandidateFile(messages, origin, SETTINGS):
         pass
     header = read(messages.read_bytes()).header
-    assert SCHEMA == 3
-    assert header["schema"] == 3
+    assert SCHEMA == 4
+    assert header["schema"] == 4
     assert (header["frame"], header["data"]) == ("toy", data.digest)
     assert "uci" not in header
     assert header["settings"] == json.loads(json.dumps(dataclasses.asdict(SETTINGS)))
@@ -252,11 +252,11 @@ def test_the_candidates_header_names_frame_and_data_and_is_schema_3(tmp_path):
         CandidatesFormatError, match="schema-1 header's uci digest is not the pinned"
     ):
         read((json.dumps(schema_1) + "\n").encode())
-    for schema in (4, [1], 1.0, True):
-        with pytest.raises(CandidatesFormatError, match=r"not one of \[1, 2, 3\]"):
+    for schema in (5, [1], 1.0, True):
+        with pytest.raises(CandidatesFormatError, match=r"not one of \[1, 2, 3, 4\]"):
             read((json.dumps({**header, "schema": schema}) + "\n").encode())
     with pytest.raises(
-        CandidatesFormatError, match="schema-3 candidates file's header has the keys"
+        CandidatesFormatError, match="schema-4 candidates file's header has the keys"
     ):
         read((json.dumps({**older, "uci": "ab" * 32}) + "\n").encode())
     for missing in ("frame", "data"):

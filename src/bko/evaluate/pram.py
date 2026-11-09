@@ -6,9 +6,10 @@ redrawn from the training rows of its row's label, so each field redraws toward 
 training marginal. A field's value and the row's other fields are redrawn independently, so a
 redrawn row need not keep its fields' joint combination. Its draws come from
 `numpy.random.default_rng([seed, PRAM_STREAM])` at the request's seed, a stream apart from
-`bko-direct`'s own at that seed, field by field in column order. It makes no call. Mapped
-fields, `age`, `sex` and the label keep their drawn values. ADR `research/identifier-perturbation`
-records the arm.
+`bko-direct`'s own at that seed, field by field in column order. Each row's candidates line's
+`perturb` says whether its record differs from its draw (`changed`) or not (`unchanged`). It makes
+no call. Mapped fields, `age`, `sex` and the label keep their drawn values. ADR
+`research/identifier-perturbation` records the arm.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.perturb import Changed, Perturbing, Record, drawn_frame, native
+from bko.evaluate.perturb import Changed, Perturbing, Record, differs, drawn_frame, native
 
 
 if TYPE_CHECKING:
@@ -118,7 +119,12 @@ class PramArm(Perturbing):
         start = 0
         for cell, records in drawn.items():
             changed[cell] = [
-                Changed(native(row, frame)) for row in rows[start : start + len(records)]
+                Changed(record, result="changed" if differs(old, record) else "unchanged")
+                for old, record in zip(
+                    records,
+                    (native(row, frame) for row in rows[start : start + len(records)]),
+                    strict=True,
+                )
             ]
             start += len(records)
         fill = CURRENT_FILL.get()

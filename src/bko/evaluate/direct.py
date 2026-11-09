@@ -203,7 +203,7 @@ class DirectArm:
 
         The sampler's lines name `fill`'s holdout and kind, or none outside a harness fill. With
         `change`, each cell's rows are its changed rows, and each one a call changed carries that
-        call and its position there on its candidate line.
+        call and its position there on its candidate line, and each one a step read its `perturb`.
 
         Returns:
             How many draws read a field from the label group (`Draw.fallback`).
@@ -231,11 +231,13 @@ class DirectArm:
             first = len(attempt.seen)
             attempt.add(None, cell, len(rows), [row.record for row in changed[cell]])
             for offset, row in enumerate(changed[cell]):
+                at = first + offset
                 if row.call is not None:
-                    at = first + offset
                     attempt.seen[at] = replace(
                         attempt.seen[at], call=row.call, position=row.position
                     )
+                if row.result is not None:
+                    attempt.seen[at] = replace(attempt.seen[at], perturb=row.result)
         if short := attempt.short():
             msg = f"{self.name} left {len(short)} cells short: {attempt.line()}"
             raise BaselineError(msg)

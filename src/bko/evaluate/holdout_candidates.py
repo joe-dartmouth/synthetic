@@ -13,10 +13,11 @@ decoded `candidate` or the reason it is `undecoded`, its `outcome` and the check
 outcome is `kept`, `rejected` (by `bko.validate`, with its failed checks), or `dropped-range`,
 `dropped-cell`, `dropped-concepts` (a prescribing arm's alone), `dropped-curation` (a curating
 arm's alone) or `dropped-quota` (by `bko.baselines.records.drops`), or `dropped-likelihood` (a
-ranking arm's alone, by `bko.evaluate.attempts.Attempt.rows`). A schema-3 line of a scoring arm
-also holds the `score` its curator read: `confidence` and `aleatoric` on a curating arm's line that
-passed validation, `likelihood` on a ranking arm's line it ranked, null for minus infinity. Each
-(arm, holdout, fill)'s lines count what its candidate scores count.
+ranking arm's alone, by `bko.evaluate.attempts.Attempt.rows`). A schema-3 or schema-4 line of a
+scoring arm also holds the `score` its curator read: `confidence` and `aleatoric` on a curating
+arm's line that passed validation, `likelihood` on a ranking arm's line it ranked, null for minus
+infinity. A schema-4 line of a perturbation arm also holds its step's `perturb` result
+(`PERTURB`). Each (arm, holdout, fill)'s lines count what its candidate scores count.
 
 An arm writes a fill's lines when the harness drains it, so a stopped run's file holds the fills
 drained before the stop. Every line's keys are sorted and no line holds a time, so a replay of a
@@ -30,6 +31,7 @@ import dataclasses
 import json
 import math
 import os
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,7 +47,7 @@ from bko.evaluate.scores import Source
 from bko.generate.messages import Settings
 
 
-SCHEMA: Final = 3
+SCHEMA: Final = 4
 """The file format's version, written in the header."""
 
 FILLS: Final[Mapping[Source, str]] = MappingProxyType(
@@ -62,20 +64,26 @@ REJECTED: Final = "rejected"
 OUTCOMES: Final = (KEPT, REJECTED, *(f"dropped-{drop}" for drop in Drop))
 """Every outcome a line names."""
 
+PERTURB: Final = re.compile(r"(perturbed|unchanged|changed|refused_[a-z_]+)")
+"""A perturbation line's result, as the `perturb holdout=` line names it."""
+
 _HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
     {
         1: frozenset({"kind", "schema", "run", "uci", "releases"}),
         2: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
-        SCHEMA: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
+        3: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
+        4: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
     }
 )
 """Each readable schema's header keys besides `settings`: schema 1, the judged run's, names UCI's
-archive digest under `uci`; schemas 2 and 3 name the frame and the records' digest, and only a
-schema-3 line may hold a `score`."""
+archive digest under `uci`; schemas 2 to 4 name the frame and the records' digest. Only a schema-3
+or schema-4 line may hold a `score`, and only a schema-4 line a `perturb`."""
 
 _SETTINGS: Final = "settings"
 
 _SCORE: Final = "score"
+
+_PERTURB: Final = "perturb"
 
 _LINE: Final = frozenset(
     {
@@ -123,6 +131,8 @@ class Seen:
         failed: The checks it failed, for a rejected candidate.
         score: What its arm's curator read of it, by name, None for minus infinity; None for a
             candidate no curator read.
+        perturb: What its arm's perturbation step did to it, matching `PERTURB`; None for a
+            candidate no perturbation step read.
     """
 
     call: int | None
@@ -133,6 +143,7 @@ class Seen:
     outcome: str
     failed: tuple[str, ...]
     score: Mapping[str, float | None] | None = None
+    perturb: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +206,11 @@ class Candidate:
         """What its arm's curator read of it, or None."""
         return self.seen.score
 
+    @property
+    def perturb(self) -> str | None:
+        """What its arm's perturbation step did to it, or None."""
+        return self.seen.perturb
+
     def line(self) -> dict[str, object]:
         """The candidate as its line's JSON object."""
         seen = self.seen
@@ -217,6 +233,7 @@ class Candidate:
             "outcome": seen.outcome,
             "failed": list(seen.failed),
             **({} if seen.score is None else {_SCORE: dict(seen.score)}),
+            **({} if seen.perturb is None else {_PERTURB: seen.perturb}),
         }
 
 
@@ -343,17 +360,18 @@ def read(data: bytes) -> HoldoutCandidates:
     if schema == 1 and first["uci"] != UCI_HEART_DISEASE.sha256:
         msg = f"the schema-1 header's uci digest is not the pinned archive's: {first['uci']!r}"
         raise CandidatesFormatError(msg)
-    scored = schema == SCHEMA
+    optional = {_SCORE} if schema >= 3 else set()
+    optional |= {_PERTURB} if schema >= 4 else set()
     return HoldoutCandidates(
         MappingProxyType(first),
-        tuple(_candidate(number, line, scored=scored) for number, line in enumerate(rest, start=2)),
+        tuple(_candidate(number, line, optional) for number, line in enumerate(rest, start=2)),
     )
 
 
-def _candidate(number: int, line: object, *, scored: bool) -> Candidate:
+def _candidate(number: int, line: object, optional: set[str]) -> Candidate:
     if not isinstance(line, dict) or line.get("kind") != "candidate":
         _refuse(number, "is not a candidate line")
-    item = set(line) - _LINE - ({_SCORE} if scored else set())
+    item = set(line) - _LINE - optional
     if not set(line) >= _LINE or item not in ({"candidate"}, {"undecoded"}):
         _refuse(number, f"holds the keys {sorted(line)}")
     undecoded = line.get("undecoded")
@@ -371,6 +389,8 @@ def _candidate(number: int, line: object, *, scored: bool) -> Candidate:
         line["outcome"] in OUTCOMES,
         isinstance(failed, list) and all(isinstance(check, str) for check in failed),
         _SCORE not in line or _score(line[_SCORE]),
+        _PERTURB not in line
+        or (isinstance(line[_PERTURB], str) and PERTURB.fullmatch(line[_PERTURB]) is not None),
     )
     if not all(checks):
         _refuse(number, "holds a value of the wrong type")
@@ -387,6 +407,7 @@ def _candidate(number: int, line: object, *, scored: bool) -> Candidate:
         line["outcome"],
         tuple(failed),
         line.get(_SCORE),
+        line.get(_PERTURB),
     )
     return Candidate(
         line["holdout"], line["arm"], line["fill"], line["attempt"], line["returned"], seen

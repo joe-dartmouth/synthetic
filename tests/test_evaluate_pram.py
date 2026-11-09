@@ -399,3 +399,18 @@ def test_the_stored_arm_rebuilds_the_pram_arms_rows_to_its_arm_sha(tmp_path, cap
     out = io.StringIO()
     assert main(argv, context=ctx, out=out) == 0
     assert out.getvalue() == (folder / "scores.csv").read_text(encoding="utf-8")
+
+
+def test_every_pram_line_carries_changed_or_unchanged(tmp_path, caplog):
+    _prammed(tmp_path, caplog)
+    found = read((tmp_path / "run" / "holdout-candidates.jsonl").read_bytes())
+    mine = [line for line in found.candidates if line.arm == PRAM_ARM]
+    assert {line.perturb for line in mine} == {"changed", "unchanged"}
+    for holdout in (0, 1):
+        changed = sum(line.perturb == "changed" for line in mine if line.holdout == holdout)
+        (shapes,) = [
+            m
+            for m in caplog.messages
+            if m.startswith(f"perturb shapes holdout={holdout} arm={PRAM_ARM} ")
+        ]
+        assert int(shapes.split(" rows_changed=")[1].split(" ")[0]) == changed

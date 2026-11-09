@@ -16,7 +16,8 @@ refused, keeping its original, when its item holds other keys than `row` and the
 (`keys`, the harness's key-set check), the merged row fails `bko.validate` (`validate`, with the
 checks it failed), or a measured field leaves the training range (`bounds`). A merged row takes
 its fields' values as `bko.evaluate.perturb.native` writes them: an integral `float` of a
-whole-number field becomes its `int`, since `bko.validate` has refused any other. ADR
+whole-number field becomes its `int`, since `bko.validate` has refused any other. Each row's
+outcome, as `named` names it, is its candidates line's `perturb`. ADR
 `research/identifier-perturbation` records the arm and the merge.
 """
 
@@ -203,8 +204,11 @@ class PerturbedArm(Perturbing):
             merged = merge(batch.candidates, rows, fields=self.fields, bounds=bounds, frame=frame)
             counts.update(merged.outcomes)
             for offset, (row, outcome) in enumerate(zip(merged.rows, merged.outcomes, strict=True)):
-                if outcome in TAKEN:
-                    changed[cell][start + offset] = Changed(row, batch.index, offset)
+                changed[cell][start + offset] = (
+                    Changed(row, batch.index, offset, result=named(outcome))
+                    if outcome in TAKEN
+                    else Changed(dict(rows[offset]), result=named(outcome))
+                )
             logger.info(
                 "perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s "
                 "stop_reason=%s checks=%s quota_off=%d",
@@ -289,12 +293,17 @@ def quota_off(
     return off
 
 
+def named(outcome: str) -> str:
+    """`outcome` as the `perturb holdout=` and candidates lines name it.
+
+    A refusal takes the prefix `refused_`.
+    """
+    return f"{'' if outcome in TAKEN else 'refused_'}{outcome}"
+
+
 def counted(counts: Mapping[str, int]) -> str:
-    """Each of `OUTCOMES`' row count in `counts`, a refusal's key prefixed `refused_`."""
-    return "".join(
-        f" {'' if outcome in TAKEN else 'refused_'}{outcome}={counts.get(outcome, 0)}"
-        for outcome in OUTCOMES
-    )
+    """Each of `OUTCOMES`' row count in `counts`, keyed as `named` names it."""
+    return "".join(f" {named(outcome)}={counts.get(outcome, 0)}" for outcome in OUTCOMES)
 
 
 def _guidance(cell: Stratum) -> Guidance:

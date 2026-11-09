@@ -322,10 +322,26 @@ RANKED: Final = {
 """A schema-3 line of the ranking arm, with its score."""
 
 
-def test_read_accepts_schemas_1_to_3():
-    assert SCHEMA == 3
-    schema_3 = HEADER.replace(b'"schema": 2', b'"schema": 3')
-    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, schema_3)
+SCHEMA_3: Final = HEADER.replace(b'"schema": 2', b'"schema": 3')
+"""A schema-3 header line: lines may hold a `score`, and none a `perturb`."""
+
+SCHEMA_4: Final = HEADER.replace(b'"schema": 2', b'"schema": 4')
+"""A schema-4 header line: lines may hold a `score` and a `perturb`."""
+
+PERTURBED: Final = {
+    **{key: value for key, value in LINE.items() if key != "undecoded"},
+    "arm": "bko-direct-perturbed",
+    "candidate": {"age": 40},
+    "outcome": "kept",
+    "failed": [],
+    "perturb": "refused_keys",
+}
+"""A schema-4 line of a perturbation arm, with its result."""
+
+
+def test_read_accepts_schemas_1_to_4():
+    assert SCHEMA == 4
+    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, SCHEMA_3, SCHEMA_4)
     for head in heads:
         (line,) = read(head + json.dumps(LINE).encode() + b"\n").candidates
         assert line.line() == LINE
@@ -336,10 +352,11 @@ def test_read_accepts_schemas_1_to_3():
         "outcome": "kept",
         "score": {"aleatoric": 0.1, "confidence": 0.9},
     }
-    for scored in (RANKED, undrawable, curated):
-        (line,) = read(schema_3 + json.dumps(scored).encode() + b"\n").candidates
-        assert line.score == scored["score"]
-        assert line.line() == scored
+    for head in (SCHEMA_3, SCHEMA_4):
+        for scored in (RANKED, undrawable, curated):
+            (line,) = read(head + json.dumps(scored).encode() + b"\n").candidates
+            assert line.score == scored["score"]
+            assert line.line() == scored
     for head in heads[:2]:
         with pytest.raises(CandidatesFormatError, match="keys"):
             read(head + json.dumps(RANKED).encode() + b"\n")
@@ -352,7 +369,35 @@ def test_read_accepts_schemas_1_to_3():
         {"likelihood": 10**400},
     ):
         with pytest.raises(CandidatesFormatError, match="wrong type"):
-            read(schema_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
+            read(SCHEMA_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
+
+
+def test_a_schema_3_file_with_scores_still_reads():
+    (line,) = read(SCHEMA_3 + json.dumps(RANKED).encode() + b"\n").candidates
+    assert (line.arm, line.score, line.perturb) == ("bko-curated", {"likelihood": -4.25}, None)
+    assert line.line() == RANKED
+
+
+def test_a_perturb_key_on_a_schema_3_line_is_refused():
+    with pytest.raises(CandidatesFormatError, match="keys"):
+        read(SCHEMA_3 + json.dumps(PERTURBED).encode() + b"\n")
+    (line,) = read(SCHEMA_4 + json.dumps(PERTURBED).encode() + b"\n").candidates
+    assert line.perturb == "refused_keys"
+    assert line.line() == PERTURBED
+
+
+@pytest.mark.parametrize("result", ["rewritten", "refused_", "Perturbed", 1, None])
+def test_a_perturb_value_outside_its_set_is_refused(result):
+    with pytest.raises(CandidatesFormatError, match="wrong type"):
+        read(SCHEMA_4 + json.dumps({**PERTURBED, "perturb": result}).encode() + b"\n")
+
+
+def test_a_line_without_perturb_writes_no_perturb_key():
+    seen = Seen(None, "<55/female/1", 0, {"age": 40}, None, "kept", ())
+    assert "perturb" not in Candidate(0, "bko-direct", "gap", 1, True, seen).line()
+    changed = dataclasses.replace(seen, perturb="unchanged")
+    line = Candidate(0, "bko-direct-pram", "gap", 1, True, changed).line()
+    assert line["perturb"] == "unchanged"
 
 
 def test_a_score_of_nan_is_refused_at_write_time(tmp_path):
