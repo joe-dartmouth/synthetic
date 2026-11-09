@@ -47,18 +47,20 @@ TRAIN = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
 
 def test_class_weights_reach_the_regression_row_by_row():
     spy = Spy()
-    baseline = augment(UNBALANCED, Method.CLASS_WEIGHT, Request())
-    shuffled = training_set(UNBALANCED, baseline).sample(frac=1.0, random_state=0)
+    baseline = augment(UNBALANCED, Method.CLASS_WEIGHT, Request(frame=UCI_FRAME))
+    shuffled = training_set(UNBALANCED, baseline, frame=UCI_FRAME).sample(frac=1.0, random_state=0)
     probabilities(shuffled, UNBALANCED, factory=spy, frame=UCI_FRAME)
     labels, weights = spy.models[0].seen
     assert weights == pytest.approx(np.where(labels == 0, 36 / 24, 36 / 48))
 
 
 def test_added_rows_follow_the_real_rows_at_weight_one():
-    request = Request(quota={FLAGGED[0]: 3}, seed=0)
+    request = Request(quota={FLAGGED[0]: 3}, seed=0, frame=UCI_FRAME)
     baseline = augment(TRAIN, Method.SMOTE, request, methods=FAST_METHODS)
     spy = Spy()
-    probabilities(training_set(TRAIN, baseline), TRAIN, factory=spy, frame=UCI_FRAME)
+    probabilities(
+        training_set(TRAIN, baseline, frame=UCI_FRAME), TRAIN, factory=spy, frame=UCI_FRAME
+    )
     labels, weights = spy.models[0].seen
     assert len(weights) == len(TRAIN) + 3
     assert weights[-3:].tolist() == [1.0] * 3

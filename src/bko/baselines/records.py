@@ -23,7 +23,6 @@ import pandas as pd
 from bko.baselines.errors import OutputContractError
 from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 
 
 INDEX_NAME: Final = "record_id"
@@ -81,7 +80,7 @@ def number(added: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def no_rows(frame: FrameSpec = UCI_FRAME) -> pd.DataFrame:
+def no_rows(frame: FrameSpec) -> pd.DataFrame:
     """An added frame with no rows, `frame`'s columns and their dtypes."""
     columns = {name: pd.Series(dtype=dtype) for name, dtype in frame.dtypes.items()}
     return number(pd.DataFrame(columns))
@@ -92,9 +91,7 @@ def unit_weights(train: pd.DataFrame) -> pd.Series:
     return pd.Series(1.0, index=train.index, name="weight")
 
 
-def training_set(
-    train: pd.DataFrame, baseline: Baseline, *, frame: FrameSpec = UCI_FRAME
-) -> pd.DataFrame:
+def training_set(train: pd.DataFrame, baseline: Baseline, *, frame: FrameSpec) -> pd.DataFrame:
     """The rows a classifier fits on: real rows with their weights, then added rows at 1.0.
 
     The result has `frame`'s columns and `weight`; the real rows keep `baseline.weights`.
@@ -103,7 +100,7 @@ def training_set(
     return pd.concat([real, baseline.added.assign(weight=1.0)])
 
 
-def whole(values: pd.DataFrame, frame: FrameSpec = UCI_FRAME) -> pd.DataFrame:
+def whole(values: pd.DataFrame, frame: FrameSpec) -> pd.DataFrame:
     """Round generated values to `frame`'s precision and cast them to its dtypes.
 
     Whole-number columns round to the nearest integer and fractional ones (UCI's `oldpeak`) to
@@ -137,9 +134,7 @@ def keep(rows: int, of: int, *, seed: int, label: object) -> list[int]:
     return sorted(sorted(range(of), key=rank)[:rows])
 
 
-def within_split(
-    rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec = UCI_FRAME
-) -> pd.DataFrame:
+def within_split(rows: pd.DataFrame, train: pd.DataFrame, frame: FrameSpec) -> pd.DataFrame:
     """Whether each row's value of each of `frame`'s numeric columns lies in the split's range."""
     return pd.DataFrame(
         {name: rows[name].between(train[name].min(), train[name].max()) for name in frame.numeric},

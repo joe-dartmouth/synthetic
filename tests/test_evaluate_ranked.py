@@ -57,7 +57,7 @@ CURATED: Final = "bko-curated"
 HOLDOUT: Final = 0
 KIND: Final = "replica"
 QUOTA: Final = 3
-REQUEST: Final = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+REQUEST: Final = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
 REAL_CHANGES: Final = (
     {"cp": 4},
     {},
@@ -257,7 +257,7 @@ def test_a_ranked_line_names_its_fills_holdout_and_its_requests_seed(tmp_path, m
     scores = {101: -1.0, 102: -5.0, 103: -2.0, 104: -6.0, 105: -3.0, 106: -4.0}
     scored(monkeypatch, scores)
     built, log = ranked(tmp_path, ScriptedSend(reply(women(*scores))))
-    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=5)
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=5, frame=UCI_FRAME)
     token = CURRENT_FILL.set(Fill(7, KIND))
     try:
         with log:
@@ -283,7 +283,9 @@ def test_a_ranked_attempt_logs_its_cells_in_quota_order(tmp_path, monkeypatch, c
             return reply([{**well_woman(), "thalach": value} for value in well])
 
     built, log = ranked(tmp_path, ByLabel())
-    request = Request(quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     with log:
         built(train(), request)
     assert list(request.quota) == [YOUNG_WELL, YOUNG_SICK]
@@ -310,7 +312,9 @@ def test_ranking_is_per_call_cell(tmp_path, monkeypatch):
 
     send = ByLabel()
     built, log = ranked(tmp_path, send)
-    request = Request(quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     with log:
         baseline = built(train(), request)
     assert sorted(asked_of(call) for call in send.calls) == [4, 4]
@@ -350,7 +354,7 @@ def test_a_cell_holding_its_quota_keeps_everything_with_no_tie():
 
 def test_a_cut_at_minus_infinity_counts_no_tie():
     """The second kept row and the dropped one both read minus infinity: no finite tie."""
-    request = Request(quota={YOUNG_SICK: 2}, strata=Strata.CELL, seed=0)
+    request = Request(quota={YOUNG_SICK: 2}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
     table = {101: -math.inf, 102: -math.inf, 103: -2.0}
     attempt = Attempt(
         train(),
@@ -368,7 +372,9 @@ def test_a_cut_at_minus_infinity_counts_no_tie():
 def test_a_row_outside_its_calls_cell_is_dropped_for_its_cell():
     """An older sick woman from the young cell's call does not count toward the older cell."""
     old_sick = (">=55", "female", 1)
-    request = Request(quota={YOUNG_SICK: 1, old_sick: 1}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 1, old_sick: 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     attempt = Attempt(
         train(), request, 12, rank=lambda seen: [0.0] * len(seen), over_ask=2, holdout=HOLDOUT
     )
@@ -537,6 +543,7 @@ def test_a_ranked_arm_builds_its_cells_scorers_from_one_stratum_pass(tmp_path, m
         quota={YOUNG_SICK: 1, YOUNG_WELL: 1, (">=55", "female", 1): 1},
         strata=Strata.CELL,
         seed=0,
+        frame=UCI_FRAME,
     )
     built._rank(train(), request)
     assert keyed == [len(train())]

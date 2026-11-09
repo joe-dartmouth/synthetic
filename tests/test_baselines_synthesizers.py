@@ -25,6 +25,7 @@ from bko.baselines.synthesizers import (
     seeded,
     tvae,
 )
+from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import (
     QUOTA,
     TINY_CTGAN,
@@ -54,7 +55,7 @@ class FakeModel:
 
 
 def test_fill_meets_the_quota_stratum_by_stratum():
-    request = Request(quota=QUOTA)
+    request = Request(quota=QUOTA, frame=UCI_FRAME)
     got = fill(FakeModel(TRAIN), request, method="fake", batch=50, limit=10_000)
     assert cell_list(got) == [stratum for stratum, n in request.quota.items() for _ in range(n)]
     assert got.index.tolist() == list(range(-1, -len(got) - 1, -1))
@@ -62,10 +63,22 @@ def test_fill_meets_the_quota_stratum_by_stratum():
 
 def test_fill_names_the_harness_fill_or_none_in_its_filled_line(caplog):
     caplog.set_level(logging.INFO, logger=synth_module.logger.name)
-    fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=50, limit=10_000)
+    fill(
+        FakeModel(TRAIN),
+        Request(quota=QUOTA, frame=UCI_FRAME),
+        method="fake",
+        batch=50,
+        limit=10_000,
+    )
     token = CURRENT_FILL.set(Fill(7, "replica"))
     try:
-        fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=50, limit=10_000)
+        fill(
+            FakeModel(TRAIN),
+            Request(quota=QUOTA, frame=UCI_FRAME),
+            method="fake",
+            batch=50,
+            limit=10_000,
+        )
     finally:
         CURRENT_FILL.reset(token)
     filled = [m for m in caplog.messages if m.startswith("filled ")]
@@ -81,7 +94,7 @@ def test_each_synthesizer_names_the_harness_fill_in_its_fit_line(name, caplog):
     caplog.set_level(logging.INFO, logger=synth_module.logger.name)
     token = CURRENT_FILL.set(Fill(5, "gap"))
     try:
-        adapter(TRAIN, Request(quota=QUOTA, seed=3), parameters=parameters)
+        adapter(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME), parameters=parameters)
     finally:
         CURRENT_FILL.reset(token)
     fits = [m for m in caplog.messages if m.startswith("fit ")]
@@ -92,7 +105,13 @@ def test_each_synthesizer_names_the_harness_fill_in_its_fit_line(name, caplog):
 def test_fill_takes_a_stratums_first_matches_in_draw_order():
     pool = TRAIN.iloc[:40]
     stratum = cell_list(pool)[0]
-    got = fill(FakeModel(pool), Request(quota={stratum: 2}), method="fake", batch=40, limit=40)
+    got = fill(
+        FakeModel(pool),
+        Request(quota={stratum: 2}, frame=UCI_FRAME),
+        method="fake",
+        batch=40,
+        limit=40,
+    )
     first = FakeModel(pool)(40)
     expected = first.loc[[cell == stratum for cell in cell_list(first)]].head(2)
     assert got.to_numpy().tolist() == expected.to_numpy().tolist()
@@ -101,7 +120,7 @@ def test_fill_takes_a_stratums_first_matches_in_draw_order():
 def test_fill_refuses_a_stratum_the_model_never_reaches():
     model = FakeModel(TRAIN.loc[TRAIN["sex"] == 1])
     with pytest.raises(ShortfallError, match="fake asked for 200 rows and still lacks") as caught:
-        fill(model, Request(quota=QUOTA), method="fake", batch=50, limit=200)
+        fill(model, Request(quota=QUOTA, frame=UCI_FRAME), method="fake", batch=50, limit=200)
     assert model.calls == [50, 50, 50, 50]
     error = caught.value
     assert error.baseline is None
@@ -113,7 +132,7 @@ def test_fill_refuses_a_stratum_the_model_never_reaches():
 
 def test_fill_tolerates_a_short_batch():
     model = FakeModel(TRAIN, short=1)
-    got = fill(model, Request(quota=QUOTA), method="fake", batch=50, limit=10_000)
+    got = fill(model, Request(quota=QUOTA, frame=UCI_FRAME), method="fake", batch=50, limit=10_000)
     assert sorted(cell_list(got)) == sorted(s for s, n in QUOTA.items() for _ in range(n))
 
 
@@ -142,7 +161,9 @@ def runs(request):
     def run(ambient, seed):
         np.random.seed(ambient)
         torch.manual_seed(ambient)
-        return adapter(TRAIN, Request(quota=QUOTA, seed=seed), parameters=parameters)
+        return adapter(
+            TRAIN, Request(quota=QUOTA, seed=seed, frame=UCI_FRAME), parameters=parameters
+        )
 
     return run(1, 3), run(2, 3), run(1, 4)
 
@@ -166,7 +187,7 @@ def test_a_different_seed_gives_different_rows(runs):
 )
 def test_training_is_built_for_the_cpu(factory, parameters):
     """Without `enable_gpu=False`, ctgan picks MPS on Apple Silicon and CUDA where present."""
-    assert build_synthesizer(factory, parameters).enable_gpu is False
+    assert build_synthesizer(factory, parameters, frame=UCI_FRAME).enable_gpu is False
 
 
 @pytest.mark.parametrize(
@@ -174,13 +195,17 @@ def test_training_is_built_for_the_cpu(factory, parameters):
 )
 def test_the_locked_parameters_fit_this_frame(adapter, parameters):
     """SDV's defaults with one epoch: batch 500 on 112 records, the geometry the real run uses."""
-    result = adapter(TRAIN, Request(quota=QUOTA), parameters={**parameters, "epochs": 1})
+    result = adapter(
+        TRAIN, Request(quota=QUOTA, frame=UCI_FRAME), parameters={**parameters, "epochs": 1}
+    )
     assert_contract(result.added, TRAIN, QUOTA)
 
 
 def test_fill_refuses_a_request_beyond_its_limit():
     with pytest.raises(BaselineError, match="draws at most 5"):
-        fill(FakeModel(TRAIN), Request(quota=QUOTA), method="fake", batch=5, limit=5)
+        fill(
+            FakeModel(TRAIN), Request(quota=QUOTA, frame=UCI_FRAME), method="fake", batch=5, limit=5
+        )
 
 
 def _raise_while_seeded() -> None:
@@ -221,7 +246,7 @@ def test_a_synthesizer_short_at_its_limit_hands_back_its_rows_as_a_baseline(monk
     capped = functools.partial(fill, batch=50, limit=200)
     monkeypatch.setattr(synth_module, "fill", capped)
     with pytest.raises(ShortfallError) as caught:
-        tvae(TRAIN, Request(quota=QUOTA, seed=3), parameters=TINY_TVAE)
+        tvae(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME), parameters=TINY_TVAE)
     error = caught.value
     assert error.baseline is not None
     assert error.baseline.added.equals(error.added)

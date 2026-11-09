@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import dataclasses
+import importlib
+import inspect
+import pkgutil
+from collections.abc import Callable
 from types import MappingProxyType
 
 import numpy as np
 import pytest
 
+from bko import baselines
 from bko.baselines.request import Method, Request, Strata, Stratum, plan, stratum_keys, water_fill
 from bko.datasets.uci import UCI_FRAME
 from tests._datasets_fixtures import records
@@ -28,7 +34,7 @@ FLAGGED = {
 
 
 def test_twenty_rows_fill_both_flagged_cells_to_twenty():
-    request = plan(records(FLAGGED), 20)
+    request = plan(records(FLAGGED), 20, frame=UCI_FRAME)
     assert dict(request.quota) == {("<55", "female", 1): 18, (">=55", "female", 1): 2}
     assert request.rows == 20
 
@@ -72,7 +78,9 @@ def test_impossible_rows_are_refused(counts, rows):
 
 
 def test_label_strata_key_by_the_label_alone():
-    assert dict(plan(records(FLAGGED), 18, strata=Strata.LABEL).quota) == {(1,): 18}
+    assert dict(plan(records(FLAGGED), 18, strata=Strata.LABEL, frame=UCI_FRAME).quota) == {
+        (1,): 18
+    }
 
 
 def test_stratum_keys_follow_the_cell_columns():
@@ -103,18 +111,18 @@ def test_stratum_keys_follow_the_cell_columns():
 )
 def test_a_malformed_quota_is_refused(quota):
     with pytest.raises(ValueError, match="not a positive row count"):
-        Request(quota=quota)
+        Request(quota=quota, frame=UCI_FRAME)
 
 
 @pytest.mark.parametrize("seed", [-1, 2**32, True, 1.0])
 def test_a_seed_outside_numpys_range_is_refused(seed):
     with pytest.raises(ValueError, match="outside"):
-        Request(seed=seed)
+        Request(seed=seed, frame=UCI_FRAME)
 
 
 def test_the_quota_is_held_in_grid_order_and_apart_from_its_source():
     source: dict[Stratum, int] = {(">=55", "female", 1): 1, ("<55", "female", 1): 2}
-    request = Request(quota=source)
+    request = Request(quota=source, frame=UCI_FRAME)
     assert list(request.quota) == [("<55", "female", 1), (">=55", "female", 1)]
     assert isinstance(request.quota, MappingProxyType)
     source["<55", "male", 0] = 1
@@ -126,3 +134,38 @@ def test_only_the_controls_add_no_rows():
         Method.NONE,
         Method.CLASS_WEIGHT,
     ]
+
+
+def _frame_functions() -> list[tuple[str, Callable[..., object]]]:
+    """Every function, private ones too, that a `bko.baselines` module defines with `frame`."""
+    found = []
+    for info in pkgutil.iter_modules(baselines.__path__, "bko.baselines."):
+        module = importlib.import_module(info.name)
+        for name, function in inspect.getmembers(module, inspect.isfunction):
+            if (
+                function.__module__ == info.name
+                and "frame" in inspect.signature(function).parameters
+            ):
+                found.append((f"{info.name}.{name}", function))
+    return found
+
+
+def test_the_scan_finds_the_known_frame_functions():
+    names = {name for name, _ in _frame_functions()}
+    assert {
+        "bko.baselines.request.plan",
+        "bko.baselines.records.no_rows",
+        "bko.baselines.records.training_set",
+        "bko.baselines.records.whole",
+        "bko.baselines.records.within_split",
+        "bko.baselines.synthesizers.build_synthesizer",
+    } <= names
+
+
+def test_every_baselines_frame_parameter_is_required():
+    for name, function in _frame_functions():
+        default = inspect.signature(function).parameters["frame"].default
+        assert default is inspect.Parameter.empty, name
+    (field,) = (item for item in dataclasses.fields(Request) if item.name == "frame")
+    assert field.default is dataclasses.MISSING
+    assert field.default_factory is dataclasses.MISSING

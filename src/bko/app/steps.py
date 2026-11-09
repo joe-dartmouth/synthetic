@@ -209,7 +209,9 @@ def call_logs(context: Context, name: str) -> tuple[Path, ...]:
 
 def training_csv(analysis: Analysis, outcome: Outcome) -> str:
     """The augmented training set as `python -m bko.baselines` prints it: real rows, then added."""
-    return training_set(analysis.parts.train, outcome.baseline).to_csv(lineterminator="\n")
+    return training_set(analysis.parts.train, outcome.baseline, frame=analysis.data.frame).to_csv(
+        lineterminator="\n"
+    )
 
 
 def scores_csv(outcome: Outcome) -> str:
@@ -301,7 +303,7 @@ def _outcome(
     request, baseline = recorder.fill
     known = analysis.knowledge
     after = record_cells(
-        training_set(analysis.parts.train, baseline),
+        training_set(analysis.parts.train, baseline, frame=analysis.data.frame),
         known.field_rows,
         name=f"{known.name}-{name}",
         edges=analysis.data.frame.edges,

@@ -9,6 +9,7 @@ import pytest
 from bko.baselines.errors import BaselineError, ShortfallError
 from bko.baselines.oversample import adasyn, smote
 from bko.baselines.request import Request
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.data import digest
 from tests._baselines_fixtures import (
     EDGE,
@@ -34,36 +35,36 @@ def oversampler(request):
 
 
 def test_a_method_meets_the_contract(oversampler):
-    result = oversampler(TRAIN, Request(quota=QUOTA))
+    result = oversampler(TRAIN, Request(quota=QUOTA, frame=UCI_FRAME))
     assert_contract(result.added, TRAIN, QUOTA)
     assert set(result.params["neighbors"].values()) == {5}  # 14 records: the cap of 5 applies
 
 
 def test_the_input_frame_is_not_modified(oversampler):
     before = TRAIN.copy(deep=True)
-    oversampler(TRAIN, Request(quota=QUOTA))
+    oversampler(TRAIN, Request(quota=QUOTA, frame=UCI_FRAME))
     pd.testing.assert_frame_equal(TRAIN, before)
 
 
 def test_the_seed_alone_decides_the_rows(oversampler):
     np.random.seed(1)
-    first = oversampler(TRAIN, Request(quota=QUOTA, seed=3)).added
+    first = oversampler(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME)).added
     np.random.seed(2)
-    second = oversampler(TRAIN, Request(quota=QUOTA, seed=3)).added
+    second = oversampler(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME)).added
     pd.testing.assert_frame_equal(first, second)
 
 
 def test_a_different_seed_gives_different_rows(oversampler):
     """The positive control: an adapter that ignores the seed passes the test above."""
-    first = oversampler(TRAIN, Request(quota=QUOTA, seed=3)).added
-    assert not first.equals(oversampler(TRAIN, Request(quota=QUOTA, seed=4)).added)
+    first = oversampler(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME)).added
+    assert not first.equals(oversampler(TRAIN, Request(quota=QUOTA, seed=4, frame=UCI_FRAME)).added)
 
 
 def test_a_two_record_stratum_uses_one_neighbour(oversampler):
     ids = TRAIN.index[YOUNG]
     train = TRAIN.drop(ids[1:-1])
     kept = train.loc[[ids[0], ids[-1]], MEASURED]
-    result = oversampler(train, Request(quota={(f"<{EDGE}", "female", 1): 4}))
+    result = oversampler(train, Request(quota={(f"<{EDGE}", "female", 1): 4}, frame=UCI_FRAME))
     assert len(result.added) == 4
     for name in MEASURED:
         assert result.added[name].between(kept[name].min(), kept[name].max()).all(), name
@@ -77,7 +78,7 @@ def test_a_stratum_of_fewer_than_two_records_raises_a_shortfall_holding_the_othe
     train = TRAIN.drop(TRAIN.index[YOUNG][left:])
     young = (f"<{EDGE}", "female", 1)
     with pytest.raises(ShortfallError, match="at least 2 training records") as caught:
-        oversampler(train, Request(quota=QUOTA, seed=3))
+        oversampler(train, Request(quota=QUOTA, seed=3, frame=UCI_FRAME))
     short = caught.value
     assert short.short == {f"<{EDGE}/female/1": QUOTA[young]}
     others = {stratum: rows for stratum, rows in QUOTA.items() if stratum != young}
@@ -93,7 +94,7 @@ def test_a_stratum_of_fewer_than_two_records_raises_a_shortfall_holding_the_othe
 def test_every_stratum_empty_raises_a_shortfall_of_no_rows(oversampler):
     train = TRAIN.drop(TRAIN.index[YOUNG])
     with pytest.raises(ShortfallError) as caught:
-        oversampler(train, Request(quota={(f"<{EDGE}", "female", 1): 4}))
+        oversampler(train, Request(quota={(f"<{EDGE}", "female", 1): 4}, frame=UCI_FRAME))
     assert caught.value.baseline is not None
     assert caught.value.baseline.added.empty
     assert list(caught.value.baseline.added.columns) == EVALUATION_COLUMNS
@@ -110,21 +111,21 @@ PINNED = {
 
 @pytest.mark.parametrize(("method", "seed"), sorted(PINNED))
 def test_smote_and_adasyn_bytes_are_unchanged_off_the_structural_path(method, seed):
-    result = OVERSAMPLERS[method](TRAIN, Request(quota=QUOTA, seed=seed))
+    result = OVERSAMPLERS[method](TRAIN, Request(quota=QUOTA, seed=seed, frame=UCI_FRAME))
     assert digest(result.added) == PINNED[method, seed]
     assert result.params == {"neighbors": {str(stratum): 5 for stratum in sorted(QUOTA)}}
 
 
 @pytest.mark.parametrize("rows", [1, 2, 17])
 def test_adasyn_meets_the_quota_exactly(rows):
-    result = adasyn(TRAIN, Request(quota={(f">={EDGE}", "female", 1): rows}))
+    result = adasyn(TRAIN, Request(quota={(f">={EDGE}", "female", 1): rows}, frame=UCI_FRAME))
     assert len(result.added) == rows
 
 
 def test_adasyn_takes_each_code_from_one_parent():
     train = TRAIN.copy()
     train.loc[OLD, "cp"] = [1, 4] * 7
-    result = adasyn(train, Request(quota={(f">={EDGE}", "female", 1): 10}))
+    result = adasyn(train, Request(quota={(f">={EDGE}", "female", 1): 10}, frame=UCI_FRAME))
     assert set(result.added["cp"]) <= {1, 4}
 
 
@@ -142,10 +143,10 @@ class Refusing:
 def test_adasyn_reports_a_library_refusal(monkeypatch):
     monkeypatch.setattr("bko.baselines.oversample.ADASYN", Refusing)
     with pytest.raises(BaselineError, match="adasyn cannot fill"):
-        adasyn(TRAIN, Request(quota=QUOTA))
+        adasyn(TRAIN, Request(quota=QUOTA, frame=UCI_FRAME))
 
 
 def test_smote_reports_a_library_refusal(monkeypatch):
     monkeypatch.setattr("bko.baselines.oversample.SMOTENC", Refusing)
     with pytest.raises(BaselineError, match="smote cannot fill"):
-        smote(TRAIN, Request(quota=QUOTA))
+        smote(TRAIN, Request(quota=QUOTA, frame=UCI_FRAME))

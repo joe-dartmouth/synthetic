@@ -126,7 +126,7 @@ def test_canned_records_are_valid_in_cell_and_inside_every_holdouts_range():
         frame = pd.DataFrame(records, columns=list(FRAME_COLUMNS))
         assert _cells(frame) == {cell}
         for train in trains:
-            assert within_split(frame, train).all(axis=None)
+            assert within_split(frame, train, frame=UCI_FRAME).all(axis=None)
         assert not real & set(frame.itertuples(index=False, name=None))
 
 

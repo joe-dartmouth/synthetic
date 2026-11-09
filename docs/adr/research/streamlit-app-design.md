@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-21
-updated: 2026-11-05
+updated: 2026-11-09
 ---
 # The Streamlit app: one split of E1's harness, one paid fill per confirmed click
 
@@ -38,7 +38,9 @@ We will build the page as follows.
   app loads UCI once through `bko.evaluate.data.load`, as `score` does, and splits, observes and
   names its knowledge from that one `Data` value.
 * **Fill path**: E1's runner interface over E1's gap request on the default split, E1's first
-  holdout.
+  holdout. `Context` guards the experiment the app is built with (no page control sets it): it
+  refuses one that subsamples its training split or removes from it, since the gap analysis reads
+  E1's raw training split.
 * **Methods**: the arms of E1 that add rows, row-adding methods first, then the three BKO arms.
 * **Comparators**: every arm of `METHOD_ARMS` beside the fill; a BKO arm fills first, so a failed
   call costs no comparator's fit.

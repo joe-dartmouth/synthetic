@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-02
+updated: 2026-11-09
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -85,7 +85,7 @@ seed their sampling after every fit, and seed no fit.
   touching no global generator; the Bayesian network draws from
   `default_rng(derived_seed(seed, "bayes-net"))` the same way.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
-  defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
+  a required keyword; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
 - **Output**: in process, the added rows (the frame's columns and dtypes, indexed -1, -2, ...) and
   one weight per training record. The command writes the training set they make to stdout
@@ -146,6 +146,7 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
 | SDV's private `_set_random_state` for a per-run sampling seed | A private method; the fit seed already varies the rows | 2026-10-15 |
 | Cell-level balanced class weights | Weights the 2-record cell 238 / (8 * 2); not the class weighting the 2-pager names | 2026-10-15 |
 | scikit-learn's `compute_class_weight` | A one-line formula; the stage computes it rather than call a library for it | 2026-10-29 |
+| A `Request.frame` defaulting to `UCI_FRAME` | A caller holding another frame that omits it gets UCI's columns and codes with no error | 2026-11-09 |
 | Writing baseline datasets under `data/` | No consumer reads them; the harness calls `augment` per split | 2026-10-15 |
 | Tuning CTGAN and TVAE inside the stage | An inner split of 238 records leaves the 2-record cell nothing to validate on | 2026-10-15 |
 | Cross-platform byte identity | torch does not promise it across platforms | 2026-10-15 |

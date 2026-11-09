@@ -28,10 +28,12 @@ def test_a_row_differing_in_one_column_is_not_a_copy():
 
 def test_the_split_loses_every_record_some_frame_copies():
     test = split(GRADED, seed=0, edges=UCI_FRAME.edges).test
-    clean = decontaminated(test, [number(test.iloc[[2]]), no_rows()], frame=UCI_FRAME)
+    clean = decontaminated(
+        test, [number(test.iloc[[2]]), no_rows(frame=UCI_FRAME)], frame=UCI_FRAME
+    )
     assert list(clean.index) == [index for index in test.index if index != test.index[2]]
 
 
 def test_nothing_copied_leaves_the_split_whole():
     test = split(GRADED, seed=0, edges=UCI_FRAME.edges).test
-    assert decontaminated(test, [no_rows()], frame=UCI_FRAME).equals(test)
+    assert decontaminated(test, [no_rows(frame=UCI_FRAME)], frame=UCI_FRAME).equals(test)

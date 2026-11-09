@@ -37,33 +37,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## app
-
-- **`cleanup:app/gap-analysis-raw-split`: the app's gap analysis reads the raw training split,
-  not the prepared one.** `bko.app.steps.analyze` counts cells and finds gaps on
-  `split(...).train`, while its score step prepares each holdout through
-  `bko.evaluate.run.score_holdout`, which applies the experiment's training fraction and removal
-  (`bko.evaluate.prepare.prepared`). The app's experiment is `E1`, with neither, so the two agree
-  today. *Filed 2026-10-31 by the diff review of PR #66.*
-  **Why deferred.** No app run varies either today; changing the app's analysis is outside PR #66.
-  **What discharges it:** `analyze` reads `prepared(...).ablated.train`, or the app refuses an
-  experiment with a training fraction below 1 or a removal.
-  **Trigger:** the app taking a named run other than `e1`.
-
-## baselines
-
-- **`cleanup:baselines/request-frame-defaults-to-uci`: the baselines fall back to UCI's frame.**
-  `bko.baselines.request.Request.frame`, `bko.baselines.records.no_rows`, `training_set` and the
-  other `bko.baselines.records` helpers, and `bko.baselines.synthesizers`' metadata default `frame`
-  to `UCI_FRAME`, while the generate stage, the evaluate scoring helpers and the cell helpers
-  require it. Every `bko.evaluate` caller passes the run's frame on the request. Evidence: `grep -rn
-  "= UCI_FRAME" src/bko/baselines` lists them. *Filed 2026-10-29 by the diff review of PR #59.*
-  **Why deferred.** The entries PR #59 paid named the generate stage and the cell helpers only.
-  **What discharges it:** `frame` is required on `Request` and each helper, and ADR
-  `research/uci-evaluation-frame` drops the baselines' exception.
-  **Trigger:** the next change to `bko.baselines.request.Request`, or a non-UCI caller of a
-  baseline outside `bko.evaluate`.
-
 ## evaluate
 
 - **`cleanup:evaluate/frames-below-evaluate`: `bko.gaps` cannot import the Synthea and Diabetes

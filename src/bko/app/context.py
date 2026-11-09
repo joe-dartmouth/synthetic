@@ -87,6 +87,22 @@ class Context:
     now: Callable[[], datetime] = _utc_now
     setup_logging: Callable[[], None] = configure_logging
 
+    def __post_init__(self) -> None:
+        """Refuse an experiment whose training split the gap analysis would not read.
+
+        Raises:
+            ValueError: If the experiment subsamples its training split or removes from it,
+                since `bko.app.steps.analyze` reads the raw split.
+        """
+        experiment = self.experiment
+        if experiment.training_fraction != 1 or experiment.removal is not None:
+            msg = (
+                "the app reads the raw training split; this experiment has "
+                f"training_fraction={experiment.training_fraction} and "
+                f"removal={experiment.removal}"
+            )
+            raise ValueError(msg)
+
     def data_root(self) -> Path:
         """The data root.
 

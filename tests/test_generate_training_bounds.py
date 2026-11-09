@@ -105,7 +105,7 @@ def test_every_interval_is_what_the_drop_rule_enforces():
     steps = {"age": 1.0, "trestbps": 1.0, "chol": 1.0, "thalach": 1.0, "oldpeak": 0.1}
     for cell in (YOUNG, OLDER):
         bounds = intervals(cell, TRAIN_A, frame=UCI_FRAME)
-        request = Request(quota={cell: 100})
+        request = Request(quota={cell: 100}, frame=UCI_FRAME)
         probes: list[tuple[dict[str, float], Drop | None]] = []
         for name, (low, high) in bounds.items():
             probes += [({name: low}, None), ({name: high}, None)]
