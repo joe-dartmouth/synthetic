@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-11-08
+updated: 2026-11-09
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -117,9 +117,10 @@ improvement.
 One frame value lets a second frame, such as a Synthea one, run through every stage without
 editing it; a stage that bound UCI's constants at import could read no other. The cell is always
 an age band, a sex and the label (`bko.datasets.cells`), so only the band edges vary between
-frames. Each UCI caller passes `UCI_FRAME`, so every UCI request and score is unchanged. Choosing the data by named run fixes a run's frame in code beside its experiment and
-settings, so `score <run>` reads the same records every time, and one `Data` value hands every
-stage the same frame, records and digest, which the run's logs then name.
+frames. Each UCI caller passes `UCI_FRAME`, so every UCI request and score is unchanged.
+Choosing the data by named run fixes a run's frame in code beside its experiment and settings, so
+`score <run>` reads the same records every time, and one `Data` value hands every stage the same
+frame, records and digest, which the run's logs then name.
 
 The agreement sits on the `Source`, beside the archive's size and sha256, so a dataset's terms have
 one home, and `Data` hands them to the stage that sends records' values to the API.

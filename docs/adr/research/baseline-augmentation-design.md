@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-08
+updated: 2026-11-09
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -146,6 +146,7 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
 | SDV's private `_set_random_state` for a per-run sampling seed | A private method; the fit seed already varies the rows | 2026-10-15 |
 | Cell-level balanced class weights | Weights the 2-record cell 238 / (8 * 2); not the class weighting the 2-pager names | 2026-10-15 |
 | scikit-learn's `compute_class_weight` | A one-line formula; the stage computes it rather than call a library for it | 2026-10-29 |
+| A `Request.frame` defaulting to `UCI_FRAME` | A caller holding another frame that omits it gets UCI's columns and codes with no error | 2026-11-09 |
 | Writing baseline datasets under `data/` | No consumer reads them; the harness calls `augment` per split | 2026-10-15 |
 | Tuning CTGAN and TVAE inside the stage | An inner split of 238 records leaves the 2-record cell nothing to validate on | 2026-10-15 |
 | Cross-platform byte identity | torch does not promise it across platforms | 2026-10-15 |
