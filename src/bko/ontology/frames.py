@@ -1,8 +1,8 @@
 """The Synthea and Diabetes 130 frames, their indicators and their field rows.
 
 Every stage may read them: they are built from `bko.ontology.mapping` and `bko.ontology.icd9`
-over `bko.datasets`, and import no later stage, so `bko.gaps` reads them as `bko.evaluate.data.load`
-does (ADR `research/data-contradiction-handling`).
+over `bko.datasets`, and import no later stage, so `bko.gaps` may import them as
+`bko.evaluate.data.load` does (ADR `research/data-contradiction-handling`).
 
 The Synthea frame's indicators and field rows come from `bko.ontology.mapping.CODE_MAPPINGS`
 (ADR `research/synthea-downstream-design`). The Diabetes 130 frame's coded columns carry the

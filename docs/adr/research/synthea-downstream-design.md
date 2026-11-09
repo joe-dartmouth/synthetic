@@ -108,8 +108,8 @@ figure below is what the command beside it in Rationale prints against that popu
 - **Holdout count**: 100, E1's.
 
 `bko.datasets.synthea` builds the frame's records, `bko.evaluate.data` holds the dataset,
-`bko.ontology.frames` the frame and its field rows, `bko.datasets.ablation` the training-only removal, and
-`bko.evaluate.experiment` the runs. The frame's identity is the `digest` of the
+`bko.ontology.frames` the frame and its field rows, `bko.datasets.ablation` the training-only
+removal, and `bko.evaluate.experiment` the runs. The frame's identity is the `digest` of the
 `data dataset=synthea frame=synthea records=<n> digest=<sha256> agreement=none` line `score`
 logs: the sha256 of its records, which two builds in separate processes match.
 
@@ -583,7 +583,8 @@ co-occurring condition; an estimate scaled from UCI's prompts.
 
 - Owner: `src/bko/evaluate/data.py`, `src/bko/ontology/frames.py`
 - Pinned by: `tests/test_datasets_synthea_frame.py`, `tests/test_evaluate_synthea.py`,
-  `tests/test_evaluate_removal.py`, `tests/test_evaluate_beside.py`
+  `tests/test_evaluate_removal.py`, `tests/test_evaluate_beside.py`,
+  `tests/test_ontology_frames.py`
 
 ## Reversal Conditions
 

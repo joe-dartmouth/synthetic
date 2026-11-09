@@ -421,7 +421,8 @@ the replica reads `bko` alone.
 - Owner: `src/bko/ontology/frames.py`; E6's runs, `src/bko/evaluate/named_runs.py`
 - Pinned by: `tests/test_evaluate_experiment.py` (the runs, slices and ceilings),
   `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
-  `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`
+  `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`,
+  `tests/test_ontology_frames.py`
 
 ## Reversal Conditions
 

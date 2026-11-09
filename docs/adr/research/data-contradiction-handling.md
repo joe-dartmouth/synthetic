@@ -119,10 +119,12 @@ table does not nest them, a pattern the data shows.
 ## Enforcement
 
 - Owner: `src/bko/bkb/fusion.py` (`check_fused`), `src/bko/generate/direct.py`,
-  `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`
+  `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`,
+  `src/bko/ontology/frames.py`
 - Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_kinds.py`,
   `tests/test_contradictions_fusion.py`, `tests/test_contradictions_gaps.py`,
-  `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`; the digest pins
+  `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`,
+  `tests/test_ontology_frames.py`; the digest pins
   in `tests/test_generate_direct.py` and `tests/test_evaluate_direct.py` hold `bko-direct`'s draw
   and every non-empty cell's share
 
