@@ -37,6 +37,11 @@ rows of `("<55", "female", 0)` and 16 of `("<55", "female", 1)`, from 8 and 4 tr
 
 PIN: Final = pin(ARCHIVE)
 
+# Streamlit sets its own loggers' and uvicorn's levels on its first run in a process. One empty
+# run while this module is imported, at collection, does that before any test's setup, so the
+# root conftest's logging guard never charges it to whichever app test runs first in a worker.
+AppTest.from_string("").run()
+
 EXPERIMENT: Final = dataclasses.replace(
     E1, arms=("none", "smote", "bko"), comparators=("none", "smote"), replica_arms=()
 )
