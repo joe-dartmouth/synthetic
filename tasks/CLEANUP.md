@@ -239,3 +239,16 @@ links to where its blocker is tracked.
   **What discharges it:** a local-only per-call line carries reasoning tokens and characters, and
   a truncated reply with reasoning logs its own reason, pinned by tests over a thinking reply.
   **Trigger:** the next thinking-on local run.
+
+## tests
+
+- **`cleanup:tests/root-guard-misses-warnings-and-quiet-levels`: the root-logger guard misses
+  warning capture and quiet loggers' levels.** The guard in `tests/conftest.py` compares only the
+  root's level and handlers. `bko.core.logs.configure` also calls `logging.captureWarnings(True)`,
+  which swaps `warnings.showwarning`, and sets the levels of the loggers in `quiet`, so a test that
+  calls `configure` can leak both unseen. Evidence: `src/bko/core/logs.py` and the PR #92 review
+  (Python lens). *Filed 2026-11-08 by the review of PR #92.*
+  **Why deferred.** Extending the guard may flag many existing tests, which is its own surface.
+  **What discharges it:** the guard also snapshots and compares `warnings.showwarning` and the
+  levels of the loggers `configure` quiets, and every test it then flags restores them.
+  **Trigger:** the next change to the guard or to `bko.core.logs.configure`.
