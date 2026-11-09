@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from typing import Any, Final, NamedTuple, NoReturn
 
@@ -172,6 +173,50 @@ def refuse_unmarked_api_requests(config: pytest.Config) -> None:
     if not config.getoption("--live"):
         patch.setenv("ANTHROPIC_BASE_URL", DISCARD_URL)
     _PaidGuard.patch = patch
+
+
+_ROOT_LOGGER = pytest.StashKey[tuple[int, list[logging.Handler]]]()
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> Iterator[None]:
+    """Note the root logger's level and handlers before anything of the test runs.
+
+    Args:
+        item: The test about to be set up.
+
+    Yields:
+        Control to the setup.
+    """
+    root = logging.getLogger()
+    item.stash[_ROOT_LOGGER] = (root.level, list(root.handlers))
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> Iterator[None]:
+    """Error a test whose run left the root logger's level or handlers changed, then restore them.
+
+    Fixtures such as `caplog` restore at their teardown, which runs inside this wrapper, so only
+    a change that outlives the whole test is reported.
+
+    Args:
+        item: The test being torn down.
+        nextitem: The next test, unused.
+
+    Yields:
+        Control to the teardown.
+    """
+    del nextitem
+    result = yield
+    level, handlers = item.stash[_ROOT_LOGGER]
+    root = logging.getLogger()
+    if root.level != level or root.handlers != handlers:
+        changed = f"level {level} -> {root.level} handlers {len(handlers)} -> {len(root.handlers)}"
+        root.setLevel(level)
+        root.handlers[:] = handlers
+        pytest.fail(f"root logger changed: {changed}", pytrace=False)
+    return result
 
 
 @pytest.hookimpl(wrapper=True)

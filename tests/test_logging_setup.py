@@ -14,7 +14,6 @@ from typing import Final
 import pytest
 
 from bko.evaluate.run_folder import LINE
-from bko.generate.local import LOCAL_MODELS
 from tests._corpus import REPO_ROOT
 
 
@@ -154,6 +153,7 @@ def test_the_configuring_modules_are_exactly_these():
         "bko.fusion.__main__",
         "bko.gaps.__main__",
         "bko.generate.__main__",
+        "bko.generate.local",
         "bko.ontology.__main__",
     ]
 
@@ -186,10 +186,6 @@ SETUPS: Final = {
         module: f"from {module} import configure_logging\nconfigure_logging()\n"
         for module in configuring_modules()
     },
-    "bko.generate.local.main": (
-        "import tempfile\nfrom bko.generate.local import main\n"
-        f"main(['serve-command', {min(LOCAL_MODELS)!r}, '--data-dir', tempfile.mkdtemp()])\n"
-    ),
 }
 
 

@@ -265,19 +265,3 @@ links to where its blocker is tracked.
   **What discharges it:** a local-only per-call line carries reasoning tokens and characters, and
   a truncated reply with reasoning logs its own reason, pinned by tests over a thinking reply.
   **Trigger:** the next thinking-on local run.
-
-## tests
-
-- **`cleanup:tests/root-logger-level-leak`: a test leaves the root logger at INFO for its
-  worker.** Under `make test`'s parallel workers,
-  `tests/test_evaluate_removal.py::test_each_holdout_logs_its_removal_and_flagged_cells` captured
-  its `removal` line twice when it called `prepared()` after its capture block, in two gate runs
-  of PR #81's review fixes; moving that call before a `caplog.clear()` made it pass. Some test that
-  runs a `__main__` setup in-process (`basicConfig(level=INFO, force=True)`) likely leaves the root
-  handler and level behind for later tests on the same worker; which test was not traced.
-  *Filed 2026-11-05 by PR #81's review.*
-  **Why deferred.** Tracing it means bisecting worker test order, outside the review fix's
-  boundary.
-  **What discharges it:** the leaking test found and made to restore the root logger, with an
-  autouse fixture or a test that fails when any test leaves the root handlers or level changed.
-  **Trigger:** the next test that captures log lines flakes with a doubled line.
