@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-05
+updated: 2026-11-08
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -74,11 +74,11 @@ fidelity on all three measures** over that frame's candidates.
     evidence carries over. A cell holding no more than its quota keeps every row.
   - Ties break by `sha256(f"{holdout}:{call}:{position}")`, as in the split.
   - Ranked-out rows take the outcome `dropped-likelihood`, and each ranked row's candidates line
-    carries its score (candidates schema 3).
+    carries its score (candidates schema 3 and later).
   - Its run holds `none`, `real` and `bko-curated`, on E6's frame and removal, and pairs `beside`
     with `e6-22`: both keep copies (`decontaminate=False`), so their splits are identical.
 - **Input.** The named run's candidates files as written, one or more slices, over the named run's
-  holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schemas 1 to 3,
+  holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schemas 1 to 4,
   checking a schema-1 file's `uci` digest against UCI Heart Disease's. UCI's input is `e1-4`'s
   `holdout-candidates.jsonl` (the gate did not separate); Diabetes 130's is `e6-thin`'s `bko`
   replica candidates, repeated `--candidates` files read with `--data-dir` (the gate
@@ -98,14 +98,14 @@ The arm's choices follow from the gate. `over_ask` 2 asks each cell for twice it
 ranking has rows to drop, at twice E1's budget so the spend per record kept equals `bko`'s. Ranking
 each call's cell, not the whole pool, is the gate's grouping, so the gate's evidence carries over.
 A row outside its call's cell is dropped, so every row counts toward the cell it ranks in. The
-candidates line's schema-3 `score` holds the likelihood, and minus infinity is stored as null
-because JSON has no such number.
+candidates line's `score` (schema 3 and later) holds the likelihood, and minus infinity is stored
+as null because JSON has no such number.
 
 ## Consequences
 
 **Gained**: a free, reproducible answer to whether BKB curation is worth a paid arm; a score over
-any candidates file in the schema-1, schema-2 or schema-3 format; the shares in the stage that owns
-the fused fragments, read by the sampler and the score alike.
+any candidates file in the schema-1, schema-2, schema-3 or schema-4 format; the shares in the stage
+that owns the fused fragments, read by the sampler and the score alike.
 **Accepted**: the curated arm exists per frame, where that frame's gate separates, and UCI has
 none; `bko-curated` drops a row outside its call's cell, which `bko` keeps when the request
 asks for its cell; the score sees only mapped concepts, so two records with the same concepts score

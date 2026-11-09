@@ -628,7 +628,7 @@ start or the supervisor cannot run.
   `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
   its billed spend as live.
 - **What the candidates file holds**: `bko.evaluate.holdout_candidates` is its format's home. A
-  header line (`kind` `header`, `schema` 3, the run name, the `frame`'s name, the sha256 of the
+  header line (`kind` `header`, `schema` 4, the run name, the `frame`'s name, the sha256 of the
   run's records under `data`, each release's sha256, and the generator settings, which a run with
   no paid arm omits), then one line per candidate (`kind` `candidate`): `holdout`, `arm`,
   `fill` (`gap` or `replica`), `attempt` within the fill from 1, `returned` (true for a returned or
@@ -640,11 +640,15 @@ start or the supervisor cannot run.
   `score` its curator read: `confidence` and `aleatoric` on each `cllm` line that passed
   validation (`bko.evaluate.curation`), and `likelihood` on each `bko-curated` line it ranked, the
   record's BKB log-probability at its call cell's shares, null for minus infinity (ADR
-  [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), Arm). `read` also
-  reads schema 1 and 2 files, whose lines hold no `score`. A replay writes the schema its run's
-  commit wrote, so byte equality holds against a run of the same schema. Lines are written when
-  the harness drains a holdout: after every arm's gap fill, then after every replica fill. A
-  stopped run's file holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
+  [`research/bkb-candidate-curation`](adr/research/bkb-candidate-curation.md), Arm), and, on the
+  lines of a perturbation arm, the `perturb` result of its step: `perturbed`, `unchanged`, or
+  `refused_<reason>` for `bko-direct-perturbed`, as the `perturb holdout=` line counts it, and
+  `changed` or `unchanged` for `bko-direct-pram`. `read` reads schemas 1 to 4; only 3 and 4 hold
+  `score`, and only 4 holds `perturb`. It refuses a `score` whose names are not its arm's:
+  `likelihood` for `bko-curated`, and `aleatoric` and `confidence` for `cllm`. A replay writes the
+  schema its commit writes, so byte equality holds against a run of the same schema. Lines are
+  written when the harness drains a holdout: after every arm's gap fill, then after every replica
+  fill. A stopped run's file holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
   even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
   fill's lines count what its `candidates` or `replica-candidates` rows count;
   `bko.evaluate.holdout_candidates.read` reads the file.
@@ -930,7 +934,7 @@ top-minus-bottom corrected interval over the holdouts at the largest held-out ra
 bottom half and the training rows, and `gate separated=`, true when every measure's interval lies
 above 0. A sliced run's files log a `candidates` line each and one `likelihood pool` line over
 them all. A single file's `run` must be the named run, while a sliced run's files carry their
-slices' runs; a schema-2 or schema-3 file's data digest must match the
+slices' runs; a schema-2, schema-3 or schema-4 file's data digest must match the
 loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, for a run that
 scores it.
 
@@ -1017,7 +1021,7 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 
 - `perturb arm=%s fields=%s` at construction, ending `theta=%s` for PRAM and
   `per_call=%d model=%s` for the perturbed arm.
-- `perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d`: what PRAM changed.
+- `perturb pram holdout=%d arm=%s rows=%d`: the rows PRAM read.
 - `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
   checks=%s quota_off=%d` per rewrite call: `returned` the items its reply decoded to, `reason`
   the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
@@ -1033,8 +1037,9 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
   rows_changed=%d values_changed=%d` per holdout: SDMetrics' column shapes of the arm's rows and
   of the drawn rows against the holdout's label-1 training rows over the perturbed fields,
   `difference` the first less the second, both column pair trends, the share of each set's rows
-  breaking any of the ADR's three Diabetes rules (`none` off Diabetes), and the rows and values
-  that differ from the draw. A score SDMetrics cannot read logs `nan`. A fill that drew no row
+  breaking any of the ADR's three Diabetes rules (`none` off Diabetes), `rows_changed` the lines
+  whose `perturb` is `perturbed` or `changed`, and `values_changed` the values that differ from
+  the draw. A score SDMetrics cannot read logs `nan`. A fill that drew no row
   logs `perturb shapes holdout=%d arm=%s empty=true` in its place.
 - `perturb columns holdout=%d arm=%s kind=%s <field>=%.6f ...` twice per holdout, `kind`
   `perturbed` then `unperturbed`: each perturbed field's column shape, in field order. A fill that
@@ -1050,8 +1055,8 @@ Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
 
 A rewrite call's `generate` line carries `rewrite=true` in place of `level=`, and its `short`
 WARNING ends `rewrite=true`. Each arm's candidates-file lines are `bko-direct`'s, with a row a
-rewrite call returned carrying that call and its position there; the lines do not say why a row
-kept its draw (`cleanup:evaluate/perturb-refusals-in-candidates`).
+rewrite call returned carrying that call and its position there, and each line's `perturb` says
+what the step did to it.
 
 **`trace`** explains one arm's fill of one holdout: for each record, the stored or re-derivable facts
 that determine it (ADR [`research/record-explainability`](adr/research/record-explainability.md)).
