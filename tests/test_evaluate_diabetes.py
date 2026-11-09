@@ -22,20 +22,12 @@ from bko.baselines.request import Method
 from bko.datasets.cells import LABEL
 from bko.datasets.diabetes import STATE_CODES, load_diabetes
 from bko.datasets.errors import ContractError
+from bko.datasets.frames import check_records
 from bko.datasets.split import held_out_count
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, digest, load
-from bko.evaluate.diabetes import (
-    DIABETES_FIELD_ROWS,
-    DIABETES_FRAME,
-    DIABETES_INDICATORS,
-    _lab_row,
-    check_records,
-    indicator,
-    indicator_codes,
-)
 from bko.evaluate.experiment import (
     BKO_ARMS,
     CLLM_ARM,
@@ -55,6 +47,14 @@ from bko.evaluate.scores import Source, parse
 from bko.gaps.shares import nested
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.prompt import system
+from bko.ontology.frames import (
+    DIABETES_FIELD_ROWS,
+    DIABETES_FRAME,
+    DIABETES_INDICATORS,
+    _lab_row,
+    indicator,
+    indicator_codes,
+)
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS
 from bko.ontology.schema import Codes
 from tests._diabetes_fixtures import TOY_CELLS, diabetes_releases, pin, toy_archive
@@ -200,13 +200,13 @@ def test_loading_diabetes_builds_its_data_and_logs_its_line(tmp_path, caplog):
 
 def test_records_outside_the_frames_codebook_are_refused(tmp_path):
     records = load(Dataset.DIABETES, tmp_path, _context()).records
-    check_records(records)
+    check_records(records, DIABETES_FRAME)
     stray = records.copy()
     stray.loc[stray.index[0], "A1Cresult"] = 9
     with pytest.raises(ContractError, match="A1Cresult"):
-        check_records(stray)
+        check_records(stray, DIABETES_FRAME)
     with pytest.raises(ContractError, match="columns"):
-        check_records(records.drop(columns=[LABEL]))
+        check_records(records.drop(columns=[LABEL]), DIABETES_FRAME)
 
 
 def test_the_direct_arm_runs_on_diabetes_gap_fills(tmp_path):
@@ -310,7 +310,7 @@ def test_two_rows_whose_labels_share_an_indicator_name_are_refused():
 def test_a_column_refusal_names_the_columns(tmp_path, edit, named):
     records = load(Dataset.DIABETES, tmp_path, _context()).records
     with pytest.raises(ContractError, match=re.escape(named)):
-        check_records(edit(records))
+        check_records(edit(records), DIABETES_FRAME)
 
 
 def test_a_stray_code_is_named_as_a_plain_number(tmp_path):
@@ -318,7 +318,7 @@ def test_a_stray_code_is_named_as_a_plain_number(tmp_path):
     stray = records.copy()
     stray.loc[stray.index[0], "A1Cresult"] = 9
     with pytest.raises(ContractError, match=re.escape("A1Cresult holds codes [9] ")):
-        check_records(stray)
+        check_records(stray, DIABETES_FRAME)
 
 
 @pytest.mark.parametrize(

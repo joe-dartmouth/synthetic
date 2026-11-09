@@ -15,11 +15,11 @@ import pytest
 from bko.datasets.cells import LABEL
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.generate.api import default_send
 from bko.generate.guidance import Guidance
 from bko.generate.messages import SETTINGS, Call
 from bko.generate.prompt import render
+from bko.ontology.frames import DIABETES_FRAME
 from tests._generate_fixtures import GUIDANCE
 
 

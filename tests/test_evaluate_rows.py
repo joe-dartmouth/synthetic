@@ -26,7 +26,7 @@ from bko.baselines.records import Baseline, number, unit_weights
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import main
-from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME, digest
+from bko.evaluate.data import digest
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import REAL_ARM, Experiment, Removal
 from bko.evaluate.filling import Filled, arm_line
@@ -34,6 +34,7 @@ from bko.evaluate.rows import RowsFile, compare_holdout, held_out
 from bko.evaluate.rows_read import RowsLine, bind, frame_of, read_rows
 from bko.evaluate.run_folder import fields, read_folder
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
+from bko.ontology.frames import DIABETES_FRAME, SYNTHEA_FRAME
 from tests._evaluate_bko_fixtures import NARROW
 from tests._evaluate_fixtures import FAST_ARMS
 from tests.test_evaluate_shared import edit_log, rescorer, run_folder

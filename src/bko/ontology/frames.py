@@ -1,12 +1,17 @@
-"""The Diabetes 130 frame, its indicators and its field rows, read by `bko.evaluate.data.load`.
+"""The Synthea and Diabetes 130 frames, their indicators and their field rows.
 
-The frame's coded columns carry the archive's own state strings as their meanings, inverted from
-the codes `bko.datasets.diabetes` gives them, so a prompt names each state as the archive writes
-it; `check_records` refuses records whose columns or codes the frame does not hold.
-`IDS_mapping.csv` names admission and discharge ids, none of which the frame keeps, so no codebook
-reads it. The
-indicators and the field rows come from `bko.ontology.icd9`: one indicator and one row per
-`ICD9_MAPPINGS` row, and one row per `LAB_MAPPINGS` row over its field's codes.
+Every stage may read them: they are built from `bko.ontology.mapping` and `bko.ontology.icd9`
+over `bko.datasets`, and import no later stage, so `bko.gaps` reads them as `bko.evaluate.data.load`
+does (ADR `research/data-contradiction-handling`).
+
+The Synthea frame's indicators and field rows come from `bko.ontology.mapping.CODE_MAPPINGS`
+(ADR `research/synthea-downstream-design`). The Diabetes 130 frame's coded columns carry the
+archive's own state strings as their meanings, inverted from the codes `bko.datasets.diabetes`
+gives them, so a prompt names each state as the archive writes it;
+`bko.datasets.frames.check_records` refuses records whose columns or codes the frame does not
+hold. `IDS_mapping.csv` names admission and discharge ids, none of which the frame keeps, so no
+codebook reads it. Its indicators and field rows come from `bko.ontology.icd9`: one indicator and
+one row per `ICD9_MAPPINGS` row, and one row per `LAB_MAPPINGS` row over its field's codes.
 """
 
 from __future__ import annotations
@@ -16,23 +21,110 @@ from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Final
 
-import pandas as pd
-
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.diabetes import ADULTS_FROM, COUNTS, DRUGS, STATE_CODES
-from bko.datasets.errors import ContractError
 from bko.datasets.frames import FrameSpec, RangeConstraint
+from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, Icd9Mapping, LabMapping
-from bko.ontology.schema import Codes, FieldMapping
+from bko.ontology.mapping import CODE_MAPPINGS
+from bko.ontology.schema import CodeMapping, Codes, FieldMapping
+
+
+_PRESENCE: Final[Mapping[int, str]] = MappingProxyType({0: "absent", 1: "present"})
+
+
+SYNTHEA_NAME: Final = "synthea"
+"""The Synthea frame's name and its dataset's source name, as E2's fragments take it."""
+
+SYNTHEA_ADULTS_FROM: Final = 40
+"""The youngest age, in whole years on the snapshot date, a Synthea record has."""
+
+INDICATOR_ROWS: Final[tuple[CodeMapping, ...]] = tuple(
+    row for row in CODE_MAPPINGS if row.snomed != ISCHEMIC_HEART_DISEASE
+)
+"""The code rows that become the Synthea frame's indicators: every one but the label's."""
+
+
+def indicator(row: CodeMapping | Icd9Mapping) -> str:
+    """The indicator column of `row`: its label, lowercased, each run of other characters `_`."""
+    return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
+
+
+def indicators(rows: Sequence[CodeMapping]) -> Mapping[str, str]:
+    """Each row's indicator column and its condition code, in `rows`' order, frozen.
+
+    Raises:
+        ValueError: If two rows name one column, or a row names `age`, `sex` or the label.
+    """
+    found: dict[str, str] = {}
+    for row in rows:
+        name = indicator(row)
+        if name in found:
+            msg = f"indicator {name!r} is named twice"
+            raise ValueError(msg)
+        if name in {"age", "sex", LABEL}:
+            msg = f"indicator {name!r} is one of the frame's own columns"
+            raise ValueError(msg)
+        found[name] = row.snomed
+    return MappingProxyType(found)
+
+
+SYNTHEA_INDICATORS: Final[Mapping[str, str]] = indicators(INDICATOR_ROWS)
+"""Each indicator column's condition code, in `CODE_MAPPINGS` order; checked when the module is
+imported."""
+
+SYNTHEA_FRAME: Final = FrameSpec(
+    name=SYNTHEA_NAME,
+    features=("age", "sex", *SYNTHEA_INDICATORS),
+    numeric=("age",),
+    fractional=(),
+    fraction_digits=0,
+    categorical=("sex", *SYNTHEA_INDICATORS),
+    codebook={"sex": SEXES, **dict.fromkeys(SYNTHEA_INDICATORS, _PRESENCE)},
+    descriptions={
+        "age": "age in years on the snapshot date",
+        "sex": "sex",
+        **{indicator(row): f"{row.label} recorded by the snapshot date" for row in INDICATOR_ROWS},
+        LABEL: "ischemic heart disease recorded by the snapshot date",
+    },
+    ranges=(
+        RangeConstraint(
+            field="age",
+            unit="a",
+            low=SYNTHEA_ADULTS_FROM,
+            high=120,
+            source="research/synthea-downstream-design",
+            limits="the frame keeps patients aged 40 and over; 120 is UCI's team-specified top",
+        ),
+    ),
+    label_codes=tuple(sorted(LABEL_CODES)),
+    label_meanings={0: "no ischemic heart disease", 1: "ischemic heart disease"},
+    edges=(65,),
+    study="ischemic heart disease prediction",
+    cohort="patient aged 40 or over in a generated population",
+)
+"""E3's frame over the pinned Synthea population (ADR `research/synthea-downstream-design`)."""
+
+
+def _field_row(row: CodeMapping) -> FieldMapping:
+    column = LABEL if row.snomed == ISCHEMIC_HEART_DISEASE else indicator(row)
+    return FieldMapping(
+        when=(Codes(column, frozenset({1})),),
+        concept=row.concept,
+        label=row.label,
+        source=row.source,
+        limits="the code recorded by the snapshot date; a patient without it may still hold it",
+    )
+
+
+SYNTHEA_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = tuple(_field_row(r) for r in CODE_MAPPINGS)
+"""The Synthea frame's field rows, one per `CODE_MAPPINGS` row: each indicator's
+`Codes(column, {1})`, and the label's `Codes(target, {1})` for ischemic heart disease (ADR
+`research/ontology-mapping-design`)."""
 
 
 DIABETES_NAME: Final = "diabetes"
 """The Diabetes frame's name and its `Dataset` value."""
-
-
-def indicator(row: Icd9Mapping) -> str:
-    """The indicator column of `row`: its label, lowercased, each run of other characters `_`."""
-    return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
 
 
 def indicator_codes(rows: Sequence[Icd9Mapping]) -> Mapping[str, tuple[str, ...]]:
@@ -54,8 +146,6 @@ def indicator_codes(rows: Sequence[Icd9Mapping]) -> Mapping[str, tuple[str, ...]
 DIABETES_INDICATORS: Final[Mapping[str, tuple[str, ...]]] = indicator_codes(ICD9_MAPPINGS)
 """Each indicator column's ICD-9 categories, in `ICD9_MAPPINGS` order, as `load_diabetes` takes
 them."""
-
-_PRESENCE: Final[Mapping[int, str]] = MappingProxyType({0: "absent", 1: "present"})
 
 _STATES: Final[dict[str, Mapping[int, str]]] = {
     name: {code: state for state, code in codes.items()} for name, codes in STATE_CODES.items()
@@ -208,34 +298,3 @@ DIABETES_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = (
 )
 """The Diabetes frame's field rows: each ICD-9 row's `Codes(indicator, {1})`, then each lab row's
 `Codes(field, codes of its states)`."""
-
-
-def check_records(records: pd.DataFrame) -> None:
-    """Refuse records whose columns are not the frame's or whose codes its codebook lacks.
-
-    Raises:
-        ContractError: If the columns differ from `DIABETES_FRAME.columns`, in order, naming the
-            missing, the extra and the first misplaced column, or a coded column or the label
-            holds a code its codebook does not.
-    """
-    frame = DIABETES_FRAME
-    found = tuple(records.columns)
-    if found != frame.columns:
-        missing = [name for name in frame.columns if name not in found]
-        extra = [name for name in found if name not in frame.columns]
-        shared = [name for name in found if name in frame.columns]
-        expected = [name for name in frame.columns if name in found]
-        misplaced = next(
-            (ours for ours, theirs in zip(shared, expected, strict=True) if ours != theirs), None
-        )
-        msg = (
-            f"the records' columns are not frame {frame.name}'s columns in order: missing "
-            f"{missing}, extra {extra}, first out of order {misplaced!r}"
-        )
-        raise ContractError(msg)
-    coded = {**frame.codebook, frame.label: frame.label_meanings}
-    for name, codes in coded.items():
-        stray = sorted(set(records[name].unique().tolist()) - set(codes))
-        if stray:
-            msg = f"{name} holds codes {stray} that frame {frame.name}'s codebook lacks"
-            raise ContractError(msg)

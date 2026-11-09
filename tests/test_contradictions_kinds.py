@@ -5,10 +5,9 @@ from __future__ import annotations
 import pytest
 
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.data import SYNTHEA_FIELD_ROWS
-from bko.evaluate.diabetes import DIABETES_FIELD_ROWS
 from bko.gaps.contradictions import KINDS, Finding, code_overlaps, is_a_pairs
 from bko.gaps.shares import label_only, nested
+from bko.ontology.frames import DIABETES_FIELD_ROWS, SYNTHEA_FIELD_ROWS
 from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import AtLeast, Codes, FieldMapping
 from bko.ontology.terms import Ontology, Term

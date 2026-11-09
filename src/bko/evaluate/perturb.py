@@ -31,12 +31,12 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.request import Request, Stratum
 from bko.datasets.diabetes import CHANGE_CODES, DIABETES_MED_CODES, DRUG_CODES, DRUGS
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.diabetes import DIABETES_NAME
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.fidelity import quality_report
 from bko.evaluate.holdout_candidates import MOVED
 from bko.evaluate.scores import Measure, Source
 from bko.generate.direct import field_groups, free_fields
+from bko.ontology.frames import DIABETES_NAME
 from bko.ontology.schema import FieldMapping
 
 

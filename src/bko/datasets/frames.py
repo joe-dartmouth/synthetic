@@ -4,8 +4,10 @@ A frame's records have its `features` and its label, each a number. Generation, 
 validation require a frame, and the baselines read it from their request, which defaults to UCI's
 (`bko.datasets.uci.UCI_FRAME`), so another dataset runs through them without editing them. A cell is
 always an age band, a sex and the label (`bko.datasets.cells`), so a frame holds only its band
-edges. ADR `research/uci-evaluation-frame` records why. Beside the standard library it imports
-`bko.datasets.cells` (`LABEL`, `LABEL_CODES`, `SEXES`), which loads pandas.
+edges. ADR `research/uci-evaluation-frame` records why. `check_records` refuses records whose
+columns or codes a frame does not hold. Beside the standard library it imports
+`bko.datasets.cells` (`LABEL`, `LABEL_CODES`, `SEXES`), which loads pandas, and
+`bko.datasets.errors` (`ContractError`).
 """
 
 from __future__ import annotations
@@ -15,8 +17,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import pairwise
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
+from bko.datasets.errors import ContractError
+
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,3 +179,33 @@ class FrameSpec:
         return MappingProxyType(
             {name: "float64" if name in self.fractional else "int64" for name in self.columns}
         )
+
+
+def check_records(records: pd.DataFrame, frame: FrameSpec) -> None:
+    """Refuse records whose columns are not `frame`'s or whose codes its codebook lacks.
+
+    Raises:
+        ContractError: If the columns differ from `frame.columns`, in order, naming the missing,
+            the extra and the first misplaced column, or a coded column or the label holds a code
+            its codebook does not.
+    """
+    found = tuple(records.columns)
+    if found != frame.columns:
+        missing = [name for name in frame.columns if name not in found]
+        extra = [name for name in found if name not in frame.columns]
+        shared = [name for name in found if name in frame.columns]
+        expected = [name for name in frame.columns if name in found]
+        misplaced = next(
+            (ours for ours, theirs in zip(shared, expected, strict=True) if ours != theirs), None
+        )
+        msg = (
+            f"the records' columns are not frame {frame.name}'s columns in order: missing "
+            f"{missing}, extra {extra}, first out of order {misplaced!r}"
+        )
+        raise ContractError(msg)
+    coded = {**frame.codebook, frame.label: frame.label_meanings}
+    for name, codes in coded.items():
+        stray = sorted(set(records[name].unique().tolist()) - set(codes))
+        if stray:
+            msg = f"{name} holds codes {stray} that frame {frame.name}'s codebook lacks"
+            raise ContractError(msg)

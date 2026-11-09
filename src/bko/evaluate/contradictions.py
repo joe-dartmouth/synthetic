@@ -4,8 +4,7 @@
 each frame's training split at holdout seed `SEED` with no removal, loads once the pinned releases
 any frame's field rows name, and `census` writes every finding `bko.gaps.contradictions.survey`
 makes as CSV. ADR `research/data-contradiction-handling` names the kinds and the basis. It makes
-no API call. The frames live in `bko.evaluate`, so the command does too
-(`cleanup:evaluate/frames-below-evaluate`).
+no API call. ADR `research/data-contradiction-handling` records why it runs from `bko.evaluate`.
 """
 
 from __future__ import annotations

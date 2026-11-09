@@ -16,9 +16,10 @@ scope; `OUT_OF_SCOPE` records the near misses considered and why each was reject
 `bko.ontology.check` refuses one that is an `is_a` ancestor of a mapped concept. Each dataset's BKO
 holds the part of it the dataset's own rows reach: `FIELD_MAPPINGS` for UCI Heart Disease,
 `CODE_MAPPINGS` for Synthea (`bko.gaps`); the rows of `bko.ontology.icd9` map Diabetes 130's
-diagnosis categories and lab states. A Synthea disorder code maps to the one live MONDO concept
-carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the named conditions' disorder codes none
-carries, and `bko.ontology.check` refuses one that gains a live match.
+diagnosis categories and lab states. `bko.ontology.frames` turns `CODE_MAPPINGS` and those rows
+into the Synthea and Diabetes 130 frames' field rows. A Synthea disorder code maps to the one live
+MONDO concept carrying its `skos:exactMatch`; `UNMAPPED_CODES` records the named conditions'
+disorder codes none carries, and `bko.ontology.check` refuses one that gains a live match.
 
 **Labels** are the releases' `name:` values, copied verbatim from MONDO (CC BY 4.0) and HPO (its
 attribution is in `bko.datasets.sources.HPO`).

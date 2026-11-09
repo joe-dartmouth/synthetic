@@ -19,7 +19,6 @@ from bko.evaluate import perturb
 from bko.evaluate import pram as pram_module
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
-from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, PRAM_ARM
@@ -39,6 +38,7 @@ from bko.evaluate.perturb import (
 from bko.evaluate.pram import PRAM_STREAM, THETA, PramArm, pram
 from bko.evaluate.run_folder import BKO
 from bko.generate.presence import Presence
+from bko.ontology.frames import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from tests._gaps_fixtures import ANGINA, STENOSIS
 from tests.test_evaluate_direct import ADDED_DIGEST, SMALL_G2, g2_context, varied_arm
 from tests.test_evaluate_shared import FORMAT
