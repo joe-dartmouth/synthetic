@@ -50,7 +50,7 @@ from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
 from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, text_of
 from bko.generate.prompt import render
-from bko.generate.reasoning import reasoning_chars
+from bko.generate.reasoning import log_reasoning, reasoning_chars
 from bko.generate.weights import LOCAL_MODELS, fetch, model_path
 
 
@@ -252,8 +252,9 @@ def check_server(model: str, port: int) -> Mapping[str, object]:
 def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
     """Post each call to the llama.cpp server at `url`, in a worker thread.
 
-    The first call checks the server (`check_server`). A call cancelled while it waits shuts its
-    socket, so its thread returns and the server stops generating for it.
+    The first call checks the server (`check_server`). Each `-thinking` call logs its
+    `reasoning` line (`bko.generate.reasoning.log_reasoning`). A call cancelled while it waits
+    shuts its socket, so its thread returns and the server stops generating for it.
 
     Args:
         model: The model id the server serves under its alias; each call's settings name it.
@@ -278,7 +279,10 @@ def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
                 check_server(model, port)
                 checked.set()
         data = json.dumps(payload(call)).encode()
-        return reply_of(_exchange(connection, "POST", "/v1/chat/completions", data))
+        reply = reply_of(_exchange(connection, "POST", "/v1/chat/completions", data))
+        if LOCAL_MODELS[model].thinking:
+            log_reasoning(reply, connection)
+        return reply
 
     async def send(call: Call) -> Reply:
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT_SECONDS)
