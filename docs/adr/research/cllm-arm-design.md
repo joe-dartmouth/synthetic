@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-06
+updated: 2026-11-08
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -64,7 +64,8 @@ prompt (their section 2.2).
   over_ask, budget)` describes every Messages arm: `definition` None guides by cell alone, `shows`
   makes each call show training records, `curation` curates the accepted rows, and `budget` None
   reads `Experiment.budget`; a spec that both prescribes and shows is refused.
-  `over_ask` is above 1 with `Curation.LIKELIHOOD` alone. `cllm` is
+  `over_ask` is above 1 with `Curation.LIKELIHOOD` alone;
+  `bko.evaluate.ranking.over_ask_error` states the rule each reader of `over_ask` calls. `cllm` is
   `MessagesArm(None, shows=True, curation=Curation.CLASSIFIER, budget=CLLM_BUDGET)` and
   `cllm-uncurated` the same with no curation; `bko-curated` is
   `MessagesArm(Definition.SUBGROUP, curation=Curation.LIKELIHOOD, over_ask=2, budget=2 * E1.budget)`,

@@ -741,7 +741,10 @@ start or the supervisor cannot run.
   `dropped_curation=%d` stands before `dropped_quota=`, and each attempt first logs its curator's
   fit as `curator train=%d labels=%s stages=%d confidence_at_most=%s aleatoric_at_most=%s` (the
   training rows, their count per label as `<label>:<count>` pairs, the stages read and both
-  thresholds). A curating arm gives each cell its own budget, its budget times the cell's quota:
+  thresholds). A ranking arm also logs, once its attempt ranks, one `ranked holdout=%d fill=%s
+  arm=%s seed=%d cell=%s rows=%d kept=%d tied=%d minus_infinity=%d` line per cell it ranked:
+  `tied=` counts the cell's rows whose score equals the last kept row's, when a dropped row shares
+  it, else 0, and `minus_infinity=` counts the rows the sampler cannot draw. A curating arm gives each cell its own budget, its budget times the cell's quota:
   once a cell's records asked could not cover its rows still short, the cell is given up with a
   `shortfall arm=%s seed=%d cell=%s short=%d quota=%d asked=%d limit=%d` line (the cell's
   quota, its records asked and its limit) and the other cells go on; an attempt that leaves a
