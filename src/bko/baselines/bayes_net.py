@@ -176,6 +176,42 @@ def learn(bins: Bins, *, k: int = K, first: str) -> Network:
     return Network(tuple(_node(bins, field, parents) for field, parents in chosen))
 
 
+def _cdf(node: Node, key: tuple[int, ...]) -> np.ndarray:
+    """The normalized cumulative chances of `node` given `key`, refused unless drawable."""
+    chances = np.asarray(node.chances(key), dtype=float)
+    if not (np.isfinite(chances).all() and (chances >= 0).all() and chances.sum() > 0):
+        msg = f"chances of {node.field} given {key} are not finite, non-negative and positive"
+        raise ValueError(msg)
+    cdf = chances.cumsum()
+    return cdf / cdf[-1]
+
+
+def _copy_donors(
+    drawn: dict[str, np.ndarray],
+    bins: Bins,
+    train: pd.DataFrame,
+    rows: int,
+    rng: np.random.Generator,
+    frame: FrameSpec,
+) -> pd.DataFrame:
+    """Each field's value from a uniformly chosen training donor in its drawn state."""
+    out = pd.DataFrame(index=range(rows))
+    for field in frame.columns:
+        values = train[field].to_numpy()
+        held = bins.states[field].to_numpy()
+        pools = {int(state): values[held == state] for state in np.unique(drawn[field])}
+        empty = sorted(state for state, pool in pools.items() if len(pool) == 0)
+        if empty:
+            msg = f"field {field} has no training donor in drawn state {empty}"
+            raise ValueError(msg)
+        sizes = np.array([len(pools[int(state)]) for state in drawn[field]], dtype=np.int64)
+        picks = rng.integers(0, sizes, dtype=np.int64)
+        out[field] = [
+            pools[int(state)][pick] for state, pick in zip(drawn[field], picks, strict=True)
+        ]
+    return out.astype(dict(frame.dtypes))
+
+
 def draw(
     network: Network,
     bins: Bins,
@@ -186,10 +222,13 @@ def draw(
 ) -> pd.DataFrame:
     """`rows` records sampled from `network`, each field's value a training donor's in its state.
 
-    The draw reads `rng` as a row-by-row draw would: one `random` double per row per node in the
-    learned order, then one bounded integer per row per field in frame order. So grouping rows by
-    parent configuration and by state leaves the rows byte-identical under the locked numpy, and
-    the generator ends where a row-by-row draw leaves it.
+    The draw reads `rng` as a row-by-row draw would, in the order ADR
+    `research/bayesian-network-baseline` fixes, so the generator ends where a row-by-row draw
+    leaves it.
+
+    Raises:
+        ValueError: A node's chances are not finite and non-negative with a positive sum, or a
+            drawn state has no training donor.
     """
     drawn: dict[str, np.ndarray] = {}
     for node in network.nodes:
@@ -202,23 +241,13 @@ def draw(
         else:
             which = np.zeros(rows, dtype=int)
             keys = [()]
+        which = which.reshape(-1)
         for index, key in enumerate(keys):
-            cdf = np.asarray(node.chances(key), dtype=float).cumsum()
-            cdf /= cdf[-1]
-            mask = which.reshape(-1) == index
+            cdf = _cdf(node, key)
+            mask = which == index
             states[mask] = cdf.searchsorted(uniforms[mask], side="right")
         drawn[node.field] = states
-    out = pd.DataFrame(index=range(rows))
-    for field in frame.columns:
-        values = train[field].to_numpy()
-        held = bins.states[field].to_numpy()
-        pools = {int(state): values[held == state] for state in np.unique(drawn[field])}
-        sizes = np.array([len(pools[int(state)]) for state in drawn[field]], dtype=np.int64)
-        picks = rng.integers(0, sizes, dtype=np.int64)
-        out[field] = [
-            pools[int(state)][pick] for state, pick in zip(drawn[field], picks, strict=True)
-        ]
-    return out.astype(dict(frame.dtypes))
+    return _copy_donors(drawn, bins, train, rows, rng, frame)
 
 
 def bayes_net(train: pd.DataFrame, request: Request) -> Baseline:

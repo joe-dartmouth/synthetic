@@ -6,7 +6,7 @@ import functools
 import hashlib
 import logging
 import math
-from operator import itemgetter
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,7 @@ from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import derived_seed, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
 from bko.baselines.synthesizers import fill
+from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import EDGE, QUOTA, assert_contract, full_records
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
@@ -411,9 +412,13 @@ def _scalar_draw(
     train: pd.DataFrame,
     rows: int,
     rng: np.random.Generator,
-    frame,
+    frame: FrameSpec,
 ) -> pd.DataFrame:
-    """The row-by-row draw the vector draw must equal, verbatim."""
+    """The row-by-row draw the vector draw must equal, verbatim.
+
+    It reads numpy's `Generator.choice` as the locked numpy implements it; a numpy upgrade that
+    changes `choice` changes this oracle, and the frozen shas say whether the rows moved.
+    """
     drawn: dict[str, np.ndarray] = {}
     for node in network.nodes:
         given = list(zip(*(drawn[parent] for parent in node.parents), strict=True))
@@ -431,18 +436,19 @@ def _scalar_draw(
     return out.astype(dict(frame.dtypes))
 
 
-def _oracle_cases():
+@functools.cache
+def _oracle_cases() -> dict[str, tuple]:
     """Each (name, network, bins, train, frame) the vector draw is checked on."""
     bins = discretize(TRAIN, UCI_FRAME)
-    cases = [
-        (f"uci-{first}", learn(bins, first=first), bins, TRAIN, UCI_FRAME)
+    cases = {
+        f"uci-{first}": (learn(bins, first=first), bins, TRAIN, UCI_FRAME)
         for first in ("age", "restecg", "chol")
-    ]
+    }
     for field, state in (("chol", 0), ("cp", 2)):
-        cases.append((f"forced-{field}", forced(field, state, bins), bins, TRAIN, UCI_FRAME))
+        cases[f"forced-{field}"] = (forced(field, state, bins), bins, TRAIN, UCI_FRAME)
     toy_bins = discretize(TOY_TRAIN, TOY)
     toy_net = learn(toy_bins, first="age")
-    cases.append(("toy", toy_net, toy_bins, TOY_TRAIN, TOY))
+    cases["toy"] = (toy_net, toy_bins, TOY_TRAIN, TOY)
     # an unseen parent configuration falls to the uniform prior
     sparse = Network(
         tuple(
@@ -455,12 +461,12 @@ def _oracle_cases():
             for node in toy_net.nodes
         )
     )
-    cases.append(("toy-unseen-config", sparse, toy_bins, TOY_TRAIN, TOY))
+    cases["toy-unseen-config"] = (sparse, toy_bins, TOY_TRAIN, TOY)
     # a field of one state
     single = TRAIN.loc[TRAIN["restecg"] == 0]
     single_bins = discretize(single, UCI_FRAME)
     assert single_bins.arity("restecg") == 1
-    cases.append(("arity-1", learn(single_bins, first="age"), single_bins, single, UCI_FRAME))
+    cases["arity-1"] = (learn(single_bins, first="age"), single_bins, single, UCI_FRAME)
     # a state whose donor pool holds one row
     thin = Bins(
         toy_bins.cuts,
@@ -472,15 +478,28 @@ def _oracle_cases():
         ),
     )
     assert (thin.states["level"] == 0).sum() == 1
-    cases.append(("singleton-pool", learn(thin, first="age"), thin, TOY_TRAIN, TOY))
+    cases["singleton-pool"] = (learn(thin, first="age"), thin, TOY_TRAIN, TOY)
     return cases
 
 
-@pytest.mark.parametrize("case", _oracle_cases(), ids=itemgetter(0))
-def test_the_vector_draw_equals_the_scalar_draw(case):
-    _, network, bins, train, frame = case
+@pytest.mark.parametrize(
+    "name",
+    [
+        "uci-age",
+        "uci-restecg",
+        "uci-chol",
+        "forced-chol",
+        "forced-cp",
+        "toy",
+        "toy-unseen-config",
+        "arity-1",
+        "singleton-pool",
+    ],
+)
+def test_the_vector_draw_equals_the_scalar_draw(name):
+    network, bins, train, frame = _oracle_cases()[name]
     for seed in range(20):
-        rows = 1 + 97 * seed % 400
+        rows = 1 + (97 * seed) % 400
         new = draw(network, bins, train, rows, np.random.default_rng(seed), frame)
         old = _scalar_draw(network, bins, train, rows, np.random.default_rng(seed), frame)
         pd.testing.assert_frame_equal(new, old)
@@ -535,7 +554,66 @@ def test_the_draw_reads_the_generator_independently_of_rows():
         counting = _Counting(1)
         draw(network, bins, TRAIN, rows, counting, UCI_FRAME)  # ty: ignore[invalid-argument-type]
         totals.append(counting.calls)
-    assert totals[0] == totals[1]
+    assert totals[0] == totals[1] == len(network.nodes) + len(UCI_FRAME.columns)
+
+
+class _Scripted(_Counting):
+    """A generator proxy whose `random` returns one fixed value for every row."""
+
+    def __init__(self, seed: int, value: float) -> None:
+        super().__init__(seed)
+        self.value = value
+
+    def random(self, size):
+        self.calls += 1
+        return np.full(size, self.value)
+
+
+def _one_node(chances: tuple[float, ...]) -> tuple[Network, Bins]:
+    bins = states_of(level=[0, 1, 2, 0, 1, 2])
+    return Network((Node("level", (), {(): chances}, 3),)), bins
+
+
+def _level_frame() -> FrameSpec:
+    """A stand-in carrying the two attributes `draw` reads: one `level` column of `int64`."""
+    return SimpleNamespace(columns=["level"], dtypes={"level": "int64"})  # ty: ignore[invalid-return-type]
+
+
+def test_a_uniform_of_zero_skips_a_zero_chance_first_state():
+    network, bins = _one_node((0.0, 0.5, 0.5))
+    train = pd.DataFrame({"level": [0, 1, 2, 0, 1, 2]})
+    out = draw(network, bins, train, 5, _Scripted(0, 0.0), _level_frame())  # ty: ignore[invalid-argument-type]
+    assert set(out["level"]) == {1}
+
+
+def test_unnormalized_chances_draw_as_their_normalized_form():
+    bins = states_of(level=[0, 1, 2, 0, 1, 2])
+    train = pd.DataFrame({"level": [0, 1, 2, 0, 1, 2]})
+    frame = _level_frame()
+    raw = Network((Node("level", (), {(): (0.2, 0.6, 1.0)}, 3),))
+    unit = Network((Node("level", (), {(): (0.2 / 1.8, 0.6 / 1.8, 1.0 / 1.8)}, 3),))
+    for seed in range(5):
+        got = draw(raw, bins, train, 300, np.random.default_rng(seed), frame)
+        want = _scalar_draw(unit, bins, train, 300, np.random.default_rng(seed), frame)
+        pd.testing.assert_frame_equal(got, want)
+
+
+@pytest.mark.parametrize(
+    "chances", [(0.0, 0.0, 0.0), (math.nan, 0.5, 0.5), (-0.5, 1.0, 0.5), (math.inf, 0.0, 0.0)]
+)
+def test_chances_that_cannot_be_drawn_are_refused(chances):
+    network, bins = _one_node(chances)
+    train = pd.DataFrame({"level": [0, 1, 2, 0, 1, 2]})
+    with pytest.raises(ValueError, match="chances of level"):
+        draw(network, bins, train, 5, np.random.default_rng(0), _level_frame())
+
+
+def test_a_drawn_state_with_no_donor_is_refused():
+    bins = states_of(level=[0, 1, 0, 1, 0, 1])
+    train = pd.DataFrame({"level": [0, 1, 0, 1, 0, 1]})
+    network = Network((Node("level", (), {(): (0.0, 0.0, 1.0)}, 3),))
+    with pytest.raises(ValueError, match="no training donor"):
+        draw(network, bins, train, 5, np.random.default_rng(0), _level_frame())
 
 
 def test_mutual_information_is_computed_once_per_field_and_parents(monkeypatch):

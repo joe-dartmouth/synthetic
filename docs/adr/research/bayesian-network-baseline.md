@@ -52,7 +52,8 @@ We will build **an in-house GreedyBayes learner, `bko.baselines.bayes_net`**, ru
   "bayes-net"))`, and each field's value is copied from a uniformly chosen training row whose state
   for that field is the drawn one; `fill` keeps each stratum's first matching rows, as for every
   generator. The draw reads the generator as a row-by-row draw would: one `random` double per row
-  per node in the learned order, then one bounded integer per row per field in frame order. So
+  per node in the learned order, then one bounded integer per row per field in frame order; the
+  oracle `_scalar_draw` in `tests/test_baselines_bayes_net.py` pins that row-by-row draw. So
   grouping rows by parent configuration and by state leaves the rows byte-identical under the
   locked numpy.
 - **Learn speedups** leave the learner's output byte-identical: the same order, edges and
