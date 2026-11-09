@@ -100,11 +100,21 @@ def over_ask_error(over_ask: int, *, ranks: bool) -> str | None:
             `rank`).
 
     Returns:
-        The refusal's message, or None for a valid `over_ask`.
+        The refusal's message, its specific reason first, then the rule; None for a valid
+        `over_ask`.
     """
-    if over_ask < 1 or (over_ask > 1) != ranks:
-        return f"over_ask {over_ask} is 1 or more, and above 1 exactly when the arm ranks"
-    return None
+    if over_ask < 1:
+        reason = "is below 1"
+    elif over_ask > 1 and not ranks:
+        reason = "is above 1 but the arm does not rank"
+    elif over_ask == 1 and ranks:
+        reason = "is 1 but the arm ranks, so it has nothing to drop"
+    else:
+        return None
+    return (
+        f"over_ask {over_ask} {reason}; over_ask is 1 or more, and above 1 exactly when the arm "
+        "ranks"
+    )
 
 
 def tie(holdout: int, call: int | None, position: int) -> str:

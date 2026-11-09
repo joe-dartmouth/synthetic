@@ -142,6 +142,28 @@ def test_identical_halves_contrast_exactly_zero(caplog):
     assert not separated
 
 
+def test_each_holdouts_cells_share_one_stratum_pass(caplog, monkeypatch):
+    """Every cell of a holdout is scored through one `Scorers`, so its keys are cut once."""
+    keyed: list[int] = []
+    scored: list[object] = []
+    keys = ranking_module.stratum_keys
+    build = ranking_module.Scorers.__call__
+
+    def keys_spy(*args, **kwargs):
+        keyed.append(len(args[0]))
+        return keys(*args, **kwargs)
+
+    def build_spy(self, cell):
+        scored.append(cell)
+        return build(self, cell)
+
+    monkeypatch.setattr(ranking_module, "stratum_keys", keys_spy)
+    monkeypatch.setattr(ranking_module.Scorers, "__call__", build_spy)
+    run(candidates(), caplog)
+    assert len(keyed) == len(SMALL.holdout_seeds)
+    assert len(scored) > 2 * len(keyed)
+
+
 def test_a_holdout_with_no_scored_record_is_refused(caplog):
     data = candidates()
     kept = [line for line in data.decode().splitlines() if '"holdout": 1' not in line]

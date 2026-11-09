@@ -135,9 +135,9 @@ class GuidedArm:
             EvaluationError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule
                 for likelihood curation.
         """
-        msg = over_ask_error(over_ask, ranks=curation is Curation.LIKELIHOOD)
-        if msg is not None:
-            msg = f"{name} asks {msg}"
+        error = over_ask_error(over_ask, ranks=curation is Curation.LIKELIHOOD)
+        if error is not None:
+            msg = f"{name}: {error}"
             raise EvaluationError(msg)
         self.name = name
         self._prescribe = prescribe
@@ -190,7 +190,7 @@ class GuidedArm:
             short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
             if attempt.rank is not None:
                 # Ranking marks each ranked candidate, so it runs before they are kept below.
-                self._ranked(attempt, named=named)
+                self._log_ranked(attempt, named=named)
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -216,8 +216,11 @@ class GuidedArm:
             )
         return self._baseline(attempt, train, first, short)
 
-    def _ranked(self, attempt: Attempt, *, named: tuple[int, str]) -> None:
-        """Rank `attempt`'s rows, then log one `ranked` line per cell it ranked."""
+    def _log_ranked(self, attempt: Attempt, *, named: tuple[int, str]) -> None:
+        """Rank `attempt`'s rows, then log one `ranked` line per cell it ranked, in quota order.
+
+        A cell with no valid row is not ranked, so it gets no line.
+        """
         attempt.rows()
         for ranked in attempt.ranking:
             logger.info(

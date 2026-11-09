@@ -75,9 +75,12 @@ class Ranked:
         cell: The call cell.
         rows: Its valid rows ranked.
         kept: Those it kept, at most its quota.
-        tied: Its rows whose score equals the last kept row's, when a dropped row shares it, else
-            0.
+        tied: Its rows whose score equals the last kept row's, when that score is finite and a
+            dropped row shares it, else 0; rows tied at minus infinity count under
+            `minus_infinity` alone.
         minus_infinity: Its rows the sampler cannot draw.
+
+    A cell with no valid row is not ranked, so it has no `Ranked`.
     """
 
     cell: Stratum
@@ -135,6 +138,7 @@ class Attempt:
 
     Attributes:
         seen: Every candidate the attempt took, in call order, with its outcome.
+        ranking: Each ranked cell's counts, in the quota's order, once `rows` has ranked.
     """
 
     def __init__(
@@ -156,7 +160,8 @@ class Attempt:
         rows it reads as `bko.evaluate.curation.discards` drops, keeps each one's scores on its
         candidate, and counts `Drop.CURATION`; an attempt given a `rank` holds `over_ask` times
         each cell's quota before `rows` ranks it, ties broken in `bko.evaluate.ranking.tie` order
-        on `holdout`, and counts `Drop.LIKELIHOOD`.
+        on `holdout`, and counts `Drop.LIKELIHOOD`. A `rank` needs `over_ask` above 1, so the
+        attempt holds rows to drop; one without a `rank` needs `over_ask` 1.
 
         Raises:
             ValueError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule for an
@@ -338,7 +343,8 @@ class Attempt:
         and the cell keeps its quota's highest, ties in `bko.evaluate.ranking.tie` order and
         minus infinity last; the rest take the outcome `dropped-likelihood`, and every ranked
         candidate keeps its score, None for minus infinity. A cell holding no more than its quota
-        keeps every row. An added frame with no rows when none was kept.
+        keeps every row. Each ranked cell's counts join `ranking`, in the quota's order; a cell
+        with no valid row is not ranked. An added frame with no rows when none was kept.
 
         Raises:
             ValueError: If `rank` returns other than one score per candidate, or a score that is
@@ -349,7 +355,9 @@ class Attempt:
         if self.rank is not None and not self._ranked:
             # Every cell is scored before any candidate is marked, so a refusal changes nothing.
             scored = {
-                cell: self._scores(self.rank, cell, valid) for cell, valid in self._valid.items()
+                cell: self._scores(self.rank, cell, self._valid[cell])
+                for cell in self.request.quota
+                if cell in self._valid
             }
             for cell, scores in scored.items():
                 self.kept[cell] = self._ranked_rows(cell, self._valid[cell], scores)
@@ -386,7 +394,7 @@ class Attempt:
         quota = self.request.quota[cell]
         best = set(order[:quota])
         cut = scores[order[quota - 1]] if 0 < quota < len(order) else None
-        split = cut is not None and scores[order[quota]] == cut
+        split = cut is not None and cut != -math.inf and scores[order[quota]] == cut
         self.ranking.append(
             Ranked(
                 cell,

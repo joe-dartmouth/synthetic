@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
+import re
 from collections.abc import Callable, Iterator, Mapping
 from functools import partial
 from pathlib import Path
@@ -24,7 +25,7 @@ from bko.baselines.records import Drop
 from bko.baselines.request import Request, Strata
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.attempts import Attempt
+from bko.evaluate.attempts import Attempt, Ranked
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import CURATED_ARM, E1, MESSAGES_ARMS, Curation, MessagesArm
 from bko.evaluate.guided import GuidedArm, Knowledge
@@ -33,7 +34,7 @@ from bko.evaluate.ranking import Known, Scorers, record, tie
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.waves import spendable
 from bko.gaps.definitions import Definition
-from bko.gaps.observe import Cell
+from bko.gaps.observe import Cell, cell_key
 from bko.generate.flight import Flight, Limits
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, AnySend
@@ -54,6 +55,7 @@ from tests.test_evaluate_cllm import (
 
 CURATED: Final = "bko-curated"
 HOLDOUT: Final = 0
+KIND: Final = "replica"
 QUOTA: Final = 3
 REQUEST: Final = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
 REAL_CHANGES: Final = (
@@ -71,7 +73,7 @@ pytestmark = pytest.mark.usefixtures("fill")
 @pytest.fixture
 def fill() -> Iterator[None]:
     """Each test runs inside holdout 0's replica fill, whose holdout the tie order reads."""
-    token = CURRENT_FILL.set(Fill(HOLDOUT, "replica"))
+    token = CURRENT_FILL.set(Fill(HOLDOUT, KIND))
     yield
     CURRENT_FILL.reset(token)
 
@@ -126,11 +128,16 @@ def seen_of(built: GuidedArm) -> list[Seen]:
 
 def ranked_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
     """The `ranked` lines the arm logged."""
-    messages = [record.getMessage() for record in caplog.records]
+    messages = [logged.getMessage() for logged in caplog.records]
     return [message for message in messages if message.startswith("ranked ")]
 
 
-RANKED: Final = "ranked holdout=0 fill=replica arm=bko-curated seed=0 cell=<55/female/1"
+def ranked_prefix(cell: Cell = YOUNG_SICK, *, holdout: int = HOLDOUT, seed: int = 0) -> str:
+    """A `ranked` line's fields before its counts, for `cell` on `holdout` at `seed`."""
+    return f"ranked holdout={holdout} fill={KIND} arm={CURATED} seed={seed} cell={cell_key(cell)}"
+
+
+RANKED: Final = ranked_prefix(seed=REQUEST.seed)
 
 
 def sha_order(count: int, *, call: int = 1) -> list[int]:
@@ -241,8 +248,49 @@ def test_an_unranked_attempt_logs_no_ranked_line(tmp_path, caplog):
     with log:
         baseline = built(train(), REQUEST)
     assert len(baseline.added) == QUOTA
-    assert any(record.getMessage().startswith("guided ") for record in caplog.records)
+    assert any(logged.getMessage().startswith("guided ") for logged in caplog.records)
     assert ranked_lines(caplog) == []
+
+
+def test_a_ranked_line_names_its_fills_holdout_and_its_requests_seed(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    scores = {101: -1.0, 102: -5.0, 103: -2.0, 104: -6.0, 105: -3.0, 106: -4.0}
+    scored(monkeypatch, scores)
+    built, log = ranked(tmp_path, ScriptedSend(reply(women(*scores))))
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=5)
+    token = CURRENT_FILL.set(Fill(7, KIND))
+    try:
+        with log:
+            built(train(), request)
+    finally:
+        CURRENT_FILL.reset(token)
+    prefix = ranked_prefix(holdout=7, seed=5)
+    assert ranked_lines(caplog) == [f"{prefix} rows=6 kept=3 tied=0 minus_infinity=0"]
+
+
+def test_a_ranked_attempt_logs_its_cells_in_quota_order(tmp_path, monkeypatch, caplog):
+    """Each ranked cell logs one line, the quota's cells in its order: the well cell first."""
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    sick = (101, 102, 103, 104)
+    well = (181, 182, 183, 184)
+    scored(monkeypatch, dict.fromkeys(sick + well, -1.0) | {101: -2.0, 181: -3.0})
+
+    class ByLabel(ScriptedSend):
+        def __call__(self, call):
+            self.calls.append(call)
+            if call.label == 1:
+                return reply(women(*sick))
+            return reply([{**well_woman(), "thalach": value} for value in well])
+
+    built, log = ranked(tmp_path, ByLabel())
+    request = Request(quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0)
+    with log:
+        built(train(), request)
+    assert list(request.quota) == [YOUNG_WELL, YOUNG_SICK]
+    assert ranked_lines(caplog) == [
+        f"{ranked_prefix(YOUNG_WELL)} rows=4 kept=2 tied=3 minus_infinity=0",
+        f"{ranked_prefix(YOUNG_SICK)} rows=4 kept=2 tied=3 minus_infinity=0",
+    ]
 
 
 def test_ranking_is_per_call_cell(tmp_path, monkeypatch):
@@ -287,6 +335,34 @@ def test_a_short_cell_keeps_everything():
         ("kept", {"likelihood": -101.0}),
     ]
     assert attempt.tally.dropped[Drop.LIKELIHOOD] == 0
+    assert attempt.ranking == [Ranked(YOUNG_SICK, rows=2, kept=2, tied=0, minus_infinity=0)]
+
+
+def test_a_cell_holding_its_quota_keeps_everything_with_no_tie():
+    """Every row ties, but none is dropped, so none ties at the cut."""
+    attempt = Attempt(
+        train(), REQUEST, 2 * QUOTA * 6, rank=lambda seen: [-1.0] * len(seen), over_ask=2
+    )
+    attempt.add(1, YOUNG_SICK, 3, women(101, 102, 103))
+    assert attempt.rows()["thalach"].tolist() == [101, 102, 103]
+    assert attempt.ranking == [Ranked(YOUNG_SICK, rows=3, kept=3, tied=0, minus_infinity=0)]
+
+
+def test_a_cut_at_minus_infinity_counts_no_tie():
+    """The second kept row and the dropped one both read minus infinity: no finite tie."""
+    request = Request(quota={YOUNG_SICK: 2}, strata=Strata.CELL, seed=0)
+    table = {101: -math.inf, 102: -math.inf, 103: -2.0}
+    attempt = Attempt(
+        train(),
+        request,
+        24,
+        rank=lambda seen: [table[int(thalach_of(item))] for item in seen],
+        over_ask=2,
+        holdout=HOLDOUT,
+    )
+    attempt.add(1, YOUNG_SICK, 3, women(*table))
+    attempt.rows()
+    assert attempt.ranking == [Ranked(YOUNG_SICK, rows=3, kept=2, tied=0, minus_infinity=2)]
 
 
 def test_a_row_outside_its_calls_cell_is_dropped_for_its_cell():
@@ -412,6 +488,60 @@ def test_a_holdouts_label_groups_are_observed_once(monkeypatch):
     assert observed == [f"uci/{UCI_FRAME.label}=1", f"uci/{UCI_FRAME.label}=0"]
 
 
+def test_a_second_cell_of_a_label_scores_bit_equal_to_its_own_build():
+    """A cell scored after another of its label reads the label group the first one observed.
+
+    The pins are the old per-cell `scorer`'s scores of the young sick male cell, which observed
+    its label group afresh.
+    """
+    knowledge = Knowledge("uci", {}, (), FIELD_MAPPINGS)
+    candidates = [{**sick_woman(44, 101 + at), **change} for at, change in enumerate(REAL_CHANGES)]
+    scorers = Scorers(train(), knowledge, UCI_FRAME)
+    scorers(YOUNG_SICK)
+    likelihood = scorers(("<55", "male", 1))
+    scores = [likelihood(record(item, UCI_FRAME.columns)) for item in candidates]
+    assert [float(score).hex() for score in scores] == [
+        "-0x1.ef86334b5ec7fp+2",
+        "-0x1.9c5ebf7a1919cp+2",
+        "-0x1.212611b9562ecp+2",
+        "-0x1.682dd325d81ccp+2",
+        "-0x1.bb5546f71dcafp+2",
+        "-0x1.5556fe0d972bcp+2",
+    ]
+
+
+def test_a_ranked_arm_builds_its_cells_scorers_from_one_stratum_pass(tmp_path, monkeypatch):
+    keyed: list[int] = []
+    keys = ranking_module.stratum_keys
+
+    def keys_spy(*args, **kwargs):
+        keyed.append(len(args[0]))
+        return keys(*args, **kwargs)
+
+    monkeypatch.setattr(ranking_module, "stratum_keys", keys_spy)
+    spec = MESSAGES_ARMS[CURATED]
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
+    built = GuidedArm(
+        CURATED,
+        spec.definition,
+        Knowledge("uci", {}, (), FIELD_MAPPINGS),
+        log=log,
+        budget=spec.budget or 0,
+        flight=Flight(
+            ScriptedSend(), log, Limits(1, None), spendable=partial(spendable, log, 50.0)
+        ),
+        curation=spec.curation,
+        over_ask=spec.over_ask,
+    )
+    request = Request(
+        quota={YOUNG_SICK: 1, YOUNG_WELL: 1, (">=55", "female", 1): 1},
+        strata=Strata.CELL,
+        seed=0,
+    )
+    built._rank(train(), request)
+    assert keyed == [len(train())]
+
+
 def test_the_scorer_refuses_a_cell_its_training_rows_lack():
     rows = train()
     emptied = rows.loc[[key != YOUNG_SICK for key in cells_of(rows)]]
@@ -437,7 +567,9 @@ def test_record_reads_every_column_as_a_float_and_refuses_anything_else():
 def test_a_guided_arm_asks_over_ask_with_likelihood_curation_only(tmp_path, over_ask, curation):
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
     flight = Flight(ScriptedSend(), log, Limits(1, None), spendable=partial(spendable, log, 50.0))
-    with pytest.raises(EvaluationError, match="above 1 exactly when the arm ranks"):
+    with pytest.raises(
+        EvaluationError, match=rf"^{CURATED}: over_ask {over_ask} .*above 1 exactly"
+    ):
         GuidedArm(
             CURATED,
             None,
@@ -463,19 +595,22 @@ def test_an_attempt_asks_over_ask_with_a_rank_only(over_ask, ranks):
 
 
 @pytest.mark.parametrize(
-    ("over_ask", "ranks", "valid"),
+    ("over_ask", "ranks", "reason"),
     [
-        (1, False, True),
-        (2, True, True),
-        (2, False, False),
-        (1, True, False),
-        (0, False, False),
-        (0, True, False),
+        (1, False, None),
+        (2, True, None),
+        (2, False, "is above 1 but the arm does not rank"),
+        (1, True, "is 1 but the arm ranks, so it has nothing to drop"),
+        (0, False, "is below 1"),
+        (0, True, "is below 1"),
     ],
 )
-def test_every_reader_of_over_ask_states_one_rule(tmp_path, over_ask, ranks, valid):
-    """`MessagesArm`, `GuidedArm` and `Attempt` accept and refuse the same `over_ask`."""
-    rule = "above 1 exactly when the arm ranks"
+def test_every_reader_of_over_ask_states_one_rule(tmp_path, over_ask, ranks, reason):
+    """`MessagesArm`, `GuidedArm` and `Attempt` accept and refuse the same `over_ask`, alike."""
+    rule = re.escape(
+        f"over_ask {over_ask} {reason}; over_ask is 1 or more, and above 1 exactly when the arm "
+        "ranks"
+    )
     curation = Curation.LIKELIHOOD if ranks else None
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
     flight = Flight(ScriptedSend(), log, Limits(1, None), spendable=partial(spendable, log, 50.0))
@@ -506,7 +641,7 @@ def test_every_reader_of_over_ask_states_one_rule(tmp_path, over_ask, ranks, val
         ),
     ]
     for error, build in readers:
-        if valid:
+        if reason is None:
             build()
         else:
             with pytest.raises(error, match=rule):
