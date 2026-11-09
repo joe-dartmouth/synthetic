@@ -121,3 +121,55 @@ def test_a_teardown_failure_is_not_masked_and_still_restores(tmp_path: Path) -> 
     assert "teardown-boom" in output, output
     assert "1 error" in output, output
     assert "2 passed" in output, output
+
+
+def test_a_test_that_leaves_warning_capture_on_errors(tmp_path: Path) -> None:
+    output = _run(
+        tmp_path,
+        "import logging\n\n\ndef test_it():\n    logging.captureWarnings(True)\n",
+    )
+    assert "root logger changed: warnings.showwarning" in output, output
+    assert "1 error" in output, output
+
+
+def test_a_test_that_restores_warning_capture_passes(tmp_path: Path) -> None:
+    body = (
+        "import logging\nimport warnings\n\n\n"
+        "def test_it():\n"
+        "    shown = warnings.showwarning\n"
+        "    try:\n"
+        "        logging.captureWarnings(True)\n"
+        "    finally:\n"
+        "        logging.captureWarnings(False)\n"
+        "        warnings.showwarning = shown\n"
+    )
+    assert "1 passed" in _run(tmp_path, body)
+
+
+def test_a_test_that_leaves_a_quiet_logger_level_changed_errors(tmp_path: Path) -> None:
+    output = _run(
+        tmp_path,
+        "import logging\n\n\n"
+        "def test_it():\n"
+        "    logging.getLogger('httpx2').setLevel(logging.WARNING)\n"
+        "    logging.getLogger('sdv').setLevel(logging.WARNING)\n",
+    )
+    assert "root logger changed: logger levels sdv, httpx2" in output, output
+    assert "1 error" in output, output
+
+
+def test_the_guard_restores_warning_capture_and_quiet_levels(tmp_path: Path) -> None:
+    body = (
+        "import logging\nimport warnings\n\n\n"
+        "def test_a_leaks():\n"
+        "    logging.captureWarnings(True)\n"
+        "    logging.getLogger('sdv').setLevel(logging.ERROR)\n\n\n"
+        "def test_b_sees_clean_state():\n"
+        "    assert warnings.showwarning.__module__ != 'logging'\n"
+        "    assert logging.getLogger('sdv').level == logging.NOTSET\n"
+    )
+    root = scratch_checkout(tmp_path, "guard", {_PLANTED: body})
+    run = scratch_pytest(root, "-p", "no:xdist", _PLANTED)
+    output = run.stdout + run.stderr
+    assert "1 error" in output, output
+    assert "2 passed" in output, output

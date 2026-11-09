@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Iterator
 from typing import Any, Final, NamedTuple, NoReturn
 
 import pytest
 from anthropic._base_client import AsyncAPIClient, SyncAPIClient
+
+from bko.core.logs import SDV_LOGGERS
+from bko.generate.api import HTTP_LOGGERS
 
 
 PAID_REQUEST_REFUSAL: Final = "a request outside a `live` test's body reached the Anthropic API"
@@ -175,12 +179,42 @@ def refuse_unmarked_api_requests(config: pytest.Config) -> None:
     _PaidGuard.patch = patch
 
 
-_ROOT_LOGGER = pytest.StashKey[tuple[int, list[logging.Handler]]]()
+class _LoggingState(NamedTuple):
+    """The process-wide logging state a test must leave as it found it.
+
+    Attributes:
+        level: The root logger's level.
+        handlers: The root logger's handlers.
+        showwarning: `warnings.showwarning`, which `logging.captureWarnings(True)` swaps.
+        quiet: The level of each logger a stage's `configure(quiet=...)` sets.
+    """
+
+    level: int
+    handlers: list[logging.Handler]
+    showwarning: Any
+    quiet: dict[str, int]
+
+
+QUIET_LOGGERS: Final = (*SDV_LOGGERS, *HTTP_LOGGERS)
+"""Every logger a stage passes to `bko.core.logs.configure(quiet=...)`."""
+
+_LOGGING_STATE = pytest.StashKey[_LoggingState]()
+
+
+def _logging_state() -> _LoggingState:
+    """Read the logging state the guard compares."""
+    root = logging.getLogger()
+    return _LoggingState(
+        root.level,
+        list(root.handlers),
+        warnings.showwarning,
+        {name: logging.getLogger(name).level for name in QUIET_LOGGERS},
+    )
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_setup(item: pytest.Item) -> Iterator[None]:
-    """Note the root logger's level and handlers before anything of the test runs.
+    """Note the logging state before anything of the test runs.
 
     Args:
         item: The test about to be set up.
@@ -188,18 +222,18 @@ def pytest_runtest_setup(item: pytest.Item) -> Iterator[None]:
     Yields:
         Control to the setup.
     """
-    root = logging.getLogger()
-    item.stash[_ROOT_LOGGER] = (root.level, list(root.handlers))
+    item.stash[_LOGGING_STATE] = _logging_state()
     return (yield)
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> Iterator[None]:
-    """Error a test whose run left the root logger's level or handlers changed, then restore them.
+    """Error a test whose run left the logging state changed, then restore it.
 
-    Fixtures such as `caplog` restore at their teardown, which runs inside this wrapper, so only
-    a change that outlives the whole test is reported. The restore runs even when the teardown
-    raised, and the error is raised only after a teardown that returned normally.
+    The state is the root logger's level and handlers, `warnings.showwarning` and the levels of the
+    loggers a stage quiets. Fixtures such as `caplog` restore at their teardown, which runs inside
+    this wrapper, so only a change that outlives the whole test is reported. The restore runs even
+    when the teardown raised, and the error is raised only after a teardown that returned normally.
 
     Args:
         item: The test being torn down.
@@ -212,17 +246,30 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
     try:
         result = yield
     finally:
-        level, handlers = item.stash[_ROOT_LOGGER]
+        before = item.stash[_LOGGING_STATE]
+        after = _logging_state()
+        changed = []
         root = logging.getLogger()
-        changed = ""
-        if root.level != level or root.handlers != handlers:
-            changed = (
-                f"level {level} -> {root.level} handlers {len(handlers)} -> {len(root.handlers)}"
+        if (after.level, after.handlers) != (before.level, before.handlers):
+            changed.append(
+                f"level {before.level} -> {after.level} "
+                f"handlers {len(before.handlers)} -> {len(after.handlers)}"
             )
-            root.setLevel(level)
-            root.handlers[:] = handlers
+            root.setLevel(before.level)
+            root.handlers[:] = before.handlers
+        if after.showwarning is not before.showwarning:
+            changed.append("warnings.showwarning")
+            # `captureWarnings(False)` also clears logging's own record of the swap, so a later
+            # `captureWarnings(True)` swaps again.
+            logging.captureWarnings(False)
+            warnings.showwarning = before.showwarning
+        moved = [name for name in QUIET_LOGGERS if after.quiet[name] != before.quiet[name]]
+        if moved:
+            changed.append(f"logger levels {', '.join(moved)}")
+            for name in moved:
+                logging.getLogger(name).setLevel(before.quiet[name])
     if changed:
-        pytest.fail(f"root logger changed: {changed}", pytrace=False)
+        pytest.fail(f"root logger changed: {'; '.join(changed)}", pytrace=False)
     return result
 
 

@@ -1897,9 +1897,11 @@ A targeted run while working:
   at INFO, so no entry point logs a request body. Setting `ANTHROPIC_LOG` leaves the bko INFO
   lines in place: the SDK's import installs a root handler, and every entry point's logging setup
   replaces it (`force=True`).
-- **A test that changes the root logger fails.** A test that leaves the root logger's level or
-  handlers changed errors at teardown: `tests/conftest.py` snapshots them as each test's setup
-  starts and compares them after its teardown, then restores them.
+- **A test that changes the logging state fails.** A test that leaves the root logger's level or
+  handlers, `warnings.showwarning` (which `logging.captureWarnings(True)` swaps) or the level of
+  a logger a stage passes to `bko.core.logs.configure(quiet=...)` changed errors at teardown:
+  `tests/conftest.py` snapshots them as each test's setup starts and compares them after its
+  teardown, then restores them. A test that calls `configure` restores them itself or stubs it.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

@@ -31,6 +31,7 @@ from bko.baselines.errors import BaselineError, ShortfallError
 from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, no_rows, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
+from bko.core.logs import SDV_LOGGERS
 from bko.datasets.frames import FrameSpec
 
 
@@ -51,7 +52,7 @@ DRAW_BATCH: Final = 10_000
 MAX_DRAWN_ROWS: Final = 1_000_000
 """Rows drawn before a quota still short is refused."""
 
-QUIET_LOGGERS: Final = ("sdv", "SingleTableSynthesizer")
+QUIET_LOGGERS: Final = SDV_LOGGERS
 """SDV's loggers, held at WARNING so their INFO records stay off stderr."""
 
 
