@@ -87,7 +87,10 @@ def main(
 
 
 def configure_logging() -> None:
-    """Send INFO and higher to stderr, keeping stdout for the CSV, and quiet SDV's loggers."""
+    """Send INFO and higher, and every warning, to stderr, keeping stdout for the CSV.
+
+    SDV's loggers log WARNING and above only.
+    """
     configure(quiet=QUIET_LOGGERS)
 
 

@@ -198,7 +198,8 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
     """Error a test whose run left the root logger's level or handlers changed, then restore them.
 
     Fixtures such as `caplog` restore at their teardown, which runs inside this wrapper, so only
-    a change that outlives the whole test is reported.
+    a change that outlives the whole test is reported. The restore runs even when the teardown
+    raised, and the error is raised only after a teardown that returned normally.
 
     Args:
         item: The test being torn down.
@@ -208,13 +209,19 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
         Control to the teardown.
     """
     del nextitem
-    result = yield
-    level, handlers = item.stash[_ROOT_LOGGER]
-    root = logging.getLogger()
-    if root.level != level or root.handlers != handlers:
-        changed = f"level {level} -> {root.level} handlers {len(handlers)} -> {len(root.handlers)}"
-        root.setLevel(level)
-        root.handlers[:] = handlers
+    try:
+        result = yield
+    finally:
+        level, handlers = item.stash[_ROOT_LOGGER]
+        root = logging.getLogger()
+        changed = ""
+        if root.level != level or root.handlers != handlers:
+            changed = (
+                f"level {level} -> {root.level} handlers {len(handlers)} -> {len(root.handlers)}"
+            )
+            root.setLevel(level)
+            root.handlers[:] = handlers
+    if changed:
         pytest.fail(f"root logger changed: {changed}", pytrace=False)
     return result
 

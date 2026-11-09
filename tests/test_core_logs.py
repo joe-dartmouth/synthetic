@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import sys
+import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -55,7 +57,32 @@ def test_configure_quiets_the_named_loggers() -> None:
         assert logging.getLogger("bko-core-b").level == logging.WARNING
 
 
+def test_configure_replaces_a_stamped_handler_that_writes_to_stdout() -> None:
+    with restored():
+        root = logging.getLogger()
+        root.handlers[:] = [stamped_handler(sys.stdout)]
+        configure()
+        [handler] = root.handlers
+        assert isinstance(handler, logging.StreamHandler)
+        assert handler.stream is sys.stderr
+
+
+def test_configure_replaces_a_plain_stderr_handler() -> None:
+    with restored():
+        root = logging.getLogger()
+        root.handlers[:] = [logging.StreamHandler(sys.stderr)]
+        configure()
+        [handler] = root.handlers
+        assert isinstance(handler.formatter, Stamp)
+
+
 def test_configure_routes_warnings_into_the_log() -> None:
     with restored():
         configure()
-        assert logging._warnings_showwarning is not None  # ty: ignore[unresolved-attribute]
+        stream = io.StringIO()
+        logging.getLogger("py.warnings").addHandler(stamped_handler(stream))
+        try:
+            warnings.warn("routed-warning", UserWarning, stacklevel=1)
+        finally:
+            logging.getLogger("py.warnings").handlers.clear()
+        assert "routed-warning" in stream.getvalue()

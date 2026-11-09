@@ -46,7 +46,9 @@ def configure(*, quiet: Iterable[str] = ()) -> None:
 
     A root handler that already writes stamped lines to stderr is kept, so a process that
     configures twice (Streamlit reruns its script) keeps one; otherwise the root's handlers are
-    replaced (`force=True`). Each logger in `quiet` logs WARNING and above only.
+    replaced (`force=True`, which closes the handlers it removes). A kept handler keeps the root's
+    level as it stands; only a replacement sets it to INFO. Each logger in `quiet` logs WARNING
+    and above only.
 
     Args:
         quiet: Loggers that log WARNING and above only, such as an HTTP client's.

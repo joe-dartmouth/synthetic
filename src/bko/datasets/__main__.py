@@ -99,7 +99,7 @@ def main(
 
 
 def configure_logging() -> None:
-    """Send INFO and higher log records to stderr, keeping stdout for the report."""
+    """Send INFO and higher, and every warning, to stderr, keeping stdout for the report."""
     configure()
 
 
