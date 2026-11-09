@@ -96,7 +96,8 @@ folder.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/trace.py`, with the call log's reading in
+- Owner: `src/bko/evaluate/trace.py`, with the trace lines in `src/bko/evaluate/trace_lines.py`,
+  the direct arms' in `src/bko/evaluate/trace_direct.py`, the call log's reading in
   `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in

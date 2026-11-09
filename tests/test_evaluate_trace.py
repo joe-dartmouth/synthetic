@@ -34,7 +34,7 @@ from bko.evaluate.prepare import prepared
 from bko.evaluate.redraw import redraw
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.shared import rebuilt
-from bko.evaluate.trace import Trace, ordered, select, trace_messages
+from bko.evaluate.trace_lines import Trace, ordered, select, trace_messages
 from bko.gaps.observe import by_concept, cell_key, dataset_fragment, observe_records, record_cells
 from bko.gaps.scope import load_scope
 from bko.gaps.shares import GROUP_WEIGHT, shares

@@ -25,7 +25,7 @@ from bko.app.provenance_frames import (
 from bko.app.steps import Outcome, analyze, fill_and_score
 from bko.evaluate.call_prompts import UNTRACED
 from bko.evaluate.holdout_candidates import KEPT, read
-from bko.evaluate.trace import Trace
+from bko.evaluate.trace_lines import Trace
 from tests._app_fixtures import analyzed, app_context, frame_with, launch, never, settled
 from tests._generate_fixtures import ScriptedSend, reply
 from tests._ontology_fixtures import RoutingOpener

@@ -1,8 +1,8 @@
 """The frames behind a record's trace: read from `trace.jsonl` or from a demo fill's run folder.
 
-Nothing here imports streamlit; `bko.app.browse` renders what these return. A trace line is the
-JSON object `bko.evaluate.trace.Trace.line` writes, held read-only (`frozen`); every field but the
-arm and the holdout may be absent, and a frame leaves out what its line lacks (ADR
+Nothing here imports streamlit; `bko.app.browse` renders what these return. A trace line is
+the JSON object `bko.evaluate.trace_lines.Trace.line` writes, held read-only (`frozen`); every
+field but the arm and the holdout may be absent, and a frame leaves out what its line lacks (ADR
 `research/record-explainability`).
 """
 
@@ -19,7 +19,7 @@ import pandas as pd
 
 from bko.evaluate.call_prompts import CALLS
 from bko.evaluate.holdout_candidates import read
-from bko.evaluate.trace import Fill, trace_messages
+from bko.evaluate.trace_lines import Fill, trace_messages
 
 
 if TYPE_CHECKING:
@@ -247,7 +247,7 @@ def demo_traces(outcome: Outcome) -> tuple[Line, ...]:
     Raises:
         OSError: If the candidates file cannot be read.
         CandidatesFormatError: If it is not a candidates file.
-        EvaluationError: As `bko.evaluate.trace.trace_messages`, `IdentityError` included.
+        EvaluationError: As `bko.evaluate.trace_lines.trace_messages`, `IdentityError` included.
     """
     lines = [
         line
