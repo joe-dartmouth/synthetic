@@ -234,8 +234,8 @@ the value its runs used, as `bko.evaluate.run_folder.ASSUMED` lists for the `exp
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
 `compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs to
-stderr, at INFO, first the `versions` line, then one line per input as it reads it, `merge file=%s holdouts=%s rows=%d sha256=%s`
-(the path, the file's lowest and highest holdout as `<first>-<last>`, or `none` for a file with no
+stderr, at INFO, first the `versions` line, then one line per input as it reads it,
+`merge file=%s holdouts=%s rows=%d sha256=%s` (the path, the file's lowest and highest holdout as `<first>-<last>`, or `none` for a file with no
 row, its row count and the sha256 of its bytes), then for the merged scores
 `merge files=%d holdouts=%d rows=%d sha256=%s`, the sha256 of the bytes it writes.
 

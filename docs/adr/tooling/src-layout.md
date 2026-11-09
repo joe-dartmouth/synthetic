@@ -9,9 +9,9 @@ updated: 2026-11-08
 ## Context
 
 The project's pipeline ([`docs/ARCHITECTURE.md`](../../ARCHITECTURE.md)) has distinct stages
-(Represent, Detect, Generate, Validate, Fuse, Evaluate, and a user interface) with different workstreams
-and different heavy dependencies. Each teammate needs a home for their stage that exists before
-any code does, so work can start in parallel without arguing about where files go.
+(Represent, Detect, Generate, Validate, Fuse, Evaluate, and a user interface) with different
+workstreams and different heavy dependencies. Each stage needs a home that exists before any code
+does, so work can start in parallel without arguing about where files go.
 
 ## Decision Drivers
 
@@ -49,7 +49,7 @@ With a flat layout the working directory shadows the installed package, so an im
 works from the repository root passes every local run and fails for anyone installing the package.
 The `src/` layout makes the test suite import what was installed.
 
-One subpackage per stage gives each stage a boundary that matches the team's division of work,
+One subpackage per stage gives each stage a boundary that matches its workstream,
 and keeps a stage's heavy imports out of every other stage.
 
 ## Consequences
@@ -66,7 +66,7 @@ needs a deliberate home rather than an ad-hoc import across stages.
 | Flat layout (`bko/` at the root) | The working directory shadows the installed package | 2026-10-13 |
 | One distribution per stage | A `pyproject.toml` and a lock per stage for one course project | 2026-10-13 |
 | Notebooks as the primary code | Not importable, not linted, not testable by the gate | 2026-10-13 |
-| A top-level `bko/logs.py` | It escapes the README and layout checks a subpackage gets | 2026-11-08 |
+| A top-level `bko/logs.py` | It escapes the checks a subpackage gets | 2026-11-08 |
 
 ## Enforcement
 
