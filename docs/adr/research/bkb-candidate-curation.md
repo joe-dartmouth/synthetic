@@ -75,9 +75,10 @@ fidelity on all three measures** over that frame's candidates.
   - Ties break by `sha256(f"{holdout}:{call}:{position}")`, as in the split.
   - Ranked-out rows take the outcome `dropped-likelihood`, and each ranked row's candidates line
     carries its score (candidates schema 3 and later).
-  - Each ranked cell logs its rows ranked, its ties at the cut and its rows at minus infinity,
-    and the arm line's params carry `over_ask`; one `bko.evaluate.ranking.Scorers` per holdout
-    builds each cell's likelihood.
+  - Each ranked cell logs its rows ranked, its ties at a finite cut and its rows at minus
+    infinity, and the arm line's params carry `over_ask` when it is above 1. One
+    `bko.evaluate.ranking.Scorers` builds each cell's likelihood from one holdout's training
+    rows: the arm builds one per attempt, and the gate one per holdout.
   - Its run holds `none`, `real` and `bko-curated`, on E6's frame and removal, and pairs `beside`
     with `e6-22`: both keep copies (`decontaminate=False`), so their splits are identical.
 - **Input.** The named run's candidates files as written, one or more slices, over the named run's
