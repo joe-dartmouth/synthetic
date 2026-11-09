@@ -644,12 +644,14 @@ start or the supervisor cannot run.
   lines of a perturbation arm, the `perturb` result of its step: `perturbed`, `unchanged`, or
   `refused_<reason>` for `bko-direct-perturbed`, as the `perturb holdout=` line counts it, and
   `changed` or `unchanged` for `bko-direct-pram`. `read` reads schemas 1 to 4; only 3 and 4 hold
-  `score`, and only 4 holds `perturb`. It refuses a `score` whose names are not its arm's:
-  `likelihood` for `bko-curated`, and `aleatoric` and `confidence` for `cllm`. A replay writes the
-  schema its commit writes, so byte equality holds against a run of the same schema. Lines are
-  written when the harness drains a holdout: after every arm's gap fill, then after every replica
-  fill. A stopped run's file holds what was drained before the stop; the stopped holdout's fills not yet drained are missing,
-  even those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
+  `score`, and only 4 holds `perturb`. On schema 3 and schema 4 alike, it refuses a `score` whose
+  names are not its arm's: `likelihood` for `bko-curated`, and `aleatoric` and `confidence` for
+  `cllm`. It refuses a `perturb` on any other arm than the two perturbation arms, and a result
+  outside its arm's set (`PERTURBS`). A replay writes the schema its commit writes, so byte
+  equality holds against a run of the same schema. Lines are written when the harness drains a
+  holdout: after every arm's gap fill, then after every replica fill. A stopped run's file holds
+  what was drained before the stop; the stopped holdout's fills not yet drained are missing, even
+  those that finished, and their candidates live only in `calls.jsonl`. Each arm, holdout and
   fill's lines count what its `candidates` or `replica-candidates` rows count;
   `bko.evaluate.holdout_candidates.read` reads the file.
 - **What `compare` does**: it reads that CSV and writes one row per paired contrast as CSV: the
