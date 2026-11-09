@@ -35,6 +35,7 @@ from typing import Final, TextIO
 
 from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
+from bko.core.logs import configure
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
@@ -149,13 +150,7 @@ def main(
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr, keeping stdout for the report."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
-    logging.captureWarnings(True)
+    configure()
 
 
 def _parser() -> argparse.ArgumentParser:

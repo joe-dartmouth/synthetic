@@ -21,10 +21,6 @@ STAMPED: Final = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3}[+-]\d{4} [A-
 RECORDED: Final = (
     "2026-10-28 04:08:09,250 INFO bko.evaluate.run: split seed=0 train=1 test=1 fingerprint=x"
 )
-STAMPED_SETUPS: Final = {
-    "evaluate": "from bko.evaluate.__main__ import configure_logging",
-    "app": "from bko.app.context import configure_logging",
-}
 
 
 def configuring_modules() -> list[str]:
@@ -41,6 +37,12 @@ def configuring_modules() -> list[str]:
         for path in listed
         if "\ndef configure_logging(" in (REPO_ROOT / path).read_text(encoding="utf-8")
     )
+
+
+STAMPED_SETUPS: Final = {
+    module: f"from {module} import configure_logging" for module in configuring_modules()
+}
+"""Each configuring module's import line, keyed by its dotted name."""
 
 
 def basic_config_calls() -> dict[str, list[str]]:
@@ -98,7 +100,7 @@ def test_stamped_lines_carry_an_offset(setup):
 
 
 def test_line_parses_an_offset_stamped_line_and_a_recorded_one():
-    line = stamped_line(STAMPED_SETUPS["evaluate"])
+    line = stamped_line(STAMPED_SETUPS["bko.evaluate.__main__"])
     assert LINE.fullmatch(line), line
     found = LINE.fullmatch(RECORDED)
     assert found is not None
@@ -108,7 +110,7 @@ def test_line_parses_an_offset_stamped_line_and_a_recorded_one():
 def stamp_at(zone: str, created: float) -> str:
     """`Stamp.formatTime` of a record created at `created` seconds, run with `TZ=zone`."""
     script = (
-        "import logging\nfrom bko.evaluate.logs import Stamp\n"
+        "import logging\nfrom bko.core.logs import Stamp\n"
         "record = logging.LogRecord('x', logging.INFO, 'f', 1, 'm', None, None)\n"
         f"record.created = {created!r}\nrecord.msecs = 250.0\n"
         "import sys\nsys.stderr.write(Stamp().formatTime(record))\n"
@@ -117,7 +119,9 @@ def stamp_at(zone: str, created: float) -> str:
 
 
 def test_utc_stamps_end_in_a_zero_offset():
-    assert stamped_line(STAMPED_SETUPS["evaluate"], TZ="UTC").split()[1].endswith("+0000")
+    assert (
+        stamped_line(STAMPED_SETUPS["bko.evaluate.__main__"], TZ="UTC").split()[1].endswith("+0000")
+    )
 
 
 JANUARY: Final = 1767225600.0

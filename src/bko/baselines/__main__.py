@@ -29,6 +29,7 @@ from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, training_set
 from bko.baselines.request import BASELINE_SEED, SEED_LIMIT, Method, Request, Strata, plan
 from bko.baselines.synthesizers import QUIET_LOGGERS
+from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
@@ -87,14 +88,7 @@ def main(
 
 def configure_logging() -> None:
     """Send INFO and higher to stderr, keeping stdout for the CSV, and quiet SDV's loggers."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
-    for name in QUIET_LOGGERS:
-        logging.getLogger(name).setLevel(logging.WARNING)
+    configure(quiet=QUIET_LOGGERS)
 
 
 def render(train: pd.DataFrame, baseline: Baseline) -> str:

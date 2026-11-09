@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+import bko.ontology.__main__ as ontology_main
 from bko.datasets.sources import Source
 from bko.ontology.__main__ import Context, configure_logging, main
 from bko.ontology.mapping import CODE_MAPPINGS, UNMAPPED_CODES
@@ -194,13 +195,11 @@ def test_an_unwritable_data_root_exits_two(tmp_path):
     assert (code, out) == (2, "")
 
 
-def test_configure_logging_sends_info_to_stderr(monkeypatch):
-    recorded: list[dict[str, object]] = []
-    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: recorded.append(kwargs))
+def test_configure_logging_calls_the_shared_setup(monkeypatch):
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(ontology_main, "configure", lambda **kwargs: calls.append(kwargs))
     configure_logging()
-    [kwargs] = recorded
-    assert kwargs["stream"] is sys.stderr
-    assert kwargs["level"] == logging.INFO
+    assert calls == [{}]
 
 
 def test_the_module_entry_point_runs():

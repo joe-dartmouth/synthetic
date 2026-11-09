@@ -40,6 +40,7 @@ from types import MappingProxyType
 from typing import Final
 from urllib.parse import urlsplit
 
+from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.uci import UCI_FRAME
@@ -400,12 +401,7 @@ def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
 
 def configure_logging() -> None:
     """Log INFO and above to stderr; run only when the module runs as a script."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
+    configure()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

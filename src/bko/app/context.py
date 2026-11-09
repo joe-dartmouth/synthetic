@@ -6,8 +6,6 @@ E1's ceiling.
 
 from __future__ import annotations
 
-import logging
-import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -16,6 +14,7 @@ from typing import Final
 
 from bko.baselines.methods import Runner
 from bko.baselines.synthesizers import QUIET_LOGGERS
+from bko.core.logs import configure
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.run_folders import runs_root
 from bko.datasets.sources import DIABETES_130, SYNTHEA_JAR, UCI_HEART_DISEASE, Source
@@ -23,7 +22,6 @@ from bko.datasets.synthea_run import DEFAULT_RUN as SYNTHEA_RUN
 from bko.datasets.synthea_run import SyntheaRun
 from bko.evaluate.classifier import Factory, build
 from bko.evaluate.experiment import E1, Experiment
-from bko.evaluate.logs import Stamp, stamped_handler
 from bko.evaluate.run import ARMS
 from bko.generate.api import HTTP_LOGGERS, default_async_send
 from bko.generate.messages import AnySend
@@ -41,16 +39,7 @@ def configure_logging() -> None:
     Streamlit reruns the script on every interaction, so a root that already holds a stamped
     handler on stderr is left alone; any other root handler, such as an SDK's, is replaced.
     """
-    if not any(
-        isinstance(h, logging.StreamHandler)
-        and h.stream is sys.stderr
-        and isinstance(h.formatter, Stamp)
-        for h in logging.getLogger().handlers
-    ):
-        logging.basicConfig(handlers=[stamped_handler(sys.stderr)], level=logging.INFO, force=True)
-    logging.captureWarnings(True)
-    for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
-        logging.getLogger(name).setLevel(logging.WARNING)
+    configure(quiet=(*QUIET_LOGGERS, *HTTP_LOGGERS))
 
 
 def _utc_now() -> datetime:

@@ -38,6 +38,7 @@ from typing import Final, TextIO
 import pandas as pd
 
 from bko.bkb.errors import BKBError
+from bko.core.logs import configure
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
@@ -122,13 +123,7 @@ def _csv(rows: Sequence[Row]) -> str:
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr, keeping stdout for the report."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
-    logging.captureWarnings(True)
+    configure()
 
 
 def _parser() -> argparse.ArgumentParser:

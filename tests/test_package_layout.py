@@ -16,6 +16,7 @@ from tests._corpus import REPO_ROOT
 
 
 SUBPACKAGES = (
+    "core",
     "datasets",
     "ontology",
     "bkb",

@@ -23,10 +23,11 @@ any code does, so work can start in parallel without arguing about where files g
 ## Decision
 
 We will use a **`src/` layout** with a single top-level package `bko` and one subpackage per
-pipeline stage:
+pipeline stage, plus `bko.core`, the helpers no stage owns:
 
 | Subpackage | Stage | Extra it will import |
 |---|---|---|
+| `core` | Helpers no stage owns | none |
 | `datasets` | UCI Heart Disease and Synthea loading | `data` |
 | `ontology` | MONDO, HPO and DO loading; field mapping; BKO fragments | `ontology` |
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
@@ -65,6 +66,7 @@ needs a deliberate home rather than an ad-hoc import across stages.
 | Flat layout (`bko/` at the root) | The working directory shadows the installed package | 2026-10-13 |
 | One distribution per stage | A `pyproject.toml` and a lock per stage for one course project | 2026-10-13 |
 | Notebooks as the primary code | Not importable, not linted, not testable by the gate | 2026-10-13 |
+| A top-level `bko/logs.py` | It escapes the README and layout checks a subpackage gets | 2026-11-08 |
 
 ## Enforcement
 
@@ -81,10 +83,10 @@ needs a deliberate home rather than an ad-hoc import across stages.
 and `SUBPACKAGES` in `tests/test_package_layout.py` change in the same commit; the test fails if
 they disagree.
 
-**Shared code gets a `bko.core` subpackage the first time two stages import the same helper.** A
-stage importing an upstream stage's public API (its frames, constants, loaders, errors and data root,
-as `bko.baselines` imports `bko.datasets`) is a pipeline dependency, not a shared helper. Until a
-helper belongs to neither stage, nothing needs `bko.core`.
+**`bko.core` holds the stamped logging setup; a helper joins it only when two or more stages
+import it and it belongs to neither.** A stage importing an upstream stage's public API (its
+frames, constants, loaders, errors and data root, as `bko.baselines` imports `bko.datasets`) is a
+pipeline dependency, not a shared helper.
 
 ## Related
 
