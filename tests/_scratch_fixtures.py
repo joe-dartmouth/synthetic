@@ -1,9 +1,10 @@
 """Scratch checkouts that run the root conftest in a child pytest.
 
-Shared by `tests/test_skip_policy.py` and `tests/test_paid_guard_sessions.py`, which plant a few
-test modules beside a copy of the root conftest and judge what a separate pytest run reports. A
-child run is the only way to observe what the conftest does at configure time, at collection and
-under xdist, since this run's own conftest is already active.
+Shared by `tests/test_skip_policy.py`, `tests/test_paid_guard_sessions.py` and
+`tests/test_conftest_guard.py`, which plant a few test modules beside a copy of the root conftest
+and judge what a separate pytest run reports. A child run is the only way to observe what the
+conftest does at configure time, at collection, under xdist and around each test, since this
+run's own conftest is already active.
 """
 
 from __future__ import annotations
@@ -44,6 +45,28 @@ INHERITED_PREFIXES: Final = ("PYTEST_", "COV_CORE_", "COVERAGE_")
 start measurement in a run passed `--no-cov`.
 """
 
+CREDENTIAL_MARKS: Final = ("KEY", "TOKEN", "SECRET")
+"""Parts of an `ANTHROPIC_` variable's name that mark it a credential the scratch run never gets.
+
+A planted test that reaches the API carries its own placeholder key, so the child needs none, and
+one the guard admits under `--live` must not spend. `ANTHROPIC_BASE_URL` is kept: it is how the
+guard points a child at the discard port.
+"""
+
+
+def _inherited(key: str) -> bool:
+    """Whether the scratch run inherits the variable `key`.
+
+    Args:
+        key: An environment variable's name.
+
+    Returns:
+        False for a variable another pytest run set, or an Anthropic credential.
+    """
+    if key.startswith(INHERITED_PREFIXES):
+        return False
+    return not (key.startswith("ANTHROPIC_") and any(mark in key for mark in CREDENTIAL_MARKS))
+
 
 def scratch_checkout(tmp_path: Path, name: str, planted: Mapping[str, str]) -> Path:
     """Build a minimal checkout in a directory called `name`, holding the planted test modules.
@@ -74,14 +97,13 @@ def scratch_pytest(
     Args:
         root: The checkout.
         *args: The test files, relative to it or absolute, and any options before them.
-        env: Variables set in the child, applied after the inherited prefixes are dropped.
+        env: Variables set in the child, applied after the inherited prefixes and the Anthropic
+            credentials are dropped.
 
     Returns:
         The finished run, its output captured.
     """
-    child = {
-        key: value for key, value in os.environ.items() if not key.startswith(INHERITED_PREFIXES)
-    }
+    child = {key: value for key, value in os.environ.items() if _inherited(key)}
     child.update(env or {})
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - a fixed argv
         [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "--no-cov", "-rs", *args],

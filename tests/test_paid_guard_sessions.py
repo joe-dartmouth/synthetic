@@ -130,3 +130,23 @@ def test_without_live_a_live_test_is_skipped_not_refused(tmp_path: Path) -> None
     assert run.returncode == 0, output
     assert "1 skipped" in run.stdout, output
     assert _REFUSAL not in output, output
+
+
+def test_a_scratch_run_inherits_no_anthropic_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A credential in the spawning run's environment never reaches the child; its base URL does."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "planted-key")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "planted-token")
+    planted = (
+        "import os\n\n\n"
+        "def test_it():\n"
+        "    assert 'ANTHROPIC_API_KEY' not in os.environ\n"
+        "    assert 'ANTHROPIC_AUTH_TOKEN' not in os.environ\n"
+        "    assert os.environ['ANTHROPIC_BASE_URL'] == 'http://127.0.0.1:9'\n"
+    )
+    root = scratch_checkout(tmp_path, "guard", {"tests/test_env.py": planted})
+
+    run = scratch_pytest(root, "tests/test_env.py")
+
+    assert "1 passed" in run.stdout, run.stdout + run.stderr
