@@ -695,16 +695,6 @@ def test_nested_field_rows_refuse_the_perturbed_arm_before_any_download(tmp_path
     assert not (tmp_path / "data").exists()
 
 
-@pytest.mark.parametrize("arm", [PERTURBED_ARM, PRAM_ARM])
-def test_trace_refuses_a_perturbation_arms_fill(tmp_path, caplog, arm):
-    folder, ctx = perturbed_folder(tmp_path, caplog, Rewriter())
-    argv = ["trace", "g2", "--folder", str(folder), "--holdout", "0", "--arm", arm]
-    argv += ["--data-dir", str(tmp_path / "data")]
-    assert main(argv, context=ctx, out=io.StringIO()) == 2
-    assert f"trace cannot explain {arm}" in caplog.text
-    assert "cleanup:evaluate/trace-logic-arm" in caplog.text
-
-
 def test_a_rewrite_call_for_a_cell_no_sex_code_names_is_refused():
     with pytest.raises(EvaluationError, match="no sex code names cell"):
         _guidance(("6-7", "unknown", 1))

@@ -72,8 +72,8 @@ import it (ADR `tooling/agent-config-single-home`).
   no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation)).
 - `mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> [--record N] > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null`:
   write the stored or re-derivable facts behind each record of one arm's fill of one holdout,
-  refusing a `bko-direct` re-draw whose digest differs from the `arm` line's sha256. It makes no
-  API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
+  refusing a re-draw whose digest differs from the `arm` line's sha256. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
 - `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--runs-dir DIR] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl> [--ceiling USD]]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money. It supervises the

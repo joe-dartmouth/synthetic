@@ -1,10 +1,11 @@
-"""A `bko-direct` fill re-drawn at its logged seed, and the facts behind each draw's concepts.
+"""A direct arm's fill re-drawn at its logged seed, and the facts behind each draw's concepts.
 
 `redraw` draws a request again through `bko.generate.direct.sample` and takes the draws through an
 `bko.evaluate.attempts.Attempt` as `bko.evaluate.direct.DirectArm` does, so its rows are the fill's
 rows byte for byte when the code and the data are the run's. `Shares` holds each asked cell's
 records and its label group's, from which `concept_facts` reads one concept's share, its parts,
-its S-nodes and its label. `bko.evaluate.trace` writes both (ADR `research/record-explainability`).
+its S-nodes and its label. `bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read
+both (ADR `research/record-explainability`).
 """
 
 from __future__ import annotations
@@ -17,16 +18,15 @@ import pandas as pd
 from bko.baselines.request import Request
 from bko.bkb.fusion import source_component
 from bko.evaluate.attempts import Attempt
+from bko.evaluate.call_prompts import Json
 from bko.evaluate.data import Data
 from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
+from bko.generate.presence import Presence
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
-
-
-type Json = Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -36,10 +36,12 @@ class Redrawn:
     Attributes:
         rows: The rows the arm returns.
         kept: The draws those rows came from, in generation order.
+        drawn: Every draw, in generation order, as the attempt's candidate lines hold them.
     """
 
     rows: pd.DataFrame
     kept: tuple[Draw, ...]
+    drawn: tuple[Draw, ...] = ()
 
 
 def redraw(
@@ -50,8 +52,11 @@ def redraw(
     ontologies: Mapping[str, Ontology],
     budget: int,
     tag: tuple[int, str],
+    presence: Presence = Presence.SHARES,
 ) -> Redrawn:
     """Draw `request` at its seed as the direct arm does, with no other random draw.
+
+    `presence` is the arm's (`bko.evaluate.experiment.DIRECT_ARMS`).
 
     Raises:
         SamplingError: As `sample`.
@@ -65,6 +70,7 @@ def redraw(
         seed=request.seed,
         frame=data.frame,
         tag=tag,
+        presence=presence,
     )
     attempt = Attempt(train, request, budget * request.rows)
     draws: list[Draw] = []
@@ -72,7 +78,7 @@ def redraw(
         attempt.add(None, cell, len(each), [dict(draw.record) for draw in each])
         draws += each
     kept = tuple(draws[j] for j, seen in enumerate(attempt.seen) if seen.outcome == KEPT)
-    return Redrawn(attempt.rows(), kept)
+    return Redrawn(attempt.rows(), kept, tuple(draws))
 
 
 class Shares:
