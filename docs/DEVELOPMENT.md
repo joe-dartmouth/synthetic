@@ -1734,7 +1734,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
   with `bko.evaluate.run.score_holdout`, with no replica fill, so the page shows no fidelity and no
   train-on-synthetic reading. It charts each arm's recall, overall and on the flagged subgroups,
   beside a table of its recall, precision and AUC-PR, with every measure behind an expander. It
-  lists each definition's gaps before and after the added rows join.
+  lists each definition's gaps before and after the added rows join. It refuses an experiment
+  with a training fraction below 1 or a removal.
   Download offers the augmented training set, in the format `python -m bko.baselines` prints, and
   the split's scores, in the format `python -m bko.evaluate score` writes.
 - **What it judges**: a demo fill judges nothing. It shows one split's measures; E1's verdict comes

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-10-29
+updated: 2026-11-08
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -57,7 +57,8 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   (`bko.datasets.split.split`, `bko.datasets.cells.cell_keys` and `cell_counts`,
   `bko.gaps.observe.record_cells`, `bko.fusion.join.join`) require the band edges, so none of
   them falls back to UCI's for a caller holding another frame. The baselines read the frame from
-  their `Request`, whose field defaults to `UCI_FRAME`.
+  their `Request`, whose `frame` is a required keyword, and from each records helper's required
+  `frame` argument.
 - **One frame value per named run**: `bko.evaluate.named_runs.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name, the data use agreement it is held under and the sha256 of its records), and
@@ -116,8 +117,7 @@ improvement.
 One frame value lets a second frame, such as a Synthea one, run through every stage without
 editing it; a stage that bound UCI's constants at import could read no other. The cell is always
 an age band, a sex and the label (`bko.datasets.cells`), so only the band edges vary between
-frames. The keyword default keeps every UCI caller, and so every UCI request and score,
-unchanged. Choosing the data by named run fixes a run's frame in code beside its experiment and
+frames. Each UCI caller passes `UCI_FRAME`, so every UCI request and score is unchanged. Choosing the data by named run fixes a run's frame in code beside its experiment and
 settings, so `score <run>` reads the same records every time, and one `Data` value hands every
 stage the same frame, records and digest, which the run's logs then name.
 
@@ -140,6 +140,7 @@ criteria, and no other frame from this archive adds records of women with heart 
 | Each site as its own frame | VA and Switzerland cannot test a classifier alone; Hungarian loses three predictors and flags 5 of 8 cells; see Rationale | 2026-10-16 |
 | Another open dataset | The open sets in this schema copy these four sites, and the independent ones need a data request or change the schema and the label; see Rationale | 2026-10-16 |
 | `num` as a five-class label | 20 cells for about 240 training records; only presence against absence is documented | 2026-10-14 |
+| A `frame` defaulting to `UCI_FRAME` on `Request` and the baselines' records and synthesizer helpers | A caller holding another frame that omits it gets UCI's columns and codes with no error | 2026-11-08 |
 | Imputing missing values | Model-made values in the real baseline; see Rationale | 2026-10-14 |
 | Three or more age bands | Flag half or more of the cells on the pinned archive; see Rationale | 2026-10-14 |
 | Stratifying on the label only | A cell of 24 or 25 records lands on either side of 20 depending on the seed | 2026-10-14 |

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-02
+updated: 2026-11-08
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -85,7 +85,7 @@ seed their sampling after every fit, and seed no fit.
   touching no global generator; the Bayesian network draws from
   `default_rng(derived_seed(seed, "bayes-net"))` the same way.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
-  defaulting to `bko.datasets.uci.UCI_FRAME`; the row checks, the drop rule and the synthesizers'
+  a required keyword; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
 - **Output**: in process, the added rows (the frame's columns and dtypes, indexed -1, -2, ...) and
   one weight per training record. The command writes the training set they make to stdout
