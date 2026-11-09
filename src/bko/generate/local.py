@@ -6,7 +6,8 @@
 temperature), the call's reply schema (`Call.reply_schema`, a rewrite call's included) as a
 `json_schema` response format, and thinking off unless the model's id is a `-thinking` variant.
 Nothing leaves the machine. Its first call reads the server's `/props` and refuses a server whose
-alias or weights file is not the model's, logging the server's build and file. A cancelled call,
+alias or weights file is not the model's, or, for a `-thinking` id, whose short pre-flight reply
+carries no reasoning, logging the server's build and file. A cancelled call,
 by the idle rule or an interrupt, shuts its socket so the worker thread and the server's slot are
 freed. A refused connection, a broken response or a status of 500 or above raises a retryable
 `GenerationError`, as the API's connection errors do (`bko.generate.api`).
@@ -49,6 +50,7 @@ from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
 from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, text_of
 from bko.generate.prompt import render
+from bko.generate.reasoning import reasoning_chars
 from bko.generate.weights import LOCAL_MODELS, fetch, model_path
 
 
@@ -81,6 +83,9 @@ STOP_REASONS: Final[Mapping[str, str]] = MappingProxyType(
 
 RETRYABLE_STATUS: Final = 500
 """The lowest status that marks a server-side failure a resume may get past."""
+
+PREFLIGHT_TOKENS: Final = 64
+"""The `max_tokens` of a `-thinking` id's pre-flight call, enough to start its reasoning."""
 
 
 def payload(call: Call) -> dict[str, object]:
@@ -196,36 +201,51 @@ def _exchange(
         raise GenerationError(msg) from None
 
 
+def preflight(model: str, connection: http.client.HTTPConnection) -> int:
+    """Post the probe's call at `PREFLIGHT_TOKENS` and return its reply's reasoning characters.
+
+    Raises:
+        GenerationError: As `_exchange`, if the server cannot be read or refuses the call.
+    """
+    data = json.dumps(payload(probe_call(model, 4, max_tokens=PREFLIGHT_TOKENS))).encode()
+    return reasoning_chars(reply_of(_exchange(connection, "POST", "/v1/chat/completions", data)))
+
+
 def check_server(model: str, port: int) -> Mapping[str, object]:
     """The server's `/props`, once its alias and weights file are shown to be `model`'s.
 
-    Logs one `local server` line: the alias, the weights path, the build, the slots and the
-    pinned sha256 of the file the path names.
+    A `-thinking` id's server must also reason: its `/props` reports no reasoning setting, so
+    the check sends one `preflight` call and needs reasoning in its reply. Logs one `local server`
+    line: the alias, the weights path, the build, the slots, the pinned sha256 of the file the
+    path names and, for a `-thinking` id, the pre-flight reply's reasoning characters.
 
     Raises:
-        GenerationError: Not retryable, if the server serves another alias or file; as
-            `_exchange` if it cannot be read.
+        GenerationError: Not retryable, if the server serves another alias or file, or a
+            `-thinking` id's pre-flight reply carries no reasoning; as `_exchange` if it cannot be
+            read.
     """
     pin = LOCAL_MODELS[model]
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT_SECONDS)
     try:
         props = _exchange(connection, "GET", "/props")
+        props = props if isinstance(props, dict) else {}
+        alias, path = props.get("model_alias"), str(props.get("model_path", ""))
+        if alias != model or Path(path).name != pin.filename:
+            msg = f"the local server serves alias {alias} from {path}; the run names {model}"
+            raise GenerationError(msg)
+        chars = preflight(model, connection) if pin.thinking else None
     finally:
         connection.close()
-    props = props if isinstance(props, dict) else {}
-    alias, path = props.get("model_alias"), str(props.get("model_path", ""))
-    if alias != model or Path(path).name != pin.filename:
-        msg = f"the local server serves alias {alias} from {path}; the run names {model}"
+    if chars == 0:
+        msg = f"the local server for {model} does not reason: its pre-flight reply has "
+        msg += "reasoning_chars=0"
         raise GenerationError(msg)
-    logger.info(
-        "local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s",
-        model,
-        str(pin.thinking).lower(),
-        path,
-        props.get("build_info"),
-        props.get("total_slots"),
-        pin.sha256,
-    )
+    line = "local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s"
+    facts: list[object] = [model, str(pin.thinking).lower(), path]
+    facts += [props.get("build_info"), props.get("total_slots"), pin.sha256]
+    if chars is not None:
+        line, facts = f"{line} preflight_reasoning_chars=%d", [*facts, chars]
+    logger.info(line, *facts)
     return props
 
 
@@ -344,13 +364,14 @@ def wait_ready(
         sleep(1.0)
 
 
-def reasoning_chars(reply: Reply) -> int:
-    """The characters of the reply's `reasoning_content`, 0 when absent or not text."""
-    choices = reply.raw.get("choices")
-    first = choices[0] if isinstance(choices, list) and choices else None
-    message = first.get("message") if isinstance(first, dict) else None
-    thoughts = message.get("reasoning_content") if isinstance(message, dict) else None
-    return len(thoughts) if isinstance(thoughts, str) else 0
+def probe_call(model: str, rows: int, *, max_tokens: int = SETTINGS.max_tokens) -> Call:
+    """The probe's call: `rows` records of `PROBE_CELL` under `model`, at `max_tokens`."""
+    settings = dataclasses.replace(SETTINGS, model=model, max_tokens=max_tokens)
+    interval = {r.field: (r.low, r.high) for r in UCI_FRAME.ranges}
+    interval["age"] = (interval["age"][0], float(UCI_FRAME.edges[0] - 1))
+    guidance = Guidance(cell=PROBE_CELL, sex=0, label=1, records=2, interval=interval)
+    system, user = render(guidance, rows, settings.guidance, frame=UCI_FRAME)
+    return Call(settings, 0, 1, system, user, frame=UCI_FRAME)
 
 
 def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
@@ -364,12 +385,7 @@ def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
             Also if a thinking model's reply carries no reasoning, which marks a server started
             without its reasoning flags.
     """
-    settings = dataclasses.replace(SETTINGS, model=model)
-    interval = {r.field: (r.low, r.high) for r in UCI_FRAME.ranges}
-    interval["age"] = (interval["age"][0], float(UCI_FRAME.edges[0] - 1))
-    guidance = Guidance(cell=PROBE_CELL, sex=0, label=1, records=2, interval=interval)
-    system, user = render(guidance, rows, settings.guidance, frame=UCI_FRAME)
-    call = Call(settings, 0, 1, system, user, frame=UCI_FRAME)
+    call = probe_call(model, rows)
     started = time.monotonic()
     reply = asyncio.run(local_send(model, url=url)(call))
     elapsed = time.monotonic() - started

@@ -57,20 +57,6 @@ links to where its blocker is tracked.
 
 ## generate
 
-- **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking
-  id's reasoning mode.** `bko.generate.local.check_server` compares the `/props` alias and weights
-  file name only, so a base-model server started under a `-thinking` alias without
-  `--reasoning on --reasoning-format deepseek` passes it and the run measures thinking off under
-  the thinking id; only `probe`'s `reasoning_chars=0` shows it. Evidence: `check_server`
-  (`src/bko/generate/local.py`) and the PR #70 review (observability and security lenses). *Filed
-  2026-11-02 by the thinking-cost landing.*
-  **Why deferred.** The two thinking-cost runs are done and `probe` now exits 2 on a thinking id
-  that returns no reasoning; a `/props` field for the reasoning setting needs a server build to
-  check against.
-  **What discharges it:** `check_server` reads the server's reasoning setting from `/props` (or
-  refuses a thinking id when it cannot), pinned by a test whose server reports reasoning off.
-  **Trigger:** the next thinking-on local run.
-
 - **`cleanup:generate/thinking-reasoning-per-call-log`: no per-call reasoning share and no
   truncated-while-reasoning reason in the logs.** The `generate` line in `bko.generate.calls` has
   no reasoning split (`reasoning_chars` is logged only by `probe`), and a `max_tokens` stop after

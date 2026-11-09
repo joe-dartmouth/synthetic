@@ -19,19 +19,21 @@ from bko.generate.calls import ask
 from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.local import (
+    PREFLIGHT_TOKENS,
     SLOTS,
     local_send,
     loopback,
     main,
     payload,
     probe,
-    reasoning_chars,
+    probe_call,
     reply_of,
     serve_command,
     wait_ready,
 )
 from bko.generate.log import CallLog
 from bko.generate.messages import SETTINGS, Call, Reply, record_schema
+from bko.generate.reasoning import reasoning_chars
 from bko.generate.replay import Replay
 from bko.generate.weights import LOCAL_MODELS, model_path
 from tests._generate_fixtures import GUIDANCE
@@ -92,11 +94,13 @@ def completion(
 
 
 class Server:
-    """A llama-server fake on an ephemeral loopback port: `/props`, `/health`, and each chat POST
-    answered in turn with a status and a body (bytes sent as they are, else JSON).
+    """A llama-server fake on an ephemeral loopback port: `/props`, `/health`, each chat POST
+    answered in turn with a status and a body (bytes sent as they are, else JSON), and each
+    `/tokenize` POST from its own answers, three tokens once they run out.
 
     Attributes:
-        requests: Each POST's method, path, content type and JSON body.
+        requests: Each chat POST's method, path, content type and JSON body.
+        tokenized: Each `/tokenize` POST's JSON body.
         closed: Set when a delayed POST sees the client hang up.
     """
 
@@ -106,9 +110,12 @@ class Server:
         *,
         props: dict[str, object] = PROPS,
         delay: float = 0.0,
+        tokenize: list[tuple[int, object]] | None = None,
     ) -> None:
         self.answers = answers
+        self.tokenize = tokenize if tokenize is not None else []
         self.requests: list[tuple[str, str, str, object]] = []
+        self.tokenized: list[object] = []
         self.closed = threading.Event()
         fake = self
 
@@ -127,6 +134,11 @@ class Server:
             def do_POST(self) -> None:
                 length = int(self.headers["Content-Length"])
                 body = json.loads(self.rfile.read(length))
+                if self.path == "/tokenize":
+                    fake.tokenized.append(body)
+                    answer = fake.tokenize.pop(0) if fake.tokenize else (200, {"tokens": [0] * 3})
+                    self._send(*answer)
+                    return
                 kind = self.headers["Content-Type"]
                 fake.requests.append((self.command, self.path, kind, body))
                 if delay:
@@ -425,6 +437,12 @@ def test_a_local_log_replays_its_text_and_decodes_as_logged(tmp_path):
 
 
 THINKING_CALL = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=THINKING))
+THINKING_PROPS = {
+    **PROPS,
+    "model_alias": THINKING,
+    "model_path": f"/w/{LOCAL_MODELS[BASE].filename}",
+}
+PREFLIGHT = (200, completion([], finish="length", reasoning_content="plan", content=""))
 
 
 def test_the_thinking_payload_differs_from_the_plain_one_in_model_and_thinking_alone():
@@ -500,8 +518,7 @@ def test_a_probe_whose_content_holds_think_tags_decodes_nothing_and_exits_two(mo
 
 def test_the_server_line_names_thinking_for_a_variant(caplog):
     caplog.set_level("INFO")
-    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
-    with Server([(200, completion([RECORD]))], props=props) as fake:
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
         asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
     lines = [m for m in caplog.messages if m.startswith("local server ")]
     assert [m.split()[:4] for m in lines] == [
@@ -544,14 +561,8 @@ def test_a_thinking_reply_decodes_from_content_alone():
     assert candidates[: len(candidates) - undecoded_in(candidates)] == (RECORD,)
 
 
-@pytest.mark.parametrize("thoughts", [7, ["a"], {"a": 1}, True])
-def test_reasoning_that_is_not_text_counts_zero(thoughts):
-    assert reasoning_chars(reply_of(completion([RECORD], reasoning_content=thoughts))) == 0
-
-
 def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, caplog):
-    props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
-    with Server([(200, completion([RECORD]))], props=props) as fake:
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
@@ -564,8 +575,58 @@ def test_a_thinking_probe_with_no_reasoning_warns_and_exits_two(monkeypatch, cap
 def test_a_thinking_probe_with_reasoning_exits_zero(monkeypatch):
     props = {**PROPS, "model_alias": THINKING, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
     body = completion([RECORD], reasoning_content="think")
-    with Server([(200, body)], props=props) as fake:
+    with Server([PREFLIGHT, (200, body)], props=props) as fake:
         monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
         original = probe
         monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
         assert main(["probe", THINKING]) == 0
+
+
+def test_a_thinking_id_whose_preflight_holds_no_reasoning_is_refused(monkeypatch, caplog):
+    """A server that does not parse reasoning out, as under `--reasoning-format none`, answers
+    the pre-flight with its thoughts in the content; the run stops before its first call."""
+    unsplit = completion([], finish="length", content="<|channel>thought\n plan")
+    with Server([(200, unsplit), (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
+        with pytest.raises(GenerationError, match="does not reason") as caught:
+            asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+        monkeypatch.setattr(local_module, "wait_ready", lambda port: None)
+        original = probe
+        monkeypatch.setattr(local_module, "probe", lambda model: original(model, url=fake.url))
+        fake.answers.insert(0, (200, unsplit))
+        with caplog.at_level("INFO"):
+            assert main(["probe", THINKING]) == 2
+    assert not caught.value.retryable
+    preflight = payload(probe_call(THINKING, 4, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight, preflight]
+    assert preflight["max_tokens"] == PREFLIGHT_TOKENS == 64
+    assert fake.answers == [(200, completion([RECORD]))]
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    refusal = f"the local server for {THINKING} does not reason: its pre-flight reply has"
+    assert errors == [f"{refusal} reasoning_chars=0"]
+    assert not [m for m in caplog.messages if m.startswith("local server ")]
+
+
+def test_a_thinking_id_whose_preflight_reasons_passes(caplog):
+    caplog.set_level("INFO")
+    with Server([PREFLIGHT, (200, completion([RECORD]))], props=THINKING_PROPS) as fake:
+        reply = asyncio.run(local_send(THINKING, url=fake.url)(THINKING_CALL))
+    assert reply.text == json.dumps({"records": [RECORD]})
+    preflight = payload(probe_call(THINKING, 4, max_tokens=PREFLIGHT_TOKENS))
+    assert [request[3] for request in fake.requests] == [preflight, payload(THINKING_CALL)]
+    lines = [m for m in caplog.messages if m.startswith("local server ")]
+    assert lines == [
+        (
+            f"local server model={THINKING} thinking=true path={THINKING_PROPS['model_path']} "
+            f"build=b1-test slots=4 sha256={LOCAL_MODELS[THINKING].sha256} "
+            "preflight_reasoning_chars=4"
+        )
+    ]
+
+
+def test_a_base_id_sends_no_preflight():
+    props = {**PROPS, "model_alias": BASE, "model_path": f"/w/{LOCAL_MODELS[BASE].filename}"}
+    base_call = dataclasses.replace(CALL, settings=dataclasses.replace(SETTINGS, model=BASE))
+    with Server([(200, completion([RECORD]))], props=props) as fake:
+        asyncio.run(local_send(BASE, url=fake.url)(base_call))
+    assert [request[3] for request in fake.requests] == [payload(base_call)]
+    assert fake.tokenized == []
