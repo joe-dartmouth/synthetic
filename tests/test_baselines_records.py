@@ -31,7 +31,7 @@ from tests._baselines_fixtures import EDGE, QUOTA, cell_list, full_records
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 TRAIN = full_records()
-REQUEST = Request(quota=QUOTA)
+REQUEST = Request(quota=QUOTA, frame=UCI_FRAME)
 
 DERIVED = 1368430203
 """`derived_seed(0, "smote", "<55", "female", 1)` at the commit this test was written."""
@@ -64,14 +64,14 @@ def one_row(**values: float) -> pd.DataFrame:
 
 
 def test_whole_rounds_rather_than_truncates():
-    out = whole(one_row(age=54.6, thal=6.6, oldpeak=1.26))
+    out = whole(one_row(age=54.6, thal=6.6, oldpeak=1.26), frame=UCI_FRAME)
     assert (out["age"].item(), out["thal"].item(), out["oldpeak"].item()) == (55, 7, 1.3)
     assert out.dtypes.astype(str).to_dict() == dict(FRAME_DTYPES)
 
 
 def test_whole_refuses_a_missing_value():
     with pytest.raises(OutputContractError, match="missing or infinite"):
-        whole(one_row(chol=np.nan))
+        whole(one_row(chol=np.nan), frame=UCI_FRAME)
 
 
 def test_number_indexes_from_minus_one():
@@ -173,7 +173,7 @@ def test_derived_seeds_and_kept_positions_are_pinned():
 def test_training_set_puts_the_real_rows_first_with_their_weights():
     added = valid_rows()
     weights = unit_weights(TRAIN).mul(2.0)
-    frame = training_set(TRAIN, Baseline(added=added, weights=weights, params={}))
+    frame = training_set(TRAIN, Baseline(added=added, weights=weights, params={}), frame=UCI_FRAME)
     assert list(frame.columns) == [*FRAME_COLUMNS, "weight"]
     assert frame.index.tolist() == [*TRAIN.index, *added.index]
     assert frame["weight"].tolist() == [2.0] * len(TRAIN) + [1.0] * len(added)

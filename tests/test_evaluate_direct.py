@@ -176,7 +176,9 @@ def test_a_draw_no_record_matches_is_a_refusal_the_harness_may_retry(tmp_path, c
     )
 
     arm = DirectArm(FIELD_MAPPINGS, {}, name=DIRECT_ARM, budget=3, sink=None, dataset="uci-test")
-    request = Request(quota={("<55", "female", 1): 100}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={("<55", "female", 1): 100}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     token = CURRENT_FILL.set(Fill(0, "gap"))
     try:
         with pytest.raises(BaselineError, match=r"cannot draw cp\+exang"):
@@ -203,7 +205,7 @@ def test_the_arm_fills_its_request_from_the_seed_and_names_its_generator(tmp_pat
         [planted(age=40 + i % 10, sex=0, target=1, cp=1 + i % 4) for i in range(12)]
         + [planted(age=60, sex=1, target=0) for _ in range(5)]
     )
-    request = Request(quota={("<55", "female", 1): 8}, strata=Strata.CELL, seed=4)
+    request = Request(quota={("<55", "female", 1): 8}, strata=Strata.CELL, seed=4, frame=UCI_FRAME)
 
     def fill() -> tuple[pd.DataFrame, Mapping[str, object]]:
         arm = DirectArm(
@@ -340,7 +342,7 @@ def varied_arm(seed: int = 0) -> tuple[pd.DataFrame, Request, DirectArm]:
         train = complete_records(parse_cleveland(bundle.read(MEMBER).decode("ascii")))
     keys = cell_keys(train, edges=UCI_FRAME.edges)
     cells = sorted(set(keys.itertuples(index=False, name=None)), key=str)
-    request = Request(quota=dict.fromkeys(cells, 8), strata=Strata.CELL, seed=seed)
+    request = Request(quota=dict.fromkeys(cells, 8), strata=Strata.CELL, seed=seed, frame=UCI_FRAME)
     arm = DirectArm(
         (ANGINA, STENOSIS), {}, name=DIRECT_ARM, budget=3, sink=None, dataset="uci-test"
     )

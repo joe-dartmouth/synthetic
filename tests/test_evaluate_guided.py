@@ -146,7 +146,9 @@ def test_the_ceiling_is_read_before_every_call_of_a_cell(tmp_path, caplog):
     first = reply([young(1)] * SETTINGS.per_call)
     spent = cost(first.usage, SETTINGS.model)
     arm, log = guided(tmp_path, ScriptedSend(first), ceiling=spent)
-    request = Request(quota={YOUNG_SICK: SETTINGS.per_call + 1}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: SETTINGS.per_call + 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     caplog.set_level(logging.INFO, logger="bko.evaluate")
     with pytest.raises(EvaluationError, match="ceiling"), log:
         arm(train(tmp_path / "train"), request)
@@ -167,7 +169,9 @@ def _old_sick() -> dict[str, object]:
 
 
 def test_rows_come_out_cell_by_cell_in_the_quotas_order(tmp_path):
-    request = Request(quota={YOUNG_SICK: 1, OLD_SICK: 2}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 1, OLD_SICK: 2}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     send = ScriptedSend(reply([_old_sick(), young(1)]), reply([_old_sick()]))
     arm, log = guided(tmp_path, send)
     with log:
@@ -177,7 +181,9 @@ def test_rows_come_out_cell_by_cell_in_the_quotas_order(tmp_path):
 
 
 def test_a_cell_filled_by_another_cells_call_gets_no_call(tmp_path):
-    request = Request(quota={YOUNG_SICK: 1, OLD_SICK: 1}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 1, OLD_SICK: 1}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     send = ScriptedSend(reply([young(1), _old_sick()]))
     arm, log = guided(tmp_path, send)
     with log:
@@ -190,7 +196,10 @@ def test_a_cell_filled_by_another_cells_call_gets_no_call(tmp_path):
 def test_a_label_request_is_refused(tmp_path):
     arm, log = guided(tmp_path, ScriptedSend())
     with pytest.raises(EvaluationError, match="cells only"), log:
-        arm(train(tmp_path / "train"), Request(quota={(1,): 3}, strata=Strata.LABEL))
+        arm(
+            train(tmp_path / "train"),
+            Request(quota={(1,): 3}, strata=Strata.LABEL, frame=UCI_FRAME),
+        )
 
 
 def test_the_summary_logs_the_runs_sums(tmp_path, caplog):

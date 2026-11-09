@@ -240,7 +240,7 @@ def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
 def test_the_gap_request_is_what_the_baselines_command_asks_for():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == dict(
-        plan(train, 20).quota
+        plan(train, 20, frame=UCI_FRAME).quota
     )
 
 

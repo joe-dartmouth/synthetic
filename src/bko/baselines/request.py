@@ -26,7 +26,6 @@ from bko.datasets.cells import (
     cell_keys,
 )
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 
 
 BASELINE_SEED: Final = 0
@@ -106,7 +105,7 @@ class Request:
     quota: Mapping[Stratum, int] = field(default_factory=dict)
     strata: Strata = Strata.CELL
     seed: int = BASELINE_SEED
-    frame: FrameSpec = UCI_FRAME
+    frame: FrameSpec = field(kw_only=True)
 
     def __post_init__(self) -> None:
         """Refuse a malformed quota or seed, and freeze the quota in grid order.
@@ -170,7 +169,7 @@ def plan(
     *,
     strata: Strata = Strata.CELL,
     seed: int = BASELINE_SEED,
-    frame: FrameSpec = UCI_FRAME,
+    frame: FrameSpec,
 ) -> Request:
     """Water-fill `rows` over the strata of `train`, a split of `frame`, into a `Request`."""
     held = Counter(stratum_keys(train, strata, edges=frame.edges))

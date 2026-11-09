@@ -34,6 +34,7 @@ from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import UCI_HEART_DISEASE, Source
 from bko.datasets.split import uci_split
+from bko.datasets.uci import UCI_FRAME
 
 
 logger = logging.getLogger("bko.baselines")
@@ -96,7 +97,7 @@ def configure_logging() -> None:
 
 def render(train: pd.DataFrame, baseline: Baseline) -> str:
     """The training set a method hands a classifier, as CSV: the real rows, then the added ones."""
-    return training_set(train, baseline).to_csv(lineterminator="\n")
+    return training_set(train, baseline, frame=UCI_FRAME).to_csv(lineterminator="\n")
 
 
 def _run(args: argparse.Namespace, data_dir: Path, context: Context, out: TextIO) -> None:
@@ -104,9 +105,9 @@ def _run(args: argparse.Namespace, data_dir: Path, context: Context, out: TextIO
     parts = uci_split(data_dir, source=context.uci, open_url=context.open_url)
     train = parts.train
     request = (
-        plan(train, args.rows, strata=Strata(args.strata), seed=args.seed)
+        plan(train, args.rows, strata=Strata(args.strata), seed=args.seed, frame=UCI_FRAME)
         if method.adds_rows
-        else Request()
+        else Request(frame=UCI_FRAME)
     )
     for stratum, rows in request.quota.items():
         logger.info("quota stratum=%s rows=%d", "/".join(map(str, stratum)), rows)

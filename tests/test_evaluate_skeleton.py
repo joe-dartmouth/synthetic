@@ -115,7 +115,9 @@ class FollowSend:
         return reply(records)
 
 
-BOTH: Final = Request(quota={YOUNG_WELL: 3, YOUNG_SICK: 3}, strata=Strata.CELL, seed=3)
+BOTH: Final = Request(
+    quota={YOUNG_WELL: 3, YOUNG_SICK: 3}, strata=Strata.CELL, seed=3, frame=UCI_FRAME
+)
 """Three rows of each young-women cell: two chains, so one wave of two calls. On `UCI_E1`'s
 training split, seed 3 draws lines that differ within each cell."""
 
@@ -163,7 +165,9 @@ def test_a_top_up_re_asks_the_unconsumed_lines_under_waves(tmp_path):
 
 OLD_SICK: Final = (">=55", "female", 1)
 
-SIBLINGS: Final = Request(quota={YOUNG_SICK: 4, OLD_SICK: 1}, strata=Strata.CELL, seed=6)
+SIBLINGS: Final = Request(
+    quota={YOUNG_SICK: 4, OLD_SICK: 1}, strata=Strata.CELL, seed=6, frame=UCI_FRAME
+)
 """Two cells of one sex and label, so one wave each. On `UCI_E1`'s training split, seed 6 draws
 the young cell's lines angina, angina, none, angina and the older cell's angina."""
 

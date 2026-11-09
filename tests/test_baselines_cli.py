@@ -126,7 +126,7 @@ def refuse(_train, _request):
 
 
 def broken(train, _request):
-    return Baseline(added=no_rows(), weights=unit_weights(train).iloc[1:], params={})
+    return Baseline(added=no_rows(frame=UCI_FRAME), weights=unit_weights(train).iloc[1:], params={})
 
 
 def test_an_infeasible_request_exits_two_and_writes_nothing(tmp_path):

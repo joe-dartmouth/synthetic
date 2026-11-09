@@ -156,7 +156,7 @@ def test_an_unknown_first_field_is_refused():
 
 def _run(ambient: int, seed: int, train: pd.DataFrame = TRAIN, quota=QUOTA):
     np.random.seed(ambient)
-    return bayes_net(train, Request(quota=quota, seed=seed))
+    return bayes_net(train, Request(quota=quota, seed=seed, frame=UCI_FRAME))
 
 
 @pytest.fixture(scope="module")
@@ -178,7 +178,7 @@ def test_the_ambient_generator_is_left_alone():
     np.random.seed(9)
     expected = np.random.random()
     np.random.seed(9)
-    bayes_net(TRAIN, Request(quota=QUOTA, seed=3))
+    bayes_net(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME))
     assert np.random.random() == expected
 
 
@@ -633,7 +633,7 @@ def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch):
     monkeypatch.setattr(bayes_net_module, "fill", functools.partial(fill, batch=10, limit=10))
     quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
     with pytest.raises(ShortfallError) as caught:
-        bayes_net(TRAIN, Request(quota=quota, seed=3))
+        bayes_net(TRAIN, Request(quota=quota, seed=3, frame=UCI_FRAME))
     short = caught.value
     assert short.baseline is not None
     assert set(short.short) == {f">={EDGE}/female/1"}

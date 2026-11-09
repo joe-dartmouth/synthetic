@@ -9,6 +9,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.request import Request, Strata
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.waves import spendable
 from bko.gaps.definitions import Definition
@@ -23,7 +24,7 @@ from tests._ontology_fixtures import RoutingOpener
 
 YOUNG_SICK: Final = ("<55", "female", 1)
 YOUNG_WELL: Final = ("<55", "female", 0)
-REQUEST: Final = Request(quota={YOUNG_SICK: 3}, strata=Strata.CELL, seed=0)
+REQUEST: Final = Request(quota={YOUNG_SICK: 3}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
 """Three rows of young women with the condition."""
 
 

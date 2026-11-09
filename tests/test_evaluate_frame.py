@@ -13,7 +13,7 @@ from bko.baselines.errors import OutputContractError
 from bko.baselines.methods import augment
 from bko.baselines.records import Baseline, Drop, check, drops, no_rows, training_set
 from bko.baselines.request import Method, Request, Strata, plan, stratum_keys
-from bko.baselines.synthesizers import METADATA, metadata
+from bko.baselines.synthesizers import metadata
 from bko.datasets.cells import cell_counts
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import experiment as experiment_module
@@ -66,7 +66,8 @@ def test_a_request_keys_its_quota_by_the_toy_cells():
     with pytest.raises(ValueError, match="not a positive row count"):
         Request(quota={("<55", "female", 1): 2}, frame=TOY)
     assert plan(TOY_TRAIN, 3, frame=TOY).frame is TOY
-    assert Request().frame is UCI_FRAME
+    with pytest.raises(TypeError, match="frame"):
+        Request()  # ty: ignore[missing-argument]
 
 
 def test_drops_read_the_toy_ranges_and_cells():
@@ -90,7 +91,7 @@ def test_check_holds_a_toy_baseline_to_the_toy_contract():
     with pytest.raises(OutputContractError, match="level has extra decimals"):
         check(Baseline(added.assign(level=1.255), weights, {}), TOY_TRAIN, request)
     with pytest.raises(OutputContractError, match="columns are"):
-        check(Baseline(no_rows(), weights, {}), TOY_TRAIN, Request(frame=TOY))
+        check(Baseline(no_rows(frame=UCI_FRAME), weights, {}), TOY_TRAIN, Request(frame=TOY))
     assert no_rows(TOY).columns.tolist() == ["age", "sex", "level", "target"]
 
 
@@ -127,7 +128,6 @@ def test_the_sdv_metadata_reads_the_frame():
             }
         }
     }
-    assert metadata(UCI_FRAME) is METADATA
     tables: Any = fidelity_module.metadata(TOY)["tables"]
     assert list(tables) == ["toy"]
 

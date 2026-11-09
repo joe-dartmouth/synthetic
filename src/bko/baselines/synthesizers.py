@@ -32,7 +32,6 @@ from bko.baselines.fills import fill_names
 from bko.baselines.records import Baseline, no_rows, number, unit_weights, whole
 from bko.baselines.request import Request, Stratum, stratum_keys
 from bko.datasets.frames import FrameSpec
-from bko.datasets.uci import UCI_FRAME
 
 
 logger = logging.getLogger(__name__)
@@ -73,9 +72,6 @@ def metadata(frame: FrameSpec) -> Mapping[str, object]:
     return MappingProxyType({"tables": {frame.name: {"columns": columns}}})
 
 
-METADATA: Final[Mapping[str, object]] = metadata(UCI_FRAME)
-"""The UCI evaluation frame for SDV."""
-
 type Draw = Callable[[int], pd.DataFrame]
 """Returns that many unconditioned rows from a fitted synthesizer."""
 
@@ -98,7 +94,7 @@ def tvae(
 
 
 def build_synthesizer(
-    factory: Factory, parameters: Mapping[str, object], frame: FrameSpec = UCI_FRAME
+    factory: Factory, parameters: Mapping[str, object], frame: FrameSpec
 ) -> CTGANSynthesizer | TVAESynthesizer:
     """An unfitted synthesizer on `frame`'s metadata, on the CPU, `parameters` over the defaults."""
     tables = Metadata.load_from_dict(dict(metadata(frame)))

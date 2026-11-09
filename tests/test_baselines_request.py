@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
+import inspect
 from types import MappingProxyType
 
 import numpy as np
 import pytest
 
+from bko.baselines import records as baseline_records
+from bko.baselines import synthesizers
 from bko.baselines.request import Method, Request, Strata, Stratum, plan, stratum_keys, water_fill
 from bko.datasets.uci import UCI_FRAME
 from tests._datasets_fixtures import records
@@ -28,7 +32,7 @@ FLAGGED = {
 
 
 def test_twenty_rows_fill_both_flagged_cells_to_twenty():
-    request = plan(records(FLAGGED), 20)
+    request = plan(records(FLAGGED), 20, frame=UCI_FRAME)
     assert dict(request.quota) == {("<55", "female", 1): 18, (">=55", "female", 1): 2}
     assert request.rows == 20
 
@@ -72,7 +76,9 @@ def test_impossible_rows_are_refused(counts, rows):
 
 
 def test_label_strata_key_by_the_label_alone():
-    assert dict(plan(records(FLAGGED), 18, strata=Strata.LABEL).quota) == {(1,): 18}
+    assert dict(plan(records(FLAGGED), 18, strata=Strata.LABEL, frame=UCI_FRAME).quota) == {
+        (1,): 18
+    }
 
 
 def test_stratum_keys_follow_the_cell_columns():
@@ -103,18 +109,18 @@ def test_stratum_keys_follow_the_cell_columns():
 )
 def test_a_malformed_quota_is_refused(quota):
     with pytest.raises(ValueError, match="not a positive row count"):
-        Request(quota=quota)
+        Request(quota=quota, frame=UCI_FRAME)
 
 
 @pytest.mark.parametrize("seed", [-1, 2**32, True, 1.0])
 def test_a_seed_outside_numpys_range_is_refused(seed):
     with pytest.raises(ValueError, match="outside"):
-        Request(seed=seed)
+        Request(seed=seed, frame=UCI_FRAME)
 
 
 def test_the_quota_is_held_in_grid_order_and_apart_from_its_source():
     source: dict[Stratum, int] = {(">=55", "female", 1): 1, ("<55", "female", 1): 2}
-    request = Request(quota=source)
+    request = Request(quota=source, frame=UCI_FRAME)
     assert list(request.quota) == [("<55", "female", 1), (">=55", "female", 1)]
     assert isinstance(request.quota, MappingProxyType)
     source["<55", "male", 0] = 1
@@ -126,3 +132,20 @@ def test_only_the_controls_add_no_rows():
         Method.NONE,
         Method.CLASS_WEIGHT,
     ]
+
+
+def test_every_baselines_frame_parameter_is_required():
+    functions = (
+        plan,
+        baseline_records.no_rows,
+        baseline_records.training_set,
+        baseline_records.whole,
+        baseline_records.within_split,
+        synthesizers.build_synthesizer,
+    )
+    for function in functions:
+        default = inspect.signature(function).parameters["frame"].default
+        assert default is inspect.Parameter.empty, function.__name__
+    (field,) = (item for item in dataclasses.fields(Request) if item.name == "frame")
+    assert field.default is dataclasses.MISSING
+    assert field.default_factory is dataclasses.MISSING

@@ -114,7 +114,7 @@ def arm(
     return built, log
 
 
-REQUEST = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+REQUEST = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
 
 
 def test_cllm_keeps_an_exact_set_at_one_seed(tmp_path):
@@ -308,7 +308,7 @@ def shortfall_send(first: list[object], short: int) -> ScriptedSend:
 
 
 def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_path, caplog):
-    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
     send = shortfall_send([*records()[:1], *wrong_records(2)], QUOTA - 1)
     built, log = arm(tmp_path, CLLM_ARM, send)
     caplog.set_level(logging.INFO, logger="bko.evaluate")
@@ -331,7 +331,7 @@ def test_a_curated_arm_returns_the_rows_it_kept_when_its_budget_runs_out(tmp_pat
 
 
 def test_a_curated_arm_that_keeps_nothing_adds_no_rows(tmp_path):
-    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
     send = shortfall_send(wrong_records(QUOTA), QUOTA)
     built, log = arm(tmp_path, CLLM_ARM, send)
     with log:
@@ -343,7 +343,7 @@ def test_a_curated_arm_that_keeps_nothing_adds_no_rows(tmp_path):
 
 
 def test_an_uncurated_arm_still_refuses_past_its_budget(tmp_path):
-    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+    request = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
     record = records()[0]
     assert isinstance(record, dict)
     out_of_cell: list[object] = [{**record, "age": 63}] * 20
@@ -357,7 +357,9 @@ def test_a_cell_the_curator_rejects_is_given_up_at_its_own_budget(tmp_path, capl
     """The rejected cell stops at `budget` times its quota; the other cell still fills."""
     rows = train()
     well = well_woman()
-    request = Request(quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 2, YOUNG_WELL: 2}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     budget = MESSAGES_ARMS[CLLM_ARM].budget or 0
 
     class Keyed(ScriptedSend):
@@ -438,7 +440,9 @@ def test_a_partial_attempts_candidates_are_marked_returned(tmp_path):
     send = shortfall_send([*records()[:1], *wrong_records(2)], QUOTA - 1)
     built, log = arm(tmp_path, CLLM_ARM, send)
     with log:
-        built(train(), Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0))
+        built(
+            train(), Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0, frame=UCI_FRAME)
+        )
     assert built._seen
     assert all(returned for _, returned, _ in built._seen)
 
@@ -479,7 +483,9 @@ def test_every_in_flight_count_shows_the_same_records(tmp_path):
             self.calls.append(call)
             return reply([well_woman()] * asked_of(call))
 
-    request = Request(quota={YOUNG_SICK: 25, YOUNG_WELL: 30}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 25, YOUNG_WELL: 30}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     logged = []
     for in_flight in (1, 4):
         built, log = arm(tmp_path / str(in_flight), CLLM_ARM, ByLabel(script), in_flight=in_flight)
@@ -504,7 +510,9 @@ def test_two_cells_given_up_in_different_rounds_are_each_logged_once(tmp_path, c
     )
     built, log = arm(tmp_path, CLLM_ARM, send)
     caplog.set_level(logging.INFO, logger="bko.evaluate")
-    request = Request(quota={YOUNG_SICK: 2, old_sick: 3}, strata=Strata.CELL, seed=0)
+    request = Request(
+        quota={YOUNG_SICK: 2, old_sick: 3}, strata=Strata.CELL, seed=0, frame=UCI_FRAME
+    )
     with log:
         baseline = built(train(), request)
     lines = [m for m in caplog.messages if m.startswith("shortfall ")]

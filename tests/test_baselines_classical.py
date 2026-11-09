@@ -32,7 +32,7 @@ TRAIN = full_records()
 def _run(method, ambient: int, seed: int, train: pd.DataFrame = TRAIN, quota=QUOTA):
     np.random.seed(ambient)
     torch.manual_seed(ambient)
-    return method(train, Request(quota=quota, seed=seed))
+    return method(train, Request(quota=quota, seed=seed, frame=UCI_FRAME))
 
 
 @pytest.fixture(scope="module")
@@ -72,7 +72,7 @@ def test_cart_differs_at_another_seed(cart_runs):
 def test_cart_restores_the_ambient_rngs():
     np.random.seed(11)
     torch.manual_seed(11)
-    cart(TRAIN, Request(quota=QUOTA, seed=3))
+    cart(TRAIN, Request(quota=QUOTA, seed=3, frame=UCI_FRAME))
     after = (np.random.random(), torch.rand(1).item())
     np.random.seed(11)
     torch.manual_seed(11)
@@ -84,7 +84,7 @@ def test_cart_copies_values_from_same_leaf_donors():
     per value for pure leaves; a donor drawn from the whole split would break the mapping."""
     train = full_records(per_cell=30)
     train["thal"] = train["cp"].map({1: 3, 4: 7}).fillna(6).astype(train["thal"].dtype)
-    added = cart(train, Request(quota=QUOTA, seed=0)).added
+    added = cart(train, Request(quota=QUOTA, seed=0, frame=UCI_FRAME)).added
     expected = added["cp"].map({1: 3, 4: 7}).fillna(6)
     assert (added["thal"] == expected).all()
 
@@ -123,7 +123,7 @@ def test_cart_draws_the_first_column_from_its_training_values():
     young = train.index[train["age"] == EDGE - 1]
     train.loc[young.difference(young[::10]), "age"] = 44
     quota: dict[Stratum, int] = {(f"<{EDGE}", "female", 1): 40, (f"<{EDGE}", "male", 0): 40}
-    ages = cart(train, Request(quota=quota, seed=0)).added["age"]
+    ages = cart(train, Request(quota=quota, seed=0, frame=UCI_FRAME)).added["age"]
     assert (ages == 44).mean() > 0.75
 
 
@@ -213,7 +213,7 @@ def test_a_classical_or_network_shortfall_holds_its_baseline(monkeypatch, method
     monkeypatch.setattr(classical_module, "fill", functools.partial(fill, batch=10, limit=10))
     quota: dict[Stratum, int] = {(f">={EDGE}", "female", 1): 10}
     with pytest.raises(ShortfallError) as caught:
-        method(TRAIN, Request(quota=quota, seed=3))
+        method(TRAIN, Request(quota=quota, seed=3, frame=UCI_FRAME))
     short = caught.value
     assert short.baseline is not None
     assert set(short.short) == {f">={EDGE}/female/1"}
