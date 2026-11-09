@@ -41,7 +41,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when
      the line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`), the
-     fields that differ from the draw, and the draw's values for them.
+     fields that differ from the draw, and the draw's values for them. That `kept` is a result
+     only the trace writes, for a rewrite row that kept its draw for a reason a schema-3 line
+     does not hold; it is none of the arm's stored results.
    * Messages arms: the call index, the guidance level, the prompt's sections as `prompt.sections`
      returns them (the gap statements with their labels as rendered), and the validation outcome.
    * Baselines: the method and the seed.
@@ -51,9 +53,10 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    arm's fill from its candidate lines over that re-draw. It refuses (exit 3) a holdout whose
    `split` line the data does not reproduce, a re-drawn fill whose digest is not the sha256 of the
    folder's `arm` line, re-drawn kept records that are not the candidates file's kept lines, a
-   direct fill whose `arm` line's `presence` is not its arm's, and a perturbation fill whose
-   rebuilt rows miss its `arm` sha256 or whose unperturbed columns differ from the re-draw. It writes `trace.jsonl`
-   with sorted keys, one line per record, one per fill for a baseline.
+   direct fill whose `arm` line's params are not a JSON object or whose `presence` is not its
+   arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned
+   attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. It
+   writes `trace.jsonl` with sorted keys, one line per record, one per fill for a baseline.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
 4. **Readers.** The app reads only `trace.jsonl` and a Demo fill's own run folder
    (`bko.app.provenance_frames` builds the frames); a Demo fill of a Messages arm is traced from

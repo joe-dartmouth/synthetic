@@ -1076,25 +1076,30 @@ PRAM's `changed` or `unchanged`); `fields`, the fields that differ from the draw
 draw's values for them. The other arm kinds read their facts from the run folder, a Messages
 arm's from its `calls.jsonl`. It writes `trace.jsonl`, one sorted-key JSON line per record (one
 per fill for a baseline), which holds source training record ids; keep the file in its run
-folder. `<run-id>` is the folder read,
-`<run>` the named run, `<h>` the holdout and `<arm>` the arm:
+folder. `<run-id>` is the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the
+arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 
 - **Log lines**: `trace start` names the folder, run, holdout, arm, fill and seed before any
   re-draw; for a direct or perturbation arm, `trace arm` names the `arm` line's sha256 and the
-  re-drawn or rebuilt one, with `kept_lines=` and `matches=`, at WARNING when either check fails; for a Messages arm, the
-  `trace partial` WARNING counts the records left `untraced`, names the calls the log lacks
-  (`missing=`) and each reason; and `trace rows=` closes with the output's sha256, the record
-  written (`record=`) and the untraced count.
+  re-drawn or rebuilt one, the arm's own check and `matches=`, at WARNING when either check
+  fails. A direct arm's check is `kept_lines=`, whether its re-drawn kept records are the
+  candidates file's kept lines; a perturbation arm's is `unperturbed=`, whether its returned
+  attempt holds one line per draw and every column no perturbation changes is its draw's. For a
+  Messages arm, the `trace partial` WARNING counts the records left `untraced`, names the calls
+  the log lacks (`missing=`) and each reason; and `trace rows=` closes with the output's sha256,
+  the record written (`record=`) and the untraced count.
 - **Exit codes**: 0 the trace is written; 1 an unexpected error, with its traceback; 2 a holdout,
   arm or record the folder does not hold, or a `calls.jsonl` line that is not one the call log
   writes, named by path and line number; 3 a folder that fails its identity checks: a holdout's
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
-  fill whose `arm` line's `presence` differs from its arm's, and a perturbation fill whose rebuilt
-  rows miss its `arm` sha256, or whose unperturbed columns differ from the re-draw. A `bko-logic`
-  trace over an ontology whose logic components cannot be enumerated exits 2.
+  fill whose `arm` line's params are not a JSON object or whose `presence` differs from its
+  arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt
+  is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
+  trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
+  over a frame whose unmapped fields are not its pinned ones, exit 2.
 
 ## BKB fixtures
 
