@@ -184,21 +184,40 @@ def draw(
     rng: np.random.Generator,
     frame: FrameSpec,
 ) -> pd.DataFrame:
-    """`rows` records sampled from `network`, each field's value a training donor's in its state."""
+    """`rows` records sampled from `network`, each field's value a training donor's in its state.
+
+    The draw reads `rng` as a row-by-row draw would: one `random` double per row per node in the
+    learned order, then one bounded integer per row per field in frame order. So grouping rows by
+    parent configuration and by state leaves the rows byte-identical under the locked numpy, and
+    the generator ends where a row-by-row draw leaves it.
+    """
     drawn: dict[str, np.ndarray] = {}
     for node in network.nodes:
-        given = list(zip(*(drawn[parent] for parent in node.parents), strict=True))
-        drawn[node.field] = np.array(
-            [rng.choice(node.arity, p=node.chances(parents)) for parents in (given or [()] * rows)],
-            dtype=int,
-        )
+        uniforms = rng.random(rows)
+        states = np.empty(rows, dtype=int)
+        if node.parents:
+            given = np.column_stack([drawn[parent] for parent in node.parents])
+            configs, which = np.unique(given, axis=0, return_inverse=True)
+            keys = [tuple(int(value) for value in config) for config in configs]
+        else:
+            which = np.zeros(rows, dtype=int)
+            keys = [()]
+        for index, key in enumerate(keys):
+            cdf = np.asarray(node.chances(key), dtype=float).cumsum()
+            cdf /= cdf[-1]
+            mask = which.reshape(-1) == index
+            states[mask] = cdf.searchsorted(uniforms[mask], side="right")
+        drawn[node.field] = states
     out = pd.DataFrame(index=range(rows))
     for field in frame.columns:
         values = train[field].to_numpy()
-        donors = {
-            state: values[bins.states[field].to_numpy() == state] for state in set(drawn[field])
-        }
-        out[field] = [rng.choice(donors[state]) for state in drawn[field]]
+        held = bins.states[field].to_numpy()
+        pools = {int(state): values[held == state] for state in np.unique(drawn[field])}
+        sizes = np.array([len(pools[int(state)]) for state in drawn[field]], dtype=np.int64)
+        picks = rng.integers(0, sizes, dtype=np.int64)
+        out[field] = [
+            pools[int(state)][pick] for state, pick in zip(drawn[field], picks, strict=True)
+        ]
     return out.astype(dict(frame.dtypes))
 
 

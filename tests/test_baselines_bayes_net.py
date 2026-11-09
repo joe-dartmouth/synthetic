@@ -6,6 +6,7 @@ import functools
 import hashlib
 import logging
 import math
+from operator import itemgetter
 
 import numpy as np
 import pandas as pd
@@ -387,12 +388,154 @@ def test_learned_edges_and_tables_are_unchanged_on_the_uci_fixture():
         assert all(type(state) is int for key in node.table for state in key), node.field
 
 
-def test_draws_are_unchanged_for_a_seed():
+@pytest.mark.parametrize(
+    ("first", "seed", "rows", "sha"),
+    [
+        ("age", 5, 200, "8804f6e8ba52d5b451d7a045538ad8a312a973d3fb47a53faf1b33e181a21b04"),
+        ("age", 11, 3000, "ceeed73f3f67a010fc579e36a12937a4fc768f500d6d7cdb1637b86d59bc605e"),
+        ("restecg", 7, 500, "dba45ca91f10d27887ab913ef53bca76a07a2ab66f559c19030bf9f2bac9282d"),
+        ("chol", 0, 1, "7fb07f317d4365fad21e2c5cd958d06a1d2067fd6bff51c5a857637e61ae5d49"),
+    ],
+)
+def test_draws_are_unchanged_for_a_seed(first, seed, rows, sha):
     bins = discretize(TRAIN, UCI_FRAME)
-    rows = draw(learn(bins, first="age"), bins, TRAIN, 200, np.random.default_rng(5), UCI_FRAME)
-    assert hashlib.sha256(rows.to_csv(index=False).encode()).hexdigest() == (
-        "8804f6e8ba52d5b451d7a045538ad8a312a973d3fb47a53faf1b33e181a21b04"
+    drawn = draw(
+        learn(bins, first=first), bins, TRAIN, rows, np.random.default_rng(seed), UCI_FRAME
     )
+    assert hashlib.sha256(drawn.to_csv(index=False).encode()).hexdigest() == sha
+
+
+def _scalar_draw(
+    network: Network,
+    bins: Bins,
+    train: pd.DataFrame,
+    rows: int,
+    rng: np.random.Generator,
+    frame,
+) -> pd.DataFrame:
+    """The row-by-row draw the vector draw must equal, verbatim."""
+    drawn: dict[str, np.ndarray] = {}
+    for node in network.nodes:
+        given = list(zip(*(drawn[parent] for parent in node.parents), strict=True))
+        drawn[node.field] = np.array(
+            [rng.choice(node.arity, p=node.chances(parents)) for parents in (given or [()] * rows)],
+            dtype=int,
+        )
+    out = pd.DataFrame(index=range(rows))
+    for field in frame.columns:
+        values = train[field].to_numpy()
+        donors = {
+            state: values[bins.states[field].to_numpy() == state] for state in set(drawn[field])
+        }
+        out[field] = [rng.choice(donors[state]) for state in drawn[field]]
+    return out.astype(dict(frame.dtypes))
+
+
+def _oracle_cases():
+    """Each (name, network, bins, train, frame) the vector draw is checked on."""
+    bins = discretize(TRAIN, UCI_FRAME)
+    cases = [
+        (f"uci-{first}", learn(bins, first=first), bins, TRAIN, UCI_FRAME)
+        for first in ("age", "restecg", "chol")
+    ]
+    for field, state in (("chol", 0), ("cp", 2)):
+        cases.append((f"forced-{field}", forced(field, state, bins), bins, TRAIN, UCI_FRAME))
+    toy_bins = discretize(TOY_TRAIN, TOY)
+    toy_net = learn(toy_bins, first="age")
+    cases.append(("toy", toy_net, toy_bins, TOY_TRAIN, TOY))
+    # an unseen parent configuration falls to the uniform prior
+    sparse = Network(
+        tuple(
+            Node(
+                node.field,
+                node.parents,
+                dict(list(node.table.items())[: max(1, len(node.table) // 2)]),
+                node.arity,
+            )
+            for node in toy_net.nodes
+        )
+    )
+    cases.append(("toy-unseen-config", sparse, toy_bins, TOY_TRAIN, TOY))
+    # a field of one state
+    single = TRAIN.loc[TRAIN["restecg"] == 0]
+    single_bins = discretize(single, UCI_FRAME)
+    assert single_bins.arity("restecg") == 1
+    cases.append(("arity-1", learn(single_bins, first="age"), single_bins, single, UCI_FRAME))
+    # a state whose donor pool holds one row
+    thin = Bins(
+        toy_bins.cuts,
+        toy_bins.codes,
+        toy_bins.states.assign(
+            level=np.where(
+                np.arange(len(toy_bins.states)) == 0, 0, toy_bins.states["level"].clip(1)
+            )
+        ),
+    )
+    assert (thin.states["level"] == 0).sum() == 1
+    cases.append(("singleton-pool", learn(thin, first="age"), thin, TOY_TRAIN, TOY))
+    return cases
+
+
+@pytest.mark.parametrize("case", _oracle_cases(), ids=itemgetter(0))
+def test_the_vector_draw_equals_the_scalar_draw(case):
+    _, network, bins, train, frame = case
+    for seed in range(20):
+        rows = 1 + 97 * seed % 400
+        new = draw(network, bins, train, rows, np.random.default_rng(seed), frame)
+        old = _scalar_draw(network, bins, train, rows, np.random.default_rng(seed), frame)
+        pd.testing.assert_frame_equal(new, old)
+
+
+def test_the_vector_draw_leaves_the_generator_where_the_scalar_draw_does():
+    bins = discretize(TRAIN, UCI_FRAME)
+    network = learn(bins, first="age")
+    new, ref = np.random.default_rng(9), np.random.default_rng(9)
+    for rows in [50] * 100 + [10000] * 3:
+        got = draw(network, bins, TRAIN, rows, new, UCI_FRAME)
+        want = _scalar_draw(network, bins, TRAIN, rows, ref, UCI_FRAME)
+        assert new.bit_generator.state == ref.bit_generator.state
+        pd.testing.assert_frame_equal(got, want)
+
+
+def test_a_zero_row_draw_reads_nothing():
+    bins = discretize(TRAIN, UCI_FRAME)
+    rng = np.random.default_rng(4)
+    before = rng.bit_generator.state
+    rows = draw(learn(bins, first="age"), bins, TRAIN, 0, rng, UCI_FRAME)
+    assert len(rows) == 0
+    assert list(rows.columns) == list(UCI_FRAME.columns)
+    assert rng.bit_generator.state == before
+
+
+class _Counting:
+    """A generator proxy that counts `random` and `integers` calls and refuses `choice`."""
+
+    def __init__(self, seed: int) -> None:
+        self.inner = np.random.default_rng(seed)
+        self.calls = 0
+
+    def random(self, *args, **kwargs):
+        self.calls += 1
+        return self.inner.random(*args, **kwargs)
+
+    def integers(self, *args, **kwargs):
+        self.calls += 1
+        return self.inner.integers(*args, **kwargs)
+
+    def choice(self, *args, **kwargs):
+        msg = "the draw must not call choice"
+        raise AssertionError(msg)
+
+
+def test_the_draw_reads_the_generator_independently_of_rows():
+    bins = discretize(TRAIN, UCI_FRAME)
+    network = learn(bins, first="age")
+    totals = []
+    for rows in (50, 500):
+        counting = _Counting(1)
+        draw(network, bins, TRAIN, rows, counting, UCI_FRAME)  # ty: ignore[invalid-argument-type]
+        totals.append(counting.calls)
+    assert totals[0] == totals[1]
 
 
 def test_mutual_information_is_computed_once_per_field_and_parents(monkeypatch):

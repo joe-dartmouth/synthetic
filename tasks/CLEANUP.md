@@ -52,17 +52,6 @@ links to where its blocker is tracked.
 
 ## baselines
 
-- **`cleanup:baselines/bayes-net-vectorize`: the Bayesian network draws row by row in Python.**
-  `bko.baselines.bayes_net.draw` makes one `rng.choice` per row per field for the state and
-  another for the donor; a `bayes-net --rows 200` command took 4.3 s for one 10000-row batch
-  (measured by the diff review of PR #67). The learn side is paid: `learn` computes each (field,
-  parents) mutual information once and `_node` counts by `np.bincount`, byte-identical to the
-  recorded networks. *Filed 2026-10-31 by the diff review of PR #67.*
-  **Why deferred.** Grouping the draw changes the seeded draw, so B2's recorded bytes would move.
-  **What discharges it:** the draw grouped by parent configuration and by state, with donor arrays
-  built once per field, with B2 rerun and recorded.
-  **Trigger:** the next change that reruns B2 for another reason.
-
 - **`cleanup:baselines/request-frame-defaults-to-uci`: the baselines fall back to UCI's frame.**
   `bko.baselines.request.Request.frame`, `bko.baselines.records.no_rows`, `training_set` and the
   other `bko.baselines.records` helpers, and `bko.baselines.synthesizers`' metadata default `frame`
