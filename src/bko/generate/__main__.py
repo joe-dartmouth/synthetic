@@ -46,6 +46,7 @@ from typing import TextIO
 import pandas as pd
 
 from bko.bkb.structure import BKB
+from bko.core.logs import configure
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
@@ -142,15 +143,7 @@ def main(
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr, and quiet the SDK's HTTP client."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
-    logging.captureWarnings(True)
-    for name in QUIET_LOGGERS:
-        logging.getLogger(name).setLevel(logging.WARNING)
+    configure(quiet=QUIET_LOGGERS)
 
 
 def _parser(settings: Settings) -> argparse.ArgumentParser:

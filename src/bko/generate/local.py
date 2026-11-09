@@ -40,6 +40,7 @@ from types import MappingProxyType
 from typing import Final
 from urllib.parse import urlsplit
 
+from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.uci import UCI_FRAME
@@ -398,6 +399,11 @@ def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
     return decoded
 
 
+def configure_logging() -> None:
+    """Log INFO and above to stderr; run only when the module runs as a script."""
+    configure()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command; return its exit status: 0 done, 2 a fetch or probe failed.
 
@@ -412,12 +418,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("model", choices=sorted(LOCAL_MODELS))
     parser.add_argument("--data-dir", type=Path, default=None, help="for fetch and serve-command")
     args = parser.parse_args(argv)
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
     if args.command == "probe":
         return _probe(args.model)
     try:
@@ -448,4 +448,5 @@ def _probe(model: str) -> int:
 
 
 if __name__ == "__main__":
+    configure_logging()
     sys.exit(main())

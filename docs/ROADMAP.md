@@ -3,7 +3,7 @@
 Sources: [RESEARCH.md](RESEARCH.md), the plan of record.
 
 The schedule is the 2-pager's timeline. It runs Oct 10 - Nov 25; the proposal is dated October 7,
-2026. The dependency-ordered work units, with their status and owners, are in
+2026. The dependency-ordered work units, with their status, are in
 [tasks/experiments-index.md](../tasks/experiments-index.md).
 
 Under each milestone, the Work column is the 2-pager's timeline row as written. The Workstream

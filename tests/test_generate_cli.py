@@ -16,12 +16,13 @@ from typing import Any
 
 import pytest
 
+import bko.generate.__main__ as generate_main
 from bko.datasets.sources import Agreement
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.gaps.definitions import Definition
 from bko.gaps.observe import Cell, cell_key
-from bko.generate.__main__ import Context, configure_logging, main
+from bko.generate.__main__ import QUIET_LOGGERS, Context, configure_logging, main
 from bko.generate.calls import chunks
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Basis
@@ -350,18 +351,11 @@ def test_the_summary_line_names_calls_tokens_usd_log_and_stdout_sha256(tmp_path,
     assert messages[-1] == f"candidates rows=32 sha256={digest}"
 
 
-def test_configure_logging_sends_info_to_stderr_and_quiets_the_http_client(monkeypatch):
-    """`captureWarnings` is stubbed: the real call is process-wide and outlives the test."""
-    recorded: list[dict[str, object]] = []
-    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: recorded.append(kwargs))
-    monkeypatch.setattr(logging, "captureWarnings", lambda _: None)
-    quiet = logging.getLogger("httpx2")
-    monkeypatch.setattr(quiet, "level", quiet.level)
+def test_configure_logging_calls_the_shared_setup(monkeypatch):
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(generate_main, "configure", lambda **kwargs: calls.append(kwargs))
     configure_logging()
-    [kwargs] = recorded
-    assert kwargs["stream"] is sys.stderr
-    assert kwargs["level"] == logging.INFO
-    assert quiet.level == logging.WARNING
+    assert calls == [{"quiet": QUIET_LOGGERS}]
 
 
 def test_the_module_runs_as_a_program():

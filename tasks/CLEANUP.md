@@ -168,20 +168,6 @@ links to where its blocker is tracked.
   `grep -rn "^from bko.evaluate.\(data\|diabetes\) import" src/bko | grep -v "^src/bko/evaluate/"`
   lists only `src/bko/app/steps.py` until then.
 
-- **`cleanup:evaluate/stamp-every-stage`: seven entry points log no time and repeat one
-  `basicConfig` block.** The `baselines`, `datasets`, `fusion`, `gaps`, `generate` and `ontology`
-  `__main__` modules and `bko.generate.local` each format a line as `%(levelname)s %(name)s:
-  %(message)s`, while `bko.evaluate.logs.stamped_handler` writes the local time and UTC offset for
-  `evaluate` and the app. Evidence: `grep -rn "basicConfig(" src/bko` lists the seven unstamped
-  blocks beside the two stamped ones. *Filed 2026-11-05 by the review of PR #79.*
-  **Why deferred.** PR #79 stamps the two entry points whose logs a run folder keeps; the stages
-  import nothing from `bko.evaluate`, which sits above them.
-  **Blocked on** a home module below `bko.evaluate` that every stage may import, as the package
-  layout in [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) allows.
-  **What discharges it:** one shared stamped setup in that module, used by every entry point,
-  with `Stamp` moved to it and the seven blocks deleted.
-  **Trigger:** the next change that adds an entry point or edits one's `configure_logging`.
-
 - **`cleanup:evaluate/trace-logic-arm`: `trace` re-draws only `bko-direct`.**
   `bko.evaluate.trace.trace` re-draws a logged attempt through `trace_direct` only when the fill's
   arm is `DIRECT_ARM`; a `bko-logic` fill falls through to `trace_baseline` and gets a
@@ -211,18 +197,6 @@ links to where its blocker is tracked.
   as the `perturb holdout=` line names it) on perturbed-arm lines and a changed flag on PRAM lines,
   read by `read` and ignored by the rebuild, with a test that a schema-3 file still reads.
   **Trigger:** the first reading of a pilot that needs per-row refusals beside `scores.log`.
-
-- **`cleanup:evaluate/merge-compare-log-no-versions`: `merge` and `compare` log no `versions
-  commit=` line.** Neither `bko.evaluate.merge` nor `bko.evaluate.compare` calls
-  `bko.evaluate.provenance.log_versions`, so a merged or judged folder names no commit. Evidence:
-  `grep -n "log_versions\|log_experiment" src/bko/evaluate/merge.py src/bko/evaluate/compare.py`
-  prints nothing, and the first line of `runs/e10-3-judged/criteria-bko-direct-perturbed.log` is
-  `2026-11-06 21:56:07,624-0500 INFO bko.evaluate: compare candidate=bko-direct-perturbed dry_run=False scores_sha256=4509d26cf2236031fb47a1deac9cc16f08de35ca901e6b9c0196229f911ea890 run=e10-pilot-thin level=summary training_fraction=1`.
-  *Filed 2026-11-08 by the E10 reading and quotas change.*
-  **Why deferred.** Outside that change's surface.
-  **What discharges it:** both log the `versions` line first, with a test on each log's first
-  line.
-  **Trigger:** the next change to `merge.py` or `compare.py`.
 
 - **`cleanup:evaluate/pram-values-changed-twice`: PRAM's changed rows and values are computed
   twice.** `PramArm._change` computes and logs them on its `perturb pram` line, and
@@ -268,16 +242,13 @@ links to where its blocker is tracked.
 
 ## tests
 
-- **`cleanup:tests/root-logger-level-leak`: a test leaves the root logger at INFO for its
-  worker.** Under `make test`'s parallel workers,
-  `tests/test_evaluate_removal.py::test_each_holdout_logs_its_removal_and_flagged_cells` captured
-  its `removal` line twice when it called `prepared()` after its capture block, in two gate runs
-  of PR #81's review fixes; moving that call before a `caplog.clear()` made it pass. Some test that
-  runs a `__main__` setup in-process (`basicConfig(level=INFO, force=True)`) likely leaves the root
-  handler and level behind for later tests on the same worker; which test was not traced.
-  *Filed 2026-11-05 by PR #81's review.*
-  **Why deferred.** Tracing it means bisecting worker test order, outside the review fix's
-  boundary.
-  **What discharges it:** the leaking test found and made to restore the root logger, with an
-  autouse fixture or a test that fails when any test leaves the root handlers or level changed.
-  **Trigger:** the next test that captures log lines flakes with a doubled line.
+- **`cleanup:tests/root-guard-misses-warnings-and-quiet-levels`: the root-logger guard misses
+  warning capture and quiet loggers' levels.** The guard in `tests/conftest.py` compares only the
+  root's level and handlers. `bko.core.logs.configure` also calls `logging.captureWarnings(True)`,
+  which swaps `warnings.showwarning`, and sets the levels of the loggers in `quiet`, so a test that
+  calls `configure` can leak both unseen. Evidence: `src/bko/core/logs.py` and the PR #92 review
+  (Python lens). *Filed 2026-11-08 by the review of PR #92.*
+  **Why deferred.** Extending the guard may flag many existing tests, which is its own surface.
+  **What discharges it:** the guard also snapshots and compares `warnings.showwarning` and the
+  levels of the loggers `configure` quiets, and every test it then flags restores them.
+  **Trigger:** the next change to the guard or to `bko.core.logs.configure`.

@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import ROBOT_JAR, Source
@@ -112,13 +113,8 @@ def main(
 
 
 def configure_logging() -> None:
-    """Send INFO and higher log records to stderr, keeping stdout for the report."""
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-        force=True,
-    )
+    """Send INFO and higher, and every warning, to stderr, keeping stdout for the report."""
+    configure()
 
 
 def _parser() -> argparse.ArgumentParser:

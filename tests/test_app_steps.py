@@ -29,6 +29,7 @@ from bko.app.steps import (
     training_csv,
 )
 from bko.baselines.synthesizers import QUIET_LOGGERS
+from bko.core.logs import stamped_handler
 from bko.datasets.cells import cell_counts
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.run_folders import RUN_ID, runs_root
@@ -38,7 +39,6 @@ from bko.evaluate.data import digest
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import read
-from bko.evaluate.logs import stamped_handler
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.scores import Measure, Source

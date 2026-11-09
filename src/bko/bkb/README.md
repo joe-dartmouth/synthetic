@@ -7,5 +7,4 @@ The layer is adapted from pybkb, by Chase Yakaboski (GPL-3.0): the BKB structure
 `check_fused` in `bko.bkb.fusion` checks that a fused BKB is valid; its docstring and ADR [`research/data-contradiction-handling`](../../../docs/adr/research/data-contradiction-handling.md) (Decision 3) state what it requires.
 
 - **Dependencies:** No optional extra.
-- **Owner:** Partiban Anathurai
 - **Status:** built.

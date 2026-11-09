@@ -86,6 +86,7 @@ from typing import TextIO
 from bko.baselines.errors import BaselineError
 from bko.baselines.synthesizers import QUIET_LOGGERS
 from bko.bkb.errors import BKBError
+from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.arguments import parser
@@ -98,7 +99,6 @@ from bko.evaluate.experiment import PAID_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
-from bko.evaluate.logs import stamped_handler
 from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
@@ -166,6 +166,7 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
     if args.command == "launch":
         sink.write(_launch(args, context))
     elif args.command == "merge":
+        log_versions()
         sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
     elif args.command == "likelihood":
         _likelihood(args, context, sink)
@@ -254,6 +255,7 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
 
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
     """Judge the scores of the run `args.run` and write the table to `sink`."""
+    log_versions()
     named = _named(args.run, context)
     compare(
         named.experiment,
@@ -423,10 +425,7 @@ def _named(name: str, context: Context) -> Context:
 
 def configure_logging() -> None:
     """Send INFO and higher, and every warning, to stderr; keep stdout for the CSV."""
-    logging.basicConfig(handlers=[stamped_handler(sys.stderr)], level=logging.INFO, force=True)
-    logging.captureWarnings(True)
-    for name in (*QUIET_LOGGERS, *HTTP_LOGGERS):
-        logging.getLogger(name).setLevel(logging.WARNING)
+    configure(quiet=(*QUIET_LOGGERS, *HTTP_LOGGERS))
 
 
 if __name__ == "__main__":

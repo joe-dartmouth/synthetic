@@ -7,5 +7,4 @@ it is asked for, so methods given one request meet equal row counts stratum by s
 add no rows. The methods, their parameters and the output contract are in ADR [`research/baseline-augmentation-design`](../../../docs/adr/research/baseline-augmentation-design.md); the command is in [`docs/DEVELOPMENT.md`](../../../docs/DEVELOPMENT.md#baselines).
 
 - **Dependencies:** The `synth` extra (`pyproject.toml`).
-- **Owner:** Joe Laws
 - **Status:** built.

@@ -81,7 +81,11 @@ def compared(path: Path, experiment: Experiment, caplog) -> list[str]:
     with caplog.at_level(logging.INFO):
         out = io.StringIO()
         assert main(["compare", str(path)], context=Context(experiment=experiment), out=out) == 0
-    return [r.getMessage() for r in caplog.records if not r.getMessage().startswith("compare ")]
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if not r.getMessage().startswith(("compare ", "versions "))
+    ]
 
 
 def test_compare_logs_each_panel_models_means_and_unjudged_contrasts(tmp_path, caplog):
@@ -231,3 +235,13 @@ def test_an_arm_without_a_models_rows_is_skipped_in_its_contrasts(tmp_path, capl
     found = [line for line in lines if line.startswith("contrast ") and " model=rf " in line]
     assert found[0] == "contrast skip model=rf arm=smote against=class-weight reason=absent"
     assert len(found) == 1 + 2 * 2
+
+
+def test_compares_log_opens_with_its_versions_line(tmp_path, caplog, monkeypatch):
+    monkeypatch.setattr("bko.evaluate.provenance.commit", lambda: ("0123abc", False))
+    path = write(tmp_path, "default.csv", scores(panel=False))
+    with caplog.at_level(logging.INFO):
+        out = io.StringIO()
+        context = Context(experiment=UNJUDGED)
+        assert main(["compare", str(path)], context=context, out=out) == 0
+    assert caplog.messages[0].startswith("versions commit=")

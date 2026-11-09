@@ -212,17 +212,11 @@ def test_a_data_root_that_is_a_file_exits_two(tmp_path):
     assert run("uci", root, make_context()) == (2, "")
 
 
-def test_configure_logging_sends_info_and_warnings_to_stderr(monkeypatch):
-    """`captureWarnings` is stubbed: the real call is process-wide and outlives the test."""
-    recorded: list[dict[str, object]] = []
-    captured: list[bool] = []
-    monkeypatch.setattr(logging, "basicConfig", lambda **kwargs: recorded.append(kwargs))
-    monkeypatch.setattr(logging, "captureWarnings", captured.append)
+def test_configure_logging_calls_the_shared_setup(monkeypatch):
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(gaps_main, "configure", lambda **kwargs: calls.append(kwargs))
     configure_logging()
-    [kwargs] = recorded
-    assert kwargs["stream"] is sys.stderr
-    assert kwargs["level"] == logging.INFO
-    assert captured == [True]
+    assert calls == [{}]
 
 
 def test_the_module_runs_as_a_program():
