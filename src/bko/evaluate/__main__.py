@@ -166,6 +166,7 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
     if args.command == "launch":
         sink.write(_launch(args, context))
     elif args.command == "merge":
+        log_versions()
         sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
     elif args.command == "likelihood":
         _likelihood(args, context, sink)
@@ -254,6 +255,7 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
 
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
     """Judge the scores of the run `args.run` and write the table to `sink`."""
+    log_versions()
     named = _named(args.run, context)
     compare(
         named.experiment,

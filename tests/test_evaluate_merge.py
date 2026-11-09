@@ -336,3 +336,11 @@ def test_merge_reads_an_older_line_at_the_values_it_lacks(tmp_path):
     code, merged = _merged(tmp_path, [LOW, HIGH], logs=[first, older])
     assert code == 0
     assert merged == _scored((0, 1, 2, 3))
+
+
+def test_merges_log_opens_with_its_versions_line(tmp_path, caplog, monkeypatch):
+    monkeypatch.setattr("bko.evaluate.provenance.commit", lambda: ("0123abc", False))
+    with caplog.at_level(logging.INFO):
+        code, _ = _merged(tmp_path, [HIGH, LOW])
+    assert code == 0
+    assert caplog.messages[0].startswith("versions commit=")
