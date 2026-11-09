@@ -1,21 +1,21 @@
-"""Pytest configuration: the `--live` and `--releases` opt-ins, the skip floor, the paid guard."""
+"""Pytest configuration: the opt-ins, the skip floor, the paid guard and the logging guard."""
 
 from __future__ import annotations
 
 import logging
 import warnings
 from collections.abc import Iterator
-from typing import Any, Final, NamedTuple, NoReturn
+from typing import Any, Final, NamedTuple, NoReturn, Protocol, TextIO
 
 import pytest
 from anthropic._base_client import AsyncAPIClient, SyncAPIClient
 
-from bko.core.logs import SDV_LOGGERS
-from bko.generate.api import HTTP_LOGGERS
-
 
 PAID_REQUEST_REFUSAL: Final = "a request outside a `live` test's body reached the Anthropic API"
 """The start of the guard's refusal."""
+
+LOGGING_CHANGED: Final = "logging state changed:"
+"""The start of the error a test that leaves the logging state changed meets."""
 
 DISCARD_URL: Final = "http://127.0.0.1:9"
 """Where a request goes in a run without `--live`: the loopback discard port."""
@@ -179,6 +179,20 @@ def refuse_unmarked_api_requests(config: pytest.Config) -> None:
     _PaidGuard.patch = patch
 
 
+class ShowWarning(Protocol):
+    """The type of `warnings.showwarning`."""
+
+    def __call__(
+        self,
+        message: Warning | str,
+        category: type[Warning],
+        filename: str,
+        lineno: int,
+        file: TextIO | None = None,
+        line: str | None = None,
+    ) -> None: ...
+
+
 class _LoggingState(NamedTuple):
     """The process-wide logging state a test must leave as it found it.
 
@@ -186,17 +200,17 @@ class _LoggingState(NamedTuple):
         level: The root logger's level.
         handlers: The root logger's handlers.
         showwarning: `warnings.showwarning`, which `logging.captureWarnings(True)` swaps.
-        quiet: The level of each logger a stage's `configure(quiet=...)` sets.
+        captured: The `warnings.showwarning` that `logging.captureWarnings(True)` saved, `None`
+            while warnings are not captured.
+        levels: The level of every logger but the root, by name.
     """
 
     level: int
     handlers: list[logging.Handler]
-    showwarning: Any
-    quiet: dict[str, int]
+    showwarning: ShowWarning
+    captured: ShowWarning | None
+    levels: dict[str, int]
 
-
-QUIET_LOGGERS: Final = (*SDV_LOGGERS, *HTTP_LOGGERS)
-"""Every logger a stage passes to `bko.core.logs.configure(quiet=...)`."""
 
 _LOGGING_STATE = pytest.StashKey[_LoggingState]()
 
@@ -204,12 +218,74 @@ _LOGGING_STATE = pytest.StashKey[_LoggingState]()
 def _logging_state() -> _LoggingState:
     """Read the logging state the guard compares."""
     root = logging.getLogger()
+    # A copy first: a thread the test left running may add a logger while the levels are read.
+    loggers = logging.root.manager.loggerDict.copy()
     return _LoggingState(
         root.level,
         list(root.handlers),
         warnings.showwarning,
-        {name: logging.getLogger(name).level for name in QUIET_LOGGERS},
+        # Logging's only record of whether warnings are captured, which typeshed does not declare.
+        vars(logging)["_warnings_showwarning"],
+        {name: one.level for name, one in loggers.items() if isinstance(one, logging.Logger)},
     )
+
+
+def _restore_capture(before: _LoggingState) -> None:
+    """Put warning capture and `warnings.showwarning` back as `before` holds them.
+
+    Capture is switched through `logging.captureWarnings`, so logging's record of what it saved
+    matches the capture state again: a later `captureWarnings(True)` swaps when capture is off,
+    and the function it saved is never its own, which would recurse.
+
+    Args:
+        before: The state at the test's setup.
+    """
+    logging.captureWarnings(False)
+    if before.captured is not None:
+        warnings.showwarning = before.captured  # ty: ignore[invalid-assignment]
+        logging.captureWarnings(True)
+    # ty types the attribute as the one function typeshed declares, so no other callable fits.
+    warnings.showwarning = before.showwarning  # ty: ignore[invalid-assignment]
+
+
+def _restore(before: _LoggingState, after: _LoggingState) -> list[str]:
+    """Restore whatever of `before` the test changed, and describe each change.
+
+    A logger created during the test compares against `NOTSET`, the level it was created with.
+
+    Args:
+        before: The state at the test's setup.
+        after: The state after its teardown.
+
+    Returns:
+        One item per change, the short ones first so a cut message keeps them.
+    """
+    changed: list[str] = []
+    if (after.captured is None) != (before.captured is None):
+        on_off = ("off", "on") if before.captured is None else ("on", "off")
+        changed.append(f"warning capture {on_off[0]} -> {on_off[1]}")
+    elif after.showwarning is not before.showwarning or after.captured is not before.captured:
+        changed.append("warnings.showwarning replaced")
+    if changed:
+        _restore_capture(before)
+    root = logging.getLogger()
+    if after.level != before.level:
+        changed.append(f"root level {_name(before.level)} -> {_name(after.level)}")
+        root.setLevel(before.level)
+    if after.handlers != before.handlers:
+        changed.append(f"root handlers {len(before.handlers)} -> {len(after.handlers)}")
+        root.handlers[:] = before.handlers
+    for name, level in sorted(after.levels.items()):
+        prior = before.levels.get(name, logging.NOTSET)
+        if level != prior:
+            changed.append(f"{name} {_name(prior)} -> {_name(level)}")
+            logging.getLogger(name).setLevel(prior)
+    return changed
+
+
+def _name(level: int) -> str:
+    """A level's name, such as `WARNING`, or `Level 5` for an unnamed one."""
+    return logging.getLevelName(level)
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
@@ -230,10 +306,11 @@ def pytest_runtest_setup(item: pytest.Item) -> Iterator[None]:
 def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> Iterator[None]:
     """Error a test whose run left the logging state changed, then restore it.
 
-    The state is the root logger's level and handlers, `warnings.showwarning` and the levels of the
-    loggers a stage quiets. Fixtures such as `caplog` restore at their teardown, which runs inside
-    this wrapper, so only a change that outlives the whole test is reported. The restore runs even
-    when the teardown raised, and the error is raised only after a teardown that returned normally.
+    The state is the root logger's level and handlers, warning capture and `warnings.showwarning`,
+    and the level of every other logger. Fixtures such as `caplog` restore at their teardown,
+    which runs inside this wrapper, so only a change that outlives the whole test is reported. The
+    restore runs even when the teardown raised, and the error is raised only after a teardown that
+    returned normally.
 
     Args:
         item: The test being torn down.
@@ -246,30 +323,9 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
     try:
         result = yield
     finally:
-        before = item.stash[_LOGGING_STATE]
-        after = _logging_state()
-        changed = []
-        root = logging.getLogger()
-        if (after.level, after.handlers) != (before.level, before.handlers):
-            changed.append(
-                f"level {before.level} -> {after.level} "
-                f"handlers {len(before.handlers)} -> {len(after.handlers)}"
-            )
-            root.setLevel(before.level)
-            root.handlers[:] = before.handlers
-        if after.showwarning is not before.showwarning:
-            changed.append("warnings.showwarning")
-            # `captureWarnings(False)` also clears logging's own record of the swap, so a later
-            # `captureWarnings(True)` swaps again.
-            logging.captureWarnings(False)
-            warnings.showwarning = before.showwarning
-        moved = [name for name in QUIET_LOGGERS if after.quiet[name] != before.quiet[name]]
-        if moved:
-            changed.append(f"logger levels {', '.join(moved)}")
-            for name in moved:
-                logging.getLogger(name).setLevel(before.quiet[name])
+        changed = _restore(item.stash[_LOGGING_STATE], _logging_state())
     if changed:
-        pytest.fail(f"root logger changed: {'; '.join(changed)}", pytrace=False)
+        pytest.fail(f"{LOGGING_CHANGED} {'; '.join(changed)}", pytrace=False)
     return result
 
 

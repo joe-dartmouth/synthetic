@@ -16,9 +16,6 @@ from typing import Final, TextIO, override
 FORMAT: Final = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 """A stamped line: its time, level and logger name, then the message."""
 
-SDV_LOGGERS: Final = ("sdv", "SingleTableSynthesizer")
-"""SDV's loggers, which a stage that fits a synthesizer holds at WARNING."""
-
 
 class Stamp(logging.Formatter):
     """Format `%(asctime)s` as `YYYY-MM-DD HH:MM:SS,mmm` local time, then its UTC offset `+HHMM`.
