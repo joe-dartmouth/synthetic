@@ -6,11 +6,12 @@
 temperature), the call's reply schema (`Call.reply_schema`, a rewrite call's included) as a
 `json_schema` response format, and thinking off unless the model's id is a `-thinking` variant.
 Nothing leaves the machine. Its first call reads the server's `/props` and refuses a server whose
-alias or weights file is not the model's, or, for a `-thinking` id, whose short pre-flight reply
-carries no reasoning, logging the server's build and file. A cancelled call,
-by the idle rule or an interrupt, shuts its socket so the worker thread and the server's slot are
-freed. A refused connection, a broken response or a status of 500 or above raises a retryable
-`GenerationError`, as the API's connection errors do (`bko.generate.api`).
+alias or weights file is not the model's; for a `-thinking` id it then sends a short pre-flight
+call and refuses a server whose reply carries no reasoning. It logs the checked server's build and
+file. A cancelled call, by the idle rule or an interrupt, posts nothing more and shuts its socket,
+so the worker thread and the server's slot are freed. A refused connection, a broken response or a
+status of 500 or above raises a retryable `GenerationError`, as the API's connection errors do
+(`bko.generate.api`). `bko.generate.chat` reads each reply.
 
 `bko.generate.weights.LOCAL_MODELS` names each model and its weights. The command fetches and
 verifies them, prints the server's argv, and probes a running server with one call:
@@ -37,7 +38,6 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from types import MappingProxyType
 from typing import Final
 from urllib.parse import urlsplit
 
@@ -45,13 +45,14 @@ from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import default_data_dir
 from bko.datasets.uci import UCI_FRAME
+from bko.generate.chat import reply_of
 from bko.generate.decode import decode, undecoded_in
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance
-from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply, Usage, text_of
+from bko.generate.messages import SETTINGS, AsyncSend, Call, Reply
 from bko.generate.prompt import render
 from bko.generate.reasoning import log_reasoning, reasoning_chars
-from bko.generate.weights import LOCAL_MODELS, fetch, model_path
+from bko.generate.weights import LOCAL_MODELS, LocalModel, fetch, model_path
 
 
 logger = logging.getLogger(__name__)
@@ -76,16 +77,27 @@ READY_SECONDS: Final = 600.0
 ERROR_TEXT: Final = 300
 """The most characters of a refusing server's body an error message quotes."""
 
-STOP_REASONS: Final[Mapping[str, str]] = MappingProxyType(
-    {"stop": "end_turn", "length": "max_tokens"}
-)
-"""The server's `finish_reason` as the Messages API's `stop_reason`."""
-
 RETRYABLE_STATUS: Final = 500
 """The lowest status that marks a server-side failure a resume may get past."""
 
 PREFLIGHT_TOKENS: Final = 64
 """The `max_tokens` of a `-thinking` id's pre-flight call, enough to start its reasoning."""
+
+PROBE_ROWS: Final = 4
+"""The records the probe asks for, and the pre-flight call with it."""
+
+
+def _pin(model: str) -> LocalModel:
+    """`model`'s `LOCAL_MODELS` entry.
+
+    Raises:
+        GenerationError: Not retryable, if `model` is not a `LOCAL_MODELS` id.
+    """
+    pin = LOCAL_MODELS.get(model)
+    if pin is None:
+        msg = f"{model} is not a local model; the ids are {sorted(LOCAL_MODELS)}"
+        raise GenerationError(msg)
+    return pin
 
 
 def payload(call: Call) -> dict[str, object]:
@@ -94,10 +106,7 @@ def payload(call: Call) -> dict[str, object]:
     Raises:
         GenerationError: Not retryable, if the call's model is not a `LOCAL_MODELS` id.
     """
-    pin = LOCAL_MODELS.get(call.settings.model)
-    if pin is None:
-        msg = f"{call.settings.model} is not a local model; the ids are {sorted(LOCAL_MODELS)}"
-        raise GenerationError(msg)
+    pin = _pin(call.settings.model)
     return {
         "model": call.settings.model,
         "messages": [
@@ -117,44 +126,6 @@ def payload(call: Call) -> dict[str, object]:
         },
         "chat_template_kwargs": {"enable_thinking": pin.thinking},
     }
-
-
-def _count(counts: Mapping[str, object], key: str) -> int:
-    value = counts.get(key, 0)
-    return value if isinstance(value, int) and not isinstance(value, bool) else 0
-
-
-def reply_of(body: object) -> Reply:
-    """A chat-completions response as a `Reply`: its text, tokens and stop reason.
-
-    A local model bills nothing, so no input is cached; the prompt's tokens are input tokens.
-
-    Raises:
-        GenerationError: Not retryable, if `body` is not a JSON object.
-    """
-    if not isinstance(body, dict):
-        msg = f"the local server's response is not a JSON object: {type(body).__name__}"
-        raise GenerationError(msg)
-    choices = body.get("choices")
-    first = choices[0] if isinstance(choices, list) and choices else {}
-    first = first if isinstance(first, dict) else {}
-    finish = first.get("finish_reason")
-    usage = body.get("usage")
-    counts = usage if isinstance(usage, dict) else {}
-    request_id = body.get("id")
-    return Reply(
-        request_id=request_id if isinstance(request_id, str) else None,
-        model=str(body.get("model", "")),
-        stop_reason=STOP_REASONS.get(finish, finish) if isinstance(finish, str) else None,
-        text=text_of(body),
-        usage=Usage(
-            input_tokens=_count(counts, "prompt_tokens"),
-            output_tokens=_count(counts, "completion_tokens"),
-            cache_creation_input_tokens=0,
-            cache_read_input_tokens=0,
-        ),
-        raw=dict(body),
-    )
 
 
 def loopback(url: str) -> int:
@@ -196,19 +167,20 @@ def _exchange(
         raise GenerationError(msg, retryable=response.status >= RETRYABLE_STATUS)
     try:
         return json.loads(data)
-    except ValueError:
+    except ValueError, RecursionError:
         msg = f"the local server's response is not JSON: {data[:ERROR_TEXT]!r}"
         raise GenerationError(msg) from None
 
 
-def preflight(model: str, connection: http.client.HTTPConnection) -> int:
-    """Post the probe's call at `PREFLIGHT_TOKENS` and return its reply's reasoning characters.
+def preflight(model: str, connection: http.client.HTTPConnection) -> Reply:
+    """Post the probe's call at `PREFLIGHT_TOKENS` and return its reply.
 
     Raises:
         GenerationError: As `_exchange`, if the server cannot be read or refuses the call.
     """
-    data = json.dumps(payload(probe_call(model, 4, max_tokens=PREFLIGHT_TOKENS))).encode()
-    return reasoning_chars(reply_of(_exchange(connection, "POST", "/v1/chat/completions", data)))
+    call = probe_call(model, PROBE_ROWS, max_tokens=PREFLIGHT_TOKENS)
+    data = json.dumps(payload(call)).encode()
+    return reply_of(_exchange(connection, "POST", "/v1/chat/completions", data))
 
 
 def check_server(model: str, port: int) -> Mapping[str, object]:
@@ -220,11 +192,11 @@ def check_server(model: str, port: int) -> Mapping[str, object]:
     path names and, for a `-thinking` id, the pre-flight reply's reasoning characters.
 
     Raises:
-        GenerationError: Not retryable, if the server serves another alias or file, or a
-            `-thinking` id's pre-flight reply carries no reasoning; as `_exchange` if it cannot be
-            read.
+        GenerationError: Not retryable, if `model` is not a `LOCAL_MODELS` id, the server serves
+            another alias or file, or a `-thinking` id's pre-flight reply carries no reasoning; as
+            `_exchange` if it cannot be read.
     """
-    pin = LOCAL_MODELS[model]
+    pin = _pin(model)
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT_SECONDS)
     try:
         props = _exchange(connection, "GET", "/props")
@@ -233,28 +205,34 @@ def check_server(model: str, port: int) -> Mapping[str, object]:
         if alias != model or Path(path).name != pin.filename:
             msg = f"the local server serves alias {alias} from {path}; the run names {model}"
             raise GenerationError(msg)
-        chars = preflight(model, connection) if pin.thinking else None
+        reply = preflight(model, connection) if pin.thinking else None
     finally:
         connection.close()
-    if chars == 0:
-        msg = f"the local server for {model} does not reason: its pre-flight reply has "
-        msg += "reasoning_chars=0"
-        raise GenerationError(msg)
-    line = "local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s"
-    facts: list[object] = [model, str(pin.thinking).lower(), path]
-    facts += [props.get("build_info"), props.get("total_slots"), pin.sha256]
-    if chars is not None:
-        line, facts = f"{line} preflight_reasoning_chars=%d", [*facts, chars]
-    logger.info(line, *facts)
+    build, chars = props.get("build_info"), None if reply is None else reasoning_chars(reply)
+    if chars == 0 and reply is not None:
+        msg = f"the local server for {model} does not reason: build={build} path={path} "
+        msg += f"sha256={pin.sha256} preflight_reasoning_chars=0 stop_reason={reply.stop_reason} "
+        raise GenerationError(f"{msg}content_chars={len(reply.text or '')}")
+    logger.info(
+        "local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s%s",
+        model,
+        str(pin.thinking).lower(),
+        path,
+        build,
+        props.get("total_slots"),
+        pin.sha256,
+        "" if chars is None else f" preflight_reasoning_chars={chars}",
+    )
     return props
 
 
 def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
     """Post each call to the llama.cpp server at `url`, in a worker thread.
 
-    The first call checks the server (`check_server`). Each `-thinking` call logs its
-    `reasoning` line (`bko.generate.reasoning.log_reasoning`). A call cancelled while it waits
-    shuts its socket, so its thread returns and the server stops generating for it.
+    The first call checks the server (`check_server`); a refusal that is not retryable is kept, so
+    each later call fails with it at once. Each `-thinking` call logs its `reasoning` line
+    (`bko.generate.reasoning.log_reasoning`). A call cancelled while it waits posts nothing more
+    and shuts its socket, so its thread returns and the server stops generating for it.
 
     Args:
         model: The model id the server serves under its alias; each call's settings name it.
@@ -267,34 +245,58 @@ def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
         ValueError: If `url` is not a loopback address (`loopback`).
     """
     port = loopback(url)
-    checked = threading.Event()
+    checked, warned = threading.Event(), threading.Event()
     lock = threading.Lock()
+    refused: list[str] = []
 
-    def post(call: Call, connection: http.client.HTTPConnection) -> Reply:
+    def post(call: Call, connection: http.client.HTTPConnection, cancel: threading.Event) -> Reply:
         if call.settings.model != model:
             msg = f"the call names model {call.settings.model}; this server serves {model}"
             raise GenerationError(msg)
+        _live(cancel)
         with lock:
+            _live(cancel)
+            if refused:
+                raise GenerationError(refused[0])
             if not checked.is_set():
-                check_server(model, port)
+                try:
+                    check_server(model, port)
+                except GenerationError as exc:
+                    if not exc.retryable:
+                        refused.append(str(exc))
+                    raise
                 checked.set()
         data = json.dumps(payload(call)).encode()
+        _live(cancel)
         reply = reply_of(_exchange(connection, "POST", "/v1/chat/completions", data))
         if LOCAL_MODELS[model].thinking:
-            log_reasoning(reply, connection)
+            _live(cancel)
+            log_reasoning(reply, connection, warned)
         return reply
 
     async def send(call: Call) -> Reply:
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=TIMEOUT_SECONDS)
+        cancel = threading.Event()
         try:
-            return await asyncio.to_thread(post, call, connection)
+            return await asyncio.to_thread(post, call, connection, cancel)
         except asyncio.CancelledError:
+            cancel.set()
             _abort(connection)
             raise
         finally:
             connection.close()
 
     return send
+
+
+def _live(cancel: threading.Event) -> None:
+    """Return unless `cancel` is set; a closed connection would reconnect on its next request.
+
+    Raises:
+        GenerationError: Retryable, if the call was cancelled.
+    """
+    if cancel.is_set():
+        raise GenerationError("the call was cancelled before its request", retryable=True)
 
 
 def _abort(connection: http.client.HTTPConnection) -> None:
@@ -378,16 +380,16 @@ def probe_call(model: str, rows: int, *, max_tokens: int = SETTINGS.max_tokens) 
     return Call(settings, 0, 1, system, user, frame=UCI_FRAME)
 
 
-def probe(model: str, *, url: str = LOCAL_URL, rows: int = 4) -> int:
+def probe(model: str, *, url: str = LOCAL_URL, rows: int = PROBE_ROWS) -> int:
     """Send one call for `rows` records of `PROBE_CELL` and log what decodes and how fast.
 
     Returns:
         The records that decoded, of `rows`.
 
     Raises:
-        GenerationError: If the server cannot be reached, serves another model or refuses the call.
-            Also if a thinking model's reply carries no reasoning, which marks a server started
-            without its reasoning flags.
+        GenerationError: If the server cannot be reached, serves another model or refuses the call,
+            its pre-flight included. Also, with a WARNING, if a thinking model's pre-flight reply
+            reasoned and its full reply did not.
     """
     call = probe_call(model, rows)
     started = time.monotonic()

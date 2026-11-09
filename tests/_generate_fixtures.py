@@ -6,8 +6,11 @@ The SDK's errors are built from `httpx2.Request` and `httpx2.Response`: `anthrop
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import threading
 from collections.abc import Mapping
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Final
 
 import anthropic
@@ -18,8 +21,9 @@ from bko.datasets.uci import UCI_FRAME
 from bko.generate.errors import GenerationError
 from bko.generate.guidance import Guidance, intervals
 from bko.generate.messages import SETTINGS, Call, Reply, Usage
+from bko.generate.weights import LOCAL_MODELS
 from tests._datasets_fixtures import archive, cleveland_line
-from tests._validate_fixtures import BASE
+from tests._validate_fixtures import BASE as VALID
 
 
 def _train(chol_high: int) -> pd.DataFrame:
@@ -27,7 +31,7 @@ def _train(chol_high: int) -> pd.DataFrame:
     ages = (35, 40, 44, 48, 52, 55, 58, 62, 66, 70)
     records = [
         {
-            **BASE,
+            **VALID,
             "age": age,
             "sex": i % 2,
             "target": (i // 2) % 2,
@@ -224,3 +228,177 @@ def uci(
         )
         + "\n"
     )
+
+
+MODEL: Final = "olmo-3-7b-instruct-q8_0"
+"""A local model with a built-in chat template and no thinking."""
+
+BASE: Final = "gemma-4-26b-a4b-q8_0"
+"""A local base model whose weights its `-thinking` variant serves."""
+
+THINKING: Final = "gemma-4-26b-a4b-q8_0-thinking"
+"""`BASE`'s thinking variant."""
+
+CALL: Final = Call(dataclasses.replace(SETTINGS, model=MODEL), 0, 1, "sys", "usr", frame=UCI_FRAME)
+"""A call to `MODEL`."""
+
+THINKING_CALL: Final = dataclasses.replace(
+    CALL, settings=dataclasses.replace(SETTINGS, model=THINKING)
+)
+"""`CALL` to `THINKING`."""
+
+RECORD: Final[dict[str, int | float]] = {
+    "age": 45,
+    "sex": 0,
+    "cp": 4,
+    "trestbps": 130,
+    "chol": 250,
+    "fbs": 0,
+    "restecg": 0,
+    "thalach": 150,
+    "exang": 1,
+    "oldpeak": 1.5,
+    "slope": 2,
+    "ca": 0,
+    "thal": 7,
+    "target": 1,
+}
+"""A valid UCI record."""
+
+PROPS: Final[dict[str, object]] = {
+    "model_alias": MODEL,
+    "model_path": f"/w/{LOCAL_MODELS[MODEL].filename}",
+    "build_info": "b1-test",
+    "total_slots": 4,
+}
+"""The `/props` of a server serving `MODEL`."""
+
+THINKING_PROPS: Final[dict[str, object]] = {
+    **PROPS,
+    "model_alias": THINKING,
+    "model_path": f"/w/{LOCAL_MODELS[BASE].filename}",
+}
+"""The `/props` of a server serving `THINKING`."""
+
+HANG_UP: Final = (0, b"")
+"""A `Server` answer that closes the connection without a response."""
+
+
+def completion(
+    records: list[dict[str, int | float]],
+    finish: str = "stop",
+    reasoning_content: object = None,
+    content: str | None = None,
+) -> dict[str, object]:
+    """A chat-completions body holding `records`, or `content`, and any `reasoning_content`."""
+    message: dict[str, object] = {
+        "role": "assistant",
+        "content": json.dumps({"records": records}) if content is None else content,
+    }
+    if reasoning_content is not None:
+        message["reasoning_content"] = reasoning_content
+    return {
+        "id": "chatcmpl-1",
+        "model": MODEL,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": finish,
+                "message": message,
+            }
+        ],
+        "usage": {"prompt_tokens": 900, "completion_tokens": 120},
+    }
+
+
+PREFLIGHT: Final = (200, completion([], finish="length", reasoning_content="plan", content=""))
+"""A pre-flight answer that reasons and is cut at its budget."""
+
+
+class Server:
+    """A llama-server fake on an ephemeral loopback port: `/props`, `/health`, each chat POST
+    answered in turn with a status and a body (bytes sent as they are, else JSON; `HANG_UP`
+    closes the connection), and each `/tokenize` POST from its own answers, three tokens once
+    they run out.
+
+    Attributes:
+        requests: Each chat POST's method, path, content type and JSON body.
+        tokenized: Each `/tokenize` POST's JSON body.
+        closed: Set when a delayed POST sees the client hang up.
+    """
+
+    def __init__(
+        self,
+        answers: list[tuple[int, object]],
+        *,
+        props: dict[str, object] = PROPS,
+        delay: float = 0.0,
+        tokenize: list[tuple[int, object]] | None = None,
+        tokenize_delay: float = 0.0,
+    ) -> None:
+        """Serve `answers` and `props`; each chat POST waits up to `delay` s for a hang-up, and
+        each `/tokenize` POST up to `tokenize_delay` s."""
+        self.answers = answers
+        self.tokenize = tokenize if tokenize is not None else []
+        self.requests: list[tuple[str, str, str, object]] = []
+        self.tokenized: list[object] = []
+        self.closed = threading.Event()
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def _send(self, status: int, body: object) -> None:
+                if (status, body) == HANG_UP:
+                    self.close_connection = True
+                    return
+                data = body if isinstance(body, bytes) else json.dumps(body).encode()
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def _hung_up(self, seconds: float) -> bool:
+                # Wait for the client to hang up, as llama-server notices a closed socket.
+                self.connection.settimeout(seconds)
+                try:
+                    if self.connection.recv(1) == b"":
+                        fake.closed.set()
+                        return True
+                except TimeoutError:
+                    pass
+                return False
+
+            def do_GET(self) -> None:
+                self._send(200, props if self.path == "/props" else {"status": "ok"})
+
+            def do_POST(self) -> None:
+                length = int(self.headers["Content-Length"])
+                body = json.loads(self.rfile.read(length))
+                if self.path == "/tokenize":
+                    fake.tokenized.append(body)
+                    answer = fake.tokenize.pop(0) if fake.tokenize else (200, {"tokens": [0] * 3})
+                    if not (tokenize_delay and self._hung_up(tokenize_delay)):
+                        self._send(*answer)
+                    return
+                kind = self.headers["Content-Type"]
+                fake.requests.append((self.command, self.path, kind, body))
+                if not (delay and self._hung_up(delay)):
+                    self._send(*fake.answers.pop(0))
+
+            def log_message(self, format: str, *args: object) -> None:  # ruff: ignore[builtin-argument-shadowing]
+                return
+
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.httpd.server_address[1]
+        self.url = f"http://127.0.0.1:{self.port}"
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+
+    def __enter__(self) -> Server:
+        """Start serving."""
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        """Stop serving and close the port."""
+        self.httpd.shutdown()
+        self.httpd.server_close()
