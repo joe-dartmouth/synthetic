@@ -28,16 +28,7 @@ from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_pop
 from bko.datasets.synthea_run import RUN_RECORD_NAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
-from bko.evaluate.data import (
-    SYNTHEA_ADULTS_FROM,
-    SYNTHEA_FIELD_ROWS,
-    SYNTHEA_FRAME,
-    SYNTHEA_INDICATORS,
-    Data,
-    Dataset,
-    digest,
-    load,
-)
+from bko.evaluate.data import Data, Dataset, digest, load
 from bko.evaluate.experiment import E1, Removal
 from bko.evaluate.named_runs import E3, RUNS
 from bko.evaluate.prepare import prepared
@@ -48,6 +39,12 @@ from bko.gaps.detect import Statement
 from bko.generate.guidance import Basis, Finding, Guidance, Profile, Relationship, Share, Spread
 from bko.generate.messages import SETTINGS, AnySend, Call, Level
 from bko.generate.prompt import render
+from bko.ontology.frames import (
+    SYNTHEA_ADULTS_FROM,
+    SYNTHEA_FIELD_ROWS,
+    SYNTHEA_FRAME,
+    SYNTHEA_INDICATORS,
+)
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import candidates_for
 from tests._evaluate_fixtures import FAST_METHODS

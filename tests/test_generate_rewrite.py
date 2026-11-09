@@ -9,7 +9,6 @@ from collections.abc import Mapping, Sequence
 import pytest
 
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from bko.evaluate.perturb import DIABETES_UNMAPPED
 from bko.generate.calls import request
 from bko.generate.flight import Flight, Limits, Planned
@@ -27,6 +26,7 @@ from bko.generate.rewrite import (
     rewrite_schema,
 )
 from bko.generate.skeleton import Skeleton
+from bko.ontology.frames import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from tests._datasets_fixtures import FIXED_NOW
 from tests._generate_fixtures import GUIDANCE, reply
 

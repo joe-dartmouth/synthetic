@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-09
 ---
 # Each stage keeps a data contradiction and reports it; none forces the ontology onto the data
 
@@ -94,6 +94,11 @@ two rows on one field whose codes lie strictly inside each other cannot show the
 the outer. Every other kind is a property of the data, so the command reports it and the stages
 read the data as it is.
 
+The census runs from `bko.evaluate` because it loads a dataset through `bko.evaluate.data.load`
+(records, digest, agreement) and logs `versions` through `bko.evaluate.provenance`, and `bko.gaps`
+sits below `bko.evaluate`; the frames it reads live in `bko.ontology.frames`, which `bko.gaps` may
+import.
+
 ## Consequences
 
 **Gained**: each stage's handling of each kind is one statement, checkable by `check_fused` and
@@ -109,14 +114,17 @@ table does not nest them, a pattern the data shows.
 | Forcing ancestors into fields | Asserts values no share supports, and the data shows the child without the ancestor far more often than with it (Rationale) | 2026-11-05 |
 | Dropping the dataset prior a contradiction touches | Changes an input probability, which `check_fused` refuses | 2026-11-05 |
 | Requiring mutual exclusion of a fused BKB | A class with two scoped children is already non-mutex (ADR `research/bko-fragment-encoding`) | 2026-11-05 |
+| The census in `bko.gaps` | It would move the evaluate loader, `Context` and `log_versions` below `bko.evaluate` for a command nothing outside evaluate runs | 2026-11-09 |
 
 ## Enforcement
 
 - Owner: `src/bko/bkb/fusion.py` (`check_fused`), `src/bko/generate/direct.py`,
-  `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`
+  `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`,
+  `src/bko/ontology/frames.py`
 - Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_kinds.py`,
   `tests/test_contradictions_fusion.py`, `tests/test_contradictions_gaps.py`,
-  `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`; the digest pins
+  `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`,
+  `tests/test_ontology_frames.py`; the digest pins
   in `tests/test_generate_direct.py` and `tests/test_evaluate_direct.py` hold `bko-direct`'s draw
   and every non-empty cell's share
 
@@ -125,7 +133,11 @@ table does not nest them, a pattern the data shows.
 **A stage forces ancestors when the mapping table gains a row that implies its parent's values**;
 the check is a search of `bko.ontology.mapping.FIELD_MAPPINGS` and the Diabetes field rows for a
 row that reads a concept's parent. **The valid-BKB check requires mutual exclusion if ADR
-`research/bko-fragment-encoding` comes to encode a state for absence.**
+`research/bko-fragment-encoding` comes to encode a state for absence.** **The census moves to
+`bko.gaps` when a module outside `bko.evaluate` other than `bko.app.steps` imports
+`bko.evaluate.data`**; the check is
+`grep -rn "^from bko.evaluate.data import" src/bko | grep -v "^src/bko/evaluate/"`, which lists
+only `src/bko/app/steps.py` until then.
 
 ## Related
 

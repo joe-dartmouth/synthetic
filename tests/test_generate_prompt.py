@@ -11,8 +11,6 @@ import pytest
 from bko.datasets.cells import LABEL, LABEL_MEANINGS
 from bko.datasets.split import ranges
 from bko.datasets.uci import CODEBOOK, DESCRIPTIONS, FRAME_COLUMNS, UCI_FRAME
-from bko.evaluate.data import SYNTHEA_FRAME
-from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.evaluate.rehearse import PROMPT, RECORD_LINE
 from bko.gaps.detect import Statement
 from bko.generate.guidance import (
@@ -39,6 +37,7 @@ from bko.generate.prompt import (
     system,
 )
 from bko.generate.skeleton import Named, Skeleton
+from bko.ontology.frames import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.ontology.mapping import FIELD_MAPPINGS, RANGES
 from bko.ontology.schema import FieldMapping
 from tests._frame_fixtures import TOY

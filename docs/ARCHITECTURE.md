@@ -71,7 +71,7 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 |---|---|
 | [`bko.core`](../src/bko/core/README.md) | Shared by every stage: the stamped logging setup |
 | [`bko.datasets`](../src/bko/datasets/README.md) | Represent (loading the records) and Evaluate (training data) |
-| [`bko.ontology`](../src/bko/ontology/README.md) | Represent (ontology loading, concept-to-field mapping, BKO fragments) |
+| [`bko.ontology`](../src/bko/ontology/README.md) | Represent (ontology loading, concept-to-field mapping, BKO fragments, and the Synthea and Diabetes frames and field rows) |
 | [`bko.bkb`](../src/bko/bkb/README.md) | Represent and Detect (BKB fusion, instantiation from an anchor, reasoning) |
 | [`bko.gaps`](../src/bko/gaps/README.md) | Represent (the dataset fragments) and Detect |
 | [`bko.generate`](../src/bko/generate/README.md) | Generate |

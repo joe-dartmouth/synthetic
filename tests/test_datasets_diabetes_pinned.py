@@ -31,11 +31,11 @@ from bko.datasets.diabetes import (
 from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.sources import DIABETES_130
 from bko.datasets.split import split
-from bko.evaluate.diabetes import DIABETES_FRAME, DIABETES_INDICATORS
 from bko.evaluate.experiment import E1, Experiment, Removal, flagged, gap_request
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.perturb import incoherent
 from bko.evaluate.prepare import prepared
+from bko.ontology.frames import DIABETES_FRAME, DIABETES_INDICATORS
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]

@@ -14,7 +14,6 @@ from sdmetrics.single_table.privacy.dcr_utils import calculate_dcr
 from bko.datasets.frames import FrameSpec
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import privacy
-from bko.evaluate.data import DIABETES_FRAME, SYNTHEA_FRAME
 from bko.evaluate.fidelity import metadata
 from bko.evaluate.privacy import (
     BLOCK,
@@ -26,6 +25,7 @@ from bko.evaluate.privacy import (
     nndr,
 )
 from bko.evaluate.scores import Measure
+from bko.ontology.frames import DIABETES_FRAME, SYNTHEA_FRAME
 from tests._baselines_fixtures import full_records
 
 

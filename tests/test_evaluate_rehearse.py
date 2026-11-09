@@ -22,7 +22,6 @@ from bko.datasets.split import split
 from bko.datasets.uci import FRAME_COLUMNS, NUMERIC, UCI_FRAME
 from bko.evaluate import rehearse
 from bko.evaluate.__main__ import main
-from bko.evaluate.diabetes import DIABETES_FRAME
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, E1, PERTURBED_ARM
 from bko.evaluate.holdout_candidates import KEPT, read
@@ -39,6 +38,7 @@ from bko.generate.guidance import Basis, Guidance, intervals
 from bko.generate.messages import LEVELS, SETTINGS, Call, Level, reaches
 from bko.generate.prompt import COHERENCE, render, render_shown
 from bko.generate.rewrite import ROW, Rewrite, render_rewrite
+from bko.ontology.frames import DIABETES_FRAME
 from bko.validate.checks import validate
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv
 from tests._evaluate_fixtures import GRADED, GRADED_DATA, SMALL, uci_data

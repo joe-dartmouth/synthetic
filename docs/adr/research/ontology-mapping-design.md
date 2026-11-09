@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-06
+updated: 2026-11-09
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -96,7 +96,7 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   [`research/synthea-downstream-design`](synthea-downstream-design.md)). Each code row other than
   ischemic heart disease becomes a `FieldMapping` with the clause `Codes(<its indicator column>,
   {1})` and the row's concept, label and source, and ischemic heart disease becomes the label row,
-  `Codes(target, {1})`. `bko.evaluate.data.SYNTHEA_FIELD_ROWS` holds them.
+  `Codes(target, {1})`. `bko.ontology.frames.SYNTHEA_FIELD_ROWS` holds them.
 - **No out-of-scope row above a mapped concept**: once type 2 diabetes maps, diabetes mellitus
   (MONDO:0005015) is its `is_a` ancestor and so in scope, and it has no out-of-scope row. The
   reason no UCI field grounds it, that `fbs` is one reading, sits in the `fbs` row's limits, which

@@ -3,9 +3,8 @@
 `score` loads it once (`load`) and hands it to the harness, the BKO arms, the rehearsal and the
 candidates file, so each reads the same records, frame, field mappings and digest, and the run's
 logs name the frame. ADR `research/uci-evaluation-frame` records why the run, not a flag, chooses
-it. The Synthea frame, its indicators and its field rows are defined here, from
-`bko.ontology.mapping.CODE_MAPPINGS` (ADR `research/synthea-downstream-design`); the Diabetes 130
-frame's are in `bko.evaluate.diabetes`.
+it. The Synthea and Diabetes 130 frames, their indicators and their field rows are in
+`bko.ontology.frames`.
 """
 
 from __future__ import annotations
@@ -13,33 +12,32 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import re
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from types import MappingProxyType
-from typing import Final, Protocol, assert_never
+from typing import Protocol, assert_never
 
 import pandas as pd
 
-from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.diabetes import load_diabetes
 from bko.datasets.fetch import UrlOpener, ensure
-from bko.datasets.frames import FrameSpec, RangeConstraint
+from bko.datasets.frames import FrameSpec, check_records
 from bko.datasets.sources import Agreement, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.uci import UCI_FRAME, load_uci
-from bko.evaluate.diabetes import (
+from bko.ontology.frames import (
     DIABETES_FIELD_ROWS,
     DIABETES_FRAME,
     DIABETES_INDICATORS,
     DIABETES_NAME,
-    check_records,
+    SYNTHEA_ADULTS_FROM,
+    SYNTHEA_FIELD_ROWS,
+    SYNTHEA_FRAME,
+    SYNTHEA_INDICATORS,
+    SYNTHEA_NAME,
 )
-from bko.ontology.mapping import CODE_MAPPINGS
-from bko.ontology.schema import CodeMapping, Codes, FieldMapping
+from bko.ontology.schema import FieldMapping
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -51,98 +49,6 @@ class Dataset(StrEnum):
     UCI = "uci"
     SYNTHEA = "synthea"
     DIABETES = DIABETES_NAME
-
-
-SYNTHEA_NAME: Final = "synthea"
-"""The Synthea frame's name and its dataset's source name, as E2's fragments take it."""
-
-SYNTHEA_ADULTS_FROM: Final = 40
-"""The youngest age, in whole years on the snapshot date, a Synthea record has."""
-
-INDICATOR_ROWS: Final[tuple[CodeMapping, ...]] = tuple(
-    row for row in CODE_MAPPINGS if row.snomed != ISCHEMIC_HEART_DISEASE
-)
-"""The code rows that become the Synthea frame's indicators: every one but the label's."""
-
-
-def indicator(row: CodeMapping) -> str:
-    """The indicator column of `row`: its label, lowercased, each run of other characters `_`."""
-    return re.sub(r"[^a-z0-9]+", "_", row.label.lower()).strip("_")
-
-
-def indicators(rows: Sequence[CodeMapping]) -> Mapping[str, str]:
-    """Each row's indicator column and its condition code, in `rows`' order, frozen.
-
-    Raises:
-        ValueError: If two rows name one column, or a row names `age`, `sex` or the label.
-    """
-    found: dict[str, str] = {}
-    for row in rows:
-        name = indicator(row)
-        if name in found:
-            msg = f"indicator {name!r} is named twice"
-            raise ValueError(msg)
-        if name in {"age", "sex", LABEL}:
-            msg = f"indicator {name!r} is one of the frame's own columns"
-            raise ValueError(msg)
-        found[name] = row.snomed
-    return MappingProxyType(found)
-
-
-SYNTHEA_INDICATORS: Final[Mapping[str, str]] = indicators(INDICATOR_ROWS)
-"""Each indicator column's condition code, in `CODE_MAPPINGS` order; checked when the module is
-imported."""
-
-_PRESENCE: Final[Mapping[int, str]] = MappingProxyType({0: "absent", 1: "present"})
-
-SYNTHEA_FRAME: Final = FrameSpec(
-    name=SYNTHEA_NAME,
-    features=("age", "sex", *SYNTHEA_INDICATORS),
-    numeric=("age",),
-    fractional=(),
-    fraction_digits=0,
-    categorical=("sex", *SYNTHEA_INDICATORS),
-    codebook={"sex": SEXES, **dict.fromkeys(SYNTHEA_INDICATORS, _PRESENCE)},
-    descriptions={
-        "age": "age in years on the snapshot date",
-        "sex": "sex",
-        **{indicator(row): f"{row.label} recorded by the snapshot date" for row in INDICATOR_ROWS},
-        LABEL: "ischemic heart disease recorded by the snapshot date",
-    },
-    ranges=(
-        RangeConstraint(
-            field="age",
-            unit="a",
-            low=SYNTHEA_ADULTS_FROM,
-            high=120,
-            source="research/synthea-downstream-design",
-            limits="the frame keeps patients aged 40 and over; 120 is UCI's team-specified top",
-        ),
-    ),
-    label_codes=tuple(sorted(LABEL_CODES)),
-    label_meanings={0: "no ischemic heart disease", 1: "ischemic heart disease"},
-    edges=(65,),
-    study="ischemic heart disease prediction",
-    cohort="patient aged 40 or over in a generated population",
-)
-"""E3's frame over the pinned Synthea population (ADR `research/synthea-downstream-design`)."""
-
-
-def _field_row(row: CodeMapping) -> FieldMapping:
-    column = LABEL if row.snomed == ISCHEMIC_HEART_DISEASE else indicator(row)
-    return FieldMapping(
-        when=(Codes(column, frozenset({1})),),
-        concept=row.concept,
-        label=row.label,
-        source=row.source,
-        limits="the code recorded by the snapshot date; a patient without it may still hold it",
-    )
-
-
-SYNTHEA_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = tuple(_field_row(r) for r in CODE_MAPPINGS)
-"""The Synthea frame's field rows, one per `CODE_MAPPINGS` row: each indicator's
-`Codes(column, {1})`, and the label's `Codes(target, {1})` for ischemic heart disease (ADR
-`research/ontology-mapping-design`)."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -243,8 +149,9 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     UCI's records are read from UCI Heart Disease. Synthea's are the pinned population's, checked
     against its `run.json` with no Java and never generated (`make synthea` generates it), kept
     from `SYNTHEA_ADULTS_FROM`. Diabetes 130's are `bko.datasets.diabetes.load_diabetes`'s over
-    `DIABETES_INDICATORS`, checked against `DIABETES_FRAME` (`check_records`). Each takes
-    `field_rows(dataset, context)`, and a fetched source's data carries the source's agreement.
+    `DIABETES_INDICATORS`, checked against `DIABETES_FRAME`
+    (`bko.datasets.frames.check_records`). Each takes `field_rows(dataset, context)`, and a
+    fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
     records' sha256) and its agreement: `none` for open data, else the agreement's name quoted.
 
@@ -277,7 +184,7 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             source = context.diabetes
             ensure(source, data_dir, open_url=context.open_url)
             records = load_diabetes(data_dir, indicators=DIABETES_INDICATORS, source=source)
-            check_records(records)
+            check_records(records, DIABETES_FRAME)
             data = Data(records, DIABETES_FRAME, rows, source.name, source.agreement)
         case _:
             assert_never(dataset)

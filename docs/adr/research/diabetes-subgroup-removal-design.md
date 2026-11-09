@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-02
-updated: 2026-11-05
+updated: 2026-11-09
 ---
 # The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm
 
@@ -12,7 +12,7 @@ UCI Heart Disease cannot separate the arms, and E3 reads the removal design on S
 patients are generated (ADR [`research/synthea-downstream-design`](synthea-downstream-design.md)).
 E6 runs the same design on real encounters: UCI Diabetes 130-US Hospitals
 ([`clore-2014`](../../literature.md#datasets)), pinned as `uci-diabetes-130` in
-`bko.datasets.sources`, whose frame `bko.datasets.diabetes` builds and `bko.evaluate.diabetes`
+`bko.datasets.sources`, whose frame `bko.datasets.diabetes` builds and `bko.ontology.frames`
 describes ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#data), The Diabetes frame).
 
 Every E6 number depends on the cohort, the label, the cutoff, the age bands, the removed cell, the
@@ -418,10 +418,11 @@ the replica reads `bko` alone.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/diabetes.py`; E6's runs, `src/bko/evaluate/named_runs.py`
+- Owner: `src/bko/ontology/frames.py`; E6's runs, `src/bko/evaluate/named_runs.py`
 - Pinned by: `tests/test_evaluate_experiment.py` (the runs, slices and ceilings),
   `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
-  `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`
+  `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`,
+  `tests/test_ontology_frames.py`
 
 ## Reversal Conditions
 

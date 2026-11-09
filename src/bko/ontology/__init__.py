@@ -2,6 +2,7 @@
 
 The submodules are imported directly, so importing the stage loads nothing heavy: `terms` (the
 parsed release as standard-library values), `obo` (the pronto parser), `schema` (the table's row
-types), `mapping` (the table), `check` (the table against the releases), `errors`, and `__main__`
-(`python -m bko.ontology check`).
+types), `mapping` (the table), `icd9` (the Diabetes 130 diagnosis and lab rows), `frames`
+(the Synthea and Diabetes 130 frames), `check` (the table against the releases), `errors`, and
+`__main__` (`python -m bko.ontology check`).
 """

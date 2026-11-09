@@ -14,16 +14,16 @@ import pytest
 
 from bko.datasets.cells import LABEL
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population, subjects
-from bko.evaluate.data import (
+from bko.evaluate.data import digest
+from bko.gaps.observe import observe_population, record_cells
+from bko.ontology.frames import (
     INDICATOR_ROWS,
     SYNTHEA_ADULTS_FROM,
     SYNTHEA_FIELD_ROWS,
     SYNTHEA_FRAME,
     SYNTHEA_INDICATORS,
-    digest,
     indicators,
 )
-from bko.gaps.observe import observe_population, record_cells
 from bko.ontology.mapping import CODE_MAPPINGS
 from tests._synthea_frame_fixtures import write_population
 
@@ -94,7 +94,8 @@ def test_the_frame_bytes_do_not_depend_on_hash_seed(tmp_path):
         "from datetime import date\n"
         "from pathlib import Path\n"
         "from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population\n"
-        "from bko.evaluate.data import SYNTHEA_ADULTS_FROM, SYNTHEA_INDICATORS, digest\n"
+        "from bko.evaluate.data import digest\n"
+        "from bko.ontology.frames import SYNTHEA_ADULTS_FROM, SYNTHEA_INDICATORS\n"
         "pop = load_population(Path(sys.argv[1]), snapshot_date=date(2026, 1, 1))\n"
         "records = frame_records(pop, label=ISCHEMIC_HEART_DISEASE,\n"
         "    indicators=SYNTHEA_INDICATORS, adults_from=SYNTHEA_ADULTS_FROM)\n"
