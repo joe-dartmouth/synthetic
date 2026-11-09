@@ -307,6 +307,7 @@ def test_a_ranked_arm_replays_byte_for_byte(tmp_path, monkeypatch):
     origin = Origin("e1", GRADED_DATA, RELEASES)
     files = []
     added = []
+    drains = []
     live_log: Path | None = None
     for name in ("live", "replay"):
         path = tmp_path / f"{name}.jsonl"
@@ -317,10 +318,12 @@ def test_a_ranked_arm_replays_byte_for_byte(tmp_path, monkeypatch):
             built, log = ranked(tmp_path / name, send, candidates=kept)
             with log:
                 added.append(built(train(), REQUEST).added)
-            built.drain(HOLDOUT, Source.REPLICA_CANDIDATES)
+            drains.append(built.drain(HOLDOUT, Source.REPLICA_CANDIDATES))
         live_log = log.path
         files.append(path.read_bytes())
     assert added[0].equals(added[1])
+    assert drains[0]
+    assert drains[0] == drains[1]
     assert files[0] == files[1]
     assert b'"score": {"likelihood": null}' in files[0]
     assert b'"outcome": "dropped-likelihood"' in files[0]

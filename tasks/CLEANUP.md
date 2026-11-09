@@ -77,27 +77,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/ranked-replay-test-drained-measures`: the ranked replay test does not
-  compare drained measures.** `tests/test_evaluate_ranked.py::test_a_ranked_arm_replays_byte_for_byte`
-  compares the candidates file bytes and `added` between a live and a replayed run, and discards
-  what `built.drain(HOLDOUT, Source.REPLICA_CANDIDATES)` returns, so a replay whose drained
-  measures differ passes. *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The test files belong to the concurrent fix, and the byte-equal candidates
-  file already pins the rows.
-  **What discharges it:** the test compares the live and replayed drains.
-  **Trigger:** the next change to the ranked arm's drain or to that test.
-
-- **`cleanup:evaluate/curated-ceiling-test-hardcodes-constants`: the curated ceiling test
-  hardcodes its constants.** `tests/test_evaluate_experiment.py::test_e6_curated_ceiling_covers_its_estimate`
-  writes `104.537`, `326_621`, `325_000` and `1269 - 19` as literals, so a change to `e6-thin`'s
-  frame or `E6_CURATED`'s `fill_to` leaves the test passing on the old estimate. *Filed
-  2026-11-05 by PR #75's review.*
-  **Why deferred.** The constants are a measured record of `e6-thin` (`docs/EVIDENCE.md`, G7), and
-  the run is done.
-  **What discharges it:** the test reads `fill_to` and the removed count off `E6_CURATED`, keeping
-  the measured rate as the one literal.
-  **Trigger:** the next change to `E6_THIN`, `E6_CURATED` or that test.
-
 - **`cleanup:evaluate/frames-below-evaluate`: `bko.gaps` cannot import the Synthea and Diabetes
   frames.** The `contradictions` census is a gap-stage reading, but it lives in
   `bko.evaluate.contradictions`, with only its pure counters in `bko.gaps.contradictions`, because
