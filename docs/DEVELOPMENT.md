@@ -1494,9 +1494,20 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   (a base id's server for its `-thinking` id, or the reverse, included), nothing decodes, or a
   `-thinking` id's reply carries no reasoning (a `WARNING` names it). Stop the server with `pkill`
   whether or not the probe passes. One model is served at a time; a local model bills nothing. A
-  run's first call logs the `local server` line (the model, whether it thinks, the served file,
-  the server's build and the file's pinned sha256) and refuses a server serving another model, and a local run keeps at most four calls in flight
-  (`bko.generate.local.SLOTS`), logging `local in_flight=` when `--in-flight` asked for more.
+  run's first call refuses a server serving another model. For a `-thinking` id it then sends one
+  pre-flight call, the probe's at `max_tokens` 64, and refuses a server whose reply carries no
+  `reasoning_content`, such as one started with `--reasoning-format none`: the run fails before
+  its first call with `the local server for <model> does not reason: its pre-flight reply has
+  reasoning_chars=0`, and `probe` exits 2 with that `ERROR` line. A checked server logs the
+  `local server` line (the model, whether it thinks, the served file, the server's build and the
+  file's pinned sha256, and for a `-thinking` id `preflight_reasoning_chars=`). Each live call of a
+  `-thinking` id logs one `reasoning` line from `bko.generate.reasoning`:
+  `reasoning request_id=<id> stop_reason=<reason> reasoning_chars=<n> reasoning_tokens=<n> content_chars=<n> output_tokens=<n>`,
+  its tokens from the server's `/tokenize` (`unknown` when that fails), and as a `WARNING` ending
+  ` reason=truncated_while_reasoning` when the reply stopped at `max_tokens` with reasoning and no
+  content. A replay logs no `reasoning` line, as it logs no `local server` line. A local run keeps
+  at most four calls in flight (`bko.generate.local.SLOTS`), logging `local in_flight=` when
+  `--in-flight` asked for more.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

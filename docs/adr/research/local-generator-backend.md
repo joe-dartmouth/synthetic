@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-01
+updated: 2026-11-09
 ---
 # On-device generators: a llama.cpp server on the loopback interface, weights fixed by digest
 
@@ -56,11 +56,20 @@ with the same structured-output schema, and the run's spend gates still have to 
   uses (ADR `research/call-log-replay`): the first choice's `message.content`, reasoning ignored.
 - **Server check.** The first call reads the server's `/props` and refuses a server whose alias is
   not the run's model or whose weights file name is not its pin's, before any call is posted, so a
-  server under a base id's alias is refused for its variant and the reverse. It then logs one
+  server under a base id's alias is refused for its variant and the reverse. For a `-thinking` id
+  the check also sends one short generation, the probe's call at `max_tokens` 64
+  (`PREFLIGHT_TOKENS`), and refuses a reply with no reasoning, since build 11960's `/props` reports
+  no reasoning setting. It then logs one
   `local server model=%s thinking=%s path=%s build=%s slots=%s sha256=%s` line: the model, whether
-  it thinks, the served file, the server's build and the file's pinned digest. The check reads
-  names, not the server's reasoning setting, so `probe` is what shows a thinking id served without
-  its flags.
+  it thinks, the served file, the server's build and the file's pinned digest; a `-thinking` id's
+  line ends ` preflight_reasoning_chars=%d`, the pre-flight reply's reasoning length. Measured
+  2026-11-09 on llama-server 0.8.0 build 11960 serving the Gemma `-thinking` alias, `/props` reads
+  the same under `--reasoning on`, `--reasoning off`, the reasoning flags dropped, and
+  `--reasoning-format none`, apart from its per-start `media_marker`. The thinking payload's
+  `chat_template_kwargs.enable_thinking` overrides the server's `--reasoning` default, so the first
+  three each reply with reasoning to it; `--reasoning-format none` leaves the thoughts unparsed in
+  the reply's content with no `reasoning_content`, and that server is the one the pre-flight
+  refuses.
 - **Calls in flight.** A local run keeps at most `SLOTS` calls in flight, whatever `--in-flight`
   asks (`bko.evaluate.scoring`), since a call past the slots would queue inside the server while its
   idle limit ran.
@@ -80,6 +89,14 @@ with the same structured-output schema, and the run's spend gates still have to 
   one call for four records of `<55/female/1`, and logs what decodes, how long it took and the
   reply's `reasoning_content` length as `reasoning_chars=`; a probe that decodes no record exits 2,
   so a reply whose content holds unparsed think tags exits 2.
+- **Per-call reasoning.** Each live call of a `-thinking` id logs one `reasoning` line: its
+  request id, stop reason, the reply's `reasoning_content` length in characters, its reasoning
+  tokens, its content length in characters and its output tokens. The reasoning tokens come from
+  the server's `/tokenize` of `reasoning_content`, since build 11960's reply `usage` holds no
+  reasoning count; a failed `/tokenize` logs them as `unknown` and keeps the reply. A reply cut at
+  `max_tokens` with reasoning and no content logs the line as a `WARNING` ending
+  `reason=truncated_while_reasoning`, so thinking that ate the budget reads apart from an answer
+  cut short. The line comes from `local_send`, so a replay logs none.
 - **Thinking.** G6's runs turn thinking off, the project's choice for the generator comparison;
   the `-thinking` ids measure thinking on, as the named runs `g6-gemmathink` and
   `g6-nemotronthink` on holdouts 0 to 4. G6's thinking-off runs on the same holdouts are the
@@ -105,7 +122,8 @@ does. Parallel slots let the flight keep calls in flight as it does against the 
 weights close to the published models at a smaller size and run time than BF16. The API's default
 temperature, fixed for every local model, keeps their outputs comparable with each other and with
 the API models'. Stdlib `http.client` in a thread needs no new dependency; holding the connection
-lets a cancelled call hang up. The server check ties each run's log to the file actually served.
+lets a cancelled call hang up. The server check ties each run's log to the file actually served, and a `-thinking` run to a
+server that parses its reasoning out.
 
 ## Consequences
 
@@ -138,11 +156,13 @@ lines in `scratchpad/probe-*.log`).
 | A `NamedRun` field for thinking | The same: the run's model id carries it | 2026-11-01 |
 | Wall-time cost | The user's decision: wall time depends on the machine, so compute cost is tokens and FLOPs | 2026-11-01 |
 | Thinking-off control runs on holdouts 0 to 4 | `g6-2` and `g6-3` hold that result | 2026-11-01 |
+| Reading the reasoning setting from `/props` | Build 11960 reports none: its `/props` reads the same under `--reasoning on`, `--reasoning off` and `--reasoning-format none` (measured 2026-11-09) | 2026-11-09 |
 
 ## Enforcement
 
 - Owner: `src/bko/generate/`
-- Pinned by: `tests/test_generate_local.py`, `tests/test_generate_weights.py`,
+- Pinned by: `tests/test_generate_local.py`, `tests/test_generate_reasoning.py`,
+  `tests/test_generate_weights.py`,
   `tests/test_evaluate_context.py`, `tests/test_evaluate_experiment.py`,
   `tests/test_generate_spend.py`
 
