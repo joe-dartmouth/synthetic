@@ -12,7 +12,7 @@ reply's candidates are validated (`bko.validate`).
 Each accepted one that `check` would refuse is dropped by `bko.baselines.records.drops`, and the
 rest count toward the cell their own values name. A ranking arm (`Curation.LIKELIHOOD`) asks each
 cell for `over_ask` times its quota and keeps each call cell's rows its BKB likelihood
-(`bko.evaluate.ranking.scorer`) ranks highest (`bko.evaluate.attempts.Attempt.rows`). An attempt
+(`bko.evaluate.ranking.Scorers`) ranks highest (`bko.evaluate.attempts.Attempt.rows`). An attempt
 asks for at most `budget` times the request's rows, and refuses with a plain `BaselineError` as soon
 as the rest of its budget cannot cover the rows still short. The arm keeps its validity counts
 itself, since a refused attempt returns no `Baseline`, and writes every candidate it saw, with its
@@ -47,7 +47,7 @@ from bko.evaluate.curation import classifier_scores
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import Curation
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.ranking import record, scorer
+from bko.evaluate.ranking import Scorers, record
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues
 from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
@@ -290,14 +290,16 @@ class GuidedArm:
     def _rank(self, train: pd.DataFrame, request: Request) -> Rank:
         """Each candidate's BKB likelihood at its call cell's shares on `train`.
 
-        One scorer per requested cell, every one built here, before the attempt's first call.
+        One scorer per requested cell, every one built here in quota order through one
+        `Scorers` over `train`, before the attempt's first call.
 
         Raises:
             EvaluationError: If `train` holds no record of a requested cell, so no call is sent.
         """
         frame = request.frame
+        build = Scorers(train, self._knowledge, frame)
         scorers: dict[str, Callable[[Mapping[str, float]], float]] = {
-            cell_key(cell): scorer(train, self._knowledge, frame, cell) for cell in request.quota
+            cell_key(cell): build(cell) for cell in request.quota
         }
 
         def rank(seen: Sequence[Seen]) -> list[float]:

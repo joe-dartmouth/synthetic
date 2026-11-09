@@ -1,7 +1,8 @@
 """The BKB likelihood scorer G7's gate and the ranking arm `bko-curated` share.
 
-`scorer` builds one cell's `bko.gaps.likelihood.Likelihood` from a holdout's training rows: the
-cell's shares (`bko.gaps.shares.shares`) read the cell's own records and its label group's.
+`Scorers` builds each cell's `bko.gaps.likelihood.Likelihood` from one holdout's training rows:
+the cell's shares (`bko.gaps.shares.shares`) read the cell's own records and its label group's,
+and the holdout's stratum keys and each label group's observations are computed once.
 `record` reads a valid candidate as the scorer takes it, and `tie` is the order that breaks equal
 scores, `sha256(f"{holdout}:{call}:{position}")`, so neither the gate's split nor the arm's
 ranking favours an early call (ADR `research/bkb-candidate-curation`).
@@ -19,7 +20,7 @@ from bko.baselines.request import Strata, stratum_keys
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
 from bko.gaps.likelihood import Likelihood
-from bko.gaps.observe import Cell, cell_key, observe_records, record_cells
+from bko.gaps.observe import Cell, Observed, cell_key, observe_records, record_cells
 from bko.gaps.shares import shares
 from bko.ontology.schema import FieldMapping
 
@@ -38,34 +39,54 @@ class Known(Protocol):
         ...
 
 
-def scorer(train: pd.DataFrame, data: Known, frame: FrameSpec, cell: Cell) -> Likelihood:
-    """The likelihood of a record of `cell` at the cell's shares on `train`.
+class Scorers:
+    """Each cell's likelihood on one holdout's training rows, sharing the holdout's work.
 
-    Args:
-        train: The holdout's training rows, in `frame`'s columns.
-        data: The run's source name and field mappings.
-        frame: The frame whose edges cut the cells and whose label marks the label-only concepts.
-        cell: The cell, as `bko.gaps.observe.record_cells` keys it.
-
-    Returns:
-        A `Likelihood` that reads a record's log-probability at the cell's shares, minus infinity
-        for a record the sampler cannot draw.
-
-    Raises:
-        EvaluationError: If `train` holds no record of `cell`.
+    The stratum keys are computed once, and each label group is observed once, on its first
+    cell; each `Likelihood` is built from the same inputs a per-cell build reads.
     """
-    rows = data.field_rows
-    keys = stratum_keys(train, Strata.CELL, edges=frame.edges)
-    members = train.loc[[key == cell for key in keys]]
-    if members.empty:
-        msg = f"the training rows hold no record of cell {cell_key(cell)!r}"
-        raise EvaluationError(msg)
-    found = record_cells(members, rows, name=data.name, edges=frame.edges).each[cell]
-    label = int(cell[2])
-    group = observe_records(
-        train.loc[train[frame.label].eq(label)], rows, name=f"{data.name}/{frame.label}={label}"
-    )
-    return Likelihood(shares(found, group), rows, frame)
+
+    def __init__(self, train: pd.DataFrame, data: Known, frame: FrameSpec) -> None:
+        """Hold `train`'s stratum keys under `frame`'s edges; observe no group yet.
+
+        Args:
+            train: The holdout's training rows, in `frame`'s columns.
+            data: The run's source name and field mappings.
+            frame: The frame whose edges cut the cells and whose label marks the label-only
+                concepts.
+        """
+        self._train = train
+        self._data = data
+        self._frame = frame
+        self._keys = stratum_keys(train, Strata.CELL, edges=frame.edges)
+        self._groups: dict[int, Observed] = {}
+
+    def __call__(self, cell: Cell) -> Likelihood:
+        """The likelihood of a record of `cell` at the cell's shares.
+
+        Args:
+            cell: The cell, as `bko.gaps.observe.record_cells` keys it.
+
+        Returns:
+            A `Likelihood` that reads a record's log-probability at the cell's shares, minus
+            infinity for a record the sampler cannot draw.
+
+        Raises:
+            EvaluationError: If the training rows hold no record of `cell`.
+        """
+        rows = self._data.field_rows
+        members = self._train.loc[[key == cell for key in self._keys]]
+        if members.empty:
+            msg = f"the training rows hold no record of cell {cell_key(cell)!r}"
+            raise EvaluationError(msg)
+        edges = self._frame.edges
+        found = record_cells(members, rows, name=self._data.name, edges=edges).each[cell]
+        label = int(cell[2])
+        if label not in self._groups:
+            group = self._train.loc[self._train[self._frame.label].eq(label)]
+            name = f"{self._data.name}/{self._frame.label}={label}"
+            self._groups[label] = observe_records(group, rows, name=name)
+        return Likelihood(shares(found, self._groups[label]), rows, self._frame)
 
 
 def tie(holdout: int, call: int | None, position: int) -> str:

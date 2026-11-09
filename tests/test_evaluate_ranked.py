@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 
 import bko.evaluate.guided as guided_module
+import bko.evaluate.ranking as ranking_module
 from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import Drop
 from bko.baselines.request import Request, Strata
@@ -27,7 +28,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import CURATED_ARM, E1, MESSAGES_ARMS, Curation, MessagesArm
 from bko.evaluate.guided import GuidedArm, Knowledge
 from bko.evaluate.holdout_candidates import CandidateFile, Origin, Seen
-from bko.evaluate.ranking import Known, record, scorer, tie
+from bko.evaluate.ranking import Known, Scorers, record, tie
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.waves import spendable
 from bko.gaps.definitions import Definition
@@ -54,6 +55,14 @@ CURATED: Final = "bko-curated"
 HOLDOUT: Final = 0
 QUOTA: Final = 3
 REQUEST: Final = Request(quota={YOUNG_SICK: QUOTA}, strata=Strata.CELL, seed=0)
+REAL_CHANGES: Final = (
+    {"cp": 4},
+    {},
+    {"chol": 300, "trestbps": 150},
+    {"chol": 300},
+    {"cp": 4, "chol": 300},
+    {"trestbps": 150},
+)
 
 pytestmark = pytest.mark.usefixtures("fill")
 
@@ -69,12 +78,14 @@ def fill() -> Iterator[None]:
 def scored(monkeypatch: pytest.MonkeyPatch, table: Mapping[int, float]) -> None:
     """Score each record by its `thalach` from `table`, whatever its cell."""
 
-    def scorer(
-        train: pd.DataFrame, data: Known, frame: FrameSpec, cell: Cell
-    ) -> Callable[[Mapping[str, float]], float]:
-        return lambda record: table[int(record["thalach"])]
+    class Table:
+        def __init__(self, train: pd.DataFrame, data: Known, frame: FrameSpec) -> None:
+            pass
 
-    monkeypatch.setattr(guided_module, "scorer", scorer)
+        def __call__(self, cell: Cell) -> Callable[[Mapping[str, float]], float]:
+            return lambda record: table[int(record["thalach"])]
+
+    monkeypatch.setattr(guided_module, "Scorers", Table)
 
 
 def ranked(
@@ -267,16 +278,8 @@ def test_a_ranked_arm_over_an_emptied_cell_refuses_before_any_call(tmp_path):
 def test_a_ranked_arm_keeps_each_call_cells_best_by_the_real_likelihood(tmp_path):
     """No scorer is replaced: the kept rows are the young sick cell's top three by `Likelihood`."""
     knowledge = Knowledge("uci", {}, (), FIELD_MAPPINGS)
-    changes = (
-        {"cp": 4},
-        {},
-        {"chol": 300, "trestbps": 150},
-        {"chol": 300},
-        {"cp": 4, "chol": 300},
-        {"trestbps": 150},
-    )
     candidates: list[object] = [
-        {**sick_woman(44, 101 + at), **change} for at, change in enumerate(changes)
+        {**sick_woman(44, 101 + at), **change} for at, change in enumerate(REAL_CHANGES)
     ]
     send = ScriptedSend(reply(candidates))
     log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
@@ -293,7 +296,7 @@ def test_a_ranked_arm_keeps_each_call_cells_best_by_the_real_likelihood(tmp_path
     with log:
         baseline = built(train(), REQUEST)
     send.assert_consumed()
-    likelihood = scorer(train(), knowledge, UCI_FRAME, YOUNG_SICK)
+    likelihood = Scorers(train(), knowledge, UCI_FRAME)(YOUNG_SICK)
     scores = [likelihood(record(item, UCI_FRAME.columns)) for item in candidates]
     order = sorted(range(len(candidates)), key=lambda at: (-scores[at], tie(HOLDOUT, 1, at)))
     best = sorted(order[:QUOTA])
@@ -303,12 +306,53 @@ def test_a_ranked_arm_keeps_each_call_cells_best_by_the_real_likelihood(tmp_path
     assert [s.score for s in seen_of(built)] == [{"likelihood": score} for score in scores]
 
 
+def test_ranking_scores_are_bit_equal_to_the_pinned_scores():
+    """The young sick cell's real scores, pinned to the bit as a per-cell build reads them."""
+    knowledge = Knowledge("uci", {}, (), FIELD_MAPPINGS)
+    candidates = [{**sick_woman(44, 101 + at), **change} for at, change in enumerate(REAL_CHANGES)]
+    likelihood = Scorers(train(), knowledge, UCI_FRAME)(YOUNG_SICK)
+    scores = [likelihood(record(item, UCI_FRAME.columns)) for item in candidates]
+    assert [float(score).hex() for score in scores] == [
+        "-0x1.d2bac8afcef3ap+2",
+        "-0x1.7f9354de89457p+2",
+        "-0x1.2876775bba37dp+2",
+        "-0x1.5404e61d21be9p+2",
+        "-0x1.a72c59ee676cdp+2",
+        "-0x1.5404e61d21beap+2",
+    ]
+
+
+def test_a_holdouts_label_groups_are_observed_once(monkeypatch):
+    """Two cells of one label share one `Scorers`: one stratum pass, one observation per label."""
+    observed: list[str] = []
+    keyed: list[int] = []
+    observe = ranking_module.observe_records
+    keys = ranking_module.stratum_keys
+
+    def observe_spy(*args, **kwargs):
+        observed.append(kwargs["name"])
+        return observe(*args, **kwargs)
+
+    def keys_spy(*args, **kwargs):
+        keyed.append(len(args[0]))
+        return keys(*args, **kwargs)
+
+    monkeypatch.setattr(ranking_module, "observe_records", observe_spy)
+    monkeypatch.setattr(ranking_module, "stratum_keys", keys_spy)
+    scorers = Scorers(train(), Knowledge("uci", {}, (), FIELD_MAPPINGS), UCI_FRAME)
+    old_sick = (">=55", "female", 1)
+    for cell in (YOUNG_SICK, old_sick, YOUNG_WELL, YOUNG_SICK):
+        scorers(cell)
+    assert keyed == [len(train())]
+    assert observed == [f"uci/{UCI_FRAME.label}=1", f"uci/{UCI_FRAME.label}=0"]
+
+
 def test_the_scorer_refuses_a_cell_its_training_rows_lack():
     rows = train()
     emptied = rows.loc[[key != YOUNG_SICK for key in cells_of(rows)]]
     knowledge = Knowledge("uci", {}, (), FIELD_MAPPINGS)
     with pytest.raises(EvaluationError, match="training rows hold no record of cell"):
-        scorer(emptied, knowledge, UCI_FRAME, YOUNG_SICK)
+        Scorers(emptied, knowledge, UCI_FRAME)(YOUNG_SICK)
 
 
 def test_record_reads_every_column_as_a_float_and_refuses_anything_else():

@@ -89,18 +89,6 @@ links to where its blocker is tracked.
   and its rows at minus infinity, with a test that reads it.
   **Trigger:** the next change to `attempts.py` or `guided.py`.
 
-- **`cleanup:evaluate/ranking-scorer-rebuilds-per-cell`: `ranking.scorer` recomputes work shared
-  by a holdout's cells.** Each call to `bko.evaluate.ranking.scorer` (`ranking.py:45`) recomputes
-  `stratum_keys` over the holdout's whole training split and `observe_records` over the label's
-  rows, though both depend on the holdout and the label alone, and `GuidedArm._rank` calls it
-  once per call cell. The cost does not bite at E6's 16 quota cells. *Filed 2026-11-05 by PR #75's
-  review.*
-  **Why deferred.** A performance cost with no measured effect on a run.
-  **What discharges it:** the stratum keys and each label group's observations computed once per
-  holdout and passed to each cell's scorer, with the same scores.
-  **Trigger:** a ranked run whose attempt time shows in a profile, or the next change to
-  `ranking.py`.
-
 - **`cleanup:evaluate/over-ask-rule-three-places`: the `over_ask` rule is written three times.**
   `Experiment`'s `MessagesArm` check (`experiment.py:325`), `GuidedArm.__init__` (`guided.py:137`)
   and `Attempt.__init__` (`attempts.py:137`) each state when `over_ask` is valid, with three
