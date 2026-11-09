@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-02
+updated: 2026-11-08
 ---
 # The Bayesian network baseline: GreedyBayes structure, BDeu tables and donor values, in-house
 
@@ -51,7 +51,10 @@ We will build **an in-house GreedyBayes learner, `bko.baselines.bayes_net`**, ru
 - **Draw.** Fields are drawn in the learned order from `default_rng(derived_seed(seed,
   "bayes-net"))`, and each field's value is copied from a uniformly chosen training row whose state
   for that field is the drawn one; `fill` keeps each stratum's first matching rows, as for every
-  generator.
+  generator. The draw reads the generator as a row-by-row draw would: one `random` double per row
+  per node in the learned order, then one bounded integer per row per field in frame order. So
+  grouping rows by parent configuration and by state leaves the rows byte-identical under the
+  locked numpy.
 - **Learn speedups** leave the learner's output byte-identical: the same order, edges and
   tables, so the draw is unchanged. `learn` computes each mutual information once per field and
   parent set, and counts each table with `np.bincount`.
