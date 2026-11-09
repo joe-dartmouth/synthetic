@@ -77,18 +77,6 @@ links to where its blocker is tracked.
 
 ## evaluate
 
-- **`cleanup:evaluate/ranking-log-lines`: a ranked attempt logs no per-cell counts.** A ranking
-  attempt (`bko.evaluate.attempts`, `bko.evaluate.guided`) ranks each call cell's rows once its
-  rounds end, and logs neither how many rows each cell ranked, how many scores tied at the cut,
-  nor how many sat at minus infinity; `bko.evaluate.guided`'s `validity` line (`logger.info` at
-  `guided.py:280`) counts outcomes only. A reader of `e6-24`'s `scores.log` recovers them only by
-  rereading `holdout-candidates.jsonl`. *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The ranked audit reads the candidates file for them, and the change is to
-  `src/` files outside the review fix's boundary.
-  **What discharges it:** a log line per ranked cell with its rows ranked, its ties at the cut
-  and its rows at minus infinity, with a test that reads it.
-  **Trigger:** the next change to `attempts.py` or `guided.py`.
-
 - **`cleanup:evaluate/ranked-replay-test-drained-measures`: the ranked replay test does not
   compare drained measures.** `tests/test_evaluate_ranked.py::test_a_ranked_arm_replays_byte_for_byte`
   compares the candidates file bytes and `added` between a live and a replayed run, and discards

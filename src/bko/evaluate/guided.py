@@ -190,7 +190,7 @@ class GuidedArm:
             short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
             if attempt.rank is not None:
                 # Ranking marks each ranked candidate, so it runs before they are kept below.
-                attempt.rows()
+                self._ranked(attempt, named=named)
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -215,6 +215,23 @@ class GuidedArm:
                 self._log.usd,
             )
         return self._baseline(attempt, train, first, short)
+
+    def _ranked(self, attempt: Attempt, *, named: tuple[int, str]) -> None:
+        """Rank `attempt`'s rows, then log one `ranked` line per cell it ranked."""
+        attempt.rows()
+        for ranked in attempt.ranking:
+            logger.info(
+                "ranked holdout=%d fill=%s arm=%s seed=%d cell=%s rows=%d kept=%d tied=%d "
+                "minus_infinity=%d",
+                *named,
+                self.name,
+                attempt.request.seed,
+                cell_key(ranked.cell),
+                ranked.rows,
+                ranked.kept,
+                ranked.tied,
+                ranked.minus_infinity,
+            )
 
     def _attempt(self, train: pd.DataFrame, request: Request, *, holdout: int) -> Attempt:
         """A new attempt at `request`, curating or ranking as the arm does."""

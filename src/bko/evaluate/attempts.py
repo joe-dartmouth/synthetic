@@ -67,6 +67,26 @@ type Rank = Callable[[Sequence[Seen]], Sequence[float]]
 """A ranking: given one call cell's valid candidates, each one's score, higher kept first."""
 
 
+@dataclass(frozen=True, slots=True)
+class Ranked:
+    """One call cell's ranking, as its `ranked` line logs it.
+
+    Attributes:
+        cell: The call cell.
+        rows: Its valid rows ranked.
+        kept: Those it kept, at most its quota.
+        tied: Its rows whose score equals the last kept row's, when a dropped row shares it, else
+            0.
+        minus_infinity: Its rows the sampler cannot draw.
+    """
+
+    cell: Stratum
+    rows: int
+    kept: int
+    tied: int
+    minus_infinity: int
+
+
 @dataclass(slots=True)
 class Tally:
     """Candidates counted over some calls.
@@ -161,6 +181,7 @@ class Attempt:
         self.seen: list[Seen] = []
         self._valid: dict[Stratum, list[tuple[int, pd.DataFrame]]] = defaultdict(list)
         self._ranked = False
+        self.ranking: list[Ranked] = []
 
     @staticmethod
     def tally_for(*, prescribing: bool, curating: bool = False, ranking: bool = False) -> Tally:
@@ -362,7 +383,19 @@ class Attempt:
             range(len(seen)),
             key=lambda i: (-scores[i], tie(self.holdout, seen[i].call, seen[i].position)),
         )
-        best = set(order[: self.request.quota[cell]])
+        quota = self.request.quota[cell]
+        best = set(order[:quota])
+        cut = scores[order[quota - 1]] if 0 < quota < len(order) else None
+        split = cut is not None and scores[order[quota]] == cut
+        self.ranking.append(
+            Ranked(
+                cell,
+                rows=len(valid),
+                kept=len(best),
+                tied=sum(score == cut for score in scores) if split else 0,
+                minus_infinity=sum(score == -math.inf for score in scores),
+            )
+        )
         dropped = DROPPED[Drop.LIKELIHOOD].value
         for i, (at, _) in enumerate(valid):
             score = None if scores[i] == -math.inf else scores[i]

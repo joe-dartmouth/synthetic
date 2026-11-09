@@ -7,6 +7,7 @@ scorer by a table of scores by `thalach`, so each fixes the ranking it reads; on
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 from collections.abc import Callable, Iterator, Mapping
 from functools import partial
@@ -123,6 +124,15 @@ def seen_of(built: GuidedArm) -> list[Seen]:
     return [seen for _, _, seen in built._seen]
 
 
+def ranked_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """The `ranked` lines the arm logged."""
+    messages = [record.getMessage() for record in caplog.records]
+    return [message for message in messages if message.startswith("ranked ")]
+
+
+RANKED: Final = "ranked holdout=0 fill=replica arm=bko-curated seed=0 cell=<55/female/1"
+
+
 def sha_order(count: int, *, call: int = 1) -> list[int]:
     """Positions 0 to `count - 1` of `call` in `sha256(f"{holdout}:{call}:{position}")` order."""
     return sorted(
@@ -182,6 +192,57 @@ def test_minus_infinity_ranks_last(tmp_path, monkeypatch):
     assert baseline.added["thalach"].tolist() == [thalach[at] for at in best]
     undrawable = seen_of(built)[first]
     assert (undrawable.outcome, undrawable.score) == ("dropped-likelihood", {"likelihood": None})
+
+
+def test_a_ranked_attempt_logs_one_line_per_ranked_cell(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    scores = {101: -1.0, 102: -5.0, 103: -2.0, 104: -6.0, 105: -3.0, 106: -4.0}
+    scored(monkeypatch, scores)
+    built, log = ranked(tmp_path, ScriptedSend(reply(women(*scores))))
+    with log:
+        built(train(), REQUEST)
+    assert ranked_lines(caplog) == [f"{RANKED} rows=6 kept=3 tied=0 minus_infinity=0"]
+
+
+def test_a_tie_at_the_cut_is_counted(tmp_path, monkeypatch, caplog):
+    """The last kept row's -2.0 is shared by two dropped rows: three rows tie at the cut."""
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    scores = {101: -1.0, 102: -1.5, 103: -2.0, 104: -2.0, 105: -2.0, 106: -4.0}
+    scored(monkeypatch, scores)
+    built, log = ranked(tmp_path, ScriptedSend(reply(women(*scores))))
+    with log:
+        built(train(), REQUEST)
+    assert ranked_lines(caplog) == [f"{RANKED} rows=6 kept=3 tied=3 minus_infinity=0"]
+
+
+def test_minus_infinity_rows_are_counted(tmp_path, monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    thalach = (101, 102, 103, 104, 105, 106)
+    first = sha_order(len(thalach))[0]
+    scored(monkeypatch, dict.fromkeys(thalach, -2.0) | {thalach[first]: -math.inf})
+    built, log = ranked(tmp_path, ScriptedSend(reply(women(*thalach))))
+    with log:
+        built(train(), REQUEST)
+    assert ranked_lines(caplog) == [f"{RANKED} rows=6 kept=3 tied=5 minus_infinity=1"]
+
+
+def test_an_unranked_attempt_logs_no_ranked_line(tmp_path, caplog):
+    caplog.set_level(logging.INFO, logger=guided_module.__name__)
+    send = ScriptedSend(reply(women(101, 102, 103)))
+    log = CallLog(tmp_path / "calls.jsonl", SETTINGS, frame="uci")
+    built = GuidedArm(
+        "bko",
+        None,
+        Knowledge("uci", {}, (), ()),
+        log=log,
+        budget=E1.budget,
+        flight=Flight(send, log, Limits(1, None), spendable=partial(spendable, log, 50.0)),
+    )
+    with log:
+        baseline = built(train(), REQUEST)
+    assert len(baseline.added) == QUOTA
+    assert any(record.getMessage().startswith("guided ") for record in caplog.records)
+    assert ranked_lines(caplog) == []
 
 
 def test_ranking_is_per_call_cell(tmp_path, monkeypatch):
