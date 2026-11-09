@@ -27,6 +27,7 @@ from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import (
     SCHEMA,
+    SCORED,
     Candidate,
     CandidateFile,
     Origin,
@@ -398,6 +399,53 @@ def test_a_line_without_perturb_writes_no_perturb_key():
     changed = dataclasses.replace(seen, perturb="unchanged")
     line = Candidate(0, "bko-direct-pram", "gap", 1, True, changed).line()
     assert line["perturb"] == "unchanged"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        {**RANKED, "score": {"likelihood": -1.0, "confidence": 0.9}},
+        {**RANKED, "arm": "cllm", "outcome": "kept", "score": {"aleatoric": 0.1}},
+        {**RANKED, "arm": "bko-direct-pram", "score": {}},
+    ],
+    ids=["extra", "short", "empty"],
+)
+def test_a_score_whose_names_are_not_its_arms_is_refused(line):
+    with pytest.raises(CandidatesFormatError, match="score"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_misspelled_score_name_is_refused():
+    with pytest.raises(CandidatesFormatError, match="likelihood"):
+        read(SCHEMA_4 + json.dumps({**RANKED, "score": {"likelihod": -1.0}}).encode() + b"\n")
+
+
+def test_a_cllm_line_scored_by_likelihood_is_refused():
+    line = {**RANKED, "arm": "cllm", "score": {"likelihood": -1.0}}
+    with pytest.raises(CandidatesFormatError, match="aleatoric"):
+        read(SCHEMA_3 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_curated_line_scored_by_confidence_is_refused():
+    line = {**RANKED, "score": {"confidence": 0.9}}
+    with pytest.raises(CandidatesFormatError, match="score"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_score_on_an_arm_that_scores_nothing_is_refused():
+    line = {**RANKED, "arm": "bko"}
+    with pytest.raises(CandidatesFormatError, match="scores nothing"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_each_arms_scores_read():
+    for arm, names in SCORED.items():
+        score = dict.fromkeys(sorted(names), -0.5)
+        (line,) = read(
+            SCHEMA_4 + json.dumps({**RANKED, "arm": arm, "score": score}).encode() + b"\n"
+        ).candidates
+        assert (line.arm, line.score) == (arm, score)
+    assert set(SCORED) == {"bko-curated", "cllm"}
 
 
 def test_a_score_of_nan_is_refused_at_write_time(tmp_path):

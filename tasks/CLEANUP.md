@@ -101,17 +101,6 @@ links to where its blocker is tracked.
   **Trigger:** a ranked run whose attempt time shows in a profile, or the next change to
   `ranking.py`.
 
-- **`cleanup:evaluate/candidates-score-key-names`: `_score` does not check a score's key names.**
-  `bko.evaluate.holdout_candidates._score` (`holdout_candidates.py:391`) accepts any dict whose
-  values are a finite number or null, so a schema-3 line whose `score` holds
-  `{"likelihod": -1.0}` reads as valid, and a reader looking for `likelihood` finds none.
-  *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The writer is the harness alone, and no reader of a score by name has been
-  fed a misspelled key.
-  **What discharges it:** `read` refuses a `score` whose names are not `likelihood`, or
-  `confidence` and `aleatoric`, by the arm, with a test.
-  **Trigger:** the next change to `holdout_candidates.py`'s schema.
-
 - **`cleanup:evaluate/over-ask-rule-three-places`: the `over_ask` rule is written three times.**
   `Experiment`'s `MessagesArm` check (`experiment.py:325`), `GuidedArm.__init__` (`guided.py:137`)
   and `Attempt.__init__` (`attempts.py:137`) each state when `over_ask` is valid, with three

@@ -64,6 +64,20 @@ REJECTED: Final = "rejected"
 OUTCOMES: Final = (KEPT, REJECTED, *(f"dropped-{drop}" for drop in Drop))
 """Every outcome a line names."""
 
+LIKELIHOOD: Final = "likelihood"
+"""The name a ranked candidate's score goes under on its candidates line."""
+
+CONFIDENCE: Final = "confidence"
+"""The name of a curated row's mean confidence in its own label, the curator's column too."""
+
+ALEATORIC: Final = "aleatoric"
+"""The name of a curated row's mean aleatoric uncertainty, the curator's column too."""
+
+SCORED: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {"bko-curated": frozenset({LIKELIHOOD}), "cllm": frozenset({CONFIDENCE, ALEATORIC})}
+)
+"""Each scoring arm's score names: a line of another arm holds no `score`."""
+
 PERTURB: Final = re.compile(r"(perturbed|unchanged|changed|refused_[a-z_]+)")
 """A perturbation line's result, as the `perturb holdout=` line names it."""
 
@@ -394,6 +408,8 @@ def _candidate(number: int, line: object, optional: set[str]) -> Candidate:
     )
     if not all(checks):
         _refuse(number, "holds a value of the wrong type")
+    if _SCORE in line:
+        _names(number, line["arm"], line[_SCORE])
     if bool(failed) != (line["outcome"] == REJECTED):
         _refuse(number, "names failed checks unless it is rejected, or none when it is")
     if undecoded is not None and line["outcome"] != REJECTED:
@@ -412,6 +428,15 @@ def _candidate(number: int, line: object, optional: set[str]) -> Candidate:
     return Candidate(
         line["holdout"], line["arm"], line["fill"], line["attempt"], line["returned"], seen
     )
+
+
+def _names(number: int, arm: str, score: Mapping[str, object]) -> None:
+    """Refuse a `score` on an arm `SCORED` lacks, or whose names are not its arm's."""
+    names = SCORED.get(arm)
+    if names is None:
+        _refuse(number, f"holds a score, but its arm {arm!r} scores nothing")
+    if set(score) != names:
+        _refuse(number, f"holds the score names {sorted(score)}, not {arm}'s {sorted(names)}")
 
 
 def _score(value: object) -> bool:
