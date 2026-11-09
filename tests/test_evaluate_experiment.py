@@ -10,6 +10,7 @@ from typing import Final
 import pytest
 
 from bko.baselines.request import Method, Strata, plan
+from bko.datasets.ablation import removed_count
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.datasets.split import kept_count, split
 from bko.datasets.uci import UCI_FRAME
@@ -478,16 +479,23 @@ def test_e6_slices_refuse_holdouts_they_do_not_divide():
 
 
 def test_e6_curated_ceiling_covers_its_estimate():
-    """G7's curated run estimate (`docs/EVIDENCE.md`, G7), written out.
+    """G7's curated run estimate (`docs/EVIDENCE.md`, G7), derived from the configurations.
 
     Rate: `bko`'s measured cost per record asked in `e6-thin`, $104.537 over 326,621 records
-    asked, $3.2006e-4. Records asked per holdout: `over_ask` 2 x (fill_to - R) = 2 x 1250, times
-    1.005, `bko`'s measured re-ask share (326,621 asked for 325,000 kept). Over 100 holdouts:
-    $80.41; the $100 ceiling is 1.24 times it.
+    asked, the one measured literal. Records asked per holdout: `over_ask` x the removal's
+    removed count at `E6_CURATED.fill_to`, times `bko`'s measured re-ask share in `e6-thin`
+    (its records asked over those it planned, each holdout's removed count plus its replica
+    rows). Over the holdouts: $80.41; the $100 ceiling is 1.24 times it.
     """
-    rate = 104.537 / 326_621
-    asked = 2 * (1269 - 19) * 326_621 / 325_000
-    estimate = 100 * asked * rate
+    removal = E6_CURATED.removal
+    assert removal is not None
+    assert E6_THIN.replica_rows is not None
+    removed = removed_count(removal.fraction, E6_CURATED.fill_to)
+    measured_usd, measured_asked = 104.537, 326_621  # e6-thin's measured spend and rows asked
+    planned = len(E6_THIN.holdout_seeds) * (removed + E6_THIN.replica_rows)
+    rate = measured_usd / measured_asked
+    asked = MESSAGES_ARMS[CURATED_ARM].over_ask * removed * measured_asked / planned
+    estimate = len(E6_CURATED.holdout_seeds) * asked * rate
     assert estimate == pytest.approx(80.41, abs=0.01)
     assert E6_CURATED.spend_ceiling == pytest.approx(100.0)
     assert E6_CURATED.spend_ceiling > estimate

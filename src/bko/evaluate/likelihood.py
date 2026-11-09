@@ -3,8 +3,8 @@
 `likelihood` reads a run's per-holdout candidates file, or a sliced run's files as one, and
 scores every record of `bko`'s replica fill that counted toward a cell (`kept` or
 `dropped-quota`) by its BKB likelihood (`bko.gaps.likelihood`) at its cell's shares on that
-holdout's training rows, through the scorer the arm `bko-curated` shares
-(`bko.evaluate.ranking`). Each cell's records split at the cell's median score, ties at the
+holdout's training rows, through one `bko.evaluate.ranking.Scorers` per holdout, the scorer the
+arm `bko-curated` shares. Each cell's records split at the cell's median score, ties at the
 median in the order of `sha256(f"{holdout}:{call}:{position}")`, and the cells' top halves pooled
 against their bottom halves, so both carry the training cell mix. The tops' and bottoms' fidelity
 against the training rows (quality, column shapes, column pair trends; `bko.evaluate.fidelity`)
@@ -36,7 +36,7 @@ from bko.evaluate.experiment import Experiment
 from bko.evaluate.fidelity import MEASURES, fidelity
 from bko.evaluate.holdout_candidates import KEPT, Candidate, HoldoutCandidates, read
 from bko.evaluate.prepare import held_out_ratio, prepared
-from bko.evaluate.ranking import scorer, tie
+from bko.evaluate.ranking import Scorers, tie
 from bko.gaps.likelihood import Likelihood
 from bko.gaps.observe import Cell, by_concept, cell_key
 from bko.ontology.schema import FieldMapping
@@ -311,6 +311,7 @@ def _scored(
         for band, sex, label in stratum_keys(train, Strata.CELL, edges=frame.edges)
     }
     by_key = {cell_key(cell): cell for cell in cells}
+    build = Scorers(train, data, frame)
     scorers: dict[Cell, Likelihood] = {}
     by_cell: dict[Cell, list[_Scored]] = {}
     for line in lines:
@@ -320,7 +321,7 @@ def _scored(
             raise EvaluationError(msg)
         record = _record(line, frame.columns)
         if cell not in scorers:
-            scorers[cell] = scorer(train, data, frame, cell)
+            scorers[cell] = build(cell)
         score = scorers[cell](record)
         by_cell.setdefault(cell, []).append(
             _Scored(record, score, tie(seed, line.call, line.position))

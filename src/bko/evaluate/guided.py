@@ -12,7 +12,7 @@ reply's candidates are validated (`bko.validate`).
 Each accepted one that `check` would refuse is dropped by `bko.baselines.records.drops`, and the
 rest count toward the cell their own values name. A ranking arm (`Curation.LIKELIHOOD`) asks each
 cell for `over_ask` times its quota and keeps each call cell's rows its BKB likelihood
-(`bko.evaluate.ranking.scorer`) ranks highest (`bko.evaluate.attempts.Attempt.rows`). An attempt
+(`bko.evaluate.ranking.Scorers`) ranks highest (`bko.evaluate.attempts.Attempt.rows`). An attempt
 asks for at most `budget` times the request's rows, and refuses with a plain `BaselineError` as soon
 as the rest of its budget cannot cover the rows still short. The arm keeps its validity counts
 itself, since a refused attempt returns no `Baseline`, and writes every candidate it saw, with its
@@ -47,7 +47,7 @@ from bko.evaluate.curation import classifier_scores
 from bko.evaluate.errors import EvaluationError, StopRuleError
 from bko.evaluate.experiment import Curation
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.ranking import record, scorer
+from bko.evaluate.ranking import Scorers, over_ask_error, record
 from bko.evaluate.scores import Measure, Source
 from bko.evaluate.skeleton import Prescribe, Queues
 from bko.evaluate.waves import asks, committer, give_up, lines_requeued, next_wave
@@ -132,10 +132,12 @@ class GuidedArm:
             over_ask: The multiple of each cell's quota a ranking arm asks for; 1 for any other.
 
         Raises:
-            EvaluationError: If `over_ask` is above 1 without likelihood curation or 1 with it.
+            EvaluationError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule
+                for likelihood curation.
         """
-        if over_ask < 1 or (over_ask > 1) != (curation is Curation.LIKELIHOOD):
-            msg = f"{name} asks over_ask {over_ask}, which needs likelihood curation and only it"
+        error = over_ask_error(over_ask, ranks=curation is Curation.LIKELIHOOD)
+        if error is not None:
+            msg = f"{name}: {error}"
             raise EvaluationError(msg)
         self.name = name
         self._prescribe = prescribe
@@ -188,7 +190,7 @@ class GuidedArm:
             short = self._rounds(attempt, guidance, request.frame, queues, shower, named=named)
             if attempt.rank is not None:
                 # Ranking marks each ranked candidate, so it runs before they are kept below.
-                attempt.rows()
+                self._log_ranked(attempt, named=named)
             outcome = "partial" if short else "returned"
         except BaselineError:
             outcome = "refused"
@@ -213,6 +215,26 @@ class GuidedArm:
                 self._log.usd,
             )
         return self._baseline(attempt, train, first, short)
+
+    def _log_ranked(self, attempt: Attempt, *, named: tuple[int, str]) -> None:
+        """Rank `attempt`'s rows, then log one `ranked` line per cell it ranked, in quota order.
+
+        A cell with no valid row is not ranked, so it gets no line.
+        """
+        attempt.rows()
+        for ranked in attempt.ranking:
+            logger.info(
+                "ranked holdout=%d fill=%s arm=%s seed=%d cell=%s rows=%d kept=%d tied=%d "
+                "minus_infinity=%d",
+                *named,
+                self.name,
+                attempt.request.seed,
+                cell_key(ranked.cell),
+                ranked.rows,
+                ranked.kept,
+                ranked.tied,
+                ranked.minus_infinity,
+            )
 
     def _attempt(self, train: pd.DataFrame, request: Request, *, holdout: int) -> Attempt:
         """A new attempt at `request`, curating or ranking as the arm does."""
@@ -242,6 +264,8 @@ class GuidedArm:
             params["shows"] = SHOW
         if self._curation is not None:
             params["curation"] = self._curation.value
+        if self._over_ask > 1:
+            params["over_ask"] = self._over_ask
         if short:
             params["short"] = {cell_key(cell): rows for cell, rows in short.items()}
         request = attempt.request
@@ -290,14 +314,16 @@ class GuidedArm:
     def _rank(self, train: pd.DataFrame, request: Request) -> Rank:
         """Each candidate's BKB likelihood at its call cell's shares on `train`.
 
-        One scorer per requested cell, every one built here, before the attempt's first call.
+        One scorer per requested cell, every one built here in quota order through one
+        `Scorers` over `train`, before the attempt's first call.
 
         Raises:
             EvaluationError: If `train` holds no record of a requested cell, so no call is sent.
         """
         frame = request.frame
+        build = Scorers(train, self._knowledge, frame)
         scorers: dict[str, Callable[[Mapping[str, float]], float]] = {
-            cell_key(cell): scorer(train, self._knowledge, frame, cell) for cell in request.quota
+            cell_key(cell): build(cell) for cell in request.quota
         }
 
         def rank(seen: Sequence[Seen]) -> list[float]:

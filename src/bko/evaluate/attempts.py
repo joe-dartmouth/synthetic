@@ -38,7 +38,7 @@ from bko.evaluate.holdout_candidates import (
     REJECTED,
     Seen,
 )
-from bko.evaluate.ranking import tie
+from bko.evaluate.ranking import over_ask_error, tie
 from bko.evaluate.scores import Measure
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.calls import Batch
@@ -65,6 +65,29 @@ arm `Drop.CURATION`, and a ranking arm `Drop.LIKELIHOOD`."""
 
 type Rank = Callable[[Sequence[Seen]], Sequence[float]]
 """A ranking: given one call cell's valid candidates, each one's score, higher kept first."""
+
+
+@dataclass(frozen=True, slots=True)
+class Ranked:
+    """One call cell's ranking, as its `ranked` line logs it.
+
+    Attributes:
+        cell: The call cell.
+        rows: Its valid rows ranked.
+        kept: Those it kept, at most its quota.
+        tied: Its rows whose score equals the last kept row's, when that score is finite and a
+            dropped row shares it, else 0; rows tied at minus infinity count under
+            `minus_infinity` alone.
+        minus_infinity: Its rows the sampler cannot draw.
+
+    A cell with no valid row is not ranked, so it has no `Ranked`.
+    """
+
+    cell: Stratum
+    rows: int
+    kept: int
+    tied: int
+    minus_infinity: int
 
 
 @dataclass(slots=True)
@@ -115,6 +138,7 @@ class Attempt:
 
     Attributes:
         seen: Every candidate the attempt took, in call order, with its outcome.
+        ranking: Each ranked cell's counts, in the quota's order, once `rows` has ranked.
     """
 
     def __init__(
@@ -136,13 +160,15 @@ class Attempt:
         rows it reads as `bko.evaluate.curation.discards` drops, keeps each one's scores on its
         candidate, and counts `Drop.CURATION`; an attempt given a `rank` holds `over_ask` times
         each cell's quota before `rows` ranks it, ties broken in `bko.evaluate.ranking.tie` order
-        on `holdout`, and counts `Drop.LIKELIHOOD`.
+        on `holdout`, and counts `Drop.LIKELIHOOD`. A `rank` needs `over_ask` above 1, so the
+        attempt holds rows to drop; one without a `rank` needs `over_ask` 1.
 
         Raises:
-            ValueError: If `over_ask` is above 1 without a `rank`, or below 1.
+            ValueError: If `over_ask` breaks `bko.evaluate.ranking.over_ask_error`'s rule for an
+                attempt with or without a `rank`.
         """
-        if over_ask < 1 or (over_ask > 1 and rank is None):
-            msg = f"over_ask {over_ask} needs a rank, and is 1 or more"
+        msg = over_ask_error(over_ask, ranks=rank is not None)
+        if msg is not None:
             raise ValueError(msg)
         self.train = train
         self.request = request
@@ -160,6 +186,7 @@ class Attempt:
         self.seen: list[Seen] = []
         self._valid: dict[Stratum, list[tuple[int, pd.DataFrame]]] = defaultdict(list)
         self._ranked = False
+        self.ranking: list[Ranked] = []
 
     @staticmethod
     def tally_for(*, prescribing: bool, curating: bool = False, ranking: bool = False) -> Tally:
@@ -316,7 +343,8 @@ class Attempt:
         and the cell keeps its quota's highest, ties in `bko.evaluate.ranking.tie` order and
         minus infinity last; the rest take the outcome `dropped-likelihood`, and every ranked
         candidate keeps its score, None for minus infinity. A cell holding no more than its quota
-        keeps every row. An added frame with no rows when none was kept.
+        keeps every row. Each ranked cell's counts join `ranking`, in the quota's order; a cell
+        with no valid row is not ranked. An added frame with no rows when none was kept.
 
         Raises:
             ValueError: If `rank` returns other than one score per candidate, or a score that is
@@ -327,7 +355,9 @@ class Attempt:
         if self.rank is not None and not self._ranked:
             # Every cell is scored before any candidate is marked, so a refusal changes nothing.
             scored = {
-                cell: self._scores(self.rank, cell, valid) for cell, valid in self._valid.items()
+                cell: self._scores(self.rank, cell, self._valid[cell])
+                for cell in self.request.quota
+                if cell in self._valid
             }
             for cell, scores in scored.items():
                 self.kept[cell] = self._ranked_rows(cell, self._valid[cell], scores)
@@ -361,7 +391,19 @@ class Attempt:
             range(len(seen)),
             key=lambda i: (-scores[i], tie(self.holdout, seen[i].call, seen[i].position)),
         )
-        best = set(order[: self.request.quota[cell]])
+        quota = self.request.quota[cell]
+        best = set(order[:quota])
+        cut = scores[order[quota - 1]] if 0 < quota < len(order) else None
+        split = cut is not None and cut != -math.inf and scores[order[quota]] == cut
+        self.ranking.append(
+            Ranked(
+                cell,
+                rows=len(valid),
+                kept=len(best),
+                tied=sum(score == cut for score in scores) if split else 0,
+                minus_infinity=sum(score == -math.inf for score in scores),
+            )
+        )
         dropped = DROPPED[Drop.LIKELIHOOD].value
         for i, (at, _) in enumerate(valid):
             score = None if scores[i] == -math.inf else scores[i]
