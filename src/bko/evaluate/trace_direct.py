@@ -14,29 +14,23 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import logging
 from collections.abc import Mapping, Sequence
 from functools import partial
 
 import pandas as pd
 
 from bko.baselines.request import Request
+from bko.evaluate.call_prompts import Json
 from bko.evaluate.data import Data, digest
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import DIRECT_ARMS
 from bko.evaluate.holdout_candidates import Candidate
 from bko.evaluate.redraw import Shares, redraw
 from bko.evaluate.run_folder import fields
-from bko.evaluate.trace_lines import Fill, Trace, kept_lines, ordered
-from bko.gaps.observe import cell_key
+from bko.evaluate.trace_lines import Fill, Trace, drawn_trace, kept_lines, log_arm, ordered
 from bko.generate.direct import Draw, logic_components
 from bko.generate.presence import Presence
 from bko.ontology.terms import Ontology
-
-
-logger = logging.getLogger("bko.evaluate")
-
-type Json = Mapping[str, object]
 
 
 def trace_direct(
@@ -56,8 +50,9 @@ def trace_direct(
     its closed draw (`closed_facts`), since a logic-only draw reads no share.
 
     Raises:
-        IdentityError: If the `arm` line's `presence` is not its arm's, the re-drawn rows' sha256
-            is not the `arm` line's, or its kept draws are not the candidates file's kept lines.
+        IdentityError: If the `arm` line's params are not a JSON object or its `presence` is not
+            its arm's, the re-drawn rows' sha256 is not the `arm` line's, or its kept draws are
+            not the candidates file's kept lines.
         EvaluationError: Before any draw, if a logic-only arm's components cannot be enumerated
             (`bko.generate.direct.logic_components`).
     """
@@ -71,16 +66,7 @@ def trace_direct(
     kept = redrawn.kept
     attempt, stored = kept_lines(lines)
     same = [dict(draw.record) for draw in kept] == [line.candidate for line in stored]
-    logger.log(
-        logging.INFO if same and rebuilt == logged else logging.WARNING,
-        "trace arm holdout=%d arm=%s arm_sha256=%s rebuilt_sha256=%s kept_lines=%s matches=%s",
-        fill.holdout,
-        fill.arm,
-        logged,
-        rebuilt,
-        str(same).lower(),
-        str(same and rebuilt == logged).lower(),
-    )
+    log_arm(fill, logged=logged, rebuilt=rebuilt, check="kept_lines", held=same)
     if rebuilt != logged:
         msg = f"holdout {fill.holdout}'s {fill.arm} fill re-drawn at seed {fill.seed} hashes to"
         msg += f" {rebuilt}, not its arm line's {logged}"
@@ -96,26 +82,15 @@ def trace_direct(
     where = f"holdout {fill.holdout}'s {fill.arm} fill"
     order = ordered([draw.record for draw in kept], seeded, where=where)
     return [
-        Trace(
-            fill.holdout,
-            fill.arm,
-            fill.kind,
-            record_id,
-            stored[k].cell,
-            dict(kept[k].record),
-            stored[k].outcome,
-            stored[k].failed,
-            {
-                "attempt": attempt,
-                "cell": cell_key(kept[k].cell),
-                "quota": seeded.quota[kept[k].cell],
-                "rows": seeded.rows,
-                "seed": fill.seed,
-            },
-            concepts(kept[k]),
-            dict(kept[k].sources),
-            tuple(sorted(kept[k].fallback)),
-            tuple(sorted(kept[k].closed)),
+        drawn_trace(
+            fill,
+            seeded,
+            attempt=attempt,
+            record_id=record_id,
+            line=stored[k],
+            record=kept[k].record,
+            draw=kept[k],
+            concepts=concepts(kept[k]),
         )
         for record_id, k in enumerate(order)
     ]
@@ -125,11 +100,21 @@ def _presence(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Pre
     """The presence `fill`'s arm draws with, checked against its `arm` line before any draw.
 
     Raises:
-        IdentityError: If the `arm` line's params name another presence.
+        IdentityError: If the `arm` line's params are not a JSON object, or name another
+            presence.
         EvaluationError: If a logic-only arm's components cannot be enumerated.
     """
     presence = DIRECT_ARMS[fill.name]
-    logged = json.loads(fields(fill.line)["params"]).get("presence", presence.value)
+    params = fields(fill.line)["params"]
+    try:
+        named = json.loads(params)
+    except ValueError as exc:
+        msg = f"holdout {fill.holdout}'s {fill.arm}'s arm line params are not JSON: {params!r}"
+        raise IdentityError(msg) from exc
+    if not isinstance(named, dict):
+        msg = f"holdout {fill.holdout}'s {fill.arm}'s arm line params are not an object: {params!r}"
+        raise IdentityError(msg)
+    logged = named.get("presence", presence.value)
     if logged != presence.value:
         msg = f"holdout {fill.holdout}'s {fill.arm}'s arm line draws presence {logged!r},"
         msg += f" not {presence.value!r}"

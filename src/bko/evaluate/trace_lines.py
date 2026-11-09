@@ -6,7 +6,8 @@ folder, and `ordered` places a fill's kept candidates in the order
 `bko.evaluate.shared.rebuilt` places their rows, so record i is row i of the fill.
 `trace_messages` explains a Messages arm's records by their calls and prompt sections, and
 `trace_baseline` a baseline's fill by its method and seed. `bko.evaluate.trace_direct` and
-`bko.evaluate.trace_perturb` explain the arms a re-draw reproduces.
+`bko.evaluate.trace_perturb` explain the arms a re-draw reproduces: each writes its records
+through `drawn_trace` and its checks through `log_arm`.
 """
 
 from __future__ import annotations
@@ -21,20 +22,22 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
+import numpy as np
+
 from bko.baselines.request import Request, Strata, stratum_keys
-from bko.evaluate.call_prompts import CALLS, Prompts, asked, read_prompts
+from bko.evaluate.call_prompts import CALLS, Json, Prompts, asked, read_prompts
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.holdout_candidates import KEPT, Candidate
 from bko.evaluate.run_folder import Folder, base
 from bko.evaluate.shared import returned_attempt
+from bko.gaps.observe import cell_key
+from bko.generate.direct import Draw
 from bko.validate.checks import validate
 
 
 logger = logging.getLogger("bko.evaluate")
 
 _SEED: Final = re.compile(r" seed=(?P<seed>\d+) ")
-
-type Json = Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,7 +93,7 @@ class Trace:
 
 
 def _plain(value: object) -> object:
-    """A mapping or a tuple as JSON writes it; anything else is refused."""
+    """A mapping as JSON writes it; anything else is refused."""
     if isinstance(value, Mapping):
         return dict(value)
     msg = f"{type(value).__name__} is not JSON"
@@ -169,14 +172,84 @@ def ordered(candidates: Sequence[object], request: Request, *, where: str) -> li
     return [position for _, position in placed]
 
 
+def returned_lines(lines: Sequence[Candidate]) -> tuple[int, list[Candidate]]:
+    """The fill's last returned attempt and that attempt's lines, in file order.
+
+    Raises:
+        IdentityError: As `bko.evaluate.shared.returned_attempt`.
+    """
+    attempt = returned_attempt(lines)
+    return attempt, [c for c in lines if c.attempt == attempt]
+
+
 def kept_lines(lines: Sequence[Candidate]) -> tuple[int, list[Candidate]]:
     """The fill's last returned attempt and that attempt's kept lines, in file order.
 
     Raises:
         IdentityError: As `bko.evaluate.shared.returned_attempt`.
     """
-    attempt = returned_attempt(lines)
-    return attempt, [c for c in lines if c.attempt == attempt and c.outcome == KEPT]
+    attempt, returned = returned_lines(lines)
+    return attempt, [c for c in returned if c.outcome == KEPT]
+
+
+def log_arm(fill: Fill, *, logged: str, rebuilt: str, check: str, held: bool) -> None:
+    """Log the `trace arm` line: both sha256s, the arm's own check `check=` and `matches=`.
+
+    It is at WARNING when the sha256s differ or the check fails (`held` false).
+    """
+    matches = held and rebuilt == logged
+    logger.log(
+        logging.INFO if matches else logging.WARNING,
+        "trace arm holdout=%d arm=%s arm_sha256=%s rebuilt_sha256=%s %s=%s matches=%s",
+        fill.holdout,
+        fill.arm,
+        logged,
+        rebuilt,
+        check,
+        str(held).lower(),
+        str(matches).lower(),
+    )
+
+
+def drawn_trace(
+    fill: Fill,
+    request: Request,
+    *,
+    attempt: int,
+    record_id: int,
+    line: Candidate,
+    record: Json,
+    draw: Draw,
+    concepts: tuple[Json, ...],
+    perturb: Json | None = None,
+) -> Trace:
+    """One re-drawn record's `Trace`: `record` with `line`'s outcome, over `draw`'s facts.
+
+    `request` is the fill's, seeded at its `arm` line's seed; the record's `request` names the
+    returned `attempt`, the draw's cell and its quota, the request's rows and that seed.
+    """
+    return Trace(
+        fill.holdout,
+        fill.arm,
+        fill.kind,
+        record_id,
+        line.cell,
+        {str(name): json_value(value) for name, value in record.items()},
+        line.outcome,
+        line.failed,
+        {
+            "attempt": attempt,
+            "cell": cell_key(draw.cell),
+            "quota": request.quota[draw.cell],
+            "rows": request.rows,
+            "seed": fill.seed,
+        },
+        concepts,
+        dict(draw.sources),
+        tuple(sorted(draw.fallback)),
+        tuple(sorted(draw.closed)),
+        perturb=perturb,
+    )
 
 
 def trace_messages(
@@ -242,9 +315,8 @@ def _partial(
 
 
 def json_value(value: object) -> object:
-    """A frame's value as JSON writes it: numpy's ints and floats as Python's."""
-    item = getattr(value, "item", None)
-    return item() if callable(item) else value
+    """A frame's value as JSON writes it: numpy's scalars as Python's."""
+    return value.item() if isinstance(value, np.generic) else value
 
 
 def trace_baseline(fill: Fill) -> list[Trace]:

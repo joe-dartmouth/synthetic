@@ -1,10 +1,11 @@
-"""A `bko-direct` fill re-drawn at its logged seed, and the facts behind each draw's concepts.
+"""A direct arm's fill re-drawn at its logged seed, and the facts behind each draw's concepts.
 
 `redraw` draws a request again through `bko.generate.direct.sample` and takes the draws through an
 `bko.evaluate.attempts.Attempt` as `bko.evaluate.direct.DirectArm` does, so its rows are the fill's
 rows byte for byte when the code and the data are the run's. `Shares` holds each asked cell's
 records and its label group's, from which `concept_facts` reads one concept's share, its parts,
-its S-nodes and its label. `bko.evaluate.trace` writes both (ADR `research/record-explainability`).
+its S-nodes and its label. `bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read
+both (ADR `research/record-explainability`).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import pandas as pd
 from bko.baselines.request import Request
 from bko.bkb.fusion import source_component
 from bko.evaluate.attempts import Attempt
+from bko.evaluate.call_prompts import Json
 from bko.evaluate.data import Data
 from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
@@ -25,9 +27,6 @@ from bko.generate.direct import Draw, label_group, sample
 from bko.generate.presence import Presence
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
-
-
-type Json = Mapping[str, object]
 
 
 @dataclass(frozen=True, slots=True, eq=False)

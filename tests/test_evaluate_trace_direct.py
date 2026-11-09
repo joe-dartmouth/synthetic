@@ -6,7 +6,9 @@ import dataclasses
 import io
 import json
 import logging
+import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -99,3 +101,45 @@ def test_a_logic_trace_whose_components_cannot_be_enumerated_exits_2(scored, cap
     assert _trace(scored, scored.parent / "data", "--arm", LOGIC_ARM) == (2, [])
     assert f"{LOGIC_ARM} cannot draw dataset uci-heart-disease on frame " in caplog.text
     assert not any(m.startswith("trace arm ") for m in caplog.messages)
+
+
+def _edit_arm_line(folder: Path, edit: Callable[[str], str]) -> None:
+    """Rewrite holdout 0's `bko-logic` `arm` line of `folder`'s `scores.log` through `edit`."""
+    log = folder / "scores.log"
+    pattern = rf"arm holdout=0 arm={LOGIC_ARM} attempt=.*"
+    text, count = re.subn(pattern, lambda found: edit(found[0]), log.read_text(encoding="utf-8"))
+    assert count == 1
+    log.write_text(text, encoding="utf-8")
+
+
+@pytest.mark.parametrize("params", ["not json", "[]"])
+def test_a_direct_fill_whose_params_are_no_json_object_exits_3(scored, tmp_path, caplog, params):
+    folder = _copied(scored, tmp_path)
+    _edit_arm_line(folder, lambda line: re.sub(r" params=.*", f" params={params}", line))
+    assert _trace(folder, scored.parent / "data", "--arm", LOGIC_ARM) == (3, [])
+    assert f"{LOGIC_ARM}'s arm line params are not " in caplog.text
+    assert not any(m.startswith("trace arm ") for m in caplog.messages)
+
+
+def test_a_logic_fill_whose_arm_sha_differs_exits_3(scored, tmp_path, caplog):
+    folder = _copied(scored, tmp_path)
+    _edit_arm_line(folder, lambda line: re.sub(r" sha256=\w+ ", f" sha256={'0' * 64} ", line))
+    assert _trace(folder, scored.parent / "data", "--arm", LOGIC_ARM) == (3, [])
+    (arm,) = [m for m in caplog.messages if m.startswith("trace arm ")]
+    assert arm.endswith(" kept_lines=true matches=false")
+    assert "re-drawn at seed" in caplog.text
+
+
+def test_a_logic_record_out_of_range_exits_2(scored, caplog):
+    caplog.set_level(logging.INFO)
+    code = _trace(scored, scored.parent / "data", "--arm", LOGIC_ARM, "--record", "999")
+    assert code == (2, [])
+    assert "record 999 is not one of the fill's" in caplog.text
+    assert not any(m.startswith("trace arm ") for m in caplog.messages)
+
+
+def test_a_logic_records_closed_facts_name_drawn_and_added_concepts(scored):
+    _, found = _trace(scored, scored.parent / "data", "--arm", LOGIC_ARM)
+    facts = [each for line in found for each in line["concepts"]]
+    assert {each["drawn"] for each in facts} == {True, False}
+    assert all(isinstance(each["label"], str) and each["label"] for each in facts)

@@ -21,8 +21,9 @@ no API call.
 - `bko-direct-pram` and `bko-direct-perturbed` (`trace_perturbation`): the fill's rows are
   rebuilt from its candidate lines and refused unless they hash to the `arm` line's sha256; the
   draw underneath is re-drawn, and each record adds its line's `perturb` result, the fields that
-  differ from the draw and the draw's values for them. `PRAM_ARM` is among `DIRECT_ARMS`, so it
-  is dispatched first.
+  differ from the draw and the draw's values for them. These are the arms of
+  `bko.evaluate.holdout_candidates.PERTURBS`, tested first since `PRAM_ARM` is also among
+  `DIRECT_ARMS`.
 
 `bko.evaluate.trace_lines` holds the lines, the fill and the arm kinds that need no re-draw, and
 `bko.evaluate.trace_direct` the re-draw, `bko.evaluate.trace_perturb` the perturbation arms;
@@ -47,12 +48,11 @@ from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARMS,
     MESSAGES_ARMS,
-    PERTURBED_ARM,
-    PRAM_ARM,
     Experiment,
     gap_request,
     replica_request,
 )
+from bko.evaluate.holdout_candidates import PERTURBS
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, split_line
 from bko.evaluate.provenance import experiment_line
@@ -121,7 +121,7 @@ def trace(
     if record is not None and not 0 <= record < count:
         msg = f"record {record} is not one of the fill's {count} records"
         raise EvaluationError(msg)
-    if fill.name in {PRAM_ARM, PERTURBED_ARM}:
+    if fill.name in PERTURBS:
         traces = trace_perturbation(
             fill,
             lines,
@@ -171,7 +171,7 @@ def run_trace(args: argparse.Namespace, named: Context) -> str:
     root = data_dir(args)
     data = load(named.dataset, root, named)
     ontologies = None
-    if fill.name in {*DIRECT_ARMS, PERTURBED_ARM}:
+    if fill.name in DIRECT_ARMS or fill.name in PERTURBS:
         concepts = {row.concept for row in data.field_rows}
         ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
     return trace(
