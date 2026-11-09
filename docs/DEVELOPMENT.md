@@ -234,7 +234,7 @@ the value its runs used, as `bko.evaluate.run_folder.ASSUMED` lists for the `exp
     test ! -e runs/<run-id>/scores.csv && uv run --no-sync python -m bko.evaluate merge e3 runs/<run-id-a>/scores.csv runs/<run-id-b>/scores.csv > runs/<run-id>/scores.csv
 
 `compare e3 runs/<run-id>/scores.csv` then reads the merged file as one run's. A merge logs to
-stderr, at INFO, one line per input as it reads it, `merge file=%s holdouts=%s rows=%d sha256=%s`
+stderr, at INFO, first the `versions` line, then one line per input as it reads it, `merge file=%s holdouts=%s rows=%d sha256=%s`
 (the path, the file's lowest and highest holdout as `<first>-<last>`, or `none` for a file with no
 row, its row count and the sha256 of its bytes), then for the merged scores
 `merge files=%d holdouts=%d rows=%d sha256=%s`, the sha256 of the bytes it writes.
@@ -667,9 +667,10 @@ start or the supervisor cannot run.
   model's contrasts as it logs the boosting model's, `model=` naming the model. A scores file is
   compared at the commit that scored it: a replica arm's validity needs its `replica-candidates`
   rows.
-- **What it logs**: each stderr line starts with its local time and UTC offset,
-  `YYYY-MM-DD HH:MM:SS,mmm+HHMM` or `-HHMM` (two whitespace-free tokens), then its level and
-  logger name; `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the
+- **What it logs**: every `python -m bko.*` command's stderr line starts with its local time and
+  UTC offset, `YYYY-MM-DD HH:MM:SS,mmm+HHMM` or `-HHMM` (two whitespace-free tokens), then its
+  level and logger name, and Python warnings arrive as log lines; `bko.core.logs.configure` sets
+  this up. `bko.evaluate.run_folder.LINE` reads such a line and a line stamped without the
   offset. For a Diabetes 130 run, `score` first logs the cohort line as it loads the records,
   `cohort encounters=%d repeat_encounters=%d excluded_discharges=%d unknown_gender=%d under_20=%d records=%d readmitted_under_30=%d`, which
   accounts for every encounter: `encounters` = `repeat_encounters` + `excluded_discharges` +
@@ -789,7 +790,7 @@ start or the supervisor cannot run.
   for a cut final line it drops from the stopped log and one for each call it drops: the unanswered
   last call, or for a concurrent log every call from the first unanswered one. It logs a `resume
   live from call` line before its first live call. A fill that stops the run logs a `refused` or
-  `contract` error naming the holdout and arm. `compare` logs a
+  `contract` error naming the holdout and arm. `compare` logs the `versions` line, then a
   `compare candidate=%s dry_run=%s scores_sha256=%s run=%s level=%s training_fraction=%s` line
   with the candidate, whether it is a dry run, the scores file's sha256, the run's name, its
   guidance level (`none` for a run with no paid arm) and its training fraction,
@@ -1848,6 +1849,9 @@ A targeted run while working:
   at INFO, so no entry point logs a request body. Setting `ANTHROPIC_LOG` leaves the bko INFO
   lines in place: the SDK's import installs a root handler, and every entry point's logging setup
   replaces it (`force=True`).
+- **A test that changes the root logger fails.** A test that leaves the root logger's level or
+  handlers changed errors at teardown: `tests/conftest.py` snapshots them as each test's setup
+  starts and compares them after its teardown, then restores them.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.
