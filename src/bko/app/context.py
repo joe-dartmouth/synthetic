@@ -94,10 +94,12 @@ class Context:
             ValueError: If the experiment subsamples its training split or removes from it,
                 since `bko.app.steps.analyze` reads the raw split.
         """
-        if self.experiment.training_fraction != 1 or self.experiment.removal is not None:
+        experiment = self.experiment
+        if experiment.training_fraction != 1 or experiment.removal is not None:
             msg = (
-                "the app reads the raw training split; "
-                "this experiment subsamples or removes from it"
+                "the app reads the raw training split; this experiment has "
+                f"training_fraction={experiment.training_fraction} and "
+                f"removal={experiment.removal}"
             )
             raise ValueError(msg)
 

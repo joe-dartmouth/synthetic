@@ -11,7 +11,15 @@ import pytest
 
 from bko.baselines.errors import OutputContractError
 from bko.baselines.methods import augment
-from bko.baselines.records import Baseline, Drop, check, drops, no_rows, training_set
+from bko.baselines.records import (
+    Baseline,
+    Drop,
+    check,
+    drops,
+    no_rows,
+    training_set,
+    within_split,
+)
 from bko.baselines.request import Method, Request, Strata, plan, stratum_keys
 from bko.baselines.synthesizers import metadata
 from bko.datasets.cells import cell_counts
@@ -90,8 +98,9 @@ def test_check_holds_a_toy_baseline_to_the_toy_contract():
     check(Baseline(added, weights, {}), TOY_TRAIN, request)
     with pytest.raises(OutputContractError, match="level has extra decimals"):
         check(Baseline(added.assign(level=1.255), weights, {}), TOY_TRAIN, request)
+    other_frame = UCI_FRAME
     with pytest.raises(OutputContractError, match="columns are"):
-        check(Baseline(no_rows(frame=UCI_FRAME), weights, {}), TOY_TRAIN, Request(frame=TOY))
+        check(Baseline(no_rows(other_frame), weights, {}), TOY_TRAIN, Request(frame=TOY))
     assert no_rows(TOY).columns.tolist() == ["age", "sex", "level", "target"]
 
 
@@ -104,6 +113,36 @@ def test_smote_fills_a_toy_request():
     assert real.columns.tolist() == ["age", "sex", "level", "target", "weight"]
     hundredths = (baseline.added["level"] * 100).round().astype(int)
     assert (hundredths % 10 != 0).any(), "SMOTE kept one decimal, not the toy frame's two"
+
+
+def test_adasyn_fills_a_toy_request():
+    request = Request(quota={SHORT[0]: 3, SHORT[1]: 2}, frame=TOY, seed=0)
+    baseline = augment(TOY_TRAIN, Method.ADASYN, request)
+    assert baseline.added.columns.tolist() == ["age", "sex", "level", "target"]
+    assert len(baseline.added) == 5
+
+
+@pytest.mark.parametrize("method", [Method.NONE, Method.CLASS_WEIGHT])
+def test_a_control_adds_no_rows_in_the_toy_columns(method):
+    request = plan(TOY_TRAIN, 0, frame=TOY)
+    assert request.frame is TOY
+    baseline = augment(TOY_TRAIN, method, request)
+    assert baseline.added.empty
+    assert baseline.added.columns.tolist() == ["age", "sex", "level", "target"]
+    assert dict(baseline.added.dtypes) == dict(TOY.dtypes)
+    assert len(baseline.weights) == len(TOY_TRAIN)
+
+
+def test_within_split_reads_the_toy_numeric_columns():
+    rows = toy_added(
+        [
+            {"age": 50, "sex": 0, "level": 1.25, "target": 1},
+            {"age": 50, "sex": 0, "level": 9.0, "target": 1},
+        ]
+    )
+    inside = within_split(rows, TOY_TRAIN, TOY)
+    assert inside.columns.tolist() == ["age", "level"]
+    assert inside.all(axis="columns").tolist() == [True, False]
 
 
 @pytest.mark.parametrize("method", [Method.CTGAN, Method.TVAE])
@@ -130,6 +169,17 @@ def test_the_sdv_metadata_reads_the_frame():
     }
     tables: Any = fidelity_module.metadata(TOY)["tables"]
     assert list(tables) == ["toy"]
+
+
+def test_the_sdv_metadata_of_uci_names_its_table_and_columns():
+    tables: Any = metadata(UCI_FRAME)["tables"]
+    assert list(tables) == [UCI_FRAME.name]
+    columns = tables[UCI_FRAME.name]["columns"]
+    assert list(columns) == list(UCI_FRAME.columns)
+    assert columns["age"] == {"sdtype": "numerical", "computer_representation": "Int64"}
+    assert columns["oldpeak"] == {"sdtype": "numerical", "computer_representation": "Float"}
+    assert columns["cp"] == {"sdtype": "categorical"}
+    assert columns["target"] == {"sdtype": "categorical"}
 
 
 def test_the_classifier_reads_the_frame():

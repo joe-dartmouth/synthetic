@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import dataclasses
+import importlib
 import inspect
+import pkgutil
+from collections.abc import Callable
 from types import MappingProxyType
 
 import numpy as np
 import pytest
 
-from bko.baselines import records as baseline_records
-from bko.baselines import synthesizers
+from bko import baselines
 from bko.baselines.request import Method, Request, Strata, Stratum, plan, stratum_keys, water_fill
 from bko.datasets.uci import UCI_FRAME
 from tests._datasets_fixtures import records
@@ -134,18 +136,36 @@ def test_only_the_controls_add_no_rows():
     ]
 
 
+def _frame_functions() -> list[tuple[str, Callable[..., object]]]:
+    """Every function, private ones too, that a `bko.baselines` module defines with `frame`."""
+    found = []
+    for info in pkgutil.iter_modules(baselines.__path__, "bko.baselines."):
+        module = importlib.import_module(info.name)
+        for name, function in inspect.getmembers(module, inspect.isfunction):
+            if (
+                function.__module__ == info.name
+                and "frame" in inspect.signature(function).parameters
+            ):
+                found.append((f"{info.name}.{name}", function))
+    return found
+
+
+def test_the_scan_finds_the_known_frame_functions():
+    names = {name for name, _ in _frame_functions()}
+    assert {
+        "bko.baselines.request.plan",
+        "bko.baselines.records.no_rows",
+        "bko.baselines.records.training_set",
+        "bko.baselines.records.whole",
+        "bko.baselines.records.within_split",
+        "bko.baselines.synthesizers.build_synthesizer",
+    } <= names
+
+
 def test_every_baselines_frame_parameter_is_required():
-    functions = (
-        plan,
-        baseline_records.no_rows,
-        baseline_records.training_set,
-        baseline_records.whole,
-        baseline_records.within_split,
-        synthesizers.build_synthesizer,
-    )
-    for function in functions:
+    for name, function in _frame_functions():
         default = inspect.signature(function).parameters["frame"].default
-        assert default is inspect.Parameter.empty, function.__name__
+        assert default is inspect.Parameter.empty, name
     (field,) = (item for item in dataclasses.fields(Request) if item.name == "frame")
     assert field.default is dataclasses.MISSING
     assert field.default_factory is dataclasses.MISSING
