@@ -376,8 +376,7 @@ def test_a_score_run_with_the_pram_arm_writes_its_candidates(tmp_path, caplog):
     assert len(prammed) == 2
     assert all(
         re.fullmatch(
-            r"perturb pram holdout=(0|1) arm=bko-direct-pram rows=28 rows_changed=\d+"
-            r" values_changed=\d+",
+            r"perturb pram holdout=(0|1) arm=bko-direct-pram rows=28",
             m,
         )
         for m in prammed
@@ -414,3 +413,15 @@ def test_every_pram_line_carries_changed_or_unchanged(tmp_path, caplog):
             if m.startswith(f"perturb shapes holdout={holdout} arm={PRAM_ARM} ")
         ]
         assert int(shapes.split(" rows_changed=")[1].split(" ")[0]) == changed
+
+
+def test_shapes_counts_rows_from_the_lines_flags(tmp_path, caplog, monkeypatch):
+    def unflagged(drawn: Record, record: Record) -> bool:
+        return False
+
+    monkeypatch.setattr(pram_module, "differs", unflagged)
+    _prammed(tmp_path, caplog)
+    prefix = f"perturb shapes holdout=0 arm={PRAM_ARM} "
+    (line,) = [m for m in caplog.messages if m.startswith(prefix)]
+    assert " rows_changed=0 " in line, line
+    assert int(line.split(" values_changed=")[1]) > 0, line

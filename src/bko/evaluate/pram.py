@@ -113,7 +113,6 @@ class PramArm(Perturbing):
         perturbed = pram(
             original, train, fields=self.fields, theta=self.theta, rng=rng, frame=frame
         )
-        values = int((perturbed[list(self.fields)] != original[list(self.fields)]).to_numpy().sum())
         rows = perturbed.to_dict("records")
         changed: dict[Stratum, list[Changed]] = {}
         start = 0
@@ -128,18 +127,11 @@ class PramArm(Perturbing):
             ]
             start += len(records)
         fill = CURRENT_FILL.get()
-        moved = sum(
-            row.record != record
-            for cell, records in drawn.items()
-            for row, record in zip(changed[cell], records, strict=True)
-        )
         logger.info(
-            "perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d",
+            "perturb pram holdout=%d arm=%s rows=%d",
             -1 if fill is None else fill.holdout,
             self.name,
             len(rows),
-            moved,
-            values,
         )
         self.read(train, drawn, changed, frame)
         return changed

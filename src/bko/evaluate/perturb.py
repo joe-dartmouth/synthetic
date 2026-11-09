@@ -350,7 +350,8 @@ class Perturbing:
         """Log the holdout's reading of `changed` beside `drawn`; it changes no row.
 
         A fill that drew no row is counted `empty` and logs its `perturb shapes` line with
-        `empty=true` alone.
+        `empty=true` alone. `rows_changed` counts the rows whose `result` is `perturbed` or
+        `changed`, as their candidates lines' `perturb` names them.
         """
         rows = sum(len(records) for records in drawn.values())
         self.counts["rows"] += rows
@@ -364,7 +365,9 @@ class Perturbing:
             for cell, originals in drawn.items()
             for row, record in zip(changed[cell], originals, strict=True)
         ]
-        moved = sum(differs(old, new) for new, old in pairs)
+        moved = sum(
+            row.result in {"perturbed", "changed"} for rows in changed.values() for row in rows
+        )
         values = sum(new[name] != old[name] for new, old in pairs for name in self.fields)
         records = {cell: [row.record for row in held] for cell, held in changed.items()}
         reading = read_distribution(
