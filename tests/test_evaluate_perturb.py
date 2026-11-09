@@ -611,8 +611,7 @@ def test_every_rewrite_line_carries_its_perturb_result(tmp_path, caplog):
     folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
     results = _results(folder, PERTURBED_ARM)
     assert len(results) == 2 * 28
-    assert {result for _, _, result in results} <= {"perturbed", "unchanged", "refused_keys"}
-    assert all(result is not None for _, _, result in results)
+    assert {result for _, _, result in results} == {"perturbed", "unchanged", "refused_keys"}
     found = read((folder / "holdout-candidates.jsonl").read_bytes()).candidates
     assert {line.perturb for line in found if line.arm not in {PERTURBED_ARM, PRAM_ARM}} == {None}
 
@@ -709,3 +708,17 @@ def test_trace_refuses_a_perturbation_arms_fill(tmp_path, caplog, arm):
 def test_a_rewrite_call_for_a_cell_no_sex_code_names_is_refused():
     with pytest.raises(EvaluationError, match="no sex code names cell"):
         _guidance(("6-7", "unknown", 1))
+
+
+def test_rewrite_rows_changed_is_above_zero_exactly_when_values_changed_is(tmp_path, caplog):
+    perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
+    lines = [
+        m
+        for m in caplog.messages
+        if m.startswith("perturb shapes holdout=") and f" arm={PERTURBED_ARM} " in m
+    ]
+    assert lines
+    for line in lines:
+        rows = int(line.split(" rows_changed=")[1].split(" ")[0])
+        values = int(line.split(" values_changed=")[1])
+        assert (rows > 0) == (values > 0), line

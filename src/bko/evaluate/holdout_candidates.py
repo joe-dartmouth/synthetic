@@ -16,8 +16,8 @@ arm's alone) or `dropped-quota` (by `bko.baselines.records.drops`), or `dropped-
 ranking arm's alone, by `bko.evaluate.attempts.Attempt.rows`). A schema-3 or schema-4 line of a
 scoring arm also holds the `score` its curator read: `confidence` and `aleatoric` on a curating
 arm's line that passed validation, `likelihood` on a ranking arm's line it ranked, null for minus
-infinity. A schema-4 line of a perturbation arm also holds its step's `perturb` result
-(`PERTURB`). Each (arm, holdout, fill)'s lines count what its candidate scores count.
+infinity. A schema-4 line of a perturbation arm also holds its step's `perturb` result, one of
+its arm's `PERTURBS`. Each (arm, holdout, fill)'s lines count what its candidate scores count.
 
 An arm writes a fill's lines when the harness drains it, so a stopped run's file holds the fills
 drained before the stop. Every line's keys are sorted and no line holds a time, so a replay of a
@@ -31,7 +31,6 @@ import dataclasses
 import json
 import math
 import os
-import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +42,7 @@ from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.sources import Source as Download
 from bko.evaluate.data import Data
 from bko.evaluate.errors import CandidatesFormatError
+from bko.evaluate.experiment import PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.scores import Source
 from bko.generate.messages import Settings
 
@@ -78,8 +78,36 @@ SCORED: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
 )
 """Each scoring arm's score names: a line of another arm holds no `score`."""
 
-PERTURB: Final = re.compile(r"(perturbed|unchanged|changed|refused_[a-z_]+)")
-"""A perturbation line's result, as the `perturb holdout=` line names it."""
+PERTURBED: Final = "perturbed"
+"""The result of a rewritten row that took its reply's fields and moved."""
+
+UNCHANGED: Final = "unchanged"
+"""The result of a row a perturbation step read and left as drawn."""
+
+CHANGED: Final = "changed"
+"""The result of a PRAM row that differs from its draw."""
+
+REFUSED: Final = "refused_"
+"""The prefix of a rewritten row's result when its reply was refused, before the refusal."""
+
+CALL_REFUSALS: Final = ("empty", "short", "undecodable", "order")
+"""Why a whole rewrite call's rows kept their originals, in the order its merge tests them."""
+
+ROW_REFUSALS: Final = ("keys", "validate", "bounds")
+"""Why one rewritten row kept its original, in the order its merge tests them."""
+
+MOVED: Final = frozenset({PERTURBED, CHANGED})
+"""The results of a row a perturbation step changed, which `rows_changed` counts."""
+
+PERTURBS: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        PERTURBED_ARM: frozenset(
+            (PERTURBED, UNCHANGED, *(REFUSED + why for why in (*CALL_REFUSALS, *ROW_REFUSALS)))
+        ),
+        PRAM_ARM: frozenset({CHANGED, UNCHANGED}),
+    }
+)
+"""Each perturbation arm's `perturb` results: a line of another arm holds no `perturb`."""
 
 _HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
     {
@@ -90,8 +118,7 @@ _HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
     }
 )
 """Each readable schema's header keys besides `settings`: schema 1, the judged run's, names UCI's
-archive digest under `uci`; schemas 2 to 4 name the frame and the records' digest. Only a schema-3
-or schema-4 line may hold a `score`, and only a schema-4 line a `perturb`."""
+archive digest under `uci`; schemas 2 to 4 name the frame and the records' digest."""
 
 _SETTINGS: Final = "settings"
 
@@ -99,20 +126,15 @@ _SCORE: Final = "score"
 
 _PERTURB: Final = "perturb"
 
+_OPTIONAL: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
+    {1: frozenset(), 2: frozenset(), 3: frozenset({_SCORE}), 4: frozenset({_SCORE, _PERTURB})}
+)
+"""Each readable schema's optional line keys, keyed as `_HEADERS`: only a schema-3 or schema-4
+line may hold a `score`, and only a schema-4 line a `perturb`."""
+
 _LINE: Final = frozenset(
-    {
-        "kind",
-        "holdout",
-        "arm",
-        "fill",
-        "attempt",
-        "returned",
-        "call",
-        "cell",
-        "position",
-        "outcome",
-        "failed",
-    }
+    {"kind", "holdout", "arm", "fill", "attempt", "returned"}
+    | {"call", "cell", "position", "outcome", "failed"}
 )
 
 
@@ -145,8 +167,8 @@ class Seen:
         failed: The checks it failed, for a rejected candidate.
         score: What its arm's curator read of it, by name, None for minus infinity; None for a
             candidate no curator read.
-        perturb: What its arm's perturbation step did to it, matching `PERTURB`; None for a
-            candidate no perturbation step read.
+        perturb: What its arm's perturbation step did to it, one of its arm's `PERTURBS`; None
+            for a candidate no perturbation step read.
     """
 
     call: int | None
@@ -349,7 +371,7 @@ def read(data: bytes) -> HoldoutCandidates:
     """
     try:
         lines = [json.loads(line) for line in data.decode("utf-8").splitlines()]
-    except (UnicodeDecodeError, ValueError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         msg = f"a candidates file is UTF-8 JSON lines: {exc}"
         raise CandidatesFormatError(msg) from None
     if not lines:
@@ -374,15 +396,14 @@ def read(data: bytes) -> HoldoutCandidates:
     if schema == 1 and first["uci"] != UCI_HEART_DISEASE.sha256:
         msg = f"the schema-1 header's uci digest is not the pinned archive's: {first['uci']!r}"
         raise CandidatesFormatError(msg)
-    optional = {_SCORE} if schema >= 3 else set()
-    optional |= {_PERTURB} if schema >= 4 else set()
+    optional = _OPTIONAL[schema]
     return HoldoutCandidates(
         MappingProxyType(first),
         tuple(_candidate(number, line, optional) for number, line in enumerate(rest, start=2)),
     )
 
 
-def _candidate(number: int, line: object, optional: set[str]) -> Candidate:
+def _candidate(number: int, line: object, optional: frozenset[str]) -> Candidate:
     if not isinstance(line, dict) or line.get("kind") != "candidate":
         _refuse(number, "is not a candidate line")
     item = set(line) - _LINE - optional
@@ -403,13 +424,14 @@ def _candidate(number: int, line: object, optional: set[str]) -> Candidate:
         line["outcome"] in OUTCOMES,
         isinstance(failed, list) and all(isinstance(check, str) for check in failed),
         _SCORE not in line or _score(line[_SCORE]),
-        _PERTURB not in line
-        or (isinstance(line[_PERTURB], str) and PERTURB.fullmatch(line[_PERTURB]) is not None),
+        _PERTURB not in line or isinstance(line[_PERTURB], str),
     )
     if not all(checks):
         _refuse(number, "holds a value of the wrong type")
     if _SCORE in line:
         _names(number, line["arm"], line[_SCORE])
+    if _PERTURB in line:
+        _results(number, line["arm"], line[_PERTURB])
     if bool(failed) != (line["outcome"] == REJECTED):
         _refuse(number, "names failed checks unless it is rejected, or none when it is")
     if undecoded is not None and line["outcome"] != REJECTED:
@@ -437,6 +459,16 @@ def _names(number: int, arm: str, score: Mapping[str, object]) -> None:
         _refuse(number, f"holds a score, but its arm {arm!r} scores nothing")
     if set(score) != names:
         _refuse(number, f"holds the score names {sorted(score)}, not {arm}'s {sorted(names)}")
+
+
+def _results(number: int, arm: str, result: str) -> None:
+    """Refuse a `perturb` on an arm `PERTURBS` lacks, or a result outside its arm's."""
+    results = PERTURBS.get(arm)
+    if results is None:
+        _refuse(number, f"holds a perturb result, but its arm {arm!r} perturbs nothing")
+    if result not in results:
+        allowed = sorted(results)
+        _refuse(number, f"holds the perturb result {result!r}, not one of {arm}'s {allowed}")
 
 
 def _score(value: object) -> bool:

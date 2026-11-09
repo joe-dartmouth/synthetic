@@ -34,6 +34,7 @@ from bko.datasets.frames import FrameSpec
 from bko.evaluate.diabetes import DIABETES_NAME
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.fidelity import quality_report
+from bko.evaluate.holdout_candidates import MOVED
 from bko.evaluate.scores import Measure, Source
 from bko.generate.direct import field_groups, free_fields
 from bko.ontology.schema import FieldMapping
@@ -103,19 +104,15 @@ class Changed:
         record: Its values.
         call: The call that returned it; None for a row no call returned.
         position: Its row index within that call; 0 with no call.
-        result: What the step did: `perturbed`, `unchanged`, `refused_<reason>`, or PRAM's
-            `changed`/`unchanged`; None for a draw no step read.
+        result: What the step did, one of its arm's `bko.evaluate.holdout_candidates.PERTURBS`;
+            None for a draw no step read. Every perturbation step sets it on every row, since
+            `Perturbing.read` counts a row with None as unchanged.
     """
 
     record: Record
     call: int | None = None
     position: int = 0
     result: str | None = None
-
-
-def differs(drawn: Record, record: Record) -> bool:
-    """Whether a step's `record` differs from `drawn`, the row the step read."""
-    return record != drawn
 
 
 type Change = Callable[
@@ -350,8 +347,10 @@ class Perturbing:
         """Log the holdout's reading of `changed` beside `drawn`; it changes no row.
 
         A fill that drew no row is counted `empty` and logs its `perturb shapes` line with
-        `empty=true` alone. `rows_changed` counts the rows whose `result` is `perturbed` or
-        `changed`, as their candidates lines' `perturb` names them.
+        `empty=true` alone. `rows_changed` counts the rows whose `result` is in
+        `bko.evaluate.holdout_candidates.MOVED`, as their candidates lines' `perturb` names them.
+        Each step marks a row moved exactly when one of its fields' values changed, so
+        `rows_changed` is above zero exactly when `values_changed` is.
         """
         rows = sum(len(records) for records in drawn.values())
         self.counts["rows"] += rows
@@ -365,9 +364,7 @@ class Perturbing:
             for cell, originals in drawn.items()
             for row, record in zip(changed[cell], originals, strict=True)
         ]
-        moved = sum(
-            row.result in {"perturbed", "changed"} for rows in changed.values() for row in rows
-        )
+        moved = sum(row.result in MOVED for held in changed.values() for row in held)
         values = sum(new[name] != old[name] for new, old in pairs for name in self.fields)
         records = {cell: [row.record for row in held] for cell, held in changed.items()}
         reading = read_distribution(

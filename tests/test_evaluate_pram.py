@@ -23,7 +23,7 @@ from bko.evaluate.diabetes import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, PRAM_ARM
-from bko.evaluate.holdout_candidates import KEPT, read
+from bko.evaluate.holdout_candidates import CHANGED, KEPT, UNCHANGED, read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import (
     DIABETES_UNMAPPED,
@@ -416,12 +416,45 @@ def test_every_pram_line_carries_changed_or_unchanged(tmp_path, caplog):
 
 
 def test_shapes_counts_rows_from_the_lines_flags(tmp_path, caplog, monkeypatch):
-    def unflagged(drawn: Record, record: Record) -> bool:
-        return False
+    def unflagged(record: Record, *, result: str) -> Changed:
+        return Changed(record, result=UNCHANGED)
 
-    monkeypatch.setattr(pram_module, "differs", unflagged)
+    monkeypatch.setattr(pram_module, "Changed", unflagged)
     _prammed(tmp_path, caplog)
     prefix = f"perturb shapes holdout=0 arm={PRAM_ARM} "
     (line,) = [m for m in caplog.messages if m.startswith(prefix)]
     assert " rows_changed=0 " in line, line
     assert int(line.split(" values_changed=")[1]) > 0, line
+
+
+def test_rows_changed_is_above_zero_exactly_when_values_changed_is(tmp_path, caplog):
+    _prammed(tmp_path, caplog)
+    lines = [m for m in caplog.messages if m.startswith("perturb shapes holdout=")]
+    assert lines
+    for line in lines:
+        rows = int(line.split(" rows_changed=")[1].split(" ")[0])
+        values = int(line.split(" values_changed=")[1])
+        assert (rows > 0) == (values > 0), line
+
+
+@pytest.mark.parametrize("field", FIELDS)
+def test_a_row_whose_only_change_is_one_field_reads_changed(field, monkeypatch):
+    train, request, _ = varied_arm()
+
+    def one(rows: pd.DataFrame, *_: object, **__: object) -> pd.DataFrame:
+        out = rows.copy()
+        values = out[field].to_numpy(copy=True)
+        values[0] += 1
+        out[field] = values
+        return out
+
+    monkeypatch.setattr(pram_module, "pram", one)
+    monkeypatch.setattr(PramArm, "read", lambda *_: None)
+    records = [native(row, request.frame) for row in train.head(3).to_dict("records")]
+    drawn: dict[Stratum, list[Record]] = {("<55", "female", 0): records}
+    changed = pram_arm()._change(train, request, drawn)
+    assert [row.result for row in changed["<55", "female", 0]] == [
+        CHANGED,
+        UNCHANGED,
+        UNCHANGED,
+    ]

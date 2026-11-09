@@ -232,12 +232,8 @@ class DirectArm:
             attempt.add(None, cell, len(rows), [row.record for row in changed[cell]])
             for offset, row in enumerate(changed[cell]):
                 at = first + offset
-                if row.call is not None:
-                    attempt.seen[at] = replace(
-                        attempt.seen[at], call=row.call, position=row.position
-                    )
-                if row.result is not None:
-                    attempt.seen[at] = replace(attempt.seen[at], perturb=row.result)
+                called = {} if row.call is None else {"call": row.call, "position": row.position}
+                attempt.seen[at] = replace(attempt.seen[at], **called, perturb=row.result)
         if short := attempt.short():
             msg = f"{self.name} left {len(short)} cells short: {attempt.line()}"
             raise BaselineError(msg)

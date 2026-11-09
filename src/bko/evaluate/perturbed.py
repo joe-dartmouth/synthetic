@@ -37,6 +37,13 @@ from bko.baselines.request import Request, Stratum
 from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.holdout_candidates import (
+    CALL_REFUSALS,
+    PERTURBED,
+    REFUSED,
+    ROW_REFUSALS,
+    UNCHANGED,
+)
 from bko.evaluate.perturb import Changed, Perturbing, Record, label_rows, native
 from bko.evaluate.quotas import Category, allot, categories, category_of
 from bko.generate.calls import chunks
@@ -54,14 +61,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-TAKEN: Final = ("perturbed", "unchanged")
+TAKEN: Final = (PERTURBED, UNCHANGED)
 """The outcomes of a row that took its reply's fields."""
-
-CALL_REFUSALS: Final = ("empty", "short", "undecodable", "order")
-"""Why a whole call's rows kept their originals, in the order `merge` tests them."""
-
-ROW_REFUSALS: Final = ("keys", "validate", "bounds")
-"""Why one row kept its original, in the order `merge` tests them."""
 
 OUTCOMES: Final = (*TAKEN, *CALL_REFUSALS, *ROW_REFUSALS)
 """Every row outcome `merge` names."""
@@ -129,7 +130,7 @@ def merge(
         elif any(not low <= merged[name] <= high for name, (low, high) in bounds.items()):
             outcome, merged = "bounds", original
         else:
-            outcome = "unchanged" if merged == original else "perturbed"
+            outcome = UNCHANGED if merged == original else PERTURBED
         rows.append(dict(merged))
         outcomes.append(outcome)
     return Merged(tuple(rows), tuple(outcomes), len(decoded), tuple(sorted(checks)))
@@ -296,9 +297,9 @@ def quota_off(
 def named(outcome: str) -> str:
     """`outcome` as the `perturb holdout=` and candidates lines name it.
 
-    A refusal takes the prefix `refused_`.
+    A refusal takes the prefix `REFUSED`.
     """
-    return f"{'' if outcome in TAKEN else 'refused_'}{outcome}"
+    return f"{'' if outcome in TAKEN else REFUSED}{outcome}"
 
 
 def counted(counts: Mapping[str, int]) -> str:

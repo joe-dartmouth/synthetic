@@ -23,9 +23,11 @@ from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
+from bko.evaluate.experiment import DIRECT_ARM, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import (
+    PERTURBS,
     SCHEMA,
     SCORED,
     Candidate,
@@ -34,6 +36,8 @@ from bko.evaluate.holdout_candidates import (
     Seen,
     read,
 )
+from bko.evaluate.perturbed import OUTCOMES as OUTCOMES_MERGED
+from bko.evaluate.perturbed import named
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (
     BAD,
@@ -387,10 +391,55 @@ def test_a_perturb_key_on_a_schema_3_line_is_refused():
     assert line.line() == PERTURBED
 
 
-@pytest.mark.parametrize("result", ["rewritten", "refused_", "Perturbed", 1, None])
-def test_a_perturb_value_outside_its_set_is_refused(result):
+@pytest.mark.parametrize("result", [1, None, ["perturbed"]])
+def test_a_perturb_value_that_is_not_a_string_is_refused(result):
     with pytest.raises(CandidatesFormatError, match="wrong type"):
         read(SCHEMA_4 + json.dumps({**PERTURBED, "perturb": result}).encode() + b"\n")
+
+
+@pytest.mark.parametrize(
+    "result", ["rewritten", "refused_", "refused_other", "Perturbed", "changed", "refused_ keys"]
+)
+def test_a_perturb_value_outside_its_arms_set_is_refused(result):
+    with pytest.raises(CandidatesFormatError, match="not one of bko-direct-perturbed's"):
+        read(SCHEMA_4 + json.dumps({**PERTURBED, "perturb": result}).encode() + b"\n")
+
+
+@pytest.mark.parametrize("result", ["perturbed", "refused_keys", "refused_empty"])
+def test_a_rewrite_result_on_the_pram_arm_is_refused(result):
+    line = {**PERTURBED, "arm": PRAM_ARM, "perturb": result}
+    with pytest.raises(CandidatesFormatError, match="not one of bko-direct-pram's"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+@pytest.mark.parametrize("arm", [DIRECT_ARM, "bko", "cllm"])
+def test_a_perturb_on_an_arm_that_perturbs_nothing_is_refused(arm):
+    line = {**PERTURBED, "arm": arm, "perturb": "unchanged"}
+    with pytest.raises(CandidatesFormatError, match=f"its arm {arm!r} perturbs nothing"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_the_perturbation_arms_are_the_experiments():
+    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM}
+    assert PERTURBS[PRAM_ARM] == {"changed", "unchanged"}
+
+
+@pytest.mark.parametrize("outcome", OUTCOMES_MERGED)
+def test_every_merge_outcome_reads_on_the_rewrite_arm(outcome):
+    (line,) = read(
+        SCHEMA_4 + json.dumps({**PERTURBED, "perturb": named(outcome)}).encode() + b"\n"
+    ).candidates
+    assert line.perturb == named(outcome)
+
+
+def test_the_rewrite_arms_results_are_its_merge_outcomes_named():
+    assert PERTURBS[PERTURBED_ARM] == {named(outcome) for outcome in OUTCOMES_MERGED}
+
+
+def test_a_line_nested_past_the_recursion_limit_is_refused():
+    nested = b"[" * 1_000_000 + b"]" * 1_000_000
+    with pytest.raises(CandidatesFormatError, match="UTF-8 JSON lines"):
+        read(SCHEMA_4 + nested + b"\n")
 
 
 def test_a_line_without_perturb_writes_no_perturb_key():

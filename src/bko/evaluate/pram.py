@@ -25,7 +25,8 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.perturb import Changed, Perturbing, Record, differs, drawn_frame, native
+from bko.evaluate.holdout_candidates import CHANGED, UNCHANGED
+from bko.evaluate.perturb import Changed, Perturbing, Record, drawn_frame, native
 
 
 if TYPE_CHECKING:
@@ -117,13 +118,10 @@ class PramArm(Perturbing):
         changed: dict[Stratum, list[Changed]] = {}
         start = 0
         for cell, records in drawn.items():
+            news = [native(row, frame) for row in rows[start : start + len(records)]]
             changed[cell] = [
-                Changed(record, result="changed" if differs(old, record) else "unchanged")
-                for old, record in zip(
-                    records,
-                    (native(row, frame) for row in rows[start : start + len(records)]),
-                    strict=True,
-                )
+                Changed(new, result=CHANGED if old != new else UNCHANGED)
+                for old, new in zip(records, news, strict=True)
             ]
             start += len(records)
         fill = CURRENT_FILL.get()
