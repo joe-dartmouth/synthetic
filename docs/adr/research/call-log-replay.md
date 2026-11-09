@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-11-06
+updated: 2026-11-09
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -34,7 +34,7 @@ rows in `docs/EVIDENCE.md`).
   parameters of the log's i-th `request` line, compared as JSON. Its answer is one of two things:
   - that call's `reply` line, rebuilt as a `Reply`, its text read from the logged response by
     `bko.generate.messages.text_of`, the function `bko.generate.api.reply_of` and
-    `bko.generate.local.reply_of` also use. It reads by shape: a Messages body's text blocks
+    `bko.generate.chat.reply_of` also use. It reads by shape: a Messages body's text blocks
     joined, thinking blocks ignored, or a chat-completions body's first choice's
     `message.content`, reasoning ignored; None when there is none;
   - or that call's `error` line, raised again as `GenerationError`.
