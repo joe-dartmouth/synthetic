@@ -157,19 +157,6 @@ links to where its blocker is tracked.
   `grep -rn "^from bko.evaluate.\(data\|diabetes\) import" src/bko | grep -v "^src/bko/evaluate/"`
   lists only `src/bko/app/steps.py` until then.
 
-- **`cleanup:evaluate/trace-logic-arm`: `trace` does not re-draw a `bko-logic` fill.**
-  `bko.evaluate.trace.trace` re-draws a logged attempt through `trace_direct` only when the fill's
-  arm is `DIRECT_ARM`, and `trace_perturbation` covers `bko-direct-pram` and
-  `bko-direct-perturbed`; a `bko-logic` fill falls through to `trace_baseline` and gets a
-  baseline-style line with no sources (`trace.py`, the `fill.name == DIRECT_ARM` branch of
-  `trace`), and `bko.evaluate.redraw.redraw` draws only at `Presence.SHARES`. *Filed 2026-11-05
-  by the review of PR #84.*
-  **Why deferred.** No `e9` folder has been traced; extending `trace` is outside PR #84's
-  boundary.
-  **What discharges it:** `trace` treats every arm of `DIRECT_ARMS` as a direct arm, re-drawing
-  with that arm's `Presence`, with a test that traces a `bko-logic` fill.
-  **Trigger:** the first trace of an `e9` folder.
-
 ## generate
 
 - **`cleanup:generate/thinking-server-reasoning-check`: the server check does not verify a thinking

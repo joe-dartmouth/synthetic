@@ -6,11 +6,12 @@ and writes one `Trace` per record as a sorted-key JSON line, in the order
 `bko.evaluate.shared.rebuilt` places the fill's rows, so record i is row i of the fill. It makes
 no API call.
 
-- `bko-direct` (`trace_direct`): the fill is re-drawn at its `arm` line's seed through
-  `bko.generate.direct.sample`, which draws nothing more to name its sources, and refused
-  (`IdentityError`, exit 3) unless the re-drawn rows hash to the line's sha256. Each record names
-  its request's cell and quota, each concept's share with its parts and S-nodes, the training record
-  each field was read from, its fallback fields and its closure; labels come from the pinned
+- An arm of `DIRECT_ARMS` (`trace_direct`): the fill is re-drawn at its `arm` line's seed with
+  its arm's presence through `bko.generate.direct.sample`, which draws nothing more to name its
+  sources, and refused (`IdentityError`, exit 3) unless the re-drawn rows hash to the line's
+  sha256. Each record names its request's cell and quota, the training record each field was read
+  from, its fallback fields and its closure, and for `bko-direct` each concept's share with its
+  parts and S-nodes, for `bko-logic` each concept of its closed draw; labels come from the pinned
   releases.
 - A Messages arm (`trace_messages`): each record names its call and the sections of that call's
   prompt in the folder's `calls.jsonl` (`bko.evaluate.call_prompts`), under the log's guidance
@@ -44,7 +45,6 @@ from bko.evaluate.call_prompts import CALLS
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
-    DIRECT_ARM,
     DIRECT_ARMS,
     MESSAGES_ARMS,
     PERTURBED_ARM,
@@ -90,8 +90,9 @@ def trace(
 
     Raises:
         IdentityError: As `check_folders`, if the holdout's split is not the folder's, or as
-            `trace_direct` and `trace_messages`.
-        EvaluationError: If `record` is not a record of the fill, or as `trace_messages`.
+            `trace_direct`, `trace_perturbation` and `trace_messages`.
+        EvaluationError: If `record` is not a record of the fill, or as `trace_direct`,
+            `trace_perturbation` and `trace_messages`.
     """
     logger.info(
         "trace start folder=%s run=%s holdout=%d arm=%s fill=%s seed=%d",
@@ -130,7 +131,7 @@ def trace(
             ontologies=ontologies or {},
             budget=experiment.budget,
         )
-    elif fill.name == DIRECT_ARM:
+    elif fill.name in DIRECT_ARMS:
         traces = trace_direct(
             fill,
             lines,
