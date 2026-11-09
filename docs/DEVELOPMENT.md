@@ -76,7 +76,7 @@ root or to see the module's own code, run it directly:
   not missing), the eight drug columns most often given, `change`, `diabetesMed`, and one
   indicator per mapped ICD-9 category, set when any of `diag_1` to `diag_3` falls in it;
   `record_id` is the record's 1-based position in encounter order. `encounter_id` and
-  `patient_nbr` never enter the frame. `bko.evaluate.diabetes` holds its `FrameSpec`: age in
+  `patient_nbr` never enter the frame. `bko.ontology.frames` holds its `FrameSpec`: age in
   decades (UCUM `10.a`), band edges 4, 6 and 8, each coded column's meanings the archive's own state
   strings, and one field row per ICD-9 and lab row of `bko.ontology.icd9`; `score` refuses records
   whose columns or codes the frame lacks. The loader refuses, as a contract error, a member over
