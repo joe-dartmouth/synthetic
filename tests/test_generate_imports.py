@@ -59,10 +59,16 @@ def test_generate_imports_no_release_loader():
 
 def test_generate_opens_no_other_network_client():
     """`bko.generate.local` alone opens one, `http.client` to the loopback llama.cpp server, and
-    parses its address with `urllib.parse`; `bko.generate.weights` names `http.client` for its
-    exceptions and downloads through `bko.datasets.fetch.open_https`."""
+    parses its address with `urllib.parse`; `bko.generate.reasoning` posts `/tokenize` on the
+    connection `local` opened, naming `http.client` for its type and exceptions;
+    `bko.generate.weights` names `http.client` for its exceptions and downloads through
+    `bko.datasets.fetch.open_https`."""
     clients = ("urllib", "http.client", "httpx2", "httpx", "requests")
-    allowed = {Path("src/bko/generate/local.py"), Path("src/bko/generate/weights.py")}
+    allowed = {
+        Path("src/bko/generate/local.py"),
+        Path("src/bko/generate/reasoning.py"),
+        Path("src/bko/generate/weights.py"),
+    }
     assert _importers(*clients) == allowed
     for path in allowed:
         used = {
@@ -71,6 +77,7 @@ def test_generate_opens_no_other_network_client():
             if any(name == c or name.startswith(f"{c}.") for c in clients)
         }
         assert used <= {"http.client", "urllib.parse", "urllib.parse.urlsplit"}, path
+    assert "HTTPConnection(" not in (REPO_ROOT / "src/bko/generate/reasoning.py").read_text()
 
 
 SOURCE = REPO_ROOT / "src"
