@@ -16,7 +16,8 @@ refused, keeping its original, when its item holds other keys than `row` and the
 (`keys`, the harness's key-set check), the merged row fails `bko.validate` (`validate`, with the
 checks it failed), or a measured field leaves the training range (`bounds`). A merged row takes
 its fields' values as `bko.evaluate.perturb.native` writes them: an integral `float` of a
-whole-number field becomes its `int`, since `bko.validate` has refused any other. ADR
+whole-number field becomes its `int`, since `bko.validate` has refused any other. Each row's
+outcome, as `named` names it, is its candidates line's `perturb`. ADR
 `research/identifier-perturbation` records the arm and the merge.
 """
 
@@ -36,6 +37,13 @@ from bko.baselines.request import Request, Stratum
 from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.holdout_candidates import (
+    CALL_REFUSALS,
+    PERTURBED,
+    REFUSED,
+    ROW_REFUSALS,
+    UNCHANGED,
+)
 from bko.evaluate.perturb import Changed, Perturbing, Record, label_rows, native
 from bko.evaluate.quotas import Category, allot, categories, category_of
 from bko.generate.calls import chunks
@@ -53,14 +61,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-TAKEN: Final = ("perturbed", "unchanged")
+TAKEN: Final = (PERTURBED, UNCHANGED)
 """The outcomes of a row that took its reply's fields."""
-
-CALL_REFUSALS: Final = ("empty", "short", "undecodable", "order")
-"""Why a whole call's rows kept their originals, in the order `merge` tests them."""
-
-ROW_REFUSALS: Final = ("keys", "validate", "bounds")
-"""Why one row kept its original, in the order `merge` tests them."""
 
 OUTCOMES: Final = (*TAKEN, *CALL_REFUSALS, *ROW_REFUSALS)
 """Every row outcome `merge` names."""
@@ -128,7 +130,7 @@ def merge(
         elif any(not low <= merged[name] <= high for name, (low, high) in bounds.items()):
             outcome, merged = "bounds", original
         else:
-            outcome = "unchanged" if merged == original else "perturbed"
+            outcome = UNCHANGED if merged == original else PERTURBED
         rows.append(dict(merged))
         outcomes.append(outcome)
     return Merged(tuple(rows), tuple(outcomes), len(decoded), tuple(sorted(checks)))
@@ -203,8 +205,11 @@ class PerturbedArm(Perturbing):
             merged = merge(batch.candidates, rows, fields=self.fields, bounds=bounds, frame=frame)
             counts.update(merged.outcomes)
             for offset, (row, outcome) in enumerate(zip(merged.rows, merged.outcomes, strict=True)):
-                if outcome in TAKEN:
-                    changed[cell][start + offset] = Changed(row, batch.index, offset)
+                changed[cell][start + offset] = (
+                    Changed(row, batch.index, offset, result=named(outcome))
+                    if outcome in TAKEN
+                    else Changed(dict(rows[offset]), result=named(outcome))
+                )
             logger.info(
                 "perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s "
                 "stop_reason=%s checks=%s quota_off=%d",
@@ -289,12 +294,17 @@ def quota_off(
     return off
 
 
+def named(outcome: str) -> str:
+    """`outcome` as the `perturb holdout=` and candidates lines name it.
+
+    A refusal takes the prefix `REFUSED`.
+    """
+    return f"{'' if outcome in TAKEN else REFUSED}{outcome}"
+
+
 def counted(counts: Mapping[str, int]) -> str:
-    """Each of `OUTCOMES`' row count in `counts`, a refusal's key prefixed `refused_`."""
-    return "".join(
-        f" {'' if outcome in TAKEN else 'refused_'}{outcome}={counts.get(outcome, 0)}"
-        for outcome in OUTCOMES
-    )
+    """Each of `OUTCOMES`' row count in `counts`, keyed as `named` names it."""
+    return "".join(f" {named(outcome)}={counts.get(outcome, 0)}" for outcome in OUTCOMES)
 
 
 def _guidance(cell: Stratum) -> Guidance:

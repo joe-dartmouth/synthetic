@@ -101,17 +101,6 @@ links to where its blocker is tracked.
   **Trigger:** a ranked run whose attempt time shows in a profile, or the next change to
   `ranking.py`.
 
-- **`cleanup:evaluate/candidates-score-key-names`: `_score` does not check a score's key names.**
-  `bko.evaluate.holdout_candidates._score` (`holdout_candidates.py:391`) accepts any dict whose
-  values are a finite number or null, so a schema-3 line whose `score` holds
-  `{"likelihod": -1.0}` reads as valid, and a reader looking for `likelihood` finds none.
-  *Filed 2026-11-05 by PR #75's review.*
-  **Why deferred.** The writer is the harness alone, and no reader of a score by name has been
-  fed a misspelled key.
-  **What discharges it:** `read` refuses a `score` whose names are not `likelihood`, or
-  `confidence` and `aleatoric`, by the arm, with a test.
-  **Trigger:** the next change to `holdout_candidates.py`'s schema.
-
 - **`cleanup:evaluate/over-ask-rule-three-places`: the `over_ask` rule is written three times.**
   `Experiment`'s `MessagesArm` check (`experiment.py:325`), `GuidedArm.__init__` (`guided.py:137`)
   and `Attempt.__init__` (`attempts.py:137`) each state when `over_ask` is valid, with three
@@ -183,32 +172,6 @@ links to where its blocker is tracked.
   fill; a perturbation arm's trace reads its rows from its candidate lines over the re-draw, and
   its refusal goes.
   **Trigger:** the first trace of an `e9` or `e10` folder.
-- **`cleanup:evaluate/perturb-refusals-in-candidates`: a perturbation arm's candidate lines do not
-  say why a row kept its draw.** A `bko-direct-perturbed` line carries its rewrite call or `call:
-  null`, but not whether the row was rewritten, returned unchanged or refused, nor which refusal
-  (`perturb holdout=` and `perturb call=` in `scores.log` count them), and a `bko-direct-pram`
-  line does not say whether PRAM changed it. Evidence: `bko.evaluate.holdout_candidates.read`
-  refuses a line holding any key beyond `_LINE`, `score` and one of `candidate` or `undecoded`
-  (`set(line) - _LINE`), so a `perturb` field fails every reader of schema 3. *Filed 2026-11-06 by
-  the review of PR #85.*
-  **Why deferred.** An optional `perturb` key needs a schema 4 and a reader change in
-  `holdout_candidates` and every `StoredArm` rebuild, beyond PR #85's fixes.
-  **What discharges it:** a schema-4 line key `perturb` (`perturbed`, `unchanged`, or the refusal
-  as the `perturb holdout=` line names it) on perturbed-arm lines and a changed flag on PRAM lines,
-  read by `read` and ignored by the rebuild, with a test that a schema-3 file still reads.
-  **Trigger:** the first reading of a pilot that needs per-row refusals beside `scores.log`.
-
-- **`cleanup:evaluate/pram-values-changed-twice`: PRAM's changed rows and values are computed
-  twice.** `PramArm._change` computes and logs them on its `perturb pram` line, and
-  `Perturbing.read` recomputes them for `perturb shapes`. Evidence: `src/bko/evaluate/pram.py:115`
-  (`values`) and `src/bko/evaluate/pram.py:125` (`moved`) in `PramArm._change`, and
-  `src/bko/evaluate/perturb.py:359` (`moved`) and `src/bko/evaluate/perturb.py:360` (`values`) in
-  `Perturbing.read`. *Filed 2026-11-08 by the review of PR #89.*
-  **Why deferred.** The two log lines document the same numbers by design today; merging them
-  changes a documented log.
-  **What discharges it:** one computation passed to both lines, or the `perturb pram` line drops
-  the counts.
-  **Trigger:** the next change to `pram.py`.
 
 ## generate
 

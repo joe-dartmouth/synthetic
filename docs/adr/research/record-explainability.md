@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-05
+updated: 2026-11-08
 ---
 # A record's explanation is the stored or re-derivable facts that determine it
 
@@ -48,6 +48,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    `research/streamlit-app-design`). It renders a trace only as frames, JSON and plain code blocks.
 5. **Source ids stay private.** They live in the `trace.jsonl` file, kept in its run folder, and
    never in the app's download.
+6. **Perturbation outcomes are stored.** The candidates file (schema 4) carries each perturbation
+   row's outcome in its line's `perturb` key: `perturbed`, `unchanged` or `refused_<reason>` for
+   `bko-direct-perturbed`, `changed` or `unchanged` for `bko-direct-pram`.
 
 ## Rationale
 
@@ -55,8 +58,11 @@ A re-draw needs the seed, the request and the data, all of which a run folder pi
 check turns "the same code and data" into a test instead of an assumption. Keeping the source ids
 on `Draw` costs no draw, so the stored fills stay valid. A Messages arm's record is the model's
 reply to a stored prompt; naming the prompt's sections and the call states what the run kept and
-claims nothing about why the model chose a value. A source id names a training record, which can be
-a real patient's row; the explanation is useful with it and the download does not need it.
+claims nothing about why the model chose a value. A perturbation row's outcome depends on a reply
+and on the merge code that read it; storing it on the row's line keeps it readable after either
+changes, and a schema version may grow when its runs are repeated. A source id names a training
+record, which can be a real patient's row; the explanation is useful with it and the download does
+not need it.
 
 ## Consequences
 
@@ -70,25 +76,28 @@ folder.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| New fields in the candidates file (a schema 4) | A re-draw holds the same facts, so the file's schema need not change | 2026-11-05 |
 | Source ids in the app's download | They name training records; the download is the one artifact that leaves the folder | 2026-11-05 |
 | A guess at a model's choice of value | Nothing stored or re-derivable determines it | 2026-11-05 |
+| Keep schema 3 and re-derive perturbation outcomes in `trace` | It needs the reply and the merge code to stay unchanged, and a schema version may grow with its runs repeated | 2026-11-08 |
 
 ## Enforcement
 
 - Owner: `src/bko/evaluate/trace.py`, with the call log's reading in
   `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
-  `src/bko/app/provenance_frames.py`
+  `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
+  `src/bko/evaluate/holdout_candidates.py`
 - Pinned by: `tests/test_evaluate_trace.py`, `tests/test_generate_direct.py`,
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
-  `tests/test_app_imports.py`
+  `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
+  `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`
 
 ## Reversal Conditions
 
-The candidates file gains a per-record explanation field (then the re-draw is redundant); `bko-direct`
-draws through a generator the logged seed does not reproduce; or the app's download includes
-`trace.jsonl`.
+The candidates file gains a per-record explanation field for `bko-direct` or the Messages arms
+(then the re-draw is redundant; decision 6's `perturb` key covers the perturbation arms alone);
+`bko-direct` draws through a generator the logged seed does not reproduce; or the app's download
+includes `trace.jsonl`.
 
 ## Related
 

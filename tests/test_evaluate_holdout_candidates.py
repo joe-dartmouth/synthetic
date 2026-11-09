@@ -23,16 +23,21 @@ from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
+from bko.evaluate.experiment import DIRECT_ARM, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import (
+    PERTURBS,
     SCHEMA,
+    SCORED,
     Candidate,
     CandidateFile,
     Origin,
     Seen,
     read,
 )
+from bko.evaluate.perturbed import OUTCOMES as OUTCOMES_MERGED
+from bko.evaluate.perturbed import named
 from bko.generate.messages import SETTINGS, Reply
 from tests._evaluate_bko_fixtures import (
     BAD,
@@ -322,10 +327,26 @@ RANKED: Final = {
 """A schema-3 line of the ranking arm, with its score."""
 
 
-def test_read_accepts_schemas_1_to_3():
-    assert SCHEMA == 3
-    schema_3 = HEADER.replace(b'"schema": 2', b'"schema": 3')
-    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, schema_3)
+SCHEMA_3: Final = HEADER.replace(b'"schema": 2', b'"schema": 3')
+"""A schema-3 header line: lines may hold a `score`, and none a `perturb`."""
+
+SCHEMA_4: Final = HEADER.replace(b'"schema": 2', b'"schema": 4')
+"""A schema-4 header line: lines may hold a `score` and a `perturb`."""
+
+PERTURBED: Final = {
+    **{key: value for key, value in LINE.items() if key != "undecoded"},
+    "arm": "bko-direct-perturbed",
+    "candidate": {"age": 40},
+    "outcome": "kept",
+    "failed": [],
+    "perturb": "refused_keys",
+}
+"""A schema-4 line of a perturbation arm, with its result."""
+
+
+def test_read_accepts_schemas_1_to_4():
+    assert SCHEMA == 4
+    heads = (json.dumps(SCHEMA_1_HEADER).encode() + b"\n", HEADER, SCHEMA_3, SCHEMA_4)
     for head in heads:
         (line,) = read(head + json.dumps(LINE).encode() + b"\n").candidates
         assert line.line() == LINE
@@ -336,10 +357,11 @@ def test_read_accepts_schemas_1_to_3():
         "outcome": "kept",
         "score": {"aleatoric": 0.1, "confidence": 0.9},
     }
-    for scored in (RANKED, undrawable, curated):
-        (line,) = read(schema_3 + json.dumps(scored).encode() + b"\n").candidates
-        assert line.score == scored["score"]
-        assert line.line() == scored
+    for head in (SCHEMA_3, SCHEMA_4):
+        for scored in (RANKED, undrawable, curated):
+            (line,) = read(head + json.dumps(scored).encode() + b"\n").candidates
+            assert line.score == scored["score"]
+            assert line.line() == scored
     for head in heads[:2]:
         with pytest.raises(CandidatesFormatError, match="keys"):
             read(head + json.dumps(RANKED).encode() + b"\n")
@@ -352,7 +374,127 @@ def test_read_accepts_schemas_1_to_3():
         {"likelihood": 10**400},
     ):
         with pytest.raises(CandidatesFormatError, match="wrong type"):
-            read(schema_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
+            read(SCHEMA_3 + json.dumps({**RANKED, "score": score}).encode() + b"\n")
+
+
+def test_a_schema_3_file_with_scores_still_reads():
+    (line,) = read(SCHEMA_3 + json.dumps(RANKED).encode() + b"\n").candidates
+    assert (line.arm, line.score, line.perturb) == ("bko-curated", {"likelihood": -4.25}, None)
+    assert line.line() == RANKED
+
+
+def test_a_perturb_key_on_a_schema_3_line_is_refused():
+    with pytest.raises(CandidatesFormatError, match="keys"):
+        read(SCHEMA_3 + json.dumps(PERTURBED).encode() + b"\n")
+    (line,) = read(SCHEMA_4 + json.dumps(PERTURBED).encode() + b"\n").candidates
+    assert line.perturb == "refused_keys"
+    assert line.line() == PERTURBED
+
+
+@pytest.mark.parametrize("result", [1, None, ["perturbed"]])
+def test_a_perturb_value_that_is_not_a_string_is_refused(result):
+    with pytest.raises(CandidatesFormatError, match="wrong type"):
+        read(SCHEMA_4 + json.dumps({**PERTURBED, "perturb": result}).encode() + b"\n")
+
+
+@pytest.mark.parametrize(
+    "result", ["rewritten", "refused_", "refused_other", "Perturbed", "changed", "refused_ keys"]
+)
+def test_a_perturb_value_outside_its_arms_set_is_refused(result):
+    with pytest.raises(CandidatesFormatError, match="not one of bko-direct-perturbed's"):
+        read(SCHEMA_4 + json.dumps({**PERTURBED, "perturb": result}).encode() + b"\n")
+
+
+@pytest.mark.parametrize("result", ["perturbed", "refused_keys", "refused_empty"])
+def test_a_rewrite_result_on_the_pram_arm_is_refused(result):
+    line = {**PERTURBED, "arm": PRAM_ARM, "perturb": result}
+    with pytest.raises(CandidatesFormatError, match="not one of bko-direct-pram's"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+@pytest.mark.parametrize("arm", [DIRECT_ARM, "bko", "cllm"])
+def test_a_perturb_on_an_arm_that_perturbs_nothing_is_refused(arm):
+    line = {**PERTURBED, "arm": arm, "perturb": "unchanged"}
+    with pytest.raises(CandidatesFormatError, match=f"its arm {arm!r} perturbs nothing"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_the_perturbation_arms_are_the_experiments():
+    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM}
+    assert PERTURBS[PRAM_ARM] == {"changed", "unchanged"}
+
+
+@pytest.mark.parametrize("outcome", OUTCOMES_MERGED)
+def test_every_merge_outcome_reads_on_the_rewrite_arm(outcome):
+    (line,) = read(
+        SCHEMA_4 + json.dumps({**PERTURBED, "perturb": named(outcome)}).encode() + b"\n"
+    ).candidates
+    assert line.perturb == named(outcome)
+
+
+def test_the_rewrite_arms_results_are_its_merge_outcomes_named():
+    assert PERTURBS[PERTURBED_ARM] == {named(outcome) for outcome in OUTCOMES_MERGED}
+
+
+def test_a_line_nested_past_the_recursion_limit_is_refused():
+    nested = b"[" * 1_000_000 + b"]" * 1_000_000
+    with pytest.raises(CandidatesFormatError, match="UTF-8 JSON lines"):
+        read(SCHEMA_4 + nested + b"\n")
+
+
+def test_a_line_without_perturb_writes_no_perturb_key():
+    seen = Seen(None, "<55/female/1", 0, {"age": 40}, None, "kept", ())
+    assert "perturb" not in Candidate(0, "bko-direct", "gap", 1, True, seen).line()
+    changed = dataclasses.replace(seen, perturb="unchanged")
+    line = Candidate(0, "bko-direct-pram", "gap", 1, True, changed).line()
+    assert line["perturb"] == "unchanged"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        {**RANKED, "score": {"likelihood": -1.0, "confidence": 0.9}},
+        {**RANKED, "arm": "cllm", "outcome": "kept", "score": {"aleatoric": 0.1}},
+        {**RANKED, "arm": "bko-direct-pram", "score": {}},
+    ],
+    ids=["extra", "short", "empty"],
+)
+def test_a_score_whose_names_are_not_its_arms_is_refused(line):
+    with pytest.raises(CandidatesFormatError, match="score"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_misspelled_score_name_is_refused():
+    with pytest.raises(CandidatesFormatError, match="likelihood"):
+        read(SCHEMA_4 + json.dumps({**RANKED, "score": {"likelihod": -1.0}}).encode() + b"\n")
+
+
+def test_a_cllm_line_scored_by_likelihood_is_refused():
+    line = {**RANKED, "arm": "cllm", "score": {"likelihood": -1.0}}
+    with pytest.raises(CandidatesFormatError, match="aleatoric"):
+        read(SCHEMA_3 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_curated_line_scored_by_confidence_is_refused():
+    line = {**RANKED, "score": {"confidence": 0.9}}
+    with pytest.raises(CandidatesFormatError, match="score"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_a_score_on_an_arm_that_scores_nothing_is_refused():
+    line = {**RANKED, "arm": "bko"}
+    with pytest.raises(CandidatesFormatError, match="scores nothing"):
+        read(SCHEMA_4 + json.dumps(line).encode() + b"\n")
+
+
+def test_each_arms_scores_read():
+    for arm, names in SCORED.items():
+        score = dict.fromkeys(sorted(names), -0.5)
+        (line,) = read(
+            SCHEMA_4 + json.dumps({**RANKED, "arm": arm, "score": score}).encode() + b"\n"
+        ).candidates
+        assert (line.arm, line.score) == (arm, score)
+    assert set(SCORED) == {"bko-curated", "cllm"}
 
 
 def test_a_score_of_nan_is_refused_at_write_time(tmp_path):

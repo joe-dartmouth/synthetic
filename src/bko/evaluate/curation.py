@@ -23,6 +23,7 @@ from sklearn.ensemble import HistGradientBoostingClassifier
 from threadpoolctl import threadpool_limits
 
 from bko.datasets.frames import FrameSpec
+from bko.evaluate.holdout_candidates import ALEATORIC, CONFIDENCE
 
 
 logger = logging.getLogger(__name__)
@@ -33,12 +34,6 @@ type Discard = Callable[[pd.DataFrame], pd.Series]
 type Scores = Callable[[pd.DataFrame], pd.DataFrame]
 """A curator's reading: given added rows in a frame's columns, each row's `CONFIDENCE` and
 `ALEATORIC`, indexed as the rows."""
-
-CONFIDENCE: Final = "confidence"
-"""The column of a row's mean confidence in its own label."""
-
-ALEATORIC: Final = "aleatoric"
-"""The column of a row's mean aleatoric uncertainty."""
 
 STAGES: Final = 99
 """The boosting stages read per row: the first 99 of the classifier's 100."""

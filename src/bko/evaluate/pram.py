@@ -6,9 +6,10 @@ redrawn from the training rows of its row's label, so each field redraws toward 
 training marginal. A field's value and the row's other fields are redrawn independently, so a
 redrawn row need not keep its fields' joint combination. Its draws come from
 `numpy.random.default_rng([seed, PRAM_STREAM])` at the request's seed, a stream apart from
-`bko-direct`'s own at that seed, field by field in column order. It makes no call. Mapped
-fields, `age`, `sex` and the label keep their drawn values. ADR `research/identifier-perturbation`
-records the arm.
+`bko-direct`'s own at that seed, field by field in column order. Each row's candidates line's
+`perturb` says whether its record differs from its draw (`changed`) or not (`unchanged`). It makes
+no call. Mapped fields, `age`, `sex` and the label keep their drawn values. ADR
+`research/identifier-perturbation` records the arm.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
+from bko.evaluate.holdout_candidates import CHANGED, UNCHANGED
 from bko.evaluate.perturb import Changed, Perturbing, Record, drawn_frame, native
 
 
@@ -112,28 +114,22 @@ class PramArm(Perturbing):
         perturbed = pram(
             original, train, fields=self.fields, theta=self.theta, rng=rng, frame=frame
         )
-        values = int((perturbed[list(self.fields)] != original[list(self.fields)]).to_numpy().sum())
         rows = perturbed.to_dict("records")
         changed: dict[Stratum, list[Changed]] = {}
         start = 0
         for cell, records in drawn.items():
+            news = [native(row, frame) for row in rows[start : start + len(records)]]
             changed[cell] = [
-                Changed(native(row, frame)) for row in rows[start : start + len(records)]
+                Changed(new, result=CHANGED if old != new else UNCHANGED)
+                for old, new in zip(records, news, strict=True)
             ]
             start += len(records)
         fill = CURRENT_FILL.get()
-        moved = sum(
-            row.record != record
-            for cell, records in drawn.items()
-            for row, record in zip(changed[cell], records, strict=True)
-        )
         logger.info(
-            "perturb pram holdout=%d arm=%s rows=%d rows_changed=%d values_changed=%d",
+            "perturb pram holdout=%d arm=%s rows=%d",
             -1 if fill is None else fill.holdout,
             self.name,
             len(rows),
-            moved,
-            values,
         )
         self.read(train, drawn, changed, frame)
         return changed

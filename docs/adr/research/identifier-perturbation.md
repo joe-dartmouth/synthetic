@@ -95,8 +95,8 @@ and the full runs are fixed here.
   that field, so each field redraws toward that marginal. Each field is redrawn on its own, so a
   redrawn row need not keep a coherent combination of its fields. It draws from
   `numpy.random.default_rng([seed, 1])` at the request seed, a stream apart from `bko-direct`'s
-  draw at that seed, and makes no API call. It writes candidates lines as `bko-direct` does, so
-  `StoredArm` rebuilds it.
+  draw at that seed, and makes no API call. It writes candidates lines as `bko-direct` does, each
+  with its `perturb` result, so `StoredArm` rebuilds it.
 - **Distribution reading, per holdout and per arm.** Let U be the unperturbed rows, P the arm's
   perturbed rows and R the label-1 training rows of the holdout, the cell's label group. Each
   holdout with a non-empty fill logs SDMetrics' column-shapes score over the 19 columns for P and

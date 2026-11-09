@@ -29,9 +29,16 @@ import pandas as pd
 
 from bko.baselines.records import Drop, Prescribed, assess, no_rows, number
 from bko.baselines.request import Request, Strata, Stratum, stratum_keys
-from bko.evaluate.curation import ALEATORIC, CONFIDENCE, Scores, discards
-from bko.evaluate.holdout_candidates import KEPT, REJECTED, Seen
-from bko.evaluate.ranking import LIKELIHOOD, tie
+from bko.evaluate.curation import Scores, discards
+from bko.evaluate.holdout_candidates import (
+    ALEATORIC,
+    CONFIDENCE,
+    KEPT,
+    LIKELIHOOD,
+    REJECTED,
+    Seen,
+)
+from bko.evaluate.ranking import tie
 from bko.evaluate.scores import Measure
 from bko.gaps.observe import Cell, cell_key
 from bko.generate.calls import Batch

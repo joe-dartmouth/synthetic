@@ -36,6 +36,7 @@ from bko.evaluate.experiment import (
     gap_request,
     replica_request,
 )
+from bko.evaluate.holdout_candidates import ALEATORIC, CONFIDENCE, LIKELIHOOD, SCORED
 from bko.evaluate.named_runs import (
     E3,
     E3_SLICE_CEILING,
@@ -657,6 +658,13 @@ def test_each_g6_model_is_priced_and_routed_by_where_it_runs():
 def test_an_inconsistent_messages_arm_is_refused(spec):
     with pytest.raises(ValueError, match=r"over_ask|budget|not both"):
         MessagesArm(Definition.SUBGROUP, **spec)
+
+
+def test_scored_arms_match_the_messages_arms_curation():
+    expected = {Curation.LIKELIHOOD: {LIKELIHOOD}, Curation.CLASSIFIER: {CONFIDENCE, ALEATORIC}}
+    for name, arm in MESSAGES_ARMS.items():
+        assert SCORED.get(name) == (None if arm.curation is None else expected[arm.curation]), name
+    assert set(SCORED) <= set(MESSAGES_ARMS)
 
 
 def test_a_ranked_curation_with_its_over_ask_is_a_messages_arm():

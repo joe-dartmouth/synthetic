@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping, Sequence
-from typing import Final, Protocol
+from typing import Protocol
 
 import pandas as pd
 
@@ -22,10 +22,6 @@ from bko.gaps.likelihood import Likelihood
 from bko.gaps.observe import Cell, cell_key, observe_records, record_cells
 from bko.gaps.shares import shares
 from bko.ontology.schema import FieldMapping
-
-
-LIKELIHOOD: Final = "likelihood"
-"""The name a ranked candidate's score goes under on its candidates line."""
 
 
 class Known(Protocol):

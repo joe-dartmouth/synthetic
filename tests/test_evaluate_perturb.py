@@ -601,6 +601,41 @@ def test_a_perturbed_rows_line_carries_its_call_and_a_kept_original_none(tmp_pat
     assert " incoherent=none unperturbed_incoherent=none rows_changed=" in shapes
 
 
+def _results(folder: Path, arm: str) -> list[tuple[int, int | None, str | None]]:
+    """Each of `arm`'s candidates lines' holdout, call and `perturb` result, in file order."""
+    found = read((folder / "holdout-candidates.jsonl").read_bytes())
+    return [(line.holdout, line.call, line.perturb) for line in found.candidates if line.arm == arm]
+
+
+def test_every_rewrite_line_carries_its_perturb_result(tmp_path, caplog):
+    folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
+    results = _results(folder, PERTURBED_ARM)
+    assert len(results) == 2 * 28
+    assert {result for _, _, result in results} == {"perturbed", "unchanged", "refused_keys"}
+    found = read((folder / "holdout-candidates.jsonl").read_bytes()).candidates
+    assert {line.perturb for line in found if line.arm not in {PERTURBED_ARM, PRAM_ARM}} == {None}
+
+
+def test_the_refused_row_reads_refused_keys(tmp_path, caplog):
+    folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
+    results = _results(folder, PERTURBED_ARM)
+    refused = [line for line in results if line[2] not in {"perturbed", "unchanged"}]
+    assert refused == [(0, None, "refused_keys")]
+
+
+def test_rewrite_results_count_as_the_holdout_line_does(tmp_path, caplog):
+    folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
+    results = _results(folder, PERTURBED_ARM)
+    for holdout in {holdout for holdout, _, _ in results}:
+        counts = Counter(result for at, _, result in results if at == holdout)
+        (line,) = [m for m in caplog.messages if m.startswith(f"perturb holdout={holdout} rows=")]
+        logged = dict(field.split("=") for field in line.split()[2:])
+        assert {name: int(count) for name, count in logged.items() if int(count)} == {
+            "rows": sum(counts.values()),
+            **counts,
+        }
+
+
 def test_every_perturbed_row_carries_its_call(tmp_path, caplog):
     folder, _ = perturbed_folder(tmp_path, caplog, Rewriter(skew=True))
     found = read((folder / "holdout-candidates.jsonl").read_bytes())
@@ -673,3 +708,17 @@ def test_trace_refuses_a_perturbation_arms_fill(tmp_path, caplog, arm):
 def test_a_rewrite_call_for_a_cell_no_sex_code_names_is_refused():
     with pytest.raises(EvaluationError, match="no sex code names cell"):
         _guidance(("6-7", "unknown", 1))
+
+
+def test_rewrite_rows_changed_is_above_zero_exactly_when_values_changed_is(tmp_path, caplog):
+    perturbed_folder(tmp_path, caplog, Rewriter(invalid=frozenset({1})))
+    lines = [
+        m
+        for m in caplog.messages
+        if m.startswith("perturb shapes holdout=") and f" arm={PERTURBED_ARM} " in m
+    ]
+    assert lines
+    for line in lines:
+        rows = int(line.split(" rows_changed=")[1].split(" ")[0])
+        values = int(line.split(" values_changed=")[1])
+        assert (rows > 0) == (values > 0), line
