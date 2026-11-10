@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-08
+updated: 2026-11-09
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -260,12 +260,12 @@ an agreement that grants no permission to send them.
   `>=65/female/1` 0.0976 (366 of 3750), gap `>=65/female/1` 0.1276 (1348 of 10564), replica
   `>=65/male/0` 0.1543 (2666 of 17276) and replica `<65/male/1` 0.2074 (4504 of 21718). The
   budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22, `CLLM_BUDGET`.
-- B3's runs asked at the proxy pilot's budget of 9, and their curating calls asked each cell's
+- `b3-1` to `b3-3` asked at the proxy pilot's budget of 9, and their curating calls asked each cell's
   shortfall, as a non-curating arm's still do (`tests/test_evaluate_cllm.py` pins that split). A
   call log replays only against the code that asks its calls, so B3's `cllm` call logs replay at
   their run commits, the replay-commit rule of ADR
-  [`research/call-log-replay`](call-log-replay.md), and B3's rows in `docs/EVIDENCE.md` hold at
-  those commits.
+  [`research/call-log-replay`](call-log-replay.md), and their rows in `docs/EVIDENCE.md` hold at
+  those commits; the rerun's `b3-4` and `b3-5`, at `CLLM_BUDGET` 22, hold at `run/rerun-1`.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.
 - The curator's fits are not XGBoost's: histogram boosting bins each feature, and its leaf bound
   counts rows.

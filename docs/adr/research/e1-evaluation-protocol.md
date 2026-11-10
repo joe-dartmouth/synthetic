@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-08
+updated: 2026-11-09
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -84,7 +84,7 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   before it claims a folder. `launch --rehearse` first runs
   the whole run on canned replies (`bko.evaluate.rehearse`) into the run folder's `rehearsal`
   directory, so the stop rules, the spend lines and the folder roles are checked for free before any
-  spend. A rehearsal bills each record asked at the judged run `e1-4`'s tokens per record
+  spend. A rehearsal bills each record asked at `e1-4`'s tokens per record
   (`INPUT_PER_RECORD` 301 and `OUTPUT_PER_RECORD` 211 in `bko.evaluate.rehearse`: `e1-4`'s Runs
   row's input and output tokens over its records asked), priced at the named run's model's rates, so
   its spend and projection read on the scale of a real run at that model; its spend is a wiring check, not an estimate. Those tokens per record are

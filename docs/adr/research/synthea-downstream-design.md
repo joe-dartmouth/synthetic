@@ -174,7 +174,7 @@ favours 100.
 **The slices.** Two concurrent slices halve the wall time, and `merge` makes their union the bytes
 one run writes, so `compare e3` reads E3 as one run.
 
-**The spend.** The basis is the judged run `e1-4` at `SETTINGS`: its call log's `end` line reads
+**The spend.** The basis is `e1-4` at `SETTINGS`: its call log's `end` line reads
 `"asked": 77487` and `"usd": 10.509915100000024` (`runs/e1-4/calls.jsonl`; E1 in
 [`docs/EVIDENCE.md`](../../EVIDENCE.md#e1-uci-heart-disease-augmentation)), so a record asked
 costs 10.509915100000024 / 77487 = $1.35635e-4. Equivalently, its 300.535 input and 211.162 output
@@ -505,10 +505,10 @@ env -u ANTHROPIC_API_KEY uv run --no-sync python -I -c "from pathlib import Path
 
 [C13] E3's paired readings: every arm against `real` and against `none`, in-run on the same
 holdouts, over every series `bko.evaluate.beside.pair` pairs, copies counted (`allow_copies`). E3
-reads it over `runs/e3-4/scores.csv`:
+reads it over `runs/e3-7/scores.csv`:
 
 ```
-uv run --no-sync python -I - runs/e3-4/scores.csv <<'EOF'
+uv run --no-sync python -I - runs/e3-7/scores.csv <<'EOF'
 import sys
 from pathlib import Path
 
@@ -538,7 +538,7 @@ EOF
 included:
 
 ```
-uv run --no-sync python -I - runs/e3-4/scores.csv <<'EOF'
+uv run --no-sync python -I - runs/e3-7/scores.csv <<'EOF'
 import sys
 from pathlib import Path
 from statistics import mean

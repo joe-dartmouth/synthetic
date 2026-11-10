@@ -274,6 +274,19 @@ new paid re-pilot that passes its gate before any full run.
 
 **Sources.** None in the brief or the 2-pager.
 
+## Downstream runs at `profile` guidance
+
+**What it is.** The downstream experiments' runs of record (E1, E3, E4, E5 and the readings beside
+them) rerun with `SETTINGS.guidance` at `profile`, the level G3's rule picks when each level is
+read against its `ontology` replicate ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)).
+
+**Why it is not in the plan.** G3's rerun keeps `summary`: beside E1's run of record `profile` and
+`summary` are indistinguishable, and every downstream run of record is at `summary`. Adopting
+`profile` changes what each call sends, so it means changing `SETTINGS`, a new tag and paid reruns
+of each downstream named run under its own spend ceiling.
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

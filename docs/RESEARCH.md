@@ -295,8 +295,8 @@ guidance:
   classifier learns the label from 13 strong features over the whole split, so added rows that
   follow the training rows change little: every guidance level, from the cell and its bounds alone
   to the ontology chains and the reference group's summary, gives the logistic regression a mean
-  recall and AUC-PR over all records within about 0.005 of each other's, and a flagged-subgroup
-  recall within about 0.008 ([G3](EVIDENCE.md#g3-guidance-level), Result).
+  recall and AUC-PR over all records, and a flagged-subgroup recall, close to each other's
+  ([G3](EVIDENCE.md#g3-guidance-level), Result, holds the spreads).
 - **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied 457
   of 5900 held-out test records word for word, in 98 of 100 holdouts, where Haiku 5.5's copied 1, so
   decontamination shrinks each holdout's test split and a cross-run pairing loses its holdouts

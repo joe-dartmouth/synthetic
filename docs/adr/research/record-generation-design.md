@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-11-06
+updated: 2026-11-09
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -99,8 +99,8 @@ ladder.**
   - `findings`: the ontology gap findings for the cell;
   - `ontology`: their `is_a` chains;
   - `profile`: the reference group's concept shares;
-  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses because G3 found
-    its replica fidelity gain ([G3](../../EVIDENCE.md#g3-guidance-level)).
+  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses
+    ([G3](../../EVIDENCE.md#g3-guidance-level) holds the guidance-level reading).
 - **The findings.** `bko.generate.guidance.guide` reads a cell's findings from its gaps under the
   run's definition (ADR [`research/bko-formal-gap-definition`](bko-formal-gap-definition.md)).
   A cell with no gap is guided by the statements its own records ground, and a cell with neither
@@ -231,9 +231,9 @@ training split's minimum and maximum (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
 calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, `g3-5`'s
 (`summary` level) dropped 3805 of 29617, and `e1-4`'s, with the training split's bounds in the
-prompt, dropped 0 of 25825 (the `validity` lines: `e1-3`'s in
-[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Read against, `e1-4`'s in its Result,
-and `g3-5`'s in [G3's](../../EVIDENCE.md#g3-guidance-level) Result). The bounds are two training values per field;
+prompt, dropped 0 of 25825 (the `validity arm=bko` lines of `runs/e1-3/criteria.log`,
+`runs/e1-4/criteria.log` and `runs/g3-5/criteria.log`; E1's judged run is in
+[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Result). The bounds are two training values per field;
 see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
