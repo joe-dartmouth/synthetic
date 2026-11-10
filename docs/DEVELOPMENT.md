@@ -420,7 +420,7 @@ For an E6 slice, `<run>` is the slice's own name (`e6-thinc`), `<new-run-id>` th
 `e6-<n>`, and `<usd>` that slice's raised ceiling; the other 19 slices keep theirs.
 
 `--rehearse` answers every call with canned records in the call's cell, inside every holdout's
-training range, at the judged run e1-4's tokens per record priced at the named run's model's
+training range, at e1-4's tokens per record priced at the named run's model's
 rates, so the stop rules and spend lines run for free (a local model's rates are zero, so its
 rehearsal checks wiring and folder roles alone); its spend is a wiring check, not an estimate; the
 call log's `run` line holds `"rehearsal": true`, and a resume refuses it. `bko.evaluate.rehearse` holds the canned send and the
@@ -620,9 +620,10 @@ start or the supervisor cannot run.
   `git diff --stat <run commit> <replay commit> -- src` lists only the reply-text reader's
   files, `src/bko/generate/messages.py` and `src/bko/generate/local.py`, named by a pushed
   `replay/<name>` tag; G6's local runs replay at `replay/g6-local` (ADR
-  [`research/call-log-replay`](adr/research/call-log-replay.md)). B3's call logs replay at their
-  run commits only: their `cllm` calls asked at a budget of 9 with shortfall-sized asks, which
-  later code does not ask (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)).
+  [`research/call-log-replay`](adr/research/call-log-replay.md)). `b3-1`'s to `b3-3`'s call
+  logs replay at their run commits only: their `cllm` calls asked at a budget of 9 with
+  shortfall-sized asks, which later code does not ask; `b3-4`'s and `b3-5`'s replay at
+  `run/rerun-1` (ADR [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)).
   With `--resume`, the stopped
   log's answered calls come first, answered from it, then live calls. With `--rehearse`,
   `bko.evaluate.rehearse.CannedSend` answers every call, and the projection and the ceiling read
@@ -1370,7 +1371,7 @@ commands, inside `.venv`:
 `child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. One command, inside
 `.venv`:
 
-    mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
 
 - **What it needs**: the pinned Synthea population in the data root, which `make synthea`
   generates and the command never does. It fetches UCI Heart Disease, Diabetes 130 and the pinned
@@ -1723,8 +1724,8 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
-- **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest run of
-  each such entry also has a folder whose files are hard links to those artifacts, with write
+- **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest such
+  run of each entry also has a folder whose files are hard links to those artifacts, with write
   permission removed: `e1-3`, `c1-2`, `c1-2-closure`, `g1-13`, `e2-5`, `r1-2` and `e10-37`. A
   hard link is the same file under a second name, sharing its bytes and its mode, so the row's
   paths, sha256 and commands stay true; `c1-2`'s live check, a pytest directory, stays only where its row says. Never

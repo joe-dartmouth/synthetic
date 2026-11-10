@@ -274,6 +274,22 @@ new paid re-pilot that passes its gate before any full run.
 
 **Sources.** None in the brief or the 2-pager.
 
+## Downstream runs at `profile` guidance
+
+**What it is.** Every run of record whose BKO arms generate through `SETTINGS` reruns with
+`SETTINGS.guidance` at `profile`, the level G3's rule picks when each level is read against its
+`ontology` replicate ([EVIDENCE.md](EVIDENCE.md#g3-guidance-level)): E1, E3, E4 and E5 on UCI
+Heart Disease and Synthea, E6 and E10 on Diabetes 130, and the readings of those runs, E7's and
+E8's among them. Each is at `summary` now.
+
+**Why it is not in the plan.** G3's rerun keeps `summary`, a stated departure from its rule: beside
+E1's run of record `profile` and `summary` cannot be told apart, and every run of record is at
+`summary`. Adopting `profile` changes what each call sends, so, per this file's header, it means
+changing [RESEARCH.md](RESEARCH.md) first, then `SETTINGS`, a new tag and paid reruns of each named
+run above under its own spend ceiling.
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

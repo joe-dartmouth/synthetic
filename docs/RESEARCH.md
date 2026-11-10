@@ -287,16 +287,15 @@ guidance:
 
 - **Too few test records move a reading.** Each holdout holds out 59 of its 297 records, so the
   flagged subgroups' recall changes on a handful of holdouts: in the judged run it differs from
-  the non-generative comparators' on 1 to 6 of 100 holdouts, and every primary and secondary
-  interval contains zero with upper bounds up to about +0.06
-  ([E1](EVIDENCE.md#e1-uci-heart-disease-augmentation), Result). An effect smaller than
-  that cannot be read.
+  the non-generative comparators' on a few of 100 holdouts, and every primary and secondary
+  interval contains zero ([E1](EVIDENCE.md#e1-uci-heart-disease-augmentation), Result, holds the
+  counts and the bounds). An effect smaller than those intervals' half-widths cannot be read.
 - **Its thin cells carry no missing signal.** The flagged cells are thin by count, but a
   classifier learns the label from 13 strong features over the whole split, so added rows that
   follow the training rows change little: every guidance level, from the cell and its bounds alone
   to the ontology chains and the reference group's summary, gives the logistic regression a mean
-  recall and AUC-PR over all records within about 0.005 of each other's, and a flagged-subgroup
-  recall within about 0.008 ([G3](EVIDENCE.md#g3-guidance-level), Result).
+  recall and AUC-PR over all records, and a flagged-subgroup recall, close to each other's
+  ([G3](EVIDENCE.md#g3-guidance-level), Result, holds the per-level means).
 - **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied 457
   of 5900 held-out test records word for word, in 98 of 100 holdouts, where Haiku 5.5's copied 1, so
   decontamination shrinks each holdout's test split and a cross-run pairing loses its holdouts

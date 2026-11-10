@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-08
+updated: 2026-11-10
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -32,7 +32,7 @@ and `g7-4`), where the curated arm runs.
 * **The gate is fixed before it runs**, with its failure reading, so its result cannot shape it.
 * **Both halves of the split carry the training cell mix**, so the contrast reads the score and not
   which cells it favours.
-* **The free measurement reads the judged run's own file**, not a rerun or another run.
+* **The free measurement reads a judged run's own file**, not a rerun or another run.
 
 ## Decision
 
@@ -124,8 +124,8 @@ effort; a record at minus infinity sorts last and stays in its cell's bottom hal
 | Ranking the whole pool rather than each cell | the halves would differ in cell mix, and fidelity would read that | 2026-10-31 |
 | Excluding holdouts with tied scores at the median | shrinks the paired sample; the sha256 order breaks ties without favouring a call | 2026-10-31 |
 | Breaking ties by `(call, position)` | favours early calls | 2026-10-31 |
-| Replaying `e1-4` to a schema-2 file first | the gate would read a rewritten file, not the judged run's own | 2026-10-31 |
-| `g5-1`'s candidates as the input | not the judged run | 2026-10-31 |
+| Replaying `e1-4` to a schema-2 file first | the gate would read a rewritten file, not `e1-4`'s own | 2026-10-31 |
+| `g5-1`'s candidates as the input | not E1's judged run, which was `e1-4` when the gate read it | 2026-10-31 |
 | A failed gate on one frame as no curated arm anywhere | the score ranks within a frame's cells, so each frame's candidates decide its arm; Diabetes 130 separates where UCI did not | 2026-11-05 |
 
 ## Enforcement

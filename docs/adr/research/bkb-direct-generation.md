@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-05
+updated: 2026-11-10
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -121,11 +121,11 @@ record draw at the label group. `bko-direct` records closure rather than reading
 because the ontology fragments carry no prior: forcing an ancestor's row would assert values no
 share supports.
 
-Run `g2-2` over E1's 100 holdouts
+Run `g2-4` over E1's 100 holdouts
 ([EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb), G2) measured validity
 1.0000 with 0 drops and no attempt refused; 0 test copies; replica quality, column shapes and
 column pair trends 0.9295, 0.9681 and 0.8910; and a privacy margin of +0.0375 [0.0154, 0.0597]
-(the `unjudged criterion=privacy` line of `runs/g2-2/criteria.log`), added rows sitting closer to
+(the `unjudged criterion=privacy` line of `runs/g2-4/criteria.log`), added rows sitting closer to
 the training rows than `bko`'s.
 
 ## Consequences
