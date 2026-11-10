@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-09
+updated: 2026-11-10
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 

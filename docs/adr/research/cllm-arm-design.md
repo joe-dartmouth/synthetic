@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-09
+updated: 2026-11-10
 ---
 # The CLLM arms: training records shown per cell, a boosting curator's drop rule, and an egress guard on every Messages arm
 
@@ -253,17 +253,17 @@ an agreement that grants no permission to send them.
 - A model shown records can copy them; the `training` lines count an arm's rows equal to a
   training row and the `copies` lines its rows equal to a test record, as for every arm.
 - The curator is fit on the same training rows the shown records come from.
-- The budget rests on B3's `cllm` keep shares on Synthea
+- The budget rests on `b3-3`'s `cllm` keep shares on Synthea
   (`runs/b3-3/holdout-candidates.jsonl`; each share is the rows kept or dropped for the quota over
   those plus the rows dropped by curation): 0.5370 overall against the proxy pilot's 0.8856, and
   under half in five fills and cells, replica `<65/female/1` 0.0707 (1437 of 20314), replica
   `>=65/female/1` 0.0976 (366 of 3750), gap `>=65/female/1` 0.1276 (1348 of 10564), replica
   `>=65/male/0` 0.1543 (2666 of 17276) and replica `<65/male/1` 0.2074 (4504 of 21718). The
   budget rule on its least share gives `ceil(1.5 / 0.0707)` = 22, `CLLM_BUDGET`.
-- `b3-1` to `b3-3` asked at the proxy pilot's budget of 9, and their curating calls asked each cell's
-  shortfall, as a non-curating arm's still do (`tests/test_evaluate_cllm.py` pins that split). A
-  call log replays only against the code that asks its calls, so B3's `cllm` call logs replay at
-  their run commits, the replay-commit rule of ADR
+- `b3-1` to `b3-3` asked at the proxy pilot's budget of 9, and their curating calls asked each
+  cell's shortfall, as a non-curating arm's still do (`tests/test_evaluate_cllm.py` pins that
+  split). A call log replays only against the code that asks its calls, so their `cllm` call logs
+  replay at their run commits, the replay-commit rule of ADR
   [`research/call-log-replay`](call-log-replay.md), and their rows in `docs/EVIDENCE.md` hold at
   those commits; the rerun's `b3-4` and `b3-5`, at `CLLM_BUDGET` 22, hold at `run/rerun-1`.
 - The call log names `SETTINGS`' guidance level for calls whose prompt reads none.

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-18
-updated: 2026-11-09
+updated: 2026-11-10
 ---
 # Record generation: one request per cell at a chosen guidance level, every asked record handed on
 
@@ -99,8 +99,12 @@ ladder.**
   - `findings`: the ontology gap findings for the cell;
   - `ontology`: their `is_a` chains;
   - `profile`: the reference group's concept shares;
-  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses
-    ([G3](../../EVIDENCE.md#g3-guidance-level) holds the guidance-level reading).
+  - `summary`: the reference group's numeric spreads, the level `SETTINGS` uses. Every run of
+    record is at `summary`. In the rerun at `run/rerun-1`, G3's rule, reading each level against
+    `ontology`, picks `profile`; the rerun kept `summary`, a stated departure from the rule
+    decided after the readings were seen, because beside E1's `e1-5` the two levels cannot be
+    told apart ([G3](../../EVIDENCE.md#g3-guidance-level)). Adopting `profile` is an
+    [IDEAS.md](../../IDEAS.md#downstream-runs-at-profile-guidance) entry.
 - **The findings.** `bko.generate.guidance.guide` reads a cell's findings from its gaps under the
   run's definition (ADR [`research/bko-formal-gap-definition`](bko-formal-gap-definition.md)).
   A cell with no gap is guided by the statements its own records ground, and a cell with neither
@@ -231,10 +235,10 @@ training split's minimum and maximum (ADR
 [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), so a wider bound costs top-up
 calls. `e1-3`'s `bko` dropped 5840 of 31643 generated records as outside it, `g3-5`'s
 (`summary` level) dropped 3805 of 29617, and `e1-4`'s, with the training split's bounds in the
-prompt, dropped 0 of 25825 (the `validity arm=bko` lines of `runs/e1-3/criteria.log`,
-`runs/e1-4/criteria.log` and `runs/g3-5/criteria.log`; E1's judged run is in
-[E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Result). The bounds are two training values per field;
-see Consequences for what that exposes.
+prompt, dropped 0 of 25825 (the `dropped_range=` field of the `validity` line for arm `bko` in
+`runs/e1-3/criteria.log`, `runs/e1-4/criteria.log` and `runs/g3-5/criteria.log`; E1's judged
+run is in [E1's](../../EVIDENCE.md#e1-uci-heart-disease-augmentation) Result). The bounds are
+two training values per field; see Consequences for what that exposes.
 
 A placeholder per missing record keeps validity's denominator at what was asked for, so a refusal
 or a short array lowers validity rather than vanishing. `None` cannot be the placeholder, since a
@@ -310,7 +314,7 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 | The frame's plausible ranges as the prompt's bounds | The drop rule keeps only rows inside the split's range, so wider bounds cost top-ups: `e1-3` 5840 of 31643, `g3-5` 3805 of 29617 | 2026-10-27 |
 | The split's range in the system prompt | One system text per holdout, age carrying two ranges, and a frame-keyed cache serving stale text | 2026-10-27 |
 | Each cell's own minimum and maximum | Narrower than the drop rule enforces, and more training values leave the machine | 2026-10-27 |
-| `ontology` as SETTINGS' level | G3 found `summary`'s replica fidelity gain ([G3](../../EVIDENCE.md#g3-guidance-level)) | 2026-10-28 |
+| `ontology` as SETTINGS' level | `summary`'s replica column shapes read above `ontology`'s: +0.026684 [0.019066, 0.034301] in the rerun, `g3-11` against `g3-12` ([G3](../../EVIDENCE.md#g3-guidance-level)) | 2026-10-28 |
 | Replacing `bko`'s prompt with the prescribed lines | `bko` stays the in-run control the skeleton arm is read beside | 2026-10-27 |
 | Prescriptions on `Guidance` | `Guidance` is per cell, while lines are per call | 2026-10-27 |
 | Redrawing lines on a top-up | It selects toward the concept sets the model fills easily | 2026-10-27 |
@@ -331,9 +335,9 @@ a non-streaming call above 21,333 `max_tokens`; `max_tokens` is 16000.
 ## Reversal Conditions
 
 **The schema loosens if a judged run reports no `range:` failure and the team wants validity to
-measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`. `e1-4`'s `scores.log`
-holds no `range:` rejection in its `validated` lines, and `docs/EVIDENCE.md` does not hold its
-per-check counts.
+measure codes**; the check is the run's per-check counts in `docs/EVIDENCE.md`. `e1-5`'s
+`scores.log` holds no `range:` rejection in its `validated` lines, and `docs/EVIDENCE.md` does not
+hold its per-check counts.
 
 ## Related
 

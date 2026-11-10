@@ -1371,7 +1371,7 @@ commands, inside `.venv`:
 `child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. One command, inside
 `.venv`:
 
-    mkdir -p runs/d2-1 && test ! -e runs/d2-1/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/d2-1/contradictions.csv 2> runs/d2-1/contradictions.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
 
 - **What it needs**: the pinned Synthea population in the data root, which `make synthea`
   generates and the command never does. It fetches UCI Heart Disease, Diabetes 130 and the pinned

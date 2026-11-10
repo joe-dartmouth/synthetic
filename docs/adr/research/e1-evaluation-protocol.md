@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-09
+updated: 2026-11-10
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-28
-updated: 2026-11-09
+updated: 2026-11-10
 ---
 # The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference
 
