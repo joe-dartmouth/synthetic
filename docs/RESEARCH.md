@@ -296,11 +296,11 @@ guidance:
   to the ontology chains and the reference group's summary, gives the logistic regression a mean
   recall and AUC-PR over all records, and a flagged-subgroup recall, close to each other's
   ([G3](EVIDENCE.md#g3-guidance-level), Result, holds the per-level means).
-- **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied 457
-  of 5900 held-out test records word for word, in 98 of 100 holdouts, where Haiku 5.5's copied 1, so
-  decontamination shrinks each holdout's test split and a cross-run pairing loses its holdouts
-  ([G6](EVIDENCE.md#g6-generator-model)); a generator's knowledge here is partly recall of this
-  dataset.
+- **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied
+  held-out test records word for word in every holdout, where Haiku 5.5's copied almost
+  none, so decontamination shrinks each holdout's test split and a cross-run pairing loses its
+  holdouts ([G6](EVIDENCE.md#g6-generator-model), Result, holds the counts); a generator's
+  knowledge here is partly recall of this dataset.
 
 A frame that can read a difference needs a subgroup with enough test positives per holdout to
 move an interval, a gap that leaves count-based methods little or nothing to copy (a subgroup's

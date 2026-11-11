@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-09
+updated: 2026-11-11
 ---
 # On-device generators: a llama.cpp server on the loopback interface, weights fixed by digest
 
@@ -168,7 +168,7 @@ lines of `python -m bko.generate.local probe <model>`).
 | A `Settings.thinking` field | A model id already selects the send, the price and the weights; a variant id keeps thinking out of every API run's settings | 2026-11-01 |
 | A `NamedRun` field for thinking | The same: the run's model id carries it | 2026-11-01 |
 | Wall-time cost | The user's decision: wall time depends on the machine, so compute cost is tokens and FLOPs | 2026-11-01 |
-| Thinking-off control runs on holdouts 0 to 4 | `g6-2` and `g6-3` hold that result | 2026-11-01 |
+| Thinking-off control runs on holdouts 0 to 4 | `g6-8` and `g6-9` hold that result | 2026-11-01 |
 | Reading the reasoning setting from `/props` | Build 11960 reports none: its `/props` reads the same under `--reasoning on`, `--reasoning off` and `--reasoning-format none` (measured 2026-11-09) | 2026-11-09 |
 
 ## Enforcement

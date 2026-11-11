@@ -4,7 +4,7 @@ Only the send is replaced: every call still goes through the real prompt, call l
 drops, candidates file, spend ceiling, projection and scoring. `CannedSend` answers each call with
 exactly the records it asks for, all in the call's own cell (sex and target from the `Call`, age
 from the interval its user turn names), all valid, all inside every holdout's training range, and
-none equal to a real record, each billed at the judged run `e1-4`'s tokens per record asked; a
+none equal to a real record, each billed at `e1-4`'s tokens per record asked; a
 rewrite call gets each of its rows back as sent. A
 prescribing call's records each show exactly the concepts its record line names, by the run's field
 rows (`bko.generate.skeleton`), so a rehearsal drops none for concepts. Its

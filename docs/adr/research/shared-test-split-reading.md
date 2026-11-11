@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-01
-updated: 2026-11-05
+updated: 2026-11-11
 ---
 # A run is read beside another on the test split neither copies, rescored from both runs' own files
 
@@ -11,9 +11,9 @@ updated: 2026-11-05
 `compare --beside` pairs a holdout only when no arm in either file copied a test record there,
 because each run removes from its test split every record any of its own arms copied, so two runs
 that copy different records score on different splits (ADR `research/e1-evaluation-protocol`). G6
-reads each generator run beside `e1-4`'s `bko`. A run whose arms copy test records on many
-holdouts leaves few holdouts to pair, and the comparison then rests on the holdouts where the
-generator happened not to copy.
+reads each generator run beside `e1-5`'s `bko`. A run whose arms copy test records on many
+holdouts leaves few holdouts to pair, or none, and the plain reading then refuses; with few, the
+comparison rests on the holdouts where the generator happened not to copy.
 
 Each run's folder already holds what its scores were built from: the `scores.log` names the data,
 the experiment, each holdout's split and each arm's rows by sha256, the candidates file holds every
@@ -108,7 +108,7 @@ name. Reading per pair keeps each pair's split as large as its two runs allow.
 
 ## Consequences
 
-**Gained**: G6's generators read beside `e1-4` on every holdout whose other rows match, at no
+**Gained**: G6's generators read beside `e1-5` on every holdout whose other rows match, at no
 cost, from files already on disk; the plain `--beside` reading stays beside it.
 **Accepted**: each pair's test split differs from the next pair's, so readings of two pairs are
 not on one split; the rescore holds on one machine at the run's data, releases and a commit whose

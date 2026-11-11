@@ -782,8 +782,8 @@ def test_b3_runs_hold_bko_and_both_cllm_arms():
 def test_each_b3_ceiling_covers_its_estimate(name, per_arm, calls, tokens, asks):
     """`docs/EVIDENCE.md` (B3) states the estimate: per arm, `e1-4`'s and `e3-4`'s Messages spend,
     `asks` the pilot's records asked per requested row for the curated arm, and 20 shown records of
-    `tokens` input tokens each per call at the model's input rate. B3 ran at a CLLM budget of 9,
-    before `CLLM_BUDGET` moved to 22, so the estimate reads its pilot's asks, not the budget."""
+    `tokens` input tokens each per call at the model's input rate. `b3-1` to `b3-3` ran at a CLLM
+    budget of 9, not `CLLM_BUDGET`'s 22, so the estimate reads its pilot's asks, not the budget."""
     arms = per_arm * (1 + asks + 1)
     shown = calls * (asks + 1) * SHOW * tokens * price_of(SETTINGS.model).input / 1e6
     assert 1.25 * (arms + shown) <= RUNS[name].experiment.spend_ceiling

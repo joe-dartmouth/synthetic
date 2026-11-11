@@ -117,7 +117,7 @@ _HEADERS: Final[Mapping[int, frozenset[str]]] = MappingProxyType(
         4: frozenset({"kind", "schema", "run", "frame", "data", "releases"}),
     }
 )
-"""Each readable schema's header keys besides `settings`: schema 1, the judged run's, names UCI's
+"""Each readable schema's header keys besides `settings`: schema 1, `e1-4`'s, names UCI's
 archive digest under `uci`; schemas 2 to 4 name the frame and the records' digest."""
 
 _SETTINGS: Final = "settings"
