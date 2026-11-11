@@ -228,13 +228,13 @@ the sign-off.
 ## A full thinking-on local run
 
 **What it is.** G6's 100-holdout runs of Gemma 4 26B-A4B and Nemotron 3 Nano 30B-A3B with
-thinking on, at their `-thinking` model ids, read beside G6's thinking-off runs and `e1-4` on every
+thinking on, at their `-thinking` model ids, read beside G6's thinking-off runs and `e1-5` on every
 E1 measure ([EVIDENCE.md](EVIDENCE.md#g6-generator-model)).
 
 **Why it is not in the plan.** G6's thinking-cost runs measure thinking on over holdouts 0 to 4
 alone, for tokens and FLOPs (ADR
 [research/local-generator-backend](adr/research/local-generator-backend.md)). Such a run first has
-to decide how a thinking reply fits `max_tokens`: in `g6-6` most of Nemotron's replies stopped
+to decide how a thinking reply fits `max_tokens`: in `g6-12` most of Nemotron's replies stopped
 at `max_tokens` with no record decoded, and the fill asked those records again, so its projected
 compute depends on that choice. Either fix changes what a call sends: raise `max_tokens` for a
 `-thinking` id, or budget its reasoning so the answer fits. Adopting it means changing

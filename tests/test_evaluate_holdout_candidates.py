@@ -599,7 +599,7 @@ SCHEMA_1_HEADER: Final = {
     "settings": dataclasses.asdict(SETTINGS) | {"guidance": str(SETTINGS.guidance)},
     "uci": UCI_HEART_DISEASE.sha256,
 }
-"""A schema-1 header, as the judged run `e1-4` wrote: UCI's archive digest in place of a frame."""
+"""A schema-1 header, as `e1-4` wrote: UCI's archive digest in place of a frame."""
 
 
 def test_a_schema_1_file_reads_with_its_uci_digest_checked():

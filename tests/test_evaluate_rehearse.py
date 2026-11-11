@@ -92,7 +92,7 @@ def _cells(frame: pd.DataFrame) -> set[tuple[str, str, int]]:
     return {(str(a), str(s), int(t)) for a, s, t in keys.itertuples(index=False)}
 
 
-def test_the_tokens_per_record_are_the_judged_runs():
+def test_the_tokens_per_record_are_e1_4s():
     # e1-4's call log end line: input and output tokens over records asked (docs/EVIDENCE.md, E1).
     assert (
         round(23287576 / 77487),

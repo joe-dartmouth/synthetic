@@ -36,19 +36,3 @@ passes close enough to pay it.
 `tests/test_cleanup_backlog.py` enforces the key form, the topic set, unique keys, that every cited
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
-
-## evaluate
-
-- **`cleanup:evaluate/judged-run-wording`: docstrings call `e1-4` the judged run.** E1's judged
-  run is now `e1-5` ([EVIDENCE.md](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)),
-  yet `src/bko/evaluate/rehearse.py:7` reads "the judged run `e1-4`'s tokens per record asked",
-  `src/bko/evaluate/holdout_candidates.py:120` "schema 1, the judged run's",
-  `tests/test_evaluate_holdout_candidates.py:602` "as the judged run `e1-4` wrote", and
-  `tests/test_evaluate_rehearse.py` names a test `test_the_tokens_per_record_are_the_judged_runs`;
-  `tests/test_evaluate_experiment.py:782` says B3 ran at a CLLM budget of 9, true of `b3-1` to
-  `b3-3` only. The constants stay on `e1-4`, a fixed basis. *Filed 2026-11-10 by the diff review
-  of PR #102.*
-  **Why deferred.** PR #102 records results and changes docs only.
-  **What discharges it:** each docstring and the test name name `e1-4` (or `b3-1` to `b3-3`)
-  rather than the judged run.
-  **Trigger:** Results PR C of the rerun plan, or the next change to `bko.evaluate.rehearse`.
