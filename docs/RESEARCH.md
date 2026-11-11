@@ -297,7 +297,7 @@ guidance:
   recall and AUC-PR over all records, and a flagged-subgroup recall, close to each other's
   ([G3](EVIDENCE.md#g3-guidance-level), Result, holds the per-level means).
 - **The generators know it.** The archive is public and old. Sonnet 5.5's replica fills copied
-  held-out test records word for word in nearly every holdout, where Haiku 5.5's copied almost
+  held-out test records word for word in every holdout, where Haiku 5.5's copied almost
   none, so decontamination shrinks each holdout's test split and a cross-run pairing loses its
   holdouts ([G6](EVIDENCE.md#g6-generator-model), Result, holds the counts); a generator's
   knowledge here is partly recall of this dataset.

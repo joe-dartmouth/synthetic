@@ -12,8 +12,8 @@ updated: 2026-11-11
 because each run removes from its test split every record any of its own arms copied, so two runs
 that copy different records score on different splits (ADR `research/e1-evaluation-protocol`). G6
 reads each generator run beside `e1-5`'s `bko`. A run whose arms copy test records on many
-holdouts leaves few holdouts to pair, and the comparison then rests on the holdouts where the
-generator happened not to copy.
+holdouts leaves few holdouts to pair, or none, and the plain reading then refuses; with few, the
+comparison rests on the holdouts where the generator happened not to copy.
 
 Each run's folder already holds what its scores were built from: the `scores.log` names the data,
 the experiment, each holdout's split and each arm's rows by sha256, the candidates file holds every
