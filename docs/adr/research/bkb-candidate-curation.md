@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-10
+updated: 2026-11-12
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -21,9 +21,9 @@ A curated arm costs a multiple of one arm's spend, since it asks for more record
 Whether the score separates records that match the real cell from records that do not can be
 measured first, for free, on the candidates a judged run already generated: each frame's judged
 run keeps every `bko` candidate per holdout in its `holdout-candidates.jsonl`. The gate reads one
-frame's candidates at a time. It did not separate on UCI Heart Disease (`e1-4`) and separates on
-Diabetes 130 (`e6-thin`; [EVIDENCE.md](../../EVIDENCE.md#g7-bkb-likelihood-curation) G7, `g7-3`
-and `g7-4`), where the curated arm runs.
+frame's candidates at a time. It did not separate on UCI Heart Disease (`e1-5`, `g7-5`) and
+separates on Diabetes 130 (`e6-thin`; [EVIDENCE.md](../../EVIDENCE.md#g7-bkb-likelihood-curation)
+G7, `g7-6`), where the curated arm runs.
 
 ## Decision Drivers
 
@@ -80,13 +80,14 @@ fidelity on all three measures** over that frame's candidates.
     `bko.evaluate.ranking.Scorers` builds each cell's likelihood from one holdout's training
     rows: the arm builds one per attempt, and the gate one per holdout.
   - Its run holds `none`, `real` and `bko-curated`, on E6's frame and removal, and pairs `beside`
-    with `e6-22`: both keep copies (`decontaminate=False`), so their splits are identical.
+    with `e6-thin`'s merged scores (`e6-46`): both keep copies (`decontaminate=False`), so their
+    splits are identical.
 - **Input.** The named run's candidates files as written, one or more slices, over the named run's
   holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schemas 1 to 4,
-  checking a schema-1 file's `uci` digest against UCI Heart Disease's. UCI's input is `e1-4`'s
+  checking a schema-1 file's `uci` digest against UCI Heart Disease's. UCI's input is `e1-5`'s
   `holdout-candidates.jsonl` (the gate did not separate); Diabetes 130's is `e6-thin`'s `bko`
   replica candidates, repeated `--candidates` files read with `--data-dir` (the gate
-  separates, and the arm's run is `e6-24`).
+  separates, and the arm's run is `e6-45`).
 
 ## Rationale
 
