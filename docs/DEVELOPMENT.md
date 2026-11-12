@@ -619,7 +619,8 @@ start or the supervisor cannot run.
   Replay each run at its own commit (its `versions` line names it), or at a replay commit whose
   `git diff --stat <run commit> <replay commit> -- src` lists only the reply-text reader's
   files, `src/bko/generate/messages.py` and `src/bko/generate/local.py`, named by a pushed
-  `replay/<name>` tag; G6's local runs replay at `replay/g6-local` (ADR
+  `replay/<name>` tag; `g6-2`'s to `g6-4`'s call logs replay at `replay/g6-local`, and the
+  rerun's local runs, `g6-8` to `g6-12`, replay at their own commit, `run/rerun-1` (ADR
   [`research/call-log-replay`](adr/research/call-log-replay.md)). `b3-1`'s to `b3-3`'s call
   logs replay at their run commits only: their `cllm` calls asked at a budget of 9 with
   shortfall-sized asks, which later code does not ask; `b3-4`'s and `b3-5`'s replay at

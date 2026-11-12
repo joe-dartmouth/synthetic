@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-19
-updated: 2026-11-09
+updated: 2026-11-12
 ---
 # A paid run's call log answers its rerun, and a stopped run's log its resumption, call by call in order
 
@@ -108,7 +108,8 @@ rows in `docs/EVIDENCE.md`).
   run's commit plus changes to the reply-text reader alone, so
   `git diff --stat <run commit> <replay commit> -- src` lists only `src/bko/generate/messages.py`
   and `src/bko/generate/local.py`. A replay commit carries a tag `replay/<name>` pushed to
-  origin; G6's local runs replay at `replay/g6-local`.
+  origin; `g6-2` to `g6-4` replay at `replay/g6-local`, and the rerun's local runs, `g6-8` to
+  `g6-12`, at their own commit, `run/rerun-1`.
 
 ## Rationale
 
