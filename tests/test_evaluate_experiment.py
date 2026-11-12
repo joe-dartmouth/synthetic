@@ -491,7 +491,7 @@ def test_e6_curated_ceiling_covers_its_estimate():
     assert removal is not None
     assert E6_THIN.replica_rows is not None
     removed = removed_count(removal.fraction, E6_CURATED.fill_to)
-    measured_usd, measured_asked = 104.537, 326_621  # e6-thin's measured spend and rows asked
+    measured_usd, measured_asked = 104.537, 326_621  # e6-2..e6-11's bko spend, rows asked
     planned = len(E6_THIN.holdout_seeds) * (removed + E6_THIN.replica_rows)
     rate = measured_usd / measured_asked
     asked = MESSAGES_ARMS[CURATED_ARM].over_ask * removed * measured_asked / planned

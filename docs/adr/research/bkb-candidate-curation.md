@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-31
-updated: 2026-11-10
+updated: 2026-11-12
 ---
 # The BKB likelihood of a candidate, and the free gate that decides whether it curates
 
@@ -21,9 +21,9 @@ A curated arm costs a multiple of one arm's spend, since it asks for more record
 Whether the score separates records that match the real cell from records that do not can be
 measured first, for free, on the candidates a judged run already generated: each frame's judged
 run keeps every `bko` candidate per holdout in its `holdout-candidates.jsonl`. The gate reads one
-frame's candidates at a time. It did not separate on UCI Heart Disease (`e1-4`) and separates on
-Diabetes 130 (`e6-thin`; [EVIDENCE.md](../../EVIDENCE.md#g7-bkb-likelihood-curation) G7, `g7-3`
-and `g7-4`), where the curated arm runs.
+frame's candidates at a time. It did not separate on UCI Heart Disease and separates on Diabetes
+130 (`e6-thin`), where the curated arm runs;
+[EVIDENCE.md](../../EVIDENCE.md#g7-bkb-likelihood-curation) G7 holds the runs and their readings.
 
 ## Decision Drivers
 
@@ -55,8 +55,9 @@ fidelity on all three measures** over that frame's candidates.
 - **Gate.** Quality, column shapes and column pair trends (`bko.evaluate.fidelity`) of the pooled
   tops and of the pooled bottoms against the holdout's training rows, paired top minus bottom over
   E1's 100 holdouts, each with the corrected interval of `bko.evaluate.criteria` at `E1.confidence`
-  (family 3) and the largest held-out ratio, as the criteria take it. The gate is separated when all three intervals lie above 0. A failure reads as "the
-  score does not separate fidelity at the median", and no curated arm runs on that frame.
+  (family 3) and the largest held-out ratio, as the criteria take it. The gate is separated when all
+  three intervals lie above 0. A failure reads as "the score does not separate fidelity at the
+  median", and no curated arm runs on that frame.
 - **Diagnostic.** Each concept's share in the top half, the bottom half and the training rows,
   logged beside the gate.
 - **Home.** The shares and the score live in `bko.gaps` (`shares.py`, `likelihood.py`), which owns
@@ -80,13 +81,14 @@ fidelity on all three measures** over that frame's candidates.
     `bko.evaluate.ranking.Scorers` builds each cell's likelihood from one holdout's training
     rows: the arm builds one per attempt, and the gate one per holdout.
   - Its run holds `none`, `real` and `bko-curated`, on E6's frame and removal, and pairs `beside`
-    with `e6-22`: both keep copies (`decontaminate=False`), so their splits are identical.
+    with `e6-thin`'s merged scores: both keep copies (`decontaminate=False`), so their
+    splits are identical.
 - **Input.** The named run's candidates files as written, one or more slices, over the named run's
   holdouts (`--candidates` repeats): `holdout_candidates.read` accepts schemas 1 to 4,
-  checking a schema-1 file's `uci` digest against UCI Heart Disease's. UCI's input is `e1-4`'s
+  checking a schema-1 file's `uci` digest against UCI Heart Disease's. UCI's input is E1's
   `holdout-candidates.jsonl` (the gate did not separate); Diabetes 130's is `e6-thin`'s `bko`
   replica candidates, repeated `--candidates` files read with `--data-dir` (the gate
-  separates, and the arm's run is `e6-24`).
+  separates, and the arm runs as `e6-curated`).
 
 ## Rationale
 
@@ -113,8 +115,8 @@ that owns the fused fragments, read by the sampler and the score alike.
 **Accepted**: the curated arm exists per frame, where that frame's gate separates, and UCI has
 none; `bko-curated` drops a row outside its call's cell, which `bko` keeps when the request
 asks for its cell; the score sees only mapped concepts, so two records with the same concepts score
-the same whatever their numeric fields; each gate reads one generator's candidates, at its run's level and
-effort; a record at minus infinity sorts last and stays in its cell's bottom half.
+the same whatever their numeric fields; each gate reads one generator's candidates, at its run's
+level and effort; a record at minus infinity sorts last and stays in its cell's bottom half.
 
 ## Ruled Out
 | Idea | Why ruled out | When |
