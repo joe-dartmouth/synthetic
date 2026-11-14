@@ -141,8 +141,8 @@ effect ([EVIDENCE.md](EVIDENCE.md#g7-bkb-likelihood-curation)).
 API, guided by ontology relationships, and its baselines are CTGAN, TVAE, SMOTE and ADASYN, so the
 CLLM arms run in B3's named runs, `b3-uci` and `b3-synthea`, with no verdict rather than among
 E1's comparators. For balance, the brief also cites "Why LLMs Are Bad at Synthetic Table Generation"
-[`llms-2024`][llms-2024] on the failure modes of in-context generation, which the Messages API
-approach is.
+[`llms-2024`][llms-2024]. Its experiments fine-tune; the in-context generation the Messages API
+approach uses appears in it only through a survey it cites.
 
 **Sources.** Brief TL;DR, B4, B6, F15 (bullet 1); 2-pager section 4. Details:
 [BACKGROUND.md](BACKGROUND.md#tabular-generator-families).
@@ -290,6 +290,28 @@ run above under its own spend ceiling.
 
 **Sources.** None in the brief or the 2-pager.
 
+## A threshold-shift comparator for E6
+
+**What it is.** An E6 arm that adds no rows. It fits on the thinned split as `none` does, then adds
+to the removed cell's log-odds the offset that the known removal fraction implies. Removing a
+fraction f of a cell's positives at random multiplies the cell's observed odds by 1 - f, so an
+offset of -log(1 - f) undoes it without new records; at f = 1.0 the offset is unbounded, so the
+arm reads f = 0.985 only. It asks how much of a row-adding arm's removed-cell recall,
+`bko-direct`'s included, comes from restoring the cell's risk level rather than from what its rows
+contain. Shifting an uncorrected model's threshold has given a balance of sensitivity and
+specificity similar to resampling's [`vandengoorbergh-2022`][vandengoorbergh-2022].
+
+**Why it is not in the plan.** E6 compares row-adding arms with `none` (ADR
+[research/diabetes-subgroup-removal-design](adr/research/diabetes-subgroup-removal-design.md)),
+and the classifier panel reads each arm's calibration without a verdict
+([EVIDENCE.md](EVIDENCE.md#e7-classifier-panel)). A threshold arm uses the removed count the design
+supplies, as every row-adding arm's fill does, and adopting it means a new arm and a change to
+[RESEARCH.md](RESEARCH.md) first.
+
+**Sources.** [`vandengoorbergh-2022`][vandengoorbergh-2022], which
+[RESEARCH.md section 7](RESEARCH.md#7-augmentation-versus-resampling) also cites; none in the brief
+or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694
@@ -302,5 +324,6 @@ run above under its own spend ceiling.
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [shacl-2025]: https://arxiv.org/abs/2507.22305
 [solatorio-2023]: https://arxiv.org/abs/2302.02041
+[vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
 [watson-2023]: https://arxiv.org/abs/2205.09435
 [zhang-2024]: https://arxiv.org/abs/2310.09656
