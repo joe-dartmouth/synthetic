@@ -1,6 +1,6 @@
 # Background
 
-Sources: [RESEARCH.md](RESEARCH.md), the plan of record; [Santos et al.](https://doi.org/10.1371/journal.pone.0296864), read on 2026-10-17; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record; [Santos et al.](https://doi.org/10.1371/journal.pone.0296864), read on 2026-10-17; the works under [Missing data and imputation](literature.md#missing-data-and-imputation), `llms-2024` and `gruenbaum-2026`, each read on 2026-11-14; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.
@@ -114,6 +114,69 @@ The uncertainty is held in conditional probability tables attached to ontology f
 
 Works: [Probabilistic ontologies and BKOs](literature.md#probabilistic-ontologies-and-bkos).
 
+## Missing data and imputation
+
+The plan works on data that should be there and is not, and the statistics of missing data name
+that problem and its standard fixes. That literature treats missing values, blank items inside
+records that exist. The plan's gaps are missing records, whole patients absent from a cell, so
+carrying its vocabulary over to records is this file's reading (general background).
+
+Rubin (1976) asked when an analysis may ignore the process that caused the missing data. He
+defined the missing data as missing at random (MAR) when, given the observed data, the probability
+of the observed pattern of missingness is the same whatever the missing values are. For likelihood
+and Bayesian inference, ignoring the process is appropriate when the data are MAR and the
+parameter of the missingness process is distinct from the parameter of the data. Seaman et al.
+show that Rubin's MAR is a statement about the data actually observed, and that methods which
+ignore the process are guaranteed valid in repeated samples only under a stronger, everywhere MAR.
+
+Van Buuren gives the working definitions:
+
+- **Missing completely at random (MCAR).** The probability of being missing is the same for all
+  cases.
+- **Missing at random (MAR).** The probability of being missing is the same only within groups
+  defined by the observed data.
+- **Missing not at random (MNAR).** Neither holds; some authors write NMAR.
+
+In his simulated example the missing and observed values look alike under MCAR and grow more
+distinct toward MNAR. Listwise deletion, which drops every incomplete case, gives unbiased means,
+variances and regression weights under MCAR, and can severely bias means, regression coefficients
+and correlations when the data are not MCAR.
+
+Hernán et al. show the clinical form. In their cohort example, patients whose disease is more
+severe are more likely to miss visits and be lost to follow-up, and an analysis restricted to the
+patients with complete data is biased. They call it bias due to informative censoring.
+
+Imputation fills the gaps instead of dropping them. Hot-deck imputation replaces a nonrespondent's
+missing value with an observed value from a similar respondent: the nonrespondent is the
+recipient, the respondent the donor (Andridge and Little). A cold deck takes its donors from a
+different dataset. Donors are matched within adjustment cells or by a distance on covariates,
+which assumes MAR given the matching variables, and the hot deck needs at least some donors for
+each recipient. One donor for all of a recipient's missing items preserves the associations among
+them; separate donors per item do not. Van Buuren counts predictive mean matching, which always
+imputes values actually observed, as a hot-deck method.
+
+Synthetic data is imputation at the level of units. Rubin (1993) proposed releasing no actual
+microdata, only synthetic microdata built by multiple imputation: the confidential values of the
+population's unsampled units are treated as missing and imputed several times, and samples of the
+imputed units are released. He warned that a hot deck that simply redraws observed units would
+release actual confidential records. Raghunathan, Reiter and Rubin treat all data from nonsampled
+units as missing data for multiple imputation and give the rules for combining estimates across
+the synthetic datasets; the variance uses the spread between datasets, so it needs more than one.
+The plan's arms make the same move at a smaller scale, adding whole records to a thin cell
+(general background); [RESEARCH.md section 1](RESEARCH.md#1-problem-and-organizational-context)
+says why the project needs them.
+
+E6 removes records at random from within one cell (ADR
+[`research/diabetes-subgroup-removal-design`](adr/research/diabetes-subgroup-removal-design.md))
+and scores each arm on held-out test records, the cell's included
+([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). Within the cell the removal is
+MCAR, so E6's gap is MAR given the cell, a reading that needs each removed record's cell, which the
+design supplies (general background). The design also supplies how many records to add: each
+row-adding arm fills the cell back to its original count. A real gap supplies neither, and a gap
+made by informative censoring need not be MAR.
+
+Works: [Missing data and imputation](literature.md#missing-data-and-imputation).
+
 ## Gap detection
 
 The brief (A2) lists four ways to find where a dataset is incomplete relative to an ontology. The
@@ -222,17 +285,82 @@ What the literature says about relative performance, per the brief:
   first as "(n<100)"). The brief calls this the single most important finding for the team; its
   code is public. The plan runs it as a comparison arm
   ([IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators)).
-- **"Why LLMs Are Bad at Synthetic Table Generation"** argues that in-context LLM generation has
-  real failure modes and proposes fine-tuning fixes. The brief recommends citing it for balance.
+- **"Why LLMs Are Bad at Synthetic Table Generation"** (Xu et al., 2024) finds that LLMs, used as
+  they are or after traditional fine-tuning, model the functional dependencies between a table's
+  columns poorly, because they generate autoregressively and fine-tuning sees the columns in random
+  order.
+  It proposes permutation-aware fine-tuning, which orders columns by their dependencies. Its
+  experiments fine-tune; its account of in-context failures, such as lost tail distributions, is
+  cited from a survey. The brief recommends citing it for balance.
 - **A prosumer-hardware benchmark** (CODATA Data Science Journal 2025) gives head-to-head
   CTGAN/TVAE/GReaT numbers on imbalance, augmentation, privacy (DCR) and ML utility, which makes it
   a methodological template.
 
 The plan generates records by prompting a model through the Anthropic Messages API, which is
-in-context generation. The GPT-4o study's range violations and the in-context failure modes above
-are therefore the closest evidence for how the plan's generator can go wrong.
+in-context generation. The GPT-4o study's range violations and the in-context failures that Xu et
+al. (2024) cite are therefore the closest evidence for how the plan's generator can go wrong.
 
-Works: [Tabular generators](literature.md#tabular-generators).
+Gruenbaum et al. build structure first for enterprise data. One seeded entity graph supplies every
+simulated system, so each system's records are projections of the same graph, the estate is
+consistent, and every expected answer is computed from the final records. A language model takes
+part only in a one-time design phase; deterministic code creates the records. All six authors
+list Eon, the company behind Era.
+
+### Where `bko-direct` sits
+
+The plan's arms differ in what decides a new record's content.
+
+- **Per-concept shares and donor records.** `bko-direct` makes no API call. It draws which mapped
+  concepts a record shows, each at its own share, then copies the record's fields from real
+  training records that match the draw (ADR
+  [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)).
+- **A joint model fit on the training split.** CTGAN, TVAE, the Gaussian copula, sequential CART
+  and the Bayesian network draw rows and keep those that land in a stratum still short of its
+  quota (ADR
+  [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)). CART
+  and the Bayesian network copy each value from a donor row in a leaf or bin.
+- **Interpolation within a stratum.** SMOTE and ADASYN interpolate between a stratum's own
+  records, so a stratum of fewer than two records gets no rows from them.
+- **A model's prior.** The Messages arms ask a model for each cell's records a chunk at a time
+  (ADRs [`research/record-generation-design`](adr/research/record-generation-design.md) and
+  [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)), so what the data support and
+  what the model believes arrive mixed.
+
+`bko-direct` is closest to a hot deck with adjustment cells
+([Missing data and imputation](#missing-data-and-imputation)), with three differences (general
+background). It builds whole new records rather than filling items of an existing one. A seeded
+draw, not a match on a case's other variables, decides which concepts a record shows. And each
+field group, and each field outside the groups, takes its own donor: the separate-donor hot deck,
+which does not preserve associations across items.
+
+Its assumption is MAR-like in two parts (general background). A missing patient resembles the
+recorded patients of its cell. Where the cell is thin, it also resembles the patients with the same
+outcome across the label group, since the shares blend in the label group's and a field group with
+no matching cell record takes a label-group donor. E6 meets the cell part: its removed records are
+a random draw of the cell. The label-group part is what E6 tests, most plainly at full removal,
+where every share and every donor comes from the label group. A gap made by informative censoring
+can break both parts.
+
+Two points from the synthetic-data literature apply (general background). Copying observed values
+is the redraw Rubin (1993) warned releases real records, and E8 reads every row-adding arm's added
+rows for disclosure, this one included
+([EVIDENCE.md](EVIDENCE.md#e8-membership-inference-nndr-and-dcr-on-e6)). And each fill is one
+seeded draw, not the several datasets Raghunathan, Reiter and Rubin combine. The BKO records where
+the data are thin ([Incompleteness](#incompleteness-as-a-property-of-the-representation));
+`bko-direct` is a generator that fills the gap under its assumption, reading the data's concept
+shares and the mapping table, not the ontology's structure.
+
+Read against the structure-first work, `bko-direct` settles which concepts a record shows before
+its values, as Xu et al. (2024) order columns by their dependencies and Gruenbaum et al. derive
+records from one graph, and a seed reruns its draw (general background). It does not keep
+dependencies between values. Concepts are drawn independently apart from nested pairs, and its free
+fields can break implications between field values, such as the rule that a drug other than `No`
+implies `diabetesMed=Yes` ([IDEAS.md](IDEAS.md#coherent-free-field-draws-for-bko-direct)).
+`bko-skeleton` hands the values to a model: the same BKB draw prescribes each record's concepts,
+and the model writes the values (ADR
+[`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 9).
+
+Works: [Tabular generators](literature.md#tabular-generators); [Missing data and imputation](literature.md#missing-data-and-imputation).
 
 ## Failure modes and mitigations
 
@@ -298,8 +426,11 @@ Expansions marked (general background) are not given in the sources.
 | GReaT | An LLM-based tabular generator, fine-tuned (Borisov et al.) |
 | HPO | A phenotype ontology the plan loads as a fragment; Human Phenotype Ontology (general background) |
 | Knowledge-graph completion | Inferring missing edges in a knowledge graph (link prediction) |
+| MAR | Missing at random: the probability of being missing is the same within groups defined by the observed data (van Buuren) |
+| MCAR | Missing completely at random: the probability of being missing is the same for all cases (van Buuren) |
 | MEBN | Multi-Entity Bayesian Networks: a first-order probabilistic logic |
 | MFrag | A MEBN fragment, holding probabilistic knowledge |
+| MNAR | Missing not at random: neither MCAR nor MAR holds (van Buuren) |
 | MONDO | A disease ontology the plan loads as a fragment |
 | MTheory | A MEBN Theory: MFrags that together define a unique joint distribution |
 | NNDR | Nearest-Neighbor Distance Ratio; a privacy metric |
