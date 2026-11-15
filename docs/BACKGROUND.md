@@ -285,9 +285,10 @@ What the literature says about relative performance, per the brief:
   first as "(n<100)"). The brief calls this the single most important finding for the team; its
   code is public. The plan runs it as a comparison arm
   ([IDEAS.md](IDEAS.md#cllm-and-great-as-alternative-generators)).
-- **"Why LLMs Are Bad at Synthetic Table Generation"** (Xu et al.) finds that LLMs, used as they
-  are or after traditional fine-tuning, model the functional dependencies between a table's columns
-  poorly, because they generate autoregressively and fine-tuning sees the columns in random order.
+- **"Why LLMs Are Bad at Synthetic Table Generation"** (Xu et al., 2024) finds that LLMs, used as
+  they are or after traditional fine-tuning, model the functional dependencies between a table's
+  columns poorly, because they generate autoregressively and fine-tuning sees the columns in random
+  order.
   It proposes permutation-aware fine-tuning, which orders columns by their dependencies. Its
   experiments fine-tune; its account of in-context failures, such as lost tail distributions, is
   cited from a survey. The brief recommends citing it for balance.
@@ -296,8 +297,8 @@ What the literature says about relative performance, per the brief:
   a methodological template.
 
 The plan generates records by prompting a model through the Anthropic Messages API, which is
-in-context generation. The GPT-4o study's range violations and the in-context failures Xu et al. cite
-are therefore the closest evidence for how the plan's generator can go wrong.
+in-context generation. The GPT-4o study's range violations and the in-context failures that Xu et
+al. (2024) cite are therefore the closest evidence for how the plan's generator can go wrong.
 
 Gruenbaum et al. build structure first for enterprise data. One seeded entity graph supplies every
 simulated system, so each system's records are projections of the same graph, the estate is
@@ -350,11 +351,11 @@ the data are thin ([Incompleteness](#incompleteness-as-a-property-of-the-represe
 shares and the mapping table, not the ontology's structure.
 
 Read against the structure-first work, `bko-direct` settles which concepts a record shows before
-its values, as Xu et al. order columns by their dependencies and Gruenbaum et al. derive records
-from one graph, and a seed reruns its draw (general background). It does not keep dependencies
-between values. Concepts are drawn independently apart from nested pairs, and its free fields can
-break implications between field values, such as the rule that a drug other than `No` implies
-`diabetesMed=Yes` ([IDEAS.md](IDEAS.md#coherent-free-field-draws-for-bko-direct)).
+its values, as Xu et al. (2024) order columns by their dependencies and Gruenbaum et al. derive
+records from one graph, and a seed reruns its draw (general background). It does not keep
+dependencies between values. Concepts are drawn independently apart from nested pairs, and its free
+fields can break implications between field values, such as the rule that a drug other than `No`
+implies `diabetesMed=Yes` ([IDEAS.md](IDEAS.md#coherent-free-field-draws-for-bko-direct)).
 `bko-skeleton` hands the values to a model: the same BKB draw prescribes each record's concepts,
 and the model writes the values (ADR
 [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 9).
