@@ -3,7 +3,7 @@ id: evaluate-diabetes-control-results
 title: Run the Diabetes 130 control family and read each contrast's branch
 status: blocked
 depends_on: evaluate-control-runs-registered
-blocks: --
+blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
 paid: false

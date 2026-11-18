@@ -3,7 +3,7 @@ id: evaluate-synthea-direct-results
 title: Run bko-direct and the controls on Synthea beside E3
 status: blocked
 depends_on: evaluate-control-runs-registered
-blocks: --
+blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
 paid: false

@@ -17,8 +17,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 The harness asks each flagged cell for `fill_to - count` rows
-(`bko.evaluate.experiment.gap_request`), a constant unrelated to the model. A count derived from the fused shares and the neighbouring
-cells says how many rows a cell needs to be representative.
+(`bko.evaluate.experiment.gap_request`), a constant unrelated to the model. A count derived from
+the fused shares and the neighbouring cells says how many rows a cell needs to be representative.
 
 ## Scope
 

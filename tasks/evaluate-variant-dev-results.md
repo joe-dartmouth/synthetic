@@ -3,7 +3,7 @@ id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
 depends_on: generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution
-blocks: --
+blocks: evaluate-composite-arm
 parallel_safe: true
 milestone: direct-method-research
 paid: false

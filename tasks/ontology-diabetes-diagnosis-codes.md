@@ -17,8 +17,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 Diabetes 130's frame holds one indicator concept per ICD-9 category row and lab row of
-`bko.ontology.icd9`, twelve in all, which leaves the hierarchy almost nothing to do. Its three diagnosis fields
-(`bko.datasets.diabetes.DIAGNOSES`) hold several hundred ICD-9 codes. Unit
+`bko.ontology.icd9`, twelve in all, which leaves the hierarchy almost nothing to do. Its three
+diagnosis fields (`bko.datasets.diabetes.DIAGNOSES`) hold several hundred ICD-9 codes. Unit
 [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) needs a coded field that
 fine.
 

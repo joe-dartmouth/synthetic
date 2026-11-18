@@ -45,6 +45,25 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 | [`baselines-tabddpm`](baselines-tabddpm.md) | ready | -- | direct-method-research |
 
+### Datasets
+
+| Unit | Status | Depends on | Milestone |
+|---|---|---|---|
+| [`datasets-selection-rule`](datasets-selection-rule.md) | blocked | plan-direct-method-research | direct-method-research |
+| [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`datasets-support2-frame`](datasets-support2-frame.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | datasets-selection-rule, ontology-per-dataset-releases | direct-method-research |
+
+### Composite and confirmation
+
+| Unit | Status | Depends on | Milestone |
+|---|---|---|---|
+| [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
+| [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
+
 ```mermaid
 flowchart LR
     u1[plan-direct-method-research] --> u3[generate-no-mapping-ablation]
@@ -80,7 +99,24 @@ flowchart LR
     u18 --> u19
     u2 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
-    u22[baselines-tabddpm]
+    u1 --> u23[datasets-selection-rule]
+    u2 --> u24[ontology-per-dataset-releases]
+    u23 --> u25[datasets-support2-frame]
+    u23 --> u26[datasets-nhanes-frame]
+    u23 --> u27[datasets-acs-frame]
+    u24 --> u27
+    u19 --> u28[evaluate-composite-arm]
+    u21 --> u28
+    u28 --> u29[evaluate-composite-dev-results]
+    u7 --> u30[evaluate-confirmatory-registration]
+    u8 --> u30
+    u18 --> u30
+    u22[baselines-tabddpm] --> u30
+    u25 --> u30
+    u26 --> u30
+    u27 --> u30
+    u29 --> u30
+    u30 --> u31[evaluate-confirmatory-results]
 ```
 
 ## What every unit relies on

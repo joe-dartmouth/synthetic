@@ -3,7 +3,7 @@ id: plan-direct-method-research
 title: Write the direct-method study into the research plan
 status: ready
 depends_on: --
-blocks: generate-no-mapping-ablation, baselines-label-bootstrap, evaluate-prior-shift-comparator
+blocks: generate-no-mapping-ablation, baselines-label-bootstrap, evaluate-prior-shift-comparator, datasets-selection-rule
 parallel_safe: false
 milestone: direct-method-research
 paid: false

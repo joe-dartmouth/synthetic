@@ -19,8 +19,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 `bko-direct`'s narrow-without-broad draws follow the data's contradictions, and no arm lets the
 ontology weigh against them short of forcing the closure. ADR
 [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md) rules
-out forcing ancestors into `bko-direct`'s fields. This unit adds arms that shrink the data's
-conditional toward the `is_a` S-node, with the forced closure as one arm among them.
+out forcing ancestors into fields as the default. This unit adds arms that shrink the data's
+conditional toward the `is_a` S-node, with the forced closure, `bko-hier-closed`, as an ablation
+arm beside them.
 
 ## Scope
 
