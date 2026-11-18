@@ -5,7 +5,7 @@ change that found them, costs that do not bite at today's sizes, and gaps a late
 over. Each entry names its blocker when it has one.
 
 The research queue lives elsewhere: planned work is a task unit on a set's index
-([`experiments-index.md`](experiments-index.md)), and
+([`experiments-index.md`](experiments-index.md) or [`direct-index.md`](direct-index.md)), and
 unscheduled research is in
 [`docs/IDEAS.md`](../docs/IDEAS.md). An entry here is not on any plan. It waits for a change that
 passes close enough to pay it.

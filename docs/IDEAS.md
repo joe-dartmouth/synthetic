@@ -312,6 +312,9 @@ supplies, as every row-adding arm's fill does, and adopting it means a new arm a
 [RESEARCH.md section 7](RESEARCH.md#7-augmentation-versus-resampling) also cites; none in the brief
 or the 2-pager.
 
+The unit
+[`evaluate-prior-shift-comparator`](../tasks/evaluate-prior-shift-comparator.md) schedules it.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

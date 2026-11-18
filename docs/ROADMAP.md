@@ -2,9 +2,10 @@
 
 Sources: [RESEARCH.md](RESEARCH.md), the plan of record.
 
-The schedule is the 2-pager's timeline. It runs Oct 10 - Nov 25; the proposal is dated October 7,
-2026. The dependency-ordered work units, with their status, are in
-[tasks/experiments-index.md](../tasks/experiments-index.md).
+The schedule through the Final Report is the 2-pager's timeline. It runs Oct 10 - Nov 25; the
+proposal is dated October 7, 2026. The dependency-ordered work units, with their status, are in
+[tasks/experiments-index.md](../tasks/experiments-index.md) and
+[tasks/direct-index.md](../tasks/direct-index.md).
 
 Under each milestone, the Work column is the 2-pager's timeline row as written. The Workstream
 column names the member whose section 6 assignment covers that work; the 2-pager assigns
@@ -47,6 +48,11 @@ within it.
 |---|---|---|
 | Nov 14 - Nov 25 | Final evaluation: Slides, Demo Day; Final Report. | Joe (experiments); Krish (demo coordination); all members (final report and presentation) |
 
+## Direct-method research
+
+This milestone is the team's own; the 2-pager does not schedule it. It follows the Final Report
+and has no window set. Its units are in [tasks/direct-index.md](../tasks/direct-index.md).
+
 ## Workload
 
 Each member's workstream, as the 2-pager assigns it (section 6):
@@ -63,9 +69,10 @@ The subpackage each member owns is in the [package map](ARCHITECTURE.md#package-
 
 ## Beyond the proposal
 
-The 2-pager schedules nothing past the Final Report. The brief (F15) proposed a stretch goal
-(distill a small model on the best synthetic data, if ahead of schedule) and a Track B follow-on
-(that distillation plus an agentic data-gap-filling copilot). Both are recorded in
+The 2-pager schedules nothing past the Final Report; the team's later work is the
+[Direct-method research](#direct-method-research) milestone. The brief (F15) proposed a stretch
+goal (distill a small model on the best synthetic data, if ahead of schedule) and a Track B
+follow-on (that distillation plus an agentic data-gap-filling copilot). Both are recorded in
 [IDEAS.md](IDEAS.md#slm-distillation-stretch-goal) and
 [IDEAS.md](IDEAS.md#track-b-agentic-gap-filling-copilot).
 
