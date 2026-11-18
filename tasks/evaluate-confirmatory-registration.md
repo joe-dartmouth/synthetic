@@ -24,18 +24,27 @@ readings are fixed before any score exists on the new datasets.
 **In.**
 
 - Confirmatory `RUNS` entries per new dataset:
-  - candidate from unit [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md);
+  - candidate from unit [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md).
+    When that unit reports the composite failing the non-inferiority margin, `bko-direct` is
+    candidate and `bko-direct-2` an ablation arm. Otherwise `bko-direct-2` is candidate and
+    `bko-direct` an ablation arm;
   - comparators `METHOD_ARMS` (`bko.evaluate.experiment`), `bayes-net`, `tabddpm`,
-    `label-bootstrap` and `prior-shift`;
-  - ablations `bko-direct`, `bko-nomap`, `bko-logic`, and `bko` where the dataset's agreement
-    permits sending records.
+    `label-bootstrap` and `prior-shift`, plus every control whose contrast units
+    [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) or
+    [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) read in the `below`
+    branch. This is how the control reading rule's `below` branch is applied, `bko-nomap`
+    included;
+  - ablations `bko-nomap` (unless it joins the comparators), `bko-logic`, and `bko` where the
+    dataset's agreement permits sending records.
 - The removed cells, picked by one logged run of the rule unit
   [`datasets-selection-rule`](datasets-selection-rule.md) records, on the training splits.
 - In [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11:
   - the primary endpoint, taken from the branch units
     [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
     [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) recorded;
-  - one primary contrast per dataset;
+  - one primary contrast per dataset when the control reading rule registers a superiority
+    hypothesis. When it registers none, the run reports equivalence, privacy and attribution
+    readings, as the rule says;
   - Holm's correction across the comparators and the two health datasets, with its registry entry
     in [`docs/literature.md`](../docs/literature.md);
   - the equivalence margin;
