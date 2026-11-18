@@ -38,6 +38,8 @@ sources.
   the training steps once, by validation loss on holdout 0's `none` training split, as ADR
   [`research/classifier-panel`](../docs/adr/research/classifier-panel.md) fixes the perceptron's
   epochs.
+- The ADR names the source the implementation reads, the paper or the authors' repository, and
+  that source's licence.
 - The IDEAS entry "Diffusion generators: TabDDPM and TabSyn" narrowed to TabSyn.
 
 **Out.**
