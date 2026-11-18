@@ -33,7 +33,8 @@ conditional.
 - ADRs
   [`research/dataset-fragment-encoding`](../docs/adr/research/dataset-fragment-encoding.md) and
   [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md)
-  revised in place.
+  revised in place. The first's in-place revision narrows its Ruled Out row on conditional
+  S-nodes between concepts that occur together to pairs with no `is_a` relation.
 
 **Out.**
 
@@ -45,4 +46,5 @@ conditional.
 - A fixture fragment's conditional equals the hand count.
 - Every gap listing of `python -m bko.gaps uci` is byte-equal before and after.
 - `bko-direct`'s digests (`DRAW_DIGEST`, `ADDED_DIGEST`) are unchanged.
+- `rows` on one existing E6 slice still reproduces it (`matches_folder=true`).
 - `make check` passes.
