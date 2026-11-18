@@ -27,8 +27,7 @@ model and one training budget.
   resolved. Under ADR [`tooling/uv-ruff-ty`](../docs/adr/tooling/uv-ruff-ty.md), adding it changes
   the extras list and the `make setup` line in [`AGENTS.md`](../AGENTS.md) and the environment
   section of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#environment).
-- ADR `tooling/slm-extra`, which unit [`slm-lora-spike`](slm-lora-spike.md) writes, revised in
-  place.
+- The tooling ADR that unit [`slm-lora-spike`](slm-lora-spike.md) writes, revised in place.
 - A serializer: fixed-order field descriptions from the `FrameSpec` (`bko.datasets.frames`), and
   a yes or no answer scored as a probability that feeds `utility()` (`bko.evaluate.utility`).
 - A trainer, tested in the gate on a tiny randomly initialised model.
