@@ -24,11 +24,18 @@ model and one training budget.
 **In.**
 
 - The `slm` extra in the lock, at the versions unit [`slm-lora-spike`](slm-lora-spike.md)
-  resolved.
+  resolved. Under ADR [`tooling/uv-ruff-ty`](../docs/adr/tooling/uv-ruff-ty.md), adding it changes
+  the extras list and the `make setup` line in [`AGENTS.md`](../AGENTS.md) and the environment
+  section of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#environment).
+- ADR `tooling/slm-extra`, which unit [`slm-lora-spike`](slm-lora-spike.md) writes, revised in
+  place.
 - A serializer: fixed-order field descriptions from the `FrameSpec` (`bko.datasets.frames`), and
   a yes or no answer scored as a probability that feeds `utility()` (`bko.evaluate.utility`).
 - A trainer, tested in the gate on a tiny randomly initialised model.
-- Pinned base weights under `data/models/`.
+- Pinned base weights under `data/models/`, loaded only as safetensors and only after their
+  sha256 verifies.
+- The LoRA adapter, fitted on patient-derived records, kept under the gitignored `data/models/` or
+  `runs/`, at a path the new ADR names.
 - A new ADR under `docs/adr/research/` that fixes:
   - the training set per arm: one real subsample shared by every arm, plus the arm's fill;
   - the controls: no fine-tune, `none` and `real`;
