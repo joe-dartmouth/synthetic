@@ -165,6 +165,8 @@ would be worth a unit.
 
 **Sources.** Brief B4.
 
+The unit [`baselines-tabddpm`](../tasks/baselines-tabddpm.md) schedules TabDDPM.
+
 ## Tree-based generators: ARF and ForestDiffusion
 
 **What it is.** Generators built from tree ensembles: adversarial random forests
@@ -256,6 +258,9 @@ and `diabetesMed` fields keep a coherent combination. A planning measurement, no
 [RESEARCH.md](RESEARCH.md) and a new arm.
 
 **Sources.** None in the brief or the 2-pager.
+
+The unit [`generate-coherent-free-fields`](../tasks/generate-coherent-free-fields.md) schedules
+it.
 
 ## A rewrite arm that moves records
 

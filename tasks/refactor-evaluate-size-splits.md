@@ -3,7 +3,7 @@ id: refactor-evaluate-size-splits
 title: Split four modules near the size cap without changing behaviour
 status: ready
 depends_on: --
-blocks: generate-no-mapping-ablation, evaluate-prior-shift-comparator
+blocks: generate-no-mapping-ablation, evaluate-prior-shift-comparator, evaluate-added-row-contradictions, gaps-is-a-conditional-fragments, ontology-diabetes-diagnosis-codes, privacy-donor-attacks, evaluate-trace-attribution, gaps-share-based-quota
 parallel_safe: false
 milestone: direct-method-research
 paid: false
