@@ -5,7 +5,7 @@ change that found them, costs that do not bite at today's sizes, and gaps a late
 over. Each entry names its blocker when it has one.
 
 The research queue lives elsewhere: planned work is a task unit on a set's index
-([`experiments-index.md`](experiments-index.md)), and
+([`experiments-index.md`](experiments-index.md) or [`direct-index.md`](direct-index.md)), and
 unscheduled research is in
 [`docs/IDEAS.md`](../docs/IDEAS.md). An entry here is not on any plan. It waits for a change that
 passes close enough to pay it.
@@ -52,3 +52,22 @@ links to where its blocker is tracked.
   either moved there or named by the row.
 
   **Trigger:** the next edit to `docs/RESEARCH.md` section 10.
+
+## datasets
+
+- **`cleanup:datasets/agreement-sending-placeholder`: any non-blank `sending` text permits
+  sending.** `permits_sending` (`src/bko/datasets/sources.py`) reads:
+
+  ```
+  return agreement is None or bool((agreement.sending or "").strip())
+  ```
+
+  so a placeholder such as `TBD` passes as a permission to send records to a third-party API.
+  Deferred because the fix is code, outside the docs change that plans the direct set's dataset
+  units, and no pinned `Source` carries an `Agreement` with `sending` text yet.
+
+  **What discharges it:** `permits_sending` refuses a `sending` value that is not a recognisable
+  permission (a placeholder included), with a test that a placeholder is refused.
+
+  **Trigger:** the first dataset unit that pins a `Source` with an `Agreement`, unit
+  [`datasets-support2-frame`](datasets-support2-frame.md).

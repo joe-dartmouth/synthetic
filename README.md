@@ -29,9 +29,10 @@ representation. The pipeline:
 
 ## Pending experiments
 
-None is open. The experiments set's graph and status board is
-[`tasks/experiments-index.md`](tasks/experiments-index.md), and unscheduled research is in
-[`docs/IDEAS.md`](docs/IDEAS.md).
+The direct-method research set's graph and status board is
+[`tasks/direct-index.md`](tasks/direct-index.md). The experiments set's board,
+[`tasks/experiments-index.md`](tasks/experiments-index.md), has no open unit, and unscheduled
+research is in [`docs/IDEAS.md`](docs/IDEAS.md).
 
 ## Setup
 

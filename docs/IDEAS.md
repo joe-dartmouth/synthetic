@@ -83,6 +83,8 @@ most of the gap to a frontier model at a fraction of cost."
 **Sources.** Brief TL;DR, C7, C8, C9, F15 (bullet 4 and the stretch-goal recommendation), Caveats.
 Works: [Small-model distillation and benchmarks](literature.md#small-model-distillation-and-benchmarks).
 
+The unit [`slm-lora-trainer`](../tasks/slm-lora-trainer.md) schedules a narrowed form of it.
+
 ## Track B agentic gap-filling copilot
 
 **What it is.** The brief's Track B follow-on: frame the SLM distillation plus an agentic
@@ -164,6 +166,8 @@ model on the same rows is not expected to gain much. The Synthea frame's larger 
 would be worth a unit.
 
 **Sources.** Brief B4.
+
+The unit [`baselines-tabddpm`](../tasks/baselines-tabddpm.md) schedules TabDDPM.
 
 ## Tree-based generators: ARF and ForestDiffusion
 
@@ -257,6 +261,9 @@ and `diabetesMed` fields keep a coherent combination. A planning measurement, no
 
 **Sources.** None in the brief or the 2-pager.
 
+The unit [`generate-coherent-free-fields`](../tasks/generate-coherent-free-fields.md) schedules
+it.
+
 ## A rewrite arm that moves records
 
 **What it is.** A redesign of E10's language-model rewrite of `bko-direct`'s 19 unmapped Diabetes
@@ -311,6 +318,9 @@ supplies, as every row-adding arm's fill does, and adopting it means a new arm a
 **Sources.** [`vandengoorbergh-2022`][vandengoorbergh-2022], which
 [RESEARCH.md section 7](RESEARCH.md#7-augmentation-versus-resampling) also cites; none in the brief
 or the 2-pager.
+
+The unit
+[`evaluate-prior-shift-comparator`](../tasks/evaluate-prior-shift-comparator.md) schedules it.
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
