@@ -28,11 +28,14 @@ keeps each later unit's diff about its own change.
 - `named_runs.py`: `NamedRun` to `named_run.py`; the Diabetes families and `_slices` to
   `runs_diabetes.py`.
 - `generate/direct.py`: `FieldGroup`, `field_groups` and `free_fields` to `generate/fields.py`;
-  `_pick`, `label_group`, `_observe_group`, `_label_groups` and `_records` to
-  `generate/donors.py`.
+  `_pick`, `label_group`, `_observe_group`, `_label_groups` and `_records`, with the types they
+  return, `_Group` and `_Source`, to `generate/donors.py`. `_Sources` stays: no moved function
+  reads it.
 - `membership.py`: `REFERENCE` and `reference_of` to `evaluate/reference.py`.
 - `run.py`: `_replica_scores`, `_require_regression`, `_suffixed`, `_rows` and `_scoped` to
   `evaluate/run_scores.py`.
+- Where the listed moves do not bring a file to the margin under Acceptance, the unit moves
+  further private helpers of that file into the same new module, named in the PR.
 - Each old module re-exports the moved names, so no import elsewhere changes.
 - Each ADR whose Enforcement paths name moved code is updated to the new path.
 
@@ -46,6 +49,8 @@ keeps each later unit's diff about its own change.
 
 - `DRAW_DIGEST` (`tests/test_generate_direct.py`) and `ADDED_DIGEST`
   (`tests/test_evaluate_direct.py`) are unchanged.
-- No test file changes.
+- Test files change only to patch a moved name in its new module, as
+  `tests/test_evaluate_membership.py` patches `membership.REFERENCE` before calling
+  `reference_of`. No assertion changes.
 - `make sizes` passes with each of the four files at least 100 lines under its cap.
 - `make check` passes.
