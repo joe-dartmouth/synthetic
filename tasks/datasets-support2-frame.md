@@ -25,7 +25,9 @@ terms and its in-hospital death rate are what unit
 
 **In.**
 
-- A `Source` pin (`bko.datasets.sources`) of the Vanderbilt archive, with its permission text.
+- A `Source` pin (`bko.datasets.sources`) of the Vanderbilt archive. Its `agreement` carries the
+  value unit [`datasets-selection-rule`](datasets-selection-rule.md) records, and is `None` only
+  where that unit's ADR says the terms permit sending records to a third-party API.
 - A loader.
 - A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label, without the columns
   its publisher warns against using as predictors.

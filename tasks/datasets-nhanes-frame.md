@@ -26,7 +26,9 @@ general population. The composite outcome's size is what unit
 
 - As unit [`datasets-support2-frame`](datasets-support2-frame.md), for NHANES August 2021 to
   August 2023:
-  - pins of each component file, joined on the respondent sequence number;
+  - pins of each component file, joined on the respondent sequence number, each carrying the
+    `agreement` value unit [`datasets-selection-rule`](datasets-selection-rule.md) records, `None`
+    only where that unit's ADR says the terms permit sending records to a third-party API;
   - adults only;
   - the label, a composite of the heart-failure, coronary-disease, heart-attack and stroke
     questions; its definition and the handling of "Don't know" answers are fixed in the new ADR

@@ -35,7 +35,9 @@ the hierarchy a five-level tree to work on. The state-year's row count is what u
   - every column the survey found an ontology for, its release held per dataset (unit
     [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md));
   - a `python -m bko.gaps acs` subcommand.
-- The Census terms of use are the agreement.
+- The Census terms of use are the agreement. The `Source` pin carries the `agreement` value unit
+  [`datasets-selection-rule`](datasets-selection-rule.md) records, `None` only where that unit's
+  ADR says the terms permit sending records to a third-party API.
 - A registry entry in [`docs/literature.md`](../docs/literature.md) for the Folktables work.
 
 **Out.**
