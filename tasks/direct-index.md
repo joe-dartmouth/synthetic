@@ -148,7 +148,8 @@ flowchart LR
 - **A code unit lands its runs' names and Configuration; a results unit runs them.** A code unit
   adds the arm or reading, its named `RUNS` entries and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. A
-  results unit runs it and records Runs, Result and Read against.
+  results unit runs it and records Runs, Result and Read against. A free reading over stores that
+  already exist lands with its code unit, recorded as a Runs row in the code unit's PR.
 - **Which data is development and which is confirmatory is the plan's to say**
   ([`docs/RESEARCH.md`](../docs/RESEARCH.md)).
 
