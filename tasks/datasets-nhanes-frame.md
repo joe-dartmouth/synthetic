@@ -35,6 +35,7 @@ general population. The composite outcome's size is what unit
     under `docs/adr/research/` before any count is read;
   - age top-coded as published;
   - a `python -m bko.gaps nhanes` subcommand.
+- A new ADR under `docs/adr/research/` that records the frame and the mapping.
 - Every reading runs on it, privacy included, on the reading unit
   [`datasets-selection-rule`](datasets-selection-rule.md) records.
 
