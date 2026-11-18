@@ -41,7 +41,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | generate-no-mapping-ablation, evaluate-added-row-contradictions, privacy-donor-attacks | direct-method-research |
 | [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
-| [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | refactor-evaluate-size-splits, evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 | [`baselines-tabddpm`](baselines-tabddpm.md) | ready | -- | direct-method-research |
 
@@ -109,6 +109,7 @@ flowchart LR
     u17 --> u19
     u18 --> u19
     u2 --> u20[gaps-share-based-quota]
+    u6 --> u20
     u20 --> u21[evaluate-quota-sweep-results]
     u1 --> u23[datasets-selection-rule]
     u2 --> u24[ontology-per-dataset-releases]

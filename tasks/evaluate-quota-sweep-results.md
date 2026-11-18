@@ -24,7 +24,9 @@ sweep; this unit runs it.
 
 **In.**
 
-- The sweep's runs and readings for every arm at every count.
+- The sweep's runs and readings for every arm at every count. The arms are those of the E6
+  family of unit [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md), all
+  free; no paid Messages arm runs.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Runs, Result and Read against.
 
 **Out.**
