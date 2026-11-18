@@ -26,7 +26,8 @@ ships OWL only, and the loader reads OBO.
 
 - Releases held per dataset, beside `field_rows(dataset, ...)` (`bko.evaluate.data`).
 - An OWL release converted to OBO at fetch time by the pinned ROBOT jar
-  (`bko.datasets.sources.ROBOT_JAR`).
+  (`bko.datasets.sources.ROBOT_JAR`). The conversion refuses an OWL file that names an
+  `owl:imports`, as `bko.ontology.elk.refuse_imports` does, so ROBOT fetches nothing unpinned.
 - ADR [`research/ontology-mapping-design`](../docs/adr/research/ontology-mapping-design.md)
   revised.
 
@@ -38,6 +39,7 @@ ships OWL only, and the loader reads OBO.
 ## Acceptance
 
 - A fixture dataset with its own prefix loads its scope.
+- A fixture OWL file with an `owl:imports` line is refused before conversion.
 - The existing datasets' release tests (`tests/test_ontology_pinned_releases.py`) pass with
   `--releases`.
 - `make check` passes.
