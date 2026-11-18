@@ -33,7 +33,8 @@ runs.
   - the BKO variants (`bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-skeleton`, the
     guidance levels) as ablations, and the row-adding methods as comparators;
   - UCI, Synthea and Diabetes 130 as development data, and SUPPORT2, NHANES and ACS PUMS as
-    confirmatory data;
+    confirmatory data, subject to unit [`datasets-selection-rule`](datasets-selection-rule.md)'s
+    re-read, which revises section 11 if a re-read contradicts a choice;
   - a disclosure that the candidate was chosen after E6;
   - for each [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry, whether the study reads it as a
     development result, an ablation, or not at all;
@@ -47,8 +48,9 @@ runs.
 **Control reading rule.** Contrasts: `bko-direct` minus each of `label-bootstrap`, `bko-nomap`
 and `prior-shift`, on removed-cell recall, flagged AUC-PR and flagged Brier, at each fraction, on
 E6's and E3's frames. Margin on recall: 0.0480, the half-width of E6's `bko-direct` minus CTGAN
-interval on removed-cell recall at full removal (+0.0595 [+0.0115, +0.1075]). Each contrast falls
-in one branch:
+interval on removed-cell recall at full removal (+0.0595 [+0.0115, +0.1075]). Flagged AUC-PR and
+flagged Brier have no equivalence margin, so their contrasts fall in `above`, `below` or
+`inconclusive`. Each contrast falls in one branch:
 
 | Branch | Interval | Reading |
 |---|---|---|
@@ -63,7 +65,8 @@ structure claim can come only from the arms of `generate-is-a-conditional-draws`
 `generate-ancestor-shrunk-shares`. The confirmatory primary endpoint
 (`evaluate-confirmatory-registration`) is removed-cell recall if the `prior-shift` contrast is
 `above` on recall on E6's frame at either fraction; else flagged Brier if that contrast is in
-`bko-direct`'s favour; else no superiority hypothesis is registered and the confirmatory run
+`bko-direct`'s favour (for Brier, where lower is better, the interval of `bko-direct` minus the
+control lies wholly below 0); else no superiority hypothesis is registered and the confirmatory run
 reports equivalence, privacy and attribution readings.
 
 **Variant inclusion rule.** A variant enters `bko-direct-2` when, on each development frame it
