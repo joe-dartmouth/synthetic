@@ -17,8 +17,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 `bko-direct` takes each free field from a different record, which breaks the Diabetes drug rules
-in about a quarter of its rows
-([`docs/IDEAS.md`](../docs/IDEAS.md#coherent-free-field-draws-for-bko-direct)). Copying the free
+in a share of its rows that the
+[`docs/IDEAS.md`](../docs/IDEAS.md#coherent-free-field-draws-for-bko-direct) entry "Coherent
+free-field draws for `bko-direct`" measures. Copying the free
 fields from one record instead would copy every unmapped field of one patient, which unit
 [`privacy-donor-attacks`](privacy-donor-attacks.md)'s match attack reads. A conditional model
 keeps the fields coherent without a joint copy.
