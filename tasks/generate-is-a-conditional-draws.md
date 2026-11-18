@@ -2,7 +2,7 @@
 id: generate-is-a-conditional-draws
 title: Add the bko-hier arms, drawing a broad concept given its narrow one
 status: blocked
-depends_on: generate-no-mapping-ablation, gaps-is-a-conditional-fragments
+depends_on: generate-no-mapping-ablation, gaps-is-a-conditional-fragments, evaluate-added-row-contradictions
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -35,6 +35,10 @@ arm beside them.
   S-node's probability 1.
 - ADR [`research/bkb-direct-generation`](../docs/adr/research/bkb-direct-generation.md) revised in
   place.
+- ADR [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md)
+  revised in place: its Ruled Out row on forcing ancestors into fields is scoped to `bko-direct`,
+  and the ADR records `bko-hier-closed` as an ablation arm only. Decision 7 still holds for
+  `bko-direct`.
 - Development `RUNS` entries on E6's and E3's frames, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. Its
   target measure is the narrow-without-broad count of unit

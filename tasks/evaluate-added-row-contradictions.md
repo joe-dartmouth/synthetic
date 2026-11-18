@@ -3,7 +3,7 @@ id: evaluate-added-row-contradictions
 title: Count contradictions and coherence breaks in each arm's added rows
 status: blocked
 depends_on: refactor-evaluate-size-splits
-blocks: generate-coherent-free-fields
+blocks: generate-is-a-conditional-draws, generate-coherent-free-fields
 parallel_safe: true
 milestone: direct-method-research
 paid: false

@@ -32,7 +32,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
 | [`gaps-is-a-conditional-fragments`](gaps-is-a-conditional-fragments.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
-| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | generate-no-mapping-ablation, gaps-is-a-conditional-fragments | direct-method-research |
+| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | generate-no-mapping-ablation, gaps-is-a-conditional-fragments, evaluate-added-row-contradictions | direct-method-research |
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | generate-no-mapping-ablation, ontology-diabetes-diagnosis-codes | direct-method-research |
 | [`privacy-donor-attacks`](privacy-donor-attacks.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
@@ -90,6 +90,7 @@ flowchart LR
     u2 --> u10[gaps-is-a-conditional-fragments]
     u3 --> u11[generate-is-a-conditional-draws]
     u10 --> u11
+    u9 --> u11
     u2 --> u12[ontology-diabetes-diagnosis-codes]
     u3 --> u13[generate-ancestor-shrunk-shares]
     u12 --> u13
