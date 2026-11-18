@@ -49,5 +49,5 @@ general population. The composite outcome's size is what unit
 
 - `python -m bko.ontology check` passes with the new rows.
 - `python -m bko.gaps nhanes` lists the training split's gaps.
-- The census is recorded.
+- The `contradictions` reading's output over the training split is recorded in the unit's ADR.
 - `make check` passes.

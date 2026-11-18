@@ -59,5 +59,6 @@ model and one training budget.
 ## Acceptance
 
 - Serialization is byte-stable against a golden string.
-- The gate runs offline.
+- The trainer test uses a randomly initialised model built in the test, so it needs no network
+  fixture; the session guard in `tests/conftest.py` already refuses API calls.
 - `make check` passes.

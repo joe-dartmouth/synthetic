@@ -50,5 +50,5 @@ the hierarchy a five-level tree to work on. The state-year's row count is what u
 
 - `python -m bko.ontology check` passes with the new rows.
 - `python -m bko.gaps acs` lists the training split's gaps.
-- The census is recorded.
+- The `contradictions` reading's output over the training split is recorded in the unit's ADR.
 - `make check` passes.

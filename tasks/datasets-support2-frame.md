@@ -50,5 +50,5 @@ terms and its in-hospital death rate are what unit
 
 - `python -m bko.ontology check` passes with the new rows.
 - The subcommand lists the training split's gaps.
-- The census is recorded.
+- The `contradictions` reading's output over the training split is recorded in the unit's ADR.
 - `make check` passes.

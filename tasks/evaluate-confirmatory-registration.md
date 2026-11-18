@@ -63,5 +63,5 @@ readings are fixed before any score exists on the new datasets.
 ## Acceptance
 
 - A test constructs every confirmatory `NamedRun` (`bko.evaluate.named_runs`).
-- The tag exists, and each Configuration names its commit.
+- `git tag -v <tag>` verifies the signed tag, and each Configuration names the tagged commit.
 - `make check` passes.
