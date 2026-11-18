@@ -72,7 +72,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-spike`](slm-lora-spike.md) | ready | -- | direct-method-research |
 | [`slm-lora-trainer`](slm-lora-trainer.md) | blocked | slm-lora-spike | direct-method-research |
-| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer | direct-method-research |
+| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap, baselines-tabddpm | direct-method-research |
 
 ```mermaid
 flowchart LR
@@ -133,6 +133,8 @@ flowchart LR
     u34[slm-lora-spike] --> u35[slm-lora-trainer]
     u29 --> u36[slm-lora-results]
     u35 --> u36
+    u4 --> u36
+    u22 --> u36
 ```
 
 ## What every unit relies on

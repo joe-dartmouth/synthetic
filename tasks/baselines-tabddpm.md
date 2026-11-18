@@ -3,7 +3,7 @@ id: baselines-tabddpm
 title: Add an in-repo TabDDPM baseline on the locked torch
 status: ready
 depends_on: --
-blocks: evaluate-confirmatory-registration
+blocks: evaluate-confirmatory-registration, slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false

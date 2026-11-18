@@ -2,7 +2,7 @@
 id: slm-lora-results
 title: Run the LoRA comparison of the arms on E6's frame
 status: blocked
-depends_on: evaluate-composite-dev-results, slm-lora-trainer
+depends_on: evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap, baselines-tabddpm
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
@@ -29,6 +29,9 @@ Whether the differences between generators survive in a fine-tuned language mode
     [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) names;
   - `bko-direct`, `label-bootstrap`, `ctgan`, `tabddpm` and `smote`;
   - the controls.
+- Each arm's fills drawn on E6's frame by this unit, including `label-bootstrap`'s (unit
+  [`baselines-label-bootstrap`](baselines-label-bootstrap.md)) and `tabddpm`'s (unit
+  [`baselines-tabddpm`](baselines-tabddpm.md)).
 - Each test record's probability, in a sha-verified file.
 - The reading beside the tabular classifiers' ranking.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Runs, Result and Read against.
