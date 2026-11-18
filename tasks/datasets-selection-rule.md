@@ -41,8 +41,9 @@ any candidate's records are loaded and checks each read against its source.
   one ACS state-year.
 - The NHANES agreement's clause on re-identification research, recorded in the ADR, with the
   team's reading that scoring the privacy of generated rows is outside it.
-- [`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets) section 6 lists the three. ACS PUMS is its
-  own exploratory family, outside the health datasets' multiplicity family.
+- This unit changes [`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets) section 6 to list the
+  three. ACS PUMS is its own exploratory family, outside the health datasets' multiplicity
+  family.
 
 **Out.**
 

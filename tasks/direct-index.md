@@ -64,6 +64,16 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, evaluate-composite-dev-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
+### Follow-ups
+
+| Unit | Status | Depends on | Milestone |
+|---|---|---|---|
+| [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | generate-ancestor-shrunk-shares | direct-method-research |
+| [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
+| [`slm-lora-spike`](slm-lora-spike.md) | ready | -- | direct-method-research |
+| [`slm-lora-trainer`](slm-lora-trainer.md) | blocked | slm-lora-spike | direct-method-research |
+| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer | direct-method-research |
+
 ```mermaid
 flowchart LR
     u1[plan-direct-method-research] --> u3[generate-no-mapping-ablation]
@@ -117,6 +127,11 @@ flowchart LR
     u27 --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
+    u13 --> u32[ontology-auto-mapping]
+    u32 --> u33[ontology-auto-mapping-results]
+    u34[slm-lora-spike] --> u35[slm-lora-trainer]
+    u29 --> u36[slm-lora-results]
+    u35 --> u36
 ```
 
 ## What every unit relies on

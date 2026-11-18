@@ -3,7 +3,7 @@ id: evaluate-composite-dev-results
 title: Run bko-direct-2 on the development frames and name the confirmatory candidate
 status: blocked
 depends_on: evaluate-composite-arm
-blocks: evaluate-confirmatory-registration
+blocks: evaluate-confirmatory-registration, slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false

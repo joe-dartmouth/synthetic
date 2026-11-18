@@ -83,6 +83,8 @@ most of the gap to a frontier model at a fraction of cost."
 **Sources.** Brief TL;DR, C7, C8, C9, F15 (bullet 4 and the stretch-goal recommendation), Caveats.
 Works: [Small-model distillation and benchmarks](literature.md#small-model-distillation-and-benchmarks).
 
+The unit [`slm-lora-trainer`](../tasks/slm-lora-trainer.md) schedules a narrowed form of it.
+
 ## Track B agentic gap-filling copilot
 
 **What it is.** The brief's Track B follow-on: frame the SLM distillation plus an agentic
