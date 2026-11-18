@@ -34,7 +34,10 @@ anything runs.
     `decontaminate=False`, so `compare --beside` pairs it with `runs/e3-7/`, with the same arms
     plus `bko-logic`
     (ADR [`research/synthea-downstream-design`](../docs/adr/research/synthea-downstream-design.md)).
-- `REFERENCE` entries for both (`bko.evaluate.membership`).
+    The `replace` resets `arms`, `replica_arms`, `spend_ceiling` and `candidate`, so the run keeps
+    none of E3's paid `BKO_ARMS` and makes no paid call.
+- `REFERENCE` entries for both, in `bko.evaluate.reference`, where unit
+  [`refactor-evaluate-size-splits`](refactor-evaluate-size-splits.md) moves it.
 - Two new [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entries, status `not yet run`, whose
   Configuration fixes the contrasts of the control reading rule and its margin.
 - The two run-name tests, `tests/test_evaluate_experiment.py` and
