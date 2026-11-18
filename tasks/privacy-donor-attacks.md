@@ -47,5 +47,5 @@ measure what the direct arms expose.
 ## Acceptance
 
 - On fixtures, a planted verbatim copy scores AUC 1.0 and disjoint rows score 0.5.
-- `membership.py` does not grow.
+- `membership.py`, where `privacy` assembles its output, stays under its `make sizes` cap.
 - `make check` passes.
