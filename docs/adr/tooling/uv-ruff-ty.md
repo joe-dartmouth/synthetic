@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-21
+updated: 2026-11-18
 ---
 # uv, ruff and ty, wrapped by a Makefile
 
@@ -44,8 +44,9 @@ We will use:
   `tools/` imports it, and not before.** `make sync` installs every extra.
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
   `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, `cells`, `synthea` and
-  `reproduce`, which run dataset and ontology commands outside the gate, and `app`, which serves
-  the Streamlit interface outside it.
+  `reproduce`, which run dataset and ontology commands outside the gate, `app`, which serves
+  the Streamlit interface outside it, and `video-env` and `video`, which build and run the demo
+  video's environment outside the lock.
 
 ## Rationale
 

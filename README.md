@@ -46,9 +46,10 @@ make cells     # fetch UCI Heart Disease and print its age-sex cell counts
 make synthea   # generate the Synthea population (needs a JDK) and ablate one cell
 make reproduce # rebuild Santos et al.'s MONDO/DO fusion example and compare it with the paper
 make app       # serve the Streamlit app on 127.0.0.1 (a live BKO fill spends money)
+make video-env && make video # render the demo video (ManimGL, outside the lock; needs FFmpeg)
 ```
 
-Tools used above: [Synthea](https://synthetichealth.github.io/synthea/) (synthetic patient generator), [JDK](https://openjdk.org/) (Java Development Kit), [DO](https://disease-ontology.org/) (Human Disease Ontology), [Streamlit](https://streamlit.io/).
+Tools used above: [Synthea](https://synthetichealth.github.io/synthea/) (synthetic patient generator), [JDK](https://openjdk.org/) (Java Development Kit), [DO](https://disease-ontology.org/) (Human Disease Ontology), [Streamlit](https://streamlit.io/), [ManimGL](https://github.com/3b1b/manim).
 
 ## Repository guide
 

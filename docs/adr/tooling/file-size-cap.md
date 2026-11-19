@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-11-18
 ---
 # Per-tree line caps on Python files
 
@@ -22,7 +22,7 @@ there is no backlog of over-cap files to split.
 ## Decision
 
 We will use **per-tree caps in a `make check` target**: `tools/check_file_size.py`, run by
-`make sizes`, caps every tracked `.py` file under `src/`, `tools/` and `tests/`. `CAPS` in that
+`make sizes`, caps every tracked `.py` file under `src/`, `tools/`, `tests/` and `video/`. `CAPS` in that
 module is the single home for the numbers, with `tests/` allowed more lines than `src/` and
 `tools/`. A tracked `.py` file outside those trees is a structural error.
 
@@ -46,6 +46,7 @@ only once it is staged, because discovery reads `git ls-files`.
 | A ruff rule | ruff has no per-file-length rule | 2026-10-13 |
 | No cap | Long modules are where review attention fails | 2026-10-13 |
 | Including untracked files | Puts every scratch file an author has not decided about under the gate | 2026-10-13 |
+| Three trees only | The demo video's scenes are tracked Python outside them | 2026-11-18 |
 
 ## Enforcement
 

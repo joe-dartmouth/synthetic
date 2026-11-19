@@ -26,6 +26,7 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
   writes `uv.lock`. `tests/test_repo_gate.py` compares the two offline as well.
 - **Build backends are pinned** in `[tool.uv] build-constraint-dependencies`, because uv resolves
   them outside the lock: hatchling for `bko`.
+- **ManimGL lives in its own environment**, `video/.venv`, outside the lock ([Video](#video)).
 
 ## Data
 
@@ -1819,6 +1820,35 @@ button, and no rerun that aborts a running action. Launch it only through `make 
 - **After a Streamlit bump**: `uv run --no-sync python -m streamlit config show` lists every option
   the installed release accepts; each recipe flag must still be one of them.
 
+## Video
+
+`video/` ([README](../video/README.md)) holds the ManimGL scenes of the demo video, a silent
+animation that a presenter talks over.
+
+- **What it does**: `make video` renders each scene of `video.captions.ORDER`, joins them and
+  writes `video/media/bko-demo.mp4`. It exits 1 when a scene fails and 2 when FFmpeg or the
+  environment is missing, and it writes nothing under `runs/`.
+- **Install**: `make video-env` builds `video/.venv` from `video/requirements.txt`, with hashes,
+  on Python 3.14. ManimGL is not an extra (ADR
+  [`tooling/video-scenes-outside-the-lock`](adr/tooling/video-scenes-outside-the-lock.md)). That
+  environment is not the project's, so `uv.lock` and `.venv` are untouched.
+- **Changing the requirements**: edit `video/requirements.in`, then from the repository root:
+
+      uv pip compile video/requirements.in --universal --python-version 3.14 --generate-hashes -o video/requirements.txt
+
+- **What it needs**: FFmpeg and ffprobe on PATH, the font Helvetica Neue and a GPU session. No
+  LaTeX and no API call.
+- **Where it lands**: `video/media/`, gitignored.
+- **What the gate checks**: `make lint` and `make sizes` reach `video/`; `make typecheck`, coverage
+  and the docs tests do not, and the gate never renders.
+- **Length**: `ffprobe -v error -show_entries format=duration -of csv=p=0 video/media/bko-demo.mp4`
+  reports it.
+- **Model against the data**: `tests/test_video_model_releases.py` compares the example model's
+  cell counts, is_a edges, holders, share and gaps with UCI Heart Disease's default split and the
+  pinned HPO release already in `data/`, under `--releases`:
+
+      uv run --no-sync pytest tests/test_video_model_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -1847,9 +1877,12 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `rebased` | `python -m tools.check_rebased` | Probes `origin` with `git ls-remote`; ADR [`tooling/refuse-a-stale-trunk-ref`](adr/tooling/refuse-a-stale-trunk-ref.md) |
 | `rebased-final` | The same checker again | Runs last, because the trunk can move while the tests run |
 | `check` | `rebased synced lint sizes typecheck test rebased-final` | `.NOTPARALLEL`, so the order is a guarantee |
+| `video-env` | `uv venv` then `uv pip sync --require-hashes --only-binary :all: video/requirements.txt` into `video/.venv` | Not part of the gate; installs outside the lock ([Video](#video)) |
+| `video` | `python -m video.render` in `video/.venv` | Not part of the gate; needs `make video-env` and FFmpeg; no API call ([Video](#video)) |
 
-Every step from `lint` down runs as `uv run --no-sync`: the gate measures the environment
-`make setup` built and never re-locks or installs during a run.
+Every step from `lint` down runs as `uv run --no-sync`, except `video-env` and `video`, which run
+in `video/.venv`: the gate measures the environment `make setup` built and never re-locks or
+installs during a run.
 
 The `check` order puts what invalidates other steps first: a rebase can move `uv.lock`, which
 invalidates `synced`, and a drifted environment makes `lint` and `typecheck` report errors that
