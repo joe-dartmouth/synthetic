@@ -30,6 +30,9 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#fusion-reproduction)).
 - `make app`: serve the Streamlit app over UCI Heart Disease on `127.0.0.1`. A live BKO fill
   spends money and needs an Anthropic credential ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#app)).
+- `make video-env`, then `make video`: build ManimGL's own environment outside the lock, then render
+  the demo video into `video/media/`. It needs FFmpeg and makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#video)).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
@@ -138,6 +141,7 @@ synthetic/
 ├── tasks/       # the open task sets: one unit per PR (tasks/<set>-index.md)
 ├── src/bko/     # one subpackage per pipeline stage, plus core, each with a README
 ├── presentations/ # Marp slide decks; `marp` renders PDF or PPTX locally, gitignored
+├── video/       # ManimGL scenes for the demo video; rendered output gitignored (video/README.md)
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
 ```
@@ -151,6 +155,9 @@ synthetic/
   here. `bko.bkb` holds the part of it this project ports (ADR `research/bkb-layer-source`), and
   its test fixtures are exported from pybkb outside the lock
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#bkb-fixtures)).
+- **ManimGL is not a dependency.** It lives in `video/.venv`, built by `make video-env` from a
+  hashed requirements file; `uv pip sync` there leaves `uv.lock` and `.venv` untouched, and nothing
+  under `src/`, `tests/` or `tools/` imports `manimlib` (ADR `tooling/video-scenes-outside-the-lock`).
 - **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
   and `app`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never

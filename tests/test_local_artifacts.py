@@ -2,7 +2,8 @@
 
 `papers/` holds the proposal, the research brief and the papers the docs cite, which the docs point
 at through `docs/RESEARCH.md` or a DOI instead; a deck under `presentations/` is its Marp source,
-which `marp` renders to PDF or PPTX on demand.
+which `marp` renders to PDF or PPTX on demand; the demo video under `video/media/` is rendered from
+the scenes in `video/` by `make video`.
 """
 
 from __future__ import annotations
@@ -13,7 +14,12 @@ from tests._corpus import REPO_ROOT
 from tools._git import child_environment
 
 
-LOCAL_PATHS = ("papers/santos-2024.pdf", "presentations/deck.pdf", "presentations/deck.pptx")
+LOCAL_PATHS = (
+    "papers/santos-2024.pdf",
+    "presentations/deck.pdf",
+    "presentations/deck.pptx",
+    "video/media/bko-demo.mp4",
+)
 """A path of each kind that must stay local."""
 
 
@@ -34,7 +40,7 @@ def test_each_local_artifact_path_is_gitignored():
 
 def test_no_local_artifact_is_tracked():
     listed = subprocess.run(
-        ["git", "ls-files", "papers", "presentations/*.pdf", "presentations/*.pptx"],
+        ["git", "ls-files", "papers", "presentations/*.pdf", "presentations/*.pptx", "video/media"],
         cwd=REPO_ROOT,
         env=child_environment(),
         capture_output=True,

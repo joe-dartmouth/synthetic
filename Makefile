@@ -1,5 +1,5 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce app
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce app video-env video
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
@@ -72,6 +72,20 @@ reproduce:
 # (ADR research/streamlit-app-design).
 app:
 	uv run --no-sync python -m streamlit run src/bko/app/streamlit_app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --runner.fastReruns false --server.fileWatcherType none --client.toolbarMode minimal
+
+# Build ManimGL's own environment in video/.venv from the hashed video/requirements.txt (ADR
+# tooling/video-scenes-outside-the-lock). Not part of the gate; it installs outside the lock and
+# leaves uv.lock and .venv untouched. The interpreter flag is video/.venv's, not one of the
+# project pin's homes.
+video-env:
+	uv venv --allow-existing --python 3.14 video/.venv
+	uv pip sync --python video/.venv/bin/python --require-hashes --only-binary :all: video/requirements.txt
+
+# Render every scene of the demo video and join them into video/media/bko-demo.mp4
+# (docs/DEVELOPMENT.md, Video). Not part of the gate; needs make video-env and FFmpeg.
+video:
+	@test -x video/.venv/bin/python || { echo "video: no video/.venv; run make video-env" >&2; exit 2; }
+	@PYTHONPATH=src:. video/.venv/bin/python -m video.render
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final
