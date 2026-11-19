@@ -6,8 +6,9 @@ and pauses it. [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#video) holds the i
 command and where the output lands.
 
 `model.py` holds the running example, built from `bko.bkb` objects. `captions.py` holds the scene
-order, the label text and the figures taken from `docs/EVIDENCE.md`. `layout.py` and `sections/`
-hold the scenes. `render.py` is the driver that renders each scene and joins them.
+order, the label text and the figures taken from `docs/EVIDENCE.md`. `layout.py` holds the
+scene frame and the diagram pieces the sections share, and `sections/` one Scene class per
+section. `render.py` is the driver that renders each scene and joins them.
 
 One scene's last frame, as a still under `video/media/stills/`:
 
