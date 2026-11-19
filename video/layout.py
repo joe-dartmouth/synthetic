@@ -1,7 +1,7 @@
 """The scene frame every section shares, and the diagram pieces more than one section draws.
 
-`SectionScene` reads its title and captions from `video.captions` and times each beat with
-`hold_seconds`; a section draws caption n's beat in a `_beat_<n>` method and never sets its own
+`SectionScene` reads its title and beats from `video.captions` and times each beat with
+`hold_seconds`; a section draws beat n's diagram in a `_beat_<n>` method and never sets its own
 timing. The pieces below read the running example from `video.model`: `CHAIN_LAYOUT` places the
 eight classes as three `is_a` chains, narrow at the bottom and broad at the top.
 """
@@ -219,6 +219,13 @@ def bko_diagram() -> tuple[dict[str, VGroup], dict[tuple[str, str], VGroup], dic
     return nodes, statements, data_priors(nodes)
 
 
+def box(text: str, *, width: float, color: str = INK) -> VGroup:
+    """A labelled rounded box, one line high."""
+    label = Text(text, font_size=20, fill_color=color)
+    frame = RoundedRectangle(width=width, height=0.5, corner_radius=0.1, stroke_color=color)
+    return VGroup(frame, label.move_to(frame))
+
+
 def tag(text: str) -> VGroup:
     """A small boxed tag, such as "part of HPO"."""
     label = Text(text, font_size=SMALL_FONT, fill_color=GREY)
@@ -232,7 +239,7 @@ def tag(text: str) -> VGroup:
 
 
 class SectionScene(Scene):
-    """One section of the video: its title throughout, then each caption with its beat.
+    """One section of the video: its title throughout, then each beat's label and explainer.
 
     Attributes:
         name: The section's Scene class name in `video.captions.SECTIONS`.
@@ -241,19 +248,22 @@ class SectionScene(Scene):
     name: ClassVar[str]
 
     def construct(self) -> None:
-        """Show the title, then play each caption's fade, beat and hold, and end on the diagram."""
+        """Show the title, then play each beat's fade, diagram and hold, and end on the diagram."""
         this = section(self.name)
         self.add(Text(this.title, font_size=40, fill_color=INK).to_edge(UP).fix_in_frame())
-        shown: Text | None = None
-        for index, caption in enumerate(this.captions):
-            label = Text(caption, font_size=32, line_width=12.0, fill_color=HIGHLIGHT)
-            label.to_edge(DOWN, buff=0.3).fix_in_frame()
-            fades = [FadeIn(label)] if shown is None else [FadeOut(shown), FadeIn(label)]
+        shown: VGroup | None = None
+        for index, (label, note) in enumerate(this.beats):
+            text = VGroup(
+                Text(label, font_size=30, line_width=13.0, fill_color=HIGHLIGHT),
+                Text(note, font_size=22, line_width=13.0, fill_color=INK),
+            ).arrange(DOWN, buff=0.12)
+            text.to_edge(DOWN, buff=0.22).fix_in_frame()
+            fades = [FadeIn(text)] if shown is None else [FadeOut(shown), FadeIn(text)]
             self.play(*fades, run_time=FADE_SECONDS)
-            shown = label
+            shown = text
             start = self.time
             self.beat(index)
-            remaining = hold_seconds(caption) - (self.time - start)
+            remaining = hold_seconds(label, note) - (self.time - start)
             if remaining > 0:
                 self.wait(remaining)
         self.wait(SCENE_END_SECONDS)

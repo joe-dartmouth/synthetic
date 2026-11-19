@@ -11,7 +11,6 @@ from manimlib import (
     Dot,
     FadeIn,
     FadeOut,
-    GrowFromCenter,
     Line,
     Rectangle,
     RoundedRectangle,
@@ -21,10 +20,9 @@ from manimlib import (
 )
 
 from video import layout
-from video.captions import DIABETES_CHAIN, KINDS, UCI_CHAIN
+from video.captions import KINDS
 from video.layout import (
     DATA_ORANGE,
-    GAP_RED,
     GREY,
     GROUNDED,
     HIGHLIGHT,
@@ -40,15 +38,6 @@ ST, ABNORMAL_ST, EKG = "HP:0012250", "HP:0012249", "HP:0003115"
 
 def _text(text: str, size: int = SMALL_FONT, color: str = INK) -> Text:
     return Text(text, font_size=size, fill_color=color)
-
-
-def _share_bar(label: str, part: int, whole: int) -> VGroup:
-    """A bar of `whole` records with the `part` that contradict filled red, and its label."""
-    outline = Rectangle(width=4.0, height=0.4, stroke_color=INK)
-    filled = Rectangle(width=4.0 * part / whole, height=0.4, fill_color=GAP_RED, fill_opacity=0.9)
-    filled.set_stroke(width=0).move_to(outline, aligned_edge=LEFT)
-    caption = _text(f"{label}: {part} of {whole}", 22).next_to(outline, UP, buff=0.15)
-    return VGroup(outline, filled, caption)
 
 
 def _mini_node(text: str, *, fill: str | None = None) -> VGroup:
@@ -103,14 +92,6 @@ class WhatAContradictionIs(SectionScene):
         fields[0].next_to(self.card, RIGHT, buff=0.3).match_y(rows[0])
         fields[1].next_to(self.card, RIGHT, buff=0.3).match_y(rows[1])
         self.play(FadeIn(fields, shift=0.2 * LEFT), run_time=0.8)
-
-    def _beat_5(self) -> None:
-        self.uci = _share_bar("UCI", *UCI_CHAIN).move_to((1.6, -1.2, 0.0))
-        self.play(FadeIn(self.uci[0]), FadeIn(self.uci[2]), GrowFromCenter(self.uci[1]))
-
-    def _beat_6(self) -> None:
-        diabetes = _share_bar("Diabetes 130", *DIABETES_CHAIN).next_to(self.uci, DOWN, buff=0.4)
-        self.play(FadeIn(diabetes[0]), FadeIn(diabetes[2]), GrowFromCenter(diabetes[1]))
 
 
 def _kind_pictures() -> list[VGroup]:
@@ -258,8 +239,3 @@ class HandlingContradictions(SectionScene):
 
     def _beat_6(self) -> None:
         self._show(4, _census_picture())
-
-    def _beat_7(self) -> None:
-        note = _text("Diabetes 130:\n757 of 838 rewritten", 16, GAP_RED)
-        note.next_to(self.last, DOWN, buff=0.4)
-        self.play(FadeIn(note), run_time=0.6)

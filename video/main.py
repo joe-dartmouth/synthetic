@@ -7,7 +7,7 @@ from `video.captions.ORDER`, which the concat list is built from.
 from video.captions import ORDER
 from video.sections.bkb import DatasetFragment, INodesAndSNodes, Ontology
 from video.sections.contradictions import FiveKinds, HandlingContradictions, WhatAContradictionIs
-from video.sections.evaluation import DoesItHelp, Recap
+from video.sections.evaluation import HowWeEvaluate, Recap
 from video.sections.fusion import FusingFragments, GroundingAndGaps, IncompletenessKept
 from video.sections.generation import BkoDirect, ClosingTheLoop, LlmGuidedFill
 from video.sections.problem import ThinCells
@@ -27,7 +27,7 @@ SCENES_IN_ORDER = (
     LlmGuidedFill,
     BkoDirect,
     ClosingTheLoop,
-    DoesItHelp,
+    HowWeEvaluate,
     Recap,
 )
 

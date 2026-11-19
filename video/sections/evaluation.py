@@ -1,19 +1,16 @@
-"""Evaluation and the recap."""
+"""How the system is evaluated, and the recap."""
 
 from itertools import pairwise, starmap
 
 from manimlib import (
     DOWN,
-    LEFT,
     PI,
     RIGHT,
     UP,
     DashedLine,
     FadeIn,
-    GrowFromEdge,
-    Indicate,
+    GrowFromCenter,
     LaggedStart,
-    Line,
     RoundedRectangle,
     ShowCreation,
     Text,
@@ -22,92 +19,54 @@ from manimlib import (
 )
 
 from video import layout
-from video.captions import RECALL_BARS
-from video.layout import GREY, HIGHLIGHT, INK, SMALL_FONT, SectionScene
-
-
-ARM_NAMES = {
-    "none": "none",
-    "bko": "bko\n(LLM)",
-    "ctgan": "CTGAN",
-    "bko-direct": "bko-direct\n(no LLM)",
-    "real": "real",
-}
-"""Each recall bar's label."""
+from video.layout import DATA_ORANGE, GREY, GROUNDED, HIGHLIGHT, INK, SMALL_FONT, SectionScene
+from video.model import CELL
 
 
 def _text(text: str, size: int = SMALL_FONT, color: str = INK) -> Text:
     return Text(text, font_size=size, fill_color=color)
 
 
-class DoesItHelp(SectionScene):
-    """Classifier results on UCI and on Diabetes 130's removed group."""
+class HowWeEvaluate(SectionScene):
+    """The design: held-out real records, two classifiers and the thin group's recall."""
 
-    name = "DoesItHelp"
+    name = "HowWeEvaluate"
 
     def _beat_1(self) -> None:
-        axis = Line(LEFT * 2.0, RIGHT * 2.0, stroke_color=GREY).move_to((-4.4, 0.4, 0.0))
-        zero = DashedLine(UP * 0.8, DOWN * 0.8, stroke_color=INK).move_to(axis)
-        whisker = Line(LEFT * 0.9, RIGHT * 1.1, stroke_color=HIGHLIGHT, stroke_width=6)
-        whisker.move_to(axis).shift(0.1 * RIGHT)
-        ends = VGroup(*(Line(UP * 0.2, DOWN * 0.2, stroke_color=HIGHLIGHT) for _ in range(2)))
-        ends[0].move_to(whisker.get_left())
-        ends[1].move_to(whisker.get_right())
-        heading = _text("UCI: bko minus none", 22).next_to(axis, UP, buff=1.0)
-        labels = VGroup(
-            _text("0", 16).next_to(zero, DOWN, buff=0.1),
-            _text("worse", 16, GREY).next_to(axis, LEFT, buff=0.15),
-            _text("better", 16, GREY).next_to(axis, RIGHT, buff=0.15),
-        )
-        self.play(FadeIn(heading), ShowCreation(axis), FadeIn(zero), FadeIn(labels))
-        self.play(ShowCreation(whisker), FadeIn(ends), run_time=0.8)
+        self.train = layout.box("training records (real)", width=3.0).move_to((-5.0, 1.8, 0.0))
+        self.test = layout.box("test records (held out)", width=3.0).move_to((5.0, 1.8, 0))
+        self.play(FadeIn(self.train), FadeIn(self.test), run_time=0.8)
 
     def _beat_2(self) -> None:
-        self.heading = _text("Diabetes 130: men 60-79 readmitted < 30 days", 22)
-        self.heading.move_to((3.0, 2.3, 0.0))
-        removed = _text("removed from training", 18, GREY)
-        self.removed = removed.next_to(self.heading, DOWN, buff=0.15)
-        self.play(FadeIn(self.heading), FadeIn(removed), run_time=0.8)
+        self.new = layout.box("new records", width=2.2, color=GROUNDED).move_to((-1.4, 1.8, 0))
+        self.only = layout.box("classifier: real only", width=3.0).move_to((-5.0, -0.1, 0.0))
+        self.plus = layout.box("classifier: real + new", width=3.2).move_to((-1.4, -0.1, 0.0))
+        arrows = [
+            layout.edge(self.train, self.only),
+            layout.edge(self.train, self.plus),
+            layout.edge(self.new, self.plus),
+        ]
+        self.play(FadeIn(self.new), FadeIn(self.only), FadeIn(self.plus), run_time=0.8)
+        self.play(*(ShowCreation(arrow) for arrow in arrows), run_time=0.6)
 
     def _beat_3(self) -> None:
-        values = {ARM_NAMES[arm]: float(figure) for arm, figure in RECALL_BARS.items()}
-        shown = {ARM_NAMES[arm]: figure for arm, figure in RECALL_BARS.items()}
-        self.chart = layout.bar_chart(values, unit=6.0, shown=shown).scale(0.85)
-        self.chart.move_to((3.2, -0.6, 0.0))
-        bars = self.chart[0]
-        real = bars[-1]
-        corners = [real.get_corner(DOWN + LEFT), real.get_corner(UP + LEFT)]
-        corners += [real.get_corner(UP + RIGHT), real.get_corner(DOWN + RIGHT)]
-        dashed = VGroup(*(DashedLine(a, b, stroke_color=INK) for a, b in pairwise(corners)))
-        real.set_fill(opacity=0)
-        self.play(
-            *(GrowFromEdge(bar, DOWN) for bar in bars[:-1]),
-            ShowCreation(dashed),
-            FadeIn(self.chart[1]),
-            run_time=1.2,
-        )
-        self.play(FadeIn(self.chart[2]), run_time=0.5)
+        score = layout.box(f"recall on {CELL}", width=3.2, color=HIGHLIGHT)
+        score.move_to((4.6, -1.8, 0.0))
+        arrows = [layout.edge(source, score) for source in (self.only, self.plus, self.test)]
+        self.play(FadeIn(score), *(ShowCreation(arrow) for arrow in arrows), run_time=1.0)
 
     def _beat_4(self) -> None:
-        names = list(RECALL_BARS)
-        pair = [self.chart[0][names.index(arm)] for arm in ("ctgan", "bko-direct")]
-        self.play(*(bar.animate.set_fill(HIGHLIGHT) for bar in pair), run_time=0.6)
-        self.play(*(Indicate(bar, color=HIGHLIGHT) for bar in pair), run_time=1.0)
-
-    def _beat_5(self) -> None:
-        bar = self.chart[2][list(RECALL_BARS).index("bko-direct")]
-        note = _text("no verdict", 16, GREY).next_to(bar, UP, buff=0.1)
-        self.play(FadeIn(note, shift=0.1 * UP), run_time=0.5)
-
-    def _beat_6(self) -> None:
-        self.trees = _text("boosted trees: bko-direct 0.3591, real 0.5853", 18, GREY)
-        self.trees.move_to((-4.4, -1.4, 0.0))
-        self.play(FadeIn(self.trees), run_time=0.5)
-
-    def _beat_7(self) -> None:
-        kept = _text("19 real rows kept: level with ADASYN, CTGAN", 18, GREY)
-        kept.next_to(self.trees, DOWN, buff=0.3)
-        self.play(FadeIn(kept), run_time=0.5)
+        names = ("SMOTE", "CTGAN", "other generators")
+        others = VGroup(*(layout.box(n, width=2.0, color=DATA_ORANGE) for n in names))
+        others.arrange(DOWN, buff=0.12).move_to((1.6, 2.05, 0.0), aligned_edge=UP)
+        heading = _text("or, in its place:", 18, DATA_ORANGE).next_to(others, UP, buff=0.1)
+        dashed = DashedLine(others[0].get_left(), self.new.get_right(), stroke_color=DATA_ORANGE)
+        self.play(
+            LaggedStart(*(GrowFromCenter(o) for o in others), lag_ratio=0.2),
+            FadeIn(heading),
+            run_time=1.0,
+        )
+        self.play(ShowCreation(dashed), run_time=0.5)
 
 
 def _loop(start: VGroup, end: VGroup, label: str, *, below: bool) -> VGroup:
@@ -138,15 +97,14 @@ class Recap(SectionScene):
             self.boxes.add(VGroup(frame, label.move_to(frame)))
         self.boxes.arrange(RIGHT, buff=0.5).move_to((0.0, 0.2, 0.0))
         arrows = list(starmap(layout.edge, pairwise(self.boxes)))
-        loops = VGroup(
+        self.loops = VGroup(
             _loop(self.boxes[4], self.boxes[1], "BKO arms", below=True),
             _loop(self.boxes[3], self.boxes[0], "Fuse", below=False),
         )
         self.play(LaggedStart(*(FadeIn(b) for b in self.boxes), lag_ratio=0.3), run_time=1.2)
         self.play(*(ShowCreation(a) for a in arrows), run_time=0.6)
-        self.play(FadeIn(loops), run_time=0.8)
+        self.play(FadeIn(self.loops), run_time=0.8)
 
     def _beat_2(self) -> None:
-        last = self.boxes[-1]
-        self.play(Indicate(last, color=HIGHLIGHT), run_time=1.0)
-        self.play(last[0].animate.set_stroke(HIGHLIGHT), run_time=0.4)
+        fuse = self.loops[1]
+        self.play(fuse.animate.set_color(HIGHLIGHT), run_time=0.8)

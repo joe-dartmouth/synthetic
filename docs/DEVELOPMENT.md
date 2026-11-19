@@ -1823,7 +1823,8 @@ button, and no rerun that aborts a running action. Launch it only through `make 
 ## Video
 
 `video/` ([README](../video/README.md)) holds the ManimGL scenes of the demo video, a silent
-animation that a presenter talks over.
+animation of how the system works, with a label and a one-line explainer per beat, that a presenter
+talks over.
 
 - **What it does**: `make video` renders each scene of `video.captions.ORDER`, joins them and
   writes `video/media/bko-demo.mp4`. It exits 1 when a scene fails and 2 when FFmpeg or the
@@ -1842,7 +1843,7 @@ animation that a presenter talks over.
 - **Where it lands**: `video/media/`, gitignored.
 - **What the gate checks**: `make lint` and `make sizes` reach `video/`; `make typecheck` reports
   nothing in `video/`, and coverage and the docs tests do not reach it. The `tests/test_video_*.py`
-  files hold the model, the captions' figures, the driver's exit codes and the scene order, read as
+  files hold the model, the captions' facts, the driver's exit codes and the scene order, read as
   source; the gate never renders.
 - **Length**: `ffprobe -v error -show_entries format=duration -of csv=p=0 video/media/bko-demo.mp4`
   reports it.

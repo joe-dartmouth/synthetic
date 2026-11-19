@@ -6,7 +6,6 @@ from manimlib import (
     RIGHT,
     UP,
     FadeIn,
-    FadeOut,
     GrowFromCenter,
     LaggedStart,
     Line,
@@ -20,7 +19,7 @@ from manimlib import (
 )
 
 from video import layout
-from video.captions import SUBGROUP_GAPS, section
+from video.captions import section
 from video.layout import (
     DATA_ORANGE,
     GAP_RED,
@@ -36,12 +35,6 @@ from video.model import CELL, CELL_RECORDS, COUNT_GAP_BELOW, LABELS, gaps, share
 
 def _text(text: str, size: int = SMALL_FONT, color: str = INK) -> Text:
     return Text(text, font_size=size, fill_color=color)
-
-
-def _box(text: str, *, width: float, color: str = INK) -> VGroup:
-    label = _text(text, 20, color)
-    frame = RoundedRectangle(width=width, height=0.5, corner_radius=0.1, stroke_color=color)
-    return VGroup(frame, label.move_to(frame))
 
 
 def _mini_record(color: str = INK) -> VGroup:
@@ -68,7 +61,7 @@ class LlmGuidedFill(SectionScene):
     def _beat_2(self) -> None:
         blocks = VGroup(
             *(
-                _box(name, width=3.0, color=DATA_ORANGE)
+                layout.box(name, width=3.0, color=DATA_ORANGE)
                 for name in ("cell", "ranges", "gaps", "is_a chains", "shares")
             )
         ).arrange(DOWN, buff=0.15)
@@ -86,7 +79,7 @@ class LlmGuidedFill(SectionScene):
         self.play(ShowCreation(mark), run_time=0.6)
 
     def _beat_4(self) -> None:
-        model = _box("language model", width=2.6).move_to((0.4, -1.2, 0.0))
+        model = layout.box("language model", width=2.6).move_to((0.4, -1.2, 0.0))
         gate = Rectangle(width=0.15, height=3.4, fill_color=HIGHLIGHT, fill_opacity=0.9)
         gate.set_stroke(width=0).move_to((3.0, -0.1, 0.0))
         gate_label = _text("validation", 16, HIGHLIGHT).next_to(gate, UP, buff=0.1)
@@ -132,9 +125,11 @@ class BkoDirect(SectionScene):
 
     def _beat_4(self) -> None:
         fields = ("cp", "restecg", "oldpeak, slope", "ca")
-        donor = VGroup(*(_box(f, width=1.6, color=DATA_ORANGE) for f in fields))
+        donor = VGroup(*(layout.box(f, width=1.6, color=DATA_ORANGE) for f in fields))
         donor.arrange(DOWN, buff=0.12)
-        new = VGroup(*(_box(f, width=1.6, color=GREY) for f in fields)).arrange(DOWN, buff=0.12)
+        new = VGroup(*(layout.box(f, width=1.6, color=GREY) for f in fields)).arrange(
+            DOWN, buff=0.12
+        )
         donor.move_to((2.6, -1.3, 0.0))
         new.move_to((5.4, -1.3, 0.0))
         labels = VGroup(
@@ -190,20 +185,13 @@ class ClosingTheLoop(SectionScene):
         self.play(LaggedStart(*(FadeIn(r, shift=0.3 * RIGHT) for r in rows)), run_time=1.0)
 
     def _beat_3(self) -> None:
-        count = _text(f"per-subgroup gaps: {SUBGROUP_GAPS} -> 0", 26, HIGHLIGHT)
-        count.move_to(self.gap_rows, aligned_edge=LEFT)
-        self.play(LaggedStart(*(FadeOut(r, shift=0.3 * RIGHT) for r in self.gap_rows)))
-        self.play(FadeIn(count), run_time=0.5)
-        stamp_text = _text("single draw", 30, GAP_RED)
-        stamp = VGroup(
-            RoundedRectangle(
-                width=stamp_text.get_width() + 0.5,
-                height=stamp_text.get_height() + 0.4,
-                corner_radius=0.1,
-                stroke_color=GAP_RED,
-                stroke_width=5,
-            ),
-            stamp_text,
+        heading = self.gap_rows[-1]
+        grounded = _text("grounded now", 22, GROUNDED).move_to(heading, aligned_edge=LEFT)
+        rows = self.gap_rows[:-1]
+        marks = [layout.tick().next_to(row, LEFT, buff=0.15) for row in rows]
+        self.play(
+            *(row.animate.set_fill(GROUNDED) for row in rows),
+            Transform(heading, grounded),
+            run_time=0.8,
         )
-        stamp.rotate(0.2).move_to((-0.6, -0.9, 0.0))
-        self.play(GrowFromCenter(stamp), run_time=0.5)
+        self.play(*(FadeIn(mark) for mark in marks), run_time=0.5)
