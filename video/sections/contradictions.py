@@ -21,7 +21,7 @@ from manimlib import (
 )
 
 from video import layout
-from video.captions import KINDS
+from video.captions import DIABETES_CHAIN, KINDS, UCI_CHAIN
 from video.layout import (
     DATA_ORANGE,
     GAP_RED,
@@ -105,11 +105,11 @@ class WhatAContradictionIs(SectionScene):
         self.play(FadeIn(fields, shift=0.2 * LEFT), run_time=0.8)
 
     def _beat_5(self) -> None:
-        self.uci = _share_bar("UCI", 40, 92).move_to((1.6, -1.2, 0.0))
+        self.uci = _share_bar("UCI", *UCI_CHAIN).move_to((1.6, -1.2, 0.0))
         self.play(FadeIn(self.uci[0]), FadeIn(self.uci[2]), GrowFromCenter(self.uci[1]))
 
     def _beat_6(self) -> None:
-        diabetes = _share_bar("Diabetes 130", 757, 838).next_to(self.uci, DOWN, buff=0.4)
+        diabetes = _share_bar("Diabetes 130", *DIABETES_CHAIN).next_to(self.uci, DOWN, buff=0.4)
         self.play(FadeIn(diabetes[0]), FadeIn(diabetes[2]), GrowFromCenter(diabetes[1]))
 
 

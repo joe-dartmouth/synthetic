@@ -17,6 +17,7 @@ EVIDENCE = (REPO_ROOT / "docs" / "EVIDENCE.md").read_text(encoding="utf-8")
 
 
 def test_the_planned_length_is_inside_the_bound():
+    """The video runs 3 to 7 minutes: the 3-8 minute brief, with a minute's margin for beats."""
     assert 180 <= captions.planned_seconds() <= 420
 
 
@@ -39,6 +40,12 @@ def test_no_caption_states_a_four_decimal_figure_outside_the_lists():
         for figure in re.findall(r"[+-]?\d\.\d{4}", caption)
     }
     assert stated <= set(captions.EVIDENCE_FIGURES)
+
+
+@pytest.mark.parametrize(("stated", "doc", "sentence"), captions.SOURCED)
+def test_each_sourced_figure_is_in_a_caption_and_in_its_doc(stated: str, doc: str, sentence: str):
+    assert any(stated in caption for s in captions.SECTIONS for caption in s.captions)
+    assert sentence in (REPO_ROOT / doc).read_text(encoding="utf-8")
 
 
 def test_the_kinds_are_the_census_kinds_in_order():

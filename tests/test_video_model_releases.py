@@ -23,6 +23,7 @@ from bko.gaps.shares import share_parts
 from bko.generate.direct import label_group
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from video import model
+from video.captions import CELL_GAPS
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -75,7 +76,7 @@ def test_the_models_share_is_the_samplers() -> None:
     assert parts["HP:0001717"].share == pytest.approx(model.share("HP:0001717"))
 
 
-def test_the_cell_holds_fourteen_gaps_including_the_models() -> None:
+def test_the_cell_holds_the_captions_gap_count_including_the_models() -> None:
     found = detect(_scope().fragments, dataset_fragment(_cell().observed))
-    assert len(found) == 14
+    assert len(found) == CELL_GAPS
     assert set(model.gaps()) <= {(s.antecedent, s.consequent) for s in found}

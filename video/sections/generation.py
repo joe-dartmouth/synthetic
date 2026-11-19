@@ -20,7 +20,7 @@ from manimlib import (
 )
 
 from video import layout
-from video.captions import section
+from video.captions import SUBGROUP_GAPS, section
 from video.layout import (
     DATA_ORANGE,
     GAP_RED,
@@ -190,7 +190,7 @@ class ClosingTheLoop(SectionScene):
         self.play(LaggedStart(*(FadeIn(r, shift=0.3 * RIGHT) for r in rows)), run_time=1.0)
 
     def _beat_3(self) -> None:
-        count = _text("per-subgroup gaps: 16 -> 0", 26, HIGHLIGHT)
+        count = _text(f"per-subgroup gaps: {SUBGROUP_GAPS} -> 0", 26, HIGHLIGHT)
         count.move_to(self.gap_rows, aligned_edge=LEFT)
         self.play(LaggedStart(*(FadeOut(r, shift=0.3 * RIGHT) for r in self.gap_rows)))
         self.play(FadeIn(count), run_time=0.5)

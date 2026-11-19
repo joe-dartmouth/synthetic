@@ -1,9 +1,10 @@
 """The demo video's scene order, titles and on-screen labels, and how long each label holds.
 
 Captions are short labels for a presenter to talk over. A caption that states a number of the
-running example formats it from `video.model`; a caption that states a result quotes a figure of
-`docs/EVIDENCE.md`, listed in `RECALL_BARS` and `EVIDENCE_FIGURES`, which
-`tests/test_video_captions.py` holds to that file. No module here imports ManimGL.
+running example formats it from `video.model`. A caption that states a result quotes the docs: its
+four-decimal figures are listed in `RECALL_BARS` and `EVIDENCE_FIGURES`, and its other figures are
+named constants whose sentence `SOURCED` names; `tests/test_video_captions.py` holds each to its
+doc. No module here imports ManimGL.
 """
 
 from collections.abc import Mapping
@@ -45,6 +46,21 @@ class Section:
     captions: tuple[str, ...]
 
 
+CELL_GAPS: Final = 14
+"""Per-subgroup gaps of the cell before Fusion 2 (EVIDENCE C1)."""
+NEIGHBOUR_GAPS: Final = 2
+"""Per-subgroup gaps of `<55/female/0`, a cell with no count gap (EVIDENCE C1)."""
+SUBGROUP_GAPS: Final = 16
+"""Per-subgroup gaps of the split before Fusion 2; none after (EVIDENCE C1)."""
+UCI_CHAIN: Final = (40, 92)
+"""UCI records showing ST depression without Abnormal EKG, of those showing it (EVIDENCE D2)."""
+DIABETES_CHAIN: Final = (757, 838)
+"""Diabetes 130's records with the narrow concept and not the broad, of those with it (D2)."""
+UCI_SPLITS: Final = 100
+"""UCI holdout splits behind E1's verdict."""
+REAL_ROWS_KEPT: Final = 19
+"""Training rows of Diabetes 130's removed cell kept at f = 0.985 (EVIDENCE E6)."""
+
 _N = model.CELL_RECORDS[model.CELL]
 _TOTAL = sum(model.CELL_RECORDS.values())
 _ST_PRIOR = model.HOLDERS["HP:0012250"] / _N
@@ -84,8 +100,8 @@ SECTIONS: Final[tuple[Section, ...]] = (
         "The cell's data as a fragment",
         (
             "Prior = share of the cell's records showing the concept",
-            f"ST segment depression: {model.HOLDERS['HP:0012250']} of {_N}, prior {_ST_PRIOR}",
-            f"Abnormal EKG: {model.HOLDERS['HP:0003115']} of {_N}, prior {_EKG_PRIOR}",
+            f"ST segment depression: {model.HOLDERS['HP:0012250']} of {_N}, prior {_ST_PRIOR:.1f}",
+            f"Abnormal EKG: {model.HOLDERS['HP:0003115']} of {_N}, prior {_EKG_PRIOR:.1f}",
             "Never shown: no prior",
         ),
     ),
@@ -119,8 +135,11 @@ SECTIONS: Final[tuple[Section, ...]] = (
             "Pass 2",
             "Never reached: ungrounded",
             "Gap = a (cell, statement) pair left ungrounded",
-            f"This cell: 14 gaps, {len(model.gaps())} drawn",
-            f"{model.CELL_RECORDS['<55/female/0']} records, no count gap, still 2 BKO gaps",
+            f"This cell: {CELL_GAPS} gaps, {len(model.gaps())} drawn",
+            (
+                f"{model.CELL_RECORDS['<55/female/0']} records, no count gap,"
+                f" still {NEIGHBOUR_GAPS} BKO gaps"
+            ),
         ),
     ),
     Section(
@@ -131,8 +150,8 @@ SECTIONS: Final[tuple[Section, ...]] = (
             "One record shows the child without the parent",
             "A mapping says when a record shows a concept, nothing more",
             "Exercise test and resting EKG: different fields",
-            "UCI: 40 of 92 records",
-            "Diabetes 130: 757 of 838 records",
+            "UCI: {} of {} records".format(*UCI_CHAIN),
+            "Diabetes 130: {} of {} records".format(*DIABETES_CHAIN),
         ),
     ),
     Section(
@@ -140,7 +159,7 @@ SECTIONS: Final[tuple[Section, ...]] = (
         "Five kinds of contradiction",
         (
             f"narrow-without-broad: 1 of this cell's {_N} records",
-            f"child-share-above-parent: {_ST_PRIOR} against {_EKG_PRIOR}",
+            f"child-share-above-parent: {_ST_PRIOR:.1f} against {_EKG_PRIOR:.1f}",
             "all-show: both records show ST depression",
             "code-overlap: angina and chest pain share code 1",
             "empty-cell: none found; removing a whole group makes one",
@@ -188,20 +207,20 @@ SECTIONS: Final[tuple[Section, ...]] = (
         (
             f"{model.COUNT_GAP_BELOW} validated records join the cell",
             "Detection runs again",
-            "Per-subgroup gaps: 16 before, 0 after",
+            f"Per-subgroup gaps: {SUBGROUP_GAPS} before, 0 after",
         ),
     ),
     Section(
         "DoesItHelp",
         "Does it help a classifier?",
         (
-            "UCI, 100 splits: no benefit shown, no harm shown",
+            f"UCI, {UCI_SPLITS} splits: no benefit shown, no harm shown",
             "Diabetes 130: remove every man aged 60-79 readmitted within 30 days",
             "Recall on the removed group",
             "bko-direct against CTGAN: +0.0595 [+0.0115, +0.1075]",
             "bko-direct was added after the plan: no verdict",
             "Boosted trees: 0.3591 against 0.5853",
-            "19 real rows kept: level with ADASYN and CTGAN",
+            f"{REAL_ROWS_KEPT} real rows kept: level with ADASYN and CTGAN",
         ),
     ),
     Section(
@@ -246,6 +265,43 @@ EVIDENCE_FIGURES: Final[tuple[str, ...]] = (
     "0.5853",  # EVIDENCE E6: boosted trees, real
 )
 """The other `docs/EVIDENCE.md` figures the captions state."""
+
+
+SOURCED: Final[tuple[tuple[str, str, str], ...]] = (
+    (
+        f"{CELL_GAPS} gaps",
+        "docs/EVIDENCE.md",
+        (
+            f"{SUBGROUP_GAPS} per-subgroup pairs in 2 cells, {CELL_GAPS} of them in the `<55`,"
+            " female, target 1 cell"
+        ),
+    ),
+    (
+        f"still {NEIGHBOUR_GAPS} BKO gaps",
+        "docs/EVIDENCE.md",
+        f"{NEIGHBOUR_GAPS} in the `<55`, female, target 0 cell",
+    ),
+    (
+        f"{SUBGROUP_GAPS} before, 0 after",
+        "docs/EVIDENCE.md",
+        f"per-subgroup {SUBGROUP_GAPS}, 0, {SUBGROUP_GAPS}, 0, 0",
+    ),
+    (
+        "{} of {} records".format(*UCI_CHAIN),
+        "docs/EVIDENCE.md",
+        "`HP:0012250` under `HP:0003115`, {1} and {0}".format(*UCI_CHAIN),
+    ),
+    (
+        "{} of {} records".format(*DIABETES_CHAIN),
+        "docs/EVIDENCE.md",
+        "`MONDO:0005016` under `MONDO:0005300`, {1} and {0}".format(*DIABETES_CHAIN),
+    ),
+    (f"UCI, {UCI_SPLITS} splits", "docs/EVIDENCE.md", f"each of {UCI_SPLITS} holdouts"),
+    (f"{REAL_ROWS_KEPT} real rows kept", "docs/EVIDENCE.md", f"{REAL_ROWS_KEPT} at f = 0.985"),
+    ("level with ADASYN and CTGAN", "docs/EVIDENCE.md", "is level with ADASYN"),
+    ("Prop. 5.1.1", "docs/BACKGROUND.md", "Proposition 5.1.1 states that removing it"),
+)
+"""Each non-model figure or claim a caption states: the caption text, its doc and its sentence."""
 
 
 def section(name: str) -> Section:

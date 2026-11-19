@@ -25,6 +25,7 @@ from manimlib import (
 
 from bko.bkb.fusion import is_source
 from video import layout
+from video.captions import CELL_GAPS, NEIGHBOUR_GAPS
 from video.layout import (
     GAP_RED,
     GREY,
@@ -209,9 +210,9 @@ class GroundingAndGaps(SectionScene):
         self.play(FadeIn(self.heading), *copies, run_time=1.2)
 
     def _beat_6(self) -> None:
-        count = Text(f"14 gaps, {len(gaps())} drawn", font_size=24, fill_color=HIGHLIGHT)
+        count = Text(f"{CELL_GAPS} gaps, {len(gaps())} drawn", font_size=24, fill_color=HIGHLIGHT)
         count.move_to(self.heading, aligned_edge=LEFT)
-        more = Text("+ 11 more", font_size=SMALL_FONT, fill_color=GREY)
+        more = Text(f"+ {CELL_GAPS - len(gaps())} more", font_size=SMALL_FONT, fill_color=GREY)
         more.next_to(self.rows, DOWN, aligned_edge=LEFT, buff=0.2)
         self.play(Transform(self.heading, count), FadeIn(more), run_time=0.8)
 
@@ -224,6 +225,8 @@ class GroundingAndGaps(SectionScene):
         line = DashedLine(
             (bar.get_left()[0] - 0.3, y, 0.0), (bar.get_right()[0] + 0.3, y, 0.0)
         ).set_stroke(GAP_RED)
-        note = Text("2 BKO gaps", font_size=24, fill_color=GAP_RED).next_to(bar, RIGHT, buff=0.6)
+        note = Text(f"{NEIGHBOUR_GAPS} BKO gaps", font_size=24, fill_color=GAP_RED).next_to(
+            bar, RIGHT, buff=0.6
+        )
         self.play(FadeIn(chart, shift=0.2 * UP), FadeIn(line), run_time=0.8)
         self.play(FadeIn(note), run_time=0.5)
