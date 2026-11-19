@@ -27,6 +27,7 @@ SCENES: Final = MEDIA / "scenes"
 OUTPUT: Final = MEDIA / "bko-demo.mp4"
 PARTIAL: Final = MEDIA / "bko-demo.part.mp4"
 RENDER_TIMEOUT_SECONDS: Final = 3600
+JOIN_TIMEOUT_SECONDS: Final = 600
 
 
 def concat_lines(order: Sequence[str]) -> str:
@@ -34,8 +35,8 @@ def concat_lines(order: Sequence[str]) -> str:
     return "".join(f"file '{name}.mp4'\n" for name in order)
 
 
-def _render(ffmpeg: str) -> int:
-    """Render every scene, then join them; 0 on success, 1 naming what failed."""
+def _render_scenes() -> int:
+    """Render every scene of `ORDER` into `SCENES`; 0 when each file is complete, else 1."""
     environment = {**os.environ, "PYTHONPATH": f"src{os.pathsep}."}
     command = [
         sys.executable,
@@ -47,7 +48,7 @@ def _render(ffmpeg: str) -> int:
         "--config_file",
         "video/config.yml",
         "--video_dir",
-        str(SCENES.relative_to(REPO_ROOT)),
+        str(SCENES),
     ]
     try:
         result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
@@ -62,13 +63,17 @@ def _render(ffmpeg: str) -> int:
         _LOG.error("rendering the scenes took over %d s", RENDER_TIMEOUT_SECONDS)
         return 1
     if result.returncode != 0:
-        _LOG.error("ManimGL exited %d", result.returncode)
+        _LOG.error("ManimGL exited %d; its output above names the scene", result.returncode)
         return 1
     for name in ORDER:
         if not (SCENES / f"{name}.mp4").is_file() or (SCENES / f"{name}_temp.mp4").exists():
             _LOG.error("scene %s did not finish: no complete %s.mp4", name, name)
             return 1
-    (SCENES / "concat.txt").write_text(concat_lines(ORDER), encoding="utf-8")
+    return 0
+
+
+def _join(ffmpeg: str) -> int:
+    """Join the scene files into `OUTPUT` through `PARTIAL`; 0 on success, else 1."""
     join = [
         ffmpeg,
         "-nostdin",
@@ -84,16 +89,24 @@ def _render(ffmpeg: str) -> int:
         "-movflags",
         "+faststart",
         "-y",
-        str(Path("..") / PARTIAL.name),
+        str(PARTIAL),
     ]
-    joined = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-        join, cwd=SCENES, stdin=subprocess.DEVNULL, timeout=600, check=False
-    )
-    if joined.returncode != 0:
-        _LOG.error("ffmpeg exited %d joining the scenes", joined.returncode)
+    try:
+        (SCENES / "concat.txt").write_text(concat_lines(ORDER), encoding="utf-8")
+        joined = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+            join, cwd=SCENES, stdin=subprocess.DEVNULL, timeout=JOIN_TIMEOUT_SECONDS, check=False
+        )
+        if joined.returncode != 0:
+            _LOG.error("ffmpeg exited %d joining the scenes", joined.returncode)
+            return 1
+        PARTIAL.replace(OUTPUT)
+    except subprocess.TimeoutExpired:
+        _LOG.error("joining the scenes took over %d s", JOIN_TIMEOUT_SECONDS)
         return 1
-    PARTIAL.rename(OUTPUT)
-    _LOG.info("wrote %s", OUTPUT.relative_to(REPO_ROOT))
+    except OSError as error:
+        _LOG.error("joining the scenes failed: %s", error)
+        return 1
+    _LOG.info("wrote %s", OUTPUT)
     return 0
 
 
@@ -111,10 +124,11 @@ def main() -> int:
     if importlib.util.find_spec("manimlib") is None:
         _LOG.error("manimlib is not importable; run make video-env")
         return 2
-    shutil.rmtree(SCENES, ignore_errors=True)
+    if SCENES.exists():
+        shutil.rmtree(SCENES)
     OUTPUT.unlink(missing_ok=True)
     PARTIAL.unlink(missing_ok=True)
-    return _render(ffmpeg)
+    return _render_scenes() or _join(ffmpeg)
 
 
 if __name__ == "__main__":
