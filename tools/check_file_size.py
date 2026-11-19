@@ -48,6 +48,7 @@ CAPS: Final[tuple[tuple[str, int], ...]] = (
     ("tests/", 1000),
     ("src/", 500),
     ("tools/", 500),
+    ("video/", 500),
 )
 """Each tracked directory prefix and the cap that applies inside it, first match wins.
 

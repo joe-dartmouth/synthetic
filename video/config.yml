@@ -1,0 +1,6 @@
+camera:
+  resolution: "(1920, 1080)"
+  fps: 30
+text:
+  font: "Helvetica Neue"
+  alignment: "CENTER"
