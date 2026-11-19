@@ -32,7 +32,7 @@ from manimlib import (
 )
 
 from video.captions import FADE_SECONDS, SCENE_END_SECONDS, hold_seconds, section
-from video.model import EDGES, LABELS, STATE
+from video.model import EDGES, HOLDERS, LABELS, STATE, dataset_fragment
 
 
 INK: Final = "#ECECEC"
@@ -42,13 +42,16 @@ GREY: Final = "#7A7A7A"
 HIGHLIGHT: Final = "#F0C419"
 HPO_BLUE: Final = "#4A90D9"
 DATA_ORANGE: Final = "#E8954A"
+MONDO_PURPLE: Final = "#A57FD8"
+SOURCE_COLORS: Final[Mapping[str, str]] = {"hpo": HPO_BLUE, "mondo": MONDO_PURPLE}
+"""Each ontology source's color; a dataset source is orange."""
 
 CHAIN_LAYOUT: Final[Mapping[str, tuple[float, float]]] = {
     "HP:0001717": (-5.3, -2.1),
     "HP:0003207": (-5.3, 0.0),
     "HP:0004934": (-5.3, 2.1),
-    "HP:0100749": (-0.8, -2.1),
-    "HP:0012531": (-0.8, 0.0),
+    "HP:0100749": (-1.2, -2.1),
+    "HP:0012531": (-1.2, 0.0),
     "HP:0012250": (3.7, -2.1),
     "HP:0012249": (3.7, 0.0),
     "HP:0003115": (3.7, 2.1),
@@ -102,7 +105,7 @@ def edge(start: Mobject, end: Mobject) -> Arrow:
 
 def source_node(name: str) -> VGroup:
     """A source I-node: a small diamond tagged with its fragment's name."""
-    color = HPO_BLUE if name == "hpo" else DATA_ORANGE
+    color = SOURCE_COLORS.get(name, DATA_ORANGE)
     diamond = Square(side_length=0.26, fill_color=color, fill_opacity=1, stroke_width=0)
     diamond.rotate(0.785398)
     tag = Text(name, font_size=14, fill_color=color).next_to(diamond, DOWN, buff=0.06)
@@ -194,8 +197,30 @@ def bkb_diagram(
     return nodes, statements
 
 
-def tag(text: str, anchor: Mobject) -> VGroup:
-    """A small boxed tag under `anchor`, such as "part of HPO"."""
+def prior(node: VGroup, probability: str) -> VGroup:
+    """A prior S-node on `node`: a box to its left and an arrow into its circle."""
+    box = snode(probability, color=DATA_ORANGE).next_to(node[0], LEFT, buff=0.7)
+    return VGroup(box, edge(box, node[0]))
+
+
+def data_priors(nodes: Mapping[str, VGroup]) -> dict[str, VGroup]:
+    """The cell's dataset-fragment priors, each on its node, read from `video.model`."""
+    return {s.head[0]: prior(nodes[s.head[0]], f"{s.prob}") for s in dataset_fragment().snodes}
+
+
+def held_concepts() -> tuple[str, ...]:
+    """The concepts the cell's records show, sorted."""
+    return tuple(sorted(c for c, count in HOLDERS.items() if count > 0))
+
+
+def bko_diagram() -> tuple[dict[str, VGroup], dict[tuple[str, str], VGroup], dict[str, VGroup]]:
+    """The cell's BKO as drawn: held I-nodes filled, the S-node per edge and the data priors."""
+    nodes, statements = bkb_diagram(held_concepts())
+    return nodes, statements, data_priors(nodes)
+
+
+def tag(text: str) -> VGroup:
+    """A small boxed tag, such as "part of HPO"."""
     label = Text(text, font_size=SMALL_FONT, fill_color=GREY)
     box = RoundedRectangle(
         width=label.get_width() + 0.3,
@@ -203,7 +228,7 @@ def tag(text: str, anchor: Mobject) -> VGroup:
         corner_radius=0.08,
         stroke_color=GREY,
     )
-    return VGroup(box, label.move_to(box)).next_to(anchor, DOWN, buff=0.25)
+    return VGroup(box, label.move_to(box))
 
 
 class SectionScene(Scene):

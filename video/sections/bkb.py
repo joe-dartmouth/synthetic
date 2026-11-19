@@ -1,10 +1,24 @@
 """The BKB vocabulary: the ontology, I-nodes and S-nodes, and the cell's data fragment."""
 
-from manimlib import LEFT, RIGHT, FadeIn, ReplacementTransform, Text, Transform, VGroup
+from manimlib import (
+    DOWN,
+    LEFT,
+    RIGHT,
+    UP,
+    FadeIn,
+    GrowFromCenter,
+    Indicate,
+    LaggedStart,
+    ReplacementTransform,
+    ShowCreation,
+    Text,
+    Transform,
+    VGroup,
+)
 
 from video import layout
 from video.layout import GREY, HIGHLIGHT, SMALL_FONT, SectionScene
-from video.model import EDGES, LABELS
+from video.model import CELL, CELL_RECORDS, EDGES, HOLDERS, LABELS
 
 
 FIRST_EDGE = EDGES[0]
@@ -14,6 +28,25 @@ class Ontology(SectionScene):
     """The eight HPO classes as three is_a chains."""
 
     name = "Ontology"
+
+    def _beat_1(self) -> None:
+        nodes, self.arrows = layout.ontology_diagram()
+        chains = [
+            [nodes[c] for c in layout.CHAIN_LAYOUT if layout.CHAIN_LAYOUT[c][0] == x]
+            for x in sorted({x for x, _ in layout.CHAIN_LAYOUT.values()})
+        ]
+        self.play(LaggedStart(*(FadeIn(VGroup(*chain)) for chain in chains)), run_time=1.2)
+        self.play(*(ShowCreation(arrow) for arrow in self.arrows.values()), run_time=0.8)
+        hpo = layout.tag("part of HPO").move_to((0.2, 2.1, 0.0))
+        self.play(FadeIn(hpo), run_time=0.4)
+
+    def _beat_2(self) -> None:
+        labels = [
+            Text("is_a", font_size=SMALL_FONT, fill_color=HIGHLIGHT).next_to(arrow, LEFT, 0.15)
+            for arrow in self.arrows.values()
+        ]
+        self.play(*(FadeIn(label, shift=0.1 * UP) for label in labels), run_time=0.6)
+        self.play(*(Indicate(arrow, color=HIGHLIGHT) for arrow in self.arrows.values()))
 
 
 class INodesAndSNodes(SectionScene):
@@ -66,3 +99,43 @@ class DatasetFragment(SectionScene):
     """The cell's records become priors on the concepts they show."""
 
     name = "DatasetFragment"
+
+    def _beat_1(self) -> None:
+        self.nodes, statements = layout.bkb_diagram()
+        self.priors = layout.data_priors(self.nodes)
+        diagram = VGroup(*self.nodes.values(), *statements.values(), *self.priors.values())
+        diagram.scale(0.72).to_edge(LEFT, buff=0.3)
+        self.add(*self.nodes.values(), *statements.values())
+        n = CELL_RECORDS[CELL]
+        cards = VGroup(
+            *(
+                layout.record_card(
+                    [(LABELS[c], record >= n - count) for c, count in HOLDERS.items()],
+                    title=f"record {record + 1} of {CELL}",
+                )
+                for record in range(n)
+            )
+        ).arrange(DOWN, buff=0.35)
+        cards.move_to((4.7, 0.0, 0.0))
+        self.play(LaggedStart(*(FadeIn(card, shift=0.3 * LEFT) for card in cards)), run_time=1.2)
+
+    def _show_prior(self, concept: str) -> None:
+        node = self.nodes[concept]
+        self.play(
+            GrowFromCenter(self.priors[concept]),
+            node[0].animate.set_fill(layout.GROUNDED, opacity=0.8),
+            run_time=1.0,
+        )
+
+    def _beat_2(self) -> None:
+        self._show_prior("HP:0012250")
+
+    def _beat_3(self) -> None:
+        self._show_prior("HP:0003115")
+
+    def _beat_4(self) -> None:
+        never = [c for c, count in HOLDERS.items() if count == 0]
+        fragment = layout.tag("part of the cell's fragment")
+        fragment.next_to(self.priors["HP:0012250"], DOWN, buff=0.35)
+        self.play(*(self.nodes[c].animate.set_color(GREY) for c in never), run_time=0.8)
+        self.play(FadeIn(fragment), run_time=0.4)
