@@ -22,9 +22,9 @@ there is no backlog of over-cap files to split.
 ## Decision
 
 We will use **per-tree caps in a `make check` target**: `tools/check_file_size.py`, run by
-`make sizes`, caps every tracked `.py` file under `src/`, `tools/`, `tests/` and `video/`. `CAPS` in that
-module is the single home for the numbers, with `tests/` allowed more lines than `src/` and
-`tools/`. A tracked `.py` file outside those trees is a structural error.
+`make sizes`, caps every tracked `.py` file under `src/`, `tools/`, `tests/` and `video/`. `CAPS`
+in that module is the single home for the numbers, with `tests/` allowed more lines than `src/`
+and `tools/`. A tracked `.py` file outside those trees is a structural error.
 
 ## Rationale
 

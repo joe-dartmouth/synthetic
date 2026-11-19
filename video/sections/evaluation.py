@@ -2,7 +2,6 @@
 
 from itertools import pairwise, starmap
 
-import numpy as np
 from manimlib import (
     DOWN,
     LEFT,
@@ -111,9 +110,9 @@ class DoesItHelp(SectionScene):
         self.play(FadeIn(kept), run_time=0.5)
 
 
-def _loop(start: VGroup, end: VGroup, label: str, side: np.ndarray) -> VGroup:
-    """A dotted edge from `start` back to `end`, bowing out on `side`, with its label."""
-    below = side is DOWN
+def _loop(start: VGroup, end: VGroup, label: str, *, below: bool) -> VGroup:
+    """A dotted edge from `start` back to `end`, below or above the boxes, labelled."""
+    side = DOWN if below else UP
     a = start.get_edge_center(side) + 0.1 * side
     b = end.get_edge_center(side) + 0.1 * side
     dotted = DashedLine(a, b, path_arc=-1.0 if below else 1.0, stroke_color=GREY)
@@ -140,8 +139,8 @@ class Recap(SectionScene):
         self.boxes.arrange(RIGHT, buff=0.5).move_to((0.0, 0.2, 0.0))
         arrows = list(starmap(layout.edge, pairwise(self.boxes)))
         loops = VGroup(
-            _loop(self.boxes[4], self.boxes[1], "BKO arms", DOWN),
-            _loop(self.boxes[3], self.boxes[0], "Fuse", UP),
+            _loop(self.boxes[4], self.boxes[1], "BKO arms", below=True),
+            _loop(self.boxes[3], self.boxes[0], "Fuse", below=False),
         )
         self.play(LaggedStart(*(FadeIn(b) for b in self.boxes), lag_ratio=0.3), run_time=1.2)
         self.play(*(ShowCreation(a) for a in arrows), run_time=0.6)

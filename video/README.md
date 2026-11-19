@@ -16,8 +16,9 @@ One scene's last frame, as a still under `video/media/stills/`:
 PYTHONPATH=src:. video/.venv/bin/python -m manimlib video/main.py <Scene> -s -w --config_file video/config.yml --video_dir video/media/stills
 ```
 
-`make lint` and `make sizes` reach `video/`; `make typecheck`, coverage and the docs tests do not,
-and the gate never renders.
+`make lint` and `make sizes` reach `video/`; `make typecheck` reports nothing in it, and coverage
+and the docs tests do not reach it. The `tests/test_video_*.py` files hold the model, the
+captions' figures, the driver's exit codes and the scene order; the gate never renders.
 
 - **Dependencies:** ManimGL, outside the lock, and FFmpeg.
 - **Status:** built.

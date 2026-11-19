@@ -1829,7 +1829,8 @@ animation that a presenter talks over.
   writes `video/media/bko-demo.mp4`. It exits 1 when a scene fails and 2 when FFmpeg or the
   environment is missing, and it writes nothing under `runs/`.
 - **Install**: `make video-env` builds `video/.venv` from `video/requirements.txt`, with hashes,
-  on Python 3.14. ManimGL is not an extra (ADR
+  on Python 3.14, an interpreter that environment pins for itself, apart from `.python-version`.
+  ManimGL is not an extra (ADR
   [`tooling/video-scenes-outside-the-lock`](adr/tooling/video-scenes-outside-the-lock.md)). That
   environment is not the project's, so `uv.lock` and `.venv` are untouched.
 - **Changing the requirements**: edit `video/requirements.in`, then from the repository root:
@@ -1839,8 +1840,10 @@ animation that a presenter talks over.
 - **What it needs**: FFmpeg and ffprobe on PATH, the font Helvetica Neue and a GPU session. No
   LaTeX and no API call.
 - **Where it lands**: `video/media/`, gitignored.
-- **What the gate checks**: `make lint` and `make sizes` reach `video/`; `make typecheck`, coverage
-  and the docs tests do not, and the gate never renders.
+- **What the gate checks**: `make lint` and `make sizes` reach `video/`; `make typecheck` reports
+  nothing in `video/`, and coverage and the docs tests do not reach it. The `tests/test_video_*.py`
+  files hold the model, the captions' figures, the driver's exit codes and the scene order, read as
+  source; the gate never renders.
 - **Length**: `ffprobe -v error -show_entries format=duration -of csv=p=0 video/media/bko-demo.mp4`
   reports it.
 - **Model against the data**: `tests/test_video_model_releases.py` compares the example model's
