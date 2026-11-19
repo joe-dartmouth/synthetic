@@ -64,7 +64,7 @@ second environment must be rebuilt when `video/requirements.txt` changes.
 ## Enforcement
 
 - Owner: `Makefile` (`video-env`, `video`) and `video/requirements.txt`
-- Pinned by: `tests/test_file_size.py`, `tests/test_local_artifacts.py`
+- Pinned by: `tests/test_file_size.py`, `tests/test_local_artifacts.py`, `tests/test_video_model.py`
 
 ## Reversal Conditions
 
