@@ -3,7 +3,7 @@ id: datasets-selection-rule
 title: Record the confirmatory-dataset selection rule and re-read each choice from its primary page
 status: ready
 depends_on: --
-blocks: datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame
+blocks: datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, datasets-non-health-selection
 parallel_safe: true
 milestone: direct-method-research
 paid: false
@@ -34,20 +34,23 @@ any candidate's records are loaded and checks each read against its source.
   - the mechanical rule that later picks the removed cell from the training split.
 - In the same ADR, the ranking of every candidate considered, with its exclusion reason:
   SUPPORT2, NHANES, BRFSS, MEPS, CDC Diabetes Health Indicators, eICU demo, MIMIC-IV demo,
-  Framingham teaching set, ACS PUMS, UCI Adult and HMDA. The three chosen are SUPPORT2, NHANES
-  and ACS PUMS.
+  Framingham teaching set, ACS PUMS, UCI Adult, HMDA, the PhysioNet/CinC Challenge 2012 set,
+  NHAMCS 2022 ED, SPARCS 2022, the PhysioNet/CinC Challenge 2019 set and UCI Census-Income KDD.
+  The five chosen are SUPPORT2, NHANES, the PhysioNet/CinC Challenge 2012 set, NHAMCS 2022 ED and
+  ACS PUMS.
 - A re-read, from each primary page, of what this set took unverified: SUPPORT2's terms at ICPSR
-  and its in-hospital death rate, the size of the NHANES composite outcome, and the row count of
-  one ACS state-year.
-- For each of the three chosen datasets, the ADR records:
+  and its in-hospital death rate, the size of the NHANES composite outcome, the row count of one
+  ACS state-year, the PhysioNet/CinC Challenge 2012 set's licence and in-hospital death rate, and
+  NHAMCS 2022 ED's terms and record count.
+- For each of the five chosen datasets, the ADR records:
   - whether its terms permit sending records to a third-party API, as the `Agreement` value its
     `Source` pin will carry (`bko.datasets.sources`; `agreement=None` means open data, which
     `permits_sending` lets go to the API);
   - any clause on re-identification and the team's reading of it. For NHANES that reading is that
-    scoring the privacy of generated rows is outside the clause; SUPPORT2 and ACS PUMS get the
-    same treatment.
+    scoring the privacy of generated rows is outside the clause; SUPPORT2, the PhysioNet/CinC
+    Challenge 2012 set, NHAMCS 2022 ED and ACS PUMS get the same treatment.
 - This unit changes [`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets) section 6 to list the
-  three. ACS PUMS is its own exploratory family, outside the health datasets' multiplicity
+  five. ACS PUMS is its own exploratory family, outside the health datasets' multiplicity
   family.
 
 **Out.**
@@ -60,7 +63,9 @@ any candidate's records are loaded and checks each read against its source.
 - The ADR ranks every candidate, with its license and access quoted from the primary page.
 - The re-read contradicts no choice, or the ADR revises the choice before units
   [`datasets-support2-frame`](datasets-support2-frame.md),
-  [`datasets-nhanes-frame`](datasets-nhanes-frame.md) and
+  [`datasets-nhanes-frame`](datasets-nhanes-frame.md),
+  [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md),
+  [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) and
   [`datasets-acs-frame`](datasets-acs-frame.md) start.
 - The ADR records, for each chosen dataset, its `Agreement` value and its re-identification
   clause with the team's reading, or that its terms hold none.
