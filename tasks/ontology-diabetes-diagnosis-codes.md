@@ -1,8 +1,8 @@
 ---
 id: ontology-diabetes-diagnosis-codes
 title: Map Diabetes 130's ICD-9 diagnosis codes as a new dataset name
-status: blocked
-depends_on: refactor-evaluate-size-splits
+status: ready
+depends_on: --
 blocks: generate-ancestor-shrunk-shares
 parallel_safe: true
 milestone: direct-method-research

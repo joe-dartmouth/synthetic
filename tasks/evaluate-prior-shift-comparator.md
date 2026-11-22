@@ -2,7 +2,7 @@
 id: evaluate-prior-shift-comparator
 title: Add the prior-shift arm, a scoring-time logit offset that adds no rows
 status: blocked
-depends_on: plan-direct-method-research, refactor-evaluate-size-splits
+depends_on: plan-direct-method-research
 blocks: evaluate-control-runs-registered
 parallel_safe: true
 milestone: direct-method-research

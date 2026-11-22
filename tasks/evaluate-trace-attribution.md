@@ -1,8 +1,8 @@
 ---
 id: evaluate-trace-attribution
 title: Read what each arm kind's trace can attribute a record's fields to
-status: blocked
-depends_on: refactor-evaluate-size-splits
+status: ready
+depends_on: --
 blocks: evaluate-variant-dev-results, evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research

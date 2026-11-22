@@ -13,15 +13,14 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`plan-direct-method-research`](plan-direct-method-research.md) | ready | -- | direct-method-research |
-| [`refactor-evaluate-size-splits`](refactor-evaluate-size-splits.md) | ready | -- | direct-method-research |
 
 ### Controls
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`generate-no-mapping-ablation`](generate-no-mapping-ablation.md) | blocked | plan-direct-method-research, refactor-evaluate-size-splits | direct-method-research |
+| [`generate-no-mapping-ablation`](generate-no-mapping-ablation.md) | blocked | plan-direct-method-research | direct-method-research |
 | [`baselines-label-bootstrap`](baselines-label-bootstrap.md) | blocked | plan-direct-method-research | direct-method-research |
-| [`evaluate-prior-shift-comparator`](evaluate-prior-shift-comparator.md) | blocked | plan-direct-method-research, refactor-evaluate-size-splits | direct-method-research |
+| [`evaluate-prior-shift-comparator`](evaluate-prior-shift-comparator.md) | blocked | plan-direct-method-research | direct-method-research |
 | [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md) | blocked | generate-no-mapping-ablation, baselines-label-bootstrap, evaluate-prior-shift-comparator | direct-method-research |
 | [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
@@ -30,18 +29,18 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
-| [`gaps-is-a-conditional-fragments`](gaps-is-a-conditional-fragments.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) | ready | -- | direct-method-research |
+| [`gaps-is-a-conditional-fragments`](gaps-is-a-conditional-fragments.md) | ready | -- | direct-method-research |
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | generate-no-mapping-ablation, gaps-is-a-conditional-fragments, evaluate-added-row-contradictions | direct-method-research |
-| [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | generate-no-mapping-ablation, ontology-diabetes-diagnosis-codes | direct-method-research |
-| [`privacy-donor-attacks`](privacy-donor-attacks.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`privacy-donor-attacks`](privacy-donor-attacks.md) | ready | -- | direct-method-research |
 | [`privacy-donor-limits`](privacy-donor-limits.md) | blocked | generate-no-mapping-ablation, privacy-donor-attacks | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | generate-no-mapping-ablation, evaluate-added-row-contradictions, privacy-donor-attacks | direct-method-research |
-| [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | ready | -- | direct-method-research |
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
-| [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | refactor-evaluate-size-splits, evaluate-control-runs-registered | direct-method-research |
+| [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 | [`baselines-tabddpm`](baselines-tabddpm.md) | ready | -- | direct-method-research |
 
@@ -50,7 +49,7 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`datasets-selection-rule`](datasets-selection-rule.md) | blocked | plan-direct-method-research | direct-method-research |
-| [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | blocked | refactor-evaluate-size-splits | direct-method-research |
+| [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | ready | -- | direct-method-research |
 | [`datasets-support2-frame`](datasets-support2-frame.md) | blocked | datasets-selection-rule | direct-method-research |
 | [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | blocked | datasets-selection-rule | direct-method-research |
 | [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | datasets-selection-rule, ontology-per-dataset-releases | direct-method-research |
@@ -77,46 +76,37 @@ unit's `milestone` is `direct-method-research`, the
 ```mermaid
 flowchart LR
     u1[plan-direct-method-research] --> u3[generate-no-mapping-ablation]
-    u2[refactor-evaluate-size-splits] --> u3
     u1 --> u4[baselines-label-bootstrap]
     u1 --> u5[evaluate-prior-shift-comparator]
-    u2 --> u5
     u3 --> u6[evaluate-control-runs-registered]
     u4 --> u6
     u5 --> u6
     u6 --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
-    u2 --> u9[evaluate-added-row-contradictions]
-    u2 --> u10[gaps-is-a-conditional-fragments]
     u3 --> u11[generate-is-a-conditional-draws]
-    u10 --> u11
-    u9 --> u11
-    u2 --> u12[ontology-diabetes-diagnosis-codes]
+    u10[gaps-is-a-conditional-fragments] --> u11
+    u9[evaluate-added-row-contradictions] --> u11
     u3 --> u13[generate-ancestor-shrunk-shares]
-    u12 --> u13
-    u2 --> u14[privacy-donor-attacks]
+    u12[ontology-diabetes-diagnosis-codes] --> u13
     u3 --> u15[privacy-donor-limits]
-    u14 --> u15
+    u14[privacy-donor-attacks] --> u15
     u15 --> u16[privacy-value-microaggregation]
     u3 --> u17[generate-coherent-free-fields]
     u9 --> u17
     u14 --> u17
-    u2 --> u18[evaluate-trace-attribution]
     u11 --> u19[evaluate-variant-dev-results]
     u13 --> u19
     u15 --> u19
     u16 --> u19
     u17 --> u19
-    u18 --> u19
-    u2 --> u20[gaps-share-based-quota]
-    u6 --> u20
+    u18[evaluate-trace-attribution] --> u19
+    u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
     u1 --> u23[datasets-selection-rule]
-    u2 --> u24[ontology-per-dataset-releases]
     u23 --> u25[datasets-support2-frame]
     u23 --> u26[datasets-nhanes-frame]
     u23 --> u27[datasets-acs-frame]
-    u24 --> u27
+    u24[ontology-per-dataset-releases] --> u27
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
     u28 --> u29[evaluate-composite-dev-results]
