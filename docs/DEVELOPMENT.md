@@ -126,7 +126,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|gaussian-copula|cart|bayes-net> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|tabddpm|gaussian-copula|cart|bayes-net> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -135,18 +135,18 @@ command per method, inside `.venv`:
   `bko.baselines.request`.
 - **What it logs**: stderr gets the split line `cells` prints, one `quota` line per stratum, a line
   with the method (and, for a row-adding method, its seed and strata), the real, synthetic and total
-  row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, the Bayesian
-  network, the Gaussian copula and sequential CART
+  row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, TabDDPM, the
+  Bayesian network, the Gaussian copula and sequential CART
   (`fit holdout=<h> fill=<kind> method=<name> seconds=<s>`, each method's own name, and
   `holdout=-1 fill=none` outside a harness fill), and the method's parameters. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
   method whose output breaks the contract.
-- **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN and
-  TVAE promise no more, so the logged sha256 is the record. The Gaussian copula gives the same rows
-  at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian network's
-  rows follow the seed alone.
+- **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN, TVAE
+  and TabDDPM promise no more, so the logged sha256 is the record. The Gaussian copula gives the
+  same rows at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian
+  network's rows follow the seed alone.
 
 ## Evaluation
 
@@ -723,12 +723,13 @@ start or the supervisor cannot run.
   the method's parameters (the reference arm `real` logs attempt 1, the gap request's seed and
   `params={}`), a `retry` warning for each refused attempt before the last, a
   `shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d` warning per short cell
-  when a rejection sampler (CTGAN, TVAE, the Gaussian copula, CART or the Bayesian network) still
-  lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt, or SMOTE or ADASYN meets a
-  cell of fewer than 2 training records, where it adds no row; on a gap fill, any arm's shortfall
-  that falls on such cells alone fills partially on the attempt that meets it, with no retry, and
-  one that also falls on another cell is retried (its `arm` line then names the cell's missing rows under `short` in the params, and the arm
-  scores the rows it kept; a short replica fill still refuses,
+  when a rejection sampler (CTGAN, TVAE, TabDDPM, the Gaussian copula, CART or the Bayesian network)
+  still lacks rows of a gap fill at `MAX_DRAWN_ROWS` drawn on the last attempt, or SMOTE or ADASYN
+  meets a cell of fewer than 2 training records, where it adds no row; on a gap fill, any arm's
+  shortfall that falls on such cells alone fills partially on the attempt that meets it, with no
+  retry, and one that also falls on another cell is retried (its `arm` line then names the cell's
+  missing rows under `short` in the params, and the arm scores the rows it kept; a short replica
+  fill still refuses,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
   `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote, read in chunks

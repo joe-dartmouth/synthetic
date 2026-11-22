@@ -314,11 +314,11 @@ The plan's arms differ in what decides a new record's content.
   concepts a record shows, each at its own share, then copies the record's fields from real
   training records that match the draw (ADR
   [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)).
-- **A joint model fit on the training split.** CTGAN, TVAE, the Gaussian copula, sequential CART
-  and the Bayesian network draw rows and keep those that land in a stratum still short of its
+- **A joint model fit on the training split.** CTGAN, TVAE, TabDDPM, the Gaussian copula, sequential
+  CART and the Bayesian network draw rows and keep those that land in a stratum still short of its
   quota (ADR
-  [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)). CART
-  and the Bayesian network copy each value from a donor row in a leaf or bin.
+  [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)). CART and
+  the Bayesian network copy each value from a donor row in a leaf or bin.
 - **Interpolation within a stratum.** SMOTE and ADASYN interpolate between a stratum's own
   records, so a stratum of fewer than two records gets no rows from them.
 - **A model's prior.** The Messages arms ask a model for each cell's records a chunk at a time
