@@ -37,5 +37,6 @@ The CRC ACS reading runs only after the confirmatory ACS run is recorded
 ## Acceptance
 
 - The entry's status is `complete`.
+- The entry's Read against compares with the archive's published methods' SDNist scores.
 - Each written file's sha256 is recorded.
 - `make check` passes.

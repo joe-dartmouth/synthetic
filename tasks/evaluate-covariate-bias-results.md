@@ -35,5 +35,6 @@ table. Every arm is free.
 ## Acceptance
 
 - The entry's status is `complete`.
+- The entry's Read against compares with Juwara et al.'s Table 2.
 - Each run's sha256 is recorded.
 - `make check` passes.

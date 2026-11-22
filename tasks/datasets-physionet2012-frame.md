@@ -17,8 +17,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A second intensive-care frame beside [`datasets-support2-frame`](datasets-support2-frame.md) widens
-the confirmatory family. The PhysioNet/CinC Challenge 2012 set holds 12,000 ICU stays under an
-ODC Attribution licence. Its terms and its death rate are what unit
+the confirmatory family. The record count (12,000 ICU stays) and the licence (ODC Attribution) are
+the research pass's reading, not re-checked. Its terms and its death rate are what unit
 [`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page. This unit
 copies `datasets-support2-frame` in scope and acceptance.
 

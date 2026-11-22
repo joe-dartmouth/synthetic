@@ -28,10 +28,14 @@ evaluation of those candidates.
 **In.**
 
 - Re-read from each primary page what the entry marks UNVERIFIED: FARS and CRSS terms and code
-  hierarchy, SBA status codes, NIBRS's public fields, USAspending and TED row counts, and the
-  VERIS disclosure field.
+  hierarchy, SBA status codes, NIBRS's public fields, USAspending and TED row counts, the VERIS
+  disclosure field, the NVD and KEV terms, the NEISS terms, and the GDELT outcome rule.
 - The rule a non-health frame must meet: a binary outcome, two named cell axes, an open
-  machine-readable hierarchy, and terms that permit the use.
+  machine-readable hierarchy, and terms that permit the use. Its rule governs the non-health
+  families only and replaces, for them, the person-axes requirement of the selection rule unit
+  [`datasets-selection-rule`](datasets-selection-rule.md) records. Candidates that rule already
+  ranked (HMDA, UCI Census-Income KDD) are ranked here only as non-health candidates, citing that
+  ranking.
 - Every candidate ranked, with its exclusion reason.
 - The first frames chosen, each as an exploratory family outside the health multiplicity family.
 - [`docs/RESEARCH.md`](../docs/RESEARCH.md) changed to list them.
@@ -45,5 +49,6 @@ evaluation of those candidates.
 
 ## Acceptance
 
-- The ADR ranks every candidate with terms quoted from the primary page.
+- The ADR quotes terms from the primary page for every candidate ranked chosen or runner-up.
+- Every other candidate is ranked with its exclusion reason.
 - `make check` passes.

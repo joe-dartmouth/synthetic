@@ -36,5 +36,6 @@ published baselines.
 ## Acceptance
 
 - The entry's status is `complete`.
+- The entry's Read against compares with TableShift's Table 7.
 - Each run's sha256 is recorded.
 - `make check` passes.

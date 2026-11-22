@@ -16,11 +16,12 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-A survey of emergency-department visits (16,025 visits in the 2022 file) gives the confirmatory
-family a frame whose concepts come from coded diagnoses. Its terms, including the clause of the
-NCHS agreement on assessing disclosure methods, are what unit
-[`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page and
-records. This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and
+A survey of emergency-department visits gives the confirmatory family a frame whose concepts come
+from coded diagnoses. The record count (16,025 visits in the 2022 file), the terms and the clause
+of the NCHS agreement on assessing disclosure methods are the research pass's reading, not
+re-checked; unit
+[`datasets-selection-rule`](datasets-selection-rule.md) re-reads each from the primary page and
+records it. This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and
 acceptance.
 
 ## Scope

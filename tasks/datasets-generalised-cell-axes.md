@@ -27,6 +27,8 @@ axes. The cell machinery has to read them before any such frame loads.
 - A frame names its own two cell axes and their bands in place of age band and sex.
 - Cells, quotas, gap listings and the removed-cell rule read them.
 - Every existing frame keeps age band by sex.
+- Each non-health frame unit [`datasets-non-health-selection`](datasets-non-health-selection.md)
+  adds depends on this unit.
 - A new ADR under `docs/adr/research/` that records the generalisation.
 
 **Out.**
@@ -35,6 +37,7 @@ axes. The cell machinery has to read them before any such frame loads.
 
 ## Acceptance
 
-- `DRAW_DIGEST` and `ADDED_DIGEST` are unchanged.
+- `DRAW_DIGEST` and `ADDED_DIGEST` are unchanged: `tests/test_generate_direct.py` pins the first
+  and `tests/test_evaluate_direct.py` the second.
 - A fixture frame with non-person axes fills a request.
 - `make check` passes.

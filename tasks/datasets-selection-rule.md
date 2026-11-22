@@ -41,14 +41,16 @@ any candidate's records are loaded and checks each read against its source.
 - A re-read, from each primary page, of what this set took unverified: SUPPORT2's terms at ICPSR
   and its in-hospital death rate, the size of the NHANES composite outcome, the row count of one
   ACS state-year, the PhysioNet/CinC Challenge 2012 set's licence and in-hospital death rate, and
-  NHAMCS 2022 ED's terms and record count.
+  NHAMCS 2022 ED's terms and record count, including whether its file is public-use or held under
+  an agreement; a dataset under an agreement the team does not hold is excluded.
 - For each of the five chosen datasets, the ADR records:
   - whether its terms permit sending records to a third-party API, as the `Agreement` value its
     `Source` pin will carry (`bko.datasets.sources`; `agreement=None` means open data, which
     `permits_sending` lets go to the API);
   - any clause on re-identification and the team's reading of it. For NHANES that reading is that
     scoring the privacy of generated rows is outside the clause; SUPPORT2, the PhysioNet/CinC
-    Challenge 2012 set, NHAMCS 2022 ED and ACS PUMS get the same treatment.
+    Challenge 2012 set, NHAMCS 2022 ED and ACS PUMS get the same treatment, each reading recorded
+    only after its terms are re-read.
 - This unit changes [`docs/RESEARCH.md`](../docs/RESEARCH.md#6-datasets) section 6 to list the
   five. ACS PUMS is its own exploratory family, outside the health datasets' multiplicity
   family.

@@ -52,4 +52,6 @@ source is MIT, pinned at commit `fca9429814703a07e3902d005d46563a207b7f0a` of
 - A test behind `--releases` checks the split's counts on the pinned archive against the
   documented ones.
 - The gate test uses a fixture.
+- The named runs, the ADR and the `docs/EVIDENCE.md` entry's Configuration, status `not yet
+  run`, exist.
 - `make check` passes.

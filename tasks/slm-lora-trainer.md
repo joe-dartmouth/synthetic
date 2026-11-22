@@ -37,7 +37,8 @@ model and one training budget.
 - Pinned base weights under `data/models/`, loaded only as safetensors and only after their
   sha256 verifies.
 - The LoRA adapter, fitted on patient-derived records, kept under the gitignored `data/models/` or
-  `runs/`, at a path the new ADR names.
+  `runs/`, at a path the new ADR names; the ADR also says the adapter never leaves the machine,
+  since a fine-tuned adapter can reproduce training rows.
 - A new ADR under `docs/adr/research/` that fixes:
   - the training set per arm: the full training split, plus the arm's fill;
   - the controls: no fine-tune, `none` and `real`;
@@ -45,8 +46,10 @@ model and one training budget.
   - the holdouts and seeds, chosen from unit [`slm-lora-spike`](slm-lora-spike.md)'s measured
     time;
   - the stated power limit;
-  - which synthetic-share mixes of unit
-    [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) the measured time allows;
+  - which of the synthetic-share mixes of
+    [RESEARCH section 11](../docs/RESEARCH.md#synthetic-share-ablation) the measured time allows;
+    at a share the LoRA training set is that share's training set, the total held at the training
+    split's size;
   - whether two fine-tunes at one seed give equal adapters on this machine, measured, and what the
     design does if they do not.
 - The ADR cites the one prior study of this design through

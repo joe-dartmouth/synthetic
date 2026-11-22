@@ -30,7 +30,9 @@ wheel, Python 3.9 or later), so it cannot share an environment with SDNist.
 
 - A scratch-lock probe that SynthEval 1.7.3 resolves against the project's lock. If it does, it
   becomes a new extra under ADR `tooling/uv-ruff-ty`; if not, it runs in a hashed environment
-  outside the lock, as for SDNist.
+  outside the lock, as for SDNist; then the environment's build command goes in
+  [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md), as unit
+  [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) does.
 - A command that scores an arm's UCI Heart Disease fill under the SynthEval metrics Lautrup et al.
   report.
 - The mapping from their `hd` files to our frame. Their files hold 242 and 61 rows: the 303
@@ -48,4 +50,9 @@ wheel, Python 3.9 or later), so it cannot share an environment with SDNist.
 ## Acceptance
 
 - A test scores a tiny fixture fill.
+- A test of the `hd` mapping.
+- If the probe sends SynthEval outside the lock, the environment's build command is in
+  `docs/DEVELOPMENT.md`.
+- The named runs, the ADR and the `docs/EVIDENCE.md` entry's Configuration, status `not yet
+  run`, exist.
 - `make check` passes.

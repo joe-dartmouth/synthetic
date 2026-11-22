@@ -19,8 +19,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 [`docs/RESEARCH.md`](../docs/RESEARCH.md#published-comparisons) runs four protocols beside
 published numbers. NIST's Collaborative Research Cycle publishes ACS excerpts, deidentified
 by many methods and scored with SDNist ([archive](https://doi.org/10.18434/mds2-3024)). The
-reading runs only after the confirmatory ACS run is recorded, which is why this unit follows
-[`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) through its results unit.
+reading runs only after the confirmatory ACS run is recorded. This unit lands its code early;
+only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
+[`evaluate-confirmatory-results`](evaluate-confirmatory-results.md).
 
 ## Scope
 
@@ -29,11 +30,14 @@ reading runs only after the confirmatory ACS run is recorded, which is why this 
 - SDNist in a hashed environment outside the lock on Python 3.12 that reads the written CSV, as
   `video/` does. SDNist 2.4 on PyPI pins numpy 1.24.2 and scipy 1.10.1 with no Python
   requirement, and those have no Python 3.14 wheels. GitHub main is 2.5, not on PyPI, and states
-  Python 3.9 to 3.12. The unit pins one of them and says which.
+  Python 3.9 to 3.12. The unit pins one of them and says which, by PyPI version or by commit
+  SHA, every package hashed.
 - The NIST CRC ACS excerpts pinned as a `Source`, their terms quoted from the archive.
 - A frame over the excerpt's fields that reuses the ACS mapping of unit
   [`datasets-acs-frame`](datasets-acs-frame.md), with its label and the request: a replica of the
   training split's cells at the excerpt's row count.
+- A check that each excerpt carries every field the ACS mapping reads, refusing one that does
+  not.
 - Named runs writing one `bko-direct` file per excerpt.
 - The SDNist report command as its README gives it:
   `python -m sdnist.report <deidentified csv> <target dataset name>`, with targets `MA`, `TX` and
@@ -49,4 +53,7 @@ reading runs only after the confirmatory ACS run is recorded, which is why this 
 ## Acceptance
 
 - The environment's build command is in `docs/DEVELOPMENT.md`.
+- A test pins the excerpt `Source` and the frame's fields against the mapping.
+- The named runs and the ADR exist.
+- The `docs/EVIDENCE.md` entry's Configuration, status `not yet run`, exists.
 - `make check` passes.

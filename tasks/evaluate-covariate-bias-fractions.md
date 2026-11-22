@@ -35,10 +35,13 @@ the generator as a sequential tree-based synthesizer. Our sequential CART, `cart
   `label-bootstrap` and `prior-shift`.
 - Each fill sized as Juwara's code sizes it: it restores the cell to about its count before
   removal, adding the total size less the minority count that remains. The paper states the rule
-  only qualitatively; the size comes from the released code.
+  only qualitatively; the size comes from the released code. The sizing applies to the row-adding
+  arms only; `none`, `real` and `prior-shift` add no rows.
 - A reading of AUC on the removed cell's test rows, beside the set's measures.
-- The EVIDENCE Configuration, `not yet run`, quoting Table 2's rows at 15%, 50% and 80% (AUC,
-  ORZ (SD), I Z) from the paper, with no value copied into this unit.
+- The EVIDENCE Configuration, `not yet run`, quoting Table 2's rows at 15%, 50% and 80% (columns
+  AUC,
+  ORZ (SD) and IZ) from the paper, with no value copied into this unit. Table 2 is their
+  simulation results.
 - A new ADR under `docs/adr/research/` that says what differs from Juwara et al.: a cell against
   one covariate level, one seeded fill against the paper's 100 averaged copies, and our CART port
   because their OSF script calls the non-public `sdgs` package.
@@ -51,4 +54,6 @@ the generator as a sequential tree-based synthesizer. Our sequential CART, `cart
 ## Acceptance
 
 - A test pins the fractions and the arms.
+- A test pins the sizing rule.
+- The ADR and the `docs/EVIDENCE.md` entry's Configuration, status `not yet run`, exist.
 - `make check` passes.

@@ -27,7 +27,8 @@ command and the runs.
 **In.**
 
 - Run the named runs and score each fill with the unit's command.
-- Regenerate Lautrup et al.'s numbers from their code and codebooks on their `hd` split.
+- Regenerate Lautrup et al.'s numbers from their code and codebooks on their `hd` split. Their
+  code runs in a scratch environment outside the lock, its commit recorded.
 - The EVIDENCE entry's Runs, Result and Read against, recording both.
 
 **Out.**
@@ -37,5 +38,7 @@ command and the runs.
 ## Acceptance
 
 - The entry's status is `complete`.
+- The entry's Read against compares with the heart-disease figures of Lautrup et al., beside the
+  numbers regenerated from their code.
 - Each run's sha256 is recorded.
 - `make check` passes.
