@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-11-08
+updated: 2026-11-22
 ---
 # One home per kind of statement
 
@@ -26,6 +26,7 @@ Each kind of statement has one home:
 | Project summary for a human arriving at the repository | `README.md` |
 | The research plan: problem, approach, success criteria, datasets, source reconciliation | `docs/RESEARCH.md` |
 | Background explained from scratch, and the prior work behind it | `docs/BACKGROUND.md` |
+| Positioning against prior work | The pipeline against other systems: `docs/RESEARCH.md` section 10; an arm against prior methods: `docs/BACKGROUND.md` |
 | The planned pipeline and which stage each subpackage serves | `docs/ARCHITECTURE.md` |
 | Milestones, dates and workstreams | `docs/ROADMAP.md` |
 | What each experiment measured | `docs/EVIDENCE.md` |

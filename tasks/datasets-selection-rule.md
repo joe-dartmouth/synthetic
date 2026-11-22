@@ -1,8 +1,8 @@
 ---
 id: datasets-selection-rule
 title: Record the confirmatory-dataset selection rule and re-read each choice from its primary page
-status: blocked
-depends_on: plan-direct-method-research
+status: ready
+depends_on: --
 blocks: datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame
 parallel_safe: true
 milestone: direct-method-research

@@ -1,26 +1,20 @@
 # Direct method: work-unit index
 
-**What this set is.** The units that make `bko-direct` the primary method of the study, each one
-pull request. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a
+**What this set is.** The units that study `bko-direct` as the candidate of the direct-method study,
+each one pull request. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a
 criterion, a definition or a decision an ADR records edits that document in its own PR. Each
 unit's `milestone` is `direct-method-research`, the
 [ROADMAP milestone](../docs/ROADMAP.md#direct-method-research) this set serves.
 
 ## Graph and status
 
-### Foundation
-
-| Unit | Status | Depends on | Milestone |
-|---|---|---|---|
-| [`plan-direct-method-research`](plan-direct-method-research.md) | ready | -- | direct-method-research |
-
 ### Controls
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`generate-no-mapping-ablation`](generate-no-mapping-ablation.md) | blocked | plan-direct-method-research | direct-method-research |
-| [`baselines-label-bootstrap`](baselines-label-bootstrap.md) | blocked | plan-direct-method-research | direct-method-research |
-| [`evaluate-prior-shift-comparator`](evaluate-prior-shift-comparator.md) | blocked | plan-direct-method-research | direct-method-research |
+| [`generate-no-mapping-ablation`](generate-no-mapping-ablation.md) | ready | -- | direct-method-research |
+| [`baselines-label-bootstrap`](baselines-label-bootstrap.md) | ready | -- | direct-method-research |
+| [`evaluate-prior-shift-comparator`](evaluate-prior-shift-comparator.md) | ready | -- | direct-method-research |
 | [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md) | blocked | generate-no-mapping-ablation, baselines-label-bootstrap, evaluate-prior-shift-comparator | direct-method-research |
 | [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
@@ -48,7 +42,7 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`datasets-selection-rule`](datasets-selection-rule.md) | blocked | plan-direct-method-research | direct-method-research |
+| [`datasets-selection-rule`](datasets-selection-rule.md) | ready | -- | direct-method-research |
 | [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | ready | -- | direct-method-research |
 | [`datasets-support2-frame`](datasets-support2-frame.md) | blocked | datasets-selection-rule | direct-method-research |
 | [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | blocked | datasets-selection-rule | direct-method-research |
@@ -75,12 +69,9 @@ unit's `milestone` is `direct-method-research`, the
 
 ```mermaid
 flowchart LR
-    u1[plan-direct-method-research] --> u3[generate-no-mapping-ablation]
-    u1 --> u4[baselines-label-bootstrap]
-    u1 --> u5[evaluate-prior-shift-comparator]
-    u3 --> u6[evaluate-control-runs-registered]
-    u4 --> u6
-    u5 --> u6
+    u3[generate-no-mapping-ablation] --> u6[evaluate-control-runs-registered]
+    u4[baselines-label-bootstrap] --> u6
+    u5[evaluate-prior-shift-comparator] --> u6
     u6 --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
     u3 --> u11[generate-is-a-conditional-draws]
@@ -102,8 +93,7 @@ flowchart LR
     u18[evaluate-trace-attribution] --> u19
     u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
-    u1 --> u23[datasets-selection-rule]
-    u23 --> u25[datasets-support2-frame]
+    u23[datasets-selection-rule] --> u25[datasets-support2-frame]
     u23 --> u26[datasets-nhanes-frame]
     u23 --> u27[datasets-acs-frame]
     u24[ontology-per-dataset-releases] --> u27
