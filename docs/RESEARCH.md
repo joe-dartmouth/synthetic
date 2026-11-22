@@ -1,6 +1,6 @@
 # Research plan
 
-Sources: the team's proposal 2-pager (sections 1 to 6) and research brief (TL;DR, A1, B5, D10, D11, F15), both kept outside the repository, of which this document is the plan of record; Santos et al. [`santos-2024`][santos-2024]; facts verified outside those sources (pybkb, synthcity resolution); for [section 10](#10-related-work), the works in [literature.md](literature.md#ontologies-reasoners-and-knowledge-graphs), each entry saying how far it was read.
+Sources: the team's proposal 2-pager (sections 1 to 6) and research brief (TL;DR, A1, B5, D10, D11, F15), both kept outside the repository, of which this document is the plan of record; Santos et al. [`santos-2024`][santos-2024]; facts verified outside those sources (pybkb, synthcity resolution); for [section 10](#10-related-work), the works in [literature.md](literature.md#ontologies-reasoners-and-knowledge-graphs), each entry saying how far it was read; for [section 11](#11-direct-method-study), the works its published comparisons cite, each entry in [literature.md](literature.md) saying how far it was read.
 
 This is the plan of record. The 2-pager governs; the brief is background, explained in
 [BACKGROUND.md](BACKGROUND.md). [Section 9](#9-source-reconciliation) records each point where the
@@ -456,6 +456,141 @@ output is the ontology statements those records do not ground (ADR
 [`research/bko-formal-gap-definition`](adr/research/bko-formal-gap-definition.md)). Translator
 answers questions about biomedical entities; this pipeline asks what a training split lacks.
 
+## 11. Direct-method study
+
+The team's own milestone, beyond the 2-pager
+([ROADMAP.md](ROADMAP.md#direct-method-research)), asks how far the direct arm `bko-direct` goes as
+a method in its own right. Section 4's criteria still judge E1's `bko`, and this section changes
+none of them. In this document "criterion" means a row of section 4; what follows adds readings,
+not criteria.
+
+### Question
+
+Does a generator that draws records from the fused BKB, with no API call and no fitted model,
+recover a removed subgroup's signal better than resampling, model-based synthesis and its own
+controls, while leaking no more about the training records than those methods do?
+
+### Candidate
+
+`bko-direct` is the study's candidate (ADR
+[`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md) defines its draw). E1's
+registered `candidate` stays `bko`.
+
+### Ablations and comparators
+
+The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic` and `bko-skeleton`, and the
+guidance levels, are ablations: each changes one part of how the BKB guides generation. The
+row-adding methods (the comparison set, the classical synthesizers and the Bayesian network) are
+comparators.
+
+### Data
+
+UCI Heart Disease, the Synthea population and Diabetes 130 are development data. SUPPORT2, NHANES,
+the PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED are confirmatory data. ACS PUMS is
+confirmatory as its own exploratory non-health family, outside the health datasets' multiplicity
+family. A later re-read of each choice from its primary page may revise this section, and
+[section 6](#6-datasets) lists the confirmatory datasets once that re-read is recorded.
+
+### Disclosure
+
+The candidate was chosen after E6's results were read, so E6 is development data for this study,
+not a test of it.
+
+### What each register entry is to the study
+
+| Entry | Read as |
+|---|---|
+| [R1](EVIDENCE.md#r1-mondo-and-do-fusion-reproduction) | Not read |
+| [E1](EVIDENCE.md#e1-uci-heart-disease-augmentation) | Ablation |
+| [E2](EVIDENCE.md#e2-synthea-gap-detection-ablation) | Not read |
+| [E3](EVIDENCE.md#e3-synthea-downstream-augmentation) | Ablation |
+| [E4](EVIDENCE.md#e4-fill-above-the-threshold) | Not read |
+| [E5](EVIDENCE.md#e5-augmentation-against-training-set-size) | Not read |
+| [E6](EVIDENCE.md#e6-diabetes-130-subgroup-removal) | Development result |
+| [E7](EVIDENCE.md#e7-classifier-panel) | Development result |
+| [E8](EVIDENCE.md#e8-membership-inference-nndr-and-dcr-on-e6) | Development result |
+| [E9](EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) | Ablation |
+| [E10](EVIDENCE.md#e10-identifier-perturbation) | Ablation |
+| [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
+| [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
+| [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
+| [G1](EVIDENCE.md#g1-record-generation-through-the-messages-api) | Not read |
+| [G2](EVIDENCE.md#g2-direct-generation-from-the-fused-bkb) | Development result |
+| [G3](EVIDENCE.md#g3-guidance-level) | Ablation |
+| [G4](EVIDENCE.md#g4-effort-at-summary) | Not read |
+| [G5](EVIDENCE.md#g5-bkb-drawn-concepts-llm-filled-fields) | Ablation |
+| [G6](EVIDENCE.md#g6-generator-model) | Not read |
+| [G7](EVIDENCE.md#g7-bkb-likelihood-curation) | Ablation |
+| [C1](EVIDENCE.md#c1-gap-closure-after-fusion) | Ablation |
+| [D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level) | Not read |
+| [D2](EVIDENCE.md#d2-data-contradictions-census) | Not read |
+
+### Completeness and validity for bko-direct
+
+Completeness is read as C1's Configuration fixes it, the per-subgroup gaps that close once the
+records that pass validation are fused back, and as G2 reads it for a direct file. Validity is the
+share `passed`/`generated`; for the direct arm it holds by construction, since every field value is
+copied from a training record (ADR
+[`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)). It is a reading, not a
+claim of clinical validity. The ontology does not constrain `bko-direct`'s unmapped fields.
+
+### Published comparisons
+
+The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, read
+on the minority group's AUC [`juwara-2024`][juwara-2024]. TableShift's `diabetes_readmission`
+splits [`gardner-2023`][gardner-2023]. The NIST CRC ACS excerpts, scored with SDNist
+[`task-2024`][task-2024]. UCI Heart Disease under SynthEval's metrics
+[`lautrup-2024`][lautrup-2024], as Lautrup et al. report them [`lautrup-2026`][lautrup-2026]. Each
+is a development comparison, outside the confirmatory family. The CRC ACS reading runs only after
+the confirmatory ACS run is recorded.
+
+### Synthetic-share ablation
+
+On E6's frame, each row-adding arm's training set is rebuilt with 2%, 10%, 25%, 50% and 100% of its
+rows synthetic, the total held at the training split's size and the test set unchanged. Per share
+and arm the study reads the flagged measures and the privacy readings (membership inference, NNDR,
+DCR). It asks two things of `bko-direct`: whether its utility at each share is non-inferior to
+`real` within the recall margin, and whether its privacy readings are no worse than each
+comparator's. It is a development reading and registers no confirmatory claim.
+
+### Control reading rule
+
+Contrasts: `bko-direct` minus each of `label-bootstrap`, `bko-nomap`
+and `prior-shift`, on removed-cell recall, flagged AUC-PR and flagged Brier, at each fraction, on
+E6's and E3's frames. Margin on recall: 0.0480, the half-width of E6's `bko-direct` minus CTGAN
+interval on removed-cell recall at full removal (+0.0595 [+0.0115, +0.1075]). Flagged AUC-PR and
+flagged Brier have no equivalence margin, so their contrasts fall in `above`, `below` or
+`inconclusive`. Each contrast falls in one branch:
+
+| Branch | Interval | Reading |
+|---|---|---|
+| above | wholly above 0 | The claim is made for that measure, frame and fraction |
+| equivalent | wholly inside the margin | A tie is reported; the claim is not made |
+| below | wholly below 0 | The control is reported better; it joins the confirmatory primary comparators |
+| inconclusive | anything else | Reported as inconclusive; no claim |
+
+What follows: every unit proceeds in every branch. Against `label-bootstrap` or `bko-nomap`,
+anything but `above` means pooling is reported as the mechanism at that fraction, and a mapping or
+structure claim can come only from the arms of `generate-is-a-conditional-draws` or
+`generate-ancestor-shrunk-shares`. The confirmatory primary endpoint
+(`evaluate-confirmatory-registration`) is removed-cell recall if the `prior-shift` contrast is
+`above` on recall on E6's frame at either fraction; else flagged Brier if that contrast is in
+`bko-direct`'s favour (for Brier, where lower is better, the interval of `bko-direct` minus the
+control lies wholly below 0); else no superiority hypothesis is registered and the confirmatory run
+reports equivalence, privacy and attribution readings.
+
+The margin's source is E6's Result: `bko-direct` is "above CTGAN by +0.0595 [+0.0115, +0.1075]"
+([E6](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). "Flagged" means scope `flagged-subgroups`.
+"Each fraction" means E6's 0.985 and 1.0 and E3's 0.9. For Brier, where lower is better, a claim is
+an interval wholly below 0, so `above` and `below` in the table swap for that measure.
+
+### Variant inclusion rule
+
+A variant enters `bko-direct-2` when, on each development frame it
+runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
+recall is non-inferior within the margin above. Each variant registers one parameter value, except
+the `is_a` pseudo-count: of the registered values that pass, the largest enters.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [carriero-2025]: https://doi.org/10.1002/sim.10320
 [chawla-2002]: https://doi.org/10.1613/jair.953
@@ -464,12 +599,16 @@ answers questions about biomedical entities; this pipeline asks what a training 
 [dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
 [fecho-2022]: https://doi.org/10.1111/cts.13301
 [fecho-2025]: https://doi.org/10.1111/cts.70284
+[gardner-2023]: https://arxiv.org/abs/2312.07577
 [he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
 [hpo-2026]: https://github.com/obophenotype/human-phenotype-ontology/tree/920d4eb3608b50a2c19ddb10290224ab35a759c5/src/ontology
 [jackson-2019]: https://doi.org/10.1186/s12859-019-3002-3
+[juwara-2024]: https://doi.org/10.1016/j.patter.2024.100946
 [kallus-2019]: https://arxiv.org/abs/1902.05826
 [kazakov-2014]: https://doi.org/10.1007/s10817-013-9296-3
 [kim-2022]: https://doi.org/10.1371/journal.pone.0271260
+[lautrup-2024]: https://doi.org/10.1007/s10618-024-01081-4
+[lautrup-2026]: https://arxiv.org/abs/2507.19700
 [luo-2022]: https://doi.org/10.1093/bib/bbac409
 [matentzoglu-2022]: https://doi.org/10.1093/database/baac087
 [mondo-2026]: https://github.com/monarch-initiative/mondo/blob/9bfccbe9217cdfa6a225058bfa6e4bd55512b432/src/ontology/Makefile
@@ -478,6 +617,7 @@ answers questions about biomedical entities; this pipeline asks what a training 
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [strack-2014]: https://doi.org/10.1155/2014/781670
+[task-2024]: https://doi.org/10.18434/mds2-3024
 [translator-2019]: https://doi.org/10.1111/cts.12591
 [unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
