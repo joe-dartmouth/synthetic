@@ -30,7 +30,7 @@ The variants were each read alone. The method is their composition.
   smallest registered count within the measure's tolerance.
 - Development `RUNS` entries on E6's and E3's frames, against `bko-direct`, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`.
-- The ADR unit [`plan-direct-method-research`](plan-direct-method-research.md) adds, revised in
+- ADR [`research/bko-direct-candidate`](../docs/adr/research/bko-direct-candidate.md), revised in
   place with the composition.
 
 **Out.**

@@ -1,8 +1,8 @@
 ---
 id: baselines-label-bootstrap
 title: Add the label-bootstrap baseline, whole label-group records drawn into the cell
-status: blocked
-depends_on: plan-direct-method-research
+status: ready
+depends_on: --
 blocks: evaluate-control-runs-registered, slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
