@@ -487,9 +487,9 @@ comparators.
 ### Data
 
 UCI Heart Disease, the Synthea population and Diabetes 130 are development data. SUPPORT2, NHANES,
-the PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED are confirmatory data. ACS PUMS is
-confirmatory as its own exploratory non-health family, outside the health datasets' multiplicity
-family. A later re-read of each choice from its primary page may revise this section, and
+the PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED are confirmatory data. ACS PUMS runs
+beside them as a separate non-health family, read as exploratory and outside the health datasets'
+multiplicity family. A later re-read of each choice from its primary page may revise this section, and
 [section 6](#6-datasets) lists the confirmatory datasets once that re-read is recorded.
 
 ### Disclosure
@@ -530,25 +530,27 @@ not a test of it.
 
 Completeness is read as C1's Configuration fixes it, the per-subgroup gaps that close once the
 records that pass validation are fused back, and as G2 reads it for a direct file. Validity is the
-share `passed`/`generated`; for the direct arm it holds by construction, since every field value is
-copied from a training record (ADR
+share `passed`/`generated`; for the direct arm it holds by construction, since every value is a
+training value and every within-group combination is one a training record holds (ADR
 [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md)). It is a reading, not a
 claim of clinical validity. The ontology does not constrain `bko-direct`'s unmapped fields.
 
 ### Published comparisons
 
-The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, read
-on the minority group's AUC [`juwara-2024`][juwara-2024]. TableShift's `diabetes_readmission`
+The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, not the
+fractions of the control reading rule, read on the minority group's AUC [`juwara-2024`][juwara-2024]. TableShift's `diabetes_readmission`
 splits [`gardner-2023`][gardner-2023]. The NIST CRC ACS excerpts, scored with SDNist
 [`task-2024`][task-2024]. UCI Heart Disease under SynthEval's metrics
-[`lautrup-2024`][lautrup-2024], as Lautrup et al. report them [`lautrup-2026`][lautrup-2026]. Each
+[`lautrup-2024`][lautrup-2024], beside the heart-disease results Lautrup et al. report in figures
+[`lautrup-2026`][lautrup-2026]. Each
 is a development comparison, outside the confirmatory family. The CRC ACS reading runs only after
 the confirmatory ACS run is recorded.
 
 ### Synthetic-share ablation
 
 On E6's frame, each row-adding arm's training set is rebuilt with 2%, 10%, 25%, 50% and 100% of its
-rows synthetic, the total held at the training split's size and the test set unchanged. Per share
+rows synthetic, the synthetic rows a replica of the training split's cells, the total held at the
+training split's size and the test set unchanged. Per share
 and arm the study reads the flagged measures and the privacy readings (membership inference, NNDR,
 DCR). It asks two things of `bko-direct`: whether its utility at each share is non-inferior to
 `real` within the recall margin, and whether its privacy readings are no worse than each
@@ -581,9 +583,15 @@ control lies wholly below 0); else no superiority hypothesis is registered and t
 reports equivalence, privacy and attribution readings.
 
 The margin's source is E6's Result: `bko-direct` is "above CTGAN by +0.0595 [+0.0115, +0.1075]"
-([E6](EVIDENCE.md#e6-diabetes-130-subgroup-removal)). "Flagged" means scope `flagged-subgroups`.
-"Each fraction" means E6's 0.985 and 1.0 and E3's 0.9. For Brier, where lower is better, a claim is
-an interval wholly below 0, so `above` and `below` in the table swap for that measure.
+([E6](EVIDENCE.md#e6-diabetes-130-subgroup-removal)); the margin, like the candidate, was taken
+from E6 after its results were read. "Wholly inside the margin" means inside -0.0480 to +0.0480.
+"Flagged" means scope `flagged-subgroups`. "Each fraction" means E6's 0.985 and 1.0 and E3's 0.9.
+For Brier, where lower is better, a claim is an interval wholly below 0, so `above` and `below` in
+the table swap for that measure. The branches are read in order: an interval that excludes 0 is
+`above` or `below`, and `equivalent` applies only to an interval that includes 0 and lies inside
+the margin. The primary endpoint's choice reads the `prior-shift` contrast at E6's two fractions
+with each interval at half the family's error rate (Bonferroni over the two looks), so taking
+either fraction keeps the family-wise error at its level.
 
 ### Variant inclusion rule
 
@@ -591,6 +599,10 @@ A variant enters `bko-direct-2` when, on each development frame it
 runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
 recall is non-inferior within the margin above. Each variant registers one parameter value, except
 the `is_a` pseudo-count: of the registered values that pass, the largest enters.
+
+"Improves" means the interval lies wholly on the measure's better side (below 0 for Brier). Each
+variant's target measure is the one its own task unit names, and no correction is made across
+variants beyond each interval's own.
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [carriero-2025]: https://doi.org/10.1002/sim.10320
