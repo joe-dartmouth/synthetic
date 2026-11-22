@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-09
+updated: 2026-11-22
 ---
 # Each stage keeps a data contradiction and reports it; none forces the ontology onto the data
 
@@ -119,6 +119,7 @@ table does not nest them, a pattern the data shows.
 ## Enforcement
 
 - Owner: `src/bko/bkb/fusion.py` (`check_fused`), `src/bko/generate/direct.py`,
+  `src/bko/generate/donors.py` (the label-group fallback in `_pick`),
   `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`,
   `src/bko/ontology/frames.py`
 - Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_kinds.py`,
