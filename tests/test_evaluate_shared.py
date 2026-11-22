@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-import bko.evaluate.run as run_module
+import bko.evaluate.run_scores as run_scores_module
 from bko.baselines.methods import Runner
 from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.split import split
@@ -55,13 +55,13 @@ PAIR = dataclasses.replace(
 def fits_on(monkeypatch: pytest.MonkeyPatch) -> list[list[int]]:
     """Record the test index every classifier in the harness is scored on."""
     seen: list[list[int]] = []
-    real = run_module.probabilities
+    real = run_scores_module.probabilities
 
     def spy(training, test, **options):
         seen.append(list(test.index))
         return real(training, test, **options)
 
-    monkeypatch.setattr(run_module, "probabilities", spy)
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
     return seen
 
 
@@ -255,7 +255,7 @@ def test_rescoring_with_no_with_rewrites_the_runs_scores_bytes(tmp_path, caplog)
 def test_the_shared_split_matches_a_joint_run(tmp_path, caplog, monkeypatch):
     # The replica run's arms hold the narrow run's rows, so its own split is the joint run's.
     seen: list[tuple[int, ...]] = []
-    real = run_module.probabilities
+    real = run_scores_module.probabilities
 
     def spy(training, test, **options):
         index = tuple(int(i) for i in test.index)
@@ -263,11 +263,11 @@ def test_the_shared_split_matches_a_joint_run(tmp_path, caplog, monkeypatch):
             seen.append(index)
         return real(training, test, **options)
 
-    monkeypatch.setattr(run_module, "probabilities", spy)
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
     joint = run_folder(tmp_path, "joint", caplog, replicas=True)
-    monkeypatch.setattr(run_module, "probabilities", real)
+    monkeypatch.setattr(run_scores_module, "probabilities", real)
     narrow = run_folder(tmp_path, "narrow", caplog)
-    monkeypatch.setattr(run_module, "probabilities", spy)
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
     # The fingerprint recipe is written out here, not read from `split_fingerprint`: a format pin.
     expected = {
         holdout: float(int(sha256(repr(sorted(index)).encode()).hexdigest()[:12], 16))

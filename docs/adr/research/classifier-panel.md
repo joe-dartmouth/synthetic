@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-06
+updated: 2026-11-22
 ---
 # A classifier panel reads recorded runs under four more models, with calibration, and no verdict
 
@@ -161,8 +161,8 @@ rescore no longer reproduces it, cannot be read.
 - Owner: `src/bko/evaluate/classifier.py` (the models, `PANEL`, `FIXED_EPOCHS`),
   `src/bko/evaluate/utility.py` (the calibration measures), `src/bko/evaluate/panel.py` (the
   command, `StoredBaseline` and the keys it admits), `src/bko/evaluate/run_folder.py` (check 2's
-  `models=` prefix rule, `extend_models` and `_extends`), `src/bko/evaluate/run.py` (the `fit`
-  line), and `src/bko/evaluate/compare.py` with
+  `models=` prefix rule, `extend_models` and `_extends`), `src/bko/evaluate/run_scores.py` (the
+  `fit` line), and `src/bko/evaluate/compare.py` with
   `src/bko/evaluate/unjudged.py` (each model's means and contrasts)
 - Pinned by: `tests/test_evaluate_classifier.py`, `tests/test_evaluate_utility.py`,
   `tests/test_evaluate_panel.py`, `tests/test_evaluate_compare.py`

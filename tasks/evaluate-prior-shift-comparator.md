@@ -32,7 +32,7 @@ proposes it.
   sex) subgroup: the target prevalence after the gap request's fill; a logit offset solved by
   bisection on the training subgroup's predictions; the offset applied to that subgroup's test
   logits; the cutoff unchanged.
-- Wired in `run._arm_scores` and `panel.REGENERATED` (`bko.evaluate`).
+- Wired in `run_scores._arm_scores` and `panel.REGENERATED` (`bko.evaluate`).
 - A new ADR under `docs/adr/research/` that records the arm.
 - Deletes the IDEAS entry A threshold-shift comparator for E6.
 
