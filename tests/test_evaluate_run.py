@@ -10,7 +10,7 @@ from collections import Counter
 import numpy as np
 import pytest
 
-import bko.evaluate.run as run_module
+import bko.evaluate.run_scores as run_scores_module
 from bko.baselines.errors import BaselineError, OutputContractError, ShortfallError
 from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, derived_seed, number, unit_weights
@@ -491,13 +491,13 @@ PAIR = dataclasses.replace(
 def fits_on(monkeypatch: pytest.MonkeyPatch) -> list[list[int]]:
     """Record the test index every classifier in the harness is scored on."""
     seen: list[list[int]] = []
-    real = run_module.probabilities
+    real = run_scores_module.probabilities
 
     def spy(training, test, **options):
         seen.append(list(test.index))
         return real(training, test, **options)
 
-    monkeypatch.setattr(run_module, "probabilities", spy)
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
     return seen
 
 

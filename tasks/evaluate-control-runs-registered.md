@@ -36,8 +36,7 @@ anything runs.
     (ADR [`research/synthea-downstream-design`](../docs/adr/research/synthea-downstream-design.md)).
     The `replace` resets `arms`, `replica_arms`, `spend_ceiling` and `candidate`, so the run keeps
     none of E3's paid `BKO_ARMS` and makes no paid call.
-- `REFERENCE` entries for both, in `bko.evaluate.reference`, where unit
-  [`refactor-evaluate-size-splits`](refactor-evaluate-size-splits.md) moves it.
+- `REFERENCE` entries for both, in `bko.evaluate.reference`.
 - Two new [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entries, status `not yet run`, whose
   Configuration fixes the contrasts of the control reading rule and its margin.
 - The two run-name tests, `tests/test_evaluate_experiment.py` and

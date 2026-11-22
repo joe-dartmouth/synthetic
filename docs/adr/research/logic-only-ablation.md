@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-06
+updated: 2026-11-22
 ---
 # The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows
 
@@ -132,7 +132,8 @@ arm tests them.
 ## Enforcement
 
 - Owner: `src/bko/generate/direct.py`, `src/bko/generate/logic.py` and
-  `src/bko/generate/presence.py`, with the runs in `src/bko/evaluate/named_runs.py`
+  `src/bko/generate/presence.py`, with the runs in `src/bko/evaluate/runs_diabetes.py` (the
+  experiments and slices) and `src/bko/evaluate/named_runs.py` (`RUNS`)
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_evaluate_direct.py`,
   `tests/test_generate_logic_only.py` (the draw reads no share, the 1/2, 1/3, 1/4 and 1/8 rates,
   an `is_a` child at 1/3 in the sampler, closure forced into fields, a label-only concept under a

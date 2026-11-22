@@ -1,8 +1,8 @@
 ---
 id: gaps-is-a-conditional-fragments
 title: Encode each mapped is_a pair's conditional share in the dataset fragment
-status: blocked
-depends_on: refactor-evaluate-size-splits
+status: ready
+depends_on: --
 blocks: generate-is-a-conditional-draws
 parallel_safe: true
 milestone: direct-method-research

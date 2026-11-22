@@ -1,8 +1,8 @@
 ---
 id: ontology-per-dataset-releases
 title: Hold ontology releases per dataset and convert an OWL-only release to OBO at fetch time
-status: blocked
-depends_on: refactor-evaluate-size-splits
+status: ready
+depends_on: --
 blocks: datasets-acs-frame
 parallel_safe: true
 milestone: direct-method-research

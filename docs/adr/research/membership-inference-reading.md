@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-08
+updated: 2026-11-22
 ---
 # Membership inference and NNDR read an arm's added rows against a null arm, outside the removed cell
 
@@ -56,7 +56,7 @@ real records the attacker has not seen as members.
   0.001 reading. A rate below 1 / (the scope's non-members), the least FPR one non-member makes,
   is NaN: the curve does not resolve it, and interpolating toward (0, 0) would invent a value.
 - **Reference arm.** Each run family reads every arm against the arm `REFERENCE` in
-  `bko.evaluate.membership` names; for E6 that is `real`, the empirical null. Its added rows are
+  `bko.evaluate.reference` names; for E6 that is `real`, the empirical null. Its added rows are
   real records the attack has not seen as members, so its AUC shows what the removal alone does to
   the statistic. For E10's perturbation runs, the pilots `e10-pilot-thin` and `e10-pilot-empty`
   and the PRAM-only full runs `e10-pram-thin` and `e10-pram-empty`, it is `bko-direct`: every
@@ -165,7 +165,8 @@ with a reference model.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/privacy.py` (the distances and NNDR), `src/bko/evaluate/membership.py`
-  (the attack, its scopes and the `privacy` command's reading) and
+  (the attack, its scopes and the `privacy` command's reading), `src/bko/evaluate/reference.py`
+  (the reference arms), `src/bko/evaluate/privacy_stores.py` (the store checks) and
   `src/bko/evaluate/privacy_rule.py` (the rule)
 - Pinned by: `tests/test_evaluate_privacy.py` for the distances and NNDR;
   `tests/test_evaluate_membership.py` for the attack's calibration, its rate floor, the rule and

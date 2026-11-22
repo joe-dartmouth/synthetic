@@ -2,7 +2,7 @@
 id: gaps-share-based-quota
 title: Recommend a cell's row count from coverage and expected size
 status: blocked
-depends_on: refactor-evaluate-size-splits, evaluate-control-runs-registered
+depends_on: evaluate-control-runs-registered
 blocks: evaluate-quota-sweep-results
 parallel_safe: true
 milestone: direct-method-research

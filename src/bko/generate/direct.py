@@ -27,9 +27,22 @@ import pandas as pd
 
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.frames import FrameSpec
-from bko.gaps.observe import Cell, Observed, by_concept, cell_key, observe_records, record_cells
+from bko.gaps.observe import Cell, by_concept, cell_key, record_cells
 from bko.gaps.shares import label_only, nested, shares
-from bko.generate.errors import SamplingError
+from bko.generate.donors import (
+    _Group,  # ruff: ignore[unused-import]  (re-exported)
+    _label_groups,
+    _observe_group,  # ruff: ignore[unused-import]  (re-exported)
+    _pick,
+    _records,
+    _Source,
+    label_group,  # ruff: ignore[unused-import]  (re-exported)
+)
+from bko.generate.fields import (
+    FieldGroup,
+    field_groups,
+    free_fields,
+)
 from bko.generate.logic import Component, components, logic_assignment
 from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
@@ -39,8 +52,6 @@ from bko.ontology.terms import Ontology, ancestors
 logger = logging.getLogger(__name__)
 
 type Record = Mapping[str, int | float]
-type _Source = tuple[int, dict[str, float]]
-"""A training record with its id."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,63 +80,6 @@ class Draw:
     def __post_init__(self) -> None:
         object.__setattr__(self, "record", MappingProxyType(dict(self.record)))
         object.__setattr__(self, "sources", MappingProxyType(dict(self.sources)))
-
-
-@dataclass(frozen=True, slots=True)
-class FieldGroup:
-    """Fields whose values are drawn together, from one record, and the concepts they show.
-
-    Attributes:
-        fields: The fields, in column order.
-        concepts: The concepts whose rows read them, sorted.
-    """
-
-    fields: tuple[str, ...]
-    concepts: tuple[str, ...]
-
-
-def field_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[FieldGroup, ...]:
-    """The fields the rows read, joined when one concept's rows read both, in column order.
-
-    The label is no field of a group: label-only rows follow the cell.
-    """
-    parent: dict[str, str] = {}
-
-    def root(field: str) -> str:
-        while parent[field] != field:
-            field = parent[field]
-        return field
-
-    reads: dict[str, set[str]] = {}
-    for concept, mapped in by_concept(rows).items():
-        fields = {c.field for row in mapped for c in row.when if c.field != frame.label}
-        if not fields:
-            continue
-        reads[concept] = fields
-        for field in fields:
-            parent.setdefault(field, field)
-        first, *rest = sorted(fields)
-        for field in rest:
-            parent[root(field)] = root(first)
-    order = {name: index for index, name in enumerate(frame.columns)}
-    joined: dict[str, set[str]] = {}
-    for field in parent:
-        joined.setdefault(root(field), set()).add(field)
-    groups = [
-        FieldGroup(
-            fields=tuple(sorted(fields, key=order.__getitem__)),
-            concepts=tuple(sorted(c for c, read in reads.items() if read & fields)),
-        )
-        for fields in joined.values()
-    ]
-    return tuple(sorted(groups, key=lambda group: order[group.fields[0]]))
-
-
-def free_fields(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[str, ...]:
-    """`frame`'s columns no field group reads, but `age`, `sex` and the label, in column order."""
-    grouped = {name for group in field_groups(rows, frame=frame) for name in group.fields}
-    cell = {"age", "sex", frame.label}
-    return tuple(name for name in frame.columns if name not in grouped and name not in cell)
 
 
 def sample(
@@ -253,15 +207,6 @@ def draw_line(call: int, position: int, draw: Draw) -> str:
         "fallback": sorted(draw.fallback),
     }
     return json.dumps(line, sort_keys=True) + "\n"
-
-
-@dataclass(frozen=True, slots=True, eq=False)
-class _Group:
-    """A label's training records: observed, as records, and each record's age band."""
-
-    observed: Observed
-    records: list[_Source]
-    bands: list[str]
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -414,73 +359,3 @@ class _Plan:
     def _value(self, field: str, record: Mapping[str, float]) -> int | float:
         value = record[field]
         return float(value) if field in self._frame.fractional else int(value)
-
-
-def _pick(
-    cell: Cell,
-    fields: tuple[str, ...],
-    own: Sequence[_Source],
-    other: Sequence[_Source],
-    rng: np.random.Generator,
-) -> tuple[_Source, bool]:
-    """A record drawn from `own`, else from `other`, with its id, and whether it fell back.
-
-    Raises:
-        SamplingError: If both are empty.
-    """
-    if own:
-        return own[int(rng.integers(len(own)))], False
-    if other:
-        return other[int(rng.integers(len(other)))], True
-    msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: no training record matches the draw"
-    raise SamplingError(msg)
-
-
-def label_group(
-    train: pd.DataFrame, label: int, rows: Sequence[FieldMapping], *, name: str, frame: FrameSpec
-) -> Observed:
-    """The training records of `label`, observed as the label group whose prior a share reads.
-
-    Raises:
-        GapError: As `observe_records`.
-    """
-    members = train.loc[train[frame.label].eq(label)]
-    return _observe_group(members, label, rows, name=name, frame=frame)
-
-
-def _observe_group(
-    members: pd.DataFrame,
-    label: int,
-    rows: Sequence[FieldMapping],
-    *,
-    name: str,
-    frame: FrameSpec,
-) -> Observed:
-    """`members`, the training records of `label`, observed under the label group's name."""
-    return observe_records(members, rows, name=f"{name}/{frame.label}={label}")
-
-
-def _label_groups(
-    train: pd.DataFrame,
-    keys: pd.DataFrame,
-    labels: Collection[int],
-    rows: Sequence[FieldMapping],
-    name: str,
-    frame: FrameSpec,
-) -> dict[int, _Group]:
-    groups: dict[int, _Group] = {}
-    for label in sorted(labels):
-        members = train.loc[train[frame.label].eq(label)]
-        observed = _observe_group(members, label, rows, name=name, frame=frame)
-        bands = [str(band) for band in keys.loc[members.index, keys.columns[0]]]
-        groups[label] = _Group(observed, _records(members, frame), bands)
-    return groups
-
-
-def _records(frame: pd.DataFrame, spec: FrameSpec) -> list[_Source]:
-    """Each record of `frame` with its id, in row order."""
-    columns = [str(column) for column in spec.columns]
-    return [
-        (int(index), dict(zip(columns, values, strict=True)))
-        for index, *values in frame[columns].itertuples(name=None)
-    ]

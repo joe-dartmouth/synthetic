@@ -2,7 +2,7 @@
 id: evaluate-prior-shift-comparator
 title: Add the prior-shift arm, a scoring-time logit offset that adds no rows
 status: blocked
-depends_on: plan-direct-method-research, refactor-evaluate-size-splits
+depends_on: plan-direct-method-research
 blocks: evaluate-control-runs-registered
 parallel_safe: true
 milestone: direct-method-research
@@ -32,7 +32,7 @@ proposes it.
   sex) subgroup: the target prevalence after the gap request's fill; a logit offset solved by
   bisection on the training subgroup's predictions; the offset applied to that subgroup's test
   logits; the cutoff unchanged.
-- Wired in `run._arm_scores` and `panel.REGENERATED` (`bko.evaluate`).
+- Wired in `run_scores._arm_scores` and `panel.REGENERATED` (`bko.evaluate`).
 - A new ADR under `docs/adr/research/` that records the arm.
 - Deletes the IDEAS entry A threshold-shift comparator for E6.
 

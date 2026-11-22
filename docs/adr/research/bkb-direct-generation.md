@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-10
+updated: 2026-11-22
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -60,7 +60,7 @@ instead (ADR `research/logic-only-ablation`).
 4. **Label-only rows** (`MONDO:0006715`, `HP:0005145`, every row of which reads only the label)
    follow the cell's label: present in a target 1 cell, absent in a target 0 cell, drawing nothing.
 5. **Field groups.** The rows' fields join when one concept's rows read both
-   (`bko.generate.direct.field_groups`); on UCI this gives `cp`+`exang`, `oldpeak`+`slope`, and
+   (`bko.generate.fields.field_groups`); on UCI this gives `cp`+`exang`, `oldpeak`+`slope`, and
    each other field a row reads alone, a cutoff row's field by the side of its `AtLeast` limit in
    `bko.ontology.mapping.FIELD_MAPPINGS`. Each group's fields are copied together
    from one record drawn uniformly from the cell's records that show exactly the group's drawn
@@ -156,7 +156,8 @@ group shows no record matching a draw refuses the attempt.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/direct.py`, with the shares in `src/bko/gaps/shares.py`
+- Owner: `src/bko/generate/direct.py`, with the field groups in `src/bko/generate/fields.py`, the
+  donor picks in `src/bko/generate/donors.py` and the shares in `src/bko/gaps/shares.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
   `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`,
   and for the presence parameter `tests/test_generate_logic_only.py` and

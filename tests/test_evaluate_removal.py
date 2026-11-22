@@ -12,7 +12,7 @@ import logging
 import pandas as pd
 import pytest
 
-import bko.evaluate.run as run_module
+import bko.evaluate.run_scores as run_scores_module
 from bko.baselines.records import Baseline, number, unit_weights
 from bko.datasets.cells import cell_counts
 from bko.datasets.split import split
@@ -118,13 +118,13 @@ def copier(test: pd.DataFrame, rows: int):
 def fits_on(monkeypatch):
     """Record the training rows and test index of every classifier the harness fits."""
     seen = []
-    real = run_module.probabilities
+    real = run_scores_module.probabilities
 
     def spy(training, test, **options):
         seen.append((training, list(test.index)))
         return real(training, test, **options)
 
-    monkeypatch.setattr(run_module, "probabilities", spy)
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
     return seen
 
 

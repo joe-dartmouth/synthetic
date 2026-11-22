@@ -20,6 +20,7 @@ import pandas as pd
 import pytest
 from scipy import stats
 
+import bko.evaluate.reference as reference_module
 from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import membership
@@ -477,7 +478,7 @@ def _context(
 def reference(monkeypatch):
     """`e1`, which the test context's experiment stands in for, read against `real`."""
     families = {"e1": REAL_ARM, "whole": REAL_ARM, "replicated": REAL_ARM}
-    monkeypatch.setattr(membership, "REFERENCE", {**membership.REFERENCE, **families})
+    monkeypatch.setattr(reference_module, "REFERENCE", {**reference_module.REFERENCE, **families})
 
 
 def _stored(
@@ -793,23 +794,23 @@ def test_a_run_with_no_reference_arm_is_refused(tmp_path, caplog):
 
 def test_the_reference_arm_resolves_through_the_runs_a_slice_slices(monkeypatch):
     runs = _sliced_runs(PRIVATE)
-    monkeypatch.setattr(membership, "REFERENCE", {"whole": REAL_ARM})
+    monkeypatch.setattr(reference_module, "REFERENCE", {"whole": REAL_ARM})
     assert reference_of("whole-a", PRIVATE, runs) == (REAL_ARM, CELL)
     assert reference_of("whole", PRIVATE, runs) == (REAL_ARM, CELL)
     twin = {**runs, "twin": runs["whole"]}
-    monkeypatch.setattr(membership, "REFERENCE", {"whole": REAL_ARM, "twin": "smote"})
+    monkeypatch.setattr(reference_module, "REFERENCE", {"whole": REAL_ARM, "twin": "smote"})
     with pytest.raises(EvaluationError, match="whose reference arms differ"):
         reference_of("whole-a", PRIVATE, twin)
 
 
 def test_a_run_lacking_its_reference_arm_or_a_removed_cell_is_refused(monkeypatch):
-    monkeypatch.setattr(membership, "REFERENCE", {"e1": REAL_ARM})
+    monkeypatch.setattr(reference_module, "REFERENCE", {"e1": REAL_ARM})
     lacking = dataclasses.replace(
         PRIVATE, arms=("none", "smote"), candidate="smote", comparators=("none",)
     )
     with pytest.raises(EvaluationError, match="lacks its reference arm 'real'"):
         reference_of("e1", lacking, {})
-    monkeypatch.setattr(membership, "REFERENCE", {"e1": "smote"})
+    monkeypatch.setattr(reference_module, "REFERENCE", {"e1": "smote"})
     with pytest.raises(EvaluationError, match="removes no cell"):
         reference_of("e1", dataclasses.replace(lacking, removal=None), {})
 
