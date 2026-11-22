@@ -2,7 +2,8 @@
 
 `_arm_scores` scores an arm's augmented training set under every model, the regression first, and
 `_replica_scores` scores a replica fill alone. Each fit goes through `probabilities`, and a
-fixed-epoch model's fit is logged under the harness's logger name.
+fixed-epoch model's fit is logged under the harness's logger name, `bko.evaluate.run`, which
+its log readers and tests filter on.
 """
 
 from __future__ import annotations
