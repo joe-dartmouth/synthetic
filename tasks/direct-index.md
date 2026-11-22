@@ -1,7 +1,7 @@
 # Direct method: work-unit index
 
-**What this set is.** The units that make `bko-direct` the primary method of the study, each one
-pull request. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a
+**What this set is.** The units that study `bko-direct` as the candidate of the direct-method study,
+each one pull request. The plan is [`docs/RESEARCH.md`](../docs/RESEARCH.md); a unit that changes a
 criterion, a definition or a decision an ADR records edits that document in its own PR. Each
 unit's `milestone` is `direct-method-research`, the
 [ROADMAP milestone](../docs/ROADMAP.md#direct-method-research) this set serves.

@@ -10,11 +10,12 @@ updated: 2026-11-22
 
 E1 registered `bko`, the Messages arm guided by the BKO's gaps, as its candidate, and section 4 of
 the plan judges it. The direct arm `bko-direct` draws records from the fused BKB with no API call
-(ADR [`research/bkb-direct-generation`](bkb-direct-generation.md)), and no section 4 criterion
-reads it. E6 read `bko-direct` as the arm with the highest removed-cell recall at full removal
-other than `real`. The team's direct-method milestone asks how far that arm goes as a method in its
-own right, which needs a named candidate, readings fixed before its controls run, and a statement
-of which earlier results the study may lean on.
+(ADR [`research/bkb-direct-generation`](bkb-direct-generation.md)), and no section 4 criterion reads
+it. Among the arms whose removed-cell recall E6 could read, `bko-direct` had the highest at full
+removal other than `real` ([E6](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The team's
+direct-method milestone asks how far that arm goes as a method in its own right, which needs a named
+candidate, readings fixed before its controls run, and a statement of which earlier results the
+study may lean on.
 
 ## Decision Drivers
 
@@ -59,7 +60,7 @@ the study's claims rest on runs not yet made.
 ## Enforcement
 
 - Owner: `docs/RESEARCH.md`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_evaluate_experiment.py` (E1's and E6's registered `candidate` stays `bko`)
 
 ## Reversal Conditions
 

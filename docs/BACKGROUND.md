@@ -354,12 +354,12 @@ Three lines of prior work sit beside it.
 
 - **Data swapping.** Fienberg and McIntyre describe the method Dalenius and Reiss proposed as
   exchanging the values of sensitive variables among records so that lower-order frequency counts
-  are kept; the swapped file holds the original records with some of their values exchanged.
+  are kept, so the records stay and some of their values change places (general background).
   `bko-direct` adds records instead, each field group's values copied from a donor in its cell or
-  label group. Both can weaken associations across what is exchanged or donated separately: after
-  Willenborg and de Waal, Fienberg and McIntyre note that the Census Bureau's swapping affects the
-  joint distribution of the swapped variables and the variables not used for matching, possibly
-  attenuating their association.
+  label group. After Willenborg and de Waal, Fienberg and McIntyre note that the Census Bureau's
+  swapping affects the joint distribution of the swapped variables and the variables not used for
+  matching, possibly attenuating their association; `bko-direct`'s separate donors per field group
+  can break associations across groups in the same way the separate-donor hot deck does.
 - **Covariate-bias augmentation.** Juwara, El-Hussuna and El Emam remove a share of one covariate
   level's records, as E6 removes a share of one cell's, from 15% to 80% on real data and up to 95%
   in simulation. They fit a sequential tree-based synthesizer to the biased data, add synthetic
