@@ -3,7 +3,7 @@ id: evaluate-confirmatory-results
 title: Run every confirmatory run at the tag and report every registered contrast
 status: blocked
 depends_on: evaluate-confirmatory-registration
-blocks: --
+blocks: evaluate-crc-acs-results
 parallel_safe: true
 milestone: direct-method-research
 paid: true

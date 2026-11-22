@@ -3,7 +3,7 @@ id: evaluate-prior-shift-comparator
 title: Add the prior-shift arm, a scoring-time logit offset that adds no rows
 status: ready
 depends_on: --
-blocks: evaluate-control-runs-registered
+blocks: evaluate-control-runs-registered, evaluate-covariate-bias-fractions
 parallel_safe: true
 milestone: direct-method-research
 paid: false

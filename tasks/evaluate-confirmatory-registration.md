@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, evaluate-composite-dev-results
+depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results
 blocks: evaluate-confirmatory-results
 parallel_safe: false
 milestone: direct-method-research
@@ -23,7 +23,14 @@ readings are fixed before any score exists on the new datasets.
 
 **In.**
 
-- Confirmatory `RUNS` entries per new dataset:
+- Confirmatory `RUNS` entries per new dataset, the four health datasets of
+  [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11 (SUPPORT2, NHANES, the PhysioNet/CinC
+  Challenge 2012 set and NHAMCS 2022 ED, framed by units
+  [`datasets-support2-frame`](datasets-support2-frame.md),
+  [`datasets-nhanes-frame`](datasets-nhanes-frame.md),
+  [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) and
+  [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md)) and ACS PUMS, framed by unit
+  [`datasets-acs-frame`](datasets-acs-frame.md), a separate exploratory family:
   - candidate from unit [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md).
     When that unit reports the composite failing the non-inferiority margin, `bko-direct` is
     candidate and `bko-direct-2` an ablation arm. Otherwise `bko-direct-2` is candidate and
@@ -45,8 +52,9 @@ readings are fixed before any score exists on the new datasets.
   - one primary contrast per dataset when the control reading rule registers a superiority
     hypothesis. When it registers none, the run reports equivalence, privacy and attribution
     readings, as the rule says;
-  - Holm's correction across the comparators and the two health datasets, with its registry entry
-    in [`docs/literature.md`](../docs/literature.md);
+  - Holm's correction across the comparators and the four health datasets, with its registry
+    entry in [`docs/literature.md`](../docs/literature.md); ACS PUMS is a separate exploratory
+    family outside it;
   - the equivalence margin;
   - the holdout count, derived from E6's interval widths
     ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
@@ -62,6 +70,7 @@ readings are fixed before any score exists on the new datasets.
 
 ## Acceptance
 
-- A test constructs every confirmatory `NamedRun` (`bko.evaluate.named_run`) in `bko.evaluate.named_runs.RUNS`.
+- A test constructs every confirmatory `NamedRun` (`bko.evaluate.named_run`) in
+  `bko.evaluate.named_runs.RUNS`.
 - `git tag -v <tag>` verifies the signed tag, and each Configuration names the tagged commit.
 - `make check` passes.

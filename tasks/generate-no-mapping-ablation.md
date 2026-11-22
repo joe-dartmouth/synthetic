@@ -3,7 +3,7 @@ id: generate-no-mapping-ablation
 title: Add the bko-nomap arm, bko-direct's draw without the mapping table
 status: ready
 depends_on: --
-blocks: evaluate-control-runs-registered, generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, generate-coherent-free-fields
+blocks: evaluate-control-runs-registered, generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, generate-coherent-free-fields, evaluate-covariate-bias-fractions
 parallel_safe: true
 milestone: direct-method-research
 paid: false

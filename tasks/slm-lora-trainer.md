@@ -29,19 +29,29 @@ model and one training budget.
   section of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#environment).
 - The tooling ADR that unit [`slm-lora-spike`](slm-lora-spike.md) writes, revised in place.
 - A serializer: fixed-order field descriptions from the `FrameSpec` (`bko.datasets.frames`), and
-  a yes or no answer scored as a probability that feeds `utility()` (`bko.evaluate.utility`).
+  a yes or no answer scored as a probability that feeds `utility()` (`bko.evaluate.utility`). One
+  prompt template serves training and scoring; the training target is the answer token alone,
+  over records of both labels; a test checks that a training prompt minus its answer equals the
+  scoring prompt.
 - A trainer, tested in the gate on a tiny randomly initialised model.
 - Pinned base weights under `data/models/`, loaded only as safetensors and only after their
   sha256 verifies.
 - The LoRA adapter, fitted on patient-derived records, kept under the gitignored `data/models/` or
-  `runs/`, at a path the new ADR names.
+  `runs/`, at a path the new ADR names; the ADR also says the adapter never leaves the machine,
+  since a fine-tuned adapter can reproduce training rows.
 - A new ADR under `docs/adr/research/` that fixes:
-  - the training set per arm: one real subsample shared by every arm, plus the arm's fill;
+  - the training set per arm: the full training split, plus the arm's fill;
   - the controls: no fine-tune, `none` and `real`;
   - the LoRA settings;
   - the holdouts and seeds, chosen from unit [`slm-lora-spike`](slm-lora-spike.md)'s measured
     time;
-  - the stated power limit.
+  - the stated power limit;
+  - which of the synthetic-share mixes of
+    [RESEARCH section 11](../docs/RESEARCH.md#synthetic-share-ablation) the measured time allows;
+    at a share the LoRA training set is that share's training set, the total held at the training
+    split's size;
+  - whether two fine-tunes at one seed give equal adapters on this machine, measured, and what the
+    design does if they do not.
 - The ADR cites the one prior study of this design through
   [`docs/literature.md`](../docs/literature.md). No registry entry fits it today, so this unit
   adds the entry.
