@@ -478,7 +478,7 @@ def _context(
 def reference(monkeypatch):
     """`e1`, which the test context's experiment stands in for, read against `real`."""
     families = {"e1": REAL_ARM, "whole": REAL_ARM, "replicated": REAL_ARM}
-    monkeypatch.setattr(reference_module, "REFERENCE", {**membership.REFERENCE, **families})
+    monkeypatch.setattr(reference_module, "REFERENCE", {**reference_module.REFERENCE, **families})
 
 
 def _stored(
