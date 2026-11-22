@@ -3,7 +3,7 @@ id: datasets-acs-frame
 title: Add one ACS PUMS state-year as an exploratory non-health frame with occupation codes on the Occupation Ontology
 status: blocked
 depends_on: datasets-selection-rule, ontology-per-dataset-releases
-blocks: evaluate-confirmatory-registration
+blocks: evaluate-confirmatory-registration, evaluate-crc-acs-benchmark
 parallel_safe: true
 milestone: direct-method-research
 paid: false

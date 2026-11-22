@@ -47,6 +47,25 @@ unit's `milestone` is `direct-method-research`, the
 | [`datasets-support2-frame`](datasets-support2-frame.md) | blocked | datasets-selection-rule | direct-method-research |
 | [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | blocked | datasets-selection-rule | direct-method-research |
 | [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | datasets-selection-rule, ontology-per-dataset-releases | direct-method-research |
+| [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-non-health-selection`](datasets-non-health-selection.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | blocked | datasets-non-health-selection | direct-method-research |
+
+### Published comparisons
+
+| Unit | Status | Depends on | Milestone |
+|---|---|---|---|
+| [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) | blocked | generate-no-mapping-ablation, baselines-label-bootstrap, evaluate-prior-shift-comparator | direct-method-research |
+| [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | blocked | evaluate-covariate-bias-fractions | direct-method-research |
+| [`evaluate-tableshift-readmission`](evaluate-tableshift-readmission.md) | ready | -- | direct-method-research |
+| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-tableshift-readmission | direct-method-research |
+| [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
+| [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
+| [`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) | ready | -- | direct-method-research |
+| [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | blocked | evaluate-syntheval-heart-disease | direct-method-research |
+| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | blocked | baselines-label-bootstrap, baselines-tabddpm | direct-method-research |
+| [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | blocked | evaluate-synthetic-share-sweep | direct-method-research |
 
 ### Composite and confirmation
 
@@ -54,7 +73,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -70,8 +89,13 @@ unit's `milestone` is `direct-method-research`, the
 ```mermaid
 flowchart LR
     u3[generate-no-mapping-ablation] --> u6[evaluate-control-runs-registered]
+    u3 --> u37[evaluate-covariate-bias-fractions]
     u4[baselines-label-bootstrap] --> u6
+    u4 --> u37
     u5[evaluate-prior-shift-comparator] --> u6
+    u5 --> u37
+    u37 --> u38[evaluate-covariate-bias-results]
+    u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6 --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
     u3 --> u11[generate-is-a-conditional-draws]
@@ -97,6 +121,12 @@ flowchart LR
     u23 --> u26[datasets-nhanes-frame]
     u23 --> u27[datasets-acs-frame]
     u24[ontology-per-dataset-releases] --> u27
+    u27 --> u41[evaluate-crc-acs-benchmark]
+    u23 --> u47[datasets-physionet2012-frame]
+    u23 --> u48[datasets-nhamcs-frame]
+    u23 --> u49[datasets-non-health-selection]
+    u49 --> u50[datasets-generalised-cell-axes]
+    u43[evaluate-syntheval-heart-disease] --> u44[evaluate-syntheval-results]
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
     u28 --> u29[evaluate-composite-dev-results]
@@ -104,11 +134,18 @@ flowchart LR
     u8 --> u30
     u18 --> u30
     u22[baselines-tabddpm] --> u30
+    u4 --> u45[evaluate-synthetic-share-sweep]
+    u22 --> u45
+    u45 --> u46[evaluate-synthetic-share-results]
     u25 --> u30
     u26 --> u30
     u27 --> u30
+    u47 --> u30
+    u48 --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
+    u41 --> u42[evaluate-crc-acs-results]
+    u31 --> u42
     u13 --> u32[ontology-auto-mapping]
     u32 --> u33[ontology-auto-mapping-results]
     u34[slm-lora-spike] --> u35[slm-lora-trainer]

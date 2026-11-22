@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, evaluate-composite-dev-results
+depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results
 blocks: evaluate-confirmatory-results
 parallel_safe: false
 milestone: direct-method-research

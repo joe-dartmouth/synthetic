@@ -1,0 +1,55 @@
+---
+id: datasets-physionet2012-frame
+title: Add PhysioNet/CinC Challenge 2012 as a confirmatory frame with in-hospital death as the label
+status: blocked
+depends_on: datasets-selection-rule
+blocks: evaluate-confirmatory-registration
+parallel_safe: true
+milestone: direct-method-research
+paid: false
+adrs: research/physionet2012-frame
+---
+
+# Add PhysioNet/CinC Challenge 2012 as a confirmatory frame with in-hospital death as the label
+
+The set's graph is [`direct-index.md`](direct-index.md).
+
+## Why this unit exists
+
+A second intensive-care frame beside [`datasets-support2-frame`](datasets-support2-frame.md) widens
+the confirmatory family. The PhysioNet/CinC Challenge 2012 set holds 12,000 ICU stays under an
+ODC Attribution licence. Its terms and its death rate are what unit
+[`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page. This unit
+copies `datasets-support2-frame` in scope and acceptance.
+
+## Scope
+
+**In.**
+
+- A `Source` pin (`bko.datasets.sources`) of the PhysioNet archive. Its `agreement` carries the
+  value unit [`datasets-selection-rule`](datasets-selection-rule.md) records.
+- A loader that reduces each stay's time series to one record by a rule fixed before any gap
+  listing is read.
+- A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label.
+- Mapping rows with cited cutoffs, committed from the codebook and the ontology before any gap
+  listing is read.
+- How missing values are read: a missing value shows no concept.
+- A `Dataset` member (`bko.evaluate.data`).
+- A `python -m bko.gaps physionet2012` subcommand over the training split.
+- The contradictions census (`python -m bko.evaluate contradictions`).
+- A new ADR under `docs/adr/research/` that records the frame, the reduction rule and the
+  mapping.
+
+**Out.**
+
+- The test split.
+- Any classifier fit or arm score.
+- Picking the removed cell (unit
+  [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md)).
+
+## Acceptance
+
+- `python -m bko.ontology check` passes with the new rows.
+- The subcommand lists the training split's gaps.
+- The `contradictions` reading's output over the training split is recorded in the unit's ADR.
+- `make check` passes.
