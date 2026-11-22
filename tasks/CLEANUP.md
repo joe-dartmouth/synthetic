@@ -37,22 +37,6 @@ passes close enough to pay it.
 key resolves, that each entry names what discharges it and its trigger, and that a blocked entry
 links to where its blocker is tracked.
 
-## docs
-
-- **`cleanup:docs/related-work-home`: positioning against prior work has two homes.**
-  `docs/RESEARCH.md` section 10, Related work, positions the pipeline against other systems. The
-  one-home table gives `docs/RESEARCH.md` the plan and gives `docs/BACKGROUND.md` "the prior work
-  behind it" (ADR
-  [`tooling/one-home-per-kind-of-statement`](../docs/adr/tooling/one-home-per-kind-of-statement.md)),
-  and BACKGROUND's Where `bko-direct` sits positions an arm the same way. Deferred because moving
-  section 10 edits the plan of record and its strict citation checks, outside a change that
-  registers the works behind BACKGROUND's missing-data section.
-
-  **What discharges it:** a one-home row that names the home of related work, with section 10
-  either moved there or named by the row.
-
-  **Trigger:** the next edit to `docs/RESEARCH.md` section 10.
-
 ## datasets
 
 - **`cleanup:datasets/agreement-sending-placeholder`: any non-blank `sending` text permits

@@ -121,7 +121,8 @@ through the Anthropic Messages API (2-pager section 4). A second generator draws
 fused BKB alone, with no API call: each mapped concept present at its share, field values read
 from training records that show the drawn concepts (ADR
 [research/bkb-direct-generation](adr/research/bkb-direct-generation.md)); it isolates what the
-mapping table and the data's concept shares contribute, and no criterion reads it. Each candidate
+mapping table and the data's concept shares contribute. No section 4 criterion reads it, and the
+direct-method study ([section 11](#11-direct-method-study)) takes it as its candidate. Each candidate
 record is validated before augmentation. The validity criterion counts the records that pass the
 model's consistency checks, and the completeness criterion counts the detected gaps that close
 after fusion ([section 4](#4-success-criteria)). ADR
