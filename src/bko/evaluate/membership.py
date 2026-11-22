@@ -14,9 +14,10 @@ baseline (`privacy.distances_and_nndr`).
 
 `privacy` reads one or more `rows` stores (`bko.evaluate.rows_read`), one per holdout slice of
 the named run, makes no API call, and writes the scores CSV. It logs the reading rule over
-`GROUPS` against the run family's `REFERENCE` arm (`bko.evaluate.privacy_rule`), which judges no
-criterion; each scope's attack statistics and the distances are separate families. ADR
-`research/membership-inference-reading` records the attack and the rule.
+`GROUPS` against the run family's `REFERENCE` arm (`bko.evaluate.reference`) through
+`bko.evaluate.privacy_rule`, which judges no criterion; each scope's attack statistics and the
+distances are separate families. ADR `research/membership-inference-reading` records the attack
+and the rule.
 """
 
 from __future__ import annotations
@@ -43,13 +44,23 @@ from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
-from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
-from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, wholes_of
+from bko.evaluate.experiment import Experiment
+from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
 from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
 from bko.evaluate.privacy_rule import Group, log_readings, readings
-from bko.evaluate.rows_read import Rows, bind, frame_of, read_rows
-from bko.evaluate.run_folder import Folder, read_folder
+from bko.evaluate.privacy_stores import (
+    SHOWN,  # ruff: ignore[unused-import]  (re-exported)
+    Store,
+    _child,  # ruff: ignore[unused-import]  (re-exported)
+    _shown,  # ruff: ignore[unused-import]  (re-exported)
+    read,
+)
+from bko.evaluate.reference import (
+    REFERENCE,  # ruff: ignore[unused-import]  (re-exported)
+    reference_of,
+)
+from bko.evaluate.rows_read import frame_of
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
 
 
@@ -66,17 +77,6 @@ SCOPES: Final = ("outside", "cell", "label")
 _SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
     {"outside": FPRS, "cell": FPRS[:1], "label": FPRS}
 )
-
-REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
-    {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
-    | {
-        f"e10-{family}-{cell}": DIRECT_ARM
-        for family in ("pilot", "pram")
-        for cell in ("thin", "empty")
-    }
-)
-"""Each run family's reference arm, which every other arm's privacy is read against: `real`, or
-`bko-direct` for the perturbation runs, whose arms perturb its rows."""
 
 
 def mi(statistic: str, scope: str) -> Measure:
@@ -249,127 +249,6 @@ def holdout_scores(
             for measure, value in found.items()
         ]
     return scores
-
-
-@dataclass(frozen=True, slots=True)
-class Store:
-    """A store read back and bound to its folder."""
-
-    path: Path
-    rows: Rows
-    folder: Folder
-
-
-def read(
-    run: str,
-    stores: Sequence[Path],
-    data: Data,
-    *,
-    experiment: Experiment,
-    runs: Mapping[str, NamedRun],
-    root: Path,
-) -> dict[int, Store]:
-    """Read and check each store; return the store that holds each of `run`'s holdouts.
-
-    Each store's run is `run` or a slice of it (`wholes_of`), its folder is `<root>/<folder>`, a
-    direct child of `root`, which it is bound to (`bind`: run, data digest, frame, folder,
-    `log_sha256` and one fill line per `arm` line), and the stores' holdouts partition `run`'s.
-    Each holdout's fills are the experiment's arms' and their replicas'. Each bound store logs
-    `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
-    bytes it was parsed from. An error echoes at most `SHOWN` characters of a header value.
-
-    Raises:
-        OSError: If a store or folder cannot be read.
-        IdentityError: On any check above.
-    """
-    found: dict[int, Store] = {}
-    for path in stores:
-        rows = read_rows(path)
-        name, folder_name = str(rows.header.get("run")), rows.header.get("folder")
-        if name != run and run not in wholes_of(name, runs):
-            msg = f"the store {path} is run {_shown(name)}'s, which is not a slice of {run!r}"
-            raise IdentityError(msg)
-        if not isinstance(folder_name, str) or not _child(root, folder_name):
-            msg = f"the store {path} names the folder {_shown(folder_name)}, not a folder"
-            msg += f" directly under {root}"
-            raise IdentityError(msg)
-        folder = read_folder(root / folder_name)
-        bind(rows, folder, data.frame, run=name, data=data.digest)
-        logger.info(
-            "privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s",
-            path,
-            name,
-            folder_name,
-            folder.log_sha256,
-            ",".join(str(seed) for seed in sorted(folder.splits)),
-            rows.sha256,
-        )
-        overlap = sorted(set(folder.splits) & set(found))
-        if overlap:
-            msg = f"the store {path}'s holdouts {overlap} are another store's too"
-            raise IdentityError(msg)
-        found |= dict.fromkeys(folder.splits, Store(path, rows, folder))
-    if set(found) != set(experiment.holdout_seeds):
-        msg = f"the stores' holdouts {sorted(found)} are not run {run!r}'s"
-        msg += f" {sorted(experiment.holdout_seeds)}"
-        raise IdentityError(msg)
-    expected = {*experiment.arms, *(f"{arm}-replica" for arm in experiment.replica_arms)}
-    for seed, store in found.items():
-        held = {arm for holdout, arm in store.rows.lines if holdout == seed}
-        if held != expected:
-            msg = f"holdout {seed}'s fills in {store.path} are {sorted(held)}, not run {run!r}'s"
-            msg += f" {sorted(expected)}"
-            raise IdentityError(msg)
-    return found
-
-
-SHOWN: Final = 200
-"""The most characters of a store's header value an error echoes."""
-
-
-def _shown(value: object) -> str:
-    """`value`'s repr, cut to `SHOWN` characters."""
-    text = repr(value)
-    return text if len(text) <= SHOWN else f"{text[:SHOWN]}..."
-
-
-def _child(root: Path, name: str) -> bool:
-    """Whether the folder name `name` resolves to a direct child of `root`."""
-    if name in {"", ".", ".."}:
-        return False
-    return (root / name).resolve().parent == root.resolve()
-
-
-def reference_of(
-    run: str, experiment: Experiment, runs: Mapping[str, NamedRun]
-) -> tuple[str, Stratum]:
-    """The reference arm of `run`'s family, and the cell its experiment removes.
-
-    The family is `run`'s own `REFERENCE` entry, or else the entries of the runs it slices,
-    which must name one arm.
-
-    Raises:
-        EvaluationError: If the family has no reference arm or names several, the experiment
-            lacks the reference arm, or the experiment removes no cell, which leaves no cell scope.
-    """
-    families = {run} if run in REFERENCE else wholes_of(run, runs) & REFERENCE.keys()
-    references = {REFERENCE[family] for family in families}
-    if not references:
-        msg = f"run {run!r} has no reference arm; the families read are {sorted(REFERENCE)}"
-        raise EvaluationError(msg)
-    if len(references) > 1:
-        msg = f"run {run!r} slices {sorted(families)}, whose reference arms differ"
-        msg += f": {sorted(references)}"
-        raise EvaluationError(msg)
-    (reference,) = references
-    if reference not in experiment.arms:
-        msg = f"run {run!r} lacks its reference arm {reference!r}; its arms are"
-        msg += f" {list(experiment.arms)}"
-        raise EvaluationError(msg)
-    if experiment.removal is None:
-        msg = f"run {run!r} removes no cell, so its attack has no cell scope"
-        raise EvaluationError(msg)
-    return reference, experiment.removal.cell
 
 
 def privacy(
