@@ -1,6 +1,6 @@
 # Background
 
-Sources: [RESEARCH.md](RESEARCH.md), the plan of record; [Santos et al.](https://doi.org/10.1371/journal.pone.0296864), read on 2026-10-17; the works under [Missing data and imputation](literature.md#missing-data-and-imputation), `llms-2024` and `gruenbaum-2026`, each read on 2026-11-14; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API.
+Sources: [RESEARCH.md](RESEARCH.md), the plan of record; [Santos et al.](https://doi.org/10.1371/journal.pone.0296864), read on 2026-10-17; the works under [Missing data and imputation](literature.md#missing-data-and-imputation), `llms-2024` and `gruenbaum-2026`, each read on 2026-11-14; facts gathered outside the PDFs on 2026-10-13: pybkb's repository read through the GitHub API; for the prior work beside `bko-direct`, `fienberg-2005` read from its SCB PDF, `juwara-2024` from its PubMed Central full text and OSF files and `lautrup-2026` from its arXiv PDF and code, each on 2026-11-22, and `dalenius-1982` as Fienberg and McIntyre report it.
 
 This is background for a teammate new to the area. The plan itself is in
 [RESEARCH.md](RESEARCH.md); this file explains the ideas it rests on and the prior work around it.
@@ -350,6 +350,31 @@ the data are thin ([Incompleteness](#incompleteness-as-a-property-of-the-represe
 `bko-direct` is a generator that fills the gap under its assumption, reading the data's concept
 shares and the mapping table, not the ontology's structure.
 
+Three lines of prior work sit beside it.
+
+- **Data swapping.** Fienberg and McIntyre describe the method Dalenius and Reiss proposed as
+  exchanging the values of sensitive variables among records so that lower-order frequency counts
+  are kept; the swapped file holds the original records with some of their values exchanged.
+  `bko-direct` adds records instead, each field group's values copied from a donor in its cell or
+  label group. Both can weaken associations across what is exchanged or donated separately: after
+  Willenborg and de Waal, Fienberg and McIntyre note that the Census Bureau's swapping affects the
+  joint distribution of the swapped variables and the variables not used for matching, possibly
+  attenuating their association.
+- **Covariate-bias augmentation.** Juwara, El-Hussuna and El Emam remove a share of one covariate
+  level's records, as E6 removes a share of one cell's, from 15% to 80% on real data and up to 95%
+  in simulation. They fit a sequential tree-based synthesizer to the biased data, add synthetic
+  records of the minority group until it returns to about its size before removal, and average
+  over 100 synthetic copies. `bko-direct` fits no model and adds one seeded fill. Their R code and
+  the UCI breast-cancer data they use are on OSF under the MIT licence; the scripts load synthpop
+  but call the generator through a package they mark as not publicly available, so they do not run
+  as released.
+- **Disjoint generation.** Lautrup et al. partition a table's columns into disjoint subsets, train
+  a separate generative model on each, and join the outputs without common variables.
+  `bko-direct` is a conditional, model-free relative: each field group draws from its own donor
+  set, and the parts join on the cell, the label group and the drawn concepts. Their code is under
+  the MIT licence, and one of their datasets is UCI Heart Disease, a recoded Cleveland file whose
+  `target` is 1 where UCI's `num` is 0.
+
 Read against the structure-first work, `bko-direct` settles which concepts a record shows before
 its values, as Xu et al. (2024) order columns by their dependencies and Gruenbaum et al. derive
 records from one graph, and a seed reruns its draw (general background). It does not keep
@@ -360,7 +385,7 @@ implies `diabetesMed=Yes` ([IDEAS.md](IDEAS.md#coherent-free-field-draws-for-bko
 and the model writes the values (ADR
 [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 9).
 
-Works: [Tabular generators](literature.md#tabular-generators); [Missing data and imputation](literature.md#missing-data-and-imputation).
+Works: [Tabular generators](literature.md#tabular-generators); [Missing data and imputation](literature.md#missing-data-and-imputation); [Privacy](literature.md#privacy); [Augmentation versus resampling](literature.md#augmentation-versus-resampling).
 
 ## Failure modes and mitigations
 
