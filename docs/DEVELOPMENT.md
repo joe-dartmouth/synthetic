@@ -588,7 +588,7 @@ log); `crash` (F5 crash); `rehearsal`; `name` (the run id's resume folder name i
 the signal's number for a child a signal killed, or 2 when a resume is refused, a segment cannot
 start or the supervisor cannot run.
 
-- **What `score` does**: the named run's dataset (`bko.evaluate.named_runs.NamedRun.dataset`)
+- **What `score` does**: the named run's dataset (`bko.evaluate.named_run.NamedRun.dataset`)
   decides what it loads, as one `bko.evaluate.data.Data` every stage reads; for UCI it fetches UCI
   Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
   data with that seed and gives every arm the split's training rows and the request that fills

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-14
-updated: 2026-11-09
+updated: 2026-11-22
 ---
 # The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split
 
@@ -59,7 +59,7 @@ and 40 records are of women with heart disease, 25 of them Cleveland's.
   them falls back to UCI's for a caller holding another frame. The baselines read the frame from
   their `Request`, whose `frame` is a required keyword, and from each records helper's required
   `frame` argument.
-- **One frame value per named run**: `bko.evaluate.named_runs.NamedRun.dataset` chooses a
+- **One frame value per named run**: `bko.evaluate.named_run.NamedRun.dataset` chooses a
   `bko.evaluate.data.Data` (the records, the frame, the field rows its guidance reads, the
   dataset's name, the data use agreement it is held under and the sha256 of its records), and
   every stage of `score` reads its frame from that value.

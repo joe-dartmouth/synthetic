@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-02
-updated: 2026-11-09
+updated: 2026-11-22
 ---
 # The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm
 
@@ -418,7 +418,8 @@ the replica reads `bko` alone.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/frames.py`; E6's runs, `src/bko/evaluate/named_runs.py`
+- Owner: `src/bko/ontology/frames.py`; E6's runs, `src/bko/evaluate/runs_diabetes.py` (the
+  experiments and slices) and `src/bko/evaluate/named_runs.py` (`RUNS`)
 - Pinned by: `tests/test_evaluate_experiment.py` (the runs, slices and ceilings),
   `tests/test_datasets_diabetes.py`, `tests/test_datasets_diabetes_pinned.py` (with
   `--releases`), `tests/test_evaluate_diabetes.py`, `tests/test_evaluate_power.py`,
