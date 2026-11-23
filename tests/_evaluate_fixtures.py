@@ -15,6 +15,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
+from bko.baselines.diffusion import tabddpm
 from bko.baselines.methods import METHODS
 from bko.baselines.request import Method
 from bko.baselines.synthesizers import ctgan, tvae
@@ -24,7 +25,14 @@ from bko.evaluate.classifier import build
 from bko.evaluate.data import Data
 from bko.evaluate.experiment import BKO_ARMS, E1
 from bko.evaluate.run import method_arms
-from tests._baselines_fixtures import EDGE, TINY_CTGAN, TINY_TVAE, cell_list, full_records
+from tests._baselines_fixtures import (
+    EDGE,
+    TINY_CTGAN,
+    TINY_TABDDPM,
+    TINY_TVAE,
+    cell_list,
+    full_records,
+)
 
 
 FAST_METHODS = MappingProxyType(
@@ -32,9 +40,10 @@ FAST_METHODS = MappingProxyType(
         **METHODS,
         Method.CTGAN: partial(ctgan, parameters=TINY_CTGAN),
         Method.TVAE: partial(tvae, parameters=TINY_TVAE),
+        Method.TABDDPM: partial(tabddpm, parameters=TINY_TABDDPM),
     }
 )
-"""Every method, with small SDV models; `method_arms(FAST_METHODS)` makes them arms."""
+"""Every method, with small SDV and TabDDPM models; `method_arms(FAST_METHODS)` makes them arms."""
 
 FLAGGED = ((f"<{EDGE}", "female", 1), (f">={EDGE}", "female", 1))
 """The graded frame's underrepresented cells, in grid order."""
