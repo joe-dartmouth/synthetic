@@ -36,7 +36,6 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
-| [`baselines-tabddpm`](baselines-tabddpm.md) | ready | -- | direct-method-research |
 
 ### Datasets
 
@@ -64,7 +63,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) | ready | -- | direct-method-research |
 | [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | blocked | evaluate-syntheval-heart-disease | direct-method-research |
-| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | blocked | baselines-label-bootstrap, baselines-tabddpm | direct-method-research |
+| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | blocked | baselines-label-bootstrap | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | blocked | evaluate-synthetic-share-sweep | direct-method-research |
 
 ### Composite and confirmation
@@ -73,7 +72,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, baselines-tabddpm, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -84,7 +83,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-spike`](slm-lora-spike.md) | ready | -- | direct-method-research |
 | [`slm-lora-trainer`](slm-lora-trainer.md) | blocked | slm-lora-spike | direct-method-research |
-| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap, baselines-tabddpm | direct-method-research |
+| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap | direct-method-research |
 
 ```mermaid
 flowchart LR
@@ -133,9 +132,7 @@ flowchart LR
     u7 --> u30[evaluate-confirmatory-registration]
     u8 --> u30
     u18 --> u30
-    u22[baselines-tabddpm] --> u30
     u4 --> u45[evaluate-synthetic-share-sweep]
-    u22 --> u45
     u45 --> u46[evaluate-synthetic-share-results]
     u25 --> u30
     u26 --> u30
@@ -152,7 +149,6 @@ flowchart LR
     u29 --> u36[slm-lora-results]
     u35 --> u36
     u4 --> u36
-    u22 --> u36
 ```
 
 ## What every unit relies on
