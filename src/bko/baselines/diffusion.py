@@ -72,7 +72,7 @@ class Parameters:
 
 
 TABDDPM_PARAMETERS: Final = Parameters(
-    steps=1000,
+    steps=20000,
     timesteps=1000,
     layers=(256, 256),
     dim_t=128,
@@ -81,7 +81,8 @@ TABDDPM_PARAMETERS: Final = Parameters(
     weight_decay=1e-05,
     batch=4096,
 )
-"""The authors' base configuration."""
+"""The authors' base configuration, with `steps` fixed by validation loss (ADR
+`research/diffusion-baseline`)."""
 
 MAX_QUANTILES: Final = 1000
 """The quantile transform's most quantiles."""

@@ -158,7 +158,7 @@ def test_the_model_stays_on_the_cpu(monkeypatch):
 def test_the_adr_constants_are_pinned():
     assert (
         Parameters(
-            steps=1000,
+            steps=20000,
             timesteps=1000,
             layers=(256, 256),
             dim_t=128,
