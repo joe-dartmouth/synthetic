@@ -13,6 +13,7 @@ from types import MappingProxyType
 import numpy as np
 import pandas as pd
 
+from bko.baselines.diffusion import Parameters
 from bko.baselines.request import Stratum
 from bko.datasets.cells import AGE_BAND_EDGES, LABEL
 from bko.datasets.uci import (
@@ -64,6 +65,11 @@ TINY_TVAE = MappingProxyType(
     }
 )
 """A small TVAE for the gate."""
+
+TINY_TABDDPM = Parameters(
+    steps=2, timesteps=4, layers=(16,), dim_t=8, dropout=0.0, lr=1e-3, weight_decay=0.0, batch=32
+)
+"""A small TabDDPM for the gate: 2 steps over 4 timesteps."""
 
 
 def full_records(per_cell: int = 14) -> pd.DataFrame:

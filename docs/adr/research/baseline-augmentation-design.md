@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-09
+updated: 2026-11-22
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -76,6 +76,9 @@ seed their sampling after every fit, and seed no fit.
 - **The Bayesian network is an in-house GreedyBayes learner** (`bayes-net`), PrivBayes' structure
   without its noise, drawn and filled as the other generators are; ADR
   [`research/bayesian-network-baseline`](bayesian-network-baseline.md) holds its decisions.
+- **TabDDPM is an in-house diffusion model on the locked torch** (`tabddpm`), drawn and filled as
+  CTGAN and TVAE are; ADR [`research/diffusion-baseline`](diffusion-baseline.md) holds its
+  decisions.
 - **Seeds**: imbalanced-learn takes one seed per stratum, derived from the run's seed. CTGAN and TVAE
   fit with numpy's and torch's global generators seeded from it and one torch thread, all restored
   afterwards; SDV seeds sampling itself after every fit. The Gaussian copula's fit draws nothing
@@ -83,7 +86,9 @@ seed their sampling after every fit, and seed no fit.
   with the seed, as the classifier's fit does not. Sequential CART seeds each tree with
   `derived_seed(seed, "cart", column)` and every draw from `default_rng(derived_seed(seed, "cart"))`,
   touching no global generator; the Bayesian network draws from
-  `default_rng(derived_seed(seed, "bayes-net"))` the same way.
+  `default_rng(derived_seed(seed, "bayes-net"))` the same way. TabDDPM builds its model under
+  torch's global generator seeded from the run's seed, one thread, restored afterwards, and takes
+  every other draw from one `torch.Generator` seeded with `derived_seed(seed, "tabddpm")`.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
   a required keyword; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
@@ -91,8 +96,8 @@ seed their sampling after every fit, and seed no fit.
   one weight per training record. The command writes the training set they make to stdout
   as CSV and writes nothing under `data/` but the snapshot `bko.datasets` fetches.
 
-`bko.baselines.request`, `bko.baselines.oversample`, `bko.baselines.synthesizers` and
-`bko.baselines.classical` hold the values.
+`bko.baselines.request`, `bko.baselines.oversample`, `bko.baselines.synthesizers`,
+`bko.baselines.classical` and `bko.baselines.diffusion` hold the values.
 
 ## Rationale
 
@@ -161,7 +166,8 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
 - Pinned by: `tests/test_baselines_request.py`, `tests/test_baselines_records.py`,
   `tests/test_baselines_methods.py`, `tests/test_baselines_cli.py`,
   `tests/test_baselines_synthesizers.py`, `tests/test_baselines_oversample.py`,
-  `tests/test_baselines_classical.py`, `tests/test_baselines_bayes_net.py`
+  `tests/test_baselines_classical.py`, `tests/test_baselines_bayes_net.py`,
+  `tests/test_baselines_diffusion.py`, `tests/test_baselines_ddpm.py`
 
 ## Reversal Conditions
 
@@ -176,6 +182,7 @@ record and `bko.baselines.synthesizers` change together.
 ## Related
 
 - [The Bayesian network baseline](bayesian-network-baseline.md)
+- [The TabDDPM baseline](diffusion-baseline.md)
 - [The UCI evaluation frame](uci-evaluation-frame.md)
 - [Python 3.14, without synthcity](../tooling/python-314-without-synthcity.md)
 - [uv, ruff and ty](../tooling/uv-ruff-ty.md)

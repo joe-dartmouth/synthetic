@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from bko.baselines.controls import no_augmentation
+from bko.baselines.diffusion import tabddpm
 from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, augment
 from bko.baselines.oversample import adasyn, smote
@@ -94,3 +95,4 @@ def test_each_name_runs_its_own_method():
     assert METHODS[Method.ADASYN] is adasyn
     assert METHODS[Method.CTGAN] is ctgan
     assert METHODS[Method.TVAE] is tvae
+    assert METHODS[Method.TABDDPM] is tabddpm

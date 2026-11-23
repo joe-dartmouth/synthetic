@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 from bko.baselines.__main__ import Context, configure_logging, main
+from bko.baselines.diffusion import tabddpm
 from bko.baselines.errors import BaselineError
 from bko.baselines.methods import METHODS
 from bko.baselines.records import Baseline, no_rows, unit_weights
@@ -27,6 +28,7 @@ from tests._baselines_fixtures import (
     CLI_TEXT,
     EVALUATION_COLUMNS,
     TINY_CTGAN,
+    TINY_TABDDPM,
     TINY_TVAE,
     UNBALANCED_TEXT,
 )
@@ -46,6 +48,7 @@ ARGS = {
     Method.GAUSSIAN_COPULA: ["--rows", "5"],
     Method.CART: ["--rows", "5"],
     Method.BAYES_NET: ["--rows", "5"],
+    Method.TABDDPM: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
 
@@ -59,9 +62,10 @@ FAST = MappingProxyType(
         **METHODS,
         Method.CTGAN: partial(ctgan, parameters=TINY_CTGAN),
         Method.TVAE: partial(tvae, parameters=TINY_TVAE),
+        Method.TABDDPM: partial(tabddpm, parameters=TINY_TABDDPM),
     }
 )
-"""The methods the in-process tests run, with small SDV models."""
+"""The methods the in-process tests run, with small SDV and TabDDPM models."""
 
 TRAIN_SPLIT = split(complete_records(parse_cleveland(CLI_TEXT)), edges=UCI_FRAME.edges).train
 

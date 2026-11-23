@@ -2,7 +2,7 @@
 id: evaluate-synthetic-share-sweep
 title: Register the synthetic-share ablation on E6's frame
 status: blocked
-depends_on: baselines-label-bootstrap, baselines-tabddpm
+depends_on: baselines-label-bootstrap
 blocks: evaluate-synthetic-share-results
 parallel_safe: true
 milestone: direct-method-research

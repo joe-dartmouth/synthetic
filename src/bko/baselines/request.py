@@ -43,7 +43,7 @@ class Method(enum.StrEnum):
 
     The first six are docs/RESEARCH.md section 4's comparison set; the classical synthesizers
     follow (ADR `research/baseline-augmentation-design`), then the Bayesian network (ADR
-    `research/bayesian-network-baseline`).
+    `research/bayesian-network-baseline`), then TabDDPM.
     """
 
     NONE = "none"
@@ -55,6 +55,7 @@ class Method(enum.StrEnum):
     GAUSSIAN_COPULA = "gaussian-copula"
     CART = "cart"
     BAYES_NET = "bayes-net"
+    TABDDPM = "tabddpm"
 
     @property
     def adds_rows(self) -> bool:

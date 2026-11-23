@@ -149,25 +149,23 @@ approach uses appears in it only through a survey it cites.
 **Sources.** Brief TL;DR, B4, B6, F15 (bullet 1); 2-pager section 4. Details:
 [BACKGROUND.md](BACKGROUND.md#tabular-generator-families).
 
-## Diffusion generators: TabDDPM and TabSyn
+## Diffusion generators: TabSyn
 
-**What it is.** Denoising diffusion over tabular rows: TabDDPM [`kotelnikov-2023`][kotelnikov-2023]
-diffuses the rows themselves, and TabSyn [`zhang-2024`][zhang-2024] diffuses in a learned latent
-space. The brief lists both as its diffusion family
+**What it is.** TabSyn [`zhang-2024`][zhang-2024] runs denoising diffusion in a latent space a
+variational autoencoder learns over tabular rows. TabDDPM, which diffuses the rows themselves, is
+built as a baseline (ADR [research/diffusion-baseline](adr/research/diffusion-baseline.md)). The
+brief lists both as its diffusion family
 ([BACKGROUND.md](BACKGROUND.md#tabular-generator-families)).
 
 **Why it is not in the plan.** Deferred. synthcity does not resolve on Python 3.14 (ADR
-[tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)), so either
-needs a standalone implementation. Both are deep generators that train on the training
-split, and at UCI's about 240 training records the deep generators E1 already runs, CTGAN and TVAE,
-get few optimizer steps (ADR
-[research/baseline-augmentation-design](adr/research/baseline-augmentation-design.md)); a larger
-model on the same rows is not expected to gain much. The Synthea frame's larger split is where one
-would be worth a unit.
+[tooling/python-314-without-synthcity](adr/tooling/python-314-without-synthcity.md)), so TabSyn
+needs a standalone implementation, and a second diffusion model beside TabDDPM adds a VAE to train
+on the same split. At UCI's about 240 training records the deep generators get few optimizer
+steps (ADR
+[research/baseline-augmentation-design](adr/research/baseline-augmentation-design.md)); the larger
+Synthea and Diabetes splits are where it would be worth a unit.
 
 **Sources.** Brief B4.
-
-The unit [`baselines-tabddpm`](../tasks/baselines-tabddpm.md) schedules TabDDPM.
 
 ## Tree-based generators: ARF and ForestDiffusion
 
@@ -450,7 +448,6 @@ it.
 [gunasekar-2023]: https://arxiv.org/abs/2306.11644
 [jolicoeur-martineau-2023]: https://arxiv.org/abs/2309.09968
 [kim-2025]: https://doi.org/10.1038/s41746-025-01653-8
-[kotelnikov-2023]: https://arxiv.org/abs/2209.15421
 [llms-2024]: https://arxiv.org/abs/2406.14541
 [meditron-2023]: https://arxiv.org/abs/2311.16079
 [seedat-2024]: https://arxiv.org/abs/2312.12112
