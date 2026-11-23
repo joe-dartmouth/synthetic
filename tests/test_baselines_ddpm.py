@@ -11,6 +11,7 @@ from bko.baselines.ddpm import (
     MAX_BETA,
     Denoiser,
     Schedule,
+    _gaussian_step,
     _log_posterior,
     _loss_at,
     _multinomial_kl,
@@ -231,3 +232,53 @@ def test_the_decoder_nll_keeps_a_gradient_for_a_confident_wrong_prediction():
     found.sum().backward()
     assert logits.grad is not None
     assert float(logits.grad[0, 1]) < -0.5
+
+
+class Oracle(Denoiser):
+    """A denoiser that returns the true noise: the one that made `x` from `clean`."""
+
+    def __init__(self, schedule: Schedule, clean: torch.Tensor) -> None:
+        super().__init__(clean.shape[1], 2, layers=(), dim_t=2, dropout=0.0)
+        self.schedule = schedule
+        self.clean = clean
+
+    def forward(self, x: torch.Tensor, t: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        alpha_bar = self.schedule.alpha_bars[t][:, None].double()
+        noised = x[:, : self.clean.shape[1]].double()
+        noise = (noised - torch.sqrt(alpha_bar) * self.clean.double()) / torch.sqrt(1 - alpha_bar)
+        return noise.float()
+
+
+def test_the_gaussian_term_is_zero_for_the_true_noise():
+    schedule = cosine_schedule(TIMESTEPS)
+    numeric, coded, y = batch()
+    oracle = Oracle(schedule, numeric)
+    t = torch.arange(ROWS) % TIMESTEPS
+    found = _loss_at(oracle, schedule, numeric, coded[:, :0], y, (), t, torch.Generator())
+    assert float(found) < 1e-8
+
+
+def test_the_gaussian_step_at_the_first_step_is_its_mean_without_noise():
+    schedule = cosine_schedule(TIMESTEPS)
+    generator = torch.Generator().manual_seed(8)
+    x = torch.randn(ROWS, NUMERIC, generator=generator)
+    noise = torch.randn(ROWS, NUMERIC, generator=generator)
+    state = generator.get_state()
+    beta, alpha_bar = float(schedule.betas[0]), float(schedule.alpha_bars[0])
+    mean = (x.double() - beta / math.sqrt(1 - alpha_bar) * noise.double()) / math.sqrt(1 - beta)
+    found = _gaussian_step(schedule, x, noise, 0, generator)
+    assert torch.allclose(found.double(), mean, atol=1e-5)
+    assert torch.equal(generator.get_state(), state)
+
+
+def test_the_gaussian_step_spreads_by_the_root_of_beta():
+    step = TIMESTEPS // 2
+    draws = 20_000
+    schedule = cosine_schedule(TIMESTEPS)
+    x = torch.full((draws, 1), 0.5)
+    noise = torch.full((draws, 1), -0.25)
+    found = _gaussian_step(schedule, x, noise, step, torch.Generator().manual_seed(9)).double()
+    beta, alpha_bar = float(schedule.betas[step]), float(schedule.alpha_bars[step])
+    mean = (0.5 + 0.25 * beta / math.sqrt(1 - alpha_bar)) / math.sqrt(1 - beta)
+    assert math.isclose(float(found.mean()), mean, abs_tol=0.02 * math.sqrt(beta))
+    assert math.isclose(float(found.std()), math.sqrt(beta), rel_tol=0.02)

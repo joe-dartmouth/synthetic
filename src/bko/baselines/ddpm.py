@@ -1,5 +1,34 @@
 """TabDDPM's diffusion processes and denoiser: Gaussian for measured fields, multinomial for codes.
 
+Parts of this file follow tab-ddpm (https://github.com/yandex-research/tab-ddpm, commit
+b476257dd460b778ba09eb97f7a51d6490fa17f8), by Akim Kotelnikov et al., which is licensed under the
+MIT License: the time embedding and the denoiser's forward. Its notice:
+
+MIT License
+
+Copyright (c) 2022 Akim Kotelnikov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+This file is released under the GNU General Public License, version 3 only (`LICENSE`), as the
+repository is.
+
 The equations are Kotelnikov et al. 2023 (arXiv:2209.15421), section 3 and section 4. A measured
 field follows Gaussian diffusion (Ho et al. 2020): `q(x_t | x_0) = N(sqrt(abar_t) x_0,
 (1 - abar_t) I)`, trained by the noise-prediction mean squared error (Equation 2) and sampled
@@ -153,6 +182,7 @@ def _states(sizes: Sequence[int]) -> Tensor:
 
 
 def _log(probabilities: Tensor) -> Tensor:
+    """The logarithm of `probabilities`, each clamped at `TINY` first."""
     return torch.log(probabilities.clamp(min=TINY))
 
 
@@ -183,14 +213,21 @@ def _log_mix(log_x: Tensor, keep: Tensor, k: Tensor) -> Tensor:
 
 
 def _log_posterior(
-    schedule: Schedule, x_t: Tensor, log_x0: Tensor, t: Tensor, sizes: Sequence[int]
+    schedule: Schedule,
+    x_t: Tensor,
+    log_x0: Tensor,
+    t: Tensor,
+    sizes: Sequence[int],
+    *,
+    k: Tensor | None = None,
 ) -> Tensor:
     """`log q(x_{t-1} | x_t, x_0)` per block, for one-hot `x_t` and log-probabilities `log_x0`.
 
     At the first step `abar_{-1}` is 1, so `q(x_{t-1} | x_0)` is `x_0` itself and `log_x0` enters
-    unmixed.
+    unmixed. `k` is `_states(sizes)`, computed here when not given.
     """
-    k = _states(sizes)
+    if k is None:
+        k = _states(sizes)
     from_x_t = _log_mix(_log(x_t), schedule.alphas[t][:, None], k)
     from_x0 = torch.where(
         (t == 0)[:, None], log_x0, _log_mix(log_x0, schedule.alpha_bars_prev[t][:, None], k)
@@ -222,8 +259,8 @@ def _multinomial_terms(
     """
     k = _states(sizes)
     log_x0 = _log(x0)
-    log_model = _log_posterior(schedule, x_t, _block_log_softmax(logits, sizes), t, sizes)
-    kl = _multinomial_kl(_log_posterior(schedule, x_t, log_x0, t, sizes), log_model)
+    log_model = _log_posterior(schedule, x_t, _block_log_softmax(logits, sizes), t, sizes, k=k)
+    kl = _multinomial_kl(_log_posterior(schedule, x_t, log_x0, t, sizes, k=k), log_model)
     decoder = -(x0 * log_model).sum(dim=1)
     log_prior = _log_mix(log_x0, schedule.alpha_bars[-1], k)
     prior = _multinomial_kl(log_prior, -torch.log(k).expand_as(log_prior))
@@ -279,7 +316,7 @@ def _loss_at(
     x_t = _one_hot(_gumbel_max(_log_mix(_log(x0), alpha_bar, k), sizes, generator), sizes)
     out = model(torch.cat([noised, x_t], dim=1), t, y)
     width = numeric.shape[1]
-    terms = [torch.zeros(())]
+    terms: list[Tensor] = []
     if width:
         terms.append(torch.nn.functional.mse_loss(out[:, :width], noise))
     if sizes:
@@ -313,10 +350,10 @@ def sample(
     rows = y.shape[0]
     k = _states(sizes)
     training = model.training
-    model.eval()
-    x = torch.randn((rows, numeric), generator=generator)
-    codes = _gumbel_max((-torch.log(k)).expand(rows, -1), sizes, generator)
     try:
+        model.eval()
+        x = torch.randn((rows, numeric), generator=generator)
+        codes = _gumbel_max((-torch.log(k)).expand(rows, -1), sizes, generator)
         with torch.no_grad():
             for step in reversed(range(schedule.timesteps)):
                 t = torch.full((rows,), step, dtype=torch.long)
@@ -324,7 +361,7 @@ def sample(
                 out = model(torch.cat([x, x_t], dim=1), t, y)
                 x = _gaussian_step(schedule, x, out[:, :numeric], step, generator)
                 log_predicted = _block_log_softmax(out[:, numeric:], sizes)
-                log_post = _log_posterior(schedule, x_t, log_predicted, t, sizes)
+                log_post = _log_posterior(schedule, x_t, log_predicted, t, sizes, k=k)
                 codes = _gumbel_max(log_post, sizes, generator)
     finally:
         model.train(training)

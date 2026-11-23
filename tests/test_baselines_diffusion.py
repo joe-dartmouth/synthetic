@@ -13,10 +13,11 @@ import pytest
 import torch
 
 from bko.baselines import diffusion
-from bko.baselines.ddpm import Denoiser, cosine_schedule
+from bko.baselines.ddpm import Denoiser, cosine_schedule, sample
 from bko.baselines.diffusion import (
     TABDDPM_PARAMETERS,
     Codec,
+    Encoded,
     Parameters,
     _batches,
     encode,
@@ -28,7 +29,7 @@ from bko.baselines.errors import BaselineError, ShortfallError
 from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import Baseline, unit_weights
 from bko.baselines.request import Request, Stratum
-from bko.baselines.synthesizers import fill
+from bko.baselines.synthesizers import MAX_DRAWN_ROWS, fill
 from bko.datasets.uci import UCI_FRAME
 from tests._baselines_fixtures import EDGE, QUOTA, TINY_TABDDPM, assert_contract, full_records
 
@@ -325,6 +326,146 @@ def test_the_seed_drives_the_draws_with_the_model_init_held_fixed(monkeypatch):
     monkeypatch.setattr(diffusion, "Denoiser", fixed)
     monkeypatch.setattr(diffusion, "sample", sampling)
     first = tabddpm(TRAIN, request(seed=3), parameters=TINY_TABDDPM)
+    split = len(labels)
     second = tabddpm(TRAIN, request(seed=4), parameters=TINY_TABDDPM)
-    assert not torch.equal(labels[0], labels[-1]) or len(labels[0]) != len(labels[-1])
+    assert labels[0].shape == labels[split].shape
+    assert not torch.equal(labels[0], labels[split])
     assert first.added.to_csv() != second.added.to_csv()
+
+
+def test_a_fit_learns_a_dominant_state():
+    """One state in 90% of rows: a trained draw's share of it sits nearer 0.9 than the untrained."""
+    rows = 100
+    index = torch.arange(rows)[:, None]
+    coded = torch.where(index % 10 == 0, (index // 10) % 2 + 1, 0)
+    numeric = torch.randn(rows, 1, generator=torch.Generator().manual_seed(0))
+    encoded = Encoded(numeric, coded, torch.zeros(rows, dtype=torch.long), (3,))
+    parameters = replace(TINY_TABDDPM, steps=200, lr=1e-2)
+    schedule = cosine_schedule(parameters.timesteps)
+    torch.manual_seed(0)
+    untrained = Denoiser(
+        4, 1, layers=parameters.layers, dim_t=parameters.dim_t, dropout=parameters.dropout
+    )
+    torch.manual_seed(0)
+    trained = fit_denoiser(
+        encoded, schedule, parameters, torch.Generator().manual_seed(1), labels=1
+    )
+
+    def share(model: Denoiser) -> float:
+        y = torch.zeros(200, dtype=torch.long)
+        generator = torch.Generator().manual_seed(2)
+        _, drawn = sample(model, schedule, y, numeric=1, sizes=(3,), generator=generator)
+        return float((drawn[:, 0] == 0).double().mean())
+
+    before, after = share(untrained), share(trained)
+    assert abs(after - 0.9) < abs(after - before)
+
+
+def test_the_fit_builds_its_denoiser_and_optimizer_from_the_parameters(monkeypatch):
+    decays: list[float] = []
+
+    class Spy(torch.optim.AdamW):
+        def __init__(self, params, **kwargs):
+            decays.append(kwargs["weight_decay"])
+            super().__init__(params, **kwargs)
+
+    monkeypatch.setattr(torch.optim, "AdamW", Spy)
+    parameters = replace(TINY_TABDDPM, steps=1, layers=(5, 7), dim_t=6, dropout=0.25)
+    parameters = replace(parameters, weight_decay=0.05)
+    _, encoded = encode(TRAIN, request())
+    model = fit_denoiser(
+        encoded,
+        cosine_schedule(parameters.timesteps),
+        parameters,
+        torch.Generator().manual_seed(0),
+        labels=2,
+    )
+    linears = [m.out_features for m in model.blocks if isinstance(m, torch.nn.Linear)]
+    dropouts = [m.p for m in model.blocks if isinstance(m, torch.nn.Dropout)]
+    assert linears == [5, 7]
+    assert dropouts == [0.25, 0.25]
+    assert model.dim_t == 6
+    assert model.projection.out_features == 6
+    assert decays == [0.05]
+
+
+def test_encode_refuses_an_empty_split():
+    with pytest.raises(BaselineError, match="tabddpm cannot fit an empty training split"):
+        encode(TRAIN.head(0), request())
+
+
+def test_encode_refuses_a_code_outside_the_codebook_naming_its_field():
+    train = TRAIN.copy()
+    train.loc[train.index[0], "thal"] = 5
+    with pytest.raises(BaselineError, match=r"cannot encode thal: codes \[5\] are outside"):
+        encode(train, request())
+
+
+def test_a_request_above_the_draw_limit_is_refused_before_fitting(monkeypatch):
+    def unfit(*args, **kwargs):
+        raise AssertionError
+
+    monkeypatch.setattr(diffusion, "fit_denoiser", unfit)
+    quota: dict[Stratum, int] = {(f"<{EDGE}", "female", 1): MAX_DRAWN_ROWS + 1}
+    expected = f"tabddpm cannot add {MAX_DRAWN_ROWS + 1} rows; it draws at most {MAX_DRAWN_ROWS}"
+    with pytest.raises(BaselineError, match=re.escape(expected)):
+        tabddpm(TRAIN, request(quota=quota), parameters=TINY_TABDDPM)
+
+
+def test_batches_draw_no_permutation_after_the_last_slice():
+    generator = torch.Generator().manual_seed(0)
+    assert len(list(_batches(10, 5, 2, generator))) == 2
+    reference = torch.Generator().manual_seed(0)
+    torch.randperm(10, generator=reference)
+    assert torch.equal(generator.get_state(), reference.get_state())
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("steps", 0),
+        ("timesteps", 0),
+        ("batch", 0),
+        ("dim_t", 1),
+        ("lr", -1e-3),
+        ("weight_decay", -1e-5),
+        ("dropout", -0.1),
+        ("dropout", 1.0),
+    ],
+)
+def test_parameters_refuse_settings_no_fit_can_run(field, value):
+    with pytest.raises(ValueError, match=f"tabddpm's {field} is {value}"):
+        replace(TINY_TABDDPM, **{field: value})
+
+
+def test_the_fit_logs_its_progress(monkeypatch, caplog):
+    monkeypatch.setattr(diffusion, "LOG_EVERY", 2)
+    caplog.set_level(logging.INFO, logger=diffusion.logger.name)
+    parameters = replace(TINY_TABDDPM, steps=5)
+    _, encoded = encode(TRAIN, request())
+    fit_denoiser(
+        encoded,
+        cosine_schedule(parameters.timesteps),
+        parameters,
+        torch.Generator().manual_seed(0),
+        labels=2,
+    )
+    lines = [m for m in caplog.messages if m.startswith("tabddpm step=")]
+    steps = [
+        re.fullmatch(r"tabddpm step=(\d+) of=5 loss=\d+\.\d{4} seconds=\d+\.\d", m) for m in lines
+    ]
+    assert [int(m.group(1)) for m in steps if m] == [2, 4, 5]
+    assert len(lines) == 3
+
+
+def test_a_non_finite_draw_is_refused_naming_it(monkeypatch):
+    real = diffusion.sample
+
+    def poisoned(*args, **kwargs):
+        numeric, coded = real(*args, **kwargs)
+        numeric[0, 0] = float("inf")
+        return numeric, coded
+
+    monkeypatch.setattr(diffusion, "sample", poisoned)
+    with pytest.raises(BaselineError, match="tabddpm sampled a non-finite value in draw 1"):
+        run()
