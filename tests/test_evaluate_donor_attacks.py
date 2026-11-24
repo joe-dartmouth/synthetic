@@ -23,6 +23,7 @@ from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import donor_attacks, membership
 from bko.evaluate.__main__ import _named, main
+from bko.evaluate.attack_stats import RATES, SCOPE_FPRS, SCOPES, scopes
 from bko.evaluate.context import Context
 from bko.evaluate.data import digest, load
 from bko.evaluate.donor_attacks import (
@@ -39,7 +40,7 @@ from bko.evaluate.donor_attacks import (
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import DIRECT_ARM, PRAM_ARM, REAL_ARM, gap_request
 from bko.evaluate.holdout_candidates import KEPT, Candidate
-from bko.evaluate.membership import GROUPS
+from bko.evaluate.membership import GROUPS, MI_MEASURES
 from bko.evaluate.prepare import prepared
 from bko.evaluate.privacy_rule import readings
 from bko.evaluate.redraw import Redrawn
@@ -55,6 +56,7 @@ from bko.ontology.frames import (
     SYNTHEA_FIELD_ROWS,
     SYNTHEA_FRAME,
 )
+from bko.ontology.mapping import FIELD_MAPPINGS
 from tests.test_evaluate_membership import PRIVATE, WOBBLE, _reading, _scored
 from tests.test_evaluate_membership import _context as privacy_context
 from tests.test_evaluate_pram import _prammed
@@ -182,20 +184,72 @@ def test_every_column_but_sex_and_the_label_is_in_exactly_one_unit(rows, frame):
 
 
 def test_the_match_measures_mirror_the_distance_attacks_scopes():
-    assert [m.value for m in MATCH_MEASURES] == [
-        "match-auc-outside",
-        "match-tpr01-outside",
-        "match-tpr001-outside",
-        "match-auc-cell",
-        "match-tpr01-cell",
-        "match-auc-label",
-        "match-tpr01-label",
-        "match-tpr001-label",
+    expected = [
+        f"{statistic}-{scope}"
+        for scope in SCOPES
+        for statistic in ("auc", *(RATES[rate] for rate in SCOPE_FPRS[scope]))
     ]
+    assert [m.value.removeprefix("match-") for m in MATCH_MEASURES] == expected
+    assert [m.value.removeprefix("mi-") for m in MI_MEASURES] == expected
+
+
+def test_a_missing_value_matches_a_missing_one():
     assert np.array_equal(
         match_scores(pd.DataFrame({"a": [np.nan]}), pd.DataFrame({"a": [np.nan]}), (("a",),)),
         [1],
     )
+
+
+def test_a_missing_value_inside_a_unit_codes_as_its_own_value():
+    records = pd.DataFrame({"b": [1, 2, 3], "a": [5, np.nan, np.nan]})
+    added = pd.DataFrame({"b": [1, 3], "a": [5, np.nan]})
+    # With NaN coded -1, the second record's (2, NaN) would code as the first added row's (1, 5).
+    assert match_scores(records, added, (("b", "a"),)).tolist() == [1, 0, 1]
+
+
+def test_a_row_copying_one_field_of_a_two_field_unit_scores_0_for_it():
+    records = pd.DataFrame({"a": [1], "b": [2]})
+    added = pd.DataFrame({"a": [1], "b": [9]})
+    assert match_scores(records, added, (("a", "b"),)).tolist() == [0]
+    assert match_scores(records, added, (("a",), ("b",))).tolist() == [1]
+
+
+def test_the_uci_mapping_joins_cp_with_exang_and_oldpeak_with_slope():
+    groups = match_groups(FIELD_MAPPINGS, frame=UCI_FRAME)
+    assert ("cp", "exang") in groups
+    assert ("oldpeak", "slope") in groups
+    assert [group for group in groups if len(group) > 1] == [("cp", "exang"), ("oldpeak", "slope")]
+
+
+def _placed(records: pd.DataFrame, inside: int) -> pd.DataFrame:
+    """`records`, the first `inside` in `CELL` and the rest outside it at label 1."""
+    records = records.copy()
+    records["age"] = [40] * inside + [70] * (len(records) - inside)
+    records["sex"], records["target"] = 0, 1
+    return records
+
+
+def test_each_scope_reads_its_own_members_and_non_members():
+    inside, outside = 120, 1100
+    members = _placed(random_records(UCI_FRAME, inside + outside, seed=71), inside)
+    nonmembers = _placed(random_records(UCI_FRAME, inside + outside, seed=72), inside)
+    # Every unit of each record holds a value no other record holds.
+    for frame, shift in ((members, 0), (nonmembers, 1)):
+        for (name,) in UNITS:
+            if name in UCI_FRAME.numeric:
+                frame[name] = 10_000 * (1 + shift) + np.arange(len(frame))
+            else:
+                frame[name] = np.arange(len(frame)) * 2 + shift
+    # The cell's members are copied, and the non-members outside it.
+    added = pd.concat([members.iloc[:inside], nonmembers.iloc[inside:]], ignore_index=True)
+    assert scopes(members, CELL, edges=UCI_FRAME.edges)["cell"].sum() == inside
+    found = _measures(added, members, nonmembers)
+    assert found[match("auc", "cell")] == pytest.approx(1.0, abs=0)
+    assert found[match("tpr01", "cell")] == pytest.approx(1.0, abs=0)
+    assert found[match("auc", "outside")] == pytest.approx(0.0, abs=0)
+    assert found[match("auc", "label")] == pytest.approx(0.0, abs=0)
+    assert found[match("tpr001", "outside")] == pytest.approx(0.0, abs=0)
+    assert found[match("tpr001", "label")] == pytest.approx(0.0, abs=0)
 
 
 # Donor reuse.
@@ -217,14 +271,37 @@ def test_donor_reuse_reads_max_and_p95_over_donors():
     assert found[Measure.DONOR_P95] == pytest.approx(1.85)
 
 
-def test_a_perturbed_field_stops_counting_as_a_donation():
-    groups = (("a", "b"), ("c",))
-    assert donations([{"a": 1, "b": 2, "c": 3.5}], [DRAWN], groups) == Counter({7: 1, 8: 1})
-    assert donations([{"a": 1, "b": 2, "c": 4.0}], [DRAWN], groups) == Counter({7: 1})
-    assert donations([{"a": 1, "b": 9, "c": 3.5}], [DRAWN], groups) == Counter({8: 1})
+GROUPED = (("a", "b"), ("c",))
+"""`DRAWN`'s fields, `a` and `b` one unit."""
+
+
+def test_a_row_holding_each_unit_as_drawn_names_each_units_source():
+    assert donations([dict(DRAWN.record)], [DRAWN], GROUPED) == Counter({7: 1, 8: 1})
+
+
+def test_a_perturbed_field_stops_its_unit_counting_as_a_donation():
+    assert donations([{"a": 1, "b": 2, "c": 4.0}], [DRAWN], GROUPED) == Counter({7: 1})
+    assert donations([{"a": 1, "b": 9, "c": 3.5}], [DRAWN], GROUPED) == Counter({8: 1})
+
+
+def test_a_unit_read_from_two_records_donates_to_neither():
     mixed = dataclasses.replace(DRAWN, sources={"a": 7, "b": 9, "c": 8})
-    assert donations([dict(DRAWN.record)], [mixed], groups) == Counter({8: 1})
-    # A record counts once per row, however many units it donates.
+    assert donations([dict(DRAWN.record)], [mixed], GROUPED) == Counter({8: 1})
+
+
+def test_a_unit_without_a_source_donates_to_nobody():
+    unsourced = dataclasses.replace(DRAWN, sources={"a": 7, "b": 7})
+    assert donations([dict(DRAWN.record)], [unsourced], GROUPED) == Counter({7: 1})
+    nothing = dataclasses.replace(DRAWN, sources={})
+    assert donations([dict(DRAWN.record)], [nothing], GROUPED) == Counter()
+
+
+def test_a_unit_partly_without_a_source_donates_to_nobody():
+    partial = dataclasses.replace(DRAWN, sources={"a": 7, "c": 8})
+    assert donations([dict(DRAWN.record)], [partial], GROUPED) == Counter({8: 1})
+
+
+def test_a_record_counts_once_per_row_however_many_units_it_donates():
     singles = (("a",), ("b",), ("c",))
     assert donations([dict(DRAWN.record)] * 2, [DRAWN] * 2, singles) == Counter({7: 2, 8: 2})
 
