@@ -424,14 +424,16 @@ def test_a_changed_redraw_is_refused(folder):
     assert IdentityError.exit_code == 3
 
 
-def _block_reversed(real: Callable[..., Redrawn]) -> Callable[..., Redrawn]:
-    """`real`, its kept draws' cells in reverse order, each cell's draws in their own order."""
+def _block_reversed(real: Callable[..., Redrawn], seen: list[Redrawn]) -> Callable[..., Redrawn]:
+    """`real`, its kept draws' cells in reverse order, each cell's draws in their own order;
+    each re-draw it returns is appended to `seen`."""
 
-    def reversed_cells(*args: object, **kwargs: object) -> Redrawn:
+    def reversed_cells(*args: Any, **kwargs: Any) -> Redrawn:
         found = real(*args, **kwargs)
         cells = list(dict.fromkeys(draw.cell for draw in found.kept))
         kept = tuple(draw for cell in reversed(cells) for draw in found.kept if draw.cell == cell)
-        return dataclasses.replace(found, kept=kept)
+        seen.append(dataclasses.replace(found, kept=kept))
+        return seen[-1]
 
     return reversed_cells
 
@@ -439,15 +441,8 @@ def _block_reversed(real: Callable[..., Redrawn]) -> Callable[..., Redrawn]:
 def test_each_stored_row_pairs_with_its_own_draw_whatever_the_draw_order(folder, monkeypatch):
     data = folder.parent / "data"
     expected = _donors_of(folder, data)
-    monkeypatch.setattr(donor_attacks, "redraw", _block_reversed(donor_attacks.redraw))
-    shuffled = donor_attacks.redraw
     seen: list[Redrawn] = []
-
-    def spying(*args: object, **kwargs: object) -> Redrawn:
-        seen.append(shuffled(*args, **kwargs))
-        return seen[-1]
-
-    monkeypatch.setattr(donor_attacks, "redraw", spying)
+    monkeypatch.setattr(donor_attacks, "redraw", _block_reversed(donor_attacks.redraw, seen))
     assert _donors_of(folder, data) == expected
     (redrawn,) = seen
     assert len({draw.cell for draw in redrawn.kept}) > 1, "the order is no identity"
