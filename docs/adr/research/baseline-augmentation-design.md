@@ -12,7 +12,8 @@ E1 compares BKO-guided augmentation against no augmentation, class weighting, SM
 and TVAE at equal row counts (`docs/RESEARCH.md` section 4). B1 reads two classical synthesizers
 beside them, SDV's Gaussian copula and sequential CART as synthpop runs it (`docs/EVIDENCE.md`,
 B1); they join the harness alone, never E1's or E3's comparison set (ADR
-`research/e1-evaluation-protocol`). The 2-pager says neither what an equal
+`research/e1-evaluation-protocol`). The label bootstrap is a no-model control outside
+`METHOD_ARMS`. The 2-pager says neither what an equal
 row count is for a method that adds no rows, nor which records added rows are drawn for, nor how a
 seed reaches a generator.
 
@@ -132,13 +133,20 @@ synthesis's reference implementation; rpart's complexity parameter is a split th
 in the frame's order and keeping rows by their values keeps the visit sequence synthpop uses;
 fixing a cell's columns first would reorder it.
 
+The label bootstrap is the control that has no model. Resampling whole records of the label group in
+the cell's band keeps every within-record association, so any gain over it comes from a generator's
+model rather than from adding more real-looking rows. Sex is set to the cell's because the stratum
+names the cell's sex; the label and band are already the stratum's.
+
 Writing files under `data/` would give the harness nothing it lacks: it calls `augment` per split.
 
 ## Consequences
 
 **Gained**: exact rows per stratum for any request; one contract the harness reads for every arm;
 refusals that name the method and the stratum.
-**Accepted**: SMOTE on the 2-record cell interpolates between its two records only; ADASYN's
+**Accepted**: the label bootstrap's added rows are real training records (sex rewritten for a cell
+stratum), and the privacy readings read them as such; they are never released as synthetic output.
+SMOTE on the 2-record cell interpolates between its two records only; ADASYN's
 per-stratum density counts same-label records of other cells as the majority; SDV's defaults train
 for few steps on this split; cross-platform identity of CTGAN and TVAE output is not promised, so the
 command logs its output's sha256; `make setup` downloads `torch` on every machine; importing SDV
