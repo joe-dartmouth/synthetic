@@ -91,16 +91,16 @@ the arm scores as `none` does.
 
 - Owner: `src/bko/evaluate/run_scores.py`, with the solver in `src/bko/evaluate/shift.py`
 - Pinned by: `tests/test_evaluate_shift.py` (the hand-computed offsets, the finite offset at an
-  empty cell, out-of-fold fits that exclude the records they predict, the bound WARNING, the arm's
-  runner in `bko.evaluate.run.ARMS`, and every other arm's rows byte for byte with and without the
-  arm), `tests/test_evaluate_panel_shift.py`, `tests/test_evaluate_diabetes.py` (the arm in
+  empty cell, out-of-fold fits that exclude the records they predict, the `shift bound` WARNING, the
+  arm's runner in `bko.evaluate.run.ARMS`, and every other arm's rows byte for byte with and without
+  the arm), `tests/test_evaluate_panel_shift.py`, `tests/test_evaluate_diabetes.py` (the arm in
   E6-shaped rehearsed runs)
 
 ## Reversal Conditions
 
-**A `shift` line logs `offset=64.000000` or `offset=-64.000000`**, with its `shift bound`
-WARNING: the bisection hit its bound, so the target lies outside what the predictions can reach. **The control reading rule stops
-naming `prior-shift`**; the check is the Contrasts line of
+**A `shift bound` WARNING**: no offset reaches the subgroup's target, a target of 0 or 1, which a
+mean of logistic values never equals, or one the moved mean misses by more than 1e-6. **The control
+reading rule stops naming `prior-shift`**; the check is the Contrasts line of
 [RESEARCH section 11](../../RESEARCH.md#11-direct-method-study).
 
 ## Related

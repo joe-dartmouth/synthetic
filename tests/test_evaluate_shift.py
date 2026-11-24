@@ -209,29 +209,50 @@ def test_a_zero_offset_keeps_a_probability_that_logit_and_expit_move(monkeypatch
     assert moved.iloc[0] == 0.1  # ruff: ignore[float-equality-comparison]
 
 
-def test_an_offset_at_the_bound_logs_a_warning(caplog):
-    train = _people([40, 40, 60], [0, 0, 1], [1, 1, 0])
-    held_out = pd.Series([1e-15, 1e-15, 0.5], index=train.index)
+def _bound_warnings(caplog, held: list[float], counts: list[int]) -> list[str]:
+    train = _people([40] * len(held), [0] * len(held), [1] * len(held))
     test = _people([40], [0], [1], start=10)
-    fitted = pd.Series([0.3], index=test.index)
     with caplog.at_level(logging.INFO):
         shifted(
-            fitted,
-            held_out,
+            pd.Series([0.3], index=test.index),
+            pd.Series(held, index=train.index),
             train,
             test,
-            {YOUNG_WOMEN: [0, 3]},
+            {YOUNG_WOMEN: counts},
             edges=UCI_FRAME.edges,
             holdout=4,
             model=Model.LR,
             folds=2,
         )
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_an_unreachable_target_logs_a_bound_warning(caplog):
+    # expit saturates at 1.0, so the bisection stops near 37.8 with a mean 3e-16 short of 1.
+    warned = _bound_warnings(caplog, [0.25] * 3, [0, 3])
     assert (
-        f"shift holdout=4 model=lr subgroup={YOUNG_WOMEN} records=2 target=1.000000"
-        f" offset={BOUND:.6f} negatives=0 positives=3 folds=2"
+        f"shift holdout=4 model=lr subgroup={YOUNG_WOMEN} records=3 target=1.000000"
+        " offset=37.835413 negatives=0 positives=3 folds=2"
     ) in caplog.messages
-    warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert warned == [f"shift bound holdout=4 model=lr subgroup={YOUNG_WOMEN} offset=64.000000"]
+    assert warned == [
+        (
+            f"shift bound holdout=4 model=lr subgroup={YOUNG_WOMEN} offset=37.835413"
+            " target=1.000000 achieved=1.000000"
+        )
+    ]
+
+
+def test_a_target_of_0_logs_a_bound_warning_at_the_search_bound(caplog):
+    assert _bound_warnings(caplog, [0.25] * 3, [3, 0]) == [
+        (
+            f"shift bound holdout=4 model=lr subgroup={YOUNG_WOMEN} offset=-{BOUND:.6f}"
+            " target=0.000000 achieved=0.000000"
+        )
+    ]
+
+
+def test_a_reachable_target_logs_no_bound_warning(caplog):
+    assert _bound_warnings(caplog, [0.25] * 3, [1, 3]) == []
 
 
 def test_out_of_fold_predicts_every_training_record_from_a_fit_without_it():

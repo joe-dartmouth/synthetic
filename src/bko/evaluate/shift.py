@@ -43,6 +43,9 @@ FOLDS: Final = 5
 
 MIN_FOLDS: Final = 2
 
+TOLERANCE: Final = 1e-6
+"""The largest gap between a subgroup's target and its moved mean that counts as reached."""
+
 
 def prior_shift(train: pd.DataFrame, request: Request) -> Baseline:
     """No rows, unit weights, and each requested subgroup's records per label after the fill.
@@ -177,16 +180,19 @@ def shifted(
     positives over all of `counts`; a subgroup with no training record gets 0. A record outside
     every subgroup, or in one whose offset is 0, keeps its probability. Each subgroup logs
     `shift holdout=%d model=%s subgroup=%s records=%d target=%.6f offset=%.6f negatives=%d
-    positives=%d folds=%d`, the target's counts and the `held_out` predictions' fold count, and
-    an offset at +-BOUND also logs the WARNING
-    `shift bound holdout=%d model=%s subgroup=%s offset=%.6f`.
+    positives=%d folds=%d`, the target's counts and the `held_out` predictions' fold count. A
+    subgroup with training records whose target no finite offset reaches logs the WARNING
+    `shift bound holdout=%d model=%s subgroup=%s offset=%.6f target=%.6f achieved=%.6f`: a target
+    of 0 or 1, which a mean of logistic values never equals, or one the moved mean misses by more
+    than TOLERANCE.
     """
     moved = fitted.copy()
     trained, tested = _subgroups(train, edges), _subgroups(test, edges)
     for subgroup, (negatives, positives) in counts.items():
         mine = (trained == subgroup).to_numpy()
         target = positives / (negatives + positives)
-        delta = offset(held_out.reindex(train.index).to_numpy()[mine], target)
+        predicted = held_out.reindex(train.index).to_numpy()[mine]
+        delta = offset(predicted, target)
         logger.info(
             "shift holdout=%d model=%s subgroup=%s records=%d target=%.6f offset=%.6f"
             " negatives=%d positives=%d folds=%d",
@@ -200,14 +206,19 @@ def shifted(
             positives,
             folds,
         )
-        if abs(delta) >= BOUND:
-            logger.warning(
-                "shift bound holdout=%d model=%s subgroup=%s offset=%.6f",
-                holdout,
-                model,
-                subgroup,
-                delta,
-            )
+        if mine.any():
+            achieved = float(np.mean(expit(logit(np.clip(predicted, EPS, 1 - EPS)) + delta)))
+            if not 0.0 < target < 1.0 or abs(achieved - target) > TOLERANCE:
+                logger.warning(
+                    "shift bound holdout=%d model=%s subgroup=%s offset=%.6f target=%.6f"
+                    " achieved=%.6f",
+                    holdout,
+                    model,
+                    subgroup,
+                    delta,
+                    target,
+                    achieved,
+                )
         at = (tested == subgroup).to_numpy()
         # Exactly 0 only when no offset applies: logit then expit moves some probabilities, such
         # as 0.1, by an ulp, so applying it would break `none`'s probabilities byte for byte.

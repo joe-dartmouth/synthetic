@@ -802,8 +802,9 @@ start or the supervisor cannot run.
   negatives=%d positives=%d folds=%d` line per model and requested subgroup of the arm
   `prior-shift`, `records=` its training records, `offset=` the logit offset its test records get,
   `negatives=` and `positives=` the target's counts after the fill, and `folds=` the out-of-fold
-  fits behind the offset, with a `shift bound holdout=%d model=%s subgroup=%s offset=%.6f`
-  WARNING when the offset reaches its bound of 64, a `shift fold holdout=%d model=%s fold=%d
+  fits behind the offset, with a `shift bound holdout=%d model=%s subgroup=%s offset=%.6f
+  target=%.6f achieved=%.6f` WARNING when no offset reaches the target (a target of 0 or 1, or a
+  moved mean more than 1e-6 from it), a `shift fold holdout=%d model=%s fold=%d
   converged=true|false` line per perceptron fold fit of that arm, folds counted from 0, an
   `undefined holdout=%d arm=%s rows=%d labels=%d held=%s` WARNING for each replica of
   fewer than two labels (`held=` the labels it holds, or `none`), whose classifier measures score
