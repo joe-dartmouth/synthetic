@@ -1,8 +1,8 @@
 ---
 id: evaluate-covariate-bias-fractions
 title: Register Juwara's removal fractions on E6's frame beside the controls
-status: blocked
-depends_on: evaluate-prior-shift-comparator
+status: ready
+depends_on: --
 blocks: evaluate-covariate-bias-results
 parallel_safe: true
 milestone: direct-method-research
