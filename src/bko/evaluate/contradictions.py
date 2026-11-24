@@ -3,8 +3,10 @@
 `run` loads UCI Heart Disease, Synthea and Diabetes 130 through `bko.evaluate.data.load`, takes
 each frame's training split at holdout seed `SEED` with no removal, loads once the pinned releases
 any frame's field rows name, and `census` writes every finding `bko.gaps.contradictions.survey`
-makes as CSV. ADR `research/data-contradiction-handling` names the kinds and the basis. It makes
-no API call. ADR `research/data-contradiction-handling` records why it runs from `bko.evaluate`.
+makes as CSV. ADR `research/data-contradiction-handling` names the kinds and the bases. It makes
+no API call. With a run and `--rows`, the command reads the added-rows basis instead
+(`bko.evaluate.added_contradictions`). ADR `research/data-contradiction-handling` records why it
+runs from `bko.evaluate`.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.frames import FrameSpec
+from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, digest, load
@@ -79,10 +82,29 @@ class Framed:
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
     """Add the `contradictions` subcommand to `commands`."""
     counting = commands.add_parser(
-        "contradictions", help="count each data contradiction in every frame's training cells"
+        "contradictions",
+        help="count each data contradiction in every frame's training cells, or a run's fills",
+    )
+    counting.add_argument(
+        "run", nargs="?", default=None, help="the named run whose --rows stores are read"
+    )
+    counting.add_argument(
+        "--rows",
+        dest="stores",
+        type=Path,
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="a store `rows` wrote, one per slice of the run; repeatable; reads the added rows",
     )
     counting.add_argument(
         "--data-dir", type=Path, default=None, help="the data root; default: the repository's"
+    )
+    counting.add_argument(
+        "--runs-dir",
+        type=runs_dir_argument,
+        default=None,
+        help="with --rows, the root the stores' folders sit under; default: runs/ beside the code",
     )
 
 

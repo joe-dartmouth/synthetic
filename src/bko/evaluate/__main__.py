@@ -34,7 +34,9 @@ to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose h
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
 `scores.log` is missing or names other data, versions or configuration.
 `contradictions` counts each data contradiction in the cells of every dataset's training split
-at holdout seed 0, to stdout as CSV, with no API call (`bko.evaluate.contradictions`).
+at holdout seed 0, to stdout as CSV, with no API call (`bko.evaluate.contradictions`);
+`contradictions RUN --rows PATH...` counts them, and the Diabetes coherence rules' breaks, in each
+fill of RUN's stores instead (`bko.evaluate.added_contradictions`).
 `trace RUN --folder FOLDER --holdout H --arm ARM [--record N]` writes one JSON line per record of
 ARM's fill of holdout H in FOLDER with the facts that determine it, to stdout, with no API call
 (`bko.evaluate.trace`).
@@ -64,12 +66,13 @@ directory does not, paid arms with no `--log` or `--candidates`, a direct arm wi
 paid or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a
-run, a `privacy` run with no reference arm or removed cell, a `trace` of a holdout, arm or
-record the folder does not hold or over a call log line it cannot read, and scores
-whose validity cannot be read;
+run, a `privacy` run with no reference arm or removed cell, a `contradictions` run without
+`--rows`, a `trace` of a holdout, arm or record the folder does not hold or over a call log line
+it cannot read, and scores whose validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
 contradicts its contract, or a `shared`, `rows`, `panel`, `privacy` or
-`trace` run folder or store fails an identity check, a `trace` re-draw included.
+`trace` run folder or store fails an identity check, a `trace` re-draw included, or a
+`contradictions --rows` store does.
 """
 
 from __future__ import annotations
@@ -89,6 +92,7 @@ from bko.bkb.errors import BKBError
 from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID
+from bko.evaluate.added_contradictions import run_added
 from bko.evaluate.arguments import parser
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
@@ -181,7 +185,7 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
     elif args.command == "privacy":
         sink.write(_privacy(args, context))
     elif args.command == "contradictions":
-        sink.write(census(data_dir(args), context))
+        sink.write(_contradictions(args, context))
     elif args.command == "trace":
         sink.write(run_trace(args, _named(args.run, context)))
     else:
@@ -410,6 +414,35 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
         runs=named.runs,
         root=_runs_root(args, context),
         ontologies=ontologies,
+    )
+
+
+def _contradictions(args: argparse.Namespace, context: Context) -> str:
+    """The census, or with `--rows` the named run's added rows, loading its data's releases.
+
+    Raises:
+        EvaluationError: If a run or `--runs-dir` comes without `--rows`.
+    """
+    if args.stores is None:
+        if args.run is not None or args.runs_dir is not None:
+            msg = "contradictions reads a run's added rows from its stores, so it needs --rows"
+            raise EvaluationError(msg)
+        return census(data_dir(args), context)
+    log_versions()
+    run = args.run or DEFAULT_RUN
+    named = _named(run, context)
+    root = data_dir(args)
+    data = load(named.dataset, root, named)
+    concepts = {row.concept for row in data.field_rows}
+    ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
+    return run_added(
+        run,
+        args.stores,
+        data=data,
+        ontologies=ontologies,
+        experiment=named.experiment,
+        runs=named.runs,
+        root=_runs_root(args, context),
     )
 
 

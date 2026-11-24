@@ -1,4 +1,4 @@
-"""The `rows` stores a privacy reading reads, each read back, checked and bound to its folder.
+"""The `rows` stores a privacy or added-rows reading reads, each read back, checked and bound.
 
 `read` returns the store that holds each holdout of a run, refusing stores of another run, a
 folder outside the runs directory, overlapping or missing holdouts, and fills that are not the
@@ -13,10 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
+from bko.evaluate.prepare import Prepared, prepared, split_line
 from bko.evaluate.rows_read import Rows, bind, read_rows
 from bko.evaluate.run_folder import Folder, read_folder
 
@@ -41,6 +43,7 @@ def read(
     experiment: Experiment,
     runs: Mapping[str, NamedRun],
     root: Path,
+    verb: str = "privacy",
 ) -> dict[int, Store]:
     """Read and check each store; return the store that holds each of `run`'s holdouts.
 
@@ -48,8 +51,9 @@ def read(
     direct child of `root`, which it is bound to (`bind`: run, data digest, frame, folder,
     `log_sha256` and one fill line per `arm` line), and the stores' holdouts partition `run`'s.
     Each holdout's fills are the experiment's arms' and their replicas'. Each bound store logs
-    `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
-    bytes it was parsed from. An error echoes at most `SHOWN` characters of a header value.
+    `<verb> store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
+    bytes it was parsed from, `verb` the reading's: `privacy` or `added`. An error echoes at most
+    `SHOWN` characters of a header value.
 
     Raises:
         OSError: If a store or folder cannot be read.
@@ -69,7 +73,8 @@ def read(
         folder = read_folder(root / folder_name)
         bind(rows, folder, data.frame, run=name, data=data.digest)
         logger.info(
-            "privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s",
+            "%s store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s",
+            verb,
             path,
             name,
             folder_name,
@@ -94,6 +99,22 @@ def read(
             msg += f" {sorted(expected)}"
             raise IdentityError(msg)
     return found
+
+
+def checked(seed: int, store: Store, data: Data, experiment: Experiment) -> Prepared:
+    """Holdout `seed`'s prepared split, once its split line matches the one `store` is bound to.
+
+    Raises:
+        IdentityError: If the split line differs, naming the folder and the store.
+    """
+    edges = data.frame.edges
+    ready = prepared(split(data.records, seed=seed, edges=edges), experiment, edges=edges)
+    if split_line(ready.ablated) != store.folder.splits[seed]:
+        msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
+        msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}, which the store"
+        msg += f" {store.path} is bound to"
+        raise IdentityError(msg)
+    return ready
 
 
 SHOWN: Final = 200

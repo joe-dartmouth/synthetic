@@ -42,7 +42,6 @@ import pandas as pd
 from bko.baselines.request import Stratum
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
-from bko.datasets.split import split
 from bko.evaluate.attack_stats import (
     RATES,
     SCOPE_FPRS,
@@ -62,7 +61,7 @@ from bko.evaluate.donor_attacks import (
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import Experiment, gap_request
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
-from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
+from bko.evaluate.prepare import Prepared, held_out_ratio
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
 from bko.evaluate.privacy_rule import Group, log_readings, readings
 from bko.evaluate.privacy_stores import (
@@ -70,6 +69,7 @@ from bko.evaluate.privacy_stores import (
     Store,
     _child,  # ruff: ignore[unused-import]  (re-exported)
     _shown,  # ruff: ignore[unused-import]  (re-exported)
+    checked,
     read,
 )
 from bko.evaluate.reference import (
@@ -327,13 +327,7 @@ def _holdout(
             `read_donors`.
     """
     frame = data.frame
-    parts = split(data.records, seed=seed, edges=frame.edges)
-    ready = prepared(parts, experiment, edges=frame.edges)
-    if split_line(ready.ablated) != store.folder.splits[seed]:
-        msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
-        msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}, which the store"
-        msg += f" {store.path} is bound to"
-        raise IdentityError(msg)
+    ready = checked(seed, store, data, experiment)
     try:
         fills = {
             arm: frame_of(

@@ -108,6 +108,10 @@ import it (ADR `tooling/agent-config-single-home`).
   list where each mapped frame's training split contradicts its ontology, in the five kinds of ADR
   `research/data-contradiction-handling`. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
+- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
+  count those kinds and the three Diabetes coherence rules' breaks in each fill's added rows of a
+  run's `rows` stores, `--rows` once per slice's store. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.generate per-subgroup --guidance summary --log runs/<run-id>/calls.jsonl`:
   generate candidate records for E1's count-based gap request through the Anthropic Messages API,
   or for the completeness request with `--request completeness`. It spends money and needs an

@@ -1435,6 +1435,35 @@ commands, inside `.venv`:
 - **The gate does not run it.** `make check` runs it over records, rows and releases built in
   memory and in `tmp_path` (`tests/test_contradictions_census.py`).
 
+**`contradictions <run> --rows`** reads the second basis of ADR
+`research/data-contradiction-handling` (Decision 2): each fill's added rows in a run's `rows`
+stores, gap and replica fills alike. `<run>` is the named run whose slices' stores are read
+(`e6-thin`); `rows` runs first, one store per slice, and `--rows` repeats once per store, as for
+`privacy` ([Evaluation](#evaluation)). It makes no API call:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
+
+- **What it needs**: the stores and their folders, which sit directly under the runs root
+  (`--runs-dir DIR`, else `runs/` beside the code), and the dataset, which it fetches into the
+  data root if absent, with the pinned releases of its mapped concepts.
+- **What it does**: per holdout and fill, in the columns `holdout,arm,rows,kind,count`, one row
+  per kind: the five kinds counted in the fill's added rows, as the ADR defines each on this
+  basis, then `drug-without-med`, `change-without-med` and `dose-without-change`, the rows breaking
+  each Diabetes coherence rule of `bko.evaluate.perturb.rule_breaks`, blank off the Diabetes
+  columns. `empty-cell` counts the cells of the fill's request, rebuilt from the holdout's
+  training split, that hold no added row. A fill with no rows counts 0.
+- **What it logs**: stderr gets the `versions` line, each dataset's `data` line and each
+  release's identity, then `added run=%s stores=%d holdouts=%d root=%s`, one `added store=%s
+  run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the bytes
+  read, one `added holdout=%d done=%d/%d` line per holdout and, last, `added rows=%d sha256=%s
+  stores=%d holdouts=%d` with stdout's row count and sha256.
+- **Exit codes**: 2 for a run or `--runs-dir` without `--rows`, an unknown run, a mapped concept
+  with no pinned release, or a holdout whose gap fill has rows and whose split flags no cell; 3 when a release contradicts its pin, or a store or its folder
+  fails the identity checks `privacy` applies to it, a fill whose rows do not hash to its `arm`
+  line's sha256 included.
+- **The gate does not run it.** `make check` runs it over a run folder and store built in
+  `tmp_path` (`tests/test_contradictions_added.py`).
+
 ## Generation
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
@@ -1762,6 +1791,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 
 - **Runs whose rows name `scratchpad/`**: their artifacts are where the row says. The latest such
