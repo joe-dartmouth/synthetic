@@ -109,9 +109,7 @@ def test_an_emptied_cell_is_filled_from_the_other_sex_with_sex_rewritten():
     assert len(added) == 6
     assert (added["sex"] == 0).all()
     assert (added["age"] >= EDGE).all()
-    held = {
-        tuple(row) for row in pool(train, STRATUM).drop(columns="sex").itertuples(index=False)
-    }
+    held = {tuple(row) for row in pool(train, STRATUM).drop(columns="sex").itertuples(index=False)}
     assert {tuple(row) for row in added.drop(columns="sex").itertuples(index=False)} <= held
 
 

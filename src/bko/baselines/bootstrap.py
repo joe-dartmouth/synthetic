@@ -18,6 +18,7 @@ from bko.baselines.records import Baseline, derived_seed, no_rows, number, unit_
 from bko.baselines.request import Request
 from bko.datasets.cells import LABEL, SEXES, cell_keys
 
+
 logger = logging.getLogger(__name__)
 
 
