@@ -40,13 +40,21 @@ extra exited 0, building only the project itself, and MPS was available.
   scoring 1,000 test rows 327.2 s before and 459.8 s after; 101,601 s in all. Peak MPS driver
   memory 78,264,778,752 bytes; peak memory footprint 80,354,529,264 bytes. Adapter
   159,974,280 bytes. Final loss 0.100320.
-- Load: a 20-step probe ran at 1.153 s per row on a quieter machine. During the run another
-  process served a 26B model on the same GPU for several hours, and 1,208 of 13,551 logged steps
-  took over 15 s against a usual 4.5 to 6 s, so the wall time above is an upper bound for this
-  machine, not its unloaded speed.
-- Check that it learned the question it will be asked, on the first 1,000 test rows by rank (104
-  positive): AUC-PR 0.1274 and Brier 0.1300 before, 0.1433 and 0.0954 after. A planning note, not a
-  result; [`docs/EVIDENCE.md`](../../EVIDENCE.md) records none.
+- Load: a 20-step probe ran at 1.153 s per row on a quieter machine. During the run a
+  `llama-server` served a 26B model on the same GPU for several hours (seen by `ps` at 15:32 EST
+  on 2026-11-23, gone by 19:56), and 1,208 of the 13,545 steps took over 15 s against a median of
+  5.08 s. The training rate here therefore lies between 1.153 s per row unloaded (a 20-step
+  extrapolation) and 1.858 s per row under that load, about 17 to 28 hours for 54,177 rows.
+- Scores on the first 1,000 test rows by rank (104 positive), before and after: AUC-PR 0.1274 and
+  0.1433, Brier 0.1300 and 0.0954, mean P(yes) 0.2951 and 0.0602. The fine-tune moved the
+  model's probabilities to about the training rate (0.0692), which is most of the Brier change; a
+  constant at the test rate scores Brier 0.0932, and the AUC-PR is 0.04 over the 0.104 rate on 104
+  positives with no interval. So one epoch shows the recipe runs end to end, not that the
+  classifier ranks records well. A planning note, not a result;
+  [`docs/EVIDENCE.md`](../../EVIDENCE.md) records none.
+- The run's logs are kept outside the repository; the serialized rows, the adapter, its
+  checkpoints and the weights, which were fitted on or derived from patient records or are
+  re-fetchable by the hashes below, were deleted after the run on 2026-11-24.
 
 ## Decision Drivers
 
@@ -62,8 +70,9 @@ We will add, when unit `slm-lora-trainer` first imports them, an **`slm` extra h
 transformers 5.24.0, peft 0.22.0, tokenizers 0.23.3, safetensors 0.8.0 and accelerate 1.16.0**
 (with huggingface-hub 2.4.0 and the packages above that the lock pulls in), and fine-tune
 **`allenai/Olmo-3-1025-7B` at revision `a81bae42db3975be1671e27b9c9a56da1a9f980f`**: Apache-2.0
-(its model card, read at that revision), trained on the Dolma 3 mixes its card links, which
-the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0, loaded from these files only:
+(its model card, read at that revision on 2026-11-24), trained on the Dolma 3 mixes its card
+links, which the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0 (read the same day),
+loaded from these files only:
 
 | File | Bytes | sha256 |
 |---|---|---|
@@ -83,18 +92,19 @@ the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0, loaded from th
 
 The scratch lock shows the stack sits beside the locked torch and numpy without moving either, so
 the trainer can import from `src/` in the project environment rather than in a second one. The
-fine-tune shows one epoch over a full E6 training split fits on this machine in about a day under
-load, which is what the trainer's design (its holdouts, seeds and share mixes) is chosen against.
-OLMo 3 7B is the newest release whose weights, code and training data are all open, under
-Apache-2.0 and ODC-By; its tokenizer gives ` yes` and ` no` one token each, so the classifier reads
-one position. Staying `proposed` until the trainer lands keeps the lock unchanged by a decision no
-code uses yet.
+transferable figure for the trainer's design (its holdouts, seeds and share mixes) is the rate per
+training row, 1.153 to 1.858 s, times the rows each fine-tune trains on: an arm's set is the
+training split plus its fill, larger than the 54,177 rows measured here, and a share mix holds the
+total at the split's size. The design should budget at the loaded rate. OLMo 3 7B publishes its
+weights and code under Apache-2.0 and its training data under ODC-By; its tokenizer gives ` yes` and
+` no` one token each, so the classifier reads one position. Staying `proposed` until the trainer
+lands keeps the lock unchanged by a decision no code uses yet.
 
 ## Consequences
 
 **Gained**: a resolved, measured stack and a pinned base model for the trainer to adopt.
-**Accepted**: a fine-tune of a full split takes about a day here, so the trainer's design runs few
-fine-tunes; the extra adds 15 packages to the lock when it lands.
+**Accepted**: a fine-tune of a full split takes 17 to 28 hours here, so the trainer's design runs
+few fine-tunes; the scratch lock added 15 packages, a count the trainer's own `uv lock` re-derives.
 
 ## Ruled Out
 
@@ -103,18 +113,19 @@ fine-tunes; the extra adds 15 packages to the lock when it lands.
 | Adding the extra to the lock now | No code imports it yet; ADR `tooling/uv-ruff-ty` adds an extra when its first import lands | 2026-11-22 |
 | `uv pip install` into the project environment | Resolves past the lock, and `make synced` refuses the result | 2026-11-22 |
 | A separate hashed environment, as `video/` has | The trainer imports from `src/`, which a separate environment would need installed a second way | 2026-11-22 |
-| OLMo 2 1B or SmolLM2-360M | Smaller, but an older family or one whose training mixture is only partly published | 2026-11-22 |
+| A smaller model, such as OLMo 2 1B or SmolLM2-360M | The team chose OLMo 3 7B as the one base model to measure; no smaller model was measured here, so the trainer's ADR may still pick one against this rate | 2026-11-22 |
 | A model whose training data is not published | A reader could not say what the classifier saw before the study's records | 2026-11-22 |
 
 ## Enforcement
 
-- Owner: `pyproject.toml`
+- Owner: `pyproject.toml`; unit `slm-lora-trainer` verifies each weight file's sha256 before load
+  and sets this record to accepted when it adds the extra
 - Pinned by: nothing -- convention only
 
 ## Reversal Conditions
 
-`uv lock` with the extra stops exiting 0 under the locked torch; or the base model's weights stop
-shipping as safetensors at the pinned revision.
+`uv lock` with the extra stops exiting 0, or moves a package already in the lock, when the trainer
+re-resolves it; or the base model's weights stop shipping as safetensors at the pinned revision.
 
 ## Related
 

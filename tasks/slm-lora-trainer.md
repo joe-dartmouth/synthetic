@@ -7,7 +7,7 @@ blocks: slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: research/slm-comparison-design
+adrs: research/slm-comparison-design, tooling/slm-extra
 ---
 
 # Add the slm extra, a record serializer and a LoRA trainer for a fair arm comparison
@@ -28,7 +28,8 @@ model and one training budget.
   [`tooling/uv-ruff-ty`](../docs/adr/tooling/uv-ruff-ty.md), adding it changes
   the extras list and the `make setup` line in [`AGENTS.md`](../AGENTS.md) and the environment
   section of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#environment).
-- ADR [`tooling/slm-extra`](../docs/adr/tooling/slm-extra.md), revised in place.
+- ADR [`tooling/slm-extra`](../docs/adr/tooling/slm-extra.md), revised in place and set to
+  `accepted`; the re-resolved lock moves no package already in it.
 - A serializer: fixed-order field descriptions from the `FrameSpec` (`bko.datasets.frames`), and
   a yes or no answer scored as a probability that feeds `utility()` (`bko.evaluate.utility`). One
   prompt template serves training and scoring; the training target is the answer token alone,
