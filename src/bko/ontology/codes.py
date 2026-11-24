@@ -1,43 +1,54 @@
 """Generate the `diabetes-codes` frame's ICD-9 code rows from a MONDO release.
 
-`python -m bko.ontology codes` runs `generate` over every diagnosis token of the pinned Diabetes
-130 archive and writes `render`'s module text, committed as `bko.ontology.icd9_codes`. A code maps
-to the MONDO concept that carries its exact `ICD9:` xref, its whole part zero-padded to three
-digits: the curated `ICD9_MAPPINGS` row's concept where that row's xref is the code's, else the one
-live holder every other live holder descends from by `is_a`, else nothing. Obsolete holders are
-ignored, and V and E codes are not looked up. ADR `research/diabetes-diagnosis-codes` records the
-rule and the unmapped counts.
+`python -m bko.ontology codes` runs `generate` over every diagnosis token of the `diabetes-codes`
+cohort and writes `render`'s module text, committed as `bko.ontology.icd9_codes`. A code maps to
+the MONDO concept that carries its exact `ICD9:` xref, its whole part zero-padded to three digits,
+under the qualifier `source="MONDO:equivalentTo"` (`EXACT`): the curated `ICD9_MAPPINGS` row's
+concept where that row's xref is the code's, else the one live exact holder every other live exact
+holder descends from by `is_a`, else nothing. Obsolete holders are ignored, an xref under any
+other qualifier maps nothing, and V and E codes are not looked up. ADR
+`research/diabetes-diagnosis-codes` records the rule and the unmapped counts.
 """
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
 
 from bko.datasets.diagnoses import UNKNOWN, canonical, code_number
-from bko.ontology.icd9 import ICD9_MAPPINGS, Icd9Code, Icd9Mapping
+from bko.ontology.icd9 import EXACT, ICD9_MAPPINGS, Icd9Code, Icd9Mapping
 from bko.ontology.terms import Ontology, ancestors
 
 
 REASONS: Final = (
     "no live xref",
     "obsolete holder only",
+    "relatedTo only",
+    "unreviewed source only",
     "holders not nested",
     "V code",
     "E code",
 )
-"""Why a code stays unmapped, in the order `Generated.unmapped` lists them."""
+"""Why a code stays unmapped, in the order `Generated.unmapped` lists them. A code whose live
+xrefs carry no `EXACT` qualifier is `relatedTo only` when one carries `RELATED`, else
+`unreviewed source only`."""
+
+RELATED: Final = "MONDO:relatedTo"
+"""The `source` qualifier of a curator-reviewed link weaker than equivalence; matched ignoring
+case, since the release also writes `MONDO:RelatedTo`."""
 
 _XREF: Final = "ICD9:"
 
 _HEADER: Final = '''"""The `diabetes-codes` frame's ICD-9 code rows, generated from MONDO.
 
 `python -m bko.ontology codes` writes this module; regenerate it rather than editing it. Each row
-maps one exact diagnosis code of the Diabetes 130 archive to the MONDO concept that carries its
-`ICD9:` xref (ADR `research/diabetes-diagnosis-codes`). `_ROWS` holds one (code, concept, label)
-tuple per line, and `_ALSO` the other live holders of a code that has more than one.
+maps one exact diagnosis code of the `diabetes-codes` cohort to the MONDO concept that carries its
+`ICD9:` xref under `source="MONDO:equivalentTo"` (ADR `research/diabetes-diagnosis-codes`).
+`_ROWS` holds one (code, concept, label) tuple per line, and `_ALSO` the other live holders of
+such an xref for a code that has more than one.
 """
 
 from __future__ import annotations
@@ -55,11 +66,11 @@ ICD9_CODES: Final[tuple[Icd9Code, ...]] = tuple(
     Icd9Code(code, concept, label, frozenset({concept, *_ALSO.get(code, ())}))
     for code, concept, label in _ROWS
 )
-"""Each mapped code, in encoding order, with its concept and every live holder of its xref."""
+"""Each mapped code, in encoding order, with its concept and every live exact holder of its xref."""
 '''
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Generated:
     """What `generate` found.
 
@@ -87,24 +98,32 @@ def generate(
         The rows and the unmapped tallies.
 
     Raises:
-        ValueError: If a token is not a diagnosis token, or a chosen concept has no name.
+        ValueError: If a token is not a diagnosis token, a curated row's concept is not among the
+            live exact holders of a code that has some, or a chosen concept has no name.
     """
     codes = sorted(
         {canonical(token) for token in tokens if code_number(token) != UNKNOWN}, key=code_number
     )
-    live, dead = _holders(mondo)
+    exact, weaker, dead = _holders(mondo)
     chosen = {row.xref: row.concept for row in curated}
     rows: list[Icd9Code] = []
     unmapped = dict.fromkeys(REASONS, 0)
     for code in codes:
-        holders = live.get(code, ())
+        holders = exact.get(code, ())
         if code[0] in "VE":
             unmapped[f"{code[0]} code"] += 1
             continue
         if not holders:
-            unmapped["obsolete holder only" if code in dead else "no live xref"] += 1
+            unmapped[_unmapped(code, weaker, dead)] += 1
             continue
-        concept = chosen.get(f"{_XREF}{code}") or _spanning(mondo, holders)
+        concept = chosen.get(f"{_XREF}{code}")
+        if concept is not None and concept not in holders:
+            msg = (
+                f"the curated row for {_XREF}{code} maps {concept}, which is not among its live "
+                f"{EXACT} holders {', '.join(holders)}"
+            )
+            raise ValueError(msg)
+        concept = concept or _spanning(mondo, holders)
         if concept is None:
             unmapped["holders not nested"] += 1
             continue
@@ -116,7 +135,15 @@ def render(rows: Sequence[Icd9Code]) -> str:
     """The text of `bko.ontology.icd9_codes` holding `rows`, as `ruff format` leaves it.
 
     `_ROWS` sits between `# fmt: off` and `# fmt: on`, so a long label keeps its tuple on one line.
+
+    Raises:
+        ValueError: If a row's code, concept or label holds a control character, which would
+            break its line, naming the row's code.
     """
+    for row in rows:
+        if any(_controlled(text) for text in (row.code, row.concept, row.label)):
+            msg = f"ICD-9 {row.code!r}: a control character in {row!r} would break its line"
+            raise ValueError(msg)
     lines = [_HEADER, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
     lines.extend(
         f"    ({_quoted(row.code)}, {_quoted(row.concept)}, {_quoted(row.label)}),\n"
@@ -133,19 +160,41 @@ def render(rows: Sequence[Icd9Code]) -> str:
     return "".join(lines)
 
 
-def _holders(mondo: Ontology) -> tuple[dict[str, tuple[str, ...]], frozenset[str]]:
-    """Each ICD-9 code to its live holders in term order, and the codes only obsolete terms hold."""
-    live: dict[str, list[str]] = {}
+def _holders(
+    mondo: Ontology,
+) -> tuple[dict[str, tuple[str, ...]], dict[str, bool], frozenset[str]]:
+    """Each code's live `EXACT` holders, and whether its other live xrefs include `RELATED`.
+
+    Returns:
+        Each code's live `EXACT` holders in term order; each code some other live xref carries,
+        and whether one of those carries `RELATED`; and the codes only obsolete terms hold.
+    """
+    exact: dict[str, list[str]] = {}
+    weaker: dict[str, bool] = {}
     dead: set[str] = set()
     for curie, term in mondo.terms.items():
         for xref in term.xrefs:
-            if xref.startswith(_XREF):
-                code = xref.removeprefix(_XREF)
-                if term.obsolete:
-                    dead.add(code)
-                elif curie not in live.setdefault(code, []):
-                    live[code].append(curie)
-    return {code: tuple(curies) for code, curies in live.items()}, frozenset(dead - set(live))
+            if not xref.startswith(_XREF):
+                continue
+            code = xref.removeprefix(_XREF)
+            sources = term.xref_sources(xref)
+            if term.obsolete:
+                dead.add(code)
+            elif EXACT in sources:
+                if curie not in exact.setdefault(code, []):
+                    exact[code].append(curie)
+            else:
+                related = any(source.casefold() == RELATED.casefold() for source in sources)
+                weaker[code] = weaker.get(code, False) or related
+    live = set(exact) | set(weaker)
+    return {code: tuple(c) for code, c in exact.items()}, weaker, frozenset(dead - live)
+
+
+def _unmapped(code: str, weaker: Mapping[str, bool], dead: frozenset[str]) -> str:
+    """Why `code`, which no live term carries under `EXACT`, stays unmapped."""
+    if code in weaker:
+        return "relatedTo only" if weaker[code] else "unreviewed source only"
+    return "obsolete holder only" if code in dead else "no live xref"
 
 
 def _spanning(mondo: Ontology, holders: Sequence[str]) -> str | None:
@@ -166,6 +215,11 @@ def _name(mondo: Ontology, concept: str) -> str:
         msg = f"{concept} has no name in {mondo.name} {mondo.version}"
         raise ValueError(msg)
     return term.name
+
+
+def _controlled(text: str) -> bool:
+    """Whether `text` holds a control character (Unicode category Cc), such as a newline."""
+    return any(unicodedata.category(char) == "Cc" for char in text)
 
 
 def _quoted(text: str) -> str:

@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, assert_never
 
-from bko.ontology.icd9 import Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
+from bko.ontology.icd9 import EXACT, Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -36,9 +36,11 @@ into."""
 
 _EXACT: Final = "skos:exactMatch"
 _XREF: Final = "xref"
+_EXACT_XREF: Final = f"xref {EXACT}"
 
 type _Key = tuple[str, str]
-"""What a term carries: `(skos:exactMatch, <SCTID: object>)` or `(xref, <ICD9: id>)`."""
+"""What a term carries: `(skos:exactMatch, <SCTID: object>)`, `(xref, <ICD9: id>)` or
+`(xref MONDO:equivalentTo, <ICD9: id>)`."""
 
 type _Holders = Mapping[str, Mapping[_Key, tuple[str, ...]]]
 """Per release prefix, each wanted key to the live terms that carry it."""
@@ -74,12 +76,12 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     An out-of-scope row also disagrees when its concept is an `is_a` ancestor of a concept another
     of `rows` maps, since the scope rule puts every such ancestor in scope. An excluded code
     disagrees when a live `EXCLUDED_PREFIX` concept carries its `skos:exactMatch`, and an excluded
-    ICD-9 category when one carries its xref. An ICD-9 row or a generated code row disagrees when
-    its concept lacks its xref or the release's live holders of the xref differ from the row's
-    declared ones. A generated code row's concept joins no out-of-scope check, since it is outside
-    the table's scope. Each
-    release's holders are collected in one pass per call, however many code rows, ICD-9 rows and
-    excluded codes or categories name its prefix.
+    ICD-9 category when one carries its xref. An ICD-9 row disagrees when its concept lacks its xref
+    or the release's live holders of the xref differ from the row's declared ones; a generated code
+    row likewise, counting only xrefs under the qualifier `EXACT`. A generated code row's concept
+    joins no out-of-scope check, since it is outside the table's scope. Each release's holders are
+    collected in one pass per call, however many code rows, ICD-9 rows and excluded codes or
+    categories name its prefix.
     """
     rows = tuple(rows)
     mapped = frozenset(
@@ -230,8 +232,10 @@ def _key(row: CodedRow | Icd9Mapping | Icd9Code | UnmappedIcd9) -> _Key:
     match row:
         case CodeMapping() | UnmappedCode():
             return _EXACT, _target(row)
-        case Icd9Mapping() | Icd9Code() | UnmappedIcd9():
+        case Icd9Mapping() | UnmappedIcd9():
             return _XREF, row.xref
+        case Icd9Code():
+            return _EXACT_XREF, row.xref
         case _:
             assert_never(row)
 
@@ -252,14 +256,16 @@ def _excluded_problem(
 def _holders(ontology: Ontology, keys: frozenset[_Key]) -> Mapping[_Key, tuple[str, ...]]:
     """For each of `keys`, the live terms that carry it, in term order.
 
-    A term carries `(skos:exactMatch, object)` through its matches and `(xref, id)` through its
-    xref ids, whatever the release's qualifier on the xref.
+    A term carries `(skos:exactMatch, object)` through its matches, `(xref, id)` through its
+    xref ids, whatever the release's qualifier on the xref, and `(xref MONDO:equivalentTo, id)`
+    through each xref whose `source` qualifiers include `EXACT`.
     """
     holders: dict[_Key, list[str]] = {}
     for curie, term in ontology.terms.items():
         if term.obsolete:
             continue
-        for key in (*term.matches, *((_XREF, xref) for xref in term.xrefs)):
+        exact = ((_EXACT_XREF, x) for x in term.xrefs if EXACT in term.xref_sources(x))
+        for key in (*term.matches, *((_XREF, xref) for xref in term.xrefs), *exact):
             if key in keys:
                 curies = holders.setdefault(key, [])
                 if not curies or curies[-1] != curie:
@@ -286,12 +292,16 @@ def _xref_problem(
     where: str,
     holders: Mapping[_Key, tuple[str, ...]],
 ) -> str | None:
-    if row.xref not in ontology.terms[row.concept].xrefs:
+    term = ontology.terms[row.concept]
+    if row.xref not in term.xrefs:
         return f"{where} has no xref {row.xref} on {row.concept}"
-    live = holders.get(_key(row), ())
+    key = _key(row)
+    if key[0] == _EXACT_XREF and EXACT not in term.xref_sources(row.xref):
+        return f"{where} has xref {row.xref} on {row.concept} without source {EXACT}"
+    live = holders.get(key, ())
     if frozenset(live) != row.holders:
         declared = _listed(sorted(row.holders))
-        return f"xref {row.xref} is on {_listed(live)}; the row declares {declared}"
+        return f"{' '.join(key)} is on {_listed(live)}; the row declares {declared}"
     return None
 
 

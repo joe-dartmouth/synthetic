@@ -7,6 +7,10 @@ python-platform = "linux"
 extra-paths = [".", "src"]
 root = ["."]
 
+[analysis]
+# fastobo is a compiled extension with no stubs, so its members are unknown to ty.
+replace-imports-with-any = ["fastobo", "fastobo.**"]
+
 [src]
 include = ["src", "tests", "tools"]
 

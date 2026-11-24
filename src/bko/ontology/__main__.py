@@ -10,9 +10,10 @@ within the mapped concepts and their ancestors, that the classification or the l
 holds and the other lacks; it finds Java before it fetches anything. The parser's version, each
 release's identity, a warning per disagreeing row, and `elk`'s tool, heap, timeout, timings,
 classified files and per-release counts go to stderr through logging. `codes` fetches the pinned
-MONDO release and Diabetes 130 archive if they are absent, maps every diagnosis code of the
-archive with `bko.ontology.codes.generate`, writes the module text of `bko.ontology.icd9_codes`
-to stdout, and logs a `codes unmapped` line per reason and a closing `codes rows=` line.
+MONDO release and Diabetes 130 archive if they are absent, maps every diagnosis code the
+`diabetes-codes` cohort holds with `bko.ontology.codes.generate`, writes the module text of
+`bko.ontology.icd9_codes` to stdout, and logs a `codes unmapped` line per reason and a closing
+`codes rows=` line; stdout stays empty until the text is complete.
 `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce`, `elk` or `codes` wrote its report,
@@ -38,10 +39,10 @@ from pathlib import Path
 from typing import Final, TextIO
 
 from bko.core.logs import configure
-from bko.datasets.archive import member_text
-from bko.datasets.diabetes import DIAGNOSES, MEMBER, parse_diabetic
+from bko.datasets.diabetes import DIAGNOSES, load_diabetes
+from bko.datasets.diagnoses import code_text
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https, read_verified
+from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import DIABETES_130, ROBOT_JAR, Source
 from bko.datasets.synthea_run import default_java
 from bko.ontology import elk
@@ -167,8 +168,9 @@ def _codes(data_dir: Path, context: Context, out: TextIO) -> int:
     mondo = load_releases(releases, data_dir, open_url=context.open_url)["MONDO"]
     source = context.diabetes
     ensure(source, data_dir, open_url=context.open_url)
-    raw = parse_diabetic(member_text(read_verified(source, data_dir), MEMBER, source))
-    generated = generate(mondo, {token for name in DIAGNOSES for token in raw[name]})
+    records = load_diabetes(data_dir, indicators={}, diagnoses=True, source=source)
+    held = {int(number) for name in DIAGNOSES for number in records[name].unique()}
+    generated = generate(mondo, map(code_text, sorted(held)))
     text = render(generated.rows)
     for reason, count in generated.unmapped.items():
         logger.info("codes unmapped reason=%s codes=%d", json.dumps(reason), count)

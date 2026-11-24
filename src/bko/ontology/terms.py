@@ -30,11 +30,14 @@ class Term:
         curie: The term's id, such as `MONDO:0024644`.
         name: Its `name:` value; None when the stanza has none.
         parents: Its direct `is_a` targets.
-        xrefs: Its xref ids; the release's qualifiers are not kept.
+        xrefs: Its xref ids.
         matches: `(predicate, object)` for each `property_value` whose predicate is in
             `MATCH_PREDICATES`.
         obsolete: Whether the stanza says `is_obsolete: true`.
         replaced_by: Its `replaced_by` targets, which need not be terms of the release.
+        xref_qualifiers: `(xref id, ((key, value), ...))` for each xref the stanza qualifies, such
+            as `("ICD9:250", (("source", "MONDO:equivalentTo"),))`; an xref without qualifiers
+            is absent.
     """
 
     curie: str
@@ -44,6 +47,14 @@ class Term:
     matches: tuple[tuple[str, str], ...]
     obsolete: bool
     replaced_by: tuple[str, ...]
+    xref_qualifiers: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+
+    def xref_sources(self, xref: str) -> tuple[str, ...]:
+        """The `source` qualifier values the stanza gives `xref`, sorted; empty if none."""
+        for held, qualifiers in self.xref_qualifiers:
+            if held == xref:
+                return tuple(value for key, value in qualifiers if key == "source")
+        return ()
 
 
 @dataclass(frozen=True, slots=True, eq=False)
