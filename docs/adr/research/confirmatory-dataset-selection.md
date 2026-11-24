@@ -21,7 +21,10 @@ candidate's records, so where no page states a figure, it records what the page 
 
 Each dataset's `Source` pin (`bko.datasets.sources`) carries an `agreement`: `None` for open data,
 which `permits_sending` lets go to a third-party API, or an `Agreement(name, sending)`, which
-permits sending only when `sending` names a permission.
+`permits_sending` lets go only when `sending` holds non-blank text; any such text passes
+(`cleanup:datasets/agreement-sending-placeholder` in
+[`tasks/CLEANUP.md`](../../../tasks/CLEANUP.md)). None of the five chosen datasets has a pin yet;
+point 4 fixes the value each frame unit's pin carries.
 
 ## Decision Drivers
 
@@ -131,16 +134,28 @@ the composite's size are recorded for the frame units, not against a condition:
   with two codes. The outcome is income above the Folktables threshold, and the hierarchical coded
   field is occupation, `OCCP`: "Occupation recode for 2018 and later based on 2018 OCC codes".
 
-**4. The `Agreement` each chosen dataset's `Source` carries.** All five carry `agreement=None`. No
-page read imposes a use agreement that bars sending records to a third-party API:
+**4. The `agreement` each chosen dataset's `Source` pin carries.** Each frame unit's pin carries
+`agreement=None`. No page read imposes a use agreement that bars sending records to a third-party
+API:
 
 | Dataset | `agreement` | Why |
 |---|---|---|
 | SUPPORT2 | `None` | The Vanderbilt permission line grants use to anyone and asks only for a citation |
 | PhysioNet/CinC Challenge 2012 | `None` | Open Data Commons Attribution, open to anyone who conforms to the licence |
-| NHAMCS 2022 ED | `None` | Public-use file; the NCHS terms limit use to statistical reporting and analysis and bar identification and linkage, not sending; generating records to score classifiers is statistical analysis |
+| NHAMCS 2022 ED | `None` | Public-use file; the NCHS terms bind by use, limit it to statistical reporting and analysis, and bar identification and linkage, not sending; see the NCHS reading below |
 | NHANES | `None` | The same NCHS terms as NHAMCS |
-| ACS PUMS | `None` | The terms bar identification, linkage and identifying publication, not sending |
+| ACS PUMS | `None` | The API terms bar identification, linkage and identifying publication, not sending. The index page of the file route (the 2024 1-Year PUMS directory) states no terms, so the API terms are read as the Census Bureau's terms for its data |
+
+**The NCHS reading.** NHANES and NHAMCS 2022 ED keep `agreement=None`, and sending is allowed. The
+NCHS terms bind by use alone, with no signed agreement: "By using these data you signify your
+agreement to comply with the above-stated statutorily based requirements." MEPS differs: it asks
+for a signature before access, "Your signature below will indicate that you have carefully read
+and understood the above statements, and your agreement to comply." `Agreement`'s docstring
+describes data held under a data use agreement; the NCHS public-use terms are read as conditions
+of use, not a held agreement in that sense, so the pins carry `None`. The terms allow use "for
+statistical analysis or reporting purposes", and generating records to score classifiers is
+statistical analysis. This is the team's reading, confirmed by Joe Laws on 2026-11-24; it is not
+legal advice.
 
 **5. Re-identification clauses and the team's reading.**
 
@@ -170,8 +185,9 @@ page read imposes a use agreement that bars sending records to a third-party API
   and advise the Director of the Census Bureau of any such discovery by calling the U.S. Census
   Bureau’s Policy Coordination Office at 301-763-6440." The reading is NHANES's: the readings
   identify no one and publish no identity, and every reading runs. The terms' scope is content
-  "made available to you through the API"; the clause is the Census Bureau's stated condition on
-  its public data, and the frame follows it whichever route its file comes by.
+  "made available to you through the API", and the file route's index page states none of its
+  own; the clause is read as the Census Bureau's stated condition on its public data, and the
+  frame follows it whichever route its file comes by.
 - **SUPPORT2.** The Vanderbilt and UCI pages hold no re-identification clause; UCI's page notes
   "Yes. There is information about race, gender, income, and education level." ICPSR's terms are
   unopened. Every reading runs.
@@ -248,8 +264,9 @@ permission from NCHS.
 
 **A re-read of a quoted page differs from its quote**, in a licence, an access route, a record
 count or a re-identification clause. **NCHS or the Census Bureau states that scoring the privacy
-of generated rows falls under its re-identification clause.** **ICPSR's terms, once opened, bar a
-use the study makes.**
+of generated rows falls under its re-identification clause.** **NCHS states how its public-use
+terms treat sending records to a third party for processing.** **Terms found on the ACS PUMS file
+route differ from the API terms.** **ICPSR's terms, once opened, bar a use the study makes.**
 
 ## Related
 
