@@ -49,6 +49,7 @@ ARGS = {
     Method.CART: ["--rows", "5"],
     Method.BAYES_NET: ["--rows", "5"],
     Method.TABDDPM: ["--rows", "5"],
+    Method.LABEL_BOOTSTRAP: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
 

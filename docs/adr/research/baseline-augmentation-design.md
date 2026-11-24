@@ -103,7 +103,7 @@ seed their sampling after every fit, and seed no fit.
   as CSV and writes nothing under `data/` but the snapshot `bko.datasets` fetches.
 
 `bko.baselines.request`, `bko.baselines.oversample`, `bko.baselines.synthesizers`,
-`bko.baselines.classical` and `bko.baselines.diffusion` hold the values.
+`bko.baselines.classical`, `bko.baselines.diffusion` and `bko.baselines.bootstrap` hold the values.
 
 ## Rationale
 
@@ -177,7 +177,8 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
   `tests/test_baselines_methods.py`, `tests/test_baselines_cli.py`,
   `tests/test_baselines_synthesizers.py`, `tests/test_baselines_oversample.py`,
   `tests/test_baselines_classical.py`, `tests/test_baselines_bayes_net.py`,
-  `tests/test_baselines_diffusion.py`, `tests/test_baselines_ddpm.py`
+  `tests/test_baselines_diffusion.py`, `tests/test_baselines_ddpm.py`,
+  `tests/test_baselines_bootstrap.py`
 
 ## Reversal Conditions
 

@@ -9,6 +9,7 @@ from typing import Final
 import pandas as pd
 
 from bko.baselines.bayes_net import bayes_net
+from bko.baselines.bootstrap import label_bootstrap
 from bko.baselines.classical import cart, gaussian_copula
 from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.diffusion import tabddpm
@@ -34,6 +35,7 @@ METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
         Method.CART: cart,
         Method.BAYES_NET: bayes_net,
         Method.TABDDPM: tabddpm,
+        Method.LABEL_BOOTSTRAP: label_bootstrap,
     }
 )
 """Each built method's runner; the command offers exactly these."""
