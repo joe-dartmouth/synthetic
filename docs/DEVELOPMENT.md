@@ -33,7 +33,8 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
 [`bko.datasets`](../src/bko/datasets/README.md) writes there, apart from the classified OBO files
-`python -m bko.ontology elk` keeps under `data/elk/` ([ELK comparison](#elk-comparison)). Each
+`python -m bko.ontology elk` keeps under `data/elk/` ([ELK comparison](#elk-comparison)) and the
+OBO file an OWL-only release is converted to beside its OWL ([Ontologies](#ontologies)). Each
 download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
 releases, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
@@ -1261,6 +1262,14 @@ inside `.venv`:
   `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
   `bko.ontology.obo`, or a change to pronto or fastobo in `uv.lock`, from the checkout whose `data/` holds
   the releases.
+- **OWL-only releases**: a release pinned as OWL, a `Source` whose `filename` ends `.owl`, is
+  converted to OBO when a command first loads it: the pinned ROBOT jar's `convert`, run with no
+  reasoning, writes the OBO beside the OWL in its snapshot directory, and later loads reuse it.
+  Each load logs the OBO's size and sha256. Conversion needs a JDK, found as
+  [ELK comparison](#elk-comparison) finds it. Exit 2 means no JDK or a ROBOT failure; exit 3 an
+  OWL file that names an import, refused before ROBOT runs, or a converted file the loader
+  refuses. Every current dataset reads the HP and MONDO OBO releases, so no command converts one
+  (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
 - **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the
   `diabetes-codes` cohort to the one MONDO concept that carries its xref under
   `source="MONDO:equivalentTo"` (ADR
