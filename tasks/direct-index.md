@@ -28,6 +28,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
 | [`privacy-donor-attacks`](privacy-donor-attacks.md) | ready | -- | direct-method-research |
+| [`privacy-donor-attacks-results`](privacy-donor-attacks-results.md) | ready | -- | direct-method-research |
 | [`privacy-donor-limits`](privacy-donor-limits.md) | blocked | privacy-donor-attacks | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | evaluate-added-row-contradictions, privacy-donor-attacks | direct-method-research |
@@ -153,7 +154,8 @@ flowchart LR
   adds the arm or reading, its named `RUNS` entries and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. A
   results unit runs it and records Runs, Result and Read against. A free reading over stores that
-  already exist lands with its code unit, recorded as a Runs row in the code unit's PR.
+  already exist lands with its code unit, recorded as a Runs row in the code unit's PR; a
+  reading that runs for hours is recorded by a results unit instead.
 - **Which data is development and which is confirmatory is the plan's to say**
   ([`docs/RESEARCH.md`](../docs/RESEARCH.md)).
 
