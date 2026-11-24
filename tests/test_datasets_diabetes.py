@@ -527,7 +527,7 @@ def test_a_damaged_archive_is_a_contract_error(tmp_path, make, match):
 
 
 def test_a_member_larger_than_the_cap_is_refused_before_it_is_read(tmp_path, monkeypatch):
-    monkeypatch.setattr("bko.datasets.diabetes.MEMBER_LIMIT", 100)
+    monkeypatch.setattr("bko.datasets.archive.MEMBER_LIMIT", 100)
     source = _planted(tmp_path, archive(text(*_mixed_lines())))
     with pytest.raises(ContractError, match=r"diabetic_data.csv: \d+ bytes, over the 100-byte cap"):
         load_diabetes(tmp_path, indicators=INDICATORS, source=source)

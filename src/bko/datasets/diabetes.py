@@ -15,14 +15,13 @@ import csv
 import io
 import logging
 import re
-import zipfile
-import zlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
+from bko.datasets.archive import member_text
 from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
@@ -173,9 +172,6 @@ STATE_CODES: Final[Mapping[str, Mapping[str, int]]] = {
     "diabetesMed": DIABETES_MED_CODES,
 }
 """Every coded column of a record besides `age` and `sex`, in record order, and its codes."""
-
-MEMBER_LIMIT: Final = 64 * 2**20
-"""The most bytes a member may hold once decompressed; the archive's largest holds under 20 MiB."""
 
 _WHOLE: Final = r"[0-9]{1,18}"
 """An ASCII whole number that fits int64; `\\d` and `int` also read other scripts' digits."""
@@ -348,13 +344,13 @@ def load_diabetes(
     Raises:
         UnavailableError: If the snapshot is absent.
         ContractError: If the archive or a member contradicts its pin or schema, a member holds
-            more than `MEMBER_LIMIT` bytes, `IDS_mapping.csv` names other Expired or Hospice
-            discharges than `EXCLUDED_DISCHARGES`, or the cohort holds no record or no record
-            readmitted in under 30 days.
+            more than `bko.datasets.archive.MEMBER_LIMIT` bytes, `IDS_mapping.csv` names other
+            Expired or Hospice discharges than `EXCLUDED_DISCHARGES`, or the cohort holds no record
+            or no record readmitted in under 30 days.
         ValueError: As `frame_records` raises it.
     """
     data = read_verified(source, data_dir)
-    texts = {member: _member(data, member, source) for member in (MEMBER, IDS_MEMBER)}
+    texts = {member: member_text(data, member, source) for member in (MEMBER, IDS_MEMBER)}
     named = excluded_discharges(texts[IDS_MEMBER])
     if named != EXCLUDED_DISCHARGES:
         msg = (
@@ -370,41 +366,6 @@ def load_diabetes(
         msg = f"{source.name}: the cohort holds no record readmitted in under 30 days"
         raise ContractError(msg)
     return records
-
-
-def _member(data: bytes, member: str, source: Source) -> str:
-    """Return `member` of the zip `data` as UTF-8 text, refusing one over `MEMBER_LIMIT` bytes."""
-    where = f"{source.name}: cannot read {member}"
-    try:
-        return _capped(data, member, where).decode("utf-8")
-    except KeyError as exc:
-        msg = f"{where}: the archive has no such member"
-        raise ContractError(msg) from exc
-    except (
-        zipfile.BadZipFile,
-        zlib.error,
-        UnicodeDecodeError,
-        NotImplementedError,
-        RuntimeError,
-        EOFError,
-    ) as exc:
-        msg = f"{where}: {type(exc).__name__}: {exc}"
-        raise ContractError(msg) from exc
-
-
-def _capped(data: bytes, member: str, where: str) -> bytes:
-    """Return `member`'s bytes, refusing one whose stated or read size passes `MEMBER_LIMIT`."""
-    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-        size = bundle.getinfo(member).file_size
-        if size > MEMBER_LIMIT:
-            msg = f"{where}: {size} bytes, over the {MEMBER_LIMIT}-byte cap"
-            raise ContractError(msg)
-        with bundle.open(member) as handle:
-            body = handle.read(MEMBER_LIMIT + 1)
-    if len(body) > MEMBER_LIMIT:
-        msg = f"{where}: over the {MEMBER_LIMIT}-byte cap"
-        raise ContractError(msg)
-    return body
 
 
 def _categories(
