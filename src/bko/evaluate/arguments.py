@@ -10,6 +10,7 @@ import math
 from pathlib import Path
 
 from bko.datasets.run_folders import runs_dir_argument
+from bko.evaluate.attribution import add_parser as add_attribution
 from bko.evaluate.contradictions import add_parser as add_contradictions
 from bko.evaluate.launch import MAX_RETRIES, RETRIES
 from bko.evaluate.membership import add_parser as add_privacy
@@ -155,6 +156,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         add_privacy,
         add_contradictions,
         add_trace,
+        add_attribution,
     ):
         add(commands)
     liking = commands.add_parser(

@@ -78,6 +78,10 @@ import it (ADR `tooling/agent-config-single-home`).
   write the stored or re-derivable facts behind each record of one arm's fill of one holdout,
   refusing a re-draw whose digest differs from the `arm` line's sha256. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
+- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/attribution.csv && test ! -e runs/<run-id>/attribution.log && uv run --no-sync python -m bko.evaluate attribution <run> --trace runs/<trace-id>/trace.jsonl <more>... > runs/<run-id>/attribution.csv 2> runs/<run-id>/attribution.log </dev/null`:
+  count, per fill of the trace files, what each record field can be attributed to: a knowledge
+  fact, a training donor id, a prompt section only, or method and seed only. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
 - `uv run --no-sync python -m bko.evaluate launch <run-id> [<run>] [--runs-dir DIR] [--dry-run] [--in-flight N] [--retries R] [--rehearse | --resume <calls.jsonl> [--ceiling USD]]`:
   start a new paid `score` run detached, kept awake and refused on battery power, into
   `runs/<run-id>/`, `<run>` defaulting to the run id's entry; it spends money. It supervises the

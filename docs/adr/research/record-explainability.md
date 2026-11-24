@@ -131,12 +131,14 @@ folder.
   `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
-  `src/bko/evaluate/holdout_candidates.py`
+  `src/bko/evaluate/holdout_candidates.py`; decision 7's reading in
+  `src/bko/evaluate/attribution.py`
 - Pinned by: `tests/test_evaluate_trace.py`, `tests/test_evaluate_trace_direct.py`,
   `tests/test_evaluate_trace_perturb.py`, `tests/test_generate_direct.py`,
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
   `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
-  `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`
+  `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`; decision 7 by
+  `tests/test_evaluate_attribution.py`
 
 ## Reversal Conditions
 
