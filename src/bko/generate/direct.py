@@ -9,7 +9,9 @@ drawn concepts of each field group. Draws come from one `numpy.random.default_rn
 in quota, record and column order, so `bko.bkb` stays standard-library only. ADR
 `research/bkb-direct-generation` records each decision and its reasons. With `Presence.LOGIC`,
 `sample` reads no share: each concept's presence comes from `bko.generate.logic`, and the drawn
-set's closure is forced into the fields (ADR `research/logic-only-ablation`).
+set's closure is forced into the fields (ADR `research/logic-only-ablation`). At a spec with
+`mapped=False`, `sample` reads an empty mapping table: no concept is drawn, and every column but
+`age`, `sex` and the label is a free field (ADR `research/no-mapping-ablation`).
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ from bko.generate.donors import (
     _Source,
     label_group,  # ruff: ignore[unused-import]  (re-exported)
 )
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.fields import (
     FieldGroup,
     field_groups,
@@ -92,7 +95,7 @@ def sample(
     seed: int,
     frame: FrameSpec,
     tag: tuple[int, str] | None = None,
-    presence: Presence = Presence.SHARES,
+    spec: DrawSpec = DEFAULT_SPEC,
 ) -> dict[Cell, tuple[Draw, ...]]:
     """Draw `quota` records per cell from the fused BKB's concept shares.
 
@@ -113,11 +116,14 @@ def sample(
         frame: The frame the records belong to.
         tag: The holdout and the fill the draw serves, which its `direct` and `fallback` lines
             name; they read `holdout=-1 fill=none` when None.
-        presence: How each concept's presence is drawn: at its share, or by logic alone, which
-            reads no share, draws every component of `bko.generate.logic` once per record, in
-            component order, and then adds every mapped concept the drawn and label-only
-            concepts imply through `is_a` and nesting before any field is read. The `direct` and
-            `fallback` lines name it; omitted, it is `Presence.SHARES`.
+        spec: What the draw reads. Its `presence` says how each concept's presence is drawn:
+            at its share, or by logic alone, which reads no share, draws every component of
+            `bko.generate.logic` once per record, in component order, and then adds every mapped
+            concept the drawn and label-only concepts imply through `is_a` and nesting before
+            any field is read. At `mapped=False` the draw reads `rows` as empty, so it draws no
+            concept and picks every column but `age`, `sex` and the label alone, from a cell
+            record, else a label-group record. The `direct` and `fallback` lines name its
+            presence, after a ` name=value` token per other field off its default (`tokens`).
 
     Returns:
         Each cell's draws, in quota order.
@@ -130,7 +136,8 @@ def sample(
             `bko.generate.logic.components`, for a component too large to enumerate, naming the
             dataset, the frame, the holdout and the fill.
     """
-    mappings = tuple(rows)
+    mappings = tuple(rows) if spec.mapped else ()
+    presence = spec.presence
     cells = record_cells(train, mappings, name=name, edges=frame.edges)
     keys = cell_keys(train, edges=frame.edges)
     holdout, fill = (-1, "none") if tag is None else tag
@@ -159,24 +166,26 @@ def sample(
             ],
         )
         logger.info(
-            "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d presence=%s",
+            "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d%s presence=%s",
             holdout,
             fill,
             cell_key(cell),
             count,
             len(sources.own),
             len(sources.group),
+            spec.tokens(),
             presence,
         )
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
-                "fallback holdout=%d fill=%s key=%s field=%s draws=%d presence=%s",
+                "fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s",
                 holdout,
                 fill,
                 cell_key(cell),
                 field,
                 times,
+                spec.tokens(),
                 presence,
             )
         drawn[cell] = draws

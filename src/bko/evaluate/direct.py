@@ -42,6 +42,7 @@ from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import logic_components, sample
+from bko.generate.draw_spec import DrawSpec
 from bko.generate.errors import SamplingError
 from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
@@ -218,7 +219,7 @@ class DirectArm:
                 seed=request.seed,
                 frame=request.frame,
                 tag=None if fill is None else (fill.holdout, fill.kind),
-                presence=self._presence,
+                spec=DrawSpec(presence=self._presence),
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc

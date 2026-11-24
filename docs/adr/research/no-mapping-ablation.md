@@ -83,9 +83,11 @@ record by its source ids alone.
 
 ## Enforcement
 
-- Owner: `src/bko/generate/direct.py`, `src/bko/evaluate/direct.py`,
-  `src/bko/evaluate/trace_direct.py`
-- Pinned by: `tests/test_generate_direct.py`, `tests/test_evaluate_direct.py`
+- Owner: `src/bko/generate/direct.py` with the spec in `src/bko/generate/draw_spec.py`,
+  `src/bko/evaluate/direct.py`, `src/bko/evaluate/trace_direct.py`
+- Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`), `tests/test_evaluate_direct.py`,
+  `tests/test_generate_no_mapping.py` (the uniform pick per column, the label-group fallback, the
+  empty concepts and the logged spec)
 
 ## Reversal Conditions
 

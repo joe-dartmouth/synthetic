@@ -24,6 +24,7 @@ from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
+from bko.generate.draw_spec import DrawSpec
 from bko.generate.presence import Presence
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
@@ -70,7 +71,7 @@ def redraw(
         seed=request.seed,
         frame=data.frame,
         tag=tag,
-        presence=presence,
+        spec=DrawSpec(presence=presence),
     )
     attempt = Attempt(train, request, budget * request.rows)
     draws: list[Draw] = []
