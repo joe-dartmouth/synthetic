@@ -21,8 +21,7 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
-| [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
-| [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
+| [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | ready | -- | direct-method-research |
 | [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
@@ -82,10 +81,9 @@ flowchart LR
     u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6[evaluate-control-runs-registered] --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
-    u12[ontology-diabetes-diagnosis-codes] --> u13[generate-ancestor-shrunk-shares]
     u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
     u11[generate-is-a-conditional-draws] --> u19[evaluate-variant-dev-results]
-    u13 --> u19
+    u13[generate-ancestor-shrunk-shares] --> u19
     u15 --> u19
     u16 --> u19
     u17[generate-coherent-free-fields] --> u19

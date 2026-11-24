@@ -1,8 +1,8 @@
 ---
 id: generate-ancestor-shrunk-shares
 title: Add the bko-tree arm, drawing a coded field's shares shrunk along the ontology
-status: blocked
-depends_on: ontology-diabetes-diagnosis-codes
+status: ready
+depends_on: --
 blocks: evaluate-variant-dev-results, ontology-auto-mapping
 parallel_safe: true
 milestone: direct-method-research
@@ -32,12 +32,13 @@ its ontology neighbours.
   parent's share is the share of records showing any of its descendants.
 - The trace names each level's parts.
 - A new ADR under `docs/adr/research/` that records the rule.
-- Development `RUNS` entries on `diabetes-codes` (unit
-  [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md)) with E6's removal,
-  for `bko-tree`, `bko-direct` and `bko-nomap`, and the
+- Development `RUNS` entries on `diabetes-codes` (ADR
+  [`research/diabetes-diagnosis-codes`](../docs/adr/research/diabetes-diagnosis-codes.md)) with
+  E6's removal, for `bko-tree`, `bko-direct` and `bko-nomap`, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. Its
   target measure is removed-cell recall, with the per-code share error against the held-out cell
-  as a second reading.
+  as a second reading. The `bko-direct` entry reads that ADR's Consequences, which
+  record what `bko-direct` draws on one cell of the frame.
 
 **Out.**
 

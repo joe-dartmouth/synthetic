@@ -74,7 +74,12 @@ and 85 E codes are not looked up (`uv run --no-sync python -m bko.ontology codes
 `releases/2026-10-06`, 2026-11-24).
 **Accepted**: `bko-direct` draws each concept independently and needs a donor that shows exactly
 the drawn set of concepts (`bko.generate.direct`), so on this frame a draw naming two codes for
-one diagnosis field has no donor.
+one diagnosis field has no donor. Measured on 2026-11-24: `bko.generate.direct.sample` on the
+`diabetes-codes` training split at seed 0, nothing removed, for E6's removal cell
+`(6-7, male, 1)` with a quota of 100 at seed 0, raises `SamplingError` with the text
+"6-7/male/1 cannot draw diag_1+diag_2+diag_3: no training record matches the draw". A concept
+mapped in all three columns joins them into one field group, and no record shows the drawn set,
+so a `bko-direct` run on this frame needs a sampler change first.
 
 ## Ruled Out
 

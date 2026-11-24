@@ -34,9 +34,9 @@ relations, and it links to no standard ontology.
     source.
 - Each builder emits a pinned artifact with a sha256, and its rows pass the structural check
   `bko.ontology.check.check` against the pinned releases.
-- `RUNS` entries on E6's frame and on `diabetes-codes` (unit
-  [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md)) for `bko-direct`
-  and `bko-tree` (unit [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md))
+- `RUNS` entries on E6's frame and on `diabetes-codes` (ADR
+  [`research/diabetes-diagnosis-codes`](../docs/adr/research/diabetes-diagnosis-codes.md)) for
+  `bko-direct` and `bko-tree` (unit [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md))
   over the hand mapping, over each automatic mapping and over a permuted-hierarchy control,
   beside `bko-nomap`.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`,
