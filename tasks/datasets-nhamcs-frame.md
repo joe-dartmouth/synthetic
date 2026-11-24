@@ -18,16 +18,17 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 A survey of emergency-department visits gives the confirmatory family a frame whose concepts come
 from coded diagnoses. Its record count, its public-use terms and the NCHS clause on assessing
-disclosure methods are quoted in ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md). This unit copies
-[`datasets-support2-frame`](datasets-support2-frame.md) in scope and acceptance.
+disclosure methods are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
+This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and acceptance.
 
 ## Scope
 
 **In.**
 
 - A `Source` pin (`bko.datasets.sources`) of the NCHS file. Its `agreement` carries the value
-  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records, and the unit's ADR cites that record's reading of the clause on assessing
-  disclosure methods.
+  ADR `research/confirmatory-dataset-selection` records, and the unit's ADR cites that record's
+  reading of the clause on assessing disclosure methods.
 - A loader.
 - A `FrameSpec` (`bko.datasets.frames`) with `ADMITHOS` as the label.
 - Concepts from the ICD-10-CM diagnosis fields through MONDO's cross-references, and from the

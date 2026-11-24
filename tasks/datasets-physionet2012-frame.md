@@ -17,15 +17,16 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A second intensive-care frame beside [`datasets-support2-frame`](datasets-support2-frame.md) widens
-the confirmatory family. Its record count, licence and in-hospital death rate are quoted in
-ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md). This unit copies `datasets-support2-frame` in scope and acceptance.
+the confirmatory family. Its record count, licence and in-hospital death rate are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
+This unit copies `datasets-support2-frame` in scope and acceptance.
 
 ## Scope
 
 **In.**
 
 - A `Source` pin (`bko.datasets.sources`) of the PhysioNet archive. Its `agreement` carries the
-  value ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records.
+  value ADR `research/confirmatory-dataset-selection` records.
 - A loader that reduces each stay's time series to one record by a rule fixed before any gap
   listing is read.
 - A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label.

@@ -44,10 +44,9 @@ readings are fixed before any score exists on the new datasets.
   - ablations `bko-nomap` (unless it joins the comparators), `bko-logic`, and `bko` where the
     dataset's agreement permits sending records.
 - The removed cells, each picked from its dataset's training split by the count filter and grid
-  order of ADR
-  [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md),
-  with the registered cutoff at the training split's prevalence, and recorded with that split's
-  sha256. A dataset on which no cell passes is excluded and that ADR revised before the tag.
+  order of ADR `research/confirmatory-dataset-selection`, with the registered cutoff at the training
+  split's prevalence, and recorded with that split's sha256. A dataset on which no cell passes is
+  excluded and that ADR revised before the tag.
 - In [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11:
   - the primary endpoint, taken from the branch units
     [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and

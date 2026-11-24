@@ -222,19 +222,21 @@ students and 10 weeks ([section 8](#8-scope-assessment)).
 The plan uses UCI Heart Disease and Synthea, both openly available (2-pager sections 2 and 4), and
 UCI Diabetes 130-US Hospitals for subgroup removal on real patients
 ([below](#limits-of-uci-heart-disease-as-the-evaluation-frame)). The direct-method study
-([section 11](#11-direct-method-study)) adds five confirmatory datasets: SUPPORT2, NHANES, the
-PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED as the health family, and ACS PUMS as a
-separate exploratory family. ADR
+([section 11](#11-direct-method-study)) adds four confirmatory datasets, SUPPORT2, NHANES, the
+PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED, as the health family, and ACS PUMS as its
+own exploratory family. ADR
 [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md)
 records the rule that chose them, the ranking of every candidate, and each one's terms quoted from
-its primary page. The other rows are the brief's registry (D10), kept for reference.
+its primary page. The other rows are the brief's registry (D10), kept for reference, and so is
+each description except those of SUPPORT2, the PhysioNet/CinC Challenge 2012 set, NHAMCS 2022 ED
+and ACS PUMS, which come from the pages that ADR cites.
 
-| Dataset | Access | Description (brief D10) | In the plan |
+| Dataset | Access | Description | In the plan |
 |---|---|---|---|
 | UCI Heart Disease (Cleveland) | Open | Classic 303-record binary/multiclass detection task; naturally small, which suits a low-data story; the evaluation frame is ADR [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md) | Evaluation setting ([section 2](#2-intended-users-and-evaluation-setting)) |
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
 | UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, E6 ([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
-| NHANES August 2021 to August 2023 | Public-use, NCHS terms [`nchs-nd`][nchs-nd]; documentation [`nhanes-2024`][nhanes-2024] | National survey with laboratory values; adults 20 and over, the target of its medical-conditions items | Confirmatory, cardiovascular composite label ([section 11](#11-direct-method-study)) |
+| NHANES August 2021 to August 2023 | Public-use, NCHS terms [`nchs-nd`][nchs-nd]; documentation [`nhanes-2024`][nhanes-2024] | Openly available national survey data | Confirmatory, cardiovascular composite label over adults 20 and over, the target of its medical-conditions items ([section 11](#11-direct-method-study)) |
 | SUPPORT2 | Open, Vanderbilt permission line [`vanderbilt-2026`][vanderbilt-2026] | 9,105 seriously ill hospitalized adults with physiology and diagnosis groups | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
 | PhysioNet/CinC Challenge 2012 | Open, ODC Attribution [`silva-2012a`][silva-2012a] | 12,000 adult ICU stays, first 48 hours [`silva-2012b`][silva-2012b] | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
 | NHAMCS 2022 ED | Public-use, NCHS terms [`nhamcs-nd`][nhamcs-nd] | 16,025 sampled emergency-department visits with coded diagnoses | Confirmatory, hospital admission label ([section 11](#11-direct-method-study)) |

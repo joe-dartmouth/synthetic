@@ -18,15 +18,17 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 One positive dataset is the study's weakest point. SUPPORT2 is intensive-care data, with
 diagnosis groups that map to MONDO and physiology that maps to HPO through cited cutoffs. Its
-terms are quoted in ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md), which also records that no page read states its in-hospital death
-rate; this unit counts it from the file.
+terms are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md),
+which also records that no page read states its in-hospital death rate; this unit counts it from
+the training split.
 
 ## Scope
 
 **In.**
 
 - A `Source` pin (`bko.datasets.sources`) of the Vanderbilt archive. Its `agreement` carries the
-  value ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records.
+  value ADR `research/confirmatory-dataset-selection` records.
 - A loader.
 - A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label, without the columns
   its publisher warns against using as predictors.

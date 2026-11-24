@@ -17,8 +17,10 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 NHANES is the one candidate whose laboratory values map through cited clinical cutoffs in a
-general population. ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records the bounds the codebook's component counts set on the
-composite outcome's size; this unit computes the union.
+general population. ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md)
+records the bounds the codebook's component counts set on the composite outcome's size; this unit
+computes the union.
 
 ## Scope
 
@@ -27,7 +29,7 @@ composite outcome's size; this unit computes the union.
 - As unit [`datasets-support2-frame`](datasets-support2-frame.md), for NHANES August 2021 to
   August 2023:
   - pins of each component file, joined on the respondent sequence number, each carrying the
-    `agreement` value ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records;
+    `agreement` value ADR `research/confirmatory-dataset-selection` records;
   - adults only;
   - the label, a composite of the heart-failure, coronary-disease, heart-attack and stroke
     questions; its definition and the handling of "Don't know" answers are fixed in the new ADR
@@ -35,8 +37,8 @@ composite outcome's size; this unit computes the union.
   - age top-coded as published;
   - a `python -m bko.gaps nhanes` subcommand.
 - A new ADR under `docs/adr/research/` that records the frame and the mapping.
-- Every reading runs on it, privacy included, on the reading of the NCHS terms
-  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records.
+- Every reading runs on it, privacy included, on the reading of the NCHS terms ADR
+  `research/confirmatory-dataset-selection` records.
 
 **Out.**
 

@@ -19,8 +19,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 The study's only non-health family is ACS PUMS. The
 [IDEAS entry](../docs/IDEAS.md#candidate-datasets-and-ontologies-outside-healthcare) lists
 candidates outside healthcare and marks what it could not verify. A dataset whose unit is not a
-person needs the cell axes generalised, which the selection rule of
-ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) excludes. This unit is the later evaluation of those candidates.
+person needs the cell axes generalised, which the selection rule of ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md)
+excludes. This unit is the later evaluation of those candidates.
 
 ## Scope
 
@@ -31,8 +32,8 @@ ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmator
   disclosure field, the NVD and KEV terms, the NEISS terms, and the GDELT outcome rule.
 - The rule a non-health frame must meet: a binary outcome, two named cell axes, an open
   machine-readable hierarchy, and terms that permit the use. Its rule governs the non-health
-  families only and replaces, for them, the person-axes requirement of the selection rule
-  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records. Candidates that rule already
+  families only and replaces, for them, the person-axes requirement of the selection rule ADR
+  `research/confirmatory-dataset-selection` records. Candidates that rule already
   ranked (HMDA, UCI Census-Income KDD) are ranked here only as non-health candidates, citing that
   ranking.
 - Every candidate ranked, with its exclusion reason.

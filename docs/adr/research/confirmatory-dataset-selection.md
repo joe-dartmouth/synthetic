@@ -14,10 +14,16 @@ population, Diabetes 130). A confirmatory dataset chosen after seeing results co
 the rule that picks the datasets, and the rule that later picks each dataset's removed cell, are
 fixed here before any candidate's records are loaded.
 
-Every statement below that a dataset's choice rests on is quoted from the dataset's primary
-page, read on 2026-11-24. A quotation is the page's text with markup dropped and whitespace runs
-collapsed to one space; a PDF's text is `pdftotext -layout` output. This record loads no
-candidate's records, so where no page states a figure, it records what the page does state.
+Each candidate's licence, access and re-identification terms, and the record counts and field
+definitions cited for it, are quoted from the dataset's primary page, read on 2026-11-24; the
+2012 challenge's death rate is quoted from its challenge paper,
+[`silva-2012b`](../../literature.md#datasets). The other grounds that rank or exclude a candidate
+(BRFSS's lack of laboratory measures, HMDA's loan record, the reach of the cutoff mappings) are
+the team's reading of those pages. A quotation is the page's text with markup dropped, CRLF line
+ends stripped and whitespace runs collapsed to one space, and it runs to a phrase end; a fenced
+listing instead keeps its file's line breaks and indentation. A PDF's text is
+`pdftotext -layout` output. This record loads no candidate's records, so where no page states a
+figure, it records what the page does state.
 
 Each dataset's `Source` pin (`bko.datasets.sources`) carries an `agreement`: `None` for open data,
 which `permits_sending` lets go to a third-party API, or an `Agreement(name, sending)`, which
@@ -101,39 +107,42 @@ lines of the page that entry names.
 Each chosen dataset against conditions 2, 3 and 5, from its documentation. The death rate and
 the composite's size are recorded for the frame units, not against a condition:
 
-- **SUPPORT2.** The Vanderbilt codebook ([`vanderbilt-2026`](../../literature.md#datasets)) reads "9105 observations and 47 variables, maximum # NAs:5641"
-  and lists `hospdead` as "Death in Hospital", with `age` stored as a double and `sex` with two
-  levels. No page read states the in-hospital death rate; the frame unit counts it from the
-  training split.
-  SUPPORT2's terms at ICPSR (study 2957, the DOI the UCI page gives) are unopened: the page
-  returned HTTP 403 to curl and to a browser, and stayed on a bot check. UCI's page says only "See
-  linked dataset for licensing information." The frame unit pins the Vanderbilt archive, whose
-  permission line is quoted above.
-- **PhysioNet/CinC Challenge 2012** ([`silva-2012a`](../../literature.md#datasets)). "The data used for the challenge consist of records from
-  12,000 ICU stays." The outcome is "In-hospital death (0: survivor, or 1: died in-hospital)", with
-  "Age (years)" and "Gender (0: female, or 1: male)" among the descriptors. The challenge paper
-  ([`silva-2012b`](../../literature.md#datasets)) states "The overall mortality rate was 14.2%." over
-  the 12,000 stays. The page's file list holds the outcomes of sets A, B and C.
-- **NHAMCS 2022 ED** ([`nhamcs-nd`](../../literature.md#datasets)). The documentation is "for users of the Emergency Department public use"
-  file: "Each record on the ED file represents one visit in the sample of 16,025 visits."
-  `ADMITHOS` is "Admit to this hospital"; `AGE` is in years, top-coded at "94 = 94 years or older";
-  `SEX` is coded 1 female, 2 male. The file is public-use under the NCHS terms; it is not held
-  under a separate agreement.
-- **NHANES August 2021 to August 2023.** The page states no size for the composite outcome. The
-  Medical Conditions codebook (MCQ_L, [`nhanes-2024`](../../literature.md#datasets)) gives each component's Yes count among adults 20 and over:
-  congestive heart failure (MCQ160b) 343, coronary heart disease (MCQ160c) 402, heart attack
-  (MCQ160e) 332, stroke (MCQ160f) 367, each of roughly 7,800 answers. The composite of the four so
-  holds between 402 and 1,444 adults; the frame unit computes the union. No page read states the
-  adult frame's record count as one figure, so the frame unit counts its training split before
-  any gap is read, and condition 5 excludes it below 5,000. DEMO_L gives age "Age in years of the
-  participant at the time of screening. Individuals 80 and over are top-coded at 80 years of age."
-  and a two-valued `RIAGENDR`.
-- **ACS PUMS** ([`acs-nd`](../../literature.md#datasets)). The 2024 user guide says one year's PUMS files hold about one percent of the
-  United States population. No page read states the row count of one state-year, so the frame
-  unit counts its training split before any gap is read, and condition 5 excludes it below 5,000.
-  The 2024 data dictionary gives `AGEP` as numeric, "1..99 .1 to 99 years (Top-coded)", and `SEX`
-  with two codes. The outcome is income above the Folktables threshold, and the hierarchical coded
-  field is occupation, `OCCP`: "Occupation recode for 2018 and later based on 2018 OCC codes".
+- **SUPPORT2.** The Vanderbilt codebook ([`vanderbilt-2026`](../../literature.md#datasets))
+  reads "9105 observations and 47 variables, maximum # NAs:5641" and lists `hospdead` as "Death
+  in Hospital", with `age` stored as a double and `sex` with two levels. No page read states the
+  in-hospital death rate; the frame unit counts it from the training split. SUPPORT2's terms at
+  ICPSR (study 2957, the DOI the UCI page gives) are unopened: the page returned HTTP 403 to curl
+  and to a browser, and stayed on a bot check. UCI's page says only "See linked dataset for
+  licensing information." The frame unit pins the Vanderbilt archive, whose permission line is
+  quoted above.
+- **PhysioNet/CinC Challenge 2012** ([`silva-2012a`](../../literature.md#datasets)). "The data
+  used for the challenge consist of records from 12,000 ICU stays." The outcome is "In-hospital
+  death (0: survivor, or 1: died in-hospital)", with "Age (years)" and "Gender (0: female, or 1:
+  male)" among the descriptors. The challenge paper
+  ([`silva-2012b`](../../literature.md#datasets)) states "The overall mortality rate was 14.2%."
+  over the 12,000 stays. The page's file list holds the outcomes of sets A, B and C.
+- **NHAMCS 2022 ED** ([`nhamcs-nd`](../../literature.md#datasets)). The ED documentation serves
+  users of the emergency-department public-use file: "Each record on the ED file represents one
+  visit in the sample of 16,025 visits." `ADMITHOS` is "Admit to this hospital"; `AGE` is in
+  years, top-coded at "94 = 94 years or older"; `SEX` is coded 1 female, 2 male. The file is
+  public-use under the NCHS terms; it is not held under a separate agreement.
+- **NHANES August 2021 to August 2023.** No page read states the composite outcome's size. The
+  Medical Conditions codebook (MCQ_L, [`nhanes-2024`](../../literature.md#datasets)) gives each
+  component's Yes count among adults 20 and over: congestive heart failure (MCQ160b) 343,
+  coronary heart disease (MCQ160c) 402, heart attack (MCQ160e) 332, stroke (MCQ160f) 367, each of
+  roughly 7,800 answers. The composite of the four so holds between 402 and 1,444 adults; the
+  frame unit computes the union. No page read states the adult frame's record count as one
+  figure, so the frame unit counts its training split before any gap is read, and condition 5
+  excludes it below 5,000. DEMO_L gives age "Age in years of the participant at the time of
+  screening. Individuals 80 and over are top-coded at 80 years of age." and a two-valued
+  `RIAGENDR`.
+- **ACS PUMS** ([`acs-nd`](../../literature.md#datasets)). The 2024 user guide says one year's
+  PUMS files hold about one percent of the United States population. No page read states the row
+  count of one state-year, so the frame unit counts its training split before any gap is read,
+  and condition 5 excludes it below 5,000. The 2024 data dictionary gives `AGEP` as numeric,
+  "1..99 .1 to 99 years (Top-coded)", and `SEX` with two codes. The outcome is income above the
+  Folktables threshold, and the hierarchical coded field is occupation, `OCCP`: "Occupation recode
+  for 2018 and later based on 2018 OCC codes".
 
 **4. The `agreement` each chosen dataset's `Source` pin carries.** Each frame unit's pin carries
 `agreement=None`. No page read imposes a use agreement that bars sending records to a third-party
@@ -170,12 +179,13 @@ legal advice.
              individuals and establishments.
   ```
 
-  The NCHS Data User Agreement page ([`nchs-nd`](../../literature.md#datasets)) carries the same points, among them "Make no attempt to learn
-  the identity of any person or establishment included in these data." The reading: the privacy
-  readings (membership inference, NNDR, distance to closest record, the match attack, donor reuse)
-  score the generated rows a method writes, measure that method's disclosure, and attempt to
-  identify no person. They assess no NCHS disclosure method and do no re-identification research
-  on the NCHS files, so they lie outside the clause. Every reading runs on both datasets.
+  The NCHS Data User Agreement page ([`nchs-nd`](../../literature.md#datasets)) carries the
+  same points, among them "Make no attempt to learn the identity of any person or establishment
+  included in these data." The reading: the privacy readings (membership inference, NNDR,
+  distance to closest record, the match attack, donor reuse) score the generated rows a method
+  writes, measure that method's disclosure, and attempt to identify no person. They assess no
+  NCHS disclosure method and do no re-identification research on the NCHS files, so they lie
+  outside the clause. Every reading runs on both datasets.
 - **ACS PUMS.** "Therefore, users will not use these data, alone or in combination with any other
   Census or non-Census data, to identify any individual person, household, business or other
   entity; not link or combine these data with information in any other Census or non-Census
@@ -234,9 +244,9 @@ frame unit records its figure from the training split before reading any gap. An
 or an NHANES adult frame below 5,000 records is excluded by condition 5, and a dataset on which
 no cell passes the removed-cell filter is excluded by point 2; either way this record is revised
 before registration. The removed cell gives up E6's score-based choice: the first passing cell in
-grid order may resolve its contrasts less well than the cell E6's rule would pick. ICPSR's terms for SUPPORT2
-stay unread. The NCHS readings rest on the team's reading of the NCHS terms, not on a written
-permission from NCHS.
+grid order may resolve its contrasts less well than the cell E6's rule would pick. ICPSR's terms
+for SUPPORT2 stay unread. The NCHS readings rest on the team's reading of the NCHS terms, not on
+a written permission from NCHS.
 
 ## Ruled Out
 

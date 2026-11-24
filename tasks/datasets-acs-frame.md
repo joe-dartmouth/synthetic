@@ -17,9 +17,10 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A second domain tests whether the method depends on clinical ontologies. Occupation codes give
-the hierarchy a five-level tree to work on. No page states one state-year's row count;
-ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records what the PUMS user guide states, and this unit records the count from its file
-before any gap is read.
+the hierarchy a five-level tree to work on. No page states one state-year's row count; ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md)
+records what the PUMS user guide states, and this unit records the count from its file before any
+gap is read.
 
 ## Scope
 
@@ -36,8 +37,8 @@ before any gap is read.
   - every column the survey found an ontology for, its release held per dataset (unit
     [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md));
   - a `python -m bko.gaps acs` subcommand.
-- The `Source` pin carries the `agreement` value
-  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records for the Census terms, and the frame follows that ADR's reading of their
+- The `Source` pin carries the `agreement` value ADR `research/confirmatory-dataset-selection`
+  records for the Census terms, and the frame follows that ADR's reading of their
   re-identification clause.
 - A registry entry in [`docs/literature.md`](../docs/literature.md) for the Folktables work.
 
