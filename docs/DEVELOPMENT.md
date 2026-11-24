@@ -957,7 +957,8 @@ loaded data, and a schema-1 file's `uci` digest must match UCI Heart Disease's, 
 scores it.
 
 **`privacy`** reads a run's stored fills for membership inference, a field-group match attack,
-donor reuse and NNDR beside distance to closest record (ADR [`research/membership-inference-reading`](adr/research/membership-inference-reading.md)).
+donor reuse and NNDR beside distance to closest record
+(ADR [`research/membership-inference-reading`](adr/research/membership-inference-reading.md)).
 `<run>` is the named run whose slices' `rows` stores are read (`e6-thin`); `rows` runs first, one
 store per slice. `--rows` repeats, once per store, and the command refuses stores whose holdouts
 overlap or leave a holdout of the named run out. In zsh, `$(printf -- '--rows %s ' <paths>)`
@@ -966,50 +967,56 @@ call:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
 
-Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01
-and 0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is
-NaN and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `privacy.csv` holds the
-measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and
-`-label`; `mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`,
-`nndr-ties`, `nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for
-the held-out rows. It writes, for the added rows of every arm, the match attack's `match-auc`,
-`match-tpr01` and `match-tpr001`, suffixed by scope as the `mi-` measures are, and the donor reuse
-measures `donor-max` and `donor-p95`, NaN for an arm with no direct draw. For a run with a direct
-or perturbation arm it loads the pinned releases of the dataset's mapped concepts, as `trace`
-does, and re-draws each such arm's gap fill at its `arm` line's seed to read each row's donors.
-Its `privacy.log` opens with the `versions commit=` line, then `privacy run=%s
-stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
+Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01 and
+0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is NaN
+and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `privacy.csv` holds the
+measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and `-label`;
+`mi-tpr001` has no `-cell`), for the added rows, and `nndr-p5`, `nndr-median`, `nndr-ties`,
+`nndr-exact`, `dcr-p5` and `dcr-median` for the added rows and, as the baseline, for the held-out
+rows. It writes, for the added rows of every arm, the match attack's `match-auc`, `match-tpr01` and
+`match-tpr001`, suffixed by scope as the `mi-` measures are, and the donor reuse measures
+`donor-max` and `donor-p95`, NaN for an arm that is neither direct nor perturbation or a fill with
+no rows; a fill with rows but no donation reads `donor-max` 0 and `donor-p95` NaN. For a run with a
+direct or perturbation arm it loads the pinned releases of the dataset's mapped concepts, as `trace`
+does, fetching an absent one into the data root, and re-draws each such arm's gap fill at its `arm`
+line's seed to read each row's donors; a perturbation fill's candidate lines are paired with their
+draws as `trace` pairs them. Its `privacy.log` opens with the `versions commit=` line, then `privacy
+run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
 store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the
-bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs
-`privacy holdout=%d arm=%s added=%d` per arm (WARNING for an arm that adds no row), a WARNING
-`privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose attack is
-undefined in a scope (INFO for a cell scope with no member), for each direct or perturbation
-arm `privacy donor holdout=%d arm=%s donors=%d max=%d p95=%.2f`, and `privacy holdout=%d done=%d/%d
-seconds=%.1f elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the
-mean, the contrast against the reference arm (`real` for E6, `bko-direct` for the perturbation
-runs; a slice reads its run's), its
-corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN contrasts), and
-`leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or NNDR
-quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
-statistics, each scope's match statistics (`scope=match-outside`, `match-cell`, `match-label`)
-and the DCR and NNDR quantiles are separate families at family-wise 0.95, sized by
-their pairs of arm and measure with a defined interval; the cell scope's lines are descriptive,
-and where the cell keeps no training record (f = 1.0) its scope reads family=0 and every value
-NaN. `mi-tpr001` and `match-tpr001` have no line, nor do the donor measures. The last line is `privacy rows=%d sha256=%s readings=%d undefined=%d
-seconds=%.1f`, `undefined` counting the readings with no interval. `leaks_more` is a reading rule
-and no criterion.
+bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs, for an arm with rows
+whose match attack is undefined in a scope, a WARNING `privacy holdout=%d arm=%s scope=match-%s
+undefined members=%d nonmembers=%d` line (INFO for a cell scope with no member); for each direct or
+perturbation arm `privacy donor holdout=%d arm=%s donors=%d max=%.0f p95=%.2f seconds=%.1f`, `max`
+and `p95` the values the CSV holds and `seconds` the re-draw's; then, per arm, `privacy holdout=%d
+arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING `privacy holdout=%d arm=%s
+scope=%s undefined ...` line for an arm with rows whose distance attack is undefined in a scope
+(INFO for a cell scope with no member); and last `privacy holdout=%d done=%d/%d seconds=%.1f
+elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the mean, the contrast
+against the reference arm (`real` for E6, `bko-direct` for the perturbation runs; a slice reads its
+run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
+contrasts), and `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or
+NNDR quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
+statistics, each scope's match statistics (`scope=match-outside`, `match-cell`, `match-label`) and
+the DCR and NNDR quantiles are separate families at family-wise 0.95, sized by their pairs of arm
+and measure with a defined interval; the cell scope's lines are descriptive, and where the cell
+keeps no training record (f = 1.0) its scope reads family=0 and every value NaN. `mi-tpr001` and
+`match-tpr001` have no line, nor do the donor measures. The last line is `privacy rows=%d sha256=%s
+readings=%d undefined=%d seconds=%.1f`, `undefined` counting the readings with no interval.
+`leaks_more` is a reading rule and no criterion.
 
 Each store's folder is the header's folder name directly under the runs root, `--runs-dir DIR`
 (resolved to an absolute path; an empty value is refused) or else `runs/` beside the code; a name
 that resolves elsewhere, such as a symbolic link out of the root, is refused. A reading run from a
-frozen worktree passes the main checkout's `runs/` as `--runs-dir`. `--data-dir` sets the data
-root. The command exits 2 for a run with no reference arm, a run lacking it, or a run that removes
-no cell, and 3 for a store whose run is neither the named run nor a slice of it, whose header does
-not match its folder's `scores.log`, whose data digest differs, whose arm does not hash to the `arm`
+frozen worktree passes the main checkout's `runs/` as `--runs-dir`. `--data-dir` sets the data root.
+The command exits 2 for a run with no reference arm, a run lacking it, or a run that removes no
+cell, and, for a run with a direct or perturbation arm, when a mapped concept has no pinned release
+(`GapError`, a `DatasetError`) or a release cannot be fetched; 3 when a fetched release contradicts
+its pin, for a store whose run is neither the named run nor a slice of it, whose header does not
+match its folder's `scores.log`, whose data digest differs, whose arm does not hash to the `arm`
 line's sha256, whose holdouts overlap another store's or leave one of the run's out, or whose
 `split` line the data does not reproduce, and for a direct fill whose re-draw does not hash to its
-`arm` line's sha256, or a perturbation fill whose rows are not their re-draw outside the perturbed
-fields.
+`arm` line's sha256, or a perturbation fill whose candidate lines do not rebuild its rows or are not
+one per draw, or whose lines or stored rows are not their re-draw outside the perturbed fields.
 
 **The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR

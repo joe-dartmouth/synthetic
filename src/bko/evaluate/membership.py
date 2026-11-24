@@ -12,12 +12,16 @@ linear interpolation on `roc_curve(drop_intermediate=False)`; the cell scope rea
 resolves. Each arm also reads the NNDR and DCR of its added rows to the training split, and the
 held-out rows the same as a baseline (`privacy.distances_and_nndr`).
 
+Each arm also reads the match attack and, for an arm of `DONOR_ARMS`, donor reuse
+(`bko.evaluate.donor_attacks`); both attacks read their scopes and statistics through
+`bko.evaluate.attack_stats`.
+
 `privacy` reads one or more `rows` stores (`bko.evaluate.rows_read`), one per holdout slice of
 the named run, makes no API call, and writes the scores CSV. It logs the reading rule over
 `GROUPS` against the run family's `REFERENCE` arm (`bko.evaluate.reference`) through
-`bko.evaluate.privacy_rule`, which judges no criterion; each scope's attack statistics and the
-distances are separate families. ADR `research/membership-inference-reading` records the attack
-and the rule.
+`bko.evaluate.privacy_rule`, which judges no criterion; each scope's attack statistics, each
+scope's match statistics and the distances are separate families. ADR
+`research/membership-inference-reading` records the attacks, donor reuse and the rule.
 """
 
 from __future__ import annotations
@@ -240,11 +244,12 @@ def privacy(
     re-draws its fill under.
 
     It logs `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `read`'s
-    store lines, `privacy read stores=%d holdouts=%d`, `holdout_scores`' lines and a `privacy
-    holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f` line per holdout (`privacy holdout=%d
-    failed` at ERROR before a holdout's error), each `Reading`'s line, then `privacy rows=%d
-    sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined` counting the readings with no
-    interval.
+    store lines, `privacy read stores=%d holdouts=%d`, then per holdout `match_measures`'
+    `undefined` lines, `read_donors`' `privacy donor` line per arm of `DONOR_ARMS`,
+    `holdout_scores`' lines and a `privacy holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`
+    line (`privacy holdout=%d failed` at ERROR before a holdout's error); then each `Reading`'s
+    line, then `privacy rows=%d sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined`
+    counting the readings with no interval.
 
     Raises:
         EvaluationError: If the run names an arm of `DONOR_ARMS` and `ontologies` is None, or as

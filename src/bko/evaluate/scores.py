@@ -115,7 +115,8 @@ class Measure(enum.StrEnum):
     MATCH_TPR001_OUTSIDE = "match-tpr001-outside"
     MATCH_TPR001_LABEL = "match-tpr001-label"
     DONOR_MAX = "donor-max"
-    """The most added rows of a direct fill one training record donates a verbatim unit to."""
+    """The most added rows of a direct or perturbation fill one training record donates a verbatim
+    unit to (`bko.evaluate.donor_attacks`)."""
     DONOR_P95 = "donor-p95"
     """The 95th percentile (linear) of donations over the training records that donate."""
     HELD_OUT_RATIO = "held-out-ratio"

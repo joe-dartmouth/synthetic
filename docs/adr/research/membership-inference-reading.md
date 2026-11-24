@@ -4,7 +4,7 @@ topic: research
 created: 2026-11-05
 updated: 2026-11-24
 ---
-# Membership inference and NNDR read an arm's added rows against a null arm, outside the removed cell
+# Membership inference, verbatim matches and NNDR read an arm's added rows against a null arm, outside the removed cell
 
 ## Context
 
@@ -27,6 +27,10 @@ E6 removes most or all of one cell's training records and lets each arm add rows
 (ADR `research/diabetes-subgroup-removal-design`). The records removed are neither training
 records nor held-out records. The `real` arm adds exactly those removed records back, which are
 real records the attacker has not seen as members.
+
+A direct draw copies each field group of a row from one training record (ADR
+`research/bkb-direct-generation`), so a row can hold a record's values verbatim while its distance
+to that record stays large, and one record can lend its values to many rows.
 
 ## Decision Drivers
 
@@ -112,9 +116,15 @@ real records the attacker has not seen as members.
   perturbation changed stops counting. Per gap fill the reading writes `donor-max`, the most
   added rows one training record donates to, and `donor-p95`, the 95th percentile (linear) of
   donations over the records that donate at least once. Both are descriptive: no rule line reads
-  them. An arm with no draw, or a fill with no donation, reads NaN.
-- **Command.** `bko.evaluate.membership` holds the attack and `bko.evaluate.privacy_rule` the rule;
-  the `privacy` command of `python -m bko.evaluate` reads each run's rows stores and writes
+  them. A direct arm's re-draw must hash to its `arm` line's sha256. A perturbation arm's rows are
+  not its re-draw's, so its candidate lines are paired with the re-draw's draws as `trace` pairs
+  them, and its stored rows must match their draws outside the unmapped fields. A fill with rows
+  but no donation reads `donor-max` 0 and `donor-p95` NaN, over no donor; a fill with no rows,
+  and an arm that is neither direct nor perturbation, read NaN for both.
+- **Command.** `bko.evaluate.membership` holds the distance attack and the reading,
+  `bko.evaluate.attack_stats` the scopes and statistics every attack shares,
+  `bko.evaluate.donor_attacks` the match attack and donor reuse, and `bko.evaluate.privacy_rule`
+  the rule; the `privacy` command of `python -m bko.evaluate` reads each run's rows stores and writes
   `privacy.csv` and `privacy.log` ([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#evaluation)). It
   makes no API call.
 
@@ -148,9 +158,17 @@ scores. Below one non-member's share of the FPR axis the curve has no point to r
 NaN rather than a value interpolated from (0, 0).
 
 **Each group is its own family.** The attack scopes ask different questions of different records,
-and the distances are descriptive; one family over all of them would let a crowded scope widen the
-others' intervals. Counting only the pairs with a defined interval keeps an undefined rate from
+the match attack's scopes read another attack, and the distances are descriptive; one family over
+all of them would let a crowded scope widen the others' intervals. Counting only the pairs with a defined interval keeps an undefined rate from
 widening its neighbours'.
+
+**The match attack reads units, not columns.** A direct draw copies a field group whole from one
+record, so the group is the unit a copy shows; a column in no group is its own unit, so a frame
+with no mapped field still has units to read, and every arm on a frame is read on the same units.
+The match measures form their own families because adding them to the distance attack's would
+change that attack's `k`, and so every interval read before. Donor reuse reads its percentile over
+the records that donate, not over every training record: a fill draws from few records, so a
+percentile over all of them would read 0 for most fills.
 
 **The ratio is the held-out ratio.** `corrected_interval` takes n2 / n1, the held-out over training
 records, as E1's criteria do; the reading passes the same value, the largest across the holdouts
@@ -166,12 +184,13 @@ asked.
 
 **Gained**: a privacy reading that sees a copied training record where DCR's 5th percentile does
 not; a null arm every E6 contrast is read beside; NNDR beside DCR for every row-adding arm; a
-match attack that sees a copied field group, and each direct fill's donations per training record.
+match attack that sees a copied field group, and each direct or perturbation fill's donations per
+training record.
 **Accepted**: the cell scope is descriptive and undefined at f = 1.0; a scope with fewer than 1,000
 non-members has no TPR at 0.001, and one with fewer than 100 none at 0.01; no arm passes or
 fails; a distance-based attack is the weakest attack that reads copying, and misses an attacker
-with a reference model; donor reuse re-draws each direct fill, so it needs the pinned releases and
-is refused for a fill whose re-draw misses its `arm` line's sha256.
+with a reference model; donor reuse re-draws each direct or perturbation fill, so it needs the
+pinned releases and is refused for a fill whose re-draw fails `trace`'s identity checks.
 
 ## Ruled Out
 
@@ -186,7 +205,7 @@ is refused for a fill whose re-draw misses its `arm` line's sha256.
 | The donor percentile over every training record | Reads 0 for any fill that draws from fewer than 5% of the training split | 2026-11-24 |
 | Match measures inside the distance attack's families | Changes those families' `k`, and so every interval read before | 2026-11-24 |
 | Field groups alone as the match attack's units | An arm on a frame with no mapped field would have no unit to read | 2026-11-24 |
-| Shadow-model and density-ratio attacks | Need a second fit per arm and holdout, beyond this reading's no-new-fit scope | 2026-11-24 |
+| A density-ratio attack | Needs a density model fit per arm and holdout, beyond this reading's no-new-fit scope, as the reference-model attack does | 2026-11-24 |
 
 ## Enforcement
 
@@ -199,8 +218,8 @@ is refused for a fill whose re-draw misses its `arm` line's sha256.
 - Pinned by: `tests/test_evaluate_privacy.py` for the distances and NNDR;
   `tests/test_evaluate_membership.py` for the attack's calibration, its rate floor, the rule and
   the command's identity refusals; `tests/test_evaluate_donor_attacks.py` for the match attack,
-  donor reuse and their join to the `privacy` output; `tests/test_named_runs_slices.py` for the slices a store's run
-  may name
+  donor reuse and their join to the `privacy` output; `tests/test_named_runs_slices.py` for the
+  slices a store's run may name
 
 ## Reversal Conditions
 

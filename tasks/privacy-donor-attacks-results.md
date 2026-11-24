@@ -16,8 +16,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-`privacy` reads a field-group match attack and each direct fill's donor reuse
-(ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
+`privacy` reads a field-group match attack and each direct or perturbation fill's donor reuse
+(ADR
+[`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 Each reading over a run's stores takes hours, and a reviewed code PR is not held for them, so
 this unit runs and records them.
 
@@ -31,6 +32,8 @@ this unit runs and records them.
 - Each reading recorded as a Runs row of the
   [E8](../docs/EVIDENCE.md#e8-membership-inference-nndr-and-dcr-on-e6) and
   [E10](../docs/EVIDENCE.md#e10-identifier-perturbation) entries.
+- One sentence in E8's Configuration naming the match attack's units (the field groups plus a
+  singleton per other column) and donor reuse.
 
 **Out.**
 

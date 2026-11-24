@@ -32,8 +32,8 @@ records' values. A floor on donors and a cap on reuse bound that exposure.
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) relate.
 - Development `RUNS` entries against `bko-direct`, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. Its
-  target measure is `privacy`'s match-attack AUC
-  (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
+  target measure is `privacy`'s match-attack AUC (ADR
+  [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 
 **Out.**
 
