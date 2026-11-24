@@ -65,15 +65,29 @@ def _arm_scores(
         scores += _rows(seed, name, Source.ADDED, distances(added, train, frame=frame))
     training = training_set(train, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
+    shift_counts = (
+        cast("Mapping[str, Sequence[int]]", baseline.params["shift"])
+        if name == PRIOR_SHIFT_ARM
+        else None
+    )
     for model in ordered:
         fitted = _fitted(
             seed, name, training, clean, factory=models[model], frame=frame, model=model
         )
-        if name == PRIOR_SHIFT_ARM:
-            held = out_of_fold(training, factory=models[model], frame=frame, model=model, seed=seed)
-            counts = cast("Mapping[str, Sequence[int]]", baseline.params["shift"])
+        if shift_counts is not None:
+            held, folds = out_of_fold(
+                training, factory=models[model], frame=frame, model=model, seed=seed
+            )
             fitted = shifted(
-                fitted, held, train, clean, counts, edges=frame.edges, holdout=seed, model=model
+                fitted,
+                held,
+                train,
+                clean,
+                shift_counts,
+                edges=frame.edges,
+                holdout=seed,
+                model=model,
+                folds=folds,
             )
         measured = utility(
             clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
