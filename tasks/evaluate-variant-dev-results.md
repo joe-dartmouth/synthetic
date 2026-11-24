@@ -2,7 +2,7 @@
 id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
-depends_on: generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution
+depends_on: generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields
 blocks: evaluate-composite-arm
 parallel_safe: true
 milestone: direct-method-research
@@ -32,8 +32,9 @@ says which enter `bko-direct-2`.
   [`generate-coherent-free-fields`](generate-coherent-free-fields.md).
 - For each arm, `contradictions --rows` (ADR
   [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
-  Decision 2), the reading of unit
-  [`evaluate-trace-attribution`](evaluate-trace-attribution.md), and `privacy`'s match attack and
+  Decision 2), `attribution` (ADR
+  [`research/record-explainability`](../docs/adr/research/record-explainability.md), Decision 7),
+  and `privacy`'s match attack and
   donor reuse (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entries' Runs, Result and Read against.
 - For each variant, whether it meets the variant inclusion rule.

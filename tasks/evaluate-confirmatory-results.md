@@ -29,8 +29,9 @@ The study's claim rests on these runs.
   first. These are the only paid calls.
 - `rows`, `panel`, `privacy` and `contradictions --rows` (ADR
   [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
-  Decision 2), the reading of unit
-  [`evaluate-trace-attribution`](evaluate-trace-attribution.md), and `privacy`'s match attack and
+  Decision 2), `attribution` (ADR
+  [`research/record-explainability`](../docs/adr/research/record-explainability.md), Decision 7),
+  and `privacy`'s match attack and
   donor reuse (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 - Every registered contrast reported, null or not.
 - A deviations paragraph.
