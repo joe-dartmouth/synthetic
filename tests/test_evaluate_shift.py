@@ -6,25 +6,28 @@ import dataclasses
 import io
 import logging
 import math
+import warnings
 from typing import Final, cast
 
 import numpy as np
 import pandas as pd
 import pytest
 from scipy.special import logit
+from sklearn.exceptions import ConvergenceWarning
 
 from bko.baselines.request import Request, Strata
 from bko.datasets.cells import LABEL
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import run as run_module
 from bko.evaluate import shift as shift_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.classifier import Model, build
+from bko.evaluate.classifier import Factory, Model, build, build_mlp
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import PRIOR_SHIFT_ARM
 from bko.evaluate.run import run, score_holdout
 from bko.evaluate.scores import Measure, Source, render
-from bko.evaluate.shift import offset, out_of_fold, prior_shift, shifted
+from bko.evaluate.shift import BOUND, offset, out_of_fold, prior_shift, shifted
 from tests._baselines_fixtures import EDGE, full_records
 from tests._evaluate_bko_fixtures import NARROW
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
@@ -84,13 +87,21 @@ def test_an_empty_cell_gives_a_finite_offset(caplog):
     fitted = pd.Series([0.25], index=test.index)
     with caplog.at_level(logging.INFO):
         moved = shifted(
-            fitted, held_out, train, test, counts, edges=UCI_FRAME.edges, holdout=7, model=Model.LR
+            fitted,
+            held_out,
+            train,
+            test,
+            counts,
+            edges=UCI_FRAME.edges,
+            holdout=7,
+            model=Model.LR,
+            folds=5,
         )
     assert math.isfinite(moved.iloc[0])
     assert moved.iloc[0] == pytest.approx(0.5, abs=1e-9)
     assert (
         f"shift holdout=7 model=lr subgroup={YOUNG_WOMEN} records=3 target=0.500000"
-        f" offset={math.log(3):.6f}"
+        f" offset={math.log(3):.6f} negatives=3 positives=3 folds=5"
     ) in caplog.messages
 
 
@@ -104,11 +115,20 @@ def test_a_subgroup_with_no_training_record_gets_offset_0(caplog):
     held_out = pd.Series([0.4, 0.6], index=train.index)
     with caplog.at_level(logging.INFO):
         moved = shifted(
-            fitted, held_out, train, test, counts, edges=UCI_FRAME.edges, holdout=0, model=Model.LR
+            fitted,
+            held_out,
+            train,
+            test,
+            counts,
+            edges=UCI_FRAME.edges,
+            holdout=0,
+            model=Model.LR,
+            folds=5,
         )
     assert moved.iloc[0] == 0.3  # ruff: ignore[float-equality-comparison]
     assert (
         f"shift holdout=0 model=lr subgroup={YOUNG_WOMEN} records=0 target=1.000000 offset=0.000000"
+        " negatives=0 positives=2 folds=5"
     ) in caplog.messages
 
 
@@ -140,27 +160,180 @@ def test_records_outside_a_shifted_subgroup_keep_their_probability():
     test = _people([40, 60, 40, 60], [0, 0, 1, 1], [1, 0, 1, 0], start=10)
     fitted = pd.Series([0.1, 0.2, 0.3, 0.4], index=test.index)
     moved = shifted(
-        fitted, held_out, train, test, counts, edges=UCI_FRAME.edges, holdout=0, model=Model.LR
+        fitted,
+        held_out,
+        train,
+        test,
+        counts,
+        edges=UCI_FRAME.edges,
+        holdout=0,
+        model=Model.LR,
+        folds=5,
     )
-    assert moved.iloc[0] > 0.1
+    assert moved.iloc[0] == pytest.approx(0.5957252408878008, abs=1e-9)
     assert moved.iloc[1:].tolist() == [0.2, 0.3, 0.4]
     assert moved.index.equals(fitted.index)
 
 
+def test_the_shift_reads_no_test_label():
+    train = _people([40, 40, 60, 60], [0, 0, 1, 1], [0, 1, 0, 1])
+    counts = {YOUNG_WOMEN: [1, 5]}
+    held_out = pd.Series([0.2, 0.4, 0.5, 0.5], index=train.index)
+    test = _people([40, 40, 60], [0, 0, 1], [1, 0, 1], start=10)
+    fitted = pd.Series([0.1, 0.2, 0.3], index=test.index)
+    flipped = test.assign(**{LABEL: 1 - test[LABEL]})
+    kwargs = {"edges": UCI_FRAME.edges, "holdout": 0, "model": Model.LR, "folds": 5}
+    moved = shifted(fitted, held_out, train, test, counts, **kwargs)
+    assert moved.equals(shifted(fitted, held_out, train, flipped, counts, **kwargs))
+    assert moved.iloc[0] != 0.1  # ruff: ignore[float-equality-comparison]
+
+
+def test_a_zero_offset_keeps_a_probability_that_logit_and_expit_move(monkeypatch):
+    # expit(logit(0.1)) is 0.10000000000000002, so only skipping a zero offset keeps 0.1.
+    monkeypatch.setattr(shift_module, "offset", lambda predicted, target: 0.0)
+    train = _people([40, 40], [0, 0], [0, 1])
+    test = _people([40], [0], [1], start=10)
+    fitted = pd.Series([0.1], index=test.index)
+    held_out = pd.Series([0.3, 0.6], index=train.index)
+    moved = shifted(
+        fitted,
+        held_out,
+        train,
+        test,
+        {YOUNG_WOMEN: [1, 3]},
+        edges=UCI_FRAME.edges,
+        holdout=0,
+        model=Model.LR,
+        folds=5,
+    )
+    assert moved.iloc[0] == 0.1  # ruff: ignore[float-equality-comparison]
+
+
+def test_an_offset_at_the_bound_logs_a_warning(caplog):
+    train = _people([40, 40, 60], [0, 0, 1], [1, 1, 0])
+    held_out = pd.Series([1e-15, 1e-15, 0.5], index=train.index)
+    test = _people([40], [0], [1], start=10)
+    fitted = pd.Series([0.3], index=test.index)
+    with caplog.at_level(logging.INFO):
+        shifted(
+            fitted,
+            held_out,
+            train,
+            test,
+            {YOUNG_WOMEN: [0, 3]},
+            edges=UCI_FRAME.edges,
+            holdout=4,
+            model=Model.LR,
+            folds=2,
+        )
+    assert (
+        f"shift holdout=4 model=lr subgroup={YOUNG_WOMEN} records=2 target=1.000000"
+        f" offset={BOUND:.6f} negatives=0 positives=3 folds=2"
+    ) in caplog.messages
+    warned = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warned == [f"shift bound holdout=4 model=lr subgroup={YOUNG_WOMEN} offset=64.000000"]
+
+
 def test_out_of_fold_predicts_every_training_record_from_a_fit_without_it():
     train = full_records(10).assign(weight=1.0)
-    found = out_of_fold(train, factory=build, frame=UCI_FRAME, model=Model.LR, seed=3)
+    found, folds = out_of_fold(train, factory=build, frame=UCI_FRAME, model=Model.LR, seed=3)
+    assert folds == 5
     assert found.index.equals(train.index)
     assert found.between(0.0, 1.0).all()
-    again = out_of_fold(train, factory=build, frame=UCI_FRAME, model=Model.LR, seed=3)
+    again, _ = out_of_fold(train, factory=build, frame=UCI_FRAME, model=Model.LR, seed=3)
     assert found.equals(again)
+    other, _ = out_of_fold(train, factory=build, frame=UCI_FRAME, model=Model.LR, seed=4)
+    assert not found.equals(other)
+
+
+class _Memorizer:
+    """A model that records the records it fits on and predicts, predicting 0.5 for each."""
+
+    def __init__(self, fits: list[tuple[set[int], set[int]]]) -> None:
+        self.fits = fits
+        self.seen: set[int] = set()
+
+    def fit(self, features: pd.DataFrame, _labels: pd.Series, **_params: object) -> _Memorizer:
+        self.seen = set(features.index)
+        return self
+
+    def predict_proba(self, features: pd.DataFrame) -> np.ndarray:
+        self.fits.append((self.seen, set(features.index)))
+        return np.full((len(features), 2), 0.5)
+
+
+def _spied(train: pd.DataFrame) -> list[tuple[set[int], set[int]]]:
+    fits: list[tuple[set[int], set[int]]] = []
+    found, folds = out_of_fold(
+        train,
+        factory=cast("Factory", lambda _frame: _Memorizer(fits)),
+        frame=UCI_FRAME,
+        model=Model.LR,
+        seed=0,
+    )
+    assert folds == len(fits)
+    assert found.index.equals(train.index)
+    return fits
+
+
+def test_each_fold_fits_without_the_records_it_predicts():
+    train = full_records(10).assign(weight=1.0)
+    fits = _spied(train)
+    assert len(fits) == 5
+    assert all(not (seen & held) for seen, held in fits)
+    assert all(seen | held == set(train.index) for seen, held in fits)
+    assert set().union(*(held for _, held in fits)) == set(train.index)
+
+
+def test_a_label_of_fewer_than_5_records_sets_the_fold_count():
+    train = full_records(10).assign(weight=1.0)
+    three = train[(train[LABEL] == 0) | train.index.isin(train.index[train[LABEL] == 1][:3])]
+    assert len(_spied(three)) == 3
 
 
 def test_out_of_fold_refuses_a_label_of_fewer_than_2_records():
     train = full_records(10).assign(weight=1.0)
     lone = train[(train[LABEL] == 0) | (train.index == train.index[train[LABEL] == 1][0])]
-    with pytest.raises(EvaluationError, match="folds"):
+    with pytest.raises(EvaluationError, match=r"holdout 0's prior-shift arm, model lr: .*folds"):
         out_of_fold(lone, factory=build, frame=UCI_FRAME, model=Model.LR, seed=0)
+
+
+def test_out_of_fold_refuses_a_training_set_missing_a_label():
+    train = full_records(10).assign(weight=1.0)
+    negatives = train[train[LABEL] == 0]
+    with pytest.raises(EvaluationError, match="need 2 folds"):
+        out_of_fold(negatives, factory=build, frame=UCI_FRAME, model=Model.LR, seed=0)
+
+
+class _Unconverged(_Memorizer):
+    """A model whose fit warns that it did not converge."""
+
+    def fit(self, features: pd.DataFrame, _labels: pd.Series, **_params: object) -> _Memorizer:
+        warnings.warn("no convergence", ConvergenceWarning, stacklevel=2)
+        return self
+
+
+def test_a_fold_fit_refusal_names_the_holdout_the_arm_the_model_and_the_fold():
+    train = full_records(10).assign(weight=1.0)
+    with pytest.raises(
+        EvaluationError,
+        match=r"^holdout 3's prior-shift arm, model lr, fold 0: the classifier did not converge",
+    ):
+        out_of_fold(
+            train,
+            factory=cast("Factory", lambda _frame: _Unconverged([])),
+            frame=UCI_FRAME,
+            model=Model.LR,
+            seed=3,
+        )
+
+
+def test_a_fixed_epoch_fold_fit_logs_whether_it_converged(caplog):
+    train = full_records(10).assign(weight=1.0)
+    with caplog.at_level(logging.INFO):
+        out_of_fold(train, factory=build_mlp, frame=UCI_FRAME, model=Model.MLP, seed=3)
+    folds = [m for m in caplog.messages if m.startswith("shift fold ")]
+    assert folds == [f"shift fold holdout=3 model=mlp fold={k} converged=false" for k in range(5)]
 
 
 def _others(text: str) -> list[str]:
@@ -187,8 +360,12 @@ def test_prior_shift_adds_no_rows(with_shift):
     assert [float(row[5]) for row in rows] == [0.0, 0.0]
 
 
+def test_run_arms_maps_prior_shift_to_its_runner():
+    assert run_module.ARMS[PRIOR_SHIFT_ARM] is prior_shift
+
+
 def test_prior_shift_with_offsets_forced_to_zero_equals_nones_scores(monkeypatch):
-    monkeypatch.setattr(shift_module, "offset", lambda probabilities, target: 0.0)
+    monkeypatch.setattr(shift_module, "offset", lambda predicted, target: 0.0)
     text = render(run(GRADED, WITH, ARMS, frame=UCI_FRAME))
     lines = [line.split(",") for line in text.splitlines()[1:]]
     augmented = Source.AUGMENTED.value
@@ -196,6 +373,25 @@ def test_prior_shift_with_offsets_forced_to_zero_equals_nones_scores(monkeypatch
     nones = [row[:1] + row[2:] for row in lines if row[1] == "none" and row[2] == augmented]
     assert mine
     assert mine == nones
+
+
+def _flagged_recalls(rows: list[str], arm: str) -> list[float]:
+    return [
+        float(row.split(",")[5])
+        for row in rows
+        if row.split(",")[1:3] == [arm, Source.AUGMENTED.value]
+        and row.split(",")[3] in {"recall", "recall-hgb"}
+        and row.split(",")[4] == "flagged-subgroups"
+    ]
+
+
+def test_a_large_offset_flags_every_shifted_test_record(monkeypatch):
+    monkeypatch.setattr(shift_module, "offset", lambda predicted, target: 30.0)
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    rows = render(score_holdout(parts, WITH, ARMS, frame=UCI_FRAME)).splitlines()
+    shifted_recalls = _flagged_recalls(rows, PRIOR_SHIFT_ARM)
+    assert shifted_recalls == [1.0, 1.0]
+    assert min(_flagged_recalls(rows, "none")) < 1.0
 
 
 def test_prior_shift_scores_each_model(with_shift, caplog):
