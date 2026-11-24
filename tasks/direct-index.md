@@ -23,7 +23,6 @@ unit's `milestone` is `direct-method-research`, the
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
-| [`privacy-donor-attacks-results`](privacy-donor-attacks-results.md) | ready | -- | direct-method-research |
 | [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
