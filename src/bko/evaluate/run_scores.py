@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Mapping
-from typing import Final
+from collections.abc import Mapping, Sequence
+from typing import Final, cast
 
 import pandas as pd
 
@@ -22,9 +22,11 @@ from bko.datasets.split import Split
 from bko.evaluate.classifier import MODELS, Factory, Model, probabilities
 from bko.evaluate.copies import copies
 from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import PRIOR_SHIFT_ARM
 from bko.evaluate.fidelity import MEASURES, fidelity
 from bko.evaluate.privacy import distances
 from bko.evaluate.scores import Measure, Scope, Score, Source, suffixed
+from bko.evaluate.shift import out_of_fold, shifted
 from bko.evaluate.utility import undefined, utility
 
 
@@ -50,6 +52,8 @@ def _arm_scores(
 
     The regression's utility comes first, then each other model's in `models`' order, each with
     its calibration measures when `calibration` holds.
+    `PRIOR_SHIFT_ARM`'s probabilities are `shifted` per model by offsets solved on the model's
+    `out_of_fold` predictions of the training split.
     """
     train, added = parts.train, baseline.added
     counts = {
@@ -65,6 +69,12 @@ def _arm_scores(
         fitted = _fitted(
             seed, name, training, clean, factory=models[model], frame=frame, model=model
         )
+        if name == PRIOR_SHIFT_ARM:
+            held = out_of_fold(training, factory=models[model], frame=frame, model=model, seed=seed)
+            counts = cast("Mapping[str, Sequence[int]]", baseline.params["shift"])
+            fitted = shifted(
+                fitted, held, train, clean, counts, edges=frame.edges, holdout=seed, model=model
+            )
         measured = utility(
             clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
         )

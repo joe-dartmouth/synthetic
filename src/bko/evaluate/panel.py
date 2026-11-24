@@ -2,15 +2,15 @@
 
 `panel` rescores a folder through `bko.evaluate.shared.rescore` at `bko.evaluate.classifier.PANEL`
 with the calibration measures, and makes no API call. Each BKO arm is a `StoredArm`, rebuilt from
-the folder's candidates file; `none` and `class-weight`, which add no rows, are regenerated; every
-other arm is a `StoredBaseline`, answered from the `rows` store. After a holdout passes identity
-checks 3 and 4, `bko.evaluate.rows.compare_holdout` holds it to the strict check 7 against the
-folder's `scores.csv`, admitting what `rows` admits and the panel models' and the calibration
-measures (`admitted`), so any moved regression or boosting value exits 3. Check 2 lets the panel's
-`models=` list extend the folder's. The whole reading runs inside `threadpool_limits(limits=1)`,
-which bounds every thread-pool API threadpoolctl detects; the documented command's
-`VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1` bounds Accelerate and OpenMP from process start. ADR
-`research/classifier-panel` records the panel and how it reads a folder.
+the folder's candidates file; `none`, `class-weight` and `prior-shift`, which add no rows, are
+regenerated; every other arm is a `StoredBaseline`, answered from the `rows` store. After a
+holdout passes identity checks 3 and 4, `bko.evaluate.rows.compare_holdout` holds it to the strict
+check 7 against the folder's `scores.csv`, admitting what `rows` admits and the panel models'
+and the calibration measures (`admitted`), so any moved regression or boosting value exits 3.
+Check 2 lets the panel's `models=` list extend the folder's. The whole reading runs inside
+`threadpool_limits(limits=1)`, which bounds every thread-pool API threadpoolctl detects; the
+documented command's `VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1` bounds Accelerate and OpenMP from
+process start. ADR `research/classifier-panel` records the panel and how it reads a folder.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from bko.baselines.request import Method, Request
 from bko.evaluate.classifier import MODELS, PANEL, Factory, Model
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
-from bko.evaluate.experiment import REAL_ARM, Experiment
+from bko.evaluate.experiment import PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.filling import Logged, ReplayError
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.rows import ScoreKey, compare_holdout, folder_scores, held_out, subsampled
@@ -45,9 +45,9 @@ from bko.evaluate.shared import logged_params, rescore
 
 logger = logging.getLogger("bko.evaluate")
 
-REGENERATED: Final = frozenset({Method.NONE.value, Method.CLASS_WEIGHT.value})
-"""The arms `panel` runs again: they add no rows, and `class-weight` reaches the model through its
-weights, which the store does not hold."""
+REGENERATED: Final = frozenset({Method.NONE.value, Method.CLASS_WEIGHT.value, PRIOR_SHIFT_ARM})
+"""The arms `panel` runs again: they add no rows, `class-weight` reaches the model through its
+weights, which the store does not hold, and `prior-shift` through its params' counts."""
 
 ADMITTED: Final = frozenset(
     {

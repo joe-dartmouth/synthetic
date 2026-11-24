@@ -34,6 +34,7 @@ from bko.evaluate.experiment import (
     CLLM_RAW_ARM,
     DIRECT_ARM,
     E1,
+    PRIOR_SHIFT_ARM,
     REAL_ARM,
     SKELETON_ARM,
     Experiment,
@@ -44,6 +45,7 @@ from bko.evaluate.launch import REHEARSAL
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run import method_arms
 from bko.evaluate.scores import Source, parse
+from bko.evaluate.shift import prior_shift
 from bko.gaps.shares import nested
 from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.prompt import system
@@ -125,7 +127,7 @@ def _context(source=PIN, **runs: Experiment) -> Context:
     return Context(
         open_url=RoutingOpener({**served, source.url: ARCHIVE}),
         runs={name: NamedRun(run, SETTINGS, Dataset.DIABETES) for name, run in runs.items()},
-        arms=method_arms(FAST_METHODS),
+        arms={**method_arms(FAST_METHODS), PRIOR_SHIFT_ARM: prior_shift},
         releases=pins,
         send=_unsendable,
         diabetes=source,
@@ -243,8 +245,9 @@ EVERY_ARM: Final = (
     CLLM_ARM,
     CLLM_RAW_ARM,
     REAL_ARM,
+    PRIOR_SHIFT_ARM,
 )
-"""E6's arms: every method, every Messages arm, the direct arm and `real`."""
+"""E6's arms: every method, every Messages arm, the direct arm, `real` and `prior-shift`."""
 
 EMPTIED: Final = dataclasses.replace(
     TOY_RUN,
@@ -403,7 +406,7 @@ def _launching(runs: dict[str, NamedRun]) -> Context:
         Context(
             open_url=RoutingOpener({**served, PIN.url: ARCHIVE}),
             runs=runs,
-            arms=method_arms(FAST_METHODS),
+            arms={**method_arms(FAST_METHODS), PRIOR_SHIFT_ARM: prior_shift},
             releases=pins,
             send=_unsendable,
             diabetes=PIN,

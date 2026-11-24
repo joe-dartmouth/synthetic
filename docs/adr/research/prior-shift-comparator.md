@@ -84,8 +84,10 @@ the arm scores as `none` does.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/run_scores.py`
-- Pinned by: `tests/test_evaluate_run.py`
+- Owner: `src/bko/evaluate/run_scores.py`, with the solver in `src/bko/evaluate/shift.py`
+- Pinned by: `tests/test_evaluate_run.py`, `tests/test_evaluate_shift.py` (the hand-computed
+  offsets, the finite offset at an empty cell, and every other arm's rows byte for byte with and
+  without the arm), `tests/test_evaluate_panel_shift.py`
 
 ## Reversal Conditions
 

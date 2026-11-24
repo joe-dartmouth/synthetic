@@ -36,7 +36,14 @@ from bko.datasets.split import Split, split
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import REAL_ARM, Experiment, flagged, gap_request, replica_request
+from bko.evaluate.experiment import (
+    PRIOR_SHIFT_ARM,
+    REAL_ARM,
+    Experiment,
+    flagged,
+    gap_request,
+    replica_request,
+)
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
 from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
 from bko.evaluate.privacy import distances
@@ -52,6 +59,7 @@ from bko.evaluate.run_scores import (
 )
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
+from bko.evaluate.shift import prior_shift
 
 
 logger = logging.getLogger(__name__)
@@ -72,8 +80,10 @@ def _method_arm(
     return augment(train, method, asked, methods=methods)
 
 
-ARMS: Final[Mapping[str, Runner]] = MappingProxyType(method_arms())
-"""Every comparison method of `bko.baselines`, by name."""
+ARMS: Final[Mapping[str, Runner]] = MappingProxyType(
+    {**method_arms(), PRIOR_SHIFT_ARM: prior_shift}
+)
+"""Every comparison method of `bko.baselines`, by name, and the control `prior-shift`."""
 
 type Drain = Callable[[int, Source], Mapping[Measure, float]]
 """A BKO arm's counts since the last call, given the holdout's seed and the source they score as.
