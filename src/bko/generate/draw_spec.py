@@ -29,6 +29,16 @@ class DrawSpec:
     presence: Presence = Presence.SHARES
     mapped: bool = True
 
+    def __post_init__(self) -> None:
+        """Refuse a presence other than shares without the table, which has no concept to place.
+
+        Raises:
+            ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false.
+        """
+        if self.presence is not Presence.SHARES and not self.mapped:
+            msg = f"presence {self.presence.value} has no meaning without the mapping table"
+            raise ValueError(msg)
+
     def values(self) -> dict[str, object]:
         """Every field, an enum as its value, in field order: what `params` logs it as."""
         return {field.name: _plain(getattr(self, field.name)) for field in dataclasses.fields(self)}

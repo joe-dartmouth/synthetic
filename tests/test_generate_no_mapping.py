@@ -122,6 +122,11 @@ def test_a_nomap_spec_logs_mapped_false():
     assert NOMAP.tokens() == " mapped=false"
 
 
+def test_a_logic_presence_without_the_table_is_refused():
+    with pytest.raises(ValueError, match="no meaning without the mapping table"):
+        DrawSpec(presence=Presence.LOGIC, mapped=False)
+
+
 @pytest.mark.parametrize("seed", [0, 1, 7])
 def test_a_nomap_draw_is_a_uniform_pick_per_column_from_the_cell_pool(seed):
     train = varied()

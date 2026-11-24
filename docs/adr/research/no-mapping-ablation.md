@@ -29,9 +29,10 @@ the table carries.
 
 ## Decision
 
-1. **The draw spec.** `DrawSpec` is a frozen dataclass in `bko.generate` with
-   `presence: Presence = Presence.SHARES` and `mapped: bool = True`. `sample`, `DirectArm` and
-   `redraw` take a `spec`. `bko-direct` and `bko-direct-pram` draw at the default spec,
+1. **The draw spec.** `DrawSpec` is a frozen dataclass in `bko.generate.draw_spec` with
+   `presence: Presence = Presence.SHARES` and `mapped: bool = True`; it refuses a presence other
+   than shares at `mapped=False`, since presence has no meaning without the table. `sample`,
+   `DirectArm` and `redraw` take a `spec`. `bko-direct` and `bko-direct-pram` draw at the default spec,
    `bko-logic` at `presence=logic`, and `bko-nomap` at `mapped=False`.
 2. **No table.** At `mapped=False` the sampler reads an empty mapping table: no concept, share,
    prior or field group. Every column but `age`, `sex` and the label is a free field, picked
