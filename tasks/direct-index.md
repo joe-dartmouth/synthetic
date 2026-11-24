@@ -81,8 +81,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | generate-ancestor-shrunk-shares | direct-method-research |
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
-| [`slm-lora-spike`](slm-lora-spike.md) | ready | -- | direct-method-research |
-| [`slm-lora-trainer`](slm-lora-trainer.md) | blocked | slm-lora-spike | direct-method-research |
+| [`slm-lora-trainer`](slm-lora-trainer.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap | direct-method-research |
 
 ```mermaid
@@ -145,9 +144,8 @@ flowchart LR
     u31 --> u42
     u13 --> u32[ontology-auto-mapping]
     u32 --> u33[ontology-auto-mapping-results]
-    u34[slm-lora-spike] --> u35[slm-lora-trainer]
     u29 --> u36[slm-lora-results]
-    u35 --> u36
+    u35[slm-lora-trainer] --> u36
     u4 --> u36
 ```
 
