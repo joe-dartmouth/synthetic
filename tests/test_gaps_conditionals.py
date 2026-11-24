@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 import pandas as pd
@@ -11,7 +12,14 @@ from bko.datasets.uci import UCI_FRAME
 from bko.gaps.contradictions import is_a_pairs
 from bko.gaps.definitions import Definition, gaps
 from bko.gaps.detect import ontology_fragments
-from bko.gaps.observe import conditional_fragment, dataset_fragment, observe_records, record_cells
+from bko.gaps.errors import GapError
+from bko.gaps.observe import (
+    Observed,
+    conditional_fragment,
+    dataset_fragment,
+    observe_records,
+    record_cells,
+)
 from bko.gaps.shares import draw_order, label_only, nested, shares
 from bko.generate.direct import _Plan
 from bko.generate.presence import Presence
@@ -112,11 +120,114 @@ def test_shares_and_detect_read_the_same_values_with_pairs_observed(kind):
         assert shares(records_of, group_paired) == shares(plain.each[cell], group)
 
 
-def test_draw_order_puts_a_narrow_concept_before_its_broad_one_and_refuses_a_cycle():
+def test_each_cell_counts_its_own_records_showing_both():
+    split = frame(
+        [
+            planted(sex=1, cp=1, exang=1),
+            planted(sex=1, cp=1, exang=0),
+            planted(sex=0, cp=1, exang=1),
+            planted(sex=0, cp=1, exang=1),
+            planted(sex=0, cp=1, exang=1),
+            planted(sex=0, cp=1, exang=0),
+            planted(sex=0, cp=4, exang=1),
+        ]
+    )
+    cells = record_cells(split, BASE_ROWS, name=NAME, edges=UCI_FRAME.edges, pairs=[PAIR])
+    assert cells.whole.both == {PAIR: 4}
+    held = {cell[1]: each.observed for cell, each in cells.each.items() if each.observed.records}
+    assert {sex: observed.both[PAIR] for sex, observed in held.items()} == {
+        "male": 1,
+        "female": 3,
+    }
+    found = {}
+    for sex, observed in held.items():
+        (snode,) = [snode for snode in conditional_fragment(observed).snodes if snode.tail]
+        found[sex] = snode.prob
+    assert found == {"male": 0.5, "female": 0.75}
+    assert all(
+        not each.observed.both[PAIR] for each in cells.each.values() if not each.observed.records
+    )
+
+
+def test_conditionals_come_out_in_sorted_pair_order():
+    split = frame([planted(cp=1, exang=1, restecg=2), planted(cp=1, exang=0, restecg=1)])
+    inner = (INNER, OUTER)
+    observed = observe_records(split, BASE_ROWS, name=NAME, pairs=[inner, PAIR])
+    tailed = [
+        (next(iter(snode.tail))[0], snode.head[0])
+        for snode in conditional_fragment(observed).snodes
+        if snode.tail
+    ]
+    assert tailed == sorted([inner, PAIR])
+    assert tailed == [PAIR, inner]
+
+
+def test_both_is_read_only():
+    observed = observe_records(records((1, 1)), BASE_ROWS, name=NAME, pairs=[PAIR])
+    with pytest.raises(TypeError):
+        observed.both[PAIR] = 0  # ty: ignore[invalid-assignment]
+
+
+def _observe_with(pair: tuple[str, str]) -> object:
+    return observe_records(records((1, 1)), BASE_ROWS, name=NAME, pairs=[pair])
+
+
+def _cells_with(pair: tuple[str, str]) -> object:
+    return record_cells(records((1, 1)), BASE_ROWS, name=NAME, edges=UCI_FRAME.edges, pairs=[pair])
+
+
+@pytest.mark.parametrize(
+    "reader",
+    [
+        pytest.param(_observe_with, id="observe_records"),
+        pytest.param(_cells_with, id="record_cells"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("pair", "named"),
+    [
+        pytest.param((NARROW, "HP:0000001"), "HP:0000001", id="unmapped"),
+        pytest.param((NARROW, NARROW), NARROW, id="itself"),
+    ],
+)
+def test_a_pair_the_rows_cannot_count_is_refused(reader, pair, named):
+    with pytest.raises(GapError, match=re.escape(named)):
+        reader(pair)
+
+
+def test_observed_refuses_a_pair_naming_a_concept_without_a_count():
+    with pytest.raises(GapError, match=r"no count for: x, y$"):
+        Observed(name=NAME, records=2, holders={"a": 1}, both={("x", "y"): 0})
+
+
+def test_observed_refuses_a_both_count_above_either_concepts_holders():
+    with pytest.raises(GapError, match=r"counts 2 records showing both a and b, more than the 1"):
+        Observed(name=NAME, records=3, holders={"a": 3, "b": 1}, both={("a", "b"): 2})
+    kept = Observed(name=NAME, records=3, holders={"a": 3, "b": 1}, both={("a", "b"): 1})
+    assert kept.both == {("a", "b"): 1}
+
+
+def test_draw_order_puts_a_narrow_concept_before_its_broad_one():
     assert draw_order(["a", "b", "c", "d"], [("d", "b"), ("b", "a")]) == ("c", "d", "b", "a")
     assert draw_order(["b", "a"], []) == ("a", "b")
-    with pytest.raises(ValueError, match="a, b"):
-        draw_order(["a", "b", "c"], [("a", "b"), ("b", "a")])
+
+
+def test_draw_order_sets_a_depth_one_past_the_deepest_narrow_concept():
+    pairs = [("d", "b"), ("b", "a"), ("c", "a")]
+    assert draw_order(["a", "b", "c", "d"], pairs) == ("c", "d", "b", "a")
+
+
+def test_draw_order_ignores_a_pair_with_an_end_outside_the_concepts():
+    assert draw_order(["a", "b"], [("a", "b"), ("b", "z"), ("z", "a")]) == ("a", "b")
+
+
+def test_draw_order_names_exactly_a_cycle_and_the_concepts_above_it():
+    pairs = [("a", "b"), ("b", "a"), ("b", "c")]
+    with pytest.raises(ValueError, match="hold a cycle or depend on one") as raised:
+        draw_order(["a", "b", "c", "d"], pairs)
+    names = re.fullmatch(r"the pairs over (.*) hold a cycle or depend on one", str(raised.value))
+    assert names is not None
+    assert names.group(1).split(", ") == ["a", "b", "c"]
 
 
 def _plan_order(rows: tuple[FieldMapping, ...], releases: Mapping) -> tuple[str, ...]:
@@ -136,5 +247,8 @@ def test_draw_order_equals_the_plans_order_on_nested_pairs(rows):
     pairs = nested(rows).items()
     assert pairs
     assert draw_order(concepts, pairs) == _plan_order(rows, ontologies())
-    if rows is BASE_ROWS:
-        assert draw_order(concepts, pairs).index(INNER) < draw_order(concepts, pairs).index(OUTER)
+
+
+def test_draw_order_puts_the_fixtures_inner_concept_before_its_outer_one():
+    order = draw_order([OUTER, INNER], nested(BASE_ROWS).items())
+    assert order.index(INNER) < order.index(OUTER)
