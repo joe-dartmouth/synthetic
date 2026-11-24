@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-11-08
+updated: 2026-11-24
 ---
 # src layout, one subpackage per pipeline stage
 
@@ -28,7 +28,7 @@ pipeline stage, plus `bko.core`, the helpers no stage owns:
 | Subpackage | Stage | Extra it will import |
 |---|---|---|
 | `core` | Helpers no stage owns | none |
-| `datasets` | UCI Heart Disease and Synthea loading | `data` |
+| `datasets` | UCI Heart Disease, Synthea and Diabetes 130 loading | `data` |
 | `ontology` | MONDO, HPO and DO loading; field mapping; BKO fragments | `ontology` |
 | `bkb` | Bayesian Knowledge Base representation, fusion and reasoning | none |
 | `gaps` | Ungrounded-statement and count-based gap detection | `data` |

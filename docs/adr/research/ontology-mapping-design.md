@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-09
+updated: 2026-11-24
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -109,7 +109,9 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   concept carries its xref is an `UnmappedIcd9` row in `UNMAPPED_ICD9`, and the check refuses one
   that gains a holder. A lab row (`LAB_MAPPINGS`) maps the archive's result states of
   `A1Cresult` and `max_glu_serum`, verbatim, to an HPO phenotype. The rows' concepts join the
-  table's scope.
+  table's scope. The `diabetes-codes` frame's per-code rows are generated from the release's exact
+  xrefs and stay outside the scope (ADR
+  [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md)).
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
@@ -254,3 +256,4 @@ is a comparison of that configuration with `bko.datasets.sources`.
 - [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
+- [The diabetes-codes dataset keeps each ICD-9 diagnosis code and maps it through MONDO's exact xrefs](diabetes-diagnosis-codes.md)
