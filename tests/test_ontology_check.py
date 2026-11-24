@@ -11,6 +11,7 @@ import pytest
 
 from bko.ontology.check import Verdict, check
 from bko.ontology.icd9 import UnmappedIcd9
+from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import (
@@ -242,13 +243,17 @@ def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
     }
 
 
+_CURATED_ROWS = tuple(row for row in CHECKED_ROWS if row not in set(ICD9_CODES))
+"""The checked rows but the generated code rows, which `tests/test_ontology_codes.py` checks."""
+
+
 def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
-    verdicts = check(CHECKED_ROWS, _fixture_releases(tmp_path))
-    assert [v.problem for v in verdicts] == [None] * len(CHECKED_ROWS)
+    verdicts = check(_CURATED_ROWS, _fixture_releases(tmp_path))
+    assert [v.problem for v in verdicts] == [None] * len(_CURATED_ROWS)
     assert {"excluded-code", "icd9", "excluded-icd9"} <= {v.table for v in verdicts}
     table_hp = {
         row.concept: row.label
-        for row in CHECKED_ROWS
+        for row in _CURATED_ROWS
         if not isinstance(row, UnmappedCode | UnmappedIcd9) and row.concept.startswith("HP:")
     }
     assert table_hp == dict(HPO_LABELS)

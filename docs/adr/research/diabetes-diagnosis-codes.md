@@ -68,6 +68,10 @@ needs.
 **Gained**: a coded frame at the archive's own grain, whose concepts sit in MONDO's hierarchy, for
 the ancestor-shrunk share; a table that the `--releases` tests regenerate, so a new release's
 disagreement shows as a test failure.
+**Unmapped codes**: of the archive's distinct diagnosis codes, 207 map; 570 have no live xref, 2
+have obsolete holders only, 2 have live holders that are not nested (`558`, `741`), and 49 V codes
+and 85 E codes are not looked up (`uv run --no-sync python -m bko.ontology codes`, MONDO
+`releases/2026-10-06`, 2026-11-24).
 **Accepted**: `bko-direct` draws each concept independently and needs a donor that shows exactly
 the drawn set of concepts (`bko.generate.direct`), so on this frame a draw naming two codes for
 one diagnosis field has no donor.
@@ -85,8 +89,12 @@ one diagnosis field has no donor.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/icd9.py`, `src/bko/ontology/check.py`
-- Pinned by: `tests/test_ontology_icd9.py`
+- Owner: `src/bko/ontology/icd9.py`, `src/bko/ontology/check.py`, `src/bko/ontology/codes.py`,
+  `src/bko/ontology/icd9_codes.py`, `src/bko/datasets/diagnoses.py`
+- Pinned by: `tests/test_ontology_icd9.py`, `tests/test_ontology_codes.py` (the holder rule, one
+  concept per code, every committed row checked, the committed module equal to `render`'s text),
+  `tests/test_datasets_diagnoses.py` (the encoding), `tests/test_ontology_icd9_codes_pinned.py`
+  (the committed rows equal to the generator's output on the pinned release, under `--releases`)
 
 ## Reversal Conditions
 

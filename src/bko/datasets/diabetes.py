@@ -23,6 +23,7 @@ import pandas as pd
 
 from bko.datasets.archive import member_text
 from bko.datasets.cells import LABEL
+from bko.datasets.diagnoses import DIAGNOSIS_PATTERN, NUMERIC_CODE
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import DIABETES_130, Source
@@ -175,8 +176,6 @@ STATE_CODES: Final[Mapping[str, Mapping[str, int]]] = {
 
 _WHOLE: Final = r"[0-9]{1,18}"
 """An ASCII whole number that fits int64; `\\d` and `int` also read other scripts' digits."""
-_NUMERIC_CODE: Final = r"([0-9]{1,3})(?:\.([0-9]{1,2}))?"
-_DIAGNOSIS: Final = rf"\?|{_NUMERIC_CODE}|V[0-9]{{2}}(?:\.[0-9]{{1,2}})?|E[0-9]{{3}}(?:\.[0-9])?"
 
 
 def parse_diabetic(text: str) -> pd.DataFrame:
@@ -383,7 +382,7 @@ def _categories(
             raise ValueError(msg)
         parts: list[tuple[int, str]] = []
         for code in codes:
-            match = re.fullmatch(_NUMERIC_CODE, code)
+            match = re.fullmatch(NUMERIC_CODE, code)
             if match is None:
                 msg = f"indicator {name!r}: {code!r} is not a numeric ICD-9 category"
                 raise ValueError(msg)
@@ -424,7 +423,7 @@ def _checked(raw: pd.DataFrame) -> pd.DataFrame:
             for name, values in allowed.items()
         ),
         *(
-            (name, rows[name].str.fullmatch(_DIAGNOSIS), "not an ICD-9 code or ?")
+            (name, rows[name].str.fullmatch(DIAGNOSIS_PATTERN), "not an ICD-9 code or ?")
             for name in DIAGNOSES
         ),
     ]
@@ -441,7 +440,7 @@ def _indicators(
     rows: pd.DataFrame, categories: Mapping[str, tuple[tuple[int, str], ...]]
 ) -> dict[str, pd.Series]:
     """Return each indicator: 1 where any diagnosis falls in one of its categories."""
-    parts = [rows[name].str.extract(rf"^{_NUMERIC_CODE}$") for name in DIAGNOSES]
+    parts = [rows[name].str.extract(rf"^{NUMERIC_CODE}$") for name in DIAGNOSES]
     numbers = [(pd.to_numeric(part[0]), part[1].fillna("")) for part in parts]
     held: dict[str, pd.Series] = {}
     for name, codes in categories.items():

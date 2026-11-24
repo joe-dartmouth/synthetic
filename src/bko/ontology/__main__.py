@@ -1,4 +1,4 @@
-"""Command line for the ontology stage: `python -m bko.ontology check`, `reproduce` and `elk`.
+"""The ontology stage's command line: `python -m bko.ontology check`, `reproduce`, `elk`, `codes`.
 
 `check` fetches the pinned MONDO and HPO releases into the data root if they are absent, verifies
 and parses them, and writes one CSV row per checked row of `bko.ontology.mapping` to stdout: `ok`,
@@ -9,14 +9,18 @@ with ELK (`bko.ontology.elk`), which needs a JDK, and writes one CSV row per anc
 within the mapped concepts and their ancestors, that the classification or the loaded OBO release
 holds and the other lacks; it finds Java before it fetches anything. The parser's version, each
 release's identity, a warning per disagreeing row, and `elk`'s tool, heap, timeout, timings,
-classified files and per-release counts go to stderr through logging.
+classified files and per-release counts go to stderr through logging. `codes` fetches the pinned
+MONDO release and Diabetes 130 archive if they are absent, maps every diagnosis code of the
+archive with `bko.ontology.codes.generate`, writes the module text of `bko.ontology.icd9_codes`
+to stdout, and logs a `codes unmapped` line per reason and a closing `codes rows=` line.
 `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
-Exit codes: 0 every `check` row agrees, or `reproduce` or `elk` wrote its report, whatever its
-statuses; 1 an unexpected error, with its traceback, including a fusion the converter should never
-have built; 2 the command could not run, including ROBOT failing or timing out; 3 a release
-contradicts its pin, is not OBO the loader reads, or is OWL that names an import (stdout is
-empty); 4 a `check` row disagrees with its release (the report is written first).
+Exit codes: 0 every `check` row agrees, or `reproduce`, `elk` or `codes` wrote its report,
+whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the
+converter should never have built; 2 the command could not run, including ROBOT failing or timing
+out; 3 a release or archive contradicts its pin, is not OBO the loader reads, or is OWL that names
+an import (stdout is empty); 4 a `check` row disagrees with its release (the report is written
+first).
 """
 
 from __future__ import annotations
@@ -25,20 +29,24 @@ import argparse
 import csv
 import hashlib
 import io
+import json
 import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Final, TextIO
 
 from bko.core.logs import configure
+from bko.datasets.archive import member_text
+from bko.datasets.diabetes import DIAGNOSES, MEMBER, parse_diabetic
 from bko.datasets.errors import DatasetError
-from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
-from bko.datasets.sources import ROBOT_JAR, Source
+from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https, read_verified
+from bko.datasets.sources import DIABETES_130, ROBOT_JAR, Source
 from bko.datasets.synthea_run import default_java
 from bko.ontology import elk
 from bko.ontology.check import check
+from bko.ontology.codes import generate, render
 from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
 from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
@@ -63,6 +71,7 @@ class Context:
         resolve_java: Returns the Java `elk` runs ROBOT with and its version line.
         robot_runner: Runs ROBOT's argv for `elk`.
         concepts: The mapped concepts whose hierarchy `elk` compares.
+        diabetes: The pinned Diabetes 130 archive whose diagnosis codes `codes` maps.
     """
 
     open_url: UrlOpener = open_https
@@ -74,6 +83,7 @@ class Context:
     resolve_java: Callable[[], tuple[Path, str]] = default_java
     robot_runner: elk.Runner = elk.run_robot
     concepts: frozenset[str] = MAPPED
+    diabetes: Source = DIABETES_130
 
 
 def main(
@@ -98,11 +108,7 @@ def main(
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         context = Context() if context is None else context
         out = sys.stdout if out is None else out
-        if args.command == "check":
-            return _check(data_dir, context, out)
-        if args.command == "elk":
-            return _elk(data_dir, context, out)
-        return _reproduce(data_dir, context, out)
+        return _COMMANDS[args.command](data_dir, context, out)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -124,6 +130,7 @@ def _parser() -> argparse.ArgumentParser:
         ("check", "check the mapping table against the releases"),
         ("reproduce", "rebuild Santos et al.'s MONDO/DO fusion example and compare it"),
         ("elk", "classify the OWL releases with ELK and compare their hierarchies (needs a JDK)"),
+        ("codes", "generate bko.ontology.icd9_codes from MONDO and the Diabetes 130 archive"),
     ):
         command = commands.add_parser(name, help=purpose)
         command.add_argument(
@@ -153,6 +160,22 @@ def _check(data_dir: Path, context: Context, out: TextIO) -> int:
     disagree = sum(v.problem is not None for v in verdicts)
     logger.info("checked %d rows: %d disagree", len(verdicts), disagree)
     return 4 if disagree else 0
+
+
+def _codes(data_dir: Path, context: Context, out: TextIO) -> int:
+    releases = {"MONDO": context.releases["MONDO"]}
+    mondo = load_releases(releases, data_dir, open_url=context.open_url)["MONDO"]
+    source = context.diabetes
+    ensure(source, data_dir, open_url=context.open_url)
+    raw = parse_diabetic(member_text(read_verified(source, data_dir), MEMBER, source))
+    generated = generate(mondo, {token for name in DIAGNOSES for token in raw[name]})
+    text = render(generated.rows)
+    for reason, count in generated.unmapped.items():
+        logger.info("codes unmapped reason=%s codes=%d", json.dumps(reason), count)
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    logger.info("codes rows=%d sha256=%s release=%s", len(generated.rows), digest, mondo.version)
+    out.write(text)
+    return 0
 
 
 def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:
@@ -263,6 +286,14 @@ def _classify_and_compare(
         comparison.minimal_elk,
     )
     return comparison
+
+
+_COMMANDS: Final[Mapping[str, Callable[[Path, Context, TextIO], int]]] = {
+    "check": _check,
+    "reproduce": _reproduce,
+    "elk": _elk,
+    "codes": _codes,
+}
 
 
 if __name__ == "__main__":

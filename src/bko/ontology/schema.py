@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from bko.datasets.frames import RangeConstraint  # ruff: ignore[unused-import]  (re-exported)
-from bko.ontology.icd9 import Icd9Mapping, LabMapping, UnmappedIcd9
+from bko.ontology.icd9 import Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +150,7 @@ class UnmappedCode:
     source: str
 
 
-type ConceptRow = FieldMapping | CodeMapping | OutOfScope | Icd9Mapping | LabMapping
+type ConceptRow = FieldMapping | CodeMapping | OutOfScope | Icd9Mapping | LabMapping | Icd9Code
 
 type CheckedRow = ConceptRow | UnmappedCode | UnmappedIcd9
 

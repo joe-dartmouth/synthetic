@@ -1222,10 +1222,11 @@ inside `.venv`:
   `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
   `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), an ICD-9 row's
   concept carries its `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that
-  xref are exactly the row's declared holders, an excluded ICD-9 category is an xref of no live
+  xref are exactly the row's declared holders, as does a generated code row of
+  `bko.ontology.icd9_codes`, an excluded ICD-9 category is an xref of no live
   MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout
-  gets a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`
-  or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`,
+  gets a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
+  `icd9-code` or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`,
   `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or category), `label`
   and `status` (`ok`, or how the release disagrees; for an `excluded-code` or `excluded-icd9`
   row, `ok` means the code still has no live holder), one row per checked row, the same bytes on
@@ -1252,6 +1253,18 @@ inside `.venv`:
   `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
   `bko.ontology.obo`, or a change to pronto in `uv.lock`, from the checkout whose `data/` holds
   the releases.
+- **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the
+  Diabetes 130 archive to one MONDO concept for the `diabetes-codes` frame (ADR
+  [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). It is
+  written, never edited:
+
+      uv run --no-sync python -m bko.ontology codes > src/bko/ontology/icd9_codes.py
+
+  The command fetches MONDO and the archive into the data root if absent and logs one
+  `codes unmapped reason=... codes=N` line per reason and a closing `codes rows=N sha256=...`
+  line. `tests/test_ontology_icd9_codes_pinned.py` regenerates the rows from the pinned release
+  and archive under `--releases` and compares them with the committed ones; run it with the
+  release tests after a re-pin.
 
 ### ELK comparison
 

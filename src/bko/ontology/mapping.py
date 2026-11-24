@@ -36,6 +36,7 @@ from bko.datasets.sources import HPO, MONDO, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.uci import RANGES  # ruff: ignore[unused-import]  (re-exported)
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, UNMAPPED_ICD9
+from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -350,9 +351,10 @@ CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (
     *OUT_OF_SCOPE,
     *ICD9_MAPPINGS,
     *LAB_MAPPINGS,
+    *ICD9_CODES,
 )
-"""Every row that names a concept, in table order, the Diabetes 130 rows of `bko.ontology.icd9`
-last."""
+"""Every row that names a concept, in table order: the Diabetes 130 rows of `bko.ontology.icd9`,
+then the generated code rows of `bko.ontology.icd9_codes` last."""
 
 CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES, *UNMAPPED_ICD9)
 """Every concept row, then every excluded code and ICD-9 category: what `bko.ontology.check`

@@ -1,7 +1,7 @@
 """Check the table's rows against parsed releases: `python -m bko.ontology check`'s core.
 
-The rows are the concept rows, the excluded Synthea codes and the excluded ICD-9 categories
-(`bko.ontology.mapping.CHECKED_ROWS`).
+The rows are the concept rows, the generated ICD-9 code rows among them, the excluded Synthea
+codes and the excluded ICD-9 categories (`bko.ontology.mapping.CHECKED_ROWS`).
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, assert_never
 
-from bko.ontology.icd9 import Icd9Mapping, LabMapping, UnmappedIcd9
+from bko.ontology.icd9 import Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -26,7 +26,9 @@ from bko.ontology.schema import (
 from bko.ontology.terms import Ontology, ancestors
 
 
-type Table = Literal["field", "code", "out-of-scope", "excluded-code", "icd9", "excluded-icd9"]
+type Table = Literal[
+    "field", "code", "out-of-scope", "excluded-code", "icd9", "icd9-code", "excluded-icd9"
+]
 
 EXCLUDED_PREFIX: Final = "MONDO"
 """The release an excluded code or ICD-9 category is checked against: the one code rows map
@@ -49,8 +51,8 @@ class Verdict:
     Attributes:
         table: Which kind of row it is.
         subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `A1Cresult in >7|>8`,
-            `SCTID:414545008` (a code row or an excluded code), `ICD9:428` (an ICD-9 row or an
-            excluded category), or empty.
+            `SCTID:414545008` (a code row or an excluded code), `ICD9:428` (an ICD-9 row, a
+            generated code row or an excluded category), or empty.
         concept: The row's concept; empty for an excluded code or category.
         label: The row's label; for an excluded code or category, its description.
         problem: None when the release agrees; otherwise how it disagrees.
@@ -72,8 +74,10 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     An out-of-scope row also disagrees when its concept is an `is_a` ancestor of a concept another
     of `rows` maps, since the scope rule puts every such ancestor in scope. An excluded code
     disagrees when a live `EXCLUDED_PREFIX` concept carries its `skos:exactMatch`, and an excluded
-    ICD-9 category when one carries its xref. An ICD-9 row disagrees when its concept lacks its
-    xref or the release's live holders of the xref differ from the row's declared ones. Each
+    ICD-9 category when one carries its xref. An ICD-9 row or a generated code row disagrees when
+    its concept lacks its xref or the release's live holders of the xref differ from the row's
+    declared ones. A generated code row's concept joins no out-of-scope check, since it is outside
+    the table's scope. Each
     release's holders are collected in one pass per call, however many code rows, ICD-9 rows and
     excluded codes or categories name its prefix.
     """
@@ -86,7 +90,7 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     wanted: dict[str, set[_Key]] = {}
     for row in rows:
         match row:
-            case CodeMapping() | Icd9Mapping():
+            case CodeMapping() | Icd9Mapping() | Icd9Code():
                 wanted.setdefault(_prefix(row), set()).add(_key(row))
             case UnmappedCode() | UnmappedIcd9():
                 wanted.setdefault(EXCLUDED_PREFIX, set()).add(_key(row))
@@ -110,7 +114,14 @@ def _verdict(
                 label=row.label,
                 problem=_excluded_problem(row, ontologies, holders),
             )
-        case FieldMapping() | CodeMapping() | OutOfScope() | Icd9Mapping() | LabMapping():
+        case (
+            FieldMapping()
+            | CodeMapping()
+            | OutOfScope()
+            | Icd9Mapping()
+            | LabMapping()
+            | Icd9Code()
+        ):
             table, subject = _describe(row)
             return Verdict(
                 table=table,
@@ -133,6 +144,8 @@ def _describe(row: ConceptRow) -> tuple[Table, str]:
             return "out-of-scope", ""
         case Icd9Mapping(xref=xref):
             return "icd9", xref
+        case Icd9Code():
+            return "icd9-code", row.xref
         case LabMapping(field=field, states=states):
             return "field", f"{field} in {'|'.join(sorted(states))}"
         case _:
@@ -181,7 +194,7 @@ def _kind_problem(
     match row:
         case CodeMapping():
             return _match_problem(row, ontology, where, holders[_prefix(row)])
-        case Icd9Mapping():
+        case Icd9Mapping() | Icd9Code():
             return _xref_problem(row, ontology, where, holders[_prefix(row)])
         case OutOfScope():
             return _scope_problem(row, ontology, where, mapped)
@@ -213,12 +226,12 @@ def _target(row: CodedRow) -> str:
     return f"SCTID:{row.snomed}"
 
 
-def _key(row: CodedRow | Icd9Mapping | UnmappedIcd9) -> _Key:
+def _key(row: CodedRow | Icd9Mapping | Icd9Code | UnmappedIcd9) -> _Key:
     match row:
         case CodeMapping() | UnmappedCode():
             return _EXACT, _target(row)
-        case Icd9Mapping(xref=xref) | UnmappedIcd9(xref=xref):
-            return _XREF, xref
+        case Icd9Mapping() | Icd9Code() | UnmappedIcd9():
+            return _XREF, row.xref
         case _:
             assert_never(row)
 
@@ -268,7 +281,10 @@ def _match_problem(
 
 
 def _xref_problem(
-    row: Icd9Mapping, ontology: Ontology, where: str, holders: Mapping[_Key, tuple[str, ...]]
+    row: Icd9Mapping | Icd9Code,
+    ontology: Ontology,
+    where: str,
+    holders: Mapping[_Key, tuple[str, ...]],
 ) -> str | None:
     if row.xref not in ontology.terms[row.concept].xrefs:
         return f"{where} has no xref {row.xref} on {row.concept}"
