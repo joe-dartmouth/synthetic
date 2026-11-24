@@ -81,6 +81,11 @@ def test_the_nomap_arm_logs_only_its_non_default_spec_fields(seed):
     assert params == {"generator": "direct", "mapped": False, "seed": seed}
 
 
+def _params(message: str) -> str:
+    """The JSON object after `params=` in an `arm` log line."""
+    return message.partition("params=")[2].split(" sha256=")[0]
+
+
 def test_a_nomap_arm_runs_beside_bko_direct_in_one_candidates_file(tmp_path, caplog):
     caplog.set_level(logging.INFO)
     ctx = _context()
@@ -101,8 +106,8 @@ def test_a_nomap_arm_runs_beside_bko_direct_in_one_candidates_file(tmp_path, cap
     direct = [m for m in logged if f"arm={DIRECT_ARM} " in m]
     assert nomap
     assert direct
-    assert all('"mapped": false' in m for m in nomap)
-    assert not any('"mapped"' in m for m in direct)
+    assert {json.loads(_params(m)).get("mapped") for m in nomap} == {False}
+    assert all("mapped" not in json.loads(_params(m)) for m in direct)
 
 
 def test_a_nomap_arm_line_ends_with_fallback_draws(tmp_path, caplog):
