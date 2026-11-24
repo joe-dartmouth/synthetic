@@ -348,6 +348,7 @@ def _holdout(
                 added,
                 train,
                 gap_request(train, experiment, seed=seed, frame=frame),
+                lines=store.folder.lines.get((seed, arm, "gap"), ()),
                 data=data,
                 ontologies=ontologies or {},
                 budget=experiment.budget,

@@ -71,9 +71,8 @@ def trace_perturbation(
     # The re-draw comes before the sha256 refusal, so the `trace arm` line names both checks.
     tag = (fill.holdout, fill.kind)
     redrawn = redraw(train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag)
-    records = [_record(line) for line in returned]
     free = unmapped(data.field_rows, frame=data.frame)
-    differs = _unperturbed(records, redrawn.drawn, free)
+    paired, differs = line_draws(returned, redrawn.drawn, free)
     log_arm(fill, logged=logged, rebuilt=found, check="unperturbed", held=not differs)
     if found != logged:
         msg = f"{where}'s rows rebuilt from its lines hash to {found}, not its arm line's {logged}"
@@ -81,32 +80,50 @@ def trace_perturbation(
     if differs:
         msg = f"{where}: {differs}"
         raise IdentityError(msg)
-    kept = [
-        (line, record, draw)
-        for line, record, draw in zip(returned, records, redrawn.drawn, strict=True)
-        if line.outcome == KEPT
-    ]
     facts = Shares(train, seeded.quota, data=data, ontologies=ontologies)
+    kept = kept_draws(paired, seeded, where=where)
     return _explained(fill, seeded, attempt, kept, facts)
 
 
-def _explained(
-    fill: Fill,
-    request: Request,
-    attempt: int,
-    kept: Sequence[tuple[Candidate, Mapping[str, object], Draw]],
-    facts: Shares,
-) -> list[Trace]:
-    """Each kept line's `Trace`, its record over its draw's facts with its `perturb`, in row order.
+Paired = tuple[Candidate, Mapping[str, object], Draw]
+"""A returned line, the record it holds, and the draw it was drawn as."""
+
+
+def line_draws(
+    returned: Sequence[Candidate], drawn: Sequence[Draw], free: Sequence[str]
+) -> tuple[list[Paired], str]:
+    """Each line of the returned attempt with its record over its draw, in generation order.
+
+    The second value says why the records are not `drawn` outside `free`, with no pair; it is
+    the empty string when they are.
+
+    Raises:
+        IdentityError: If a line holds no record.
+    """
+    records = [_record(line) for line in returned]
+    differs = _unperturbed(records, drawn, free)
+    if differs:
+        return [], differs
+    return list(zip(returned, records, drawn, strict=True)), ""
+
+
+def kept_draws(paired: Sequence[Paired], request: Request, *, where: str) -> list[Paired]:
+    """The kept lines of `paired`, in the order `bko.evaluate.shared.rebuilt` places their rows.
 
     Raises:
         IdentityError: As `ordered`.
     """
-    where = f"holdout {fill.holdout}'s {fill.arm} fill"
+    kept = [pair for pair in paired if pair[0].outcome == KEPT]
     order = ordered([record for _, record, _ in kept], request, where=where)
+    return [kept[k] for k in order]
+
+
+def _explained(
+    fill: Fill, request: Request, attempt: int, kept: Sequence[Paired], facts: Shares
+) -> list[Trace]:
+    """Each kept line's `Trace`, its record over its draw's facts with its `perturb`, in order."""
     traces = []
-    for record_id, k in enumerate(order):
-        line, record, draw = kept[k]
+    for record_id, (line, record, draw) in enumerate(kept):
         traces.append(
             drawn_trace(
                 fill,

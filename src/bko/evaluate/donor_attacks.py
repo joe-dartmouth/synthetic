@@ -20,7 +20,7 @@ import dataclasses
 import logging
 import math
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Final
 
 import numpy as np
@@ -32,13 +32,15 @@ from bko.evaluate.attack_stats import RATES, SCOPE_FPRS, SCOPES, attack, scopes
 from bko.evaluate.data import Data, digest
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import DIRECT_ARMS
-from bko.evaluate.holdout_candidates import PERTURBS
+from bko.evaluate.holdout_candidates import PERTURBS, Candidate
 from bko.evaluate.perturb import unmapped
 from bko.evaluate.redraw import redraw
 from bko.evaluate.run_folder import fields
 from bko.evaluate.scores import Measure
+from bko.evaluate.shared import rebuilt
 from bko.evaluate.trace_direct import arm_spec
-from bko.evaluate.trace_lines import Fill, ordered
+from bko.evaluate.trace_lines import Fill, ordered, returned_lines
+from bko.evaluate.trace_perturb import kept_draws, line_draws
 from bko.generate.direct import Draw
 from bko.generate.draw_spec import DEFAULT_SPEC
 from bko.generate.fields import field_groups
@@ -158,6 +160,7 @@ def donor_counts(
     train: pd.DataFrame,
     request: Request,
     *,
+    lines: Sequence[Candidate],
     data: Data,
     ontologies: Mapping[str, Ontology],
     budget: int,
@@ -166,13 +169,18 @@ def donor_counts(
     """How many of `stored`'s rows each training record donates a verbatim unit to.
 
     The fill is re-drawn at its `arm` line's seed, a direct arm's at its spec and a perturbation
-    arm's at `bko-direct`'s, and each stored row is aligned with its kept draw in the order
-    `bko.evaluate.shared.rebuilt` places them.
+    arm's at `bko-direct`'s, and each stored row is aligned with its draw in the order
+    `bko.evaluate.shared.rebuilt` places them. A direct arm's draws are the re-draw's kept ones;
+    a perturbation arm's are those of its candidate `lines` that its own attempt kept, each
+    returned line paired with its draw in generation order as `trace` pairs them
+    (`bko.evaluate.trace_perturb.line_draws`).
 
     Raises:
-        IdentityError: If a direct arm's re-drawn rows do not hash to its `arm` line's sha256,
-            or a perturbation arm's stored rows are not one per kept draw or differ from their
-            draws outside the perturbed fields; or as `arm_spec` and `ordered`.
+        IdentityError: If a direct arm's re-drawn rows do not hash to its `arm` line's sha256; if
+            a perturbation arm's `lines` rebuild rows that do not, are not one per draw or
+            differ from their draws outside the perturbed fields; if the stored rows are not one
+            per kept draw, or a perturbation arm's differ from their draws outside the perturbed
+            fields; or as `arm_spec`, `ordered` and `rebuilt`.
         EvaluationError: As `arm_spec` and `bko.evaluate.perturb.unmapped`.
     """
     where = f"holdout {fill.holdout}'s {fill.arm} fill"
@@ -184,18 +192,23 @@ def donor_counts(
         train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag, spec=spec
     )
     logged = fields(fill.line)["sha256"]
-    if not perturbed and digest(redrawn.rows) != logged:
-        msg = f"{where} re-drawn at seed {fill.seed} hashes to {digest(redrawn.rows)}, not its"
-        msg += f" arm line's {logged}"
-        raise IdentityError(msg)
-    order = ordered([draw.record for draw in redrawn.kept], seeded, where=where)
-    draws = [redrawn.kept[k] for k in order]
+    free = set(unmapped(data.field_rows, frame=data.frame)) if perturbed else set()
+    if perturbed:
+        draws = _perturbed_draws(
+            lines, redrawn.drawn, seeded, logged=logged, where=where, free=free
+        )
+    else:
+        if digest(redrawn.rows) != logged:
+            msg = f"{where} re-drawn at seed {fill.seed} hashes to {digest(redrawn.rows)}, not"
+            msg += f" its arm line's {logged}"
+            raise IdentityError(msg)
+        order = ordered([draw.record for draw in redrawn.kept], seeded, where=where)
+        draws = [redrawn.kept[k] for k in order]
     if len(draws) != len(stored):
         msg = f"{where} holds {len(stored)} rows, not one per kept draw of {len(draws)}"
         raise IdentityError(msg)
     rows = [{str(name): value for name, value in row.items()} for row in stored.to_dict("records")]
     if perturbed:
-        free = set(unmapped(data.field_rows, frame=data.frame))
         names = {
             name
             for row, draw in zip(rows, draws, strict=True)
@@ -207,6 +220,33 @@ def donor_counts(
             msg += f" {','.join(sorted(names))}"
             raise IdentityError(msg)
     return donations(rows, draws, groups)
+
+
+def _perturbed_draws(
+    lines: Sequence[Candidate],
+    drawn: Sequence[Draw],
+    request: Request,
+    *,
+    logged: str,
+    where: str,
+    free: Collection[str],
+) -> list[Draw]:
+    """The draws of a perturbation fill's kept lines, in row order, once `trace`'s checks hold.
+
+    Raises:
+        IdentityError: If `lines` rebuild rows that do not hash to `logged`, are not one per
+            draw or differ from their draws outside `free`; or as `rebuilt` and `kept_draws`.
+    """
+    found = digest(rebuilt(lines, request, where=where))
+    if found != logged:
+        msg = f"{where}'s rows rebuilt from its lines hash to {found}, not its arm line's {logged}"
+        raise IdentityError(msg)
+    _, returned = returned_lines(lines)
+    paired, differs = line_draws(returned, drawn, sorted(free))
+    if differs:
+        msg = f"{where}: {differs}"
+        raise IdentityError(msg)
+    return [draw for _, _, draw in kept_draws(paired, request, where=where)]
 
 
 def donations(
@@ -251,6 +291,7 @@ def read_donors(
     train: pd.DataFrame,
     request: Request,
     *,
+    lines: Sequence[Candidate],
     data: Data,
     ontologies: Mapping[str, Ontology],
     budget: int,
@@ -269,6 +310,7 @@ def read_donors(
         stored,
         train,
         request,
+        lines=lines,
         data=data,
         ontologies=ontologies,
         budget=budget,

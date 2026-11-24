@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import dataclasses
 import io
+import json
 import logging
 import math
 import re
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -17,9 +19,10 @@ import pytest
 import bko.evaluate.reference as reference_module
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate import membership
+from bko.evaluate import donor_attacks, membership
 from bko.evaluate.__main__ import _named, main
-from bko.evaluate.data import load
+from bko.evaluate.context import Context
+from bko.evaluate.data import digest, load
 from bko.evaluate.donor_attacks import (
     DONOR_MEASURES,
     MATCH_MEASURES,
@@ -32,10 +35,12 @@ from bko.evaluate.donor_attacks import (
     match_scores,
 )
 from bko.evaluate.errors import IdentityError
-from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, gap_request
+from bko.evaluate.experiment import DIRECT_ARM, PRAM_ARM, REAL_ARM, gap_request
+from bko.evaluate.holdout_candidates import KEPT, Candidate
 from bko.evaluate.membership import GROUPS
 from bko.evaluate.prepare import prepared
 from bko.evaluate.privacy_rule import readings
+from bko.evaluate.redraw import Redrawn
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scores import Measure, parse
 from bko.evaluate.shared import rebuilt
@@ -50,11 +55,13 @@ from bko.ontology.frames import (
 )
 from tests.test_evaluate_membership import PRIVATE, WOBBLE, _reading, _scored
 from tests.test_evaluate_membership import _context as privacy_context
+from tests.test_evaluate_pram import _prammed
 from tests.test_evaluate_privacy import random_records
 from tests.test_evaluate_shared import FORMAT
 from tests.test_evaluate_trace import _scored as _scored_folder
 from tests.test_evaluate_trace_direct import _context as trace_context
 from tests.test_evaluate_trace_direct import _trace
+from tests.test_evaluate_trace_perturb import _trace as _trace_perturbation
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -208,30 +215,41 @@ def folder(tmp_path_factory) -> Path:
     return run
 
 
-def _donors_of(folder: Path, data_root: Path, *, sha: str | None = None) -> Counter[int]:
-    """`donor_counts` of holdout 0's `bko-direct` fill of `folder`, its rows rebuilt from its
-    candidate lines; `sha` replaces the `arm` line's sha256."""
-    named = _named("g2", trace_context())
+def _donors_of(
+    folder: Path,
+    data_root: Path,
+    *,
+    arm: str = DIRECT_ARM,
+    ctx: Context | None = None,
+    sha: str | None = None,
+    lines: Callable[[list[Candidate]], list[Candidate]] = list,
+    stored: Callable[[pd.DataFrame], pd.DataFrame] = lambda rows: rows,
+) -> Counter[int]:
+    """`donor_counts` of holdout 0's `arm` fill of `folder`, its rows rebuilt from its candidate
+    lines after `lines` edits them, then edited by `stored`; `sha` replaces the `arm` line's
+    sha256."""
+    named = _named("g2", ctx or trace_context())
     data = load(named.dataset, data_root, named)
     concepts = {row.concept for row in data.field_rows}
     ontologies, _ = load_scope(
         concepts, data_root, releases=named.releases, open_url=named.open_url
     )
     read = read_folder(folder)
-    fill = select(read, holdout=0, arm=DIRECT_ARM)
+    fill = select(read, holdout=0, arm=arm)
     if sha is not None:
-        fill = Fill(0, DIRECT_ARM, re.sub(r" sha256=\w+", f" sha256={sha}", fill.line))
+        fill = Fill(0, arm, re.sub(r" sha256=\w+", f" sha256={sha}", fill.line))
     frame = data.frame
     parts = split(data.records, seed=0, edges=frame.edges)
     train = prepared(parts, named.experiment, edges=frame.edges).ablated.train
     request = gap_request(train, named.experiment, seed=0, frame=frame)
-    lines = read.lines[0, DIRECT_ARM, "gap"]
-    stored = rebuilt(lines, dataclasses.replace(request, seed=fill.seed), where="the fill")
+    edited = lines(list(read.lines[0, arm, "gap"]))
+    rows = rebuilt(edited, dataclasses.replace(request, seed=fill.seed), where="the fill")
     return donor_counts(
         fill,
-        stored,
+        stored(rows),
         train,
         request,
+        lines=edited,
         data=data,
         ontologies=ontologies,
         budget=named.experiment.budget,
@@ -271,6 +289,133 @@ def test_a_changed_redraw_is_refused(folder):
         IdentityError, match=r"re-drawn at seed \d+ hashes to \w+, not its arm line's"
     ):
         _donors_of(folder, folder.parent / "data", sha="0" * 64)
+    assert IdentityError.exit_code == 3
+
+
+def _block_reversed(real: Callable[..., Redrawn]) -> Callable[..., Redrawn]:
+    """`real`, its kept draws' cells in reverse order, each cell's draws in their own order."""
+
+    def reversed_cells(*args: object, **kwargs: object) -> Redrawn:
+        found = real(*args, **kwargs)
+        cells = list(dict.fromkeys(draw.cell for draw in found.kept))
+        kept = tuple(draw for cell in reversed(cells) for draw in found.kept if draw.cell == cell)
+        return dataclasses.replace(found, kept=kept)
+
+    return reversed_cells
+
+
+def test_each_stored_row_pairs_with_its_own_draw_whatever_the_draw_order(folder, monkeypatch):
+    data = folder.parent / "data"
+    expected = _donors_of(folder, data)
+    monkeypatch.setattr(donor_attacks, "redraw", _block_reversed(donor_attacks.redraw))
+    shuffled = donor_attacks.redraw
+    seen: list[Redrawn] = []
+
+    def spying(*args: object, **kwargs: object) -> Redrawn:
+        seen.append(shuffled(*args, **kwargs))
+        return seen[-1]
+
+    monkeypatch.setattr(donor_attacks, "redraw", spying)
+    assert _donors_of(folder, data) == expected
+    (redrawn,) = seen
+    assert len({draw.cell for draw in redrawn.kept}) > 1, "the order is no identity"
+
+
+def _sourced(traced: list[dict], groups: tuple[tuple[str, ...], ...]) -> Counter[int]:
+    """The donations a fill's trace lines name: each unit read whole from one record and left
+    as drawn."""
+    found: Counter[int] = Counter()
+    for line in traced:
+        sources, changed = line["sources"], set(line.get("perturb", {}).get("fields", ()))
+        found.update(
+            {
+                sources[unit[0]]
+                for unit in groups
+                if unit[0] in sources
+                and len({sources.get(name) for name in unit}) == 1
+                and not changed & set(unit)
+            }
+        )
+    return found
+
+
+@pytest.fixture
+def prammed(tmp_path, caplog) -> tuple[Path, Context]:
+    """A finished `g2` folder holding `bko-direct-pram`, its data root beside it; its context."""
+    _, ctx = _prammed(tmp_path, caplog)
+    return tmp_path / "run", ctx
+
+
+def _pram_groups(folder: Path, ctx: Context) -> tuple[tuple[str, ...], ...]:
+    named = _named("g2", ctx)
+    rows = load(named.dataset, folder.parent / "data", named).field_rows
+    return match_groups(rows, frame=UCI_FRAME)
+
+
+def test_a_pram_fills_donors_are_its_unperturbed_units_sources(prammed):
+    folder, ctx = prammed
+    code, traced = _trace_perturbation(folder, ctx, PRAM_ARM)
+    assert code == 0
+    expected = _sourced(traced, _pram_groups(folder, ctx))
+    found = _donors_of(folder, folder.parent / "data", arm=PRAM_ARM, ctx=ctx)
+    assert found
+    assert found == expected
+
+
+def test_a_pram_row_its_own_line_dropped_pairs_the_rest_with_their_draws(prammed):
+    folder, ctx = prammed
+    code, traced = _trace_perturbation(folder, ctx, PRAM_ARM)
+    assert code == 0
+    dropped: list[Candidate] = []
+
+    def drop_first(lines: list[Candidate]) -> list[Candidate]:
+        edited = []
+        for line in lines:
+            if line.returned and line.outcome == KEPT and not dropped:
+                dropped.append(line)
+                seen = dataclasses.replace(line.seen, outcome="dropped-quota")
+                line = dataclasses.replace(line, seen=seen)
+            edited.append(line)
+        return edited
+
+    named = _named("g2", ctx)
+    data = load(named.dataset, folder.parent / "data", named)
+    parts = split(data.records, seed=0, edges=UCI_FRAME.edges)
+    train = prepared(parts, named.experiment, edges=UCI_FRAME.edges).ablated.train
+    request = gap_request(train, named.experiment, seed=0, frame=UCI_FRAME)
+    fill = select(read_folder(folder), holdout=0, arm=PRAM_ARM)
+    lines = drop_first(list(read_folder(folder).lines[0, PRAM_ARM, "gap"]))
+    sha = digest(rebuilt(lines, dataclasses.replace(request, seed=fill.seed), where="the fill"))
+    dropped.clear()
+    found = _donors_of(
+        folder, folder.parent / "data", arm=PRAM_ARM, ctx=ctx, sha=sha, lines=drop_first
+    )
+    (gone,) = dropped
+    rest = [line for line in traced if line["record"] != json.loads(json.dumps(gone.candidate))]
+    assert len(rest) == len(traced) - 1
+    assert found == _sourced(rest, _pram_groups(folder, ctx))
+
+
+def test_a_pram_fill_missing_a_stored_row_is_refused(prammed):
+    folder, ctx = prammed
+    with pytest.raises(IdentityError, match=r"holds \d+ rows, not one per kept draw of \d+"):
+        _donors_of(
+            folder, folder.parent / "data", arm=PRAM_ARM, ctx=ctx, stored=lambda r: r.iloc[1:]
+        )
+
+
+def test_a_pram_fill_whose_stored_unperturbed_column_differs_is_refused(prammed):
+    folder, ctx = prammed
+
+    def nudge(rows: pd.DataFrame) -> pd.DataFrame:
+        rows = rows.copy()
+        rows.loc[rows.index[0], "age"] += 1
+        return rows
+
+    with pytest.raises(
+        IdentityError, match="columns no perturbation changes differ from the re-draw: age"
+    ):
+        _donors_of(folder, folder.parent / "data", arm=PRAM_ARM, ctx=ctx, stored=nudge)
     assert IdentityError.exit_code == 3
 
 
