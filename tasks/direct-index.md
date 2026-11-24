@@ -33,10 +33,9 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | ready | -- | direct-method-research |
 | [`datasets-support2-frame`](datasets-support2-frame.md) | ready | -- | direct-method-research |
 | [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | ready | -- | direct-method-research |
-| [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | ontology-per-dataset-releases | direct-method-research |
+| [`datasets-acs-frame`](datasets-acs-frame.md) | ready | -- | direct-method-research |
 | [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) | ready | -- | direct-method-research |
 | [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) | ready | -- | direct-method-research |
 | [`datasets-non-health-selection`](datasets-non-health-selection.md) | ready | -- | direct-method-research |
@@ -89,8 +88,7 @@ flowchart LR
     u17[generate-coherent-free-fields] --> u19
     u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
-    u24[ontology-per-dataset-releases] --> u27[datasets-acs-frame]
-    u27 --> u41[evaluate-crc-acs-benchmark]
+    u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]
     u49[datasets-non-health-selection] --> u50[datasets-generalised-cell-axes]
     u43[evaluate-syntheval-heart-disease] --> u44[evaluate-syntheval-results]
     u19 --> u28[evaluate-composite-arm]
