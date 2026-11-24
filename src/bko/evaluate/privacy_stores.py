@@ -62,8 +62,8 @@ def read(
     found: dict[int, Store] = {}
     for path in stores:
         rows = read_rows(path)
-        name, folder_name = str(rows.header.get("run")), rows.header.get("folder")
-        if name != run and run not in wholes_of(name, runs):
+        name, folder_name = rows.header.get("run"), rows.header.get("folder")
+        if not isinstance(name, str) or (name != run and run not in wholes_of(name, runs)):
             msg = f"the store {path} is run {_shown(name)}'s, which is not a slice of {run!r}"
             raise IdentityError(msg)
         if not isinstance(folder_name, str) or not _child(root, folder_name):
@@ -128,7 +128,13 @@ def _shown(value: object) -> str:
 
 
 def _child(root: Path, name: str) -> bool:
-    """Whether the folder name `name` resolves to a direct child of `root`."""
+    """Whether the folder name `name` resolves to a direct child of `root`.
+
+    A name no path can hold, such as one with a NUL byte, is not one.
+    """
     if name in {"", ".", ".."}:
         return False
-    return (root / name).resolve().parent == root.resolve()
+    try:
+        return (root / name).resolve().parent == root.resolve()
+    except ValueError:
+        return False

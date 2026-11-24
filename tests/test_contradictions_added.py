@@ -20,7 +20,7 @@ from bko.evaluate.perturb import RULES, incoherent, rule_breaks
 from bko.gaps.contradictions import KINDS
 from bko.gaps.observe import Cell
 from tests._contradiction_fixtures import YW1, plant
-from tests.test_evaluate_membership import PRIVATE, _context, _flip, _rewrite, _stored
+from tests.test_evaluate_membership import PRIVATE, _context, _flip, _header, _rewrite, _stored
 
 
 YM0: Cell = ("<55", "male", 0)
@@ -248,3 +248,20 @@ def test_a_tampered_fill_exits_3(tmp_path, caplog):
     _, store = _stored(tmp_path, caplog)
     _rewrite(store, _flip)
     assert _added(tmp_path, "e1", "--rows", str(store)) == (3, "")
+
+
+@pytest.mark.parametrize(
+    ("edit", "message"),
+    [
+        (_header("run", []), "is run []'s"),
+        (_header("run", {"a": 1}), "is run {'a': 1}'s"),
+        (_header("folder", "r\x00n"), "not a folder directly under"),
+    ],
+    ids=["list-run", "dict-run", "nul-folder"],
+)
+def test_a_malformed_header_exits_3(tmp_path, caplog, edit, message):
+    _, store = _stored(tmp_path, caplog)
+    _rewrite(store, edit)
+    assert _added(tmp_path, "e1", "--rows", str(store)) == (3, "")
+    errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert message in errors[-1]
