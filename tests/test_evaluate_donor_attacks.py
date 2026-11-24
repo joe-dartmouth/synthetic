@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import bko.evaluate.__main__ as main_module
 import bko.evaluate.reference as reference_module
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
@@ -35,7 +36,7 @@ from bko.evaluate.donor_attacks import (
     match_measures,
     match_scores,
 )
-from bko.evaluate.errors import IdentityError
+from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import DIRECT_ARM, PRAM_ARM, REAL_ARM, gap_request
 from bko.evaluate.holdout_candidates import KEPT, Candidate
 from bko.evaluate.membership import GROUPS
@@ -567,6 +568,28 @@ def test_the_new_measures_join_privacy_output_and_the_old_rows_are_unchanged(
     ]
     # `smote` and `bko-direct` read a defined AUC outside the cell; the match groups add none.
     assert " family=2 " in line
+
+
+def test_a_run_with_a_donor_arm_and_no_releases_is_refused():
+    unused: Any = None
+    with pytest.raises(EvaluationError, match=f"names the donor arms {DIRECT_ARM}"):
+        membership.privacy("e1", [], experiment=DONORS, data=unused, runs={}, root=Path())
+
+
+@pytest.mark.usefixtures("reference")
+def test_a_run_with_a_donor_arm_loads_its_releases_once(tmp_path, caplog, monkeypatch):
+    store = _stored_direct(tmp_path, caplog)
+    loaded: list[object] = []
+    real = main_module.load_scope
+
+    def spying(*args: Any, **kwargs: Any) -> Any:
+        loaded.append(args[0])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(main_module, "load_scope", spying)
+    assert _read(tmp_path, store)[0] == 0
+    assert len(loaded) == 1
+    assert loaded[0]
 
 
 def test_a_leaking_arm_is_flagged_by_its_match_group():

@@ -249,11 +249,17 @@ def privacy(
     interval.
 
     Raises:
-        EvaluationError: As `reference_of` or `holdout_scores`.
-        IdentityError: As `read`, or if a holdout's `split` line is not the one its data
-            prepares, or as `frame_of`, naming the store.
+        EvaluationError: If the run names an arm of `DONOR_ARMS` and `ontologies` is None, or as
+            `reference_of`, `holdout_scores` and `read_donors`.
+        IdentityError: As `read` and `read_donors`, or if a holdout's `split` line is not the
+            one its data prepares, or as `frame_of`, naming the store.
     """
     begun = time.perf_counter()
+    donating = sorted(DONOR_ARMS & set(experiment.arms))
+    if donating and ontologies is None:
+        msg = f"the run {run} names the donor arms {','.join(donating)}, whose fills are"
+        msg += " re-drawn under the releases of the data's mapped concepts, and no release"
+        raise EvaluationError(msg)
     reference, cell = reference_of(run, experiment, runs)
     total = len(experiment.holdout_seeds)
     logger.info(
@@ -336,6 +342,9 @@ def _holdout(
         msg = f"the store {store.path}: {error}"
         raise IdentityError(msg) from error
     train, groups = ready.ablated.train, match_groups(data.field_rows, frame=frame)
+    request = None
+    if DONOR_ARMS & set(fills):
+        request = gap_request(train, experiment, seed=seed, frame=frame)
     extra: dict[str, dict[Measure, float]] = {}
     for arm, added in fills.items():
         found = match_measures(
@@ -349,12 +358,12 @@ def _holdout(
             arm=arm,
         )
         donors = dict.fromkeys(DONOR_MEASURES, math.nan)
-        if arm in DONOR_ARMS:
+        if request is not None and arm in DONOR_ARMS:
             donors = read_donors(
                 Fill(seed, arm, store.folder.arms[seed, arm]),
                 added,
                 train,
-                gap_request(train, experiment, seed=seed, frame=frame),
+                request,
                 lines=store.folder.lines.get((seed, arm, "gap"), ()),
                 data=data,
                 ontologies=ontologies or {},
