@@ -43,11 +43,14 @@ sensitivity and specificity similar to resampling's
    are 5-fold out-of-fold predictions on the training split from the same model factory at unit
    weights (`StratifiedKFold`, shuffled at the holdout seed; fewer folds when a label holds fewer
    than 5 records, refused below 2). The solver bisects on [-64, 64] for 100 iterations with the
-   probabilities clipped to [1e-12, 1 - 1e-12].
+   probabilities clipped to [1e-12, 1 - 1e-12]. A fold fit's refusal names the holdout, the arm,
+   the model and the fold, and a perceptron fold fit logs whether it converged.
 5. **Scoring.** The scored fit is `none`'s. The offset is added to the logits of the subgroup's
    test records only; every other record keeps its probability, and the cutoff is unchanged.
 6. **No training record.** A subgroup with no training record gets offset 0, and its `shift` line
-   logs it.
+   logs it. Its target is still defined: `bko.baselines.request.Request` refuses a zero-row
+   quota, so every subgroup the request names holds at least one requested row, and the target's
+   denominator is at least 1.
 7. **Readers.** The arm cannot be a replica arm, since it adds no rows. `panel` regenerates it, as
    it does `none` and `class-weight`.
 
@@ -67,7 +70,9 @@ it, so the arm's flagged AUC-PR equals `none`'s and it moves recall and Brier on
 ## Consequences
 
 **Gained**: a free control whose contrast with `bko-direct` measures how much of a gain a shift in
-the subgroup's risk level explains; a `shift` line per model and subgroup that shows each offset.
+the subgroup's risk level explains; a `shift` line per model and subgroup that shows each offset
+with the target's counts and the fold count, so the target can be recomputed from the line
+([`docs/DEVELOPMENT.md`](../../DEVELOPMENT.md#evaluation) holds its format).
 **Accepted**: five more fits per model per holdout for this arm; outside the requested subgroups
 the arm scores as `none` does.
 
@@ -85,14 +90,16 @@ the arm scores as `none` does.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/run_scores.py`, with the solver in `src/bko/evaluate/shift.py`
-- Pinned by: `tests/test_evaluate_run.py`, `tests/test_evaluate_shift.py` (the hand-computed
-  offsets, the finite offset at an empty cell, and every other arm's rows byte for byte with and
-  without the arm), `tests/test_evaluate_panel_shift.py`
+- Pinned by: `tests/test_evaluate_shift.py` (the hand-computed offsets, the finite offset at an
+  empty cell, out-of-fold fits that exclude the records they predict, the bound WARNING, the arm's
+  runner in `bko.evaluate.run.ARMS`, and every other arm's rows byte for byte with and without the
+  arm), `tests/test_evaluate_panel_shift.py`, `tests/test_evaluate_diabetes.py` (the arm in
+  E6-shaped rehearsed runs)
 
 ## Reversal Conditions
 
-**A `shift` line logs `offset=64.000000` or `offset=-64.000000`**: the bisection hit its bound,
-so the target lies outside what the predictions can reach. **The control reading rule stops
+**A `shift` line logs `offset=64.000000` or `offset=-64.000000`**, with its `shift bound`
+WARNING: the bisection hit its bound, so the target lies outside what the predictions can reach. **The control reading rule stops
 naming `prior-shift`**; the check is the Contrasts line of
 [RESEARCH section 11](../../RESEARCH.md#11-direct-method-study).
 
