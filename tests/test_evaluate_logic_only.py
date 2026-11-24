@@ -42,7 +42,7 @@ BOTH = dataclasses.replace(
 """Two holdouts, one baseline and both direct arms, `bko-logic` the candidate."""
 
 
-def test_the_direct_arms_are_bko_direct_on_shares_and_bko_logic_on_logic():
+def test_the_four_direct_arms_draw_at_their_specs():
     assert dict(DIRECT_ARMS) == {
         DIRECT_ARM: DEFAULT_SPEC,
         LOGIC_ARM: DrawSpec(presence=Presence.LOGIC),
