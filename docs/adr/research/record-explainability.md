@@ -70,6 +70,23 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
 6. **Perturbation outcomes are stored.** The candidates file (schema 4) carries each perturbation
    row's outcome in its line's `perturb` key: `perturbed`, `unchanged` or `refused_<reason>` for
    `bko-direct-perturbed`, `changed` or `unchanged` for `bko-direct-pram`.
+7. **Attribution.** A reading over `trace.jsonl` files counts, per arm, what each record field
+   can be attributed to. An arm's kind is read from one trace line: a line whose `record` is null
+   is a baseline's; one holding a `perturb` key is a perturbation arm's; one whose `request` holds
+   `quota` is a direct arm's; any other is a Messages arm's. Each field gets one of four classes,
+   in this precedence: knowledge fact, training donor id, prompt section only, method and seed
+   only.
+   * Direct: a field a mapping row's `when` clause reads (the label aside), under an arm whose
+     `DrawSpec` reads the mapping table, is a knowledge fact; else a field with a source id is a
+     donor; else (`sex`, the label) it is method and seed.
+   * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
+     rewrite arm and method and seed only under PRAM, a mapped field among them, since its value
+     is no longer the drawn fact; this class comes before every other. Every other field is read
+     as a direct one.
+   * Messages: every field is prompt section only; every field of a record whose call the log
+     lacks (`untraced`) is method and seed only, and the reading counts such records.
+   * Baseline: one count per fill, method and seed only, in the unit `fill`, since the trace holds
+     no baseline record.
 
 ## Rationale
 
@@ -79,14 +96,18 @@ on `Draw` costs no draw, so the stored fills stay valid. A Messages arm's record
 reply to a stored prompt; naming the prompt's sections and the call states what the run kept and
 claims nothing about why the model chose a value. A perturbation row's outcome depends on a reply
 and on the merge code that read it; storing it on the row's line keeps it readable after either
-changes, and a schema version may grow when its runs are repeated. A source id names a training
+changes, and a schema version may grow when its runs are repeated. The contrast the attribution
+reading claims is attribution to knowledge facts, which only a direct draw that reads the mapping
+table makes; donor attribution is not unique to the direct arms, since a nomap draw names a donor
+for every copied field, so knowledge takes precedence over donor. A source id names a training
 record, which can be a real patient's row; the explanation is useful with it and the download does
 not need it.
 
 ## Consequences
 
 **Gained**: a per-record account of every direct and perturbation arm's fill that a digest check
-keeps honest, and the prompt and call behind a Messages record, with no API call.
+keeps honest, the prompt and call behind a Messages record, and a count per arm of each field's
+attribution class, with no API call.
 **Accepted**: a Messages record's explanation stops at its prompt, and a rewrite row's at its
 result and changed fields; a direct or perturbation trace needs the data the run used and refuses
 on any drift; `trace.jsonl` holds record ids and stays in its run
@@ -99,6 +120,10 @@ folder.
 | Source ids in the app's download | They name training records; the download is the one artifact that leaves the folder | 2026-11-05 |
 | A guess at a model's choice of value | Nothing stored or re-derivable determines it | 2026-11-05 |
 | Keep schema 3 and re-derive perturbation outcomes in `trace` | It needs the reply and the merge code to stay unchanged, and a schema version may grow with its runs repeated | 2026-11-08 |
+| Donor over knowledge as the attribution precedence | Every mapped field of a direct record also names a donor, so the knowledge contrast would vanish | 2026-11-24 |
+| Per-record attribution counts for a baseline | The trace holds no baseline record, only the fill's method and seed | 2026-11-24 |
+| A fifth attribution class for untraced Messages records | The reading names four classes; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-24 |
+| A new trace format for the attribution reading | Every class is read from the lines `trace` writes now | 2026-11-24 |
 
 ## Enforcement
 
@@ -108,12 +133,14 @@ folder.
   `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
-  `src/bko/evaluate/holdout_candidates.py`
+  `src/bko/evaluate/holdout_candidates.py`; decision 7's reading in
+  `src/bko/evaluate/attribution.py`
 - Pinned by: `tests/test_evaluate_trace.py`, `tests/test_evaluate_trace_direct.py`,
   `tests/test_evaluate_trace_perturb.py`, `tests/test_generate_direct.py`,
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
   `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
-  `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`
+  `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`; decision 7 by
+  `tests/test_evaluate_attribution.py`
 
 ## Reversal Conditions
 

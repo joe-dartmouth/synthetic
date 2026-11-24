@@ -40,6 +40,8 @@ fill of RUN's stores instead (`bko.evaluate.added_contradictions`).
 `trace RUN --folder FOLDER --holdout H --arm ARM [--record N]` writes one JSON line per record of
 ARM's fill of holdout H in FOLDER with the facts that determine it, to stdout, with no API call
 (`bko.evaluate.trace`).
+`attribution RUN --trace PATH...` counts what each fill's record fields in the trace files can be
+attributed to, as CSV, with no API call (`bko.evaluate.attribution`).
 `likelihood [RUN] --candidates FILE...` reads one run's candidates files, one per slice of a sliced
 run, as one, and logs G7's gate (`bko.evaluate.likelihood`).
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
@@ -94,6 +96,7 @@ from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID
 from bko.evaluate.added_contradictions import run_added
 from bko.evaluate.arguments import parser
+from bko.evaluate.attribution import run_attribution
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.contradictions import run as census
@@ -188,6 +191,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_contradictions(args, context))
     elif args.command == "trace":
         sink.write(run_trace(args, _named(args.run, context)))
+    elif args.command == "attribution":
+        sink.write(run_attribution(args, _named(args.run, context)))
     else:
         _compare(args, context, sink)
     return 0

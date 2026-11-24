@@ -27,8 +27,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
-| [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | ready | -- | direct-method-research |
-| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
+| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 
@@ -66,7 +65,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-trace-attribution, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -91,7 +90,6 @@ flowchart LR
     u15 --> u19
     u16 --> u19
     u17[generate-coherent-free-fields] --> u19
-    u18[evaluate-trace-attribution] --> u19
     u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
     u24[ontology-per-dataset-releases] --> u27[datasets-acs-frame]
@@ -103,7 +101,6 @@ flowchart LR
     u28 --> u29[evaluate-composite-dev-results]
     u7 --> u30[evaluate-confirmatory-registration]
     u8 --> u30
-    u18 --> u30
     u45[evaluate-synthetic-share-sweep] --> u46[evaluate-synthetic-share-results]
     u25[datasets-support2-frame] --> u30
     u26[datasets-nhanes-frame] --> u30

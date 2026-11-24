@@ -1148,6 +1148,31 @@ arm:
   trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
   over a frame whose unmapped fields are not its pinned ones, exit 2.
 
+**`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
+attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),
+decision 7): `knowledge`, a field a mapping row of `<run>`'s dataset reads under an arm whose draw
+reads the mapping table; `donor`, a field with a source training record id; `prompt`, a Messages
+record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
+of an `untraced` record among them. It reads an arm's kind from each line, reads no data and
+makes no API call. Each record arm's fill gets one row per class, zeros included, in the unit
+`field`; a baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
+record. `<run>` names the dataset whose field rows and frame columns are read, and `--trace`
+takes one or more files:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/attribution.csv && test ! -e runs/<run-id>/attribution.log && uv run --no-sync python -m bko.evaluate attribution <run> --trace runs/<trace-id>/trace.jsonl <more>... > runs/<run-id>/attribution.csv 2> runs/<run-id>/attribution.log </dev/null
+
+- **Log lines**: `versions commit=` first; `attribution spec=` once per fill of a perturbation
+  arm outside the direct arms (`bko-direct-perturbed`) names the `bko-direct` spec its unchanged
+  fields are read over; `attribution trace=` per file names its sha256, its lines and its
+  `untraced` records; `attribution rows=` closes with the CSV's data rows, its sha256 and the file
+  count.
+- **Exit codes**: 0 the CSV is written; 1 an unexpected error, with its traceback; 2 a file that
+  cannot be read or is not UTF-8; a line that is not a JSON object or not the shape `trace`
+  writes, each named by its file and line number; an arm name other than lowercase letters, digits
+  and hyphens; a holdout, arm and record id that two lines across the files name; a record whose
+  fields are not `<run>`'s frame columns; a fill whose lines are of two kinds; a `perturb` key
+  under an arm that is not a perturbation arm; or a direct line whose arm is not a direct arm.
+
 ## BKB fixtures
 
 `bko.bkb` ([README](../src/bko/bkb/README.md)) is tested against what pybkb computes on its own
@@ -1771,6 +1796,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `privacy.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
+| `attribution.csv` | `python -m bko.evaluate attribution`'s stdout |
+| `attribution.log` | its stderr |
 | `candidates.jsonl` | `python -m bko.generate`'s stdout |
 | `candidates.log` | its stderr |
 | `draws.jsonl` | `python -m bko.generate direct`'s draw log |
