@@ -116,9 +116,10 @@ target 1 findings at the pooled rate.
 
 Drawing concepts independently is all the sampler's BKB supports: it reads the priors of
 `dataset_fragment` only, which represent no co-occurrence, and no conditional S-node of a mapped
-`is_a` pair (ADR `research/dataset-fragment-encoding`, Decision and Consequences). `restecg` is the one exception the table
-forces: its two `restecg` rows nest, so independent draws would produce LVH without an abnormal
-EKG, a pattern no record shows, and the conditional keeps both shares as marginals.
+`is_a` pair (ADR `research/dataset-fragment-encoding`, Decision and Consequences). `restecg` is the
+one exception the table forces: its two `restecg` rows nest, so independent draws would produce
+LVH without an abnormal EKG, a pattern no record shows, and the conditional keeps both shares as
+marginals.
 
 Copying a group's fields from one matching record, instead of drawing each value inside its side,
 keeps every value a training value and every within-group combination one a record holds, so a

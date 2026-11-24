@@ -37,7 +37,16 @@ probabilities.
   head is the broad concept, its tail the narrow one, and its probability the share of the records
   showing the narrow concept that also show the broad one. Only `conditional_fragment` builds it,
   from an observation given the pairs; `dataset_fragment` never holds one, so grounding, the gap
-  lists, guidance and the shares read none.
+  lists, guidance and the shares read none. The pairs come from record frames (UCI Heart Disease,
+  Diabetes) through `observe_records` and `record_cells`; `observe_population` and
+  `population_cells` take none, so Synthea's population gets no conditional. The fragment is a
+  table of per-pair shares, not a BKB to reason over: the broad concept's prior and its
+  conditionals share one source and overlap, so a broad concept with several narrow ones, or an
+  indirect `is_a` ancestor, gets one overlapping S-node per narrow one, and no reasoning over the
+  joint (`bko.bkb.reason`) reads it. A conditional of 0 is kept, unlike a prior of 0 for a concept
+  no record shows: it states that every record showing the narrow concept lacks the broad one,
+  which is data. Since instantiation ignores probabilities, its S-node would ground the broad
+  concept, so `conditional_fragment` never feeds grounding or gap detection.
 - **Fusion at weight 1 per fragment** under `fuse`'s default normalization, the dataset fragment
   last.
 - **Grounding is instantiation from the held concepts** over the fused BKB; a concept the caller
@@ -67,10 +76,11 @@ cell's records, so per-subgroup grounding needs no second individual.
 UCI records and Synthea patients.
 **Accepted**: no co-occurrence is represented in `dataset_fragment`, so no statement about two
 concepts together can be a gap; the conditional of an `is_a` pair lives only in
-`conditional_fragment`, which no gap definition reads; a subgroup is represented only by its own cell's fragment; the fusion weights change no gap
-list. Two stages read the shares: the frequency-aware score (ADR
-`research/frequency-aware-gap-score`), and the direct sampler, which weighs a cell's prior by its
-record count against its label group's (ADR `research/bkb-direct-generation`).
+`conditional_fragment`, which no gap definition reads; a subgroup is represented only by its own
+cell's fragment; the fusion weights change no gap list. Two stages read the shares: the
+frequency-aware score (ADR `research/frequency-aware-gap-score`), and the direct sampler, which
+weighs a cell's prior by its record count against its label group's (ADR
+`research/bkb-direct-generation`).
 
 ## Ruled Out
 
@@ -80,7 +90,7 @@ record count against its label group's (ADR `research/bkb-direct-generation`).
 | Conditional S-nodes between concepts with no `is_a` relation | Rows record presence only (ADR `research/ontology-mapping-design`), and every head already has a prior, so no grounding changes | 2026-10-17 |
 | Conditional S-nodes in `dataset_fragment` by default | Moves the priors the shares read and the digests that pin `bko-direct`'s draw, counts as a statement to ground, and changes every prompt | 2026-11-24 |
 | A conditional where no record shows the narrow concept | Its share is 0/0, which defines no probability | 2026-11-24 |
-| Changing `nested` in place to a topological order | It would change the chain refusal that `bko-direct` and four callers rely on; `draw_order` gives the order beside it | 2026-11-24 |
+| Changing `nested` in place to a topological order | It would change the chain refusal that `bko.gaps.contradictions`, `bko.gaps.likelihood`, `bko.evaluate.scoring` and `bko.generate.direct` rely on; `draw_order` gives the order beside it | 2026-11-24 |
 | A prior of 0 for a concept no record shows | Instantiation ignores probabilities, so it would ground the concept | 2026-10-17 |
 | A dataset weight from its record count | Changes no gap list; the direct sampler weighs a cell's prior by its record count when it reads the shares (ADR `research/bkb-direct-generation`), outside the fusion, whose weights stay 1 | 2026-10-27 |
 | The converter in `bko.datasets` | `bko.ontology` imports `bko.datasets`, so a converter there that reads the mapping rows makes an import cycle | 2026-10-17 |

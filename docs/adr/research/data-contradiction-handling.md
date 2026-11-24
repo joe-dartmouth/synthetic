@@ -48,8 +48,8 @@ or its sample, and the direct sampler draws a child without its parent.
    training split at holdout seed 0 with no removal, and lists each finding.
 3. **Valid fused BKB.** One for which `bko.bkb.fusion.check_fused` passes. It requires:
    - every input S-node is present, with its source tail and an unchanged probability;
-   - every fused S-node other than a source prior maps to an input, a dataset conditional
-     (ADR `research/dataset-fragment-encoding`) like any other S-node that is not a prior;
+   - every fused S-node other than a source prior maps to an input; a dataset conditional (ADR
+     `research/dataset-fragment-encoding`) maps to its input like any non-prior S-node;
    - each source component's priors sum to 1 (under the default `FRAGMENTS` normalization, to
      at most 1, and to 1 where every fragment holds an S-node on the head component), a source
      component a fused S-node's tail names with no prior on it summing to 0;
