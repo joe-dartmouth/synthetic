@@ -25,13 +25,13 @@ from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import membership
 from bko.evaluate.__main__ import main
+from bko.evaluate.attack_stats import Attack
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.membership import (
     GROUPS,
     SCOPES,
-    Attack,
     arm_measures,
     attack,
     exposure,

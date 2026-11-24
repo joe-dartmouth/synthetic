@@ -74,7 +74,7 @@ def match_groups(rows: Sequence[FieldMapping], *, frame: FrameSpec) -> tuple[tup
     They are `rows`' field groups, then each other column but `sex` and the label as a singleton.
     """
     grouped = [group.fields for group in field_groups(rows, frame=frame)]
-    held = {name for fields in grouped for name in fields}
+    held = {name for group_fields in grouped for name in group_fields}
     single = [(name,) for name in frame.columns if name not in {*held, "sex", frame.label}]
     order = {name: index for index, name in enumerate(frame.columns)}
     return tuple(sorted([*grouped, *single], key=lambda unit: order[unit[0]]))

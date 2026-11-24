@@ -6,11 +6,11 @@ are the holdout's prepared training split; non-members are its whole test split,
 included; the removed records are neither. It reads three scopes: the records outside the removed
 cell, the removed cell's (undefined with no member in it, as at a removal fraction of 1), and
 label 1's outside the cell. Each scope reads the AUC (`roc_auc_score`, ties at their midrank) and
-the true positive rate at each false positive rate of `FPRS`, by linear interpolation on
-`roc_curve(drop_intermediate=False)`; the cell scope reads no rate at 0.001, and a rate below one
-over the scope's non-members reads NaN, below what the curve resolves. Each arm also reads
-the NNDR and DCR of its added rows to the training split, and the held-out rows the same as a
-baseline (`privacy.distances_and_nndr`).
+the true positive rate at false positive rates 0.01 and 0.001 (`bko.evaluate.attack_stats`), by
+linear interpolation on `roc_curve(drop_intermediate=False)`; the cell scope reads no rate at
+0.001, and a rate below one over the scope's non-members reads NaN, below what the curve
+resolves. Each arm also reads the NNDR and DCR of its added rows to the training split, and the
+held-out rows the same as a baseline (`privacy.distances_and_nndr`).
 
 `privacy` reads one or more `rows` stores (`bko.evaluate.rows_read`), one per holdout slice of
 the named run, makes no API call, and writes the scores CSV. It logs the reading rule over
@@ -40,11 +40,9 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
 from bko.evaluate.attack_stats import (
-    FPRS,  # ruff: ignore[unused-import]  (re-exported)
     RATES,
     SCOPE_FPRS,
     SCOPES,
-    Attack,  # ruff: ignore[unused-import]  (re-exported)
     attack,
     scopes,
 )
