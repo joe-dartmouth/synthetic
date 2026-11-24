@@ -194,8 +194,8 @@ last) and the arm's `validity` sums at the end, as a BKO arm's; and from logger
 (rows, the cell's records, its label group's records, the draw spec's other non-default fields as
 ` name=value` tokens, how presence is drawn) and a
 `fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s` line per cell and field read
-from the label group, with the same tokens. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a
-harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone,
+from the label group, with the same tokens. Each names the holdout and the fill (`gap` or
+`replica`) it serves; outside a harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone,
 since `G2` judges no criterion, and logs every criterion's intervals as `unjudged` lines.
 
 E9's runs, `e9-thin` and `e9-empty` and their slices `e9-thina` to `e9-thinj` and `e9-emptya` to
@@ -1113,8 +1113,8 @@ arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`) differ from its arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt
-  is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
+  `mapped`) differ from its arm's, and a perturbation fill whose rebuilt rows miss its `arm`
+  sha256, whose returned attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
   trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
   over a frame whose unmapped fields are not its pinned ones, exit 2.
 

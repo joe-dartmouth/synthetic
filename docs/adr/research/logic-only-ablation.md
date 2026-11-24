@@ -44,8 +44,8 @@ share of a concept with its label group's (ADR `research/frequency-aware-gap-sco
 
 1. **Presence is a field of the direct sampler's `DrawSpec`** (`Presence` in
    `bko.generate.presence`). At shares it is `bko-direct` (ADR `research/bkb-direct-generation`);
-   at logic it is `bko-logic`, below. Field groups, record picks, the other fields and the candidates file are the direct
-   sampler's for both.
+   at logic it is `bko-logic`, below. Field groups, record picks, the other fields and the
+   candidates file are the direct sampler's for both.
 2. **Consistent assignments.** Over the mapped concepts other than the label-only ones, an
    assignment of present or absent is consistent when every present concept's mapped `is_a`
    ancestors in its release (`bko.ontology.terms.ancestors`) are present and every present inner
