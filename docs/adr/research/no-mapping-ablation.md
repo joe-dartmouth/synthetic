@@ -87,7 +87,8 @@ record by its source ids alone.
   `src/bko/evaluate/direct.py`, `src/bko/evaluate/trace_direct.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`), `tests/test_evaluate_direct.py`,
   `tests/test_generate_no_mapping.py` (the uniform pick per column, the label-group fallback, the
-  empty concepts and the logged spec)
+  empty concepts and the logged spec), `tests/test_evaluate_no_mapping.py` (the arm's params and
+  lines beside `bko-direct`, its trace, and the refusal of an `arm` line without its spec field)
 
 ## Reversal Conditions
 

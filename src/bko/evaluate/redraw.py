@@ -24,8 +24,7 @@ from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
-from bko.generate.draw_spec import DrawSpec
-from bko.generate.presence import Presence
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
 
@@ -53,11 +52,11 @@ def redraw(
     ontologies: Mapping[str, Ontology],
     budget: int,
     tag: tuple[int, str],
-    presence: Presence = Presence.SHARES,
+    spec: DrawSpec = DEFAULT_SPEC,
 ) -> Redrawn:
     """Draw `request` at its seed as the direct arm does, with no other random draw.
 
-    `presence` is the arm's (`bko.evaluate.experiment.DIRECT_ARMS`).
+    `spec` is the arm's (`bko.evaluate.experiment.DIRECT_ARMS`).
 
     Raises:
         SamplingError: As `sample`.
@@ -71,7 +70,7 @@ def redraw(
         seed=request.seed,
         frame=data.frame,
         tag=tag,
-        spec=DrawSpec(presence=presence),
+        spec=spec,
     )
     attempt = Attempt(train, request, budget * request.rows)
     draws: list[Draw] = []

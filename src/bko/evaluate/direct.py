@@ -1,4 +1,4 @@
-"""The direct arms: a holdout's request drawn from the fused BKB, at its shares or by logic alone.
+"""The direct arms: a holdout's request drawn from the fused BKB at a draw spec.
 
 A `DirectArm` is a `bko.baselines.methods.Runner`. Given a holdout's training rows and a request,
 the gap request or the replica request alike, it draws every requested row once with
@@ -11,9 +11,10 @@ harness retries with a derived seed.
 The arm keeps its validity counts itself and writes every record it drew, with its outcome and a
 null call, to the run's candidates file when the harness drains it
 (`bko.evaluate.holdout_candidates`). `run_direct` runs a run's arms with its direct arms among
-them, one per name of `DIRECT_ARMS`, each drawing presence its own way. ADR
-`research/bkb-direct-generation` records the sampler, and ADR `research/logic-only-ablation` the
-logic-only draw of `bko-logic`, whose components `run_direct` checks before any arm fits.
+them, one per name of `DIRECT_ARMS`, each drawing at its own spec. ADR
+`research/bkb-direct-generation` records the sampler, ADR `research/logic-only-ablation` the
+logic-only draw of `bko-logic`, whose components `run_direct` checks before any arm fits, and ADR
+`research/no-mapping-ablation` the draw of `bko-nomap` without the mapping table.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import logic_components, sample
-from bko.generate.draw_spec import DrawSpec
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
 from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
@@ -69,7 +70,7 @@ class DirectArm:
         budget: int,
         sink: CandidateFile | None,
         dataset: str,
-        presence: Presence = Presence.SHARES,
+        spec: DrawSpec = DEFAULT_SPEC,
     ) -> None:
         """Hold what each attempt needs; nothing is drawn until the arm runs.
 
@@ -81,7 +82,7 @@ class DirectArm:
                 of the request's rows always fits it.
             sink: The run's candidates file; None keeps no lines.
             dataset: The dataset's source name; each cell's fragment takes it.
-            presence: How each draw decides a concept's presence (`bko.generate.direct.sample`).
+            spec: What each draw reads (`bko.generate.direct.sample`).
         """
         self.name = name
         self.totals = Tally()
@@ -90,7 +91,7 @@ class DirectArm:
         self._budget = budget
         self._sink = sink
         self._dataset = dataset
-        self._presence = presence
+        self._spec = spec
         self._pending = Tally()
         self._attempts = 0
         self._seen: list[tuple[int, bool, Seen]] = []
@@ -150,8 +151,8 @@ class DirectArm:
             self.totals.add(attempt.tally)
             returned = outcome == "returned"
             self._seen += [(self._attempts, returned, seen) for seen in attempt.seen]
-            # `bko-direct`'s line stays as its runs of record logged it; a logic-only arm,
-            # which falls back far more often, adds its count of fallen-back draws.
+            # `bko-direct`'s line stays as its runs of record logged it; an arm at another
+            # spec, which falls back far more often, adds its count of fallen-back draws.
             logger.info(
                 "direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s%s",
                 self.name,
@@ -160,11 +161,9 @@ class DirectArm:
                 request.seed,
                 outcome,
                 attempt.line(),
-                "" if self._presence is Presence.SHARES else f" fallback_draws={fell}",
+                "" if self._spec == DEFAULT_SPEC else f" fallback_draws={fell}",
             )
-        logged: dict[str, object] = {"generator": "direct", "seed": request.seed}
-        if self._presence is not Presence.SHARES:
-            logged["presence"] = str(self._presence)
+        logged = {"generator": "direct", "seed": request.seed, **self._spec.params()}
         baseline = Baseline(attempt.rows(), unit_weights(train), {**logged, **params})
         check(baseline, train, request)
         return baseline
@@ -219,7 +218,7 @@ class DirectArm:
                 seed=request.seed,
                 frame=request.frame,
                 tag=None if fill is None else (fill.holdout, fill.kind),
-                spec=DrawSpec(presence=self._presence),
+                spec=self._spec,
             )
         except SamplingError as exc:
             raise BaselineError(str(exc)) from exc
@@ -256,7 +255,7 @@ def run_direct(
 ) -> list[Score]:
     """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
 
-    Each name is a key of `DIRECT_ARMS`, which says how its arm draws presence; `PRAM_ARM` then
+    Each name is a key of `DIRECT_ARMS`, which says what its arm's draw reads; `PRAM_ARM` then
     perturbs its draw (`bko.evaluate.pram.PramArm`). Each arm logs its run's validity sums on
     the way out, a stopped run included.
 
@@ -267,7 +266,7 @@ def run_direct(
         As `bko.evaluate.run.run`.
     """
     for name in names:
-        if DIRECT_ARMS[name] is Presence.LOGIC:
+        if DIRECT_ARMS[name].presence is Presence.LOGIC:
             try:
                 logic_components(knowledge.field_rows, knowledge.ontologies, frame)
             except ValueError as exc:
@@ -299,9 +298,9 @@ def run_direct(
 def direct_arm(
     name: str, knowledge: Knowledge, experiment: Experiment, sink: CandidateFile | None
 ) -> DirectArm:
-    """The `DirectArm` named `name` over `knowledge`, drawing presence as `DIRECT_ARMS` says.
+    """The `DirectArm` named `name` over `knowledge`, drawing at the spec `DIRECT_ARMS` gives it.
 
-    Its draw is `DIRECT_ARM`'s whenever its presence is shares, whatever its name.
+    Its draw is `DIRECT_ARM`'s whenever its spec is the default, whatever its name.
     """
     return DirectArm(
         knowledge.field_rows,
@@ -310,5 +309,5 @@ def direct_arm(
         budget=experiment.budget,
         sink=sink,
         dataset=knowledge.name,
-        presence=DIRECT_ARMS.get(name, Presence.SHARES),
+        spec=DIRECT_ARMS.get(name, DEFAULT_SPEC),
     )

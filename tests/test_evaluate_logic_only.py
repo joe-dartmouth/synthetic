@@ -11,11 +11,19 @@ import pytest
 
 import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, LOGIC_ARM, PAID_ARMS, PRAM_ARM
+from bko.evaluate.experiment import (
+    DIRECT_ARM,
+    DIRECT_ARMS,
+    LOGIC_ARM,
+    NOMAP_ARM,
+    PAID_ARMS,
+    PRAM_ARM,
+)
 from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
 from bko.evaluate.scoring import _arms
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.presence import Presence
 from bko.ontology.schema import Codes
 from tests._gaps_fixtures import ANGINA
@@ -36,9 +44,10 @@ BOTH = dataclasses.replace(
 
 def test_the_direct_arms_are_bko_direct_on_shares_and_bko_logic_on_logic():
     assert dict(DIRECT_ARMS) == {
-        DIRECT_ARM: Presence.SHARES,
-        LOGIC_ARM: Presence.LOGIC,
-        PRAM_ARM: Presence.SHARES,
+        DIRECT_ARM: DEFAULT_SPEC,
+        LOGIC_ARM: DrawSpec(presence=Presence.LOGIC),
+        PRAM_ARM: DEFAULT_SPEC,
+        NOMAP_ARM: DrawSpec(mapped=False),
     }
 
 

@@ -37,7 +37,7 @@ from bko.evaluate.perturb import (
 )
 from bko.evaluate.pram import PRAM_STREAM, THETA, PramArm, pram
 from bko.evaluate.run_folder import BKO
-from bko.generate.presence import Presence
+from bko.generate.draw_spec import DEFAULT_SPEC
 from bko.ontology.frames import DIABETES_FIELD_ROWS, DIABETES_FRAME
 from tests._gaps_fixtures import ANGINA, STENOSIS
 from tests.test_evaluate_direct import ADDED_DIGEST, SMALL_G2, g2_context, varied_arm
@@ -102,7 +102,7 @@ def test_the_unmapped_fields_are_every_column_no_field_row_reads_but_age_sex_and
 
 
 def test_the_pram_arm_is_a_direct_arm_drawing_at_shares_and_a_bko_arm():
-    assert DIRECT_ARMS[PRAM_ARM] is Presence.SHARES
+    assert DIRECT_ARMS[PRAM_ARM] == DEFAULT_SPEC
     assert PRAM_ARM in BKO
 
 

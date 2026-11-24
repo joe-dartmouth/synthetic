@@ -29,6 +29,10 @@ class DrawSpec:
     presence: Presence = Presence.SHARES
     mapped: bool = True
 
+    def values(self) -> dict[str, object]:
+        """Every field, an enum as its value, in field order: what `params` logs it as."""
+        return {field.name: _plain(getattr(self, field.name)) for field in dataclasses.fields(self)}
+
     def params(self) -> dict[str, object]:
         """Each field that differs from its default, an enum as its value, in field order."""
         return {name: _plain(value) for name, value in self._changed()}
