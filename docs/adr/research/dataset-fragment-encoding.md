@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-10-27
+updated: 2026-11-24
 ---
 # A dataset becomes a fragment of one prior per mapped concept its records show
 
@@ -32,6 +32,21 @@ probabilities.
   at least one record shows it: a UCI training record for which one of its field mappings applies,
   or a Synthea patient alive on the snapshot date who has one of its codes by then. Its prior is the
   share of records that show it. A concept no record shows gets no S-node.
+- **One conditional S-node per mapped `is_a` pair, on request.** For each pair of mapped concepts
+  that `is_a` joins, narrow to broad, whose narrow concept at least one record shows, the S-node's
+  head is the broad concept, its tail the narrow one, and its probability the share of the records
+  showing the narrow concept that also show the broad one. Only `conditional_fragment` builds it,
+  from an observation given the pairs; `dataset_fragment` never holds one, so grounding, the gap
+  lists, guidance and the shares read none. The pairs come from record frames (UCI Heart Disease,
+  Diabetes) through `observe_records` and `record_cells`; `observe_population` and
+  `population_cells` take none, so Synthea's population gets no conditional. The fragment is a
+  table of per-pair shares, not a BKB to reason over: the broad concept's prior and its
+  conditionals share one source and overlap, so a broad concept with several narrow ones, or an
+  indirect `is_a` ancestor, gets one overlapping S-node per narrow one, and no reasoning over the
+  joint (`bko.bkb.reason`) reads it. A conditional of 0 is kept, unlike a prior of 0 for a concept
+  no record shows: it states that every record showing the narrow concept lacks the broad one,
+  which is data. Since instantiation ignores probabilities, its S-node would ground the broad
+  concept, so `conditional_fragment` never feeds grounding or gap detection.
 - **Fusion at weight 1 per fragment** under `fuse`'s default normalization, the dataset fragment
   last.
 - **Grounding is instantiation from the held concepts** over the fused BKB; a concept the caller
@@ -59,18 +74,23 @@ cell's records, so per-subgroup grounding needs no second individual.
 
 **Gained**: a gap list that changes only with which concepts the records show; one encoding for
 UCI records and Synthea patients.
-**Accepted**: no co-occurrence is represented, so no statement about two concepts together can be a
-gap; a subgroup is represented only by its own cell's fragment; the fusion weights change no gap
-list. Two stages read the shares: the frequency-aware score (ADR
-`research/frequency-aware-gap-score`), and the direct sampler, which weighs a cell's prior by its
-record count against its label group's (ADR `research/bkb-direct-generation`).
+**Accepted**: no co-occurrence is represented in `dataset_fragment`, so no statement about two
+concepts together can be a gap; the conditional of an `is_a` pair lives only in
+`conditional_fragment`, which no gap definition reads; a subgroup is represented only by its own
+cell's fragment; the fusion weights change no gap list. Two stages read the shares: the
+frequency-aware score (ADR `research/frequency-aware-gap-score`), and the direct sampler, which
+weighs a cell's prior by its record count against its label group's (ADR
+`research/bkb-direct-generation`).
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
 | One fragment per record | Needs a second individual, which ADR `research/bko-fragment-encoding` defers, and grounds the same statements | 2026-10-17 |
-| Conditional S-nodes between concepts that occur together | Rows record presence only (ADR `research/ontology-mapping-design`), and every head already has a prior, so no grounding changes | 2026-10-17 |
+| Conditional S-nodes between concepts with no `is_a` relation | Rows record presence only (ADR `research/ontology-mapping-design`), and every head already has a prior, so no grounding changes | 2026-10-17 |
+| Conditional S-nodes in `dataset_fragment` by default | Moves the priors the shares read and the digests that pin `bko-direct`'s draw, counts as a statement to ground, and changes every prompt | 2026-11-24 |
+| A conditional where no record shows the narrow concept | Its share is 0/0, which defines no probability | 2026-11-24 |
+| Changing `nested` in place to a topological order | It would change the chain refusal that `bko.gaps.contradictions`, `bko.gaps.likelihood`, `bko.evaluate.scoring` and `bko.generate.direct` rely on; `draw_order` gives the order beside it | 2026-11-24 |
 | A prior of 0 for a concept no record shows | Instantiation ignores probabilities, so it would ground the concept | 2026-10-17 |
 | A dataset weight from its record count | Changes no gap list; the direct sampler weighs a cell's prior by its record count when it reads the shares (ADR `research/bkb-direct-generation`), outside the fusion, whose weights stay 1 | 2026-10-27 |
 | The converter in `bko.datasets` | `bko.ontology` imports `bko.datasets`, so a converter there that reads the mapping rows makes an import cycle | 2026-10-17 |
@@ -79,7 +99,7 @@ record count against its label group's (ADR `research/bkb-direct-generation`).
 
 - Owner: `src/bko/gaps/observe.py`
 - Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`,
-  `tests/test_gaps_definitions.py`
+  `tests/test_gaps_definitions.py`, `tests/test_gaps_conditionals.py`
 
 ## Reversal Conditions
 

@@ -10,9 +10,28 @@ from bko.bkb.errors import FusionError
 from bko.bkb.fusion import Normalization, check_fused, fuse, is_source, source_component
 from bko.bkb.structure import BKB, SNode
 from bko.datasets.uci import UCI_FRAME
+from bko.gaps.contradictions import is_a_pairs
 from bko.gaps.detect import ontology_fragments
-from bko.gaps.observe import Cell, dataset_fragment, observe_records, record_cells
-from tests._contradiction_fixtures import KINDS, NAME, Planted, plant
+from bko.gaps.observe import (
+    Cell,
+    conditional_fragment,
+    dataset_fragment,
+    observe_records,
+    record_cells,
+)
+from bko.ontology.terms import Ontology, Term
+from tests._contradiction_fixtures import (
+    BASE_ROWS,
+    BROAD,
+    KINDS,
+    NAME,
+    Planted,
+    ontologies,
+    plant,
+    row,
+)
+from tests._validate_fixtures import planted
+from tests.test_generate_direct import frame
 
 
 def fragments(planted: Planted) -> dict[Cell, list[BKB]]:
@@ -243,3 +262,42 @@ def test_a_prior_on_a_state_naming_no_known_source_fails_the_check(normalization
     tampered.add_snode(own, state, 0.0)
     with pytest.raises(FusionError, match=r"the prior on .* names other than the sources"):
         check_fused(tampered, every, normalization=normalization)
+
+
+SIBLING = "HP:9000003"
+"""A second narrow concept under `BROAD`: `ca` 1."""
+
+
+def _conditional_case(case: str) -> tuple[list[BKB], int]:
+    """The ontology fragments and one conditional fragment for `case`, and its conditional count."""
+    releases = ontologies()
+    rows = list(BASE_ROWS)
+    match case:
+        case "probability-1":
+            split = [{"cp": 1, "exang": 1}, {"cp": 4, "exang": 0}]
+        case "broad-unheld":
+            split = [{"cp": 1, "exang": 0}, {"cp": 4, "exang": 0}]
+        case "shared-broad":
+            hpo = releases["HP"]
+            sibling = Term(SIBLING, SIBLING, (BROAD,), (), (), False, ())
+            releases["HP"] = Ontology(hpo.name, hpo.version, {**hpo.terms, SIBLING: sibling})
+            rows.append(row(SIBLING, "ca", 1))
+            split = [{"cp": 1, "exang": 1, "ca": 1}, {"cp": 1, "exang": 0, "ca": 0}]
+        case _:
+            raise AssertionError(case)
+    concepts = sorted({mapped.concept for mapped in rows})
+    pairs = is_a_pairs(concepts, releases)
+    observed = observe_records(
+        frame([planted(**values) for values in split]), rows, name=NAME, pairs=pairs
+    )
+    fragment = conditional_fragment(observed)
+    tailed = sum(1 for snode in fragment.snodes if snode.tail)
+    return [*ontology_fragments(releases, set(concepts)), fragment], tailed
+
+
+@pytest.mark.parametrize("case", ["probability-1", "broad-unheld", "shared-broad"])
+def test_a_fused_conditional_passes_check_fused(case):
+    every, tailed = _conditional_case(case)
+    assert tailed == (2 if case == "shared-broad" else 1)
+    fused = fuse(every, [1.0] * len(every))
+    check_fused(fused, every)
