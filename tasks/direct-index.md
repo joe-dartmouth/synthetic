@@ -12,9 +12,8 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`baselines-label-bootstrap`](baselines-label-bootstrap.md) | ready | -- | direct-method-research |
 | [`evaluate-prior-shift-comparator`](evaluate-prior-shift-comparator.md) | ready | -- | direct-method-research |
-| [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md) | blocked | baselines-label-bootstrap, evaluate-prior-shift-comparator | direct-method-research |
+| [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md) | blocked | evaluate-prior-shift-comparator | direct-method-research |
 | [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 | [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) | blocked | evaluate-control-runs-registered | direct-method-research |
 
@@ -53,7 +52,7 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) | blocked | baselines-label-bootstrap, evaluate-prior-shift-comparator | direct-method-research |
+| [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) | blocked | evaluate-prior-shift-comparator | direct-method-research |
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | blocked | evaluate-covariate-bias-fractions | direct-method-research |
 | [`evaluate-tableshift-readmission`](evaluate-tableshift-readmission.md) | ready | -- | direct-method-research |
 | [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-tableshift-readmission | direct-method-research |
@@ -61,7 +60,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) | ready | -- | direct-method-research |
 | [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | blocked | evaluate-syntheval-heart-disease | direct-method-research |
-| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | blocked | baselines-label-bootstrap | direct-method-research |
+| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | ready | -- | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | blocked | evaluate-synthetic-share-sweep | direct-method-research |
 
 ### Composite and confirmation
@@ -80,14 +79,12 @@ unit's `milestone` is `direct-method-research`, the
 | [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | generate-ancestor-shrunk-shares | direct-method-research |
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-trainer`](slm-lora-trainer.md) | ready | -- | direct-method-research |
-| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer, baselines-label-bootstrap | direct-method-research |
+| [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-trainer | direct-method-research |
 
 ```mermaid
 flowchart LR
-    u4[baselines-label-bootstrap] --> u6[evaluate-control-runs-registered]
-    u4 --> u37[evaluate-covariate-bias-fractions]
-    u5[evaluate-prior-shift-comparator] --> u6
-    u5 --> u37
+    u5[evaluate-prior-shift-comparator] --> u6[evaluate-control-runs-registered]
+    u5 --> u37[evaluate-covariate-bias-fractions]
     u37 --> u38[evaluate-covariate-bias-results]
     u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6 --> u7[evaluate-diabetes-control-results]
@@ -115,8 +112,7 @@ flowchart LR
     u7 --> u30[evaluate-confirmatory-registration]
     u8 --> u30
     u18 --> u30
-    u4 --> u45[evaluate-synthetic-share-sweep]
-    u45 --> u46[evaluate-synthetic-share-results]
+    u45[evaluate-synthetic-share-sweep] --> u46[evaluate-synthetic-share-results]
     u25[datasets-support2-frame] --> u30
     u26[datasets-nhanes-frame] --> u30
     u27 --> u30
@@ -130,7 +126,6 @@ flowchart LR
     u32 --> u33[ontology-auto-mapping-results]
     u29 --> u36[slm-lora-results]
     u35[slm-lora-trainer] --> u36
-    u4 --> u36
 ```
 
 ## What every unit relies on

@@ -1,8 +1,8 @@
 ---
 id: evaluate-synthetic-share-sweep
 title: Register the synthetic-share ablation on E6's frame
-status: blocked
-depends_on: baselines-label-bootstrap
+status: ready
+depends_on: --
 blocks: evaluate-synthetic-share-results
 parallel_safe: true
 milestone: direct-method-research

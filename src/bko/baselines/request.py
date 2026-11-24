@@ -43,7 +43,7 @@ class Method(enum.StrEnum):
 
     The first six are docs/RESEARCH.md section 4's comparison set; the classical synthesizers
     follow (ADR `research/baseline-augmentation-design`), then the Bayesian network (ADR
-    `research/bayesian-network-baseline`), then TabDDPM.
+    `research/bayesian-network-baseline`), then TabDDPM and the label bootstrap.
     """
 
     NONE = "none"
@@ -56,6 +56,7 @@ class Method(enum.StrEnum):
     CART = "cart"
     BAYES_NET = "bayes-net"
     TABDDPM = "tabddpm"
+    LABEL_BOOTSTRAP = "label-bootstrap"
 
     @property
     def adds_rows(self) -> bool:

@@ -319,6 +319,10 @@ The plan's arms differ in what decides a new record's content.
   quota (ADR
   [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)). CART and
   the Bayesian network copy each value from a donor row in a leaf or bin.
+- **Whole-record resampling.** The label bootstrap copies a training record of the stratum's label
+  and age band into the cell with its sex set, so every within-record association survives; only
+  the cell's sex is rewritten (ADR
+  [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)).
 - **Interpolation within a stratum.** SMOTE and ADASYN interpolate between a stratum's own
   records, so a stratum of fewer than two records gets no rows from them.
 - **A model's prior.** The Messages arms ask a model for each cell's records a chunk at a time

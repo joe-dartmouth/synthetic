@@ -126,7 +126,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|tabddpm|gaussian-copula|cart|bayes-net> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|tabddpm|gaussian-copula|cart|bayes-net|label-bootstrap> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -138,7 +138,8 @@ command per method, inside `.venv`:
   row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, TabDDPM, the
   Bayesian network, the Gaussian copula and sequential CART
   (`fit holdout=<h> fill=<kind> method=<name> seconds=<s>`, each method's own name, and
-  `holdout=-1 fill=none` outside a harness fill), and the method's parameters. An experiment copies them into its configuration in
+  `holdout=-1 fill=none` outside a harness fill), and the method's parameters (the label
+  bootstrap's are each stratum's pool size). An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
@@ -146,7 +147,7 @@ command per method, inside `.venv`:
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN, TVAE
   and TabDDPM promise no more, so the logged sha256 is the record. The Gaussian copula gives the
   same rows at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian
-  network's rows follow the seed alone.
+  network's rows follow the seed alone, as the label bootstrap's do.
 
 ## Evaluation
 
