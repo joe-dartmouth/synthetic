@@ -1,8 +1,8 @@
 ---
 id: evaluate-control-runs-registered
 title: Register the control runs on E6's and E3's frames and their EVIDENCE entries
-status: blocked
-depends_on: evaluate-prior-shift-comparator
+status: ready
+depends_on: --
 blocks: evaluate-diabetes-control-results, evaluate-synthea-direct-results, gaps-share-based-quota
 parallel_safe: true
 milestone: direct-method-research

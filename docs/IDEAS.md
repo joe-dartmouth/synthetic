@@ -295,31 +295,6 @@ run above under its own spend ceiling.
 
 **Sources.** None in the brief or the 2-pager.
 
-## A threshold-shift comparator for E6
-
-**What it is.** An E6 arm that adds no rows. It fits on the thinned split as `none` does, then adds
-to the removed cell's log-odds the offset that the known removal fraction implies. Removing a
-fraction f of a cell's positives at random multiplies the cell's observed odds by 1 - f, so an
-offset of -log(1 - f) undoes it without new records; at f = 1.0 the offset is unbounded, so the
-arm reads f = 0.985 only. It asks how much of a row-adding arm's removed-cell recall,
-`bko-direct`'s included, comes from restoring the cell's risk level rather than from what its rows
-contain. Shifting an uncorrected model's threshold has given a balance of sensitivity and
-specificity similar to resampling's [`vandengoorbergh-2022`][vandengoorbergh-2022].
-
-**Why it is not in the plan.** E6 compares row-adding arms with `none` (ADR
-[research/diabetes-subgroup-removal-design](adr/research/diabetes-subgroup-removal-design.md)),
-and the classifier panel reads each arm's calibration without a verdict
-([EVIDENCE.md](EVIDENCE.md#e7-classifier-panel)). A threshold arm uses the removed count the design
-supplies, as every row-adding arm's fill does, and adopting it means a new arm and a change to
-[RESEARCH.md](RESEARCH.md) first.
-
-**Sources.** [`vandengoorbergh-2022`][vandengoorbergh-2022], which
-[RESEARCH.md section 7](RESEARCH.md#7-augmentation-versus-resampling) also cites; none in the brief
-or the 2-pager.
-
-The unit
-[`evaluate-prior-shift-comparator`](../tasks/evaluate-prior-shift-comparator.md) schedules it.
-
 ## Candidate datasets and ontologies outside healthcare
 
 **What it is.** A research pass of 2026-11-22 over tabular datasets and open hierarchies outside
@@ -453,7 +428,6 @@ it.
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [shacl-2025]: https://arxiv.org/abs/2507.22305
 [solatorio-2023]: https://arxiv.org/abs/2302.02041
-[vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
 [vcdb-nd]: https://github.com/vz-risk/VCDB
 [watson-2023]: https://arxiv.org/abs/2205.09435
 [zhang-2024]: https://arxiv.org/abs/2310.09656

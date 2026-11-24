@@ -152,7 +152,9 @@ class Experiment:
             msg = f"{stray} are not arms of this experiment"
             raise ValueError(msg)
         controls = sorted(
-            name for name in self.replica_arms if name in Method and not Method(name).adds_rows
+            name
+            for name in self.replica_arms
+            if name == PRIOR_SHIFT_ARM or (name in Method and not Method(name).adds_rows)
         )
         if controls:
             msg = f"{controls} add no rows, so they have no replica to fit"
@@ -309,6 +311,10 @@ not in `BKO_ARMS`, the three gap definitions' arms."""
 REAL_ARM: Final = "real"
 """The reference arm: its added rows are the training rows the experiment's removal took, so its
 augmented training set is the un-ablated training split. It has no runner and no `check`."""
+
+PRIOR_SHIFT_ARM: Final = "prior-shift"
+"""The control that adds no rows and scores `none`'s fit with each requested subgroup's test logits
+offset to its prevalence after the gap fill (`bko.evaluate.shift`)."""
 
 
 class Curation(enum.StrEnum):
