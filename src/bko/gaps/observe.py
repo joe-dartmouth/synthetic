@@ -5,14 +5,15 @@ at random, so a concept's prior is the share of records that show it. A concept 
 gets no S-node, since instantiation reads structure and a prior of 0 would still ground it. A
 dataset is observed whole, for population-level grounding, and in each cell of its grid, for the
 per-subgroup and frequency-aware definitions of ADR `research/bko-formal-gap-definition`; a cell no
-record falls in is observed with no record. ADR `research/dataset-fragment-encoding` records the
-encoding.
+record falls in is observed with no record. On request, `conditional_fragment` adds each mapped
+`is_a` pair's conditional share beside the priors; `dataset_fragment` holds none. ADR
+`research/dataset-fragment-encoding` records the encoding.
 """
 
 from __future__ import annotations
 
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import numpy as np
@@ -46,14 +47,18 @@ class Observed:
         records: How many records were read; 0 for a cell no record falls in.
         holders: Each mapped concept, in sorted order, with how many records show it; a read-only
             copy of the mapping given.
+        both: Each `(narrow, broad)` pair asked for, with how many records show both concepts;
+            empty unless pairs were asked for, and a read-only copy of the mapping given.
     """
 
     name: str
     records: int
     holders: Mapping[str, int]
+    both: Mapping[tuple[str, str], int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "holders", MappingProxyType(dict(self.holders)))
+        object.__setattr__(self, "both", MappingProxyType(dict(self.both)))
 
     @property
     def held(self) -> tuple[str, ...]:
@@ -99,7 +104,13 @@ def cell_key(cell: Cell) -> str:
     return "/".join(str(part) for part in cell)
 
 
-def observe_records(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> Observed:
+def observe_records(
+    frame: pd.DataFrame,
+    rows: Iterable[FieldMapping],
+    *,
+    name: str,
+    pairs: Sequence[tuple[str, str]] = (),
+) -> Observed:
     """Count the records of `frame` that show each concept `rows` map.
 
     A record shows a concept when any row mapping it applies, so a record two such rows map counts
@@ -110,11 +121,14 @@ def observe_records(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: 
             `research/uci-evaluation-frame`).
         rows: The field mappings.
         name: The dataset's source name.
+        pairs: The `(narrow, broad)` pairs whose records showing both are counted in
+            `Observed.both`, such as `bko.gaps.contradictions.is_a_pairs` lists.
 
     Raises:
-        GapError: If `frame` holds no record, or a row reads a field it lacks.
+        GapError: If `frame` holds no record, a row reads a field it lacks, or a pair names a
+            concept `rows` do not map.
     """
-    return _whole(name, record_shows(frame, rows, name=name))
+    return _whole(name, record_shows(frame, rows, name=name), pairs)
 
 
 def record_cells(
@@ -123,6 +137,7 @@ def record_cells(
     *,
     name: str,
     edges: Sequence[int],
+    pairs: Sequence[tuple[str, str]] = (),
 ) -> Cells:
     """Observe the records of `frame` whole and in each age-sex-label cell.
 
@@ -136,6 +151,7 @@ def record_cells(
         rows: The field mappings.
         name: The dataset's source name; a cell's fragment takes it followed by the cell's key.
         edges: Age band starts.
+        pairs: As `observe_records`, counted whole and in each cell.
 
     Raises:
         GapError: As `observe_records`, or if `frame` lacks a cell column.
@@ -147,11 +163,11 @@ def record_cells(
         raise GapError(msg)
     mappings = tuple(rows)
     shows = record_shows(frame, mappings, name=name)
-    whole = _whole(name, shows)
+    whole = _whole(name, shows, pairs)
     keys = cell_keys(frame, edges=edges)
     assumed = {label: _only_other_labels(mappings, label) for label in sorted(LABEL_CODES)}
     each: dict[Cell, CellRecords] = {
-        cell: CellRecords(_member(name, shows, keys, cell), cell[2], assumed[cell[2]])
+        cell: CellRecords(_member(name, shows, keys, cell, pairs), cell[2], assumed[cell[2]])
         for cell in cell_grid(frame, edges)
     }
     return Cells(whole=whole, each=each)
@@ -224,11 +240,35 @@ def dataset_fragment(observed: Observed, *, held: Collection[str] | None = None)
     return fragment
 
 
-def _observed(name: str, records: int, holders: dict[str, int]) -> Observed:
+def conditional_fragment(observed: Observed) -> BKB:
+    """`dataset_fragment` of `observed` plus one conditional S-node per pair `observed.both` holds.
+
+    A pair `(narrow, broad)` whose narrow concept some record shows gets the S-node
+    P(broad | narrow) = the share of the records showing `narrow` that also show `broad`, its head
+    the broad concept, its tail the narrow one; the broad concept's I-node is added if no record
+    shows it. A pair whose narrow concept no record shows gets none, since its share is 0/0. No gap
+    definition, share or prompt reads this fragment (ADR `research/dataset-fragment-encoding`).
+
+    Returns:
+        The priors in sorted order, then the conditionals in sorted pair order, named
+        `observed.name`.
+    """
+    fragment = dataset_fragment(observed)
+    for (narrow, broad), both in sorted(observed.both.items()):
+        holders = observed.holders[narrow]
+        if holders > 0:
+            fragment.add_inode(broad, INDIVIDUAL)
+            fragment.add_snode(broad, INDIVIDUAL, both / holders, [(narrow, INDIVIDUAL)])
+    return fragment
+
+
+def _observed(
+    name: str, records: int, holders: dict[str, int], both: dict[tuple[str, str], int]
+) -> Observed:
     if records == 0:
         msg = f"{name} holds no record, so no concept has a share"
         raise GapError(msg)
-    return Observed(name=name, records=records, holders=MappingProxyType(holders))
+    return Observed(name=name, records=records, holders=MappingProxyType(holders), both=both)
 
 
 def record_shows(frame: pd.DataFrame, rows: Iterable[FieldMapping], *, name: str) -> pd.DataFrame:
@@ -268,9 +308,24 @@ def _population_shows(population: Population, rows: Iterable[CodeMapping]) -> pd
     return pd.DataFrame(columns, index=pd.RangeIndex(len(population.patients)), dtype=bool)
 
 
-def _whole(name: str, shows: pd.DataFrame) -> Observed:
+def _whole(name: str, shows: pd.DataFrame, pairs: Sequence[tuple[str, str]] = ()) -> Observed:
     holders = {str(concept): int(shows[concept].sum()) for concept in shows.columns}
-    return _observed(name, len(shows), holders)
+    return _observed(name, len(shows), holders, _both(name, shows, pairs))
+
+
+def _both(
+    name: str, shows: pd.DataFrame, pairs: Sequence[tuple[str, str]]
+) -> dict[tuple[str, str], int]:
+    """How many records `shows` marks with both concepts of each pair.
+
+    Raises:
+        GapError: If a pair names a concept `shows` has no column for.
+    """
+    unmapped = sorted({concept for pair in pairs for concept in pair} - set(shows.columns))
+    if unmapped:
+        msg = f"the pairs name concepts {name}'s rows do not map: {', '.join(unmapped)}"
+        raise GapError(msg)
+    return {(narrow, broad): int((shows[narrow] & shows[broad]).sum()) for narrow, broad in pairs}
 
 
 def in_cell(keys: pd.DataFrame, cell: Cell) -> np.ndarray:
@@ -281,12 +336,23 @@ def in_cell(keys: pd.DataFrame, cell: Cell) -> np.ndarray:
     return inside
 
 
-def _member(name: str, shows: pd.DataFrame, keys: pd.DataFrame, cell: Cell) -> Observed:
+def _member(
+    name: str,
+    shows: pd.DataFrame,
+    keys: pd.DataFrame,
+    cell: Cell,
+    pairs: Sequence[tuple[str, str]] = (),
+) -> Observed:
     """The records `keys` puts in `cell`, observed; `keys` and `shows` align by position."""
     inside = in_cell(keys, cell)
     members = shows.loc[inside]
     holders = {str(concept): int(members[concept].sum()) for concept in shows.columns}
-    return Observed(name=f"{name}/{cell_key(cell)}", records=int(inside.sum()), holders=holders)
+    return Observed(
+        name=f"{name}/{cell_key(cell)}",
+        records=int(inside.sum()),
+        holders=holders,
+        both=_both(name, members, pairs),
+    )
 
 
 def cell_grid(people: pd.DataFrame, edges: Sequence[int]) -> tuple[tuple[str, str, int], ...]:

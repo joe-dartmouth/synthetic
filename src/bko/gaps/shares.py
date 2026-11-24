@@ -4,13 +4,14 @@ The fused BKB holds, per mapped concept, a prior from the cell's dataset fragmen
 label group's (`bko.gaps.observe.dataset_fragment`). `shares` reads a concept's share from the two;
 `label_only` names the concepts that follow the label and `nested` the concept pairs whose codes lie
 one inside the other. The direct sampler (`bko.generate.direct`) and the likelihood score
-(`bko.gaps.likelihood`) read them alike (ADR `research/bkb-direct-generation`).
+(`bko.gaps.likelihood`) read them alike (ADR `research/bkb-direct-generation`). `draw_order` orders
+concepts narrow before broad over any concept pairs.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -123,6 +124,38 @@ def nested(rows: Sequence[FieldMapping]) -> dict[str, str]:
                 msg = f"{concept} {word} {times} concepts; only one level of nesting is drawn"
                 raise ValueError(msg)
     return dict(pairs)
+
+
+def draw_order(concepts: Collection[str], pairs: Collection[tuple[str, str]]) -> tuple[str, ...]:
+    """`concepts` in topological order over the `(narrow, broad)` `pairs`: each narrow one first.
+
+    A concept's depth is 0 when no pair names it broad, else one more than its deepest narrow
+    concept's; concepts sort by depth, then name. On `nested`'s pairs, read inner to outer, it is
+    the order `bko.generate.direct` draws in.
+
+    Raises:
+        ValueError: If the pairs among `concepts` form a cycle, naming every concept on or above
+            it, none of which can be ordered.
+    """
+    members = frozenset(concepts)
+    below: dict[str, set[str]] = {concept: set() for concept in members}
+    for narrow, broad in pairs:
+        if narrow in members and broad in members:
+            below[broad].add(narrow)
+    depth: dict[str, int] = {}
+    while len(depth) < len(below):
+        ready = [
+            concept
+            for concept, narrow in below.items()
+            if concept not in depth and narrow <= depth.keys()
+        ]
+        if not ready:
+            cycle = ", ".join(sorted(below.keys() - depth.keys()))
+            msg = f"the pairs over {cycle} hold a cycle, so none of them can be ordered"
+            raise ValueError(msg)
+        for concept in ready:
+            depth[concept] = 1 + max((depth[n] for n in below[concept]), default=-1)
+    return tuple(sorted(members, key=lambda concept: (depth[concept], concept)))
 
 
 def _priors(fragment: BKB) -> dict[str, float]:

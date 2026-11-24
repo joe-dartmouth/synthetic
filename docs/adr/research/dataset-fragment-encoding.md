@@ -89,7 +89,7 @@ record count against its label group's (ADR `research/bkb-direct-generation`).
 
 - Owner: `src/bko/gaps/observe.py`
 - Pinned by: `tests/test_gaps_observe.py`, `tests/test_gaps_detect.py`,
-  `tests/test_gaps_definitions.py`
+  `tests/test_gaps_definitions.py`, `tests/test_gaps_conditionals.py`
 
 ## Reversal Conditions
 
