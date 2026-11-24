@@ -234,13 +234,13 @@ its primary page. The other rows are the brief's registry (D10), kept for refere
 | UCI Heart Disease (Cleveland) | Open | Classic 303-record binary/multiclass detection task; naturally small, which suits a low-data story; the evaluation frame is ADR [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md) | Evaluation setting ([section 2](#2-intended-users-and-evaluation-setting)) |
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
 | UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, E6 ([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
-| NHANES August 2021 to August 2023 | Public-use, NCHS terms [`nhanes-nd`][nhanes-nd] | National survey with laboratory values; adults 20 and over, the target of its medical-conditions items | Confirmatory, cardiovascular composite label ([section 11](#11-direct-method-study)) |
-| SUPPORT2 | Open, Vanderbilt permission line [`support2-nd`][support2-nd] | 9,105 seriously ill hospitalized adults with physiology and diagnosis groups | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
-| PhysioNet/CinC Challenge 2012 | Open, ODC Attribution [`cinc2012-nd`][cinc2012-nd] | 12,000 adult ICU stays, first 48 hours [`silva-2012`][silva-2012] | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
+| NHANES August 2021 to August 2023 | Public-use, NCHS terms [`nchs-nd`][nchs-nd]; documentation [`nhanes-2024`][nhanes-2024] | National survey with laboratory values; adults 20 and over, the target of its medical-conditions items | Confirmatory, cardiovascular composite label ([section 11](#11-direct-method-study)) |
+| SUPPORT2 | Open, Vanderbilt permission line [`vanderbilt-2026`][vanderbilt-2026] | 9,105 seriously ill hospitalized adults with physiology and diagnosis groups | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
+| PhysioNet/CinC Challenge 2012 | Open, ODC Attribution [`silva-2012a`][silva-2012a] | 12,000 adult ICU stays, first 48 hours [`silva-2012b`][silva-2012b] | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
 | NHAMCS 2022 ED | Public-use, NCHS terms [`nhamcs-nd`][nhamcs-nd] | 16,025 sampled emergency-department visits with coded diagnoses | Confirmatory, hospital admission label ([section 11](#11-direct-method-study)) |
 | ACS PUMS | Public, Census terms [`acs-nd`][acs-nd] | Census person records with coded occupation | Exploratory non-health family, income label ([section 11](#11-direct-method-study)) |
 | Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
-| MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training [`mimic-nd`][mimic-nd] [`eicu-nd`][eicu-nd] | Demo subsets of the credentialed datasets | No: too few records, excluded by ADR [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md) |
+| MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training [`johnson-2023`][johnson-2023] [`johnson-2021`][johnson-2021] | Demo subsets of the credentialed datasets | No: too few records, excluded by ADR [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md) |
 | Full MIMIC-IV, MIMIC-IV-Note, MIMIC-IV-ED | Credentialed, on PhysioNet | Real EHR data | No |
 
 **Synthea's caveats.** Synthea has documented fidelity flaws: per the JAMIA 2018 paper it
@@ -619,17 +619,17 @@ variants beyond each interval's own.
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [carriero-2025]: https://doi.org/10.1002/sim.10320
 [chawla-2002]: https://doi.org/10.1613/jair.953
-[cinc2012-nd]: https://physionet.org/content/challenge-2012/1.0.0/
 [clore-2014]: https://doi.org/10.24432/C5230J
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
 [dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
-[eicu-nd]: https://physionet.org/content/eicu-crd-demo/2.0.1/
 [fecho-2022]: https://doi.org/10.1111/cts.13301
 [fecho-2025]: https://doi.org/10.1111/cts.70284
 [gardner-2023]: https://arxiv.org/abs/2312.07577
 [he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
 [hpo-2026]: https://github.com/obophenotype/human-phenotype-ontology/tree/920d4eb3608b50a2c19ddb10290224ab35a759c5/src/ontology
 [jackson-2019]: https://doi.org/10.1186/s12859-019-3002-3
+[johnson-2021]: https://doi.org/10.13026/4mxk-na84
+[johnson-2023]: https://doi.org/10.13026/dp1f-ex47
 [juwara-2024]: https://doi.org/10.1016/j.patter.2024.100946
 [kallus-2019]: https://arxiv.org/abs/1902.05826
 [kazakov-2014]: https://doi.org/10.1007/s10817-013-9296-3
@@ -638,20 +638,21 @@ variants beyond each interval's own.
 [lautrup-2026]: https://arxiv.org/abs/2507.19700
 [luo-2022]: https://doi.org/10.1093/bib/bbac409
 [matentzoglu-2022]: https://doi.org/10.1093/database/baac087
-[mimic-nd]: https://physionet.org/content/mimic-iv-demo/2.2/
 [mondo-2026]: https://github.com/monarch-initiative/mondo/blob/9bfccbe9217cdfa6a225058bfa6e4bd55512b432/src/ontology/Makefile
+[nchs-nd]: https://www.cdc.gov/nchs/policy/data-user-agreement.html
 [nhamcs-nd]: https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/readme2022.txt
-[nhanes-nd]: https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm
+[nhanes-2024]: https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm
 [nori-2023]: https://arxiv.org/abs/2311.16452
 [saito-2015]: https://doi.org/10.1371/journal.pone.0118432
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
-[silva-2012]: https://pmc.ncbi.nlm.nih.gov/articles/PMC3965265/
+[silva-2012a]: https://physionet.org/content/challenge-2012/1.0.0/
+[silva-2012b]: https://pmc.ncbi.nlm.nih.gov/articles/PMC3965265/
 [strack-2014]: https://doi.org/10.1155/2014/781670
-[support2-nd]: https://hbiostat.org/data/
 [task-2024]: https://doi.org/10.18434/mds2-3024
 [translator-2019]: https://doi.org/10.1111/cts.12591
 [unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
+[vanderbilt-2026]: https://hbiostat.org/data/
 [welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033
 [xu-2019]: https://arxiv.org/abs/1907.00503

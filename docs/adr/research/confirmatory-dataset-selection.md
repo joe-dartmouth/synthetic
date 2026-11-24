@@ -76,31 +76,32 @@ training split it was read from.
 family in the order Rationale gives, then ACS PUMS. The runners-up meet the rule and follow, each
 below the chosen dataset that holds its slot. The excluded candidates come last, ordered by the
 first condition each fails, and within one condition health before non-health, then
-alphabetically. Each row quotes the licence and access lines of the page named.
+alphabetically. Each row cites the dataset's registry entry and quotes the licence and access
+lines of the page that entry names.
 
 | Rank | Dataset | Licence and access, quoted from the primary page | Verdict |
 |---|---|---|---|
-| 1 | SUPPORT2 ([hbiostat.org/data](https://hbiostat.org/data/)) | "Permission is granted to anyone wishing to use the data sets provided here. Please reference the original paper which, for most data sets, is given in our notes linked below, and note “Data obtained from http://hbiostat.org/data courtesy of the Vanderbilt University Department of Biostatistics.”" | Chosen, health |
-| 2 | PhysioNet/CinC Challenge 2012 ([physionet.org](https://physionet.org/content/challenge-2012/1.0.0/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Attribution License v1.0" | Chosen, health |
-| 3 | NHAMCS 2022 ED ([readme2022.txt](https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/readme2022.txt)) | "Please Read Carefully before Using NCHS Public Use Survey Data"; the four terms in point 5 below | Chosen, health |
-| 4 | NHANES August 2021 to August 2023 ([NCHS Data User Agreement](https://www.cdc.gov/nchs/policy/data-user-agreement.html)) | "Researchers who use NCHS public-use data files can only use the information for statistical analysis or reporting purposes." | Chosen, health |
-| 5 | ACS PUMS ([Census terms of service](https://www.census.gov/data/developers/about/terms-of-service.html)) | "All of the content, documentation, code and related materials made available to you through the API are subject to these terms. Access to or use of the API or its content constitutes acceptance to this Agreement." | Chosen, exploratory non-health family |
-| 6 | BRFSS 2024 ([cdc.gov](https://www.cdc.gov/brfss/annual_data/annual_2024.html)) | No licence line on the page; "There are 457,670 records for 2024. More information on participation is available in the states conducting surveillance, by year table. The data files are provided in ASCII and SAS Transport formats." | Runner-up: meets the rule; ranked below NHANES |
-| 7 | UCI Census-Income KDD ([UCI 117](https://archive.ics.uci.edu/dataset/117/census+income+kdd)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Runner-up, non-health: meets the rule; ranked below ACS PUMS |
-| 8 | MEPS ([data use agreement](https://meps.ahrq.gov/data_stats/data_use.jsp)) | "1. No one is to use the data in this data set in any way except for statistical reporting and analysis; and" and "Your signature below will indicate that you have carefully read and understood the above statements, and your agreement to comply." | Excluded, condition 1: a signed agreement the team does not hold |
-| 9 | PhysioNet/CinC Challenge 2019 ([physionet.org](https://physionet.org/content/challenge-2019/1.0.0/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Creative Commons Attribution 4.0 International Public License" | Excluded, condition 2: an hourly label, no per-stay outcome |
-| 10 | CDC Diabetes Health Indicators ([UCI 891](https://archive.ics.uci.edu/dataset/891/cdc+diabetes+health+indicators)) | "See linked dataset for licensing information." | Excluded, condition 3: age is bucketed |
-| 11 | SPARCS 2022 ([health.data.ny.gov](https://health.data.ny.gov/d/5dtw-tffi)) | Licence field: "See Terms of Use" | Excluded, condition 3: age is grouped |
-| 12 | HMDA ([ffiec.cfpb.gov](https://ffiec.cfpb.gov/data-publication/)) | No licence line on the page; "The snapshot files contain the national HMDA datasets as of a fixed date for all HMDA reporters, as modified by the Bureau to protect applicant and borrower privacy." | Excluded, non-health, condition 3: a loan record, not a person record |
-| 13 | UCI Adult ([UCI 2](https://archive.ics.uci.edu/dataset/2/adult)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Excluded, non-health, condition 4: no hierarchical coded field |
-| 14 | eICU demo ([physionet.org](https://physionet.org/content/eicu-crd-demo/2.0.1/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
-| 15 | MIMIC-IV demo ([physionet.org](https://physionet.org/content/mimic-iv-demo/2.2/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
-| 16 | Framingham teaching set ([BioLINCC](https://biolincc.nhlbi.nih.gov/teaching/)) | "The NHLBI has prepared three datasets suitable for use in an undergraduate or graduate level biostatistics instruction program. These datasets are freely available upon request." | Excluded, condition 6: unsuitable for publication |
+| 1 | SUPPORT2 ([`vanderbilt-2026`](../../literature.md#datasets)) | "Permission is granted to anyone wishing to use the data sets provided here. Please reference the original paper which, for most data sets, is given in our notes linked below, and note “Data obtained from http://hbiostat.org/data courtesy of the Vanderbilt University Department of Biostatistics.”" | Chosen, health |
+| 2 | PhysioNet/CinC Challenge 2012 ([`silva-2012a`](../../literature.md#datasets)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Attribution License v1.0" | Chosen, health |
+| 3 | NHAMCS 2022 ED ([`nhamcs-nd`](../../literature.md#datasets)) | "Please Read Carefully before Using NCHS Public Use Survey Data"; the four terms in point 5 below | Chosen, health |
+| 4 | NHANES August 2021 to August 2023 ([`nhanes-2024`](../../literature.md#datasets); terms [`nchs-nd`](../../literature.md#datasets)) | "Researchers who use NCHS public-use data files can only use the information for statistical analysis or reporting purposes." | Chosen, health |
+| 5 | ACS PUMS ([`acs-nd`](../../literature.md#datasets)) | "All of the content, documentation, code and related materials made available to you through the API are subject to these terms. Access to or use of the API or its content constitutes acceptance to this Agreement." | Chosen, exploratory non-health family |
+| 6 | BRFSS 2024 ([`brfss-nd`](../../literature.md#datasets)) | No licence line on the page; "There are 457,670 records for 2024. More information on participation is available in the states conducting surveillance, by year table. The data files are provided in ASCII and SAS Transport formats." | Runner-up: meets the rule; ranked below NHANES |
+| 7 | UCI Census-Income KDD ([`censuskdd-2000`](../../literature.md#datasets)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Runner-up, non-health: meets the rule; ranked below ACS PUMS |
+| 8 | MEPS ([`meps-nd`](../../literature.md#datasets)) | "1. No one is to use the data in this data set in any way except for statistical reporting and analysis; and" and "Your signature below will indicate that you have carefully read and understood the above statements, and your agreement to comply." | Excluded, condition 1: a signed agreement the team does not hold |
+| 9 | PhysioNet/CinC Challenge 2019 ([`reyna-2019`](../../literature.md#datasets)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Creative Commons Attribution 4.0 International Public License" | Excluded, condition 2: an hourly label, no per-stay outcome |
+| 10 | CDC Diabetes Health Indicators ([`cdcdiabetes-2017`](../../literature.md#datasets)) | "See linked dataset for licensing information." | Excluded, condition 3: age is bucketed |
+| 11 | SPARCS 2022 ([`sparcs-nd`](../../literature.md#datasets)) | Licence field of the dataset's metadata record: "See Terms of Use" | Excluded, condition 3: age is grouped |
+| 12 | HMDA ([`hmda-nd`](../../literature.md#datasets)) | No licence line on the page; "The snapshot files contain the national HMDA datasets as of a fixed date for all HMDA reporters, as modified by the Bureau to protect applicant and borrower privacy." | Excluded, non-health, condition 3: a loan record, not a person record |
+| 13 | UCI Adult ([`becker-1996`](../../literature.md#datasets)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Excluded, non-health, condition 4: no hierarchical coded field |
+| 14 | eICU demo ([`johnson-2021`](../../literature.md#datasets)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
+| 15 | MIMIC-IV demo ([`johnson-2023`](../../literature.md#datasets)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
+| 16 | Framingham teaching set ([`framingham-nd`](../../literature.md#datasets)) | "The NHLBI has prepared three datasets suitable for use in an undergraduate or graduate level biostatistics instruction program. These datasets are freely available upon request." | Excluded, condition 6: unsuitable for publication |
 
 Each chosen dataset against conditions 2, 3 and 5, from its documentation. The death rate and
 the composite's size are recorded for the frame units, not against a condition:
 
-- **SUPPORT2.** The Vanderbilt codebook reads "9105 observations and 47 variables, maximum # NAs:5641"
+- **SUPPORT2.** The Vanderbilt codebook ([`vanderbilt-2026`](../../literature.md#datasets)) reads "9105 observations and 47 variables, maximum # NAs:5641"
   and lists `hospdead` as "Death in Hospital", with `age` stored as a double and `sex` with two
   levels. No page read states the in-hospital death rate; the frame unit counts it from the
   training split.
@@ -108,18 +109,18 @@ the composite's size are recorded for the frame units, not against a condition:
   returned HTTP 403 to curl and to a browser, and stayed on a bot check. UCI's page says only "See
   linked dataset for licensing information." The frame unit pins the Vanderbilt archive, whose
   permission line is quoted above.
-- **PhysioNet/CinC Challenge 2012.** "The data used for the challenge consist of records from
+- **PhysioNet/CinC Challenge 2012** ([`silva-2012a`](../../literature.md#datasets)). "The data used for the challenge consist of records from
   12,000 ICU stays." The outcome is "In-hospital death (0: survivor, or 1: died in-hospital)", with
   "Age (years)" and "Gender (0: female, or 1: male)" among the descriptors. The challenge paper
-  ([`silva-2012`](../../literature.md#datasets)) states "The overall mortality rate was 14.2%." over
+  ([`silva-2012b`](../../literature.md#datasets)) states "The overall mortality rate was 14.2%." over
   the 12,000 stays. The page's file list holds the outcomes of sets A, B and C.
-- **NHAMCS 2022 ED.** The documentation is "for users of the Emergency Department public use"
+- **NHAMCS 2022 ED** ([`nhamcs-nd`](../../literature.md#datasets)). The documentation is "for users of the Emergency Department public use"
   file: "Each record on the ED file represents one visit in the sample of 16,025 visits."
   `ADMITHOS` is "Admit to this hospital"; `AGE` is in years, top-coded at "94 = 94 years or older";
   `SEX` is coded 1 female, 2 male. The file is public-use under the NCHS terms; it is not held
   under a separate agreement.
 - **NHANES August 2021 to August 2023.** The page states no size for the composite outcome. The
-  Medical Conditions codebook (MCQ_L) gives each component's Yes count among adults 20 and over:
+  Medical Conditions codebook (MCQ_L, [`nhanes-2024`](../../literature.md#datasets)) gives each component's Yes count among adults 20 and over:
   congestive heart failure (MCQ160b) 343, coronary heart disease (MCQ160c) 402, heart attack
   (MCQ160e) 332, stroke (MCQ160f) 367, each of roughly 7,800 answers. The composite of the four so
   holds between 402 and 1,444 adults; the frame unit computes the union. No page read states the
@@ -127,7 +128,7 @@ the composite's size are recorded for the frame units, not against a condition:
   any gap is read, and condition 5 excludes it below 5,000. DEMO_L gives age "Age in years of the
   participant at the time of screening. Individuals 80 and over are top-coded at 80 years of age."
   and a two-valued `RIAGENDR`.
-- **ACS PUMS.** The 2024 user guide says one year's PUMS files hold about one percent of the
+- **ACS PUMS** ([`acs-nd`](../../literature.md#datasets)). The 2024 user guide says one year's PUMS files hold about one percent of the
   United States population. No page read states the row count of one state-year, so the frame
   unit counts its training split before any gap is read, and condition 5 excludes it below 5,000.
   The 2024 data dictionary gives `AGEP` as numeric, "1..99 .1 to 99 years (Top-coded)", and `SEX`
@@ -169,7 +170,7 @@ legal advice.
              individuals and establishments.
   ```
 
-  The NCHS Data User Agreement page carries the same points, among them "Make no attempt to learn
+  The NCHS Data User Agreement page ([`nchs-nd`](../../literature.md#datasets)) carries the same points, among them "Make no attempt to learn
   the identity of any person or establishment included in these data." The reading: the privacy
   readings (membership inference, NNDR, distance to closest record, the match attack, donor reuse)
   score the generated rows a method writes, measure that method's disclosure, and attempt to
