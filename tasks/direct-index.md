@@ -20,14 +20,13 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) | ready | -- | direct-method-research |
-| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | evaluate-added-row-contradictions | direct-method-research |
+| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
 | [`privacy-donor-attacks-results`](privacy-donor-attacks-results.md) | ready | -- | direct-method-research |
 | [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
-| [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | evaluate-added-row-contradictions | direct-method-research |
+| [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
 | [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | ready | -- | direct-method-research |
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | evaluate-control-runs-registered | direct-method-research |
@@ -85,15 +84,13 @@ flowchart LR
     u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6[evaluate-control-runs-registered] --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
-    u9[evaluate-added-row-contradictions] --> u11[generate-is-a-conditional-draws]
     u12[ontology-diabetes-diagnosis-codes] --> u13[generate-ancestor-shrunk-shares]
     u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
-    u9 --> u17[generate-coherent-free-fields]
-    u11 --> u19[evaluate-variant-dev-results]
+    u11[generate-is-a-conditional-draws] --> u19[evaluate-variant-dev-results]
     u13 --> u19
     u15 --> u19
     u16 --> u19
-    u17 --> u19
+    u17[generate-coherent-free-fields] --> u19
     u18[evaluate-trace-attribution] --> u19
     u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]

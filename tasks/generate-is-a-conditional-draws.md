@@ -1,8 +1,8 @@
 ---
 id: generate-is-a-conditional-draws
 title: Add the bko-hier arms, drawing a broad concept given its narrow one
-status: blocked
-depends_on: evaluate-added-row-contradictions
+status: ready
+depends_on: --
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -41,8 +41,8 @@ arm beside them.
   `bko-direct`.
 - Development `RUNS` entries on E6's and E3's frames, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. Its
-  target measure is the narrow-without-broad count of unit
-  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md).
+  target measure is the narrow-without-broad count of `contradictions --rows`
+  (ADR [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md), Decision 2).
 - The Configuration states that each frame holds one or two such pairs, so the arm is a
   contradiction-handling ablation.
 
