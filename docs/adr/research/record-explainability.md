@@ -80,7 +80,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      `DrawSpec` reads the mapping table, is a knowledge fact; else a field with a source id is a
      donor; else (`sex`, the label) it is method and seed.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
-     rewrite arm and method and seed only under PRAM; every other field is read as a direct one.
+     rewrite arm and method and seed only under PRAM, a mapped field among them, since its value
+     is no longer the drawn fact; this class comes before every other. Every other field is read
+     as a direct one.
    * Messages: every field is prompt section only; every field of a record whose call the log
      lacks (`untraced`) is method and seed only, and the reading counts such records.
    * Baseline: one count per fill, method and seed only, in the unit `fill`, since the trace holds
