@@ -17,8 +17,10 @@ changes a row; each arm keeps its own rows on every holdout. ADR
 
 from __future__ import annotations
 
+import functools
 import logging
 import math
+import operator
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -189,8 +191,7 @@ def rule_breaks(rows: pd.DataFrame) -> dict[str, pd.Series]:
 
 def incoherent(rows: pd.DataFrame) -> float:
     """The share of Diabetes `rows` that break any of `rule_breaks`' rules. NaN for no rows."""
-    drug, change, dose = rule_breaks(rows).values()
-    broken = drug | change | dose
+    broken = functools.reduce(operator.or_, rule_breaks(rows).values())
     return float(broken.mean()) if len(rows) else math.nan
 
 

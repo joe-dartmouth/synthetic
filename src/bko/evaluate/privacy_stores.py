@@ -8,18 +8,21 @@ experiment's arms'.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
+import pandas as pd
+
+from bko.datasets.frames import FrameSpec
 from bko.datasets.split import split
 from bko.evaluate.data import Data
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
 from bko.evaluate.prepare import Prepared, prepared, split_line
-from bko.evaluate.rows_read import Rows, bind, read_rows
+from bko.evaluate.rows_read import Rows, bind, frame_of, read_rows
 from bko.evaluate.run_folder import Folder, read_folder
 
 
@@ -43,7 +46,7 @@ def read(
     experiment: Experiment,
     runs: Mapping[str, NamedRun],
     root: Path,
-    verb: str = "privacy",
+    verb: Literal["privacy", "added"] = "privacy",
 ) -> dict[int, Store]:
     """Read and check each store; return the store that holds each of `run`'s holdouts.
 
@@ -115,6 +118,26 @@ def checked(seed: int, store: Store, data: Data, experiment: Experiment) -> Prep
         msg += f" {store.path} is bound to"
         raise IdentityError(msg)
     return ready
+
+
+def read_fills(
+    seed: int, store: Store, arms: Iterable[str], frame: FrameSpec
+) -> dict[str, pd.DataFrame]:
+    """Each of `arms`' fill of holdout `seed` in `store`, read back at `frame` (`frame_of`).
+
+    Raises:
+        IdentityError: As `frame_of`, naming the store.
+    """
+    try:
+        return {
+            arm: frame_of(
+                store.rows.lines[seed, arm], arm_line=store.folder.arms[seed, arm], frame=frame
+            )
+            for arm in arms
+        }
+    except IdentityError as error:
+        msg = f"the store {store.path}: {error}"
+        raise IdentityError(msg) from error
 
 
 SHOWN: Final = 200

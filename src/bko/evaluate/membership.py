@@ -58,7 +58,7 @@ from bko.evaluate.donor_attacks import (
     match_measures,
     read_donors,
 )
-from bko.evaluate.errors import EvaluationError, IdentityError
+from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, gap_request
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
 from bko.evaluate.prepare import Prepared, held_out_ratio
@@ -71,12 +71,12 @@ from bko.evaluate.privacy_stores import (
     _shown,  # ruff: ignore[unused-import]  (re-exported)
     checked,
     read,
+    read_fills,
 )
 from bko.evaluate.reference import (
     REFERENCE,  # ruff: ignore[unused-import]  (re-exported)
     reference_of,
 )
-from bko.evaluate.rows_read import frame_of
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
 from bko.evaluate.trace_lines import Fill
 from bko.ontology.terms import Ontology
@@ -328,16 +328,7 @@ def _holdout(
     """
     frame = data.frame
     ready = checked(seed, store, data, experiment)
-    try:
-        fills = {
-            arm: frame_of(
-                store.rows.lines[seed, arm], arm_line=store.folder.arms[seed, arm], frame=frame
-            )
-            for arm in experiment.arms
-        }
-    except IdentityError as error:
-        msg = f"the store {store.path}: {error}"
-        raise IdentityError(msg) from error
+    fills = read_fills(seed, store, experiment.arms, frame)
     train, groups = ready.ablated.train, match_groups(data.field_rows, frame=frame)
     request = None
     if DONOR_ARMS & set(fills):
