@@ -285,19 +285,19 @@ def classify(
     try:
         status = runner(argv, timeout, owl.parent, kept)
     except subprocess.TimeoutExpired as exc:
-        msg = f"ROBOT did not finish in {exc.timeout} s classifying {owl}; {_tail(kept)}"
+        msg = f"ROBOT did not finish in {exc.timeout} s classifying {owl}; {tail(kept)}"
         raise UnavailableError(msg) from exc
     seconds = time.monotonic() - started
     if status != 0:
-        msg = f"ROBOT exited {status} after {seconds:.1f} s classifying {owl}; {_tail(kept)}"
+        msg = f"ROBOT exited {status} after {seconds:.1f} s classifying {owl}; {tail(kept)}"
         raise UnavailableError(msg)
     if not out.is_file():
-        msg = f"ROBOT exited 0 after {seconds:.1f} s but wrote no {out}; {_tail(kept)}"
+        msg = f"ROBOT exited 0 after {seconds:.1f} s but wrote no {out}; {tail(kept)}"
         raise UnavailableError(msg)
     return seconds
 
 
-def _tail(kept: Path) -> str:
+def tail(kept: Path) -> str:
     """Where ROBOT's stderr is, with its last `TAIL_LINES` lines."""
     if not kept.is_file():
         return f"no stderr at {kept}"

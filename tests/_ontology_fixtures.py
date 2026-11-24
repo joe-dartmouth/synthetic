@@ -1,4 +1,4 @@
-"""Offline inputs for the `bko.ontology` tests: OBO release text and a URL-routing opener.
+"""Offline inputs for the `bko.ontology` tests: OBO release text, a routing opener, a fake ROBOT.
 
 The MONDO:0024644 stanza of `MONDO_TEXT`, with the header lines that declare its prefixes, is from
 MONDO release 2026-10-06 (CC BY 4.0). Its six other stanzas with a `skos:exactMatch SCTID:` line
@@ -11,14 +11,18 @@ a table concept that reuses the release's id and name.
 and the skos:exactMatch lines to DO of the six MONDO classes of Santos et al.'s example, with the
 id and name of their parents, qualifiers dropped; `SANTOS_DO_TEXT` abridges Human Disease Ontology
 release 2026-09-30 (CC0 1.0) the same way. `HPO_TEXT` is invented: it reuses HPO ids and labels
-only, and no HPO file content.
+only, and no HPO file content. `FakeRobot` stands in for ROBOT, so no test runs Java.
 """
 
 from __future__ import annotations
 
 import io
-from collections.abc import Mapping
+import subprocess
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Final
+
+from tests._gaps_fixtures import LADDER_HPO, LADDER_MONDO
 
 
 _REDUNDANT_IS_A = (
@@ -388,3 +392,51 @@ SANTOS_REPORT = (
     "chain,probability,,0.001371742112482853,reported\n"
 )
 """What `python -m bko.ontology reproduce` writes for the two texts above, byte for byte."""
+
+
+ELK_MONDO: Final = LADDER_MONDO.replace(
+    "id: MONDO:9000005\nname: unrelated disorder\nis_a: MONDO:9000001\n",
+    "id: MONDO:9000005\nname: unrelated disorder\nis_a: MONDO:9000002 ! heart disorder\n",
+).replace(
+    "id: MONDO:9000003\nname: myocardial ischemia\nis_a: MONDO:9000002\n",
+    "id: MONDO:9000003\nname: myocardial ischemia\nis_a: MONDO:9000001\n",
+)
+"""ELK's output for the MONDO ladder: the unrelated disorder moved under heart disorder, and
+myocardial ischemia moved from under heart disorder to under disease."""
+
+
+class FakeRobot:
+    """Writes its stderr, then a canned OBO to the argv's output, or fails as told.
+
+    The OBO is `text` when given, else `ELK_MONDO` for an input naming `mondo` and `LADDER_HPO`
+    for any other.
+    """
+
+    def __init__(
+        self,
+        status: int = 0,
+        stderr: bytes = b"",
+        timeout: bool = False,
+        write: bool = True,
+        text: str | None = None,
+    ) -> None:
+        self.status = status
+        self.stderr = stderr
+        self.timeout = timeout
+        self.write = write
+        self.text = text
+        self.calls: list[list[str]] = []
+        self.cwds: list[Path] = []
+
+    def __call__(self, argv: Sequence[str], timeout: float, cwd: Path, stderr: Path) -> int:
+        self.calls.append(list(argv))
+        self.cwds.append(cwd)
+        stderr.write_bytes(self.stderr)
+        if self.timeout:
+            raise subprocess.TimeoutExpired(list(argv), timeout)
+        if self.status == 0 and self.write:
+            out = Path(argv[argv.index("--output") + 1])
+            owl = Path(argv[argv.index("--input") + 1]).read_bytes()
+            canned = ELK_MONDO if b"mondo" in owl else LADDER_HPO
+            out.write_text(canned if self.text is None else self.text, encoding="utf-8")
+        return self.status

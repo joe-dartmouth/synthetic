@@ -17,7 +17,6 @@ from bko.ontology.obo import parse_obo
 from bko.ontology.schema import CodeMapping, Codes, FieldMapping
 from bko.ontology.terms import Ontology
 from tests._datasets_fixtures import condition, patient, pin
-from tests._ontology_fixtures import write_obo
 
 
 LADDER_MONDO: Final = """\
@@ -81,9 +80,11 @@ is_a: HP:9000002
 
 def parse_ladders(directory: Path) -> dict[str, Ontology]:
     """Both ladders, written to and parsed from `directory`, by concept prefix."""
+    (directory / "hp.obo").write_text(LADDER_HPO, encoding="utf-8")
+    (directory / "mondo.obo").write_text(LADDER_MONDO, encoding="utf-8")
     return {
-        "HP": parse_obo(write_obo(directory, LADDER_HPO, "hp.obo"), name="hpo"),
-        "MONDO": parse_obo(write_obo(directory, LADDER_MONDO, "mondo.obo"), name="mondo"),
+        "HP": parse_obo(directory / "hp.obo", name="hpo"),
+        "MONDO": parse_obo(directory / "mondo.obo", name="mondo"),
     }
 
 
