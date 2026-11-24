@@ -16,6 +16,7 @@ import bko.generate.direct as direct_module
 import bko.generate.logic as logic_module
 from bko.datasets.uci import UCI_FRAME
 from bko.generate.direct import logic_components, sample
+from bko.generate.draw_spec import DrawSpec
 from bko.generate.logic import MAX_COMPONENT, Component, components, logic_assignment
 from bko.generate.presence import Presence
 from bko.ontology.mapping import FIELD_MAPPINGS
@@ -76,7 +77,7 @@ def logic_draw(seed: int = 0, quota: int = 200, ontologies=ONTOLOGIES, tag=None)
         seed=seed,
         frame=UCI_FRAME,
         tag=tag,
-        presence=Presence.LOGIC,
+        spec=DrawSpec(presence=Presence.LOGIC),
     )
 
 

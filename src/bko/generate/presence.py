@@ -1,6 +1,7 @@
 """How the direct draw decides each concept's presence: a light module the run table imports.
 
-`bko.generate.direct.sample` takes a `Presence`; `bko.generate.logic` holds the logic-only draw.
+`bko.generate.direct.sample` takes a `DrawSpec` whose `presence` field is one;
+`bko.generate.logic` holds the logic-only draw.
 """
 
 from __future__ import annotations

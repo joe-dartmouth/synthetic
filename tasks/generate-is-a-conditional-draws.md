@@ -2,7 +2,7 @@
 id: generate-is-a-conditional-draws
 title: Add the bko-hier arms, drawing a broad concept given its narrow one
 status: blocked
-depends_on: generate-no-mapping-ablation, gaps-is-a-conditional-fragments, evaluate-added-row-contradictions
+depends_on: gaps-is-a-conditional-fragments, evaluate-added-row-contradictions
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research

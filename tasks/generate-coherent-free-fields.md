@@ -2,7 +2,7 @@
 id: generate-coherent-free-fields
 title: Add the bko-coherent arm, drawing free fields by sequential CART
 status: blocked
-depends_on: generate-no-mapping-ablation, evaluate-added-row-contradictions, privacy-donor-attacks
+depends_on: evaluate-added-row-contradictions, privacy-donor-attacks
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research

@@ -190,11 +190,12 @@ Its stderr carries, from logger `bko.evaluate.direct`, a
 `direct arm=%s holdout=%d fill=%s seed=%d outcome=%s %s` line per attempt (the attempt's counts
 last) and the arm's `validity` sums at the end, as a BKO arm's; and from logger
 `bko.generate.direct`, for every fill, a
-`direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d presence=%s` line per cell
-(rows, the cell's records, its label group's records, how presence is drawn) and a
-`fallback holdout=%d fill=%s key=%s field=%s draws=%d presence=%s` line per cell and field read
-from the label group. Each names the holdout and the fill (`gap` or `replica`) it serves; outside a
-harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone,
+`direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d%s presence=%s` line per cell
+(rows, the cell's records, its label group's records, the draw spec's other non-default fields as
+` name=value` tokens, how presence is drawn) and a
+`fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s` line per cell and field read
+from the label group, with the same tokens. Each names the holdout and the fill (`gap` or
+`replica`) it serves; outside a harness fill they read `holdout=-1 fill=none`. `compare g2` writes a table of its header alone,
 since `G2` judges no criterion, and logs every criterion's intervals as `unjudged` lines.
 
 E9's runs, `e9-thin` and `e9-empty` and their slices `e9-thina` to `e9-thinj` and `e9-emptya` to
@@ -209,6 +210,11 @@ its concepts above `bko.generate.logic.MAX_COMPONENT` exits 2 once the releases 
 arm fits:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e9-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
+
+The no-mapping direct arm `bko-nomap` draws as `bko-direct` does with an empty mapping table (ADR
+[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)), and no named run holds
+it. Its `direct` and `fallback` lines read ` mapped=false presence=shares`, its `arm` line's
+params add `"mapped": false`, and its `direct arm=` line ends in `fallback_draws=%d`.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -906,8 +912,8 @@ start or the supervisor cannot run.
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
   send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a
-  direct arm with no `--candidates`, a direct arm whose field rows nest in a chain
-  (`bko.gaps.shares.nested`), a logic-only arm with a component above
+  direct arm with no `--candidates`, a direct arm that reads the mapping table
+  and whose field rows nest in a chain (`bko.gaps.shares.nested`), a logic-only arm with a component above
   `bko.generate.logic.MAX_COMPONENT` concepts, `--log`, `--replay`, `--resume` or `--rehearse`
   with no BKO arm to build, `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
@@ -1076,9 +1082,10 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 `--record N` writes the record at 0-based position N alone, and `--data-dir` sets the data root.
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
-Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`) re-draws at its `arm`
-line's seed with that arm's presence and no extra random draw; a `bko-logic` record's concepts are
-its closed draw, not share priors. `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows
+Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`) re-draws
+at its `arm` line's seed with that arm's draw spec and no extra random draw; a `bko-logic`
+record's concepts are its closed draw, not share priors, and a `bko-nomap` record names no
+concept. `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows
 from their candidate lines and re-draw underneath, and each of their records gets a `perturb`
 object: `result`, the line's schema-4 `perturb` value (on a schema-3 line, `perturbed` or
 `unchanged` by comparison with the draw when the line names a call, `kept` when it names none, and
@@ -1105,9 +1112,9 @@ arm:
   writes, named by path and line number; 3 a folder that fails its identity checks: a holdout's
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
-  fill whose `arm` line's params are not a JSON object or whose `presence` differs from its
-  arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt
-  is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
+  fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
+  `mapped`) differ from its arm's, and a perturbation fill whose rebuilt rows miss its `arm`
+  sha256, whose returned attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
   trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
   over a frame whose unmapped fields are not its pinned ones, exit 2.
 

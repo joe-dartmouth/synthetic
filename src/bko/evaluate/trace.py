@@ -7,12 +7,12 @@ and writes one `Trace` per record as a sorted-key JSON line, in the order
 no API call.
 
 - An arm of `DIRECT_ARMS` (`trace_direct`): the fill is re-drawn at its `arm` line's seed with
-  its arm's presence through `bko.generate.direct.sample`, which draws nothing more to name its
+  its arm's spec through `bko.generate.direct.sample`, which draws nothing more to name its
   sources, and refused (`IdentityError`, exit 3) unless the re-drawn rows hash to the line's
   sha256. Each record names its request's cell and quota, the training record each field was read
   from, its fallback fields and its closure, and for `bko-direct` each concept's share with its
-  parts and S-nodes, for `bko-logic` each concept of its closed draw; labels come from the pinned
-  releases.
+  parts and S-nodes, for `bko-logic` each concept of its closed draw, for `bko-nomap` none;
+  labels come from the pinned releases.
 - A Messages arm (`trace_messages`): each record names its call and the sections of that call's
   prompt in the folder's `calls.jsonl` (`bko.evaluate.call_prompts`), under the log's guidance
   level. A record the log cannot trace is `untraced`, with the reason, and the `trace partial`

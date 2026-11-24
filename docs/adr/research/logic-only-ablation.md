@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows
 
@@ -42,10 +42,10 @@ share of a concept with its label group's (ADR `research/frequency-aware-gap-sco
 
 ## Decision
 
-1. **Presence is a parameter of the direct sampler** (`Presence` in `bko.generate.presence`). At
-   shares it is `bko-direct` (ADR `research/bkb-direct-generation`); at logic it is `bko-logic`,
-   below. Field groups, record picks, the other fields and the candidates file are the direct
-   sampler's for both.
+1. **Presence is a field of the direct sampler's `DrawSpec`** (`Presence` in
+   `bko.generate.presence`). At shares it is `bko-direct` (ADR `research/bkb-direct-generation`);
+   at logic it is `bko-logic`, below. Field groups, record picks, the other fields and the
+   candidates file are the direct sampler's for both.
 2. **Consistent assignments.** Over the mapped concepts other than the label-only ones, an
    assignment of present or absent is consistent when every present concept's mapped `is_a`
    ancestors in its release (`bko.ontology.terms.ancestors`) are present and every present inner

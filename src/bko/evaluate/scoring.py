@@ -104,14 +104,18 @@ def _prepare(args: argparse.Namespace, named: NamedRun, context: Context) -> Ans
     It runs before any download, so a refused run fetches nothing.
 
     Raises:
-        EvaluationError: As `_refuse_flags`, or if a direct arm, or the perturbed arm that draws
-            as one, runs on field rows that nest in a chain (`bko.gaps.shares.nested`), which it
-            cannot draw.
+        EvaluationError: As `_refuse_flags`, or if a direct arm that reads the mapping table, or
+            the perturbed arm that draws as one, runs on field rows that nest in a chain
+            (`bko.gaps.shares.nested`), which it cannot draw. A direct arm without the table
+            reads no field rows.
         FileExistsError: If the call log or candidates file exists.
     """
     guided, direct = _arms(named, context)
     _refuse_flags(args, guided, direct=direct)
-    drawing = [*direct, *(name for name in guided if name == PERTURBED_ARM)]
+    drawing = [
+        *(name for name in direct if DIRECT_ARMS[name].mapped),
+        *(name for name in guided if name == PERTURBED_ARM),
+    ]
     if drawing:
         try:
             nested(field_rows(named.dataset, context))

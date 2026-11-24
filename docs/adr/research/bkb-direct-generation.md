@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -25,7 +25,8 @@ table says when a record shows a concept, never what values a concept implies (A
 data's concept shares, not the ontology's structure: its closure is recorded and never read into a
 field.
 A logic-only configuration of the same sampler draws presence from the ontology's constraints
-instead (ADR `research/logic-only-ablation`).
+instead (ADR `research/logic-only-ablation`), and a no-mapping configuration draws with an empty
+mapping table (ADR `research/no-mapping-ablation`).
 
 ## Decision Drivers
 
@@ -93,11 +94,15 @@ instead (ADR `research/logic-only-ablation`).
     Keeping it adds no draw, so a seed's records are the same with or without it, and
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
-11. **Presence is a parameter.** At shares, Decisions 1 to 3 apply and the arm is `bko-direct`. At
+11. **The draw spec.** The sampler takes a `DrawSpec` of `presence` and `mapped`. At its
+    default, shares and the mapping table, Decisions 1 to 3 apply and the arm is `bko-direct`. At
     logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
     concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
     assignments, and the closure is read into fields in place of Decision 3. Decisions 4 to 6, 8
-    and 10 hold for both, so the two arms differ only in presence and closure.
+    and 10 hold for both, so the two arms differ only in presence and closure. At
+    `mapped=False`, the arm is `bko-nomap`: ADR `research/no-mapping-ablation` reads an empty
+    mapping table, so no concept is drawn and every field but `age`, `sex` and the label is a free
+    field of Decision 6.
 
 ## Rationale
 
@@ -135,7 +140,8 @@ table and the data's concept shares contribute; candidates `bko.validate` and `b
 unchanged. The arm `bko-direct` of the named run `g2` (`bko.evaluate.direct`) runs the sampler on
 each of E1's requests, seeded by the request's seed, through the attempt bookkeeping a BKO arm uses,
 writing each record to the per-holdout candidates file with a null call. E9's runs add
-`bko-logic` beside it on E6's frame (ADR `research/logic-only-ablation`).
+`bko-logic` beside it on E6's frame (ADR `research/logic-only-ablation`), and `bko-nomap` draws
+it without the mapping table (ADR `research/no-mapping-ablation`).
 **Accepted**: `bko-direct` reads nothing the ontology fragments add beyond the closure it records,
 so it cannot test the ontology's structure, which `bko-logic` reads instead; within-group values are
 copies of training records, so the arm's privacy and test-copy readings matter; a cell whose label
@@ -177,4 +183,5 @@ fields if the ontology fragments gain priors** (ADR `research/bko-fragment-encod
 - [Validated records join the training records of their asked cell, and closure is read per gap definition](gap-closure-design.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
 - [A record's explanation is the stored or re-derivable facts that determine it](record-explainability.md)
+- [The no-mapping ablation draws bko-direct's records with an empty mapping table](no-mapping-ablation.md)
 - [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)

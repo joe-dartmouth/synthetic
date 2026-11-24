@@ -2,7 +2,7 @@
 id: privacy-donor-limits
 title: Add the bko-capped arm, with a donor floor and a reuse cap
 status: blocked
-depends_on: generate-no-mapping-ablation, privacy-donor-attacks
+depends_on: privacy-donor-attacks
 blocks: privacy-value-microaggregation, evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research

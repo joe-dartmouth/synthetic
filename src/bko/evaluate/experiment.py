@@ -24,6 +24,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.ranking import over_ask_error
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.presence import Presence
 
 
@@ -286,10 +287,19 @@ PRAM_ARM: Final = "bko-direct-pram"
 """The free arm that redraws `DIRECT_ARM`'s unmapped fields by PRAM toward each field's label-group
 training marginal (`bko.evaluate.pram`; ADR `research/identifier-perturbation`)."""
 
-DIRECT_ARMS: Final[Mapping[str, Presence]] = MappingProxyType(
-    {DIRECT_ARM: Presence.SHARES, LOGIC_ARM: Presence.LOGIC, PRAM_ARM: Presence.SHARES}
+NOMAP_ARM: Final = "bko-nomap"
+"""The free arm that draws as `DIRECT_ARM` does with an empty mapping table: no concept, and every
+column but `age`, `sex` and the label a free field (ADR `research/no-mapping-ablation`)."""
+
+DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
+    {
+        DIRECT_ARM: DEFAULT_SPEC,
+        LOGIC_ARM: DrawSpec(presence=Presence.LOGIC),
+        PRAM_ARM: DEFAULT_SPEC,
+        NOMAP_ARM: DrawSpec(mapped=False),
+    }
 )
-"""Every direct arm, with how its draw decides each concept's presence."""
+"""Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""
 
 SKELETON_ARM: Final = "bko-skeleton"
 """The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every

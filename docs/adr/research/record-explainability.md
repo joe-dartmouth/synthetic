@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-08
+updated: 2026-11-24
 ---
 # A record's explanation is the stored or re-derivable facts that determine it
 
@@ -37,6 +37,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      source training record id; the fallback fields; the closure; and the validation outcome.
    * `bko-logic`: as `bko-direct`, drawn with presence `LOGIC`; its concepts are the closed draw
      (`bko.generate.direct.Draw.closed`), not share priors.
+   * `bko-nomap`: as `bko-direct`, drawn with an empty mapping table (ADR
+     `research/no-mapping-ablation`); its `concepts` and `closed` are empty, and each copied
+     column names its source training record id.
    * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when
@@ -49,12 +52,12 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * Baselines: the method and the seed.
    * Not traceable: a model's choice of value within its prompt.
 3. **Mechanism.** `bko.evaluate.trace` re-draws a fill of an arm of `DIRECT_ARMS` at the logged
-   attempt's seed with that arm's presence and no extra random draw, and rebuilds a perturbation
+   attempt's seed with that arm's spec and no extra random draw, and rebuilds a perturbation
    arm's fill from its candidate lines over that re-draw. It refuses (exit 3) a holdout whose
    `split` line the data does not reproduce, a re-drawn fill whose digest is not the sha256 of the
    folder's `arm` line, re-drawn kept records that are not the candidates file's kept lines, a
-   direct fill whose `arm` line's params are not a JSON object or whose `presence` is not its
-   arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned
+   direct fill whose `arm` line's params are not a JSON object or whose logged spec fields are
+   not its arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned
    attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. It
    writes `trace.jsonl` with sorted keys, one line per record, one per fill for a baseline.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
