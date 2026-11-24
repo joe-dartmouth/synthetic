@@ -14,6 +14,7 @@ import pytest
 
 from bko.datasets.diabetes import DIAGNOSES, load_diabetes
 from bko.datasets.diagnoses import code_number, code_text
+from bko.datasets.errors import ContractError
 from bko.datasets.frames import check_records
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, digest, field_rows, frame, load
@@ -34,6 +35,12 @@ from bko.ontology.schema import Codes
 from tests._diabetes_fixtures import pin, toy_archive
 from tests._ontology_fixtures import RoutingOpener
 
+
+TOY_TOKENS: Final = (
+    *("250.41", "401", "410", "428.0", "434.91", "486", "491.21", "496", "585", "707.1"),
+    *("8", "V45", "?", "276", "E888"),
+)
+"""Every diagnosis token `toy_archive` writes, listed here rather than read from the fixture."""
 
 ARCHIVE: Final = toy_archive()
 PIN: Final = pin(ARCHIVE, "uci-diabetes-130")
@@ -57,12 +64,23 @@ def test_the_diabetes_codes_frame_keeps_each_diagnosis_code(tmp_path: Path, capl
     assert set(DIAGNOSES) <= set(data.frame.categorical)
     assert set(DIABETES_INDICATORS).isdisjoint(records.columns)
     raw = {code_text(int(n)) for name in DIAGNOSES for n in records[name]}
-    assert {"250.41", "428.0", "8", "V45", "?", "E888"} <= raw
-    held = {int(n) for name in DIAGNOSES for n in records[name]}
+    assert raw == set(TOY_TOKENS)
     for name in DIAGNOSES:
         book = data.frame.codebook[name]
-        assert set(book) == held
+        assert book == {
+            code_number(token): "? (none recorded)" if token == "?" else token
+            for token in TOY_TOKENS
+        }
+        assert next(iter(book.items())) == (0, "? (none recorded)")
         assert book[code_number("428.0")] == "428.0"
+    assert data.frame.features[-3:] == DIAGNOSES
+    assert {name: data.frame.descriptions[name] for name in DIAGNOSES} == {
+        "diag_1": "ICD-9 code of the encounter's primary diagnosis (? = none recorded)",
+        "diag_2": "ICD-9 code of the encounter's secondary diagnosis (? = none recorded)",
+        "diag_3": (
+            "ICD-9 code of the encounter's additional secondary diagnosis (? = none recorded)"
+        ),
+    }
     assert (data.field_rows, data.name) == (DIABETES_CODES_FIELD_ROWS, PIN.name)
     line = (
         f"data dataset=diabetes-codes frame=diabetes-codes records={len(records)} "
@@ -129,5 +147,5 @@ def test_records_outside_the_codes_frames_codebook_are_refused(tmp_path: Path) -
     check_records(data.records, data.frame)
     stray = data.records.copy()
     stray.loc[stray.index[0], "diag_2"] = code_number("999.99")
-    with pytest.raises(Exception, match="diag_2"):
+    with pytest.raises(ContractError, match="diag_2"):
         check_records(stray, data.frame)

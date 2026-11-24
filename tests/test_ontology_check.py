@@ -10,7 +10,7 @@ from types import MappingProxyType
 import pytest
 
 from bko.ontology.check import Verdict, check
-from bko.ontology.icd9 import UnmappedIcd9
+from bko.ontology.icd9 import EXACT, Icd9Code, UnmappedIcd9
 from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
@@ -227,6 +227,18 @@ def test_an_ancestor_reached_only_through_another_prefix_is_out_of_scope() -> No
     stenosis = _child_of("MONDO:0006715", "coronary stenosis", "BFO:0000016")
     bridge = _child_of("BFO:0000016", "disposition", "MONDO:0005015")
     verdicts = check((LABEL_ROW, SCOPE_ROW), {"MONDO": _mondo(stenosis, bridge, DIABETES)})
+    assert [v.problem for v in verdicts] == [None, None]
+
+
+def test_an_ancestor_of_a_generated_code_rows_concept_joins_no_scope_check() -> None:
+    qualified = (("ICD9:250", (("source", EXACT),)),)
+    child = replace(
+        _child_of("MONDO:0000002", "child", "MONDO:0005015"),
+        xrefs=("ICD9:250",),
+        xref_qualifiers=qualified,
+    )
+    row = Icd9Code("250", "MONDO:0000002", "child", frozenset({"MONDO:0000002"}))
+    verdicts = check((row, SCOPE_ROW), {"MONDO": _mondo(child, DIABETES)})
     assert [v.problem for v in verdicts] == [None, None]
 
 
