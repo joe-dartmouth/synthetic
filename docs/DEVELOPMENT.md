@@ -1451,18 +1451,25 @@ stores, gap and replica fills alike. `<run>` is the named run whose slices' stor
   basis, then `drug-without-med`, `change-without-med` and `dose-without-change`, the rows breaking
   each Diabetes coherence rule of `bko.evaluate.perturb.rule_breaks`, blank off the Diabetes
   columns. `empty-cell` counts the cells of the fill's request, rebuilt from the holdout's
-  training split, that hold no added row. A fill with no rows counts 0.
-- **What it logs**: stderr gets the `versions` line, each dataset's `data` line and each
+  training split, that hold no added row: the gap request for a gap fill, the replica request
+  for a replica fill. It is blank for a fill that answers no request: `none`, `real`,
+  `prior-shift` and the weighting arms. A fill that answers one and has no rows counts every
+  cell of its request as empty and 0 on every other kind, its rules still blank off the
+  Diabetes columns.
+- **What it logs**: stderr gets the `versions` line, the run's dataset's `data` line and each
   release's identity, then `added run=%s stores=%d holdouts=%d root=%s`, one `added store=%s
   run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the bytes
-  read, one `added holdout=%d done=%d/%d` line per holdout and, last, `added rows=%d sha256=%s
-  stores=%d holdouts=%d` with stdout's row count and sha256.
-- **Exit codes**: 2 for a run or `--runs-dir` without `--rows`, an unknown run, a mapped concept
-  with no pinned release, or a holdout whose gap fill has rows and whose split flags no cell; 3 when a release contradicts its pin, or a store or its folder
-  fails the identity checks `privacy` applies to it, a fill whose rows do not hash to its `arm`
-  line's sha256 included.
-- **The gate does not run it.** `make check` runs it over a run folder and store built in
-  `tmp_path` (`tests/test_contradictions_added.py`).
+  read, one `added holdout=%d arm=%s rows=0 asked=%d` line per fill that answers a request with
+  no row, one `added holdout=%d done=%d/%d seconds=%.1f` line per holdout and, last, `added
+  rows=%d sha256=%s stores=%d holdouts=%d` with stdout's row count and sha256.
+- **Exit codes**: 0 the CSV is written; 1 an unexpected error, with its traceback; 2 for a run
+  or `--runs-dir` without `--rows`, an unknown run, a mapped concept with no pinned release, or
+  a holdout whose split flags no cell for a gap fill that answers the gap request; 3 when a
+  release contradicts its pin, or a store or its folder fails the identity checks `privacy`
+  applies to it, a fill whose rows do not hash to its `arm` line's sha256 included.
+- **The gate does not run it.** `make check` runs it over run folders and stores built in
+  `tmp_path`, UCI- and Diabetes-shaped (`tests/test_contradictions_added.py`,
+  `tests/test_contradictions_added_diabetes.py`).
 
 ## Generation
 

@@ -13,22 +13,27 @@ import csv
 import hashlib
 import io
 import logging
+import time
 from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
-from bko.baselines.request import Stratum
+from bko.baselines.request import Method, Stratum
 from bko.datasets.cells import cell_keys
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.data import Data
-from bko.evaluate.errors import IdentityError
-from bko.evaluate.experiment import Experiment, gap_request, replica_request
+from bko.evaluate.experiment import (
+    PRIOR_SHIFT_ARM,
+    REAL_ARM,
+    Experiment,
+    gap_request,
+    replica_request,
+)
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.perturb import RULE_COLUMNS, RULES, rule_breaks
-from bko.evaluate.privacy_stores import Store, checked, read
-from bko.evaluate.rows_read import frame_of
+from bko.evaluate.privacy_stores import Store, checked, read, read_fills
 from bko.gaps.contradictions import KINDS, survey
 from bko.gaps.observe import in_cell
 from bko.ontology.schema import FieldMapping
@@ -53,23 +58,25 @@ def added_counts(
     ontologies: Mapping[str, Ontology],
     *,
     frame: FrameSpec,
-    asked: Collection[Stratum],
+    asked: Collection[Stratum] | None,
     name: str,
 ) -> dict[str, int | None]:
     """Each of `ADDED_KINDS` counted in one fill's `added` rows.
 
     `narrow-without-broad` counts the rows showing a narrow concept without its broad one, summed
     over the `is_a` pairs; `child-share-above-parent` and `all-show` count `survey`'s findings
-    over the cells `added` holds rows in; `empty-cell` counts the cells of `asked` holding no row;
-    `code-overlap` counts the rows whose code lies in an unresolved overlap; each rule counts the
-    rows breaking it, None where `added` lacks the rules' columns. A fill with no rows counts 0.
+    over the cells `added` holds rows in; `empty-cell` counts the cells of `asked` holding no row,
+    None for a fill that answers no request (`asked` None); `code-overlap` counts the rows whose
+    code lies in an unresolved overlap; each rule counts the rows breaking it, None where `added`
+    lacks the rules' columns. A fill with no rows counts 0 on every other kind and every cell of
+    `asked` as empty; its rules stay None off the rules' columns.
 
     Args:
         added: The fill's rows, in `frame`'s columns.
         rows: The field mappings.
         ontologies: The loaded releases, by concept prefix.
         frame: The rows' frame.
-        asked: The cells of the request the fill answered.
+        asked: The cells of the request the fill answered, None if it answers none.
         name: The rows' name, for an error.
 
     Raises:
@@ -79,13 +86,16 @@ def added_counts(
     """
     coded = set(RULE_COLUMNS) <= set(added.columns)
     if not len(added):
-        return {**dict.fromkeys(KINDS, 0), **dict.fromkeys(RULES, 0 if coded else None)}
+        empty = None if asked is None else len(asked)
+        found = {**dict.fromkeys(KINDS, 0), "empty-cell": empty}
+        return found | dict.fromkeys(RULES, 0 if coded else None)
     findings = survey(added, rows, ontologies, frame=frame, name=name).findings
     overlapping = pd.Series(False, index=added.index)
     for finding in findings:
         if finding.kind == "code-overlap":
             overlapping |= added[finding.field].isin(finding.codes)
     keys = cell_keys(added, edges=frame.edges)
+    empty = None if asked is None else sum(not in_cell(keys, cell).any() for cell in asked)
     found: dict[str, int | None] = {
         "narrow-without-broad": sum(
             finding.without_parent or 0
@@ -93,7 +103,7 @@ def added_counts(
             if finding.kind == "narrow-without-broad"
         ),
         "child-share-above-parent": sum(f.kind == "child-share-above-parent" for f in findings),
-        "empty-cell": sum(not in_cell(keys, cell).any() for cell in asked),
+        "empty-cell": empty,
         "all-show": sum(f.kind == "all-show" for f in findings),
         "code-overlap": int(overlapping.sum()),
     }
@@ -116,15 +126,18 @@ def run_added(
 
     Fills come per holdout in the experiment's order, the arms' fills in order, then the replica
     arms'. It logs `added run=%s stores=%d holdouts=%d root=%s`, `read`'s `added store` lines,
-    an `added holdout=%d done=%d/%d` line per holdout and, last,
+    an `added holdout=%d arm=%s rows=0 asked=%d` line per fill that answers a request with no
+    row, an `added holdout=%d done=%d/%d seconds=%.1f` line per holdout and, last,
     `added rows=%d sha256=%s stores=%d holdouts=%d`.
 
     Raises:
-        IdentityError: As `read` and `frame_of`, naming the store, or if a holdout's `split` line
-            is not the one its data prepares.
-        EvaluationError: As `gap_request`, if a gap fill's holdout flags no cell.
+        IdentityError: As `read` and `read_fills`, naming the store, or if a holdout's `split`
+            line is not the one its data prepares.
+        EvaluationError: As `gap_request`, if a holdout with a gap fill that answers the request
+            flags no cell.
         GapError: As `added_counts`.
     """
+    begun = time.perf_counter()
     total = len(experiment.holdout_seeds)
     logger.info("added run=%s stores=%d holdouts=%d root=%s", run, len(stores), total, root)
     held = read(run, stores, data, experiment=experiment, runs=runs, root=root, verb="added")
@@ -137,11 +150,28 @@ def run_added(
             for kind, count in counts.items():
                 writer.writerow((seed, arm, len(added), kind, "" if count is None else count))
                 written += 1
-        logger.info("added holdout=%d done=%d/%d", seed, done, total)
+        logger.info(
+            "added holdout=%d done=%d/%d seconds=%.1f",
+            seed,
+            done,
+            total,
+            time.perf_counter() - begun,
+        )
     text = out.getvalue()
     sha = hashlib.sha256(text.encode()).hexdigest()
     logger.info("added rows=%d sha256=%s stores=%d holdouts=%d", written, sha, len(stores), total)
     return text
+
+
+def answers(arm: str) -> bool:
+    """Whether the gap fill of `arm` answers the gap request, so its `empty-cell` counts.
+
+    `REAL_ARM` adds the removed rows, and `PRIOR_SHIFT_ARM` and the methods that add no rows
+    (`none`, `class-weight`) add none, so none of them answers it.
+    """
+    if arm in {REAL_ARM, PRIOR_SHIFT_ARM}:
+        return False
+    return arm not in Method or Method(arm).adds_rows
 
 
 def _holdout(
@@ -153,35 +183,34 @@ def _holdout(
 ) -> list[tuple[str, pd.DataFrame, dict[str, int | None]]]:
     """Each fill of holdout `seed` in `store`: its arm, its rows and their counts.
 
+    A gap fill that `answers` counts its `empty-cell` against the gap request, a replica fill
+    against the replica request; any other fill's is None.
+
     Raises:
-        IdentityError: As `checked`, or as `frame_of`, naming the store.
+        IdentityError: As `checked`, or as `read_fills`, naming the store.
         EvaluationError: As `gap_request`.
     """
     frame = data.frame
-    ready = checked(seed, store, data, experiment)
-    train = ready.ablated.train
-    arms = (*experiment.arms, *(f"{arm}{REPLICA}" for arm in experiment.replica_arms))
-    found = []
+    train = checked(seed, store, data, experiment).ablated.train
+    listed = [
+        *((arm, False) for arm in experiment.arms),
+        *((f"{arm}{REPLICA}", True) for arm in experiment.replica_arms),
+    ]
+    held = read_fills(seed, store, [arm for arm, _ in listed], frame)
+    requests = {False: gap_request, True: replica_request}
     asked: dict[bool, tuple[Stratum, ...]] = {}
-    for arm in arms:
-        try:
-            added = frame_of(
-                store.rows.lines[seed, arm], arm_line=store.folder.arms[seed, arm], frame=frame
-            )
-        except IdentityError as error:
-            msg = f"the store {store.path}: {error}"
-            raise IdentityError(msg) from error
-        replica = arm.endswith(REPLICA)
-        if len(added) and replica not in asked:
-            request = replica_request if replica else gap_request
-            asked[replica] = tuple(request(train, experiment, seed=seed, frame=frame).quota)
+    found = []
+    for arm, replica in listed:
+        added, cells = held[arm], None
+        if replica or answers(arm):
+            if replica not in asked:
+                request = requests[replica](train, experiment, seed=seed, frame=frame)
+                asked[replica] = tuple(request.quota)
+            cells = asked[replica]
+            if not len(added):
+                logger.info("added holdout=%d arm=%s rows=0 asked=%d", seed, arm, len(cells))
         counts = added_counts(
-            added,
-            data.field_rows,
-            ontologies,
-            frame=frame,
-            asked=asked.get(replica, ()),
-            name=f"{arm}/{seed}",
+            added, data.field_rows, ontologies, frame=frame, asked=cells, name=f"{arm}/{seed}"
         )
         found.append((arm, added, counts))
     return found

@@ -53,11 +53,14 @@ or its sample, and the direct sampler draws a child without its parent.
      summed over the `is_a` pairs; `child-share-above-parent` and `all-show`, the survey's
      findings over the cells A adds rows to; `empty-cell`, the cells of the fill's request that
      hold no row of A; `code-overlap`, the rows of A whose code lies in an unresolved overlap;
-     and the three coherence rules of `bko.evaluate.perturb.incoherent`, `drug-without-med`,
+     and the three coherence rules of `bko.evaluate.perturb.rule_breaks`, `drug-without-med`,
      `change-without-med` and `dose-without-change`, each as the rows of A breaking it, blank
-     where the frame lacks their columns. A fill with no rows counts 0 on every kind. The
-     request is the one the fill answered, rebuilt from the holdout's training split: the gap
-     request for a gap fill, the replica request for a replica fill.
+     where the frame lacks their columns. The request is the one the fill answered, rebuilt from
+     the holdout's training split: the gap request for a gap fill, the replica request for a
+     replica fill. `empty-cell` is blank for a fill that answers no request: `none`, `real`,
+     whose rows are the removed rows, the weighting arms, which add no rows, and `prior-shift`.
+     Every other fill answers one, so a fill of it with no rows counts every cell of its request
+     as empty and 0 on every other kind, its rules still blank off the Diabetes columns.
 3. **Valid fused BKB.** One for which `bko.bkb.fusion.check_fused` passes. It requires:
    - every input S-node is present, with its source tail and an unchanged probability;
    - every fused S-node other than a source prior maps to an input; a dataset conditional (ADR
@@ -140,7 +143,7 @@ table does not nest them, a pattern the data shows.
   `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`,
   `src/bko/evaluate/added_contradictions.py`, `src/bko/ontology/frames.py`
 - Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_added.py`,
-  `tests/test_contradictions_kinds.py`,
+  `tests/test_contradictions_added_diabetes.py`, `tests/test_contradictions_kinds.py`,
   `tests/test_contradictions_fusion.py`, `tests/test_contradictions_gaps.py`,
   `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`,
   `tests/test_ontology_frames.py`, `tests/test_gaps_conditionals.py`; the digest pins
