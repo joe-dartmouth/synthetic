@@ -57,10 +57,11 @@ class DrawSpec:
         )
 
     def _changed(self) -> list[tuple[str, object]]:
+        default = type(self)()
         return [
             (field.name, getattr(self, field.name))
             for field in dataclasses.fields(self)
-            if getattr(self, field.name) != field.default
+            if getattr(self, field.name) != getattr(default, field.name)
         ]
 
 
