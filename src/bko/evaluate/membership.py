@@ -339,7 +339,14 @@ def _holdout(
     extra: dict[str, dict[Measure, float]] = {}
     for arm, added in fills.items():
         found = match_measures(
-            added, train=train, test=ready.ablated.test, cell=cell, frame=frame, groups=groups
+            added,
+            train=train,
+            test=ready.ablated.test,
+            cell=cell,
+            frame=frame,
+            groups=groups,
+            holdout=seed,
+            arm=arm,
         )
         donors = dict.fromkeys(DONOR_MEASURES, math.nan)
         if arm in DONOR_ARMS:

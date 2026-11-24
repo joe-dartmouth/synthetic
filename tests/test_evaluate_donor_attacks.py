@@ -89,7 +89,9 @@ def _planted(count: int, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def _measures(added: pd.DataFrame, train: pd.DataFrame, test: pd.DataFrame) -> dict:
-    return match_measures(added, train=train, test=test, cell=CELL, frame=UCI_FRAME, groups=UNITS)
+    return match_measures(
+        added, train=train, test=test, cell=CELL, frame=UCI_FRAME, groups=UNITS, holdout=0, arm="x"
+    )
 
 
 def test_the_match_score_is_the_most_units_one_added_row_copies():
@@ -132,10 +134,30 @@ def test_partial_copies_read_the_hand_auc():
     assert match_scores(members, added, groups).tolist() == [3, 1]
     assert match_scores(nonmembers, added, groups).tolist() == [1, 0]
     found = match_measures(
-        added, train=members, test=nonmembers, cell=CELL, frame=UCI_FRAME, groups=groups
+        added,
+        train=members,
+        test=nonmembers,
+        cell=CELL,
+        frame=UCI_FRAME,
+        groups=groups,
+        holdout=0,
+        arm="x",
     )
     # Members [3, 1] against non-members [1, 0]: three wins of four pairs and one tie.
     assert found[Measure.MATCH_AUC_OUTSIDE] == pytest.approx(0.875, abs=0)
+
+
+def test_an_undefined_match_scope_is_logged_as_the_distance_attacks_is(caplog):
+    members, nonmembers = _planted(20, seed=61)
+    for frame in (members, nonmembers):
+        frame["age"] = 70
+    caplog.set_level(logging.INFO)
+    _measures(members.iloc[:3], members, nonmembers.iloc[:0])
+    found = {(r.levelno, r.getMessage()) for r in caplog.records}
+    shape = "privacy holdout=0 arm=x scope=match-{} undefined members={} nonmembers=0"
+    assert (logging.INFO, shape.format("cell", 0)) in found
+    assert (logging.WARNING, shape.format("outside", 20)) in found
+    assert len(found) == 3
 
 
 def test_an_arm_with_no_rows_reads_nan():

@@ -121,11 +121,16 @@ def match_measures(
     cell: Stratum,
     frame: FrameSpec,
     groups: Sequence[tuple[str, ...]],
+    holdout: int,
+    arm: str,
 ) -> dict[Measure, float]:
     """One arm's `MATCH_MEASURES` on one holdout; every one NaN for an arm with no rows.
 
     Members are the training records and non-members the test records, read in the distance
-    attack's scopes at its rates.
+    attack's scopes at its rates. An arm with rows whose attack is undefined in a scope logs
+    `privacy holdout=%d arm=%s scope=match-%s undefined members=%d nonmembers=%d` at the level
+    the distance attack's line takes (`bko.evaluate.membership.arm_measures`); a match score is
+    never missing, so the line counts no missing one.
     """
     if not len(added):
         return dict.fromkeys(MATCH_MEASURES, math.nan)
@@ -137,11 +142,21 @@ def match_measures(
     )
     found: dict[Measure, float] = {}
     for scope in SCOPES:
-        read = attack(
-            -member_s[members[scope]], -nonmember_s[nonmembers[scope]], fprs=SCOPE_FPRS[scope]
-        )
+        ours, theirs = -member_s[members[scope]], -nonmember_s[nonmembers[scope]]
+        read = attack(ours, theirs, fprs=SCOPE_FPRS[scope])
         found[match("auc", scope)] = read.auc
         found |= {match(RATES[rate], scope): value for rate, value in read.tpr.items()}
+        if math.isnan(read.auc):
+            expected = scope == "cell" and not len(ours)
+            logger.log(
+                logging.INFO if expected else logging.WARNING,
+                "privacy holdout=%d arm=%s scope=match-%s undefined members=%d nonmembers=%d",
+                holdout,
+                arm,
+                scope,
+                len(ours),
+                len(theirs),
+            )
     return found
 
 
