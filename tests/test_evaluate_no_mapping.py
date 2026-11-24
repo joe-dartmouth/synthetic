@@ -153,6 +153,40 @@ def test_a_nomap_fill_whose_mapped_param_is_removed_exits_3(scored, tmp_path, ca
     assert not any(m.startswith("trace arm ") for m in caplog.messages)
 
 
+def _edited(scored: Path, tmp_path: Path, arm: str, old: str, new: str) -> Path:
+    """A copy of `scored` whose `arm` line's params read `new` where they read `old`."""
+    shutil.copytree(scored, tmp_path / "copy")
+    folder = tmp_path / "copy"
+    log = folder / "scores.log"
+
+    def edit(found: re.Match[str]) -> str:
+        assert old in found[0]
+        return found[0].replace(old, new)
+
+    text, count = re.subn(rf"arm holdout=0 arm={arm} attempt=.*", edit, log.read_text("utf-8"))
+    assert count == 1
+    log.write_text(text, encoding="utf-8")
+    return folder
+
+
+def test_a_direct_fill_whose_params_gain_mapped_false_exits_3(scored, tmp_path, caplog):
+    folder = _edited(
+        scored,
+        tmp_path,
+        DIRECT_ARM,
+        '"generator": "direct", ',
+        '"generator": "direct", "mapped": false, ',
+    )
+    assert _trace(folder, scored.parent / "data", "--arm", DIRECT_ARM) == (3, [])
+    assert f"{DIRECT_ARM}'s arm line draws mapped False, not True" in caplog.text
+
+
+def test_a_nomap_fill_whose_mapped_param_is_0_exits_3(scored, tmp_path, caplog):
+    folder = _edited(scored, tmp_path, NOMAP_ARM, '"mapped": false', '"mapped": 0')
+    assert _trace(folder, scored.parent / "data", "--arm", NOMAP_ARM) == (3, [])
+    assert f"{NOMAP_ARM}'s arm line draws mapped 0, not False" in caplog.text
+
+
 def _chained_context(arms: tuple[str, ...], tmp_path: Path) -> tuple[Context, list[str]]:
     """`g2` over `arms` on field rows nested in a chain, and its `score` argv."""
     ctx, _ = g2_context()

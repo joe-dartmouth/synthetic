@@ -108,7 +108,7 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
 
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object, or name another value
-            of a spec field.
+            of a spec field, a value of another type included (JSON `0` is not `false`).
         EvaluationError: If a logic-only arm's components cannot be enumerated.
     """
     spec = DIRECT_ARMS[fill.name]
@@ -124,7 +124,7 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
     wanted, defaults = spec.values(), DEFAULT_SPEC.values()
     for name, default in defaults.items():
         logged = named.get(name, default)
-        if logged != wanted[name]:
+        if type(logged) is not type(wanted[name]) or logged != wanted[name]:
             msg = f"holdout {fill.holdout}'s {fill.arm}'s arm line draws {name} {logged!r},"
             msg += f" not {wanted[name]!r}"
             raise IdentityError(msg)
