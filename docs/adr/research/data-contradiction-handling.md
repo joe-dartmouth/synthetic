@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # Each stage keeps a data contradiction and reports it; none forces the ontology onto the data
 
@@ -48,7 +48,8 @@ or its sample, and the direct sampler draws a child without its parent.
    training split at holdout seed 0 with no removal, and lists each finding.
 3. **Valid fused BKB.** One for which `bko.bkb.fusion.check_fused` passes. It requires:
    - every input S-node is present, with its source tail and an unchanged probability;
-   - every fused S-node other than a source prior maps to an input;
+   - every fused S-node other than a source prior maps to an input, a dataset conditional
+     (ADR `research/dataset-fragment-encoding`) like any other S-node that is not a prior;
    - each source component's priors sum to 1 (under the default `FRAGMENTS` normalization, to
      at most 1, and to 1 where every fragment holds an S-node on the head component), a source
      component a fused S-node's tail names with no prior on it summing to 0;
@@ -58,9 +59,11 @@ or its sample, and the direct sampler draws a child without its parent.
 
    Mutual exclusion is not required (ADR `research/bko-fragment-encoding`).
 4. **Fusion** keeps both S-nodes: the `is_a` S-node of probability 1 and the dataset prior that
-   contradicts it. Neither is dropped or rescaled.
+   contradicts it. Neither is dropped or rescaled. Where a dataset conditional is fused, fusion
+   keeps the ontology's `is_a` S-node and the conditional both, at their own probabilities.
 5. **Gap detection**: a held child grounds its parent, as the `is_a` S-node says, whatever the
-   dataset shows of the parent.
+   dataset shows of the parent. It reads no dataset conditional: its fragments come from
+   `dataset_fragment`, which holds none.
 6. **Shares** are finite and in [0, 1]. An empty cell has `n_c` of 0, so its share is exactly
    `p_g` (ADR `research/bkb-direct-generation`, Decision 1): `shares` returns `p_g` itself there,
    since multiplying it by `GROUP_WEIGHT` and dividing it back can move it by one ulp; a

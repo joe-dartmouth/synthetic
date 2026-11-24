@@ -114,8 +114,9 @@ its group's equally, and an empty cell draws its group's shares. The label group
 record, keeps the label's share: the population pools both labels, so a target 0 cell would draw
 target 1 findings at the pooled rate.
 
-Drawing concepts independently is all the BKB supports, since it represents no co-occurrence (ADR
-`research/dataset-fragment-encoding`, Consequences). `restecg` is the one exception the table
+Drawing concepts independently is all the sampler's BKB supports: it reads the priors of
+`dataset_fragment` only, which represent no co-occurrence, and no conditional S-node of a mapped
+`is_a` pair (ADR `research/dataset-fragment-encoding`, Decision and Consequences). `restecg` is the one exception the table
 forces: its two `restecg` rows nest, so independent draws would produce LVH without an abnormal
 EKG, a pattern no record shows, and the conditional keeps both shares as marginals.
 
@@ -171,8 +172,9 @@ group shows no record matching a draw refuses the attempt.
 
 ## Reversal Conditions
 
-**The share and the concept draw change if ADR `research/dataset-fragment-encoding` comes to
-represent co-occurrence**; the check is that record's Decision. **`bko-direct` reads closure into
+**The share and the concept draw change when `bko.generate.direct` reads a conditional S-node**
+(ADR `research/dataset-fragment-encoding`, Decision); the check is a search of
+`src/bko/generate/direct.py` for `conditional_fragment`. **`bko-direct` reads closure into
 fields if the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Decision).
 
 ## Related
