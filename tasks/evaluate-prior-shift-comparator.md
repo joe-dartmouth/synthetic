@@ -20,9 +20,8 @@ E6's gain for `bko-direct` is at the default cutoff with ranking unchanged: flag
 level with `none` ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal),
 E6 Result). That is the pattern a shift in the subgroup's risk level produces. An arm that makes
 only that shift, adding no rows, measures how much of the gain it explains. The control reading
-rule in [`docs/RESEARCH.md`](../docs/RESEARCH.md) reads it, and the IDEAS entry
-[A threshold-shift comparator for E6](../docs/IDEAS.md#a-threshold-shift-comparator-for-e6)
-proposes it.
+rule in [`docs/RESEARCH.md`](../docs/RESEARCH.md) reads it, and ADR
+[`research/prior-shift-comparator`](../docs/adr/research/prior-shift-comparator.md) records it.
 
 ## Scope
 

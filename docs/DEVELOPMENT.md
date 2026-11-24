@@ -618,7 +618,10 @@ start or the supervisor cannot run.
   attempt that cannot fill the request inside `E1`'s budget is refused and retried like a
   baseline's; a curating arm instead gives each cell its own budget and returns a `partial` attempt
   (What it logs, below). Every arm fills before any is scored. A test record that some arm's rows
-  copy in every column leaves the test split each arm's utility is scored on. With `--replay`, every
+  copy in every column leaves the test split each arm's utility is scored on. The arm `prior-shift`
+  adds no rows and scores `none`'s fit with each requested subgroup's test logits moved to its
+  prevalence after the gap fill (ADR
+  [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)). With `--replay`, every
   BKO call is answered from that call log instead of the API. A call that differs from the log's, or
   a logged call left unplayed, stops the run. A replay reproduces the scores, and their sha256, only
   at the commit that scored the run: every scores file holds a `flagged-fingerprint` held-out row
@@ -793,7 +796,9 @@ start or the supervisor cannot run.
   frame column, which leave the test split unless the run keeps copies (`e3` and its slices,
   `kept=true`), a `training holdout=%d arm=%s fill=%s rows=%d copies=%d` line per arm and fill
   after it, `copies=` counting the arm's added rows that equal some training row in every frame
-  column, an `undefined holdout=%d arm=%s rows=%d labels=%d held=%s` WARNING for each replica of
+  column, a `shift holdout=%d model=%s subgroup=%s records=%d target=%.6f offset=%.6f` line per
+  model and requested subgroup of the arm `prior-shift`, `records=` its training records and
+  `offset=` the logit offset its test records get, an `undefined holdout=%d arm=%s rows=%d labels=%d held=%s` WARNING for each replica of
   fewer than two labels (`held=` the labels it holds, or `none`), whose classifier measures score
   undefined, as its fidelity does for a replica of fewer than two rows, then after the last
   holdout an `undefined replicas arm=%s holdouts=%d of=%d` WARNING per arm with such a replica,
