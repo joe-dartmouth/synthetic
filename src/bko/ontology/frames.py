@@ -292,9 +292,13 @@ def _lab_row(row: LabMapping) -> FieldMapping:
     )
 
 
+LAB_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = tuple(_lab_row(row) for row in LAB_MAPPINGS)
+"""Each lab row's `Codes(field, codes of its states)`: the last field rows of both Diabetes 130
+frames."""
+
 DIABETES_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = (
     *(_icd9_row(row) for row in ICD9_MAPPINGS),
-    *(_lab_row(row) for row in LAB_MAPPINGS),
+    *LAB_FIELD_ROWS,
 )
-"""The Diabetes frame's field rows: each ICD-9 row's `Codes(indicator, {1})`, then each lab row's
-`Codes(field, codes of its states)`."""
+"""The Diabetes frame's field rows: each ICD-9 row's `Codes(indicator, {1})`, then
+`LAB_FIELD_ROWS`."""

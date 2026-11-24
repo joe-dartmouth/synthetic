@@ -5,7 +5,8 @@
 (the lowest `encounter_id`), then drops encounters discharged expired or to hospice, then
 `Unknown/Invalid` gender, then age brackets under 20. A record holds coded demographics, the eight
 count fields, the lab and drug states, `change`, `diabetesMed`, one indicator per caller-given
-ICD-9 category list and `LABEL`, 1 for readmission in under 30 days. `encounter_id` and
+ICD-9 category list, on request the three diagnosis codes (`bko.datasets.diagnoses.code_number`)
+and `LABEL`, 1 for readmission in under 30 days. `encounter_id` and
 `patient_nbr` never enter it. `docs/DEVELOPMENT.md` (Data, The Diabetes frame) states the contract.
 """
 
@@ -23,7 +24,7 @@ import pandas as pd
 
 from bko.datasets.archive import member_text
 from bko.datasets.cells import LABEL
-from bko.datasets.diagnoses import DIAGNOSIS_PATTERN, NUMERIC_CODE
+from bko.datasets.diagnoses import DIAGNOSIS_PATTERN, NUMERIC_CODE, code_number
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import DIABETES_130, Source
@@ -118,7 +119,7 @@ DRUGS: Final = (
 The archive's other 15 drug columns are never read."""
 
 DIAGNOSES: Final = ("diag_1", "diag_2", "diag_3")
-"""The diagnosis columns an indicator reads."""
+"""The diagnosis columns an indicator reads, and the frame's code columns when they are kept."""
 
 AGE_BRACKETS: Final[Mapping[str, int]] = {f"[{10 * d}-{10 * (d + 1)})": d for d in range(10)}
 """Each `age` bracket and its decade index, `[0-10)` 0 to `[90-100)` 9."""
@@ -261,7 +262,9 @@ def excluded_discharges(ids: str) -> frozenset[int]:
     return frozenset(found)
 
 
-def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]]) -> pd.DataFrame:
+def frame_records(
+    raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]], diagnoses: bool = False
+) -> pd.DataFrame:
     """Return the frame records of `raw`'s cohort, in encounter order.
 
     Every row is checked before any is dropped, in encounter order, so an error names the same
@@ -275,11 +278,13 @@ def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]
             1 where any of `DIAGNOSES` falls in one of its categories: `250.4` holds `250.4` and
             `250.41`, `401` holds `401` and `401.9`, never `4010` or `40`; `?` and V and E codes
             fall in none.
+        diagnoses: Whether to keep `DIAGNOSES` as columns, each token as its
+            `bko.datasets.diagnoses.code_number`, after the indicators.
 
     Returns:
         `age` (the decade index), `sex`, `race`, `COUNTS`, `A1Cresult`, `max_glu_serum`, `DRUGS`,
-        `change`, `diabetesMed`, each indicator and `LABEL`, all int64, indexed by `record_id`,
-        the 1-based position in encounter order.
+        `change`, `diabetesMed`, each indicator, `DIAGNOSES` if asked, and `LABEL`, all int64,
+        indexed by `record_id`, the 1-based position in encounter order.
 
     Raises:
         ValueError: If an indicator's name is taken or one of its codes is not a numeric ICD-9
@@ -302,6 +307,7 @@ def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]
         **{name: kept[name].astype("int64") for name in COUNTS},
         **{name: kept[name].map(codes) for name, codes in STATE_CODES.items() if name != "race"},
         **_indicators(kept, categories),
+        **(_codes(kept) if diagnoses else {}),
         LABEL: kept["readmitted"].map(READMITTED_LABELS),
     }
     records = pd.DataFrame({name: values.to_numpy() for name, values in columns.items()})
@@ -325,6 +331,7 @@ def load_diabetes(
     data_dir: Path,
     *,
     indicators: Mapping[str, tuple[str, ...]],
+    diagnoses: bool = False,
     source: Source = DIABETES_130,
 ) -> pd.DataFrame:
     """Load the frame records from the verified snapshot of `source` under `data_dir`.
@@ -335,6 +342,7 @@ def load_diabetes(
     Args:
         data_dir: The data root.
         indicators: As `frame_records` takes them.
+        diagnoses: As `frame_records` takes it.
         source: The pinned archive.
 
     Returns:
@@ -357,7 +365,8 @@ def load_diabetes(
             f"not {sorted(EXCLUDED_DISCHARGES)}"
         )
         raise ContractError(msg)
-    records = frame_records(parse_diabetic(texts[MEMBER]), indicators=indicators)
+    raw = parse_diabetic(texts[MEMBER])
+    records = frame_records(raw, indicators=indicators, diagnoses=diagnoses)
     if records.empty:
         msg = f"{source.name}: the cohort holds no records"
         raise ContractError(msg)
@@ -371,7 +380,7 @@ def _categories(
     indicators: Mapping[str, tuple[str, ...]],
 ) -> dict[str, tuple[tuple[int, str], ...]]:
     """Return each indicator's categories as (whole part, decimal digits), after checking them."""
-    taken = {"age", "sex", *COUNTS, *STATE_CODES, LABEL}
+    taken = {"age", "sex", *COUNTS, *STATE_CODES, *DIAGNOSES, LABEL}
     parsed: dict[str, tuple[tuple[int, str], ...]] = {}
     for name, codes in indicators.items():
         if not name or name in taken:
@@ -450,3 +459,8 @@ def _indicators(
                 hit |= whole.eq(major) & digits.str.startswith(minor)
         held[name] = hit.astype("int64")
     return held
+
+
+def _codes(rows: pd.DataFrame) -> dict[str, pd.Series]:
+    """Each of `DIAGNOSES`, each token as its `code_number`."""
+    return {name: rows[name].map(code_number) for name in DIAGNOSES}

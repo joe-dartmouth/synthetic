@@ -91,6 +91,14 @@ root or to see the module's own code, run it directly:
 
   It reads and never fetches, and an absent snapshot fails it; `bko.datasets.fetch.ensure`
   fetches the snapshot, as `score` does for a run over Diabetes 130.
+- **The Diabetes codes frame**: the dataset `diabetes-codes` reads the same cohort and label with
+  `load_diabetes(..., diagnoses=True)` and no indicators: in their place, `diag_1`, `diag_2` and
+  `diag_3` hold each token as `bko.datasets.diagnoses.code_number` (`?` is 0). Its `FrameSpec`
+  (`bko.ontology.code_frames.diabetes_codes_frame`) is built from the loaded records, since the
+  three columns' codebook is the codes they hold; its field rows are one per mapped code of
+  `bko.ontology.icd9_codes` and diagnosis column, then the lab rows (ADR
+  [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). No named run
+  reads it, and the `contradictions` census does not.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's

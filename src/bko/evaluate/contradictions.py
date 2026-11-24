@@ -42,6 +42,10 @@ logger = logging.getLogger("bko.evaluate")
 SEED: Final = 0
 """The holdout seed whose training split the census reads."""
 
+CENSUS: Final = (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES)
+"""The datasets whose frames the census reads, in order; `diabetes-codes` is not among them (ADR
+`research/diabetes-diagnosis-codes`)."""
+
 COLUMNS: Final = (
     "kind",
     "frame",
@@ -142,13 +146,13 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
 
 
 def run(data_dir: Path, context: Context) -> str:
-    """The census of every dataset's frame, in `Dataset` order, as CSV.
+    """The census of each `CENSUS` dataset's frame, in order, as CSV.
 
     Logs the `versions` line (`bko.evaluate.provenance.log_versions`) and the data root first.
     """
     log_versions()
     logger.info("census data_dir=%s", data_dir)
-    return census(frames(tuple(Dataset), data_dir, context))
+    return census(frames(CENSUS, data_dir, context))
 
 
 def census(framed: Sequence[Framed]) -> str:

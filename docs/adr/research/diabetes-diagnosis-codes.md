@@ -90,11 +90,15 @@ one diagnosis field has no donor.
 ## Enforcement
 
 - Owner: `src/bko/ontology/icd9.py`, `src/bko/ontology/check.py`, `src/bko/ontology/codes.py`,
-  `src/bko/ontology/icd9_codes.py`, `src/bko/datasets/diagnoses.py`
+  `src/bko/ontology/icd9_codes.py`, `src/bko/datasets/diagnoses.py`,
+  `src/bko/ontology/code_frames.py`, `src/bko/evaluate/data.py`
 - Pinned by: `tests/test_ontology_icd9.py`, `tests/test_ontology_codes.py` (the holder rule, one
   concept per code, every committed row checked, the committed module equal to `render`'s text),
   `tests/test_datasets_diagnoses.py` (the encoding), `tests/test_ontology_icd9_codes_pinned.py`
-  (the committed rows equal to the generator's output on the pinned release, under `--releases`)
+  (the committed rows equal to the generator's output on the pinned release, under `--releases`),
+  `tests/test_evaluate_diabetes_codes.py` (the frame keeps each code, the cohort and label of
+  `diabetes`, each column's rows partition the mapped codes, the `diabetes` rows unchanged),
+  `tests/test_contradictions_census.py` (the census reads its three frames)
 
 ## Reversal Conditions
 
