@@ -20,6 +20,7 @@ from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, NOMAP_ARM
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
 from bko.generate.draw_spec import DrawSpec
+from bko.ontology.schema import Codes
 from tests._gaps_fixtures import ANGINA, STENOSIS
 from tests.test_evaluate_direct import g2_context, varied_arm
 from tests.test_evaluate_logic_only import BOTH
@@ -150,3 +151,29 @@ def test_a_nomap_fill_whose_mapped_param_is_removed_exits_3(scored, tmp_path, ca
     assert _trace(folder, scored.parent / "data", "--arm", NOMAP_ARM) == (3, [])
     assert f"{NOMAP_ARM}'s arm line draws mapped True, not False" in caplog.text
     assert not any(m.startswith("trace arm ") for m in caplog.messages)
+
+
+def _chained_context(arms: tuple[str, ...], tmp_path: Path) -> tuple[Context, list[str]]:
+    """`g2` over `arms` on field rows nested in a chain, and its `score` argv."""
+    ctx, _ = g2_context()
+    chain = tuple(
+        dataclasses.replace(ANGINA, concept=f"HP:900000{index}", when=(Codes("cp", codes),))
+        for index, codes in enumerate((frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})))
+    )
+    run = dataclasses.replace(NOMAP_RUN, arms=arms, candidate=arms[-1], comparators=("none",))
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(run)}, field_rows=chain, send=never)
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    return ctx, ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "d")]
+
+
+def test_field_rows_nested_in_a_chain_do_not_refuse_bko_nomap(tmp_path, caplog):
+    ctx, argv = _chained_context(("none", NOMAP_ARM), tmp_path)
+    main(argv, context=ctx, out=io.StringIO())
+    assert "cannot draw dataset" not in caplog.text
+    assert "lies inside" not in caplog.text
+
+
+def test_field_rows_nested_in_a_chain_still_refuse_bko_direct(tmp_path, caplog):
+    ctx, argv = _chained_context(("none", DIRECT_ARM), tmp_path)
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert f"the direct arms {[DIRECT_ARM]} cannot draw dataset uci's rows" in caplog.text

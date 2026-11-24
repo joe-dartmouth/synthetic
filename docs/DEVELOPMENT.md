@@ -912,8 +912,8 @@ start or the supervisor cannot run.
   judged, and 3 for a method's output or a scores file that breaks its contract; 2 also for an
   existing call log or candidates file, data held under an agreement that grants no permission to
   send its records ([Data](#data), Agreements), BKO arms with no `--log` or `--candidates`, a
-  direct arm with no `--candidates`, a direct arm whose field rows nest in a chain
-  (`bko.gaps.shares.nested`), a logic-only arm with a component above
+  direct arm with no `--candidates`, a direct arm that reads the mapping table
+  and whose field rows nest in a chain (`bko.gaps.shares.nested`), a logic-only arm with a component above
   `bko.generate.logic.MAX_COMPONENT` concepts, `--log`, `--replay`, `--resume` or `--rehearse`
   with no BKO arm to build, `--candidates` with no BKO or direct arm, one path for
   both files, more than one of `--replay`, `--resume` and `--rehearse`, a call that gets no
