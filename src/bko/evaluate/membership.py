@@ -42,7 +42,6 @@ import pandas as pd
 from bko.baselines.request import Stratum
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
-from bko.datasets.split import split
 from bko.evaluate.attack_stats import (
     RATES,
     SCOPE_FPRS,
@@ -59,10 +58,10 @@ from bko.evaluate.donor_attacks import (
     match_measures,
     read_donors,
 )
-from bko.evaluate.errors import EvaluationError, IdentityError
+from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, gap_request
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
-from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
+from bko.evaluate.prepare import Prepared, held_out_ratio
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
 from bko.evaluate.privacy_rule import Group, log_readings, readings
 from bko.evaluate.privacy_stores import (
@@ -70,13 +69,14 @@ from bko.evaluate.privacy_stores import (
     Store,
     _child,  # ruff: ignore[unused-import]  (re-exported)
     _shown,  # ruff: ignore[unused-import]  (re-exported)
+    checked,
     read,
+    read_fills,
 )
 from bko.evaluate.reference import (
     REFERENCE,  # ruff: ignore[unused-import]  (re-exported)
     reference_of,
 )
-from bko.evaluate.rows_read import frame_of
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
 from bko.evaluate.trace_lines import Fill
 from bko.ontology.terms import Ontology
@@ -327,23 +327,8 @@ def _holdout(
             `read_donors`.
     """
     frame = data.frame
-    parts = split(data.records, seed=seed, edges=frame.edges)
-    ready = prepared(parts, experiment, edges=frame.edges)
-    if split_line(ready.ablated) != store.folder.splits[seed]:
-        msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
-        msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}, which the store"
-        msg += f" {store.path} is bound to"
-        raise IdentityError(msg)
-    try:
-        fills = {
-            arm: frame_of(
-                store.rows.lines[seed, arm], arm_line=store.folder.arms[seed, arm], frame=frame
-            )
-            for arm in experiment.arms
-        }
-    except IdentityError as error:
-        msg = f"the store {store.path}: {error}"
-        raise IdentityError(msg) from error
+    ready = checked(seed, store, data, experiment)
+    fills = read_fills(seed, store, experiment.arms, frame)
     train, groups = ready.ablated.train, match_groups(data.field_rows, frame=frame)
     request = None
     if DONOR_ARMS & set(fills):

@@ -17,8 +17,10 @@ changes a row; each arm keeps its own rows on every holdout. ADR
 
 from __future__ import annotations
 
+import functools
 import logging
 import math
+import operator
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -156,21 +158,40 @@ def quality(
     )
 
 
-def incoherent(rows: pd.DataFrame) -> float:
-    """The share of Diabetes `rows` that break any of three rules every real training row keeps.
+RULES: Final = ("drug-without-med", "change-without-med", "dose-without-change")
+"""The three Diabetes coherence rules `rule_breaks` reads, in order."""
 
-    The rules: a drug of `DRUGS` not `No` with `diabetesMed` `No`; `change` `Ch` with
-    `diabetesMed` `No`; a drug `Up` or `Down` with `change` `No`. NaN for no rows.
+RULE_COLUMNS: Final = (*DRUGS, "diabetesMed", "change")
+"""The columns the rules read."""
+
+
+def rule_breaks(rows: pd.DataFrame) -> dict[str, pd.Series]:
+    """Whether each of Diabetes `rows` breaks each rule every real training row keeps, by `RULES`.
+
+    The rules: `drug-without-med`, a drug of `DRUGS` not `No` with `diabetesMed` `No`;
+    `change-without-med`, `change` `Ch` with `diabetesMed` `No`; `dose-without-change`, a drug
+    `Up` or `Down` with `change` `No`.
     """
     drugs = rows[list(DRUGS)]
     unmedicated = rows["diabetesMed"] == DIABETES_MED_CODES["No"]
     prescribed = (drugs != DRUG_CODES["No"]).any(axis=1)
     dosed = drugs.isin([DRUG_CODES["Up"], DRUG_CODES["Down"]]).any(axis=1)
-    broken = (
-        (prescribed & unmedicated)
-        | ((rows["change"] == CHANGE_CODES["Ch"]) & unmedicated)
-        | (dosed & (rows["change"] == CHANGE_CODES["No"]))
+    return dict(
+        zip(
+            RULES,
+            (
+                prescribed & unmedicated,
+                (rows["change"] == CHANGE_CODES["Ch"]) & unmedicated,
+                dosed & (rows["change"] == CHANGE_CODES["No"]),
+            ),
+            strict=True,
+        )
     )
+
+
+def incoherent(rows: pd.DataFrame) -> float:
+    """The share of Diabetes `rows` that break any of `rule_breaks`' rules. NaN for no rows."""
+    broken = functools.reduce(operator.or_, rule_breaks(rows).values())
     return float(broken.mean()) if len(rows) else math.nan
 
 

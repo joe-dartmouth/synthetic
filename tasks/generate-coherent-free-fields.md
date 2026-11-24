@@ -1,8 +1,8 @@
 ---
 id: generate-coherent-free-fields
 title: Add the bko-coherent arm, drawing free fields by sequential CART
-status: blocked
-depends_on: evaluate-added-row-contradictions
+status: ready
+depends_on: --
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -36,8 +36,10 @@ keeps the fields coherent without a joint copy.
 - The trace names the leaf donor per field.
 - A new ADR under `docs/adr/research/` that records the draw.
 - Development `RUNS` entries and the [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's
-  Configuration with status `not yet run`. Its target measure is the coherence count of unit
-  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md).
+  Configuration with status `not yet run`. Its target measure is the coherence counts of
+  `contradictions --rows` (ADR
+  [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
+  Decision 2).
 - The IDEAS entry "Coherent free-field draws for `bko-direct`" deleted.
 
 **Out.**
