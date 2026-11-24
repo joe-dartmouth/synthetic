@@ -94,6 +94,7 @@ from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.contradictions import run as census
 from bko.evaluate.data import Dataset, load
+from bko.evaluate.donor_attacks import DONOR_ARMS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import PAID_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
@@ -112,6 +113,7 @@ from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.shared import rescore
 from bko.evaluate.supervise import supervise
 from bko.evaluate.trace import run_trace
+from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
 from bko.generate.resume_guard import Ceiling
@@ -387,10 +389,19 @@ def _panel(args: argparse.Namespace, context: Context) -> str:
 
 
 def _privacy(args: argparse.Namespace, context: Context) -> str:
-    """Read the run's privacy from its `--rows` stores, whose folders sit under the runs root."""
+    """Read the run's privacy from its `--rows` stores, whose folders sit under the runs root.
+
+    A run with an arm of `DONOR_ARMS` loads the pinned releases of the data's mapped concepts,
+    which its fills are re-drawn under.
+    """
     log_versions()
     named = _named(args.run, context)
-    data = load(named.dataset, data_dir(args), named)
+    root = data_dir(args)
+    data = load(named.dataset, root, named)
+    ontologies = None
+    if DONOR_ARMS & set(named.experiment.arms):
+        concepts = {row.concept for row in data.field_rows}
+        ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
     return privacy(
         args.run,
         args.stores,
@@ -398,6 +409,7 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
         data=data,
         runs=named.runs,
         root=_runs_root(args, context),
+        ontologies=ontologies,
     )
 
 

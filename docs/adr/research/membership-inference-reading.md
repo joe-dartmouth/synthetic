@@ -193,12 +193,13 @@ is refused for a fill whose re-draw misses its `arm` line's sha256.
 - Owner: `src/bko/evaluate/privacy.py` (the distances and NNDR), `src/bko/evaluate/membership.py`
   (the distance attack and the `privacy` command's reading), `src/bko/evaluate/attack_stats.py`
   (the scopes and the statistics every attack reads), `src/bko/evaluate/donor_attacks.py` (the
-  match attack), `src/bko/evaluate/reference.py`
+  match attack and donor reuse), `src/bko/evaluate/reference.py`
   (the reference arms), `src/bko/evaluate/privacy_stores.py` (the store checks) and
   `src/bko/evaluate/privacy_rule.py` (the rule)
 - Pinned by: `tests/test_evaluate_privacy.py` for the distances and NNDR;
   `tests/test_evaluate_membership.py` for the attack's calibration, its rate floor, the rule and
-  the command's identity refusals; `tests/test_evaluate_donor_attacks.py` for the match attack; `tests/test_named_runs_slices.py` for the slices a store's run
+  the command's identity refusals; `tests/test_evaluate_donor_attacks.py` for the match attack,
+  donor reuse and their join to the `privacy` output; `tests/test_named_runs_slices.py` for the slices a store's run
   may name
 
 ## Reversal Conditions

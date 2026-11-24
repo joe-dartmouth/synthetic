@@ -1,29 +1,52 @@
-"""The field-group match attack of `python -m bko.evaluate privacy`.
+"""The field-group match attack and the donor reuse of `python -m bko.evaluate privacy`.
 
 The match attack reads verbatim copies. Its units are the frame's field groups
 (`bko.generate.fields.field_groups`) plus a singleton for every column in no group but `sex` and
 the label, the same for every arm. A record's score is the largest number of units on which one
 added row equals it on every field, a missing value equal to a missing one. Its members,
-non-members, scopes and statistics are the distance attack's (`bko.evaluate.attack_stats`). ADR
-`research/membership-inference-reading` records the attack.
+non-members, scopes and statistics are the distance attack's (`bko.evaluate.attack_stats`).
+
+Donor reuse reads an arm of `DONOR_ARMS` from a re-draw of its gap fill at its `arm` line's seed
+(`bko.evaluate.redraw.redraw`) under `trace`'s identity checks: a direct arm's re-drawn rows hash
+to the line's sha256, and a perturbation arm's stored rows are their draws outside the perturbed
+fields. A training record donates to an added row when the row holds, verbatim, a unit every
+field of which its draw read from that record. ADR `research/membership-inference-reading`
+records both readings.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import logging
 import math
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
 from typing import Final
 
 import numpy as np
 import pandas as pd
 
-from bko.baselines.request import Stratum
+from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.attack_stats import RATES, SCOPE_FPRS, SCOPES, attack, scopes
+from bko.evaluate.data import Data, digest
+from bko.evaluate.errors import IdentityError
+from bko.evaluate.experiment import DIRECT_ARMS
+from bko.evaluate.holdout_candidates import PERTURBS
+from bko.evaluate.perturb import unmapped
+from bko.evaluate.redraw import redraw
+from bko.evaluate.run_folder import fields
 from bko.evaluate.scores import Measure
+from bko.evaluate.trace_direct import arm_spec
+from bko.evaluate.trace_lines import Fill, ordered
+from bko.generate.direct import Draw
+from bko.generate.draw_spec import DEFAULT_SPEC
 from bko.generate.fields import field_groups
 from bko.ontology.schema import FieldMapping
+from bko.ontology.terms import Ontology
 
+
+logger = logging.getLogger("bko.evaluate")
 
 CHUNK: Final = 1024
 """Records per chunk of `match_scores`; a chunk's equalities take `CHUNK` times the added rows."""
@@ -117,3 +140,159 @@ def match_measures(
         found[match("auc", scope)] = read.auc
         found |= {match(RATES[rate], scope): value for rate, value in read.tpr.items()}
     return found
+
+
+DONOR_ARMS: Final = frozenset({*DIRECT_ARMS, *PERTURBS})
+"""The arms whose fills a re-draw reproduces, and so whose donors the reading names."""
+
+DONOR_MEASURES: Final = (Measure.DONOR_MAX, Measure.DONOR_P95)
+"""What `donor_measures` returns, in order."""
+
+QUANTILE: Final = 0.95
+"""The upper quantile of the donations `donor_measures` reads."""
+
+
+def donor_counts(
+    fill: Fill,
+    stored: pd.DataFrame,
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    data: Data,
+    ontologies: Mapping[str, Ontology],
+    budget: int,
+    groups: Sequence[tuple[str, ...]],
+) -> Counter[int]:
+    """How many of `stored`'s rows each training record donates a verbatim unit to.
+
+    The fill is re-drawn at its `arm` line's seed, a direct arm's at its spec and a perturbation
+    arm's at `bko-direct`'s, and each stored row is aligned with its kept draw in the order
+    `bko.evaluate.shared.rebuilt` places them.
+
+    Raises:
+        IdentityError: If a direct arm's re-drawn rows do not hash to its `arm` line's sha256,
+            or a perturbation arm's stored rows are not one per kept draw or differ from their
+            draws outside the perturbed fields; or as `arm_spec` and `ordered`.
+        EvaluationError: As `arm_spec` and `bko.evaluate.perturb.unmapped`.
+    """
+    where = f"holdout {fill.holdout}'s {fill.arm} fill"
+    perturbed = fill.name in PERTURBS
+    spec = DEFAULT_SPEC if perturbed else arm_spec(fill, data, ontologies)
+    seeded = dataclasses.replace(request, seed=fill.seed)
+    tag = (fill.holdout, fill.kind)
+    redrawn = redraw(
+        train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag, spec=spec
+    )
+    logged = fields(fill.line)["sha256"]
+    if not perturbed and digest(redrawn.rows) != logged:
+        msg = f"{where} re-drawn at seed {fill.seed} hashes to {digest(redrawn.rows)}, not its"
+        msg += f" arm line's {logged}"
+        raise IdentityError(msg)
+    order = ordered([draw.record for draw in redrawn.kept], seeded, where=where)
+    draws = [redrawn.kept[k] for k in order]
+    if len(draws) != len(stored):
+        msg = f"{where} holds {len(stored)} rows, not one per kept draw of {len(draws)}"
+        raise IdentityError(msg)
+    rows = [{str(name): value for name, value in row.items()} for row in stored.to_dict("records")]
+    if perturbed:
+        free = set(unmapped(data.field_rows, frame=data.frame))
+        names = {
+            name
+            for row, draw in zip(rows, draws, strict=True)
+            for name in draw.record
+            if name not in free and not _same(row[name], draw.record[name])
+        }
+        if names:
+            msg = f"{where}: columns no perturbation changes differ from the re-draw:"
+            msg += f" {','.join(sorted(names))}"
+            raise IdentityError(msg)
+    return donations(rows, draws, groups)
+
+
+def donations(
+    rows: Sequence[Mapping[str, object]], draws: Sequence[Draw], groups: Sequence[tuple[str, ...]]
+) -> Counter[int]:
+    """How many of `rows` each training record donates to, row i over draw i.
+
+    A record donates to a row when the row holds, as drawn, every field of a unit of `groups`
+    that the draw read from that record; a field a perturbation changed stops counting.
+    """
+    found: Counter[int] = Counter()
+    for row, draw in zip(rows, draws, strict=True):
+        donors = set()
+        for unit in groups:
+            sources = {draw.sources.get(name) for name in unit}
+            if len(sources) != 1:
+                continue
+            (source,) = sources
+            if source is not None and all(_same(row[n], draw.record[n]) for n in unit):
+                donors.add(source)
+        found.update(donors)
+    return found
+
+
+def donor_measures(counts: Counter[int]) -> dict[Measure, float]:
+    """The most rows one record donates to, and the 95th percentile (linear) over the donors.
+
+    Both are NaN for an empty counter: an arm with no draw, or a fill with no donation.
+    """
+    if not counts:
+        return dict.fromkeys(DONOR_MEASURES, math.nan)
+    values = np.fromiter(counts.values(), dtype=float)
+    return {
+        Measure.DONOR_MAX: float(values.max()),
+        Measure.DONOR_P95: float(np.quantile(values, QUANTILE, method="linear")),
+    }
+
+
+def read_donors(
+    fill: Fill,
+    stored: pd.DataFrame,
+    train: pd.DataFrame,
+    request: Request,
+    *,
+    data: Data,
+    ontologies: Mapping[str, Ontology],
+    budget: int,
+    groups: Sequence[tuple[str, ...]],
+) -> dict[Measure, float]:
+    """`donor_measures` of `donor_counts`, logged.
+
+    The line is `privacy donor holdout=%d arm=%s donors=%d max=%d p95=%.2f`.
+
+    Raises:
+        IdentityError: As `donor_counts`.
+        EvaluationError: As `donor_counts`.
+    """
+    counts = donor_counts(
+        fill,
+        stored,
+        train,
+        request,
+        data=data,
+        ontologies=ontologies,
+        budget=budget,
+        groups=groups,
+    )
+    found = donor_measures(counts)
+    logger.info(
+        "privacy donor holdout=%d arm=%s donors=%d max=%d p95=%.2f",
+        fill.holdout,
+        fill.arm,
+        len(counts),
+        max(counts.values(), default=0),
+        found[Measure.DONOR_P95],
+    )
+    return found
+
+
+def _same(ours: object, theirs: object) -> bool:
+    """Whether two values are equal, a missing value equal to a missing one."""
+    if _missing(ours) and _missing(theirs):
+        return True
+    return bool(ours == theirs)
+
+
+def _missing(value: object) -> bool:
+    """Whether `value` is a missing float."""
+    return isinstance(value, float) and math.isnan(value)
