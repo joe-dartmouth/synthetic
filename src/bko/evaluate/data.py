@@ -126,6 +126,19 @@ def digested(records: pd.DataFrame) -> tuple[str, str]:
     return text, hashlib.sha256(text.encode()).hexdigest()
 
 
+def frame(dataset: Dataset) -> FrameSpec:
+    """The frame `load` gives `dataset`'s records, read with no data loaded."""
+    match dataset:
+        case Dataset.UCI:
+            return UCI_FRAME
+        case Dataset.SYNTHEA:
+            return SYNTHEA_FRAME
+        case Dataset.DIABETES:
+            return DIABETES_FRAME
+        case _:
+            assert_never(dataset)
+
+
 def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
     """The field rows `load` gives `dataset`'s data, read with no data loaded.
 
@@ -167,7 +180,7 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
         case Dataset.UCI:
             ensure(context.uci, data_dir, open_url=context.open_url)
             records = load_uci(data_dir, source=context.uci)
-            data = Data(records, UCI_FRAME, rows, context.uci.name, context.uci.agreement)
+            data = Data(records, frame(dataset), rows, context.uci.name, context.uci.agreement)
         case Dataset.SYNTHEA:
             run = context.synthea
             directory = population_dir(run, data_dir, context.synthea_jar)
@@ -179,13 +192,13 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
                 indicators=SYNTHEA_INDICATORS,
                 adults_from=SYNTHEA_ADULTS_FROM,
             )
-            data = Data(records, SYNTHEA_FRAME, rows, SYNTHEA_NAME, None)
+            data = Data(records, frame(dataset), rows, SYNTHEA_NAME, None)
         case Dataset.DIABETES:
             source = context.diabetes
             ensure(source, data_dir, open_url=context.open_url)
             records = load_diabetes(data_dir, indicators=DIABETES_INDICATORS, source=source)
-            check_records(records, DIABETES_FRAME)
-            data = Data(records, DIABETES_FRAME, rows, source.name, source.agreement)
+            check_records(records, frame(dataset))
+            data = Data(records, frame(dataset), rows, source.name, source.agreement)
         case _:
             assert_never(dataset)
     agreement = data.agreement
