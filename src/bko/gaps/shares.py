@@ -150,8 +150,8 @@ def draw_order(concepts: Collection[str], pairs: Collection[tuple[str, str]]) ->
             if concept not in depth and narrow <= depth.keys()
         ]
         if not ready:
-            cycle = ", ".join(sorted(below.keys() - depth.keys()))
-            msg = f"the pairs over {cycle} hold a cycle, so none of them can be ordered"
+            names = ", ".join(sorted(below.keys() - depth.keys()))
+            msg = f"the pairs over {names} hold a cycle or depend on one"
             raise ValueError(msg)
         for concept in ready:
             depth[concept] = 1 + max((depth[n] for n in below[concept]), default=-1)

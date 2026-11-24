@@ -49,6 +49,10 @@ class Observed:
             copy of the mapping given.
         both: Each `(narrow, broad)` pair asked for, with how many records show both concepts;
             empty unless pairs were asked for, and a read-only copy of the mapping given.
+
+    Raises:
+        GapError: If a pair in `both` names a concept `holders` lacks, or counts more records
+            than show either of its concepts.
     """
 
     name: str
@@ -59,6 +63,18 @@ class Observed:
     def __post_init__(self) -> None:
         object.__setattr__(self, "holders", MappingProxyType(dict(self.holders)))
         object.__setattr__(self, "both", MappingProxyType(dict(self.both)))
+        absent = sorted({concept for pair in self.both for concept in pair} - self.holders.keys())
+        if absent:
+            msg = f"{self.name}'s pairs name concepts it holds no count for: {', '.join(absent)}"
+            raise GapError(msg)
+        for (narrow, broad), count in self.both.items():
+            most = min(self.holders[narrow], self.holders[broad])
+            if count > most:
+                msg = (
+                    f"{self.name} counts {count} records showing both {narrow} and {broad}, "
+                    f"more than the {most} showing one of them"
+                )
+                raise GapError(msg)
 
     @property
     def held(self) -> tuple[str, ...]:
@@ -126,9 +142,11 @@ def observe_records(
 
     Raises:
         GapError: If `frame` holds no record, a row reads a field it lacks, or a pair names a
-            concept `rows` do not map.
+            concept `rows` do not map or the same concept twice.
     """
-    return _whole(name, record_shows(frame, rows, name=name), pairs)
+    shows = record_shows(frame, rows, name=name)
+    _check_pairs(name, shows, pairs)
+    return _whole(name, shows, pairs)
 
 
 def record_cells(
@@ -163,6 +181,7 @@ def record_cells(
         raise GapError(msg)
     mappings = tuple(rows)
     shows = record_shows(frame, mappings, name=name)
+    _check_pairs(name, shows, pairs)
     whole = _whole(name, shows, pairs)
     keys = cell_keys(frame, edges=edges)
     assumed = {label: _only_other_labels(mappings, label) for label in sorted(LABEL_CODES)}
@@ -246,7 +265,15 @@ def conditional_fragment(observed: Observed) -> BKB:
     A pair `(narrow, broad)` whose narrow concept some record shows gets the S-node
     P(broad | narrow) = the share of the records showing `narrow` that also show `broad`, its head
     the broad concept, its tail the narrow one; the broad concept's I-node is added if no record
-    shows it. A pair whose narrow concept no record shows gets none, since its share is 0/0. No gap
+    shows it. A pair whose narrow concept no record shows gets none, since its share is 0/0. A
+    conditional of 0 is kept: it states that no record showing the narrow concept shows the broad
+    one, which the data says.
+
+    The fragment is a table of per-pair shares, not a BKB to reason over: the broad concept's prior
+    and its conditionals share one source and overlap, so a broad concept with several narrow ones,
+    or an indirect `is_a` ancestor, gets one overlapping S-node per narrow one, and no reasoning
+    over the joint (`bko.bkb.reason`) reads it. It never feeds grounding or gap detection either:
+    instantiation ignores probabilities, so a conditional would ground its broad concept. No gap
     definition, share or prompt reads this fragment (ADR `research/dataset-fragment-encoding`).
 
     Returns:
@@ -310,21 +337,27 @@ def _population_shows(population: Population, rows: Iterable[CodeMapping]) -> pd
 
 def _whole(name: str, shows: pd.DataFrame, pairs: Sequence[tuple[str, str]] = ()) -> Observed:
     holders = {str(concept): int(shows[concept].sum()) for concept in shows.columns}
-    return _observed(name, len(shows), holders, _both(name, shows, pairs))
+    return _observed(name, len(shows), holders, _both(shows, pairs))
 
 
-def _both(
-    name: str, shows: pd.DataFrame, pairs: Sequence[tuple[str, str]]
-) -> dict[tuple[str, str], int]:
-    """How many records `shows` marks with both concepts of each pair.
+def _check_pairs(name: str, shows: pd.DataFrame, pairs: Sequence[tuple[str, str]]) -> None:
+    """Refuse a pair `_both` cannot count over `shows`.
 
     Raises:
-        GapError: If a pair names a concept `shows` has no column for.
+        GapError: If a pair names a concept `shows` has no column for, or the same concept twice.
     """
     unmapped = sorted({concept for pair in pairs for concept in pair} - set(shows.columns))
     if unmapped:
         msg = f"the pairs name concepts {name}'s rows do not map: {', '.join(unmapped)}"
         raise GapError(msg)
+    same = sorted({narrow for narrow, broad in pairs if narrow == broad})
+    if same:
+        msg = f"the pairs join concepts to themselves: {', '.join(same)}"
+        raise GapError(msg)
+
+
+def _both(shows: pd.DataFrame, pairs: Sequence[tuple[str, str]]) -> dict[tuple[str, str], int]:
+    """How many records `shows` marks with both concepts of each pair `_check_pairs` passed."""
     return {(narrow, broad): int((shows[narrow] & shows[broad]).sum()) for narrow, broad in pairs}
 
 
@@ -351,7 +384,7 @@ def _member(
         name=f"{name}/{cell_key(cell)}",
         records=int(inside.sum()),
         holders=holders,
-        both=_both(name, members, pairs),
+        both=_both(members, pairs),
     )
 
 
