@@ -30,8 +30,9 @@ says which enter `bko-direct-2`.
   [`privacy-donor-limits`](privacy-donor-limits.md),
   [`privacy-value-microaggregation`](privacy-value-microaggregation.md) and
   [`generate-coherent-free-fields`](generate-coherent-free-fields.md).
-- For each arm, `contradictions --rows`
-  (ADR [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md), Decision 2), the reading of unit
+- For each arm, `contradictions --rows` (ADR
+  [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
+  Decision 2), the reading of unit
   [`evaluate-trace-attribution`](evaluate-trace-attribution.md), and `privacy`'s match attack and
   donor reuse (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entries' Runs, Result and Read against.

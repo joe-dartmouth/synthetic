@@ -37,7 +37,9 @@ keeps the fields coherent without a joint copy.
 - A new ADR under `docs/adr/research/` that records the draw.
 - Development `RUNS` entries and the [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's
   Configuration with status `not yet run`. Its target measure is the coherence counts of
-  `contradictions --rows` (ADR [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md), Decision 2).
+  `contradictions --rows` (ADR
+  [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
+  Decision 2).
 - The IDEAS entry "Coherent free-field draws for `bko-direct`" deleted.
 
 **Out.**
