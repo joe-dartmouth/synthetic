@@ -1,8 +1,8 @@
 ---
 id: datasets-physionet2012-frame
 title: Add PhysioNet/CinC Challenge 2012 as a confirmatory frame with in-hospital death as the label
-status: blocked
-depends_on: datasets-selection-rule
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
@@ -17,17 +17,16 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A second intensive-care frame beside [`datasets-support2-frame`](datasets-support2-frame.md) widens
-the confirmatory family. The record count (12,000 ICU stays) and the licence (ODC Attribution) are
-the research pass's reading, not re-checked. Its terms and its death rate are what unit
-[`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page. This unit
-copies `datasets-support2-frame` in scope and acceptance.
+the confirmatory family. Its record count, licence and in-hospital death rate are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
+This unit copies `datasets-support2-frame` in scope and acceptance.
 
 ## Scope
 
 **In.**
 
 - A `Source` pin (`bko.datasets.sources`) of the PhysioNet archive. Its `agreement` carries the
-  value unit [`datasets-selection-rule`](datasets-selection-rule.md) records.
+  value ADR `research/confirmatory-dataset-selection` records.
 - A loader that reduces each stay's time series to one record by a rule fixed before any gap
   listing is read.
 - A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label.

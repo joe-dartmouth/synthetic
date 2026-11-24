@@ -1,8 +1,8 @@
 ---
 id: datasets-support2-frame
 title: Add SUPPORT2 as a confirmatory frame with in-hospital death as the label
-status: blocked
-depends_on: datasets-selection-rule
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
@@ -18,16 +18,17 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 One positive dataset is the study's weakest point. SUPPORT2 is intensive-care data, with
 diagnosis groups that map to MONDO and physiology that maps to HPO through cited cutoffs. Its
-terms and its in-hospital death rate are what unit
-[`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page.
+terms are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md),
+which also records that no page read states its in-hospital death rate; this unit counts it from
+the training split.
 
 ## Scope
 
 **In.**
 
 - A `Source` pin (`bko.datasets.sources`) of the Vanderbilt archive. Its `agreement` carries the
-  value unit [`datasets-selection-rule`](datasets-selection-rule.md) records, and is `None` only
-  where that unit's ADR says the terms permit sending records to a third-party API.
+  value ADR `research/confirmatory-dataset-selection` records.
 - A loader.
 - A `FrameSpec` (`bko.datasets.frames`) with in-hospital death as the label, without the columns
   its publisher warns against using as predictors.
@@ -48,6 +49,8 @@ terms and its in-hospital death rate are what unit
 
 ## Acceptance
 
+- The unit's ADR records the in-hospital death rate, counted from the training split before any
+  gap is read, the figure ADR `research/confirmatory-dataset-selection` leaves to this unit.
 - `python -m bko.ontology check` passes with the new rows.
 - The subcommand lists the training split's gaps.
 - The `contradictions` reading's output over the training split is recorded in the unit's ADR.

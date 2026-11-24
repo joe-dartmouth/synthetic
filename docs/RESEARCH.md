@@ -221,17 +221,28 @@ students and 10 weeks ([section 8](#8-scope-assessment)).
 
 The plan uses UCI Heart Disease and Synthea, both openly available (2-pager sections 2 and 4), and
 UCI Diabetes 130-US Hospitals for subgroup removal on real patients
-([below](#limits-of-uci-heart-disease-as-the-evaluation-frame)). The other rows are the
-brief's registry (D10), kept for reference.
+([below](#limits-of-uci-heart-disease-as-the-evaluation-frame)). The direct-method study
+([section 11](#11-direct-method-study)) adds four confirmatory datasets, SUPPORT2, NHANES, the
+PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED, as the health family, and ACS PUMS as its
+own exploratory family. ADR
+[`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md)
+records the rule that chose them, the ranking of every candidate, and each one's terms quoted from
+its primary page. The other rows are the brief's registry (D10), kept for reference, and so is
+each description except those of SUPPORT2, the PhysioNet/CinC Challenge 2012 set, NHAMCS 2022 ED
+and ACS PUMS, which come from the pages that ADR cites.
 
-| Dataset | Access | Description (brief D10) | In the plan |
+| Dataset | Access | Description | In the plan |
 |---|---|---|---|
 | UCI Heart Disease (Cleveland) | Open | Classic 303-record binary/multiclass detection task; naturally small, which suits a low-data story; the evaluation frame is ADR [`research/uci-evaluation-frame`](adr/research/uci-evaluation-frame.md) | Evaluation setting ([section 2](#2-intended-users-and-evaluation-setting)) |
 | Pima Indians Diabetes | Open | Classic small imbalanced binary task | No |
 | UCI Diabetes 130-US Hospitals | Open, CC BY 4.0 [`clore-2014`][clore-2014]; de-identified under HIPAA [`strack-2014`][strack-2014] | Larger; used in recent synthetic-data audit benchmarks | Subgroup removal on real encounters, E6 ([EVIDENCE.md](EVIDENCE.md#e6-diabetes-130-subgroup-removal)) (below); pinned as `uci-diabetes-130` in `bko.datasets.sources`, its frame in [`DEVELOPMENT.md`](DEVELOPMENT.md#data) |
-| NHANES | Open | Openly available national survey data | No |
+| NHANES August 2021 to August 2023 | Public-use, NCHS terms [`nchs-nd`][nchs-nd]; documentation [`nhanes-2024`][nhanes-2024] | Openly available national survey data | Confirmatory, cardiovascular composite label over adults 20 and over, the target of its medical-conditions items ([section 11](#11-direct-method-study)) |
+| SUPPORT2 | Open, Vanderbilt permission line [`vanderbilt-2026`][vanderbilt-2026] | 9,105 seriously ill hospitalized adults with physiology and diagnosis groups | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
+| PhysioNet/CinC Challenge 2012 | Open, ODC Attribution [`silva-2012a`][silva-2012a] | 12,000 adult ICU stays, first 48 hours [`silva-2012b`][silva-2012b] | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)) |
+| NHAMCS 2022 ED | Public-use, NCHS terms [`nhamcs-nd`][nhamcs-nd] | 16,025 sampled emergency-department visits with coded diagnoses | Confirmatory, hospital admission label ([section 11](#11-direct-method-study)) |
+| ACS PUMS | Public, Census terms [`acs-nd`][acs-nd] | Census person records with coded occupation | Exploratory non-health family, income label ([section 11](#11-direct-method-study)) |
 | Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
-| MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training | Demo subsets of the credentialed datasets | No |
+| MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training [`johnson-2023`][johnson-2023] [`johnson-2021`][johnson-2021] | Demo subsets of the credentialed datasets | No: too few records, excluded by ADR [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md) |
 | Full MIMIC-IV, MIMIC-IV-Note, MIMIC-IV-ED | Credentialed, on PhysioNet | Real EHR data | No |
 
 **Synthea's caveats.** Synthea has documented fidelity flaws: per the JAMIA 2018 paper it
@@ -489,8 +500,10 @@ Bayesian network) are comparators.
 UCI Heart Disease, the Synthea population and Diabetes 130 are development data. SUPPORT2, NHANES,
 the PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED are confirmatory data. ACS PUMS runs
 beside them as a separate non-health family, read as exploratory and outside the health datasets'
-multiplicity family. A later re-read of each choice from its primary page may revise this section, and
-[section 6](#6-datasets) lists the confirmatory datasets once that re-read is recorded.
+multiplicity family. ADR
+[`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md)
+records the selection rule and the re-read of each choice from its primary page, and
+[section 6](#6-datasets) lists the datasets.
 
 ### Disclosure
 
@@ -604,6 +617,7 @@ the `is_a` pseudo-count: of the registered values that pass, the largest enters.
 variant's target measure is the one its own task unit names, and no correction is made across
 variants beyond each interval's own.
 
+[acs-nd]: https://www.census.gov/data/developers/about/terms-of-service.html
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [carriero-2025]: https://doi.org/10.1002/sim.10320
 [chawla-2002]: https://doi.org/10.1613/jair.953
@@ -616,6 +630,8 @@ variants beyond each interval's own.
 [he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
 [hpo-2026]: https://github.com/obophenotype/human-phenotype-ontology/tree/920d4eb3608b50a2c19ddb10290224ab35a759c5/src/ontology
 [jackson-2019]: https://doi.org/10.1186/s12859-019-3002-3
+[johnson-2021]: https://doi.org/10.13026/4mxk-na84
+[johnson-2023]: https://doi.org/10.13026/dp1f-ex47
 [juwara-2024]: https://doi.org/10.1016/j.patter.2024.100946
 [kallus-2019]: https://arxiv.org/abs/1902.05826
 [kazakov-2014]: https://doi.org/10.1007/s10817-013-9296-3
@@ -625,14 +641,20 @@ variants beyond each interval's own.
 [luo-2022]: https://doi.org/10.1093/bib/bbac409
 [matentzoglu-2022]: https://doi.org/10.1093/database/baac087
 [mondo-2026]: https://github.com/monarch-initiative/mondo/blob/9bfccbe9217cdfa6a225058bfa6e4bd55512b432/src/ontology/Makefile
+[nchs-nd]: https://www.cdc.gov/nchs/policy/data-user-agreement.html
+[nhamcs-nd]: https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/readme2022.txt
+[nhanes-2024]: https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm
 [nori-2023]: https://arxiv.org/abs/2311.16452
 [saito-2015]: https://doi.org/10.1371/journal.pone.0118432
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
+[silva-2012a]: https://physionet.org/content/challenge-2012/1.0.0/
+[silva-2012b]: https://pmc.ncbi.nlm.nih.gov/articles/PMC3965265/
 [strack-2014]: https://doi.org/10.1155/2014/781670
 [task-2024]: https://doi.org/10.18434/mds2-3024
 [translator-2019]: https://doi.org/10.1111/cts.12591
 [unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
+[vanderbilt-2026]: https://hbiostat.org/data/
 [welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033
 [xu-2019]: https://arxiv.org/abs/1907.00503

@@ -1,8 +1,8 @@
 ---
 id: datasets-nhamcs-frame
 title: Add NHAMCS 2022 ED as a confirmatory frame with hospital admission as the label
-status: blocked
-depends_on: datasets-selection-rule
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
@@ -17,20 +17,18 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A survey of emergency-department visits gives the confirmatory family a frame whose concepts come
-from coded diagnoses. The record count (16,025 visits in the 2022 file), the terms and the clause
-of the NCHS agreement on assessing disclosure methods are the research pass's reading, not
-re-checked; unit
-[`datasets-selection-rule`](datasets-selection-rule.md) re-reads each from the primary page and
-records it. This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and
-acceptance.
+from coded diagnoses. Its record count, its public-use terms and the NCHS clause on assessing
+disclosure methods are quoted in ADR
+[`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
+This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and acceptance.
 
 ## Scope
 
 **In.**
 
-- A `Source` pin (`bko.datasets.sources`) of the NCHS file. Its `agreement` carries the value unit
-  [`datasets-selection-rule`](datasets-selection-rule.md) records, and the unit's ADR gives that
-  unit's reading of the clause on assessing disclosure methods.
+- A `Source` pin (`bko.datasets.sources`) of the NCHS file. Its `agreement` carries the value
+  ADR `research/confirmatory-dataset-selection` records, and the unit's ADR cites that record's
+  reading of the clause on assessing disclosure methods.
 - A loader.
 - A `FrameSpec` (`bko.datasets.frames`) with `ADMITHOS` as the label.
 - Concepts from the ICD-10-CM diagnosis fields through MONDO's cross-references, and from the

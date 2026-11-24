@@ -53,7 +53,4 @@ links to where its blocker is tracked.
   **What discharges it:** `permits_sending` refuses a `sending` value that is not a recognisable
   permission (a placeholder included), with a test that a placeholder is refused.
 
-  **Trigger:** the first dataset unit that pins a `Source` with an `Agreement`: unit
-  [`datasets-support2-frame`](datasets-support2-frame.md),
-  [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) or
-  [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md), whichever lands first.
+  **Trigger:** the first dataset unit that pins a `Source` with an `Agreement`.
