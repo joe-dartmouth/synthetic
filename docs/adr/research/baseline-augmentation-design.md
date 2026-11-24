@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # The baselines: each method fills a given quota of added rows, stratum by stratum
 
@@ -79,6 +79,11 @@ seed their sampling after every fit, and seed no fit.
 - **TabDDPM is an in-house diffusion model on the locked torch** (`tabddpm`), drawn and filled as
   CTGAN and TVAE are; ADR [`research/diffusion-baseline`](diffusion-baseline.md) holds its
   decisions.
+- **The label bootstrap copies whole records** (`label-bootstrap`). Each row is one training record
+  of the stratum's label whose age is in the stratum's band, drawn uniformly with replacement,
+  its `sex` set to the cell's. A label stratum draws any record of the label unchanged. An empty
+  pool raises `BaselineError` naming the stratum. Every other field stays as the record holds it,
+  so every within-record association survives.
 - **Seeds**: imbalanced-learn takes one seed per stratum, derived from the run's seed. CTGAN and TVAE
   fit with numpy's and torch's global generators seeded from it and one torch thread, all restored
   afterwards; SDV seeds sampling itself after every fit. The Gaussian copula's fit draws nothing
@@ -88,7 +93,8 @@ seed their sampling after every fit, and seed no fit.
   touching no global generator; the Bayesian network draws from
   `default_rng(derived_seed(seed, "bayes-net"))` the same way. TabDDPM builds its model under
   torch's global generator seeded from the run's seed, one thread, restored afterwards, and takes
-  every other draw from one `torch.Generator` seeded with `derived_seed(seed, "tabddpm")`.
+  every other draw from one `torch.Generator` seeded with `derived_seed(seed, "tabddpm")`. The label
+  bootstrap draws each stratum from `default_rng(derived_seed(seed, "label-bootstrap", *stratum))`.
 - **Frame**: the request carries the frame (`bko.datasets.frames.FrameSpec`) as `Request.frame`,
   a required keyword; the row checks, the drop rule and the synthesizers'
   metadata read its columns, codes and precision.
@@ -159,6 +165,10 @@ BUSL-1.1 (ADR `tooling/gpl-3-license`).
 | scikit-learn's `ccp_alpha` for rpart's `cp` | Cost-complexity post-pruning, not rpart's split threshold | 2026-10-29 |
 | The copula's native conditioning | Cannot name an age band, which is not a column | 2026-10-29 |
 | The `copulas` library or a scipy copula directly | Not the cited synthesizer; SDV's wraps `copulas` with the metadata the other synthesizers read | 2026-10-29 |
+| Label bootstrap from records of the cell's own sex only | The pool is empty at an emptied cell, which is the cell a fill is asked for | 2026-11-24 |
+| Label bootstrap from the whole label group regardless of band | The rows leave the cell's age band, so the request's strata are not met | 2026-11-24 |
+| Refusing label strata for the label bootstrap | Every other method fills them; the pool is the label group | 2026-11-24 |
+| Joining `METHOD_ARMS` (`bko.evaluate.experiment`) | E1 and E3 keep their arms; the bootstrap is a control read beside `bko-direct` | 2026-11-24 |
 
 ## Enforcement
 

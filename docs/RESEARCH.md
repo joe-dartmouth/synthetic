@@ -492,8 +492,8 @@ registered `candidate` stays `bko`.
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap` and
 `bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB guides
-generation. The row-adding methods (the comparison set, the classical synthesizers and the
-Bayesian network) are comparators.
+generation. The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the
+Bayesian network and the label bootstrap) are comparators.
 
 ### Data
 
