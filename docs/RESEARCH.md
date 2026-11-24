@@ -479,8 +479,8 @@ registered `candidate` stays `bko`.
 
 ### Ablations and comparators
 
-The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic` and `bko-skeleton`, and the
-guidance levels, are ablations: each changes one part of how the BKB guides generation. The
+The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap` and
+`bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB guides generation. The
 row-adding methods (the comparison set, the classical synthesizers and the Bayesian network) are
 comparators.
 
