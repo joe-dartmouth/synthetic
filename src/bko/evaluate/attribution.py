@@ -31,6 +31,7 @@ from bko.generate.draw_spec import DEFAULT_SPEC
 
 
 if TYPE_CHECKING:
+    from bko.datasets.frames import FrameSpec
     from bko.evaluate.context import Context
 
 
@@ -321,8 +322,11 @@ def mapped_fields(dataset: Dataset, context: Context) -> frozenset[str]:
     """The fields a `when` clause of `dataset`'s field rows reads, its frame's label aside.
 
     The rows are `bko.evaluate.data.field_rows`', so no data is loaded.
+
+    Raises:
+        EvaluationError: As `_frame`.
     """
-    label = frame(dataset).label
+    label = _frame(dataset).label
     rows = field_rows(dataset, context)
     return frozenset(c.field for row in rows for c in row.when if c.field != label)
 
@@ -331,14 +335,30 @@ def run_attribution(args: argparse.Namespace, named: Context) -> str:
     """The `attribution` command over `named`, the context of the run `args.run`.
 
     Logs the `versions` line first.
+
+    Raises:
+        EvaluationError: As `_frame`, or as `attribution`.
     """
+    columns = frozenset(_frame(named.dataset).columns)
     log_versions()
     return attribution(
-        args.traces,
-        run=args.run,
-        mapped=mapped_fields(named.dataset, named),
-        columns=frozenset(frame(named.dataset).columns),
+        args.traces, run=args.run, mapped=mapped_fields(named.dataset, named), columns=columns
     )
+
+
+def _frame(dataset: Dataset) -> FrameSpec:
+    """`dataset`'s frame, read with no data loaded, as attribution reads it.
+
+    Raises:
+        EvaluationError: For `diabetes-codes`, whose frame is built from its loaded records.
+    """
+    if dataset is Dataset.DIABETES_CODES:
+        msg = (
+            f"attribution reads no data, and the {dataset} frame's codebook is built from its "
+            "loaded records; attribution does not run on it"
+        )
+        raise EvaluationError(msg)
+    return frame(dataset)
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

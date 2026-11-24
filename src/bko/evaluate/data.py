@@ -222,6 +222,8 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             ensure(source, data_dir, open_url=context.open_url)
             records = load_diabetes(data_dir, indicators={}, diagnoses=True, source=source)
             spec = diabetes_codes_frame(records)
+            # The diagnosis codebook is built from these records, and `load_diabetes` has checked
+            # each token against `DIAGNOSIS_PATTERN`, so this check cannot fail on a diag column.
             check_records(records, spec)
             data = Data(records, spec, rows, source.name, source.agreement)
         case _:

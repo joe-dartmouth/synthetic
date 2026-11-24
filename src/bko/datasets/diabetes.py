@@ -449,18 +449,30 @@ def _indicators(
     rows: pd.DataFrame, categories: Mapping[str, tuple[tuple[int, str], ...]]
 ) -> dict[str, pd.Series]:
     """Return each indicator: 1 where any diagnosis falls in one of its categories."""
-    parts = [rows[name].str.extract(rf"^{NUMERIC_CODE}$") for name in DIAGNOSES]
-    numbers = [(pd.to_numeric(part[0]), part[1].fillna("")) for part in parts]
     held: dict[str, pd.Series] = {}
     for name, codes in categories.items():
         hit = pd.Series(False, index=rows.index)
-        for whole, digits in numbers:
-            for major, minor in codes:
-                hit |= whole.eq(major) & digits.str.startswith(minor)
+        for column in DIAGNOSES:
+            tokens = rows[column]
+            inside = {token: _falls_in(token, codes) for token in tokens.unique()}
+            hit |= tokens.map(inside).astype(bool)
         held[name] = hit.astype("int64")
     return held
 
 
+def _falls_in(token: str, codes: tuple[tuple[int, str], ...]) -> bool:
+    """Whether `token` is a numeric code in one of `codes`, each (whole part, decimal digits)."""
+    match = re.fullmatch(NUMERIC_CODE, token)
+    if match is None:
+        return False
+    whole, digits = int(match[1]), match[2] or ""
+    return any(whole == major and digits.startswith(minor) for major, minor in codes)
+
+
 def _codes(rows: pd.DataFrame) -> dict[str, pd.Series]:
-    """Each of `DIAGNOSES`, each token as its `code_number`."""
-    return {name: rows[name].map(code_number) for name in DIAGNOSES}
+    """Each of `DIAGNOSES`, each token as its `code_number`, computed once per distinct token."""
+    columns: dict[str, pd.Series] = {}
+    for name in DIAGNOSES:
+        tokens = rows[name]
+        columns[name] = tokens.map({token: code_number(token) for token in tokens.unique()})
+    return columns
