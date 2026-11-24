@@ -1,8 +1,8 @@
 ---
 id: privacy-donor-limits
 title: Add the bko-capped arm, with a donor floor and a reuse cap
-status: blocked
-depends_on: privacy-donor-attacks
+status: ready
+depends_on: --
 blocks: privacy-value-microaggregation, evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -32,8 +32,8 @@ records' values. A floor on donors and a cap on reuse bound that exposure.
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e10-identifier-perturbation)) relate.
 - Development `RUNS` entries against `bko-direct`, and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. Its
-  target measure is the match-attack AUC of unit
-  [`privacy-donor-attacks`](privacy-donor-attacks.md).
+  target measure is `privacy`'s match-attack AUC
+  (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 
 **Out.**
 

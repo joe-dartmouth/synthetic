@@ -31,9 +31,9 @@ says which enter `bko-direct-2`.
   [`privacy-value-microaggregation`](privacy-value-microaggregation.md) and
   [`generate-coherent-free-fields`](generate-coherent-free-fields.md).
 - For each arm, the readings of units
-  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md),
-  [`privacy-donor-attacks`](privacy-donor-attacks.md) and
-  [`evaluate-trace-attribution`](evaluate-trace-attribution.md).
+  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) and
+  [`evaluate-trace-attribution`](evaluate-trace-attribution.md), and `privacy`'s match attack and
+  donor reuse (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entries' Runs, Result and Read against.
 - For each variant, whether it meets the variant inclusion rule.
 

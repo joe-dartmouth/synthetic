@@ -27,11 +27,10 @@ unit's `milestone` is `direct-method-research`, the
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | gaps-is-a-conditional-fragments, evaluate-added-row-contradictions | direct-method-research |
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
-| [`privacy-donor-attacks`](privacy-donor-attacks.md) | ready | -- | direct-method-research |
 | [`privacy-donor-attacks-results`](privacy-donor-attacks-results.md) | ready | -- | direct-method-research |
-| [`privacy-donor-limits`](privacy-donor-limits.md) | blocked | privacy-donor-attacks | direct-method-research |
+| [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
-| [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | evaluate-added-row-contradictions, privacy-donor-attacks | direct-method-research |
+| [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | blocked | evaluate-added-row-contradictions | direct-method-research |
 | [`evaluate-trace-attribution`](evaluate-trace-attribution.md) | ready | -- | direct-method-research |
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields, evaluate-trace-attribution | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | blocked | evaluate-control-runs-registered | direct-method-research |
@@ -97,10 +96,8 @@ flowchart LR
     u10[gaps-is-a-conditional-fragments] --> u11[generate-is-a-conditional-draws]
     u9[evaluate-added-row-contradictions] --> u11
     u12[ontology-diabetes-diagnosis-codes] --> u13[generate-ancestor-shrunk-shares]
-    u14[privacy-donor-attacks] --> u15[privacy-donor-limits]
-    u15 --> u16[privacy-value-microaggregation]
+    u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
     u9 --> u17[generate-coherent-free-fields]
-    u14 --> u17
     u11 --> u19[evaluate-variant-dev-results]
     u13 --> u19
     u15 --> u19
