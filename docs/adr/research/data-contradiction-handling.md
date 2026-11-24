@@ -44,8 +44,20 @@ or its sample, and the direct sampler draws a child without its parent.
      every one of the row's `Codes` clauses on that field admits, united over the concept's rows.
      A row's clauses on other fields, and its clauses that are not `Codes`, are ignored for this
      kind; UCI's `HP:0012250` row reads a threshold beside its codes, and only its codes count.
-2. **Basis.** The `contradictions` command examines, for each frame, every cell of the frame's
-   training split at holdout seed 0 with no removal, and lists each finding.
+2. **Bases.** The `contradictions` command reads one of two bases.
+   - **The census.** With no run, it examines, for each frame, every cell of the frame's
+     training split at holdout seed 0 with no removal, and lists each finding.
+   - **The added rows.** `contradictions <run> --rows <store>...` reads each holdout and fill of
+     a run's `rows` stores, gap and replica fills alike, and counts in the fill's added rows A:
+     `narrow-without-broad`, the rows of A showing a narrow concept without its broad one,
+     summed over the `is_a` pairs; `child-share-above-parent` and `all-show`, the survey's
+     findings over the cells A adds rows to; `empty-cell`, the cells of the fill's request that
+     hold no row of A; `code-overlap`, the rows of A whose code lies in an unresolved overlap;
+     and the three coherence rules of `bko.evaluate.perturb.incoherent`, `drug-without-med`,
+     `change-without-med` and `dose-without-change`, each as the rows of A breaking it, blank
+     where the frame lacks their columns. A fill with no rows counts 0 on every kind. The
+     request is the one the fill answered, rebuilt from the holdout's training split: the gap
+     request for a gap fill, the replica request for a replica fill.
 3. **Valid fused BKB.** One for which `bko.bkb.fusion.check_fused` passes. It requires:
    - every input S-node is present, with its source tail and an unchanged probability;
    - every fused S-node other than a source prior maps to an input; a dataset conditional (ADR
@@ -118,6 +130,8 @@ table does not nest them, a pattern the data shows.
 | Dropping the dataset prior a contradiction touches | Changes an input probability, which `check_fused` refuses | 2026-11-05 |
 | Requiring mutual exclusion of a fused BKB | A class with two scoped children is already non-mutex (ADR `research/bko-fragment-encoding`) | 2026-11-05 |
 | The census in `bko.gaps` | It would move the evaluate loader, `Context` and `log_versions` below `bko.evaluate` for a command nothing outside evaluate runs | 2026-11-09 |
+| The training split as the only basis | It cannot show whether an arm's added rows contradict the ontology or break the Diabetes coherence rules, the measure the generation units target | 2026-11-24 |
+| One share of rows breaking any coherence rule, as `incoherent` reads it | It hides which rule a fill breaks; each rule is counted on its own | 2026-11-24 |
 
 ## Enforcement
 
