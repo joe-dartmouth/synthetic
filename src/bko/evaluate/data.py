@@ -4,7 +4,7 @@
 candidates file, so each reads the same records, frame, field mappings and digest, and the run's
 logs name the frame. ADR `research/uci-evaluation-frame` records why the run, not a flag, chooses
 it. The Synthea and Diabetes 130 frames, their indicators and their field rows are in
-`bko.ontology.frames`.
+`bko.ontology.frames`, and the `diabetes-codes` frame and its rows in `bko.ontology.code_frames`.
 """
 
 from __future__ import annotations
@@ -26,6 +26,11 @@ from bko.datasets.sources import Agreement, Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.uci import UCI_FRAME, load_uci
+from bko.ontology.code_frames import (
+    DIABETES_CODES_FIELD_ROWS,
+    DIABETES_CODES_NAME,
+    diabetes_codes_frame,
+)
 from bko.ontology.frames import (
     DIABETES_FIELD_ROWS,
     DIABETES_FRAME,
@@ -49,6 +54,7 @@ class Dataset(StrEnum):
     UCI = "uci"
     SYNTHEA = "synthea"
     DIABETES = DIABETES_NAME
+    DIABETES_CODES = DIABETES_CODES_NAME
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -127,7 +133,11 @@ def digested(records: pd.DataFrame) -> tuple[str, str]:
 
 
 def frame(dataset: Dataset) -> FrameSpec:
-    """The frame `load` gives `dataset`'s records, read with no data loaded."""
+    """The frame `load` gives `dataset`'s records, read with no data loaded.
+
+    Raises:
+        ValueError: For `diabetes-codes`, whose codebook is built from its records.
+    """
     match dataset:
         case Dataset.UCI:
             return UCI_FRAME
@@ -135,6 +145,9 @@ def frame(dataset: Dataset) -> FrameSpec:
             return SYNTHEA_FRAME
         case Dataset.DIABETES:
             return DIABETES_FRAME
+        case Dataset.DIABETES_CODES:
+            msg = f"the {dataset} frame's codebook is built from its records; load them"
+            raise ValueError(msg)
         case _:
             assert_never(dataset)
 
@@ -142,8 +155,9 @@ def frame(dataset: Dataset) -> FrameSpec:
 def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
     """The field rows `load` gives `dataset`'s data, read with no data loaded.
 
-    UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS` and Diabetes 130's
-    `DIABETES_FIELD_ROWS`, whatever the context's.
+    UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS`, Diabetes 130's
+    `DIABETES_FIELD_ROWS` and `diabetes-codes`' `DIABETES_CODES_FIELD_ROWS`, whatever the
+    context's.
     """
     match dataset:
         case Dataset.UCI:
@@ -152,6 +166,8 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             return SYNTHEA_FIELD_ROWS
         case Dataset.DIABETES:
             return DIABETES_FIELD_ROWS
+        case Dataset.DIABETES_CODES:
+            return DIABETES_CODES_FIELD_ROWS
         case _:
             assert_never(dataset)
 
@@ -163,7 +179,9 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     against its `run.json` with no Java and never generated (`make synthea` generates it), kept
     from `SYNTHEA_ADULTS_FROM`. Diabetes 130's are `bko.datasets.diabetes.load_diabetes`'s over
     `DIABETES_INDICATORS`, checked against `DIABETES_FRAME`
-    (`bko.datasets.frames.check_records`). Each takes `field_rows(dataset, context)`, and a
+    (`bko.datasets.frames.check_records`). `diabetes-codes`' are the same cohort with the
+    diagnosis codes in place of the indicators, checked against `diabetes_codes_frame` of
+    themselves. Each takes `field_rows(dataset, context)`, and a
     fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
     records' sha256) and its agreement: `none` for open data, else the agreement's name quoted.
@@ -199,6 +217,15 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             records = load_diabetes(data_dir, indicators=DIABETES_INDICATORS, source=source)
             check_records(records, frame(dataset))
             data = Data(records, frame(dataset), rows, source.name, source.agreement)
+        case Dataset.DIABETES_CODES:
+            source = context.diabetes
+            ensure(source, data_dir, open_url=context.open_url)
+            records = load_diabetes(data_dir, indicators={}, diagnoses=True, source=source)
+            spec = diabetes_codes_frame(records)
+            # The diagnosis codebook is built from these records, and `load_diabetes` has checked
+            # each token against `DIAGNOSIS_PATTERN`, so this check cannot fail on a diag column.
+            check_records(records, spec)
+            data = Data(records, spec, rows, source.name, source.agreement)
         case _:
             assert_never(dataset)
     agreement = data.agreement

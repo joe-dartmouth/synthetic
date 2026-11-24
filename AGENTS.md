@@ -94,6 +94,11 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync python -m bko.ontology check`: check the mapping table against the pinned
   MONDO and HPO releases, fetching them into `data/` if absent
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
+- `mkdir -p scratchpad && uv run --no-sync python -m bko.ontology codes > scratchpad/icd9_codes.py && mv scratchpad/icd9_codes.py src/bko/ontology/icd9_codes.py`,
+  then `make format`: regenerate the `diabetes-codes` frame's ICD-9 code rows from the pinned
+  MONDO release and the cohort's codes, fetching both into `data/` if absent; the scratch file
+  keeps a failed run from truncating the module. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null`:
   classify the pinned MONDO and HPO OWL releases with ELK through ROBOT and list each in-scope
   ancestor pair that the classification or the loaded hierarchy holds and the other lacks. It

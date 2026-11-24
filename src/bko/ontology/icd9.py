@@ -3,11 +3,14 @@
 ADR `research/ontology-mapping-design` records how the rows are chosen. An ICD-9 row maps a
 diagnosis category to a live MONDO concept carrying `xref: ICD9:<code>`, whatever the xref's
 qualifier, and declares every live concept that carries it; `bko.ontology.check` refuses a row whose
-concept lacks the xref or whose declared holders differ from the release's. Where a category has
-two holders, the row maps the broader one, which spans the category's subcodes. `UNMAPPED_ICD9`
-records a category the table leaves out because no live concept carries its xref, and the check
-refuses one that gains a holder. A lab row maps the archive's result states for a field to an HPO
-phenotype, with the archive's state strings verbatim.
+concept lacks the xref or whose declared holders differ from the release's. Where a category has two
+holders, the row maps the one its limits argue for (the broader for 428, the narrower for 491), and
+the limits name the other. `Icd9Code` is a generated row of the `diabetes-codes` frame, one exact
+diagnosis code whose xref the concept carries under `EXACT` (`bko.ontology.icd9_codes`, ADR
+`research/diabetes-diagnosis-codes`). `UNMAPPED_ICD9` records a category the table leaves out
+because no live concept carries its xref, and the check refuses one that gains a holder. A lab row
+maps the archive's result states for a field to an HPO phenotype, with the archive's state strings
+verbatim.
 
 Sources and labels follow `bko.ontology.mapping`'s vocabulary.
 """
@@ -16,6 +19,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Final
+
+
+EXACT: Final = "MONDO:equivalentTo"
+"""The `source` qualifier of an xref MONDO's curators state as equivalence, the only one an
+`Icd9Code` rests on."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +63,30 @@ class Icd9Mapping:
         if self.xref != expected:
             msg = f"{self.label}: xref {self.xref} is not {expected}, its first category's"
             raise ValueError(msg)
+
+
+@dataclass(frozen=True, slots=True)
+class Icd9Code:
+    """An exact ICD-9 diagnosis code and the one MONDO concept that carries its xref under `EXACT`.
+
+    Attributes:
+        code: The code as MONDO's xrefs write it, a numeric code's whole part padded to three
+            digits (`bko.datasets.diagnoses.canonical`).
+        concept: The MONDO curie.
+        label: The concept's name in its pinned release, verbatim.
+        holders: Every live concept in the pinned release that carries `xref` under `EXACT`,
+            `concept` among them.
+    """
+
+    code: str
+    concept: str
+    label: str
+    holders: frozenset[str]
+
+    @property
+    def xref(self) -> str:
+        """The `ICD9:` xref id the concept carries."""
+        return f"ICD9:{self.code}"
 
 
 @dataclass(frozen=True, slots=True)

@@ -10,7 +10,8 @@ from types import MappingProxyType
 import pytest
 
 from bko.ontology.check import Verdict, check
-from bko.ontology.icd9 import UnmappedIcd9
+from bko.ontology.icd9 import EXACT, Icd9Code, UnmappedIcd9
+from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import (
@@ -229,6 +230,18 @@ def test_an_ancestor_reached_only_through_another_prefix_is_out_of_scope() -> No
     assert [v.problem for v in verdicts] == [None, None]
 
 
+def test_an_ancestor_of_a_generated_code_rows_concept_joins_no_scope_check() -> None:
+    qualified = (("ICD9:250", (("source", EXACT),)),)
+    child = replace(
+        _child_of("MONDO:0000002", "child", "MONDO:0005015"),
+        xrefs=("ICD9:250",),
+        xref_qualifiers=qualified,
+    )
+    row = Icd9Code("250", "MONDO:0000002", "child", frozenset({"MONDO:0000002"}))
+    verdicts = check((row, SCOPE_ROW), {"MONDO": _mondo(child, DIABETES)})
+    assert [v.problem for v in verdicts] == [None, None]
+
+
 def test_an_unrelated_out_of_scope_concept_passes_without_mapped_rows() -> None:
     stenosis = _child_of("MONDO:0006715", "coronary stenosis", "MONDO:0005015")
     [verdict] = check((SCOPE_ROW,), {"MONDO": _mondo(stenosis, DIABETES)})
@@ -242,13 +255,17 @@ def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
     }
 
 
+_CURATED_ROWS = tuple(row for row in CHECKED_ROWS if row not in set(ICD9_CODES))
+"""The checked rows but the generated code rows, which `tests/test_ontology_codes.py` checks."""
+
+
 def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
-    verdicts = check(CHECKED_ROWS, _fixture_releases(tmp_path))
-    assert [v.problem for v in verdicts] == [None] * len(CHECKED_ROWS)
+    verdicts = check(_CURATED_ROWS, _fixture_releases(tmp_path))
+    assert [v.problem for v in verdicts] == [None] * len(_CURATED_ROWS)
     assert {"excluded-code", "icd9", "excluded-icd9"} <= {v.table for v in verdicts}
     table_hp = {
         row.concept: row.label
-        for row in CHECKED_ROWS
+        for row in _CURATED_ROWS
         if not isinstance(row, UnmappedCode | UnmappedIcd9) and row.concept.startswith("HP:")
     }
     assert table_hp == dict(HPO_LABELS)

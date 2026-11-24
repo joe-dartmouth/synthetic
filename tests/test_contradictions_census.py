@@ -18,7 +18,7 @@ from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
-from bko.evaluate.contradictions import HEADER, Framed, census, frames
+from bko.evaluate.contradictions import CENSUS, HEADER, Framed, census, frames
 from bko.evaluate.data import Data, Dataset, load
 from bko.evaluate.errors import EvaluationError
 from bko.generate.messages import AnySend
@@ -347,8 +347,8 @@ def test_the_command_reads_every_dataset_and_never_sends(tmp_path: Path, monkeyp
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         code = main(["contradictions", "--data-dir", str(tmp_path)], context=context, out=out)
     assert code == 0
-    assert read == [tuple(Dataset)]
-    assert out.getvalue() == census([framed(kind) for kind in KINDS[: len(Dataset)]])
+    assert read == [CENSUS]
+    assert out.getvalue() == census([framed(kind) for kind in KINDS[: len(CENSUS)]])
     logged = [r.getMessage() for r in caplog.records]
     assert logged[0].startswith("versions commit=")
     assert logged[1] == f"census data_dir={tmp_path.resolve()}"
@@ -411,10 +411,15 @@ def test_frames_loads_every_release_once_and_gives_each_frame_its_own(tmp_path, 
     monkeypatch.setattr(census_module, "load", lambda dataset, *_: given[dataset])
     monkeypatch.setattr(census_module, "load_releases", load_releases)
     pins, _ = ladder_releases()
-    found = frames(tuple(Dataset), tmp_path, Context(releases=pins))
+    found = frames(CENSUS, tmp_path, Context(releases=pins))
     assert calls == [["HP", "MONDO"]]
     assert [dict(each.ontologies) for each in found] == [
         {"HP": released["HP"]},
         {"MONDO": released["MONDO"]},
         released,
     ]
+
+
+def test_the_census_reads_its_three_frames():
+    assert CENSUS == (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES)
+    assert Dataset.DIABETES_CODES not in CENSUS

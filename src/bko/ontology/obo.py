@@ -1,10 +1,11 @@
 """Parse a pinned OBO release into `bko.ontology.terms` values: the only module importing pronto.
 
-pronto is given a verified path, never a handle: it honours `encoding` only for a path and
-otherwise guesses from the first buffer. `import_depth=0` keeps it off the network. Warnings it
-raises while parsing are recorded: one saying a construct was skipped refuses the release; any
-other pronto warning concerns a value no term field keeps, such as a date, and is logged with its
-distinct messages; a warning from elsewhere is logged as it is.
+pronto is given a verified path, never a handle: it honours `encoding` only for a path and otherwise
+guesses from the first buffer. pronto drops an xref's qualifiers, so a second pass with fastobo, the
+parser pronto itself runs, reads them from the same path. `import_depth=0` keeps it off the network.
+Warnings it raises while parsing are recorded: one saying a construct was skipped refuses the
+release; any other pronto warning concerns a value no term field keeps, such as a date, and is
+logged with its distinct messages; a warning from elsewhere is logged as it is.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import warnings
 from pathlib import Path
 from types import MappingProxyType
 
+import fastobo
 import pronto
 
 from bko.datasets.errors import UnavailableError
@@ -55,8 +57,9 @@ def parse_obo(path: Path, *, name: str) -> Ontology:
         warnings.simplefilter("always")
         try:
             parsed = pronto.Ontology(path, import_depth=0, encoding="utf-8")
+            qualified = _xref_qualifiers(path)
             # pronto resolves some values lazily, so the conversion is guarded too.
-            terms = {term.id: _term(term) for term in parsed.terms()}
+            terms = {term.id: _term(term, qualified.get(term.id, {})) for term in parsed.terms()}
         except (SyntaxError, ValueError, KeyError) as exc:
             msg = f"{path}: pronto cannot read it: {type(exc).__name__}: {exc}"
             raise ReleaseFormatError(msg) from exc
@@ -100,15 +103,33 @@ def _distinct(caught: list[warnings.WarningMessage], category: type[Warning]) ->
     return sorted({str(w.message) for w in caught if issubclass(w.category, category)})
 
 
-def _term(term: pronto.Term) -> Term:
+def _xref_qualifiers(path: Path) -> dict[str, dict[str, set[tuple[str, str]]]]:
+    """Each term stanza's id to each xref it qualifies and the `(key, value)` qualifiers given."""
+    found: dict[str, dict[str, set[tuple[str, str]]]] = {}
+    for frame in fastobo.iter(str(path)):
+        if not isinstance(frame, fastobo.term.TermFrame):
+            continue
+        for clause in frame:
+            if isinstance(clause, fastobo.term.XrefClause) and clause.qualifiers:
+                pairs = {(str(q.key), str(q.value)) for q in clause.qualifiers}
+                xrefs = found.setdefault(str(frame.id), {})
+                xrefs.setdefault(str(clause.xref.id), set()).update(pairs)
+    return found
+
+
+def _term(term: pronto.Term, qualified: dict[str, set[tuple[str, str]]]) -> Term:
+    xrefs = tuple(sorted(x.id for x in term.xrefs))
     return Term(
         curie=term.id,
         name=term.name,
         parents=tuple(sorted(p.id for p in term.superclasses(distance=1, with_self=False))),
-        xrefs=tuple(sorted(x.id for x in term.xrefs)),
+        xrefs=xrefs,
         matches=_matches(term),
         obsolete=term.obsolete,
         replaced_by=tuple(sorted(term.replaced_by.ids)),
+        xref_qualifiers=tuple(
+            (xref, tuple(sorted(qualified[xref]))) for xref in xrefs if xref in qualified
+        ),
     )
 
 

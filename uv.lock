@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -108,6 +108,7 @@ llm = [
     { name = "anthropic" },
 ]
 ontology = [
+    { name = "fastobo" },
     { name = "pronto" },
 ]
 synth = [
@@ -121,6 +122,7 @@ synth = [
 requires-dist = [
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=1.13" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.16" },
+    { name = "fastobo", marker = "extra == 'ontology'", specifier = ">=0.14" },
     { name = "imbalanced-learn", marker = "extra == 'synth'", specifier = ">=0.14" },
     { name = "numpy", marker = "extra == 'data'", specifier = ">=2.5" },
     { name = "pandas", marker = "extra == 'data'", specifier = ">=2.3" },

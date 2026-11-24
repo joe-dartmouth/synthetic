@@ -14,7 +14,8 @@ dependencies = []
 [project.optional-dependencies]
 # scipy is imported directly for the Beta posterior of the frequency-aware gap score.
 data = ["numpy>=2.5", "pandas>=2.3", "scipy>=1.18"]
-ontology = ["pronto>=2.7"]
+# fastobo, the parser pronto runs, is imported directly to read the xref qualifiers pronto drops.
+ontology = ["pronto>=2.7", "fastobo>=0.14"]
 llm = ["anthropic>=1.13"]
 # CTGAN, TVAE and the Gaussian copula come from SDV; SMOTE and ADASYN from imbalanced-learn;
 # scikit-learn fits sequential CART's trees; torch is seeded directly.

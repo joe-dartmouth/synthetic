@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-09
+updated: 2026-11-24
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -25,7 +25,8 @@ Measured on 2026-10-16 on the MONDO and HPO releases `bko.datasets.sources` hold
 - **MONDO carries ICD-9 references only as `xref: ICD9:<code>` lines**, never as a
   `skos:exactMatch`. Measured on 2026-11-02: an ICD-9 xref's qualifier takes several shapes (a
   `source` naming another ontology's class, or `MONDO:equivalentTo` or `MONDO:relatedTo` with
-  `MONDO:i2s`, or none), and pronto keeps the id only. Of the Diabetes 130 diagnosis categories
+  `MONDO:i2s`, or none), and pronto keeps the id only; fastobo, the parser pronto runs, reads
+  the qualifiers. Of the Diabetes 130 diagnosis categories
   the table maps, 428 sits on heart failure and congestive heart failure and 491 on bronchitis and
   chronic bronchitis; each other sits on one live concept. No live concept carries ICD9:414.
 - **HPO carries no SNOMED-CT reference.**
@@ -64,8 +65,10 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **Pins and fetch**: the releases are `MONDO`, `HPO` and `DO` in `bko.datasets.sources`, with the size
   and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
   `bko.datasets.fetch.ensure` for the commands that read them.
-- **Loader output**: `bko.ontology.obo` is the only module that imports pronto; it returns frozen
-  standard-library `Ontology` and `Term` values with sorted tuples and a sorted term map.
+- **Loader output**: `bko.ontology.obo` is the only module that imports pronto or fastobo; it
+  returns frozen standard-library `Ontology` and `Term` values with sorted tuples and a sorted term
+  map. A term keeps each xref's qualifiers, read by a second fastobo pass over the same path since
+  pronto drops them.
 - **Table form**: typed `Final` constants in `bko.ontology.mapping`, with the row types in
   `bko.ontology.schema`. The range constraints belong to a frame, so they are defined in
   `bko.datasets` (`RangeConstraint` in `bko.datasets.frames`, UCI's `RANGES` in
@@ -109,7 +112,9 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   concept carries its xref is an `UnmappedIcd9` row in `UNMAPPED_ICD9`, and the check refuses one
   that gains a holder. A lab row (`LAB_MAPPINGS`) maps the archive's result states of
   `A1Cresult` and `max_glu_serum`, verbatim, to an HPO phenotype. The rows' concepts join the
-  table's scope.
+  table's scope. The `diabetes-codes` frame's per-code rows are generated from the release's
+  `MONDO:equivalentTo` xrefs and stay outside the scope (ADR
+  [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md)).
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record
@@ -134,7 +139,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   well as from classification: `hp.owl` and `hp.obo` are built from different artefacts.
 - **Offline concept check**: none in the gate. `python -m bko.ontology check` checks every concept
   row against the real releases.
-- **Extra**: `ontology = ["pronto>=2.7"]`, installed by `make setup`; owlready2 leaves the lock.
+- **Extra**: `ontology = ["pronto>=2.7", "fastobo>=0.14"]`, installed by `make setup`; owlready2
+  leaves the lock. `ty.toml` reads fastobo, a compiled extension without stubs, as `Any`.
 - **Sources vocabulary**: a row's `source` is the `name` of a `Source` in `bko.datasets.sources`
   (`uci-heart-disease` means `heart-disease.names` inside that archive), a key in
   [`docs/literature.md`](../../literature.md), or an ADR id under `docs/adr/`.
@@ -202,7 +208,7 @@ cannot catch a change in ROBOT's or ELK's output.
 | Text-named rows only | Grounds four of thirteen predictors; the BKO arms would reduce to label-by-cell counts, which `research/bko-formal-gap-definition` evaluates separately | 2026-10-16 |
 | Listing all of MONDO and HPO as scope | An unbounded default turns every unmapped concept into a gap | 2026-10-16 |
 | Data-derived range bounds | `bko.baselines.records` already refuses added rows outside the split's range, and RESEARCH asks for separately specified constraints | 2026-10-16 |
-| Evidence from an xref's qualifier, for SNOMED-CT or ICD-9 | pronto drops xref qualifiers, so equivalent and related cannot be told apart; SNOMED-CT rows read `skos:exactMatch` instead, and ICD-9 rows, whose only MONDO evidence is the xref id, declare every live holder so the check sees each one | 2026-11-02 |
+| Evidence from an xref's qualifier, for SNOMED-CT or the curated ICD-9 rows | SNOMED-CT rows read `skos:exactMatch`; the curated ICD-9 rows are held fixed by run folders and only 2 of the 10 carry `MONDO:equivalentTo`, so they read the xref id under any qualifier and declare every live holder. The generated `diabetes-codes` rows read the qualifier (ADR [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md)) | 2026-11-24 |
 | SNOMED-CT evidence from HPO | HPO carries no SNOMED-CT reference | 2026-10-16 |
 | Committed release slices and a manifest for an offline concept check | HPO's license bars altered extracts, and the table changes only on a re-pin | 2026-10-16 |
 | Keeping owlready2 in the `ontology` extra | A Cython build on every clone for a library nothing imports | 2026-10-16 |
@@ -254,3 +260,4 @@ is a comparison of that configuration with `bko.datasets.sources`.
 - [The Synthea downstream design: a 40-and-over frame, one thinned cell and an in-run reference](synthea-downstream-design.md)
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
+- [The diabetes-codes dataset keeps each ICD-9 diagnosis code and maps it through MONDO's equivalentTo xrefs](diabetes-diagnosis-codes.md)

@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-10-14
-updated: 2026-11-18
+updated: 2026-11-24
 ---
 # uv, ruff and ty, wrapped by a Makefile
 
@@ -68,7 +68,7 @@ verdicts that move only when a pin moves.
 **Accepted**: a new lint rule never arrives on its own; a ruff or ty bump needs a commit and
 `make setup`. A developer working on a stage installs its extra by hand until the stage's first
 import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
-it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto,
+it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto and fastobo,
 and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
 paid-request guard, and `app` because `bko.app` imports streamlit, which `make typecheck` must
 resolve. `synth`

@@ -457,14 +457,17 @@ def test_a_diagnosis_with_non_ascii_digits_is_refused(diagnosis, token):
         ({"": ("401",)}, "the name is empty or a frame column"),
         ({"insulin": ("401",)}, "the name is empty or a frame column"),
         ({LABEL: ("401",)}, "the name is empty or a frame column"),
+        ({"diag_1": ("401",)}, "the name is empty or a frame column"),
         ({"dx": ()}, "no ICD-9 categories"),
         ({"dx": ("4010",)}, "'4010' is not a numeric ICD-9 category"),
         ({"dx": (_arabic("401"),)}, "is not a numeric ICD-9 category"),
     ],
 )
-def test_an_indicator_the_frame_cannot_hold_is_refused(indicators, match):
+@pytest.mark.parametrize("diagnoses", [False, True])
+def test_an_indicator_the_frame_cannot_hold_is_refused(indicators, match, diagnoses):
+    raw = parse_diabetic(text(_patient(1)))
     with pytest.raises(ValueError, match=re.escape(match)):
-        _records(_patient(1), indicators=indicators)
+        frame_records(raw, indicators=indicators, diagnoses=diagnoses)
 
 
 def test_a_non_whole_discharge_id_in_the_mapping_is_refused():
@@ -527,7 +530,7 @@ def test_a_damaged_archive_is_a_contract_error(tmp_path, make, match):
 
 
 def test_a_member_larger_than_the_cap_is_refused_before_it_is_read(tmp_path, monkeypatch):
-    monkeypatch.setattr("bko.datasets.diabetes.MEMBER_LIMIT", 100)
+    monkeypatch.setattr("bko.datasets.archive.MEMBER_LIMIT", 100)
     source = _planted(tmp_path, archive(text(*_mixed_lines())))
     with pytest.raises(ContractError, match=r"diabetic_data.csv: \d+ bytes, over the 100-byte cap"):
         load_diabetes(tmp_path, indicators=INDICATORS, source=source)

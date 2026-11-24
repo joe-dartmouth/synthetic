@@ -5,7 +5,8 @@
 (the lowest `encounter_id`), then drops encounters discharged expired or to hospice, then
 `Unknown/Invalid` gender, then age brackets under 20. A record holds coded demographics, the eight
 count fields, the lab and drug states, `change`, `diabetesMed`, one indicator per caller-given
-ICD-9 category list and `LABEL`, 1 for readmission in under 30 days. `encounter_id` and
+ICD-9 category list, on request the three diagnosis codes (`bko.datasets.diagnoses.code_number`)
+and `LABEL`, 1 for readmission in under 30 days. `encounter_id` and
 `patient_nbr` never enter it. `docs/DEVELOPMENT.md` (Data, The Diabetes frame) states the contract.
 """
 
@@ -15,15 +16,15 @@ import csv
 import io
 import logging
 import re
-import zipfile
-import zlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
+from bko.datasets.archive import member_text
 from bko.datasets.cells import LABEL
+from bko.datasets.diagnoses import DIAGNOSIS_PATTERN, NUMERIC_CODE, code_number
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import DIABETES_130, Source
@@ -118,7 +119,7 @@ DRUGS: Final = (
 The archive's other 15 drug columns are never read."""
 
 DIAGNOSES: Final = ("diag_1", "diag_2", "diag_3")
-"""The diagnosis columns an indicator reads."""
+"""The diagnosis columns an indicator reads, and the frame's code columns when they are kept."""
 
 AGE_BRACKETS: Final[Mapping[str, int]] = {f"[{10 * d}-{10 * (d + 1)})": d for d in range(10)}
 """Each `age` bracket and its decade index, `[0-10)` 0 to `[90-100)` 9."""
@@ -174,13 +175,8 @@ STATE_CODES: Final[Mapping[str, Mapping[str, int]]] = {
 }
 """Every coded column of a record besides `age` and `sex`, in record order, and its codes."""
 
-MEMBER_LIMIT: Final = 64 * 2**20
-"""The most bytes a member may hold once decompressed; the archive's largest holds under 20 MiB."""
-
 _WHOLE: Final = r"[0-9]{1,18}"
 """An ASCII whole number that fits int64; `\\d` and `int` also read other scripts' digits."""
-_NUMERIC_CODE: Final = r"([0-9]{1,3})(?:\.([0-9]{1,2}))?"
-_DIAGNOSIS: Final = rf"\?|{_NUMERIC_CODE}|V[0-9]{{2}}(?:\.[0-9]{{1,2}})?|E[0-9]{{3}}(?:\.[0-9])?"
 
 
 def parse_diabetic(text: str) -> pd.DataFrame:
@@ -266,7 +262,9 @@ def excluded_discharges(ids: str) -> frozenset[int]:
     return frozenset(found)
 
 
-def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]]) -> pd.DataFrame:
+def frame_records(
+    raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]], diagnoses: bool = False
+) -> pd.DataFrame:
     """Return the frame records of `raw`'s cohort, in encounter order.
 
     Every row is checked before any is dropped, in encounter order, so an error names the same
@@ -280,11 +278,13 @@ def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]
             1 where any of `DIAGNOSES` falls in one of its categories: `250.4` holds `250.4` and
             `250.41`, `401` holds `401` and `401.9`, never `4010` or `40`; `?` and V and E codes
             fall in none.
+        diagnoses: Whether to keep `DIAGNOSES` as columns, each token as its
+            `bko.datasets.diagnoses.code_number`, after the indicators.
 
     Returns:
         `age` (the decade index), `sex`, `race`, `COUNTS`, `A1Cresult`, `max_glu_serum`, `DRUGS`,
-        `change`, `diabetesMed`, each indicator and `LABEL`, all int64, indexed by `record_id`,
-        the 1-based position in encounter order.
+        `change`, `diabetesMed`, each indicator, `DIAGNOSES` if asked, and `LABEL`, all int64,
+        indexed by `record_id`, the 1-based position in encounter order.
 
     Raises:
         ValueError: If an indicator's name is taken or one of its codes is not a numeric ICD-9
@@ -307,6 +307,7 @@ def frame_records(raw: pd.DataFrame, *, indicators: Mapping[str, tuple[str, ...]
         **{name: kept[name].astype("int64") for name in COUNTS},
         **{name: kept[name].map(codes) for name, codes in STATE_CODES.items() if name != "race"},
         **_indicators(kept, categories),
+        **(_codes(kept) if diagnoses else {}),
         LABEL: kept["readmitted"].map(READMITTED_LABELS),
     }
     records = pd.DataFrame({name: values.to_numpy() for name, values in columns.items()})
@@ -330,6 +331,7 @@ def load_diabetes(
     data_dir: Path,
     *,
     indicators: Mapping[str, tuple[str, ...]],
+    diagnoses: bool = False,
     source: Source = DIABETES_130,
 ) -> pd.DataFrame:
     """Load the frame records from the verified snapshot of `source` under `data_dir`.
@@ -340,6 +342,7 @@ def load_diabetes(
     Args:
         data_dir: The data root.
         indicators: As `frame_records` takes them.
+        diagnoses: As `frame_records` takes it.
         source: The pinned archive.
 
     Returns:
@@ -348,13 +351,13 @@ def load_diabetes(
     Raises:
         UnavailableError: If the snapshot is absent.
         ContractError: If the archive or a member contradicts its pin or schema, a member holds
-            more than `MEMBER_LIMIT` bytes, `IDS_mapping.csv` names other Expired or Hospice
-            discharges than `EXCLUDED_DISCHARGES`, or the cohort holds no record or no record
-            readmitted in under 30 days.
+            more than `bko.datasets.archive.MEMBER_LIMIT` bytes, `IDS_mapping.csv` names other
+            Expired or Hospice discharges than `EXCLUDED_DISCHARGES`, or the cohort holds no record
+            or no record readmitted in under 30 days.
         ValueError: As `frame_records` raises it.
     """
     data = read_verified(source, data_dir)
-    texts = {member: _member(data, member, source) for member in (MEMBER, IDS_MEMBER)}
+    texts = {member: member_text(data, member, source) for member in (MEMBER, IDS_MEMBER)}
     named = excluded_discharges(texts[IDS_MEMBER])
     if named != EXCLUDED_DISCHARGES:
         msg = (
@@ -362,7 +365,8 @@ def load_diabetes(
             f"not {sorted(EXCLUDED_DISCHARGES)}"
         )
         raise ContractError(msg)
-    records = frame_records(parse_diabetic(texts[MEMBER]), indicators=indicators)
+    raw = parse_diabetic(texts[MEMBER])
+    records = frame_records(raw, indicators=indicators, diagnoses=diagnoses)
     if records.empty:
         msg = f"{source.name}: the cohort holds no records"
         raise ContractError(msg)
@@ -372,46 +376,11 @@ def load_diabetes(
     return records
 
 
-def _member(data: bytes, member: str, source: Source) -> str:
-    """Return `member` of the zip `data` as UTF-8 text, refusing one over `MEMBER_LIMIT` bytes."""
-    where = f"{source.name}: cannot read {member}"
-    try:
-        return _capped(data, member, where).decode("utf-8")
-    except KeyError as exc:
-        msg = f"{where}: the archive has no such member"
-        raise ContractError(msg) from exc
-    except (
-        zipfile.BadZipFile,
-        zlib.error,
-        UnicodeDecodeError,
-        NotImplementedError,
-        RuntimeError,
-        EOFError,
-    ) as exc:
-        msg = f"{where}: {type(exc).__name__}: {exc}"
-        raise ContractError(msg) from exc
-
-
-def _capped(data: bytes, member: str, where: str) -> bytes:
-    """Return `member`'s bytes, refusing one whose stated or read size passes `MEMBER_LIMIT`."""
-    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-        size = bundle.getinfo(member).file_size
-        if size > MEMBER_LIMIT:
-            msg = f"{where}: {size} bytes, over the {MEMBER_LIMIT}-byte cap"
-            raise ContractError(msg)
-        with bundle.open(member) as handle:
-            body = handle.read(MEMBER_LIMIT + 1)
-    if len(body) > MEMBER_LIMIT:
-        msg = f"{where}: over the {MEMBER_LIMIT}-byte cap"
-        raise ContractError(msg)
-    return body
-
-
 def _categories(
     indicators: Mapping[str, tuple[str, ...]],
 ) -> dict[str, tuple[tuple[int, str], ...]]:
     """Return each indicator's categories as (whole part, decimal digits), after checking them."""
-    taken = {"age", "sex", *COUNTS, *STATE_CODES, LABEL}
+    taken = {"age", "sex", *COUNTS, *STATE_CODES, *DIAGNOSES, LABEL}
     parsed: dict[str, tuple[tuple[int, str], ...]] = {}
     for name, codes in indicators.items():
         if not name or name in taken:
@@ -422,7 +391,7 @@ def _categories(
             raise ValueError(msg)
         parts: list[tuple[int, str]] = []
         for code in codes:
-            match = re.fullmatch(_NUMERIC_CODE, code)
+            match = re.fullmatch(NUMERIC_CODE, code)
             if match is None:
                 msg = f"indicator {name!r}: {code!r} is not a numeric ICD-9 category"
                 raise ValueError(msg)
@@ -463,7 +432,7 @@ def _checked(raw: pd.DataFrame) -> pd.DataFrame:
             for name, values in allowed.items()
         ),
         *(
-            (name, rows[name].str.fullmatch(_DIAGNOSIS), "not an ICD-9 code or ?")
+            (name, rows[name].str.fullmatch(DIAGNOSIS_PATTERN), "not an ICD-9 code or ?")
             for name in DIAGNOSES
         ),
     ]
@@ -480,13 +449,30 @@ def _indicators(
     rows: pd.DataFrame, categories: Mapping[str, tuple[tuple[int, str], ...]]
 ) -> dict[str, pd.Series]:
     """Return each indicator: 1 where any diagnosis falls in one of its categories."""
-    parts = [rows[name].str.extract(rf"^{_NUMERIC_CODE}$") for name in DIAGNOSES]
-    numbers = [(pd.to_numeric(part[0]), part[1].fillna("")) for part in parts]
     held: dict[str, pd.Series] = {}
     for name, codes in categories.items():
         hit = pd.Series(False, index=rows.index)
-        for whole, digits in numbers:
-            for major, minor in codes:
-                hit |= whole.eq(major) & digits.str.startswith(minor)
+        for column in DIAGNOSES:
+            tokens = rows[column]
+            inside = {token: _falls_in(token, codes) for token in tokens.unique()}
+            hit |= tokens.map(inside).astype(bool)
         held[name] = hit.astype("int64")
     return held
+
+
+def _falls_in(token: str, codes: tuple[tuple[int, str], ...]) -> bool:
+    """Whether `token` is a numeric code in one of `codes`, each (whole part, decimal digits)."""
+    match = re.fullmatch(NUMERIC_CODE, token)
+    if match is None:
+        return False
+    whole, digits = int(match[1]), match[2] or ""
+    return any(whole == major and digits.startswith(minor) for major, minor in codes)
+
+
+def _codes(rows: pd.DataFrame) -> dict[str, pd.Series]:
+    """Each of `DIAGNOSES`, each token as its `code_number`, computed once per distinct token."""
+    columns: dict[str, pd.Series] = {}
+    for name in DIAGNOSES:
+        tokens = rows[name]
+        columns[name] = tokens.map({token: code_number(token) for token in tokens.unique()})
+    return columns

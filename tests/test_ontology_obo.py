@@ -52,7 +52,26 @@ def test_real_stanza_parses_to_term(tmp_path):
         matches=(("skos:exactMatch", "SCTID:414545008"),),
         obsolete=False,
         replaced_by=(),
+        xref_qualifiers=(("SCTID:414545008", (("source", "MONDO:equivalentTo"),)),),
     )
+
+
+def test_each_xrefs_qualifiers_are_kept_beside_its_id(tmp_path):
+    stanza = (
+        "\n[Term]\nid: MONDO:0000001\nname: x\n"
+        'xref: ICD9:250 {source="MONDO:equivalentTo", source="DOID:9351"}\n'
+        "xref: ICD9:401\n"
+        'xref: ICD9:428 {source="MONDO:relatedTo"}\n'
+    )
+    term = parse_obo(write_obo(tmp_path, HEADER + stanza), name="test").terms["MONDO:0000001"]
+    assert term.xrefs == ("ICD9:250", "ICD9:401", "ICD9:428")
+    assert term.xref_qualifiers == (
+        ("ICD9:250", (("source", "DOID:9351"), ("source", "MONDO:equivalentTo"))),
+        ("ICD9:428", (("source", "MONDO:relatedTo"),)),
+    )
+    assert term.xref_sources("ICD9:250") == ("DOID:9351", "MONDO:equivalentTo")
+    assert term.xref_sources("ICD9:401") == ()
+    assert term.xref_sources("ICD9:999") == ()
 
 
 def test_version_is_the_header_verbatim(tmp_path):
