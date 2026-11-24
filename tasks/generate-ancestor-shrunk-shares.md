@@ -2,7 +2,7 @@
 id: generate-ancestor-shrunk-shares
 title: Add the bko-tree arm, drawing a coded field's shares shrunk along the ontology
 status: blocked
-depends_on: generate-no-mapping-ablation, ontology-diabetes-diagnosis-codes
+depends_on: ontology-diabetes-diagnosis-codes
 blocks: evaluate-variant-dev-results, ontology-auto-mapping
 parallel_safe: true
 milestone: direct-method-research
