@@ -28,20 +28,25 @@ import logging
 import math
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
-from types import MappingProxyType
 from typing import Final
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score, roc_curve
 
 from bko.baselines.request import Stratum
-from bko.datasets.cells import LABEL, cell_keys
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
+from bko.evaluate.attack_stats import (
+    FPRS,  # ruff: ignore[unused-import]  (re-exported)
+    RATES,
+    SCOPE_FPRS,
+    SCOPES,
+    Attack,  # ruff: ignore[unused-import]  (re-exported)
+    attack,
+    scopes,
+)
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import Experiment
@@ -66,18 +71,6 @@ from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, ren
 
 logger = logging.getLogger("bko.evaluate")
 
-_RATES: Final[Mapping[float, str]] = MappingProxyType({0.01: "tpr01", 0.001: "tpr001"})
-
-FPRS: Final = tuple(_RATES)
-"""The false positive rates each scope's true positive rate is read at."""
-
-SCOPES: Final = ("outside", "cell", "label")
-"""The attack's scopes: outside the removed cell, inside it, and label 1 outside it."""
-
-_SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
-    {"outside": FPRS, "cell": FPRS[:1], "label": FPRS}
-)
-
 
 def mi(statistic: str, scope: str) -> Measure:
     """The attack's measure of `statistic` (`auc`, `tpr01` or `tpr001`) at `scope`."""
@@ -87,7 +80,7 @@ def mi(statistic: str, scope: str) -> Measure:
 MI_MEASURES: Final = tuple(
     mi(statistic, scope)
     for scope in SCOPES
-    for statistic in ("auc", *(_RATES[rate] for rate in _SCOPE_FPRS[scope]))
+    for statistic in ("auc", *(RATES[rate] for rate in SCOPE_FPRS[scope]))
 )
 """The attack's measures, by scope; the cell scope's few records define no rate at 0.001."""
 
@@ -113,36 +106,6 @@ stay descriptive and leak more the lower they read. Each is a separate family at
 0.95, whose size is its pairs of arm and measure with a defined contrast."""
 
 
-@dataclass(frozen=True, slots=True)
-class Attack:
-    """One attack's reading: its AUC and its true positive rate at each false positive rate."""
-
-    auc: float
-    tpr: Mapping[float, float]
-
-
-def attack(
-    member_d: np.ndarray, nonmember_d: np.ndarray, *, fprs: Sequence[float] = FPRS
-) -> Attack:
-    """The attack on members at distances `member_d` and non-members at `nonmember_d`.
-
-    Each record's score is minus its distance. With no member, no non-member, or a missing
-    distance, every value is NaN. A rate below one over the non-members, the least false positive
-    rate one non-member makes, reads NaN: the curve does not resolve it.
-    """
-    distances = np.concatenate([member_d, nonmember_d])
-    if not len(member_d) or not len(nonmember_d) or np.isnan(distances).any():
-        return Attack(math.nan, dict.fromkeys(fprs, math.nan))
-    truth = np.concatenate([np.ones(len(member_d)), np.zeros(len(nonmember_d))])
-    fpr, tpr, _ = roc_curve(truth, -distances, drop_intermediate=False)
-    auc = float(roc_auc_score(truth, -distances))
-    floor = 1 / len(nonmember_d)
-    return Attack(
-        auc,
-        {rate: float(np.interp(rate, fpr, tpr)) if rate >= floor else math.nan for rate in fprs},
-    )
-
-
 def exposure(
     records: pd.DataFrame, added: pd.DataFrame, *, train: pd.DataFrame, frame: FrameSpec
 ) -> np.ndarray:
@@ -150,16 +113,6 @@ def exposure(
     if not len(added):
         return np.full(len(records), np.nan)
     return nearest_from(records, added, frame=frame, spans_from=train)
-
-
-def scopes(records: pd.DataFrame, cell: Stratum, *, edges: Sequence[int]) -> dict[str, np.ndarray]:
-    """Each scope's mask over `records`, by `SCOPES` name."""
-    keys = cell_keys(records, edges=edges)
-    inside = np.ones(len(records), dtype=bool)
-    for column, value in zip(keys.columns, cell, strict=True):
-        inside &= (keys[column] == value).to_numpy()
-    labelled = (keys[LABEL] == 1).to_numpy()
-    return {"outside": ~inside, "cell": inside, "label": ~inside & labelled}
 
 
 def arm_measures(
@@ -191,9 +144,9 @@ def arm_measures(
     found: dict[Measure, float] = {}
     for scope in SCOPES:
         ours, theirs = member_d[members[scope]], nonmember_d[nonmembers[scope]]
-        read = attack(ours, theirs, fprs=_SCOPE_FPRS[scope])
+        read = attack(ours, theirs, fprs=SCOPE_FPRS[scope])
         found[mi("auc", scope)] = read.auc
-        found |= {mi(_RATES[rate], scope): value for rate, value in read.tpr.items()}
+        found |= {mi(RATES[rate], scope): value for rate, value in read.tpr.items()}
         if len(added) and math.isnan(read.auc):
             expected = scope == "cell" and not len(ours)
             logger.log(
