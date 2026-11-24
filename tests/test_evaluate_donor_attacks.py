@@ -11,6 +11,7 @@ import re
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -188,7 +189,7 @@ DRAWN = Draw(
 
 
 def test_donor_reuse_reads_max_and_p95_over_donors():
-    found = donor_measures(Counter({10: 1, 11: 1, 12: 1, 13: 2}))
+    found = donor_measures(Counter({10: 1, 11: 1, 12: 1, 13: 2}), rows=5)
     assert found[Measure.DONOR_MAX] == pytest.approx(2.0, abs=0)
     assert found[Measure.DONOR_P95] == pytest.approx(1.85)
 
@@ -278,10 +279,41 @@ def test_donor_reuse_of_a_redrawn_fill_equals_its_trace_sources(folder):
     assert found == expected
 
 
-def test_an_arm_without_a_draw_reads_nan():
-    found = donor_measures(Counter())
+def test_a_fill_with_no_rows_reads_nan():
+    found = donor_measures(Counter(), rows=0)
     assert list(found) == list(DONOR_MEASURES)
     assert all(math.isnan(value) for value in found.values())
+
+
+def test_rows_with_no_donation_read_donor_max_0_and_no_p95():
+    found = donor_measures(Counter(), rows=3)
+    assert list(found) == list(DONOR_MEASURES)
+    assert found[Measure.DONOR_MAX] == 0
+    assert math.isnan(found[Measure.DONOR_P95])
+
+
+@pytest.mark.parametrize(("rows", "logged"), [(2, "max=0 p95=nan"), (0, "max=nan p95=nan")])
+def test_the_donor_line_logs_the_csvs_values(caplog, monkeypatch, rows, logged):
+    monkeypatch.setattr(donor_attacks, "donor_counts", lambda *_, **__: Counter())
+    unused: Any = None
+    caplog.set_level(logging.INFO)
+    found = donor_attacks.read_donors(
+        Fill(0, DIRECT_ARM, ""),
+        pd.DataFrame(index=range(rows)),
+        unused,
+        unused,
+        lines=(),
+        data=unused,
+        ontologies={},
+        budget=1,
+        groups=(),
+    )
+    (line,) = [m for m in caplog.messages if m.startswith("privacy donor ")]
+    assert re.fullmatch(
+        rf"privacy donor holdout=0 arm={DIRECT_ARM} donors=0 {logged} seconds=\d+\.\d", line
+    )
+    assert math.isnan(found[Measure.DONOR_P95])
+    assert (found[Measure.DONOR_MAX] == 0) == bool(rows)
 
 
 def test_a_changed_redraw_is_refused(folder):
@@ -478,7 +510,8 @@ def test_the_new_measures_join_privacy_output_and_the_old_rows_are_unchanged(
     ours = parse(text)
     rules = _rule_lines(caplog.messages)
     assert re.search(
-        rf"privacy donor holdout=0 arm={DIRECT_ARM} donors=[1-9]\d* max=[1-9]\d* p95=\S+",
+        rf"privacy donor holdout=0 arm={DIRECT_ARM} donors=[1-9]\d* max=[1-9]\d* p95=\S+"
+        r" seconds=\d+\.\d",
         caplog.text,
     )
     new = {*MATCH_MEASURES, *DONOR_MEASURES}

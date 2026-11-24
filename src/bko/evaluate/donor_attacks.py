@@ -19,6 +19,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+import time
 from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from typing import Final
@@ -271,13 +272,18 @@ def donations(
     return found
 
 
-def donor_measures(counts: Counter[int]) -> dict[Measure, float]:
-    """The most rows one record donates to, and the 95th percentile (linear) over the donors.
+def donor_measures(counts: Counter[int], *, rows: int) -> dict[Measure, float]:
+    """The most of a fill's `rows` one record donates to, and the 95th percentile over donors.
 
-    Both are NaN for an empty counter: an arm with no draw, or a fill with no donation.
+    The percentile is linear, over the records that donate. A fill with rows but no donation
+    reads a maximum of 0 and a NaN percentile, over no donor; a fill with no rows reads NaN for
+    both.
     """
     if not counts:
-        return dict.fromkeys(DONOR_MEASURES, math.nan)
+        return {
+            Measure.DONOR_MAX: 0.0 if rows else math.nan,
+            Measure.DONOR_P95: math.nan,
+        }
     values = np.fromiter(counts.values(), dtype=float)
     return {
         Measure.DONOR_MAX: float(values.max()),
@@ -297,14 +303,16 @@ def read_donors(
     budget: int,
     groups: Sequence[tuple[str, ...]],
 ) -> dict[Measure, float]:
-    """`donor_measures` of `donor_counts`, logged.
+    """`donor_measures` of `donor_counts`, logged with the values the CSV holds.
 
-    The line is `privacy donor holdout=%d arm=%s donors=%d max=%d p95=%.2f`.
+    The line is `privacy donor holdout=%d arm=%s donors=%d max=%.0f p95=%.2f seconds=%.1f`,
+    `seconds` the time the re-draw and its reading took.
 
     Raises:
         IdentityError: As `donor_counts`.
         EvaluationError: As `donor_counts`.
     """
+    started = time.perf_counter()
     counts = donor_counts(
         fill,
         stored,
@@ -316,14 +324,15 @@ def read_donors(
         budget=budget,
         groups=groups,
     )
-    found = donor_measures(counts)
+    found = donor_measures(counts, rows=len(stored))
     logger.info(
-        "privacy donor holdout=%d arm=%s donors=%d max=%d p95=%.2f",
+        "privacy donor holdout=%d arm=%s donors=%d max=%.0f p95=%.2f seconds=%.1f",
         fill.holdout,
         fill.arm,
         len(counts),
-        max(counts.values(), default=0),
+        found[Measure.DONOR_MAX],
         found[Measure.DONOR_P95],
+        time.perf_counter() - started,
     )
     return found
 
