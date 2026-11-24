@@ -21,8 +21,7 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) | ready | -- | direct-method-research |
-| [`gaps-is-a-conditional-fragments`](gaps-is-a-conditional-fragments.md) | ready | -- | direct-method-research |
-| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | gaps-is-a-conditional-fragments, evaluate-added-row-contradictions | direct-method-research |
+| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | blocked | evaluate-added-row-contradictions | direct-method-research |
 | [`ontology-diabetes-diagnosis-codes`](ontology-diabetes-diagnosis-codes.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | blocked | ontology-diabetes-diagnosis-codes | direct-method-research |
 | [`privacy-donor-attacks-results`](privacy-donor-attacks-results.md) | ready | -- | direct-method-research |
@@ -86,8 +85,7 @@ flowchart LR
     u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6[evaluate-control-runs-registered] --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
-    u10[gaps-is-a-conditional-fragments] --> u11[generate-is-a-conditional-draws]
-    u9[evaluate-added-row-contradictions] --> u11
+    u9[evaluate-added-row-contradictions] --> u11[generate-is-a-conditional-draws]
     u12[ontology-diabetes-diagnosis-codes] --> u13[generate-ancestor-shrunk-shares]
     u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
     u9 --> u17[generate-coherent-free-fields]

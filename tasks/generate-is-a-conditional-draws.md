@@ -2,7 +2,7 @@
 id: generate-is-a-conditional-draws
 title: Add the bko-hier arms, drawing a broad concept given its narrow one
 status: blocked
-depends_on: gaps-is-a-conditional-fragments, evaluate-added-row-contradictions
+depends_on: evaluate-added-row-contradictions
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -30,9 +30,9 @@ arm beside them.
 - `DrawSpec.hierarchy: float | None`, a pseudo-count.
 - Arms `bko-hier-0` (pseudo-count 0), `bko-hier-w` (`GROUP_WEIGHT`, `bko.gaps.shares`) and
   `bko-hier-closed` (the closure forced).
-- A broad concept is drawn given its narrow one at the fragment's conditional (unit
-  [`gaps-is-a-conditional-fragments`](gaps-is-a-conditional-fragments.md)) shrunk toward the `is_a`
-  S-node's probability 1.
+- A broad concept is drawn given its narrow one at the conditional `conditional_fragment` holds
+  (ADR [`research/dataset-fragment-encoding`](../docs/adr/research/dataset-fragment-encoding.md))
+  shrunk toward the `is_a` S-node's probability 1.
 - ADR [`research/bkb-direct-generation`](../docs/adr/research/bkb-direct-generation.md) revised in
   place.
 - ADR [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md)
