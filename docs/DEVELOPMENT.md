@@ -1225,20 +1225,20 @@ inside `.venv`:
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
 - **What it does**: it fetches the two releases into the data root if absent, verifies each against
-  its pin, parses them with pronto, and checks every row: a concept row's concept exists and is
-  not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a
-  `skos:exactMatch` of its concept and of no other live concept, an excluded Synthea code is a
-  `skos:exactMatch` of no live MONDO concept (the check reads MONDO only for it), an ICD-9 row's
-  concept carries its `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that
-  xref are exactly the row's declared holders, as does a generated code row of
-  `bko.ontology.icd9_codes`, an excluded ICD-9 category is an xref of no live
-  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout
-  gets a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
-  `icd9-code` or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`,
-  `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or category), `label`
-  and `status` (`ok`, or how the release disagrees; for an `excluded-code` or `excluded-icd9`
-  row, `ok` means the code still has no live holder), one row per checked row, the same bytes on
-  every run over the same releases.
+  its pin, parses them with pronto (and each xref's qualifiers with fastobo), and checks every row:
+  a concept row's concept exists and is not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a `skos:exactMatch`
+  of its concept and of no other live concept, an excluded Synthea code is a `skos:exactMatch` of no
+  live MONDO concept (the check reads MONDO only for it), an ICD-9 row's concept carries its
+  `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that xref are exactly the row's
+  declared holders, a generated code row of `bko.ontology.icd9_codes` likewise but counting only
+  xrefs qualified `source="MONDO:equivalentTo"`, an excluded ICD-9 category is an xref of no live
+  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
+  a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
+  `icd9-code` or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`,
+  `A1Cresult in >7|>8`, `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or
+  category), `label` and `status` (`ok`, or how the release disagrees; for an `excluded-code` or
+  `excluded-icd9` row, `ok` means the code still has no live holder), one row per checked row, the
+  same bytes on every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.
@@ -1259,19 +1259,22 @@ inside `.venv`:
 
   They read and never fetch, so run `check` and `reproduce` first: `check` fetches MONDO and HPO,
   `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
-  `bko.ontology.obo`, or a change to pronto in `uv.lock`, from the checkout whose `data/` holds
+  `bko.ontology.obo`, or a change to pronto or fastobo in `uv.lock`, from the checkout whose `data/` holds
   the releases.
 - **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the
-  Diabetes 130 archive to one MONDO concept for the `diabetes-codes` frame (ADR
+  `diabetes-codes` cohort to the one MONDO concept that carries its xref under
+  `source="MONDO:equivalentTo"` (ADR
   [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). It is
-  written, never edited:
+  written, never edited. A shell redirect truncates its target before the command runs, and every
+  `bko.ontology` import reads the module, so write to a scratch file and move it only on exit 0:
 
-      uv run --no-sync python -m bko.ontology codes > src/bko/ontology/icd9_codes.py
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology codes > scratchpad/icd9_codes.py && mv scratchpad/icd9_codes.py src/bko/ontology/icd9_codes.py
 
-  The command fetches MONDO and the archive into the data root if absent and logs one
+  then `make format`. The command fetches MONDO and the archive into the data root if absent,
+  writes nothing to stdout until the module text is complete, and logs one
   `codes unmapped reason=... codes=N` line per reason and a closing `codes rows=N sha256=...`
   line. `tests/test_ontology_icd9_codes_pinned.py` regenerates the rows from the pinned release
-  and archive under `--releases` and compares them with the committed ones; run it with the
+  and cohort under `--releases` and compares them with the committed ones; run it with the
   release tests after a re-pin.
 
 ### ELK comparison

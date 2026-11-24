@@ -32,13 +32,17 @@ relations, and it links to no standard ontology.
   - `auto-local` judges the same candidates with a pinned on-device model through
     `bko.generate.local`. It may also propose a cutoff row for a numeric column, with its cited
     source.
+- The `auto-lexical` and `auto-local` builders take the `diabetes-codes` codes that MONDO links
+  only by `relatedTo` or an unreviewed source xref (ADR
+  [`research/diabetes-diagnosis-codes`](../docs/adr/research/diabetes-diagnosis-codes.md)) as
+  their candidate set, judging each into a `FieldMapping` row or leaving it unmapped.
 - Each builder emits a pinned artifact with a sha256, and its rows pass the structural check
   `bko.ontology.check.check` against the pinned releases.
 - `RUNS` entries on E6's frame and on `diabetes-codes` (ADR
   [`research/diabetes-diagnosis-codes`](../docs/adr/research/diabetes-diagnosis-codes.md)) for
-  `bko-direct` and `bko-tree` (unit [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md))
-  over the hand mapping, over each automatic mapping and over a permuted-hierarchy control,
-  beside `bko-nomap`.
+  `bko-direct` and `bko-tree` (unit
+  [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md)) over the hand mapping,
+  over each automatic mapping and over a permuted-hierarchy control, beside `bko-nomap`.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`,
   with the margin for automatic minus hand.
 - A new ADR under `docs/adr/research/` that records the route, the NVIDIA finding and the leakage
