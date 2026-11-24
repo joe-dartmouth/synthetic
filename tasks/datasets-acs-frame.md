@@ -2,7 +2,7 @@
 id: datasets-acs-frame
 title: Add one ACS PUMS state-year as an exploratory non-health frame with occupation codes on the Occupation Ontology
 status: blocked
-depends_on: datasets-selection-rule, ontology-per-dataset-releases
+depends_on: ontology-per-dataset-releases
 blocks: evaluate-confirmatory-registration, evaluate-crc-acs-benchmark
 parallel_safe: true
 milestone: direct-method-research
@@ -17,8 +17,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 A second domain tests whether the method depends on clinical ontologies. Occupation codes give
-the hierarchy a five-level tree to work on. The state-year's row count is what unit
-[`datasets-selection-rule`](datasets-selection-rule.md) re-reads from the primary page.
+the hierarchy a five-level tree to work on. No page states one state-year's row count;
+ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records what the PUMS user guide states, and this unit records the count from its file
+before any gap is read.
 
 ## Scope
 
@@ -35,9 +36,9 @@ the hierarchy a five-level tree to work on. The state-year's row count is what u
   - every column the survey found an ontology for, its release held per dataset (unit
     [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md));
   - a `python -m bko.gaps acs` subcommand.
-- The Census terms of use are the agreement. The `Source` pin carries the `agreement` value unit
-  [`datasets-selection-rule`](datasets-selection-rule.md) records, `None` only where that unit's
-  ADR says the terms permit sending records to a third-party API.
+- The `Source` pin carries the `agreement` value
+  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records for the Census terms, and the frame follows that ADR's reading of their
+  re-identification clause.
 - A registry entry in [`docs/literature.md`](../docs/literature.md) for the Folktables work.
 
 **Out.**

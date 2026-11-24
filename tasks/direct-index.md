@@ -40,14 +40,13 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`datasets-selection-rule`](datasets-selection-rule.md) | ready | -- | direct-method-research |
 | [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md) | ready | -- | direct-method-research |
-| [`datasets-support2-frame`](datasets-support2-frame.md) | blocked | datasets-selection-rule | direct-method-research |
-| [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | blocked | datasets-selection-rule | direct-method-research |
-| [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | datasets-selection-rule, ontology-per-dataset-releases | direct-method-research |
-| [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) | blocked | datasets-selection-rule | direct-method-research |
-| [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) | blocked | datasets-selection-rule | direct-method-research |
-| [`datasets-non-health-selection`](datasets-non-health-selection.md) | blocked | datasets-selection-rule | direct-method-research |
+| [`datasets-support2-frame`](datasets-support2-frame.md) | ready | -- | direct-method-research |
+| [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | ready | -- | direct-method-research |
+| [`datasets-acs-frame`](datasets-acs-frame.md) | blocked | ontology-per-dataset-releases | direct-method-research |
+| [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) | ready | -- | direct-method-research |
+| [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) | ready | -- | direct-method-research |
+| [`datasets-non-health-selection`](datasets-non-health-selection.md) | ready | -- | direct-method-research |
 | [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | blocked | datasets-non-health-selection | direct-method-research |
 
 ### Published comparisons
@@ -106,15 +105,9 @@ flowchart LR
     u18[evaluate-trace-attribution] --> u19
     u6 --> u20[gaps-share-based-quota]
     u20 --> u21[evaluate-quota-sweep-results]
-    u23[datasets-selection-rule] --> u25[datasets-support2-frame]
-    u23 --> u26[datasets-nhanes-frame]
-    u23 --> u27[datasets-acs-frame]
-    u24[ontology-per-dataset-releases] --> u27
+    u24[ontology-per-dataset-releases] --> u27[datasets-acs-frame]
     u27 --> u41[evaluate-crc-acs-benchmark]
-    u23 --> u47[datasets-physionet2012-frame]
-    u23 --> u48[datasets-nhamcs-frame]
-    u23 --> u49[datasets-non-health-selection]
-    u49 --> u50[datasets-generalised-cell-axes]
+    u49[datasets-non-health-selection] --> u50[datasets-generalised-cell-axes]
     u43[evaluate-syntheval-heart-disease] --> u44[evaluate-syntheval-results]
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
@@ -124,11 +117,11 @@ flowchart LR
     u18 --> u30
     u4 --> u45[evaluate-synthetic-share-sweep]
     u45 --> u46[evaluate-synthetic-share-results]
-    u25 --> u30
-    u26 --> u30
+    u25[datasets-support2-frame] --> u30
+    u26[datasets-nhanes-frame] --> u30
     u27 --> u30
-    u47 --> u30
-    u48 --> u30
+    u47[datasets-physionet2012-frame] --> u30
+    u48[datasets-nhamcs-frame] --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
     u41 --> u42[evaluate-crc-acs-results]

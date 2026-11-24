@@ -43,8 +43,8 @@ readings are fixed before any score exists on the new datasets.
     included;
   - ablations `bko-nomap` (unless it joins the comparators), `bko-logic`, and `bko` where the
     dataset's agreement permits sending records.
-- The removed cells, picked by one logged run of the rule unit
-  [`datasets-selection-rule`](datasets-selection-rule.md) records, on the training splits.
+- The removed cells, picked by one logged run of the rule
+  ADR [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md) records, on the training splits.
 - In [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11:
   - the primary endpoint, taken from the branch units
     [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
