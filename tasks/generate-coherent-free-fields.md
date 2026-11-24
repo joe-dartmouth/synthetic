@@ -2,7 +2,7 @@
 id: generate-coherent-free-fields
 title: Add the bko-coherent arm, drawing free fields by sequential CART
 status: blocked
-depends_on: evaluate-added-row-contradictions, privacy-donor-attacks
+depends_on: evaluate-added-row-contradictions
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -20,8 +20,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 in a share of its rows that the
 [`docs/IDEAS.md`](../docs/IDEAS.md#coherent-free-field-draws-for-bko-direct) entry "Coherent
 free-field draws for `bko-direct`" measures. Copying the free
-fields from one record instead would copy every unmapped field of one patient, which unit
-[`privacy-donor-attacks`](privacy-donor-attacks.md)'s match attack reads. A conditional model
+fields from one record instead would copy every unmapped field of one patient, which
+`privacy`'s match attack (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)) reads. A conditional model
 keeps the fields coherent without a joint copy.
 
 ## Scope

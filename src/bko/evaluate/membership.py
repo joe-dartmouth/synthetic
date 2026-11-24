@@ -6,18 +6,22 @@ are the holdout's prepared training split; non-members are its whole test split,
 included; the removed records are neither. It reads three scopes: the records outside the removed
 cell, the removed cell's (undefined with no member in it, as at a removal fraction of 1), and
 label 1's outside the cell. Each scope reads the AUC (`roc_auc_score`, ties at their midrank) and
-the true positive rate at each false positive rate of `FPRS`, by linear interpolation on
-`roc_curve(drop_intermediate=False)`; the cell scope reads no rate at 0.001, and a rate below one
-over the scope's non-members reads NaN, below what the curve resolves. Each arm also reads
-the NNDR and DCR of its added rows to the training split, and the held-out rows the same as a
-baseline (`privacy.distances_and_nndr`).
+the true positive rate at false positive rates 0.01 and 0.001 (`bko.evaluate.attack_stats`), by
+linear interpolation on `roc_curve(drop_intermediate=False)`; the cell scope reads no rate at
+0.001, and a rate below one over the scope's non-members reads NaN, below what the curve
+resolves. Each arm also reads the NNDR and DCR of its added rows to the training split, and the
+held-out rows the same as a baseline (`privacy.distances_and_nndr`).
+
+Each arm also reads the match attack and, for an arm of `DONOR_ARMS`, donor reuse
+(`bko.evaluate.donor_attacks`); both attacks read their scopes and statistics through
+`bko.evaluate.attack_stats`.
 
 `privacy` reads one or more `rows` stores (`bko.evaluate.rows_read`), one per holdout slice of
 the named run, makes no API call, and writes the scores CSV. It logs the reading rule over
 `GROUPS` against the run family's `REFERENCE` arm (`bko.evaluate.reference`) through
-`bko.evaluate.privacy_rule`, which judges no criterion; each scope's attack statistics and the
-distances are separate families. ADR `research/membership-inference-reading` records the attack
-and the rule.
+`bko.evaluate.privacy_rule`, which judges no criterion; each scope's attack statistics, each
+scope's match statistics and the distances are separate families. ADR
+`research/membership-inference-reading` records the attacks, donor reuse and the rule.
 """
 
 from __future__ import annotations
@@ -28,23 +32,35 @@ import logging
 import math
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score, roc_curve
 
 from bko.baselines.request import Stratum
-from bko.datasets.cells import LABEL, cell_keys
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.split import split
+from bko.evaluate.attack_stats import (
+    RATES,
+    SCOPE_FPRS,
+    SCOPES,
+    attack,
+    scopes,
+)
 from bko.evaluate.data import Data
+from bko.evaluate.donor_attacks import (
+    DONOR_ARMS,
+    DONOR_MEASURES,
+    match,
+    match_groups,
+    match_measures,
+    read_donors,
+)
 from bko.evaluate.errors import EvaluationError, IdentityError
-from bko.evaluate.experiment import Experiment
+from bko.evaluate.experiment import Experiment, gap_request
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
 from bko.evaluate.prepare import Prepared, held_out_ratio, prepared, split_line
 from bko.evaluate.privacy import distances_and_nndr, nearest_from
@@ -62,21 +78,11 @@ from bko.evaluate.reference import (
 )
 from bko.evaluate.rows_read import frame_of
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, render
+from bko.evaluate.trace_lines import Fill
+from bko.ontology.terms import Ontology
 
 
 logger = logging.getLogger("bko.evaluate")
-
-_RATES: Final[Mapping[float, str]] = MappingProxyType({0.01: "tpr01", 0.001: "tpr001"})
-
-FPRS: Final = tuple(_RATES)
-"""The false positive rates each scope's true positive rate is read at."""
-
-SCOPES: Final = ("outside", "cell", "label")
-"""The attack's scopes: outside the removed cell, inside it, and label 1 outside it."""
-
-_SCOPE_FPRS: Final[Mapping[str, tuple[float, ...]]] = MappingProxyType(
-    {"outside": FPRS, "cell": FPRS[:1], "label": FPRS}
-)
 
 
 def mi(statistic: str, scope: str) -> Measure:
@@ -87,7 +93,7 @@ def mi(statistic: str, scope: str) -> Measure:
 MI_MEASURES: Final = tuple(
     mi(statistic, scope)
     for scope in SCOPES
-    for statistic in ("auc", *(_RATES[rate] for rate in _SCOPE_FPRS[scope]))
+    for statistic in ("auc", *(RATES[rate] for rate in SCOPE_FPRS[scope]))
 )
 """The attack's measures, by scope; the cell scope's few records define no rate at 0.001."""
 
@@ -107,40 +113,12 @@ ADDED_MEASURES: Final = (*MI_MEASURES, *DISTANCE_MEASURES)
 GROUPS: Final = (
     *(Group(scope, (mi("auc", scope), mi("tpr01", scope))) for scope in SCOPES),
     Group(Scope.ALL.value, DISTANCE_MEASURES[:4], higher_leaks=False),
+    *(Group(f"match-{scope}", (match("auc", scope), match("tpr01", scope))) for scope in SCOPES),
 )
-"""The rule's families: each scope's AUC and TPR at 0.01, and the DCR and NNDR quantiles, which
-stay descriptive and leak more the lower they read. Each is a separate family at family-wise
-0.95, whose size is its pairs of arm and measure with a defined contrast."""
-
-
-@dataclass(frozen=True, slots=True)
-class Attack:
-    """One attack's reading: its AUC and its true positive rate at each false positive rate."""
-
-    auc: float
-    tpr: Mapping[float, float]
-
-
-def attack(
-    member_d: np.ndarray, nonmember_d: np.ndarray, *, fprs: Sequence[float] = FPRS
-) -> Attack:
-    """The attack on members at distances `member_d` and non-members at `nonmember_d`.
-
-    Each record's score is minus its distance. With no member, no non-member, or a missing
-    distance, every value is NaN. A rate below one over the non-members, the least false positive
-    rate one non-member makes, reads NaN: the curve does not resolve it.
-    """
-    distances = np.concatenate([member_d, nonmember_d])
-    if not len(member_d) or not len(nonmember_d) or np.isnan(distances).any():
-        return Attack(math.nan, dict.fromkeys(fprs, math.nan))
-    truth = np.concatenate([np.ones(len(member_d)), np.zeros(len(nonmember_d))])
-    fpr, tpr, _ = roc_curve(truth, -distances, drop_intermediate=False)
-    auc = float(roc_auc_score(truth, -distances))
-    floor = 1 / len(nonmember_d)
-    return Attack(
-        auc,
-        {rate: float(np.interp(rate, fpr, tpr)) if rate >= floor else math.nan for rate in fprs},
-    )
+"""The rule's families: each scope's AUC and TPR at 0.01, the DCR and NNDR quantiles, which
+stay descriptive and leak more the lower they read, and each scope's match attack AUC and TPR at
+0.01 (`bko.evaluate.donor_attacks`). Each is a separate family at family-wise 0.95, whose size is
+its pairs of arm and measure with a defined contrast."""
 
 
 def exposure(
@@ -150,16 +128,6 @@ def exposure(
     if not len(added):
         return np.full(len(records), np.nan)
     return nearest_from(records, added, frame=frame, spans_from=train)
-
-
-def scopes(records: pd.DataFrame, cell: Stratum, *, edges: Sequence[int]) -> dict[str, np.ndarray]:
-    """Each scope's mask over `records`, by `SCOPES` name."""
-    keys = cell_keys(records, edges=edges)
-    inside = np.ones(len(records), dtype=bool)
-    for column, value in zip(keys.columns, cell, strict=True):
-        inside &= (keys[column] == value).to_numpy()
-    labelled = (keys[LABEL] == 1).to_numpy()
-    return {"outside": ~inside, "cell": inside, "label": ~inside & labelled}
 
 
 def arm_measures(
@@ -191,9 +159,9 @@ def arm_measures(
     found: dict[Measure, float] = {}
     for scope in SCOPES:
         ours, theirs = member_d[members[scope]], nonmember_d[nonmembers[scope]]
-        read = attack(ours, theirs, fprs=_SCOPE_FPRS[scope])
+        read = attack(ours, theirs, fprs=SCOPE_FPRS[scope])
         found[mi("auc", scope)] = read.auc
-        found |= {mi(_RATES[rate], scope): value for rate, value in read.tpr.items()}
+        found |= {mi(RATES[rate], scope): value for rate, value in read.tpr.items()}
         if len(added) and math.isnan(read.auc):
             expected = scope == "cell" and not len(ours)
             logger.log(
@@ -213,9 +181,17 @@ def arm_measures(
 
 
 def holdout_scores(
-    ready: Prepared, fills: Mapping[str, pd.DataFrame], *, cell: Stratum, frame: FrameSpec
+    ready: Prepared,
+    fills: Mapping[str, pd.DataFrame],
+    *,
+    cell: Stratum,
+    frame: FrameSpec,
+    extra: Mapping[str, Mapping[Measure, float]] = MappingProxyType({}),
 ) -> list[Score]:
     """One holdout's scores: the held-out rows' own, then each arm's, in `fills`' order.
+
+    Each arm's `ADDED_MEASURES` are followed by its measures in `extra`, the match attack's and
+    donor reuse's.
 
     It logs each arm's `privacy holdout=%d arm=%s added=%d` line, at WARNING for an arm that adds
     no row.
@@ -244,6 +220,7 @@ def holdout_scores(
         except ValueError as error:
             msg = f"holdout {seed}'s arm {arm}: {error}"
             raise EvaluationError(msg) from error
+        found |= extra.get(arm, {})
         scores += [
             Score(seed, arm, Source.ADDED, measure, Scope.ALL, value)
             for measure, value in found.items()
@@ -259,22 +236,33 @@ def privacy(
     data: Data,
     runs: Mapping[str, NamedRun],
     root: Path,
+    ontologies: Mapping[str, Ontology] | None = None,
 ) -> str:
     """Read `run`'s privacy from its `stores`; return the scores CSV.
 
+    `ontologies` are the releases of the data's mapped concepts, which an arm of `DONOR_ARMS`
+    re-draws its fill under.
+
     It logs `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `read`'s
-    store lines, `privacy read stores=%d holdouts=%d`, `holdout_scores`' lines and a `privacy
-    holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f` line per holdout (`privacy holdout=%d
-    failed` at ERROR before a holdout's error), each `Reading`'s line, then `privacy rows=%d
-    sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined` counting the readings with no
-    interval.
+    store lines, `privacy read stores=%d holdouts=%d`, then per holdout `match_measures`'
+    `undefined` lines, `read_donors`' `privacy donor` line per arm of `DONOR_ARMS`,
+    `holdout_scores`' lines and a `privacy holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`
+    line (`privacy holdout=%d failed` at ERROR before a holdout's error); then each `Reading`'s
+    line, then `privacy rows=%d sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined`
+    counting the readings with no interval.
 
     Raises:
-        EvaluationError: As `reference_of` or `holdout_scores`.
-        IdentityError: As `read`, or if a holdout's `split` line is not the one its data
-            prepares, or as `frame_of`, naming the store.
+        EvaluationError: If the run names an arm of `DONOR_ARMS` and `ontologies` is None, or as
+            `reference_of`, `holdout_scores` and `read_donors`.
+        IdentityError: As `read` and `read_donors`, or if a holdout's `split` line is not the
+            one its data prepares, or as `frame_of`, naming the store.
     """
     begun = time.perf_counter()
+    donating = sorted(DONOR_ARMS & set(experiment.arms))
+    if donating and ontologies is None:
+        msg = f"the run {run} names the donor arms {','.join(donating)}, whose fills are"
+        msg += " re-drawn under the releases of the data's mapped concepts, and no release"
+        raise EvaluationError(msg)
     reference, cell = reference_of(run, experiment, runs)
     total = len(experiment.holdout_seeds)
     logger.info(
@@ -292,7 +280,9 @@ def privacy(
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
         try:
-            scores += _holdout(seed, held[seed], data, experiment=experiment, cell=cell)
+            scores += _holdout(
+                seed, held[seed], data, experiment=experiment, cell=cell, ontologies=ontologies
+            )
         except EvaluationError:
             logger.error("privacy holdout=%d failed", seed)  # ruff: ignore[error-instead-of-exception]
             raise
@@ -321,13 +311,20 @@ def privacy(
 
 
 def _holdout(
-    seed: int, store: Store, data: Data, *, experiment: Experiment, cell: Stratum
+    seed: int,
+    store: Store,
+    data: Data,
+    *,
+    experiment: Experiment,
+    cell: Stratum,
+    ontologies: Mapping[str, Ontology] | None,
 ) -> list[Score]:
     """Holdout `seed`'s scores from `store`, once its split line matches the data's.
 
     Raises:
-        EvaluationError: As `holdout_scores`.
-        IdentityError: If the split line differs, or as `frame_of`, naming the store.
+        EvaluationError: As `holdout_scores` and `read_donors`, or if no cell is flagged.
+        IdentityError: If the split line differs, or as `frame_of`, naming the store, or as
+            `read_donors`.
     """
     frame = data.frame
     parts = split(data.records, seed=seed, edges=frame.edges)
@@ -347,7 +344,37 @@ def _holdout(
     except IdentityError as error:
         msg = f"the store {store.path}: {error}"
         raise IdentityError(msg) from error
-    return holdout_scores(ready, fills, cell=cell, frame=frame)
+    train, groups = ready.ablated.train, match_groups(data.field_rows, frame=frame)
+    request = None
+    if DONOR_ARMS & set(fills):
+        request = gap_request(train, experiment, seed=seed, frame=frame)
+    extra: dict[str, dict[Measure, float]] = {}
+    for arm, added in fills.items():
+        found = match_measures(
+            added,
+            train=train,
+            test=ready.ablated.test,
+            cell=cell,
+            frame=frame,
+            groups=groups,
+            holdout=seed,
+            arm=arm,
+        )
+        donors = dict.fromkeys(DONOR_MEASURES, math.nan)
+        if request is not None and arm in DONOR_ARMS:
+            donors = read_donors(
+                Fill(seed, arm, store.folder.arms[seed, arm]),
+                added,
+                train,
+                request,
+                lines=store.folder.lines.get((seed, arm, "gap"), ()),
+                data=data,
+                ontologies=ontologies or {},
+                budget=experiment.budget,
+                groups=groups,
+            )
+        extra[arm] = found | donors
+    return holdout_scores(ready, fills, cell=cell, frame=frame, extra=extra)
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

@@ -28,9 +28,9 @@ The study's claim rests on these runs.
 - The `bko` ablation through `launch`, under its own ceiling, with the estimate in its Runs row
   first. These are the only paid calls.
 - `rows`, `panel` and `privacy`, and the readings of units
-  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md),
-  [`privacy-donor-attacks`](privacy-donor-attacks.md) and
-  [`evaluate-trace-attribution`](evaluate-trace-attribution.md).
+  [`evaluate-added-row-contradictions`](evaluate-added-row-contradictions.md) and
+  [`evaluate-trace-attribution`](evaluate-trace-attribution.md), and `privacy`'s match attack and
+  donor reuse (ADR [`research/membership-inference-reading`](../docs/adr/research/membership-inference-reading.md)).
 - Every registered contrast reported, null or not.
 - A deviations paragraph.
 
