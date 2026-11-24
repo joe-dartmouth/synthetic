@@ -30,28 +30,50 @@ permits sending only when `sending` names a permission.
   is not evidence.
 * **Must let every arm and every reading run**, the `bko` arm (which sends records to the
   Anthropic API) and the privacy readings included, or say which may not.
-* **Must keep a removed cell a function of the training split alone**, as E6's is.
+* **Must fix each removed cell from the training split alone, before any classifier is fit**, so
+  no score can steer it.
 
 ## Decision
 
-**1. The rule.** A dataset is a confirmatory candidate when all five hold:
+**1. The rule.** A dataset is a confirmatory candidate when all six hold:
 
 1. Open access, or an agreement the team holds. A dataset under an agreement the team does not
    hold is excluded.
-2. A binary outcome.
-3. Numeric age and binary sex, the two person axes of the cell grid.
-4. Concepts mapped from a code crosswalk or a cited cutoff, with at least one hierarchical coded
-   field for the non-health family.
-5. At least 5,000 records, the count taken from the dataset's own documentation.
+2. A binary outcome that the dataset itself defines once per record (a person, a stay or a
+   visit). A label the frame would have to reduce from a finer one is excluded.
+3. Numeric age and binary sex on a person record, the two person axes of the cell grid.
+4. Concepts mapped from a code crosswalk or a cited cutoff. The non-health family also needs at
+   least one hierarchical coded field; a health dataset needs none, since its concepts map
+   through crosswalks and cutoffs.
+5. At least 5,000 records. Where the dataset's documentation states its record count, that count
+   is read. Where it states none, the frame unit counts its training split before any gap is
+   read, and a dataset below 5,000 is excluded and this record revised before registration. The
+   minimum counts records, not positives: prevalence is not a condition, and the removed-cell
+   filter (point 2) holds every kept cell, positive cells included, to its own floor.
+6. Terms and documentation that let results be published. A dataset its documentation calls
+   unsuitable for publication is excluded.
 
-**2. The removed cell.** Each chosen dataset's removed cell is picked by E6's mechanical rule,
-gates G1 to G5 and the cell choice of ADR
-[`research/diabetes-subgroup-removal-design`](diabetes-subgroup-removal-design.md), run on the
-training split alone. A tie goes to the cell earlier in grid order. Unit
-`evaluate-confirmatory-registration` runs the rule once per dataset and logs the run.
+**2. The removed cell.** Each chosen dataset's removed cell is fixed from its training split
+alone, before any classifier is fit. Of E6's gates (ADR
+[`research/diabetes-subgroup-removal-design`](diabetes-subgroup-removal-design.md)), G1 and G3 to
+G5 read fitted scores (`real` and `none` recall, MDE, the seed sets), so none of them runs before
+registration. G2's count filter runs, on the training split: f is the smallest 3-decimal fraction
+of at least 0.900 that leaves R, the cell's kept training rows, in [5, 19]; every other cell
+holds at least 20 training rows; and the flagged set is the cell alone on every seed. E6's further
+floor of 33 records per cell counts the test split, so it does not apply. Of the cells that pass,
+the removed cell is the first in grid order, the order of `bko.datasets.cells.cell_counts`: age
+band ascending, then female before male, then label 0 before 1. E6's own cell choice reads scores
+and has no tie rule, so this order is this record's. The cutoff the registered run uses is the
+training split's prevalence to 4 decimals; G1's choice of 0.5 reads recall, so it does not apply.
+A dataset on which no cell passes is excluded, and this record is revised before registration.
+Unit `evaluate-confirmatory-registration` records each chosen cell with the sha256 of the
+training split it was read from.
 
-**3. The ranking.** The sixteen candidates, best first. Each row quotes the licence and access
-lines of the page named.
+**3. The ranking.** The sixteen candidates, best first. The chosen datasets lead, the health
+family in the order Rationale gives, then ACS PUMS. The runners-up meet the rule and follow, each
+below the chosen dataset that holds its slot. The excluded candidates come last, ordered by the
+first condition each fails, and within one condition health before non-health, then
+alphabetically. Each row quotes the licence and access lines of the page named.
 
 | Rank | Dataset | Licence and access, quoted from the primary page | Verdict |
 |---|---|---|---|
@@ -60,23 +82,25 @@ lines of the page named.
 | 3 | NHAMCS 2022 ED ([readme2022.txt](https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/readme2022.txt)) | "Please Read Carefully before Using NCHS Public Use Survey Data"; the four terms in point 5 below | Chosen, health |
 | 4 | NHANES August 2021 to August 2023 ([NCHS Data User Agreement](https://www.cdc.gov/nchs/policy/data-user-agreement.html)) | "Researchers who use NCHS public-use data files can only use the information for statistical analysis or reporting purposes." | Chosen, health |
 | 5 | ACS PUMS ([Census terms of service](https://www.census.gov/data/developers/about/terms-of-service.html)) | "All of the content, documentation, code and related materials made available to you through the API are subject to these terms. Access to or use of the API or its content constitutes acceptance to this Agreement." | Chosen, exploratory non-health family |
-| 6 | PhysioNet/CinC Challenge 2019 ([physionet.org](https://physionet.org/content/challenge-2019/1.0.0/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Creative Commons Attribution 4.0 International Public License" | Runner-up: meets the rule; ranked below the 2012 set |
-| 7 | BRFSS 2024 ([cdc.gov](https://www.cdc.gov/brfss/annual_data/annual_2024.html)) | No licence line on the page; "There are 457,670 records for 2024. More information on participation is available in the states conducting surveillance, by year table. The data files are provided in ASCII and SAS Transport formats." | Runner-up: ranked below NHANES |
-| 8 | UCI Census-Income KDD ([UCI 117](https://archive.ics.uci.edu/dataset/117/census+income+kdd)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Runner-up, non-health: ranked below ACS PUMS |
-| 9 | MEPS ([data use agreement](https://meps.ahrq.gov/data_stats/data_use.jsp)) | "1. No one is to use the data in this data set in any way except for statistical reporting and analysis; and" and "Your signature below will indicate that you have carefully read and understood the above statements, and your agreement to comply." | Excluded: a signed agreement the team does not hold |
-| 10 | HMDA ([ffiec.cfpb.gov](https://ffiec.cfpb.gov/data-publication/)) | No licence line on the page; "The snapshot files contain the national HMDA datasets as of a fixed date for all HMDA reporters, as modified by the Bureau to protect applicant and borrower privacy." | Excluded, non-health: a loan record, ranked below ACS PUMS |
-| 11 | UCI Adult ([UCI 2](https://archive.ics.uci.edu/dataset/2/adult)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Excluded: no hierarchical coded field |
-| 12 | CDC Diabetes Health Indicators ([UCI 891](https://archive.ics.uci.edu/dataset/891/cdc+diabetes+health+indicators)) | "See linked dataset for licensing information." | Excluded: age is bucketed |
-| 13 | SPARCS 2022 ([health.data.ny.gov](https://health.data.ny.gov/d/5dtw-tffi)) | Licence field: "See Terms of Use" | Excluded: age is grouped |
-| 14 | eICU demo ([physionet.org](https://physionet.org/content/eicu-crd-demo/2.0.1/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded: too few records |
-| 15 | Framingham teaching set ([BioLINCC](https://biolincc.nhlbi.nih.gov/teaching/)) | "The NHLBI has prepared three datasets suitable for use in an undergraduate or graduate level biostatistics instruction program. These datasets are freely available upon request." | Excluded: unsuitable for publication |
-| 16 | MIMIC-IV demo ([physionet.org](https://physionet.org/content/mimic-iv-demo/2.2/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded: too few records |
+| 6 | BRFSS 2024 ([cdc.gov](https://www.cdc.gov/brfss/annual_data/annual_2024.html)) | No licence line on the page; "There are 457,670 records for 2024. More information on participation is available in the states conducting surveillance, by year table. The data files are provided in ASCII and SAS Transport formats." | Runner-up: meets the rule; ranked below NHANES |
+| 7 | UCI Census-Income KDD ([UCI 117](https://archive.ics.uci.edu/dataset/117/census+income+kdd)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Runner-up, non-health: meets the rule; ranked below ACS PUMS |
+| 8 | MEPS ([data use agreement](https://meps.ahrq.gov/data_stats/data_use.jsp)) | "1. No one is to use the data in this data set in any way except for statistical reporting and analysis; and" and "Your signature below will indicate that you have carefully read and understood the above statements, and your agreement to comply." | Excluded, condition 1: a signed agreement the team does not hold |
+| 9 | PhysioNet/CinC Challenge 2019 ([physionet.org](https://physionet.org/content/challenge-2019/1.0.0/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Creative Commons Attribution 4.0 International Public License" | Excluded, condition 2: an hourly label, no per-stay outcome |
+| 10 | CDC Diabetes Health Indicators ([UCI 891](https://archive.ics.uci.edu/dataset/891/cdc+diabetes+health+indicators)) | "See linked dataset for licensing information." | Excluded, condition 3: age is bucketed |
+| 11 | SPARCS 2022 ([health.data.ny.gov](https://health.data.ny.gov/d/5dtw-tffi)) | Licence field: "See Terms of Use" | Excluded, condition 3: age is grouped |
+| 12 | HMDA ([ffiec.cfpb.gov](https://ffiec.cfpb.gov/data-publication/)) | No licence line on the page; "The snapshot files contain the national HMDA datasets as of a fixed date for all HMDA reporters, as modified by the Bureau to protect applicant and borrower privacy." | Excluded, non-health, condition 3: a loan record, not a person record |
+| 13 | UCI Adult ([UCI 2](https://archive.ics.uci.edu/dataset/2/adult)) | "This dataset is licensed under a Creative Commons Attribution 4.0 International (CC BY 4.0) license." | Excluded, non-health, condition 4: no hierarchical coded field |
+| 14 | eICU demo ([physionet.org](https://physionet.org/content/eicu-crd-demo/2.0.1/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
+| 15 | MIMIC-IV demo ([physionet.org](https://physionet.org/content/mimic-iv-demo/2.2/)) | "Anyone can access the files, as long as they conform to the terms of the specified license." Licence: "Open Data Commons Open Database License v1.0" | Excluded, condition 5: too few records |
+| 16 | Framingham teaching set ([BioLINCC](https://biolincc.nhlbi.nih.gov/teaching/)) | "The NHLBI has prepared three datasets suitable for use in an undergraduate or graduate level biostatistics instruction program. These datasets are freely available upon request." | Excluded, condition 6: unsuitable for publication |
 
-Each chosen dataset against conditions 2, 3 and 5, from its documentation:
+Each chosen dataset against conditions 2, 3 and 5, from its documentation. The death rate and
+the composite's size are recorded for the frame units, not against a condition:
 
 - **SUPPORT2.** The Vanderbilt codebook reads "9105 observations and 47 variables, maximum # NAs:5641"
   and lists `hospdead` as "Death in Hospital", with `age` stored as a double and `sex` with two
-  levels. No page read states the in-hospital death rate; the frame unit counts it from the file.
+  levels. No page read states the in-hospital death rate; the frame unit counts it from the
+  training split.
   SUPPORT2's terms at ICPSR (study 2957, the DOI the UCI page gives) are unopened: the page
   returned HTTP 403 to curl and to a browser, and stayed on a bot check. UCI's page says only "See
   linked dataset for licensing information." The frame unit pins the Vanderbilt archive, whose
@@ -95,15 +119,17 @@ Each chosen dataset against conditions 2, 3 and 5, from its documentation:
   Medical Conditions codebook (MCQ_L) gives each component's Yes count among adults 20 and over:
   congestive heart failure (MCQ160b) 343, coronary heart disease (MCQ160c) 402, heart attack
   (MCQ160e) 332, stroke (MCQ160f) 367, each of roughly 7,800 answers. The composite of the four so
-  holds between 402 and 1,444 adults; the frame unit computes the union. DEMO_L gives age "Age in
-  years of the participant at the time of screening. Individuals 80 and over are top-coded at 80
-  years of age." and a two-valued `RIAGENDR`.
-- **ACS PUMS.** The 2024 user guide states "PUMS files for an individual year contain data on
-  approximately one percent of the United" States population; no page read states the row count
-  of one state-year, which the frame unit records from its file before any gap is read. The 2024
-  data dictionary gives `AGEP` as numeric, "1..99  .1 to 99 years (Top-coded)", and `SEX` with two
-  codes. The outcome is income above the Folktables threshold, and the hierarchical coded field is
-  occupation.
+  holds between 402 and 1,444 adults; the frame unit computes the union. No page read states the
+  adult frame's record count as one figure, so the frame unit counts its training split before
+  any gap is read, and condition 5 excludes it below 5,000. DEMO_L gives age "Age in years of the
+  participant at the time of screening. Individuals 80 and over are top-coded at 80 years of age."
+  and a two-valued `RIAGENDR`.
+- **ACS PUMS.** The 2024 user guide says one year's PUMS files hold about one percent of the
+  United States population. No page read states the row count of one state-year, so the frame
+  unit counts its training split before any gap is read, and condition 5 excludes it below 5,000.
+  The 2024 data dictionary gives `AGEP` as numeric, "1..99 .1 to 99 years (Top-coded)", and `SEX`
+  with two codes. The outcome is income above the Folktables threshold, and the hierarchical coded
+  field is occupation, `OCCP`: "Occupation recode for 2018 and later based on 2018 OCC codes".
 
 **4. The `Agreement` each chosen dataset's `Source` carries.** All five carry `agreement=None`. No
 page read imposes a use agreement that bars sending records to a third-party API:
@@ -158,33 +184,40 @@ the health multiplicity family. ACS PUMS is its own exploratory family, outside 
 ## Rationale
 
 The rule's conditions are the ones the study's machinery needs: the cell grid reads age and sex,
-the classifiers read a binary label, gap detection reads mapped concepts, and E6's gates need
-every kept cell to hold at least 20 training rows and 33 records. 5,000 records leaves that floor
-headroom on a grid of up to 18 cells; the 303-record UCI frame cannot separate the arms.
+the classifiers read a binary label, gap detection reads mapped concepts, and the removed-cell
+filter needs every kept cell to hold at least 20 training rows. 5,000 records leaves that floor
+headroom on a grid of up to 18 cells at a common label; the 303-record UCI frame cannot separate
+the arms. A rare label can leave positive cells below the floor; the filter checks every cell,
+positive cells included, so the record minimum need not count positives.
 
 The ranking puts the two intensive-care sets first because their outcome is defined per stay and
 their physiology maps through cited cutoffs. NHAMCS adds coded diagnoses on a public-use file.
 NHANES is the one candidate whose laboratory values map through cited cutoffs in a general
 population, which is why BRFSS, a telephone survey with no laboratory measures, ranks below it.
-The 2019 challenge set meets the rule, but its `SepsisLabel` is set per hour, to 1 from six
-hours before a sepsis patient's onset. A per-stay outcome would be a reduction the challenge does
-not define; the 2012 set's outcome is per stay.
+The 2019 challenge set fails condition 2: its `SepsisLabel` is set per hour, to 1 from six hours
+before a sepsis patient's onset. A per-stay outcome would be a reduction the challenge does not
+define; the 2012 set's outcome is per stay.
 
 ACS PUMS leads the non-health candidates because its occupation code is a hierarchical field,
 which unit `datasets-acs-frame` maps to the Occupation Ontology. UCI Census-Income KDD also has
 "occupation code" under "major occupation code" and ranks second; unit
 `datasets-non-health-selection` ranks the non-health candidates again under its own rule.
 
-E6's rule picks the removed cell because it is already a function of the training split and its
-gates are written; reusing it keeps the confirmatory cell as mechanical as the development one.
+The removed cell keeps G2's count filter because it reads counts alone and is already written.
+G1 and G3 to G5 read fitted scores, and a cell chosen from a score confirms nothing. Grid order
+settles the choice among passing cells because it is fixed before any record is loaded.
 
 ## Consequences
 
 **Gained**: the five frame units start from quoted terms, a fixed `agreement` value and a stated
 reading of each re-identification clause. The `bko` arm and every privacy reading run on all five.
-**Accepted**: three figures the unit asked for are not on any page read: SUPPORT2's in-hospital
+**Accepted**: three figures the frame units need are on no page read: SUPPORT2's in-hospital
 death rate, the NHANES composite's size (bounded above), and one ACS state-year's row count. Each
-frame unit records its figure from the file before reading any gap. ICPSR's terms for SUPPORT2
+frame unit records its figure from the training split before reading any gap. An ACS state-year
+or an NHANES adult frame below 5,000 records is excluded by condition 5, and a dataset on which
+no cell passes the removed-cell filter is excluded by point 2; either way this record is revised
+before registration. The removed cell gives up E6's score-based choice: the first passing cell in
+grid order may resolve its contrasts less well than the cell E6's rule would pick. ICPSR's terms for SUPPORT2
 stay unread. The NCHS readings rest on the team's reading of the NCHS terms, not on a written
 permission from NCHS.
 
@@ -192,18 +225,19 @@ permission from NCHS.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Choosing the removed cell after scoring | A cell chosen after a score is read confirms nothing; the cell is E6's rule on the training split | 2026-11-24 |
-| PhysioNet/CinC Challenge 2019 | Hourly label shifted six hours before onset; no per-stay outcome is defined | 2026-11-24 |
-| BRFSS | Telephone survey with no laboratory measures; NHANES holds the general-population slot | 2026-11-24 |
-| UCI Census-Income KDD | Ranked below ACS PUMS for the one non-health family; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
-| MEPS | Use needs a signed agreement the team does not hold, limited to the purpose the data were supplied for | 2026-11-24 |
-| HMDA | Loan-level records with no hierarchical coded field read; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
-| UCI Adult | Its coded fields are flat: occupation is "Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces." | 2026-11-24 |
-| CDC Diabetes Health Indicators | Fails numeric age: its preprocessing reads "Bucketing of age" | 2026-11-24 |
-| SPARCS 2022 | Fails numeric age: "Patient age is presented in age groups: 0 to 17, 18 to 29, 30 to 49, 50 to 69, and 70 or Older." | 2026-11-24 |
-| eICU demo | Fails the record minimum: "over 2,500 unit stays" | 2026-11-24 |
-| Framingham teaching set | "Users are cautioned that teaching datasets are completely unsuitable for publication purposes since specific statistical measures were used to create anonymous versions." | 2026-11-24 |
-| MIMIC-IV demo | Fails the record minimum: "a subset of 100 patients" | 2026-11-24 |
+| Choosing the removed cell after scoring | A cell chosen after a score is read confirms nothing; the cell is G2's count filter on the training split, first in grid order | 2026-11-24 |
+| E6's full rule, G1 to G5 and its cell choice | G1 and G3 to G5 read fitted scores; see Rationale | 2026-11-24 |
+| PhysioNet/CinC Challenge 2019 | Fails condition 2: hourly label shifted six hours before onset; no per-stay outcome is defined | 2026-11-24 |
+| BRFSS | Meets the rule; a telephone survey with no laboratory measures, so NHANES holds the general-population slot | 2026-11-24 |
+| UCI Census-Income KDD | Meets the rule; ranked below ACS PUMS for the one non-health family; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
+| MEPS | Fails condition 1: use needs a signed agreement the team does not hold, limited to the purpose the data were supplied for | 2026-11-24 |
+| HMDA | Fails condition 3: a loan record, not a person record; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
+| UCI Adult | Fails condition 4: its coded fields are flat: occupation is "Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces." | 2026-11-24 |
+| CDC Diabetes Health Indicators | Fails condition 3, numeric age: its preprocessing reads "Bucketing of age" | 2026-11-24 |
+| SPARCS 2022 | Fails condition 3, numeric age: "Patient age is presented in age groups: 0 to 17, 18 to 29, 30 to 49, 50 to 69, and 70 or Older." | 2026-11-24 |
+| eICU demo | Fails condition 5, the record minimum: "over 2,500 unit stays" | 2026-11-24 |
+| Framingham teaching set | Fails condition 6: "Users are cautioned that teaching datasets are completely unsuitable for publication purposes since specific statistical measures were used to create anonymous versions." | 2026-11-24 |
+| MIMIC-IV demo | Fails condition 5, the record minimum: "a subset of 100 patients" | 2026-11-24 |
 
 ## Enforcement
 
