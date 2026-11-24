@@ -50,6 +50,9 @@ gap is read.
 
 ## Acceptance
 
+- The unit's ADR records the state-year's row count, counted from the training split before any
+  gap is read. Below 5,000 records the dataset is excluded and ADR
+  `research/confirmatory-dataset-selection` revised before registration.
 - `python -m bko.ontology check` passes with the new rows.
 - `python -m bko.gaps acs` lists the training split's gaps.
 - The `contradictions` reading's output over the training split is recorded in the unit's ADR.

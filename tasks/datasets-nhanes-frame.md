@@ -49,6 +49,9 @@ computes the union.
 
 ## Acceptance
 
+- The unit's ADR records the adult frame's record count and the composite outcome's size, both
+  counted from the training split before any gap is read. Below 5,000 records the dataset is
+  excluded and ADR `research/confirmatory-dataset-selection` revised before registration.
 - `python -m bko.ontology check` passes with the new rows.
 - `python -m bko.gaps nhanes` lists the training split's gaps.
 - The `contradictions` reading's output over the training split is recorded in the unit's ADR.

@@ -49,6 +49,8 @@ the training split.
 
 ## Acceptance
 
+- The unit's ADR records the in-hospital death rate, counted from the training split before any
+  gap is read, the figure ADR `research/confirmatory-dataset-selection` leaves to this unit.
 - `python -m bko.ontology check` passes with the new rows.
 - The subcommand lists the training split's gaps.
 - The `contradictions` reading's output over the training split is recorded in the unit's ADR.
