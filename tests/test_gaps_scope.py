@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+from functools import partial
+from pathlib import Path
 from typing import Final
 
 import pytest
 
 from bko.datasets.split import SPLIT_SEED
+from bko.evaluate.context import Context
+from bko.evaluate.data import Dataset, dataset_releases
 from bko.gaps.errors import GapError
 from bko.gaps.scope import load_scope, load_uci_scope
+from bko.ontology.convert import converted
 from tests._datasets_fixtures import pin
 from tests._gaps_fixtures import ANGINA, LADDER_HPO, LADDER_MONDO, STENOSIS, ladder_releases
 from tests._generate_fixtures import SIZES, uci
-from tests._ontology_fixtures import RoutingOpener
+from tests._ontology_fixtures import FakeRobot, RoutingOpener
 
 
 BODIES = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
@@ -71,3 +77,43 @@ def test_load_uci_scope_splits_at_its_seed(tmp_path):
         tmp_path, uci=PIN, releases=pins, field_rows=(ANGINA, STENOSIS), open_url=opener, seed=7
     )
     assert scope.parts.seed == 7
+
+
+TOY_OBO: Final = """\
+format-version: 1.2
+data-version: toy/releases/2026-01-01
+ontology: toy
+
+[Term]
+id: TOY:0000001
+name: thing
+
+[Term]
+id: TOY:0000002
+name: toy finding
+is_a: TOY:0000001
+"""
+"""What ROBOT's fake gives for the toy OWL release: one `TOY` class under another."""
+
+TOY_OWL: Final = b'<?xml version="1.0"?>\n<rdf:RDF><owl:Ontology rdf:about="toy"/></rdf:RDF>\n'
+
+
+def test_a_fixture_datasets_own_prefix_loads_its_scope(tmp_path):
+    owl = dataclasses.replace(pin(TOY_OWL, name="toy-owl"), filename="toy.owl")
+    jar = pin(b"robot" * 50, name="robot-jar")
+    opener = RoutingOpener({owl.url: TOY_OWL, jar.url: b"robot" * 50})
+    reach = Context(open_url=opener, releases={"TOY": owl})
+    robot = FakeRobot(text=TOY_OBO)
+    convert = partial(
+        converted, robot=jar, runner=robot, resolve_java=lambda: (Path("/opt/jdk/bin/java"), "21")
+    )
+    ontologies, fragments = load_scope(
+        {"TOY:0000002"},
+        tmp_path,
+        releases=dataset_releases(Dataset.UCI, reach),
+        open_url=reach.open_url,
+        convert=convert,
+    )
+    assert list(ontologies) == ["TOY"]
+    assert [fragment.name for fragment in fragments] == ["toy-owl"]
+    assert len(robot.calls) == 1

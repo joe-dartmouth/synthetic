@@ -244,7 +244,8 @@ term's `def:` whose xref is written `Pathbase: Curation`).
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
   `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
   comparison and ROBOT's argv, with a fake runner), `tests/test_ontology_convert.py` (an OWL-only
-  release's conversion through `src/bko/ontology/convert.py`, with a fake runner), and
+  release's conversion through `src/bko/ontology/convert.py`, with a fake runner),
+  `tests/test_evaluate_data.py` (each dataset's releases), and
   `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is

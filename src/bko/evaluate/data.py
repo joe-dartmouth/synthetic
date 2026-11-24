@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -117,6 +118,11 @@ class Reach(Protocol):
         """The pinned Diabetes 130 archive."""
         ...
 
+    @property
+    def releases(self) -> Mapping[str, Source]:
+        """The pinned ontology release for each concept prefix."""
+        ...
+
 
 def digest(records: pd.DataFrame) -> str:
     """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
@@ -168,6 +174,19 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             return DIABETES_FIELD_ROWS
         case Dataset.DIABETES_CODES:
             return DIABETES_CODES_FIELD_ROWS
+        case _:
+            assert_never(dataset)
+
+
+def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
+    """The pinned ontology release for each concept prefix `dataset`'s field rows may name.
+
+    Every dataset reads the context's releases, HP and MONDO; a dataset whose rows name another
+    ontology gets its own map here (ADR `research/ontology-mapping-design`).
+    """
+    match dataset:
+        case Dataset.UCI | Dataset.SYNTHEA | Dataset.DIABETES | Dataset.DIABETES_CODES:
+            return context.releases
         case _:
             assert_never(dataset)
 

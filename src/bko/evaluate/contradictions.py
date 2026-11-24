@@ -26,9 +26,10 @@ import pandas as pd
 
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
+from bko.datasets.sources import Source
 from bko.datasets.split import split
 from bko.evaluate.context import Context
-from bko.evaluate.data import Dataset, digest, load
+from bko.evaluate.data import Dataset, dataset_releases, digest, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.provenance import log_versions
 from bko.gaps.contradictions import KINDS, Finding, survey
@@ -123,15 +124,16 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
     """
     loaded = [load(dataset, data_dir, context) for dataset in datasets]
     named: list[list[str]] = []
-    for data in loaded:
+    sources: dict[str, Source] = {}
+    for dataset, data in zip(datasets, loaded, strict=True):
+        releases = dataset_releases(dataset, context)
         prefixes = sorted({row.concept.partition(":")[0] for row in data.field_rows})
-        unpinned = [prefix for prefix in prefixes if prefix not in context.releases]
+        unpinned = [prefix for prefix in prefixes if prefix not in releases]
         if unpinned:
             msg = f"the {data.frame.name} frame's rows name no pinned release for the prefix "
             raise EvaluationError(msg + ", ".join(unpinned))
         named.append(prefixes)
-    every = sorted({prefix for prefixes in named for prefix in prefixes})
-    sources = {prefix: context.releases[prefix] for prefix in every}
+        sources |= {prefix: releases[prefix] for prefix in prefixes}
     ontologies = load_releases(sources, data_dir, open_url=context.open_url)
     return [
         Framed(
