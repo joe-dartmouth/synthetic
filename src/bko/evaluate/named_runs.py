@@ -300,9 +300,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 """Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, the
 Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM-only full runs
 `e10-pram-*`, the control runs `e12-*` and `e13`, TableShift's `p1-id` and `p1-ood`, and
-SynthEval's `p2`, each family's experiment
-saying what it is. A variant adds its own entry in its own change, with its arms, candidate,
-comparators and ceiling."""
+SynthEval's `p2`, each family's experiment saying what it is. A variant adds its own entry in its
+own change, with its arms, candidate, comparators and ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

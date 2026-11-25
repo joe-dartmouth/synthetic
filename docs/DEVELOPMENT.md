@@ -247,8 +247,9 @@ arm fits:
 
 The no-mapping direct arm `bko-nomap` draws as `bko-direct` does with an empty mapping table (ADR
 [`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)); the control runs
-`e12-thin`, `e12-empty` and `e13` hold it. Its `direct` and `fallback` lines read ` mapped=false presence=shares`, its `arm` line's
-params add `"mapped": false`, and its `direct arm=` line ends in `fallback_draws=%d`.
+`e12-thin`, `e12-empty` and `e13` hold it. Its `direct` and `fallback` lines read
+` mapped=false presence=shares`, its `arm` line's params add `"mapped": false`, and its
+`direct arm=` line ends in `fallback_draws=%d`.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -955,8 +956,8 @@ start or the supervisor cannot run.
   `bko-nomap`, `label-bootstrap` and `prior-shift`, the candidate `bko-direct` and no replica) and
   their slices `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, sliced as E6's are,
   and `e13` (`E13`: `E3` with those arms and `bko-logic`, the candidate `bko-direct`, no replica and
-  a $1.00 ceiling that no arm's call reaches); `docs/EVIDENCE.md`, E12 and E13. It holds P1's runs, `p1-id` on
-  `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them. It
+  holds P1's runs, `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
   candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
