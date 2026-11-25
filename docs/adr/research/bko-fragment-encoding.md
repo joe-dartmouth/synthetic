@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-17
-updated: 2026-11-05
+updated: 2026-11-25
 ---
 # Ontology classes become single-state BKB components joined by is_a and exactMatch S-nodes
 
@@ -104,5 +104,5 @@ axiom**; the check is a search of `tasks/` for one.
 - [A dataset gap is an ungrounded BKO statement](bko-formal-gap-definition.md)
 - [The BKB layer is pybkb's core, ported under GPL-3.0 and checked against pybkb's own results](bkb-layer-source.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
-- [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)
+- [Each stage keeps a data contradiction and reports it; only an ablation arm forces the ontology onto the data](data-contradiction-handling.md)
 - [src layout](../tooling/src-layout.md)

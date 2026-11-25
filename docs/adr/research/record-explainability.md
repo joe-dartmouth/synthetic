@@ -46,6 +46,10 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * `bko-tree`: as `bko-direct` for every concept no tree field reads, then, per tree field, its
      drawn leaf with each level's counts, weight, conditional and share (ADR
      `research/ancestor-shrunk-shares`); the field names its source training record id.
+   * `bko-hier-0`, `bko-hier-w` and `bko-hier-closed`: as `bko-direct`, and each broad concept of
+     an `is_a` pair adds its pair parts: the narrow concept it is drawn given, the weighted counts
+     of records showing both and showing the narrow one, the pseudo-count, the conditional, the
+     complement and whether its clamp fired (ADR `research/bkb-direct-generation`, Decision 12).
    * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when

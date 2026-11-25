@@ -1,8 +1,9 @@
 """The direct-method study's runs: the control runs on E6's and E3's frames, and its variants.
 
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
-`bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, and `E15_THIN` and `E15_EMPTY`
-`bko-tree`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E15).
+`bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
+and `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms. `bko.evaluate.named_runs.RUNS` names
+them (`docs/EVIDENCE.md`, E12 to E16).
 """
 
 from __future__ import annotations
@@ -11,7 +12,16 @@ from dataclasses import replace
 from typing import Final
 
 from bko.baselines.request import Method
-from bko.evaluate.direct_arms import CAPPED_ARM, DIRECT_ARM, LOGIC_ARM, NOMAP_ARM, TREE_ARM
+from bko.evaluate.direct_arms import (
+    CAPPED_ARM,
+    DIRECT_ARM,
+    HIER_0_ARM,
+    HIER_CLOSED_ARM,
+    HIER_W_ARM,
+    LOGIC_ARM,
+    NOMAP_ARM,
+    TREE_ARM,
+)
 from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_run import BAYES_NET, E3
 from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
@@ -85,3 +95,17 @@ E15_THIN, E15_EMPTY = (
 place of `bko-logic` as the candidate, and no replica (ADR `research/ancestor-shrunk-shares`).
 `bko.evaluate.named_runs.RUNS` scores them on `diabetes-codes`. No arm calls the API, so the
 ceiling is inert."""
+
+
+E16_THIN, E16_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, HIER_0_ARM, HIER_W_ARM, HIER_CLOSED_ARM),
+        candidate=HIER_W_ARM,
+        comparators=(DIRECT_ARM, HIER_0_ARM, "none"),
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E16's runs: `E9_THIN` and `E9_EMPTY` with the three `bko-hier` arms in place of `bko-logic`,
+`bko-hier-w` the candidate against `bko-direct`, `bko-hier-0` and `none`, and no replica (ADR
+`research/bkb-direct-generation`, Decision 12). No arm calls the API, so the ceiling is inert."""

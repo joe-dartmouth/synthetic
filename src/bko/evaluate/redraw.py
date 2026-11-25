@@ -4,7 +4,8 @@
 `bko.evaluate.attempts.Attempt` as `bko.evaluate.direct.DirectArm` does, so its rows are the fill's
 rows byte for byte when the code and the data are the run's. `Shares` holds each asked cell's
 records and its label group's, from which `concept_facts` reads one concept's share, its parts,
-its S-nodes and its label. `TreeShares` reads a `bko-tree` draw's tree fields instead, through the
+its S-nodes and its label, and, given the draw's `bko.generate.hierarchy.Hierarchy`, each broad
+concept's `PairPart`. `TreeShares` reads a `bko-tree` draw's tree fields instead, through the
 draw's own `bko.generate.tree_draw.TreeDraw`: each drawn leaf's parts at every level of its tree
 (ADR `research/ancestor-shrunk-shares`).
 `bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read them (ADR
@@ -31,6 +32,7 @@ from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
 from bko.generate.donors import _records, cell_records, members
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.hierarchy import Hierarchy
 from bko.generate.tree import TOP, column_trees, leaf_concept
 from bko.generate.tree_draw import Placed, TreeDraw
 from bko.ontology.fragments import INDIVIDUAL
@@ -99,27 +101,47 @@ class Shares:
         *,
         data: Data,
         ontologies: Mapping[str, Ontology],
+        hierarchy: Hierarchy | None = None,
     ) -> None:
-        """Observe `train`'s cells and the label groups of `cells`.
+        """Observe `train`'s cells and the label groups of `cells`, counting `hierarchy`'s pairs.
 
         Raises:
             GapError: As `record_cells` and `label_group`.
         """
         rows, frame = data.field_rows, data.frame
-        self._cells = record_cells(train, rows, name=data.name, edges=frame.edges).each
+        pairs = () if hierarchy is None else hierarchy.pairs
+        self._cells = record_cells(train, rows, name=data.name, edges=frame.edges, pairs=pairs).each
         self._groups = {
-            label: label_group(train, label, rows, name=data.name, frame=frame)
+            label: label_group(train, label, rows, name=data.name, frame=frame, pairs=pairs)
             for label in {int(cell[2]) for cell in cells}
         }
         self._ontologies = ontologies
+        self._hierarchy = hierarchy
 
     def concepts(self, draw: Draw) -> tuple[Json, ...]:
-        """`concept_facts` of every mapped concept at `draw`'s cell, in sorted order."""
+        """`concept_facts` of every mapped concept at `draw`'s cell, in sorted order.
+
+        Given a hierarchy, a broad concept's facts add `hierarchy`, its `PairPart` at the cell
+        (`Hierarchy.at`, as the draw reads it).
+        """
         records, group = self._cells[draw.cell], self._groups[int(draw.cell[2])]
-        return tuple(
-            concept_facts(concept, part, draw.concepts, records.observed, group, self._ontologies)
-            for concept, part in share_parts(records, group).items()
+        parts = share_parts(records, group)
+        pairs = (
+            {}
+            if self._hierarchy is None
+            else self._hierarchy.at(
+                records.observed, group, {concept: part.share for concept, part in parts.items()}
+            )
         )
+        facts = []
+        for concept, part in parts.items():
+            fact = concept_facts(
+                concept, part, draw.concepts, records.observed, group, self._ontologies
+            )
+            if concept in pairs:
+                fact = {**fact, "hierarchy": dataclasses.asdict(pairs[concept])}
+            facts.append(fact)
+        return tuple(facts)
 
 
 class TreeShares:

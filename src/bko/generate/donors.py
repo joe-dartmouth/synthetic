@@ -171,14 +171,24 @@ class _Limits:
 
 
 def label_group(
-    train: pd.DataFrame, label: int, rows: Sequence[FieldMapping], *, name: str, frame: FrameSpec
+    train: pd.DataFrame,
+    label: int,
+    rows: Sequence[FieldMapping],
+    *,
+    name: str,
+    frame: FrameSpec,
+    pairs: Sequence[tuple[str, str]] = (),
 ) -> Observed:
     """The training records of `label`, observed as the label group whose prior a share reads.
+
+    `pairs` are counted as `observe_records` counts them.
 
     Raises:
         GapError: As `observe_records`.
     """
-    return _observe_group(members(train, label, frame), label, rows, name=name, frame=frame)
+    return _observe_group(
+        members(train, label, frame), label, rows, name=name, frame=frame, pairs=pairs
+    )
 
 
 def members(train: pd.DataFrame, label: int, frame: FrameSpec) -> pd.DataFrame:
@@ -202,9 +212,10 @@ def _observe_group(
     *,
     name: str,
     frame: FrameSpec,
+    pairs: Sequence[tuple[str, str]] = (),
 ) -> Observed:
     """`members`, the training records of `label`, observed under the label group's name."""
-    return observe_records(members, rows, name=f"{name}/{frame.label}={label}")
+    return observe_records(members, rows, name=f"{name}/{frame.label}={label}", pairs=pairs)
 
 
 def _label_groups(
@@ -214,11 +225,12 @@ def _label_groups(
     rows: Sequence[FieldMapping],
     name: str,
     frame: FrameSpec,
+    pairs: Sequence[tuple[str, str]] = (),
 ) -> dict[int, _Group]:
     groups: dict[int, _Group] = {}
     for label in sorted(labels):
         group = members(train, label, frame)
-        observed = _observe_group(group, label, rows, name=name, frame=frame)
+        observed = _observe_group(group, label, rows, name=name, frame=frame, pairs=pairs)
         bands = [str(band) for band in keys.loc[group.index, keys.columns[0]]]
         groups[label] = _Group(observed, _records(group, frame), bands)
     return groups

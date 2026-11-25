@@ -7,8 +7,9 @@ line's sha256 and its kept draws are the candidates file's kept lines. Each reco
 request's cell and quota, the training record each field was read from, its fallback fields and
 its closure, and its concepts: for a draw at shares each one's share with its parts and S-nodes,
 for a logic-only draw each one of its closed draw (`closed_facts`), for a tree draw each tree
-field's leaf with its parts at every level (`bko.evaluate.redraw.TreeShares`), and for a draw
-without the mapping table none; labels come from the pinned releases (ADR
+field's leaf with its parts at every level (`bko.evaluate.redraw.TreeShares`), for a conditional
+`is_a` draw each broad concept's pair parts beside its share, and for a draw without the mapping
+table none; labels come from the pinned releases (ADR
 `research/record-explainability`).
 """
 
@@ -30,7 +31,7 @@ from bko.evaluate.holdout_candidates import Candidate
 from bko.evaluate.redraw import Shares, TreeShares, redraw
 from bko.evaluate.run_folder import fields
 from bko.evaluate.trace_lines import Fill, Trace, drawn_trace, kept_lines, log_arm, ordered
-from bko.generate.direct import Draw, logic_components
+from bko.generate.direct import Draw, logic_components, plan_hierarchy
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.presence import Presence
 from bko.ontology.terms import Ontology
@@ -51,7 +52,9 @@ def trace_direct(
     The fill is re-drawn at its arm's spec (`DIRECT_ARMS`). A `Presence.SHARES` record's
     concepts are its share facts (`bko.evaluate.redraw.Shares`); a `Presence.LOGIC` record's are
     its closed draw (`closed_facts`), since a logic-only draw reads no share; a tree draw's are
-    `TreeShares`'; a record drawn without the mapping table has none.
+    `TreeShares`'; a conditional `is_a` draw's are its share facts with each broad concept's
+    pair parts (`bko.generate.hierarchy.PairPart`); a record drawn without the mapping table has
+    none.
 
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object or a spec field it logs
@@ -84,7 +87,10 @@ def trace_direct(
     elif spec.tree:
         concepts = TreeShares(train, seeded.quota, data=data, ontologies=ontologies).concepts
     elif spec.presence is Presence.SHARES:
-        concepts = Shares(train, seeded.quota, data=data, ontologies=ontologies).concepts
+        hierarchy = plan_hierarchy(data.field_rows, ontologies, data.frame, spec)
+        concepts = Shares(
+            train, seeded.quota, data=data, ontologies=ontologies, hierarchy=hierarchy
+        ).concepts
     else:
         concepts = partial(closed_facts, ontologies=ontologies)
     where = f"holdout {fill.holdout}'s {fill.arm} fill"
