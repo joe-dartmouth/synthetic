@@ -1,8 +1,9 @@
-"""Pytest configuration: the opt-ins, the skip floor, the paid guard and the logging guard."""
+"""Pytest configuration: the opt-ins, the skip floor and the paid, logging and network guards."""
 
 from __future__ import annotations
 
 import logging
+import socket
 import warnings
 from collections.abc import Iterator
 from typing import Any, Final, NamedTuple, NoReturn, Protocol, TextIO
@@ -327,6 +328,38 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
     if changed:
         pytest.fail(f"{LOGGING_CHANGED} {'; '.join(changed)}", pytrace=False)
     return result
+
+
+OFFLINE_MODULES: Final = "test_slm_"
+"""The prefix of the test modules no socket connects in: `bko.slm`'s, which load `transformers`."""
+
+NETWORK_REFUSAL: Final = "a `bko.slm` test reached the network"
+"""The error a socket connection in an offline module meets."""
+
+
+def _refuse_connect(*_: object) -> NoReturn:
+    raise AssertionError(NETWORK_REFUSAL)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None) -> Iterator[object]:
+    """Refuse every socket connection, fixtures included, in a test of an offline module.
+
+    An offline module's name starts with `OFFLINE_MODULES`.
+
+    Args:
+        item: The test about to run its setup, call and teardown.
+        nextitem: The next test, unused.
+
+    Yields:
+        Control to the test's whole protocol.
+    """
+    del nextitem
+    if not item.path.name.startswith(OFFLINE_MODULES):
+        return (yield)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(socket.socket, "connect", _refuse_connect)
+        return (yield)
 
 
 @pytest.hookimpl(wrapper=True)

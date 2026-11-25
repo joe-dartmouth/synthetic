@@ -7,12 +7,13 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
-and `app` extras from the lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`,
+`app` and `slm` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
   `synth` (sdv, imbalanced-learn, scikit-learn, torch), `eval` (scikit-learn, sdmetrics, scipy),
-  `ontology` (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`.
+  `ontology` (pronto), `llm` (anthropic), `app` (streamlit) and `slm` (transformers, peft,
+  tokenizers, safetensors, accelerate, torch) are installed by `make setup`.
   `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
   [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
   `make sync` installs every extra.
@@ -1833,6 +1834,42 @@ guidance=None`.
 
       uv run --no-sync pytest tests/test_fusion_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+## Language-model classifier
+
+`bko.slm` ([README](../src/bko/slm/README.md)) fine-tunes a LoRA adapter on the pinned OLMo 3 7B
+base model as a classifier of one arm's training set, and scores each test record's P(yes) (ADR
+[`research/slm-comparison-design`](adr/research/slm-comparison-design.md) holds the design, ADR
+[`tooling/slm-extra`](adr/tooling/slm-extra.md) the stack and the base model). It makes no API
+call, and the gate does not run it: the gate's tests use a tiny randomly initialised model.
+Inside `.venv`:
+
+    uv run --no-sync python -m bko.slm fetch
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/slm.log && caffeinate -i -s uv run --no-sync python -m bko.slm train <run> --folder runs/<folder-id> --rows runs/<folder-id>-rows/rows.jsonl --holdout <h> --arm <arm> 2> runs/<run-id>/slm.log </dev/null
+    mkdir -p runs/<run-id>-score && test ! -e runs/<run-id>-score/slm-probabilities.csv && test ! -e runs/<run-id>-score/slm.log && caffeinate -i -s uv run --no-sync python -m bko.slm score <run> --folder runs/<folder-id> --rows runs/<folder-id>-rows/rows.jsonl --holdout <h> (--arm <arm> | --base) > runs/<run-id>-score/slm-probabilities.csv 2> runs/<run-id>-score/slm.log </dev/null
+
+- **`fetch`** downloads each pinned file of `bko.slm.weights.OLMO_3_7B` at its revision into
+  `data/models/olmo-3-1025-7b/<revision[:16]>/`, through a `.part` file renamed only once its
+  size and sha256 match, and verifies a file already present.
+- **`train`** reads the folder and its `rows` store, bound as `rows` binds them, and prepares the
+  holdout as the run did. The training set is the prepared training split for `none`, the
+  un-ablated split for `real`, and the split plus the arm's stored fill for any other arm; a run
+  whose experiment decontaminates is refused, since the test split is scored whole. It verifies
+  every weight file's sha256 before the load, loads the model in BF16 on MPS, and writes the
+  adapter to `data/models/slm-adapters/<folder-id>/<h>-<arm>/`, refusing a path that exists:
+  `adapter_config.json`, `adapter_model.safetensors` and `adapter_meta.json`, which names the
+  run, folder, store sha256, holdout, arm and base revision. An adapter stays on the machine. Its log holds the `versions` line, a `step` line per
+  optimizer step, a `train seconds=` line and the `adapter` line with the adapter's sha256.
+- **`score`** writes `record_id,probability` for every test record of the holdout, from the
+  adapter of `--arm` or the base model with `--base`, and logs each `utility` measure with the
+  calibration measures, then `probabilities rows=<n> sha256=<sha>`. It refuses an adapter
+  directory holding any other file, or whose meta differs from its own arguments.
+- **Power**: a fine-tune runs for hours. Check that `pmset -g batt | head -1` names AC Power
+  first; `caffeinate -i -s` keeps the machine awake on AC power.
+- **Exit codes**: 0 done; 1 an unexpected error; 2 the command could not run (no MPS, an absent
+  model directory, a failed download, an adapter path that exists or is absent, any other
+  `OSError`); 3 a file or a record contradicts its pin or contract (a weight file's sha256, a
+  stored fill's identity or its absence, an adapter directory's files or meta).
+
 ## Runs
 
 A run of record keeps its artifacts in its own folder, `runs/<run-id>/` at the repository root,
@@ -1883,6 +1920,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `hierarchy.log` | its stderr |
 | `training.csv` | the augmented training set of an app fill |
 | `pytest` | a `live` test's `--basetemp` directory |
+| `slm-probabilities.csv` | `python -m bko.slm score`'s stdout |
+| `slm.log` | `python -m bko.slm train` or `score`'s stderr |
 
 The commands in [Evaluation](#evaluation), [Generation](#generation) and
 [Gap closure](#gap-closure) write their folders. A free run of record writes its folder with one of:
@@ -2034,7 +2073,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`, `app` and `slm` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |
@@ -2111,6 +2150,9 @@ A targeted run while working:
   the state as each test's setup starts and compares it after its teardown, then restores it. A
   logger created during the test compares against `NOTSET`. A test that calls `configure`
   restores the state itself or stubs it.
+- **No `bko.slm` test connects a socket.** `tests/conftest.py` patches `socket.socket.connect` to
+  raise its `NETWORK_REFUSAL` for each test, fixtures included, of a module named `test_slm_*`,
+  so a load that would reach the Hugging Face Hub fails the test.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

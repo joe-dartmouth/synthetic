@@ -44,7 +44,7 @@ rows, and the TabDDPM baseline.
 **Out.**
 
 - The LoRA classifier at each share: unit [`slm-lora-results`](slm-lora-results.md), at the mixes
-  the trainer's ADR allows.
+  ADR [`research/slm-comparison-design`](../docs/adr/research/slm-comparison-design.md) allows.
 
 ## Acceptance
 

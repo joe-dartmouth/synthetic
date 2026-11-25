@@ -10,7 +10,11 @@ is scheduled through that unit, which makes the change in its own PR.
 
 **What it is.** If the team is ahead of schedule, distill a small model on the best synthetic data
 and show that it narrows the gap to a frontier LLM on one narrow, self-defined task (brief F15,
-bullet 4 of the original project description).
+bullet 4 of the original project description). The study fine-tunes a language model as a
+classifier of each arm's records (ADR
+[`research/slm-comparison-design`](adr/research/slm-comparison-design.md)); what this entry holds
+is what that design leaves out: a distilled model compared with a frontier one, and the medical
+benchmarks below.
 
 **Why it is not in the plan.** The 2-pager has no distillation thrust. The brief rates it high risk:
 the tabular comparison and the distillation each "is a full project", and the engineering and
@@ -83,7 +87,8 @@ most of the gap to a frontier model at a fraction of cost."
 **Sources.** Brief TL;DR, C7, C8, C9, F15 (bullet 4 and the stretch-goal recommendation), Caveats.
 Works: [Small-model distillation and benchmarks](literature.md#small-model-distillation-and-benchmarks).
 
-The unit [`slm-lora-trainer`](../tasks/slm-lora-trainer.md) schedules a narrowed form of it.
+ADR [`research/slm-comparison-design`](adr/research/slm-comparison-design.md) fixes the narrowed
+form the study runs.
 
 ## Track B agentic gap-filling copilot
 

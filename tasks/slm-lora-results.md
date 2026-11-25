@@ -2,12 +2,12 @@
 id: slm-lora-results
 title: Run the LoRA comparison of the arms on E6's frame
 status: blocked
-depends_on: evaluate-composite-dev-results, slm-lora-trainer
+depends_on: evaluate-composite-dev-results, slm-lora-day-budget
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/slm-comparison-design, tooling/slm-extra
 ---
 
 # Run the LoRA comparison of the arms on E6's frame
@@ -24,7 +24,8 @@ Whether the differences between generators survive in a fine-tuned language mode
 
 - The run on E6's frame
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)), under the design
-  of unit [`slm-lora-trainer`](slm-lora-trainer.md), with these arms:
+  of ADR [`research/slm-comparison-design`](../docs/adr/research/slm-comparison-design.md), with
+  these arms:
   - the confirmatory candidate that unit
     [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) names;
   - `bko-direct`, `label-bootstrap`, `ctgan`, `tabddpm` and `smote`;

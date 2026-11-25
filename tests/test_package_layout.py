@@ -26,6 +26,7 @@ SUBPACKAGES = (
     "fusion",
     "baselines",
     "evaluate",
+    "slm",
     "app",
 )
 PACKAGE_ROOT = REPO_ROOT / "src" / "bko"

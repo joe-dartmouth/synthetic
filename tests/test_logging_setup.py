@@ -159,6 +159,7 @@ def test_the_configuring_modules_are_exactly_these():
         "bko.generate.__main__",
         "bko.generate.local",
         "bko.ontology.__main__",
+        "bko.slm.__main__",
     ]
 
 
