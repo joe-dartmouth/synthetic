@@ -53,7 +53,7 @@ extra exited 0, building only the project itself, and MPS was available.
   [`docs/EVIDENCE.md`](../../EVIDENCE.md) records none.
 - The run's logs are kept outside the repository; the serialized rows, the adapter, its
   checkpoints and the weights, which were fitted on or derived from patient records or are
-  re-fetchable by the hashes below, were deleted after the run on 2026-11-24.
+  re-fetchable by their pinned hashes, were deleted after the run on 2026-11-24.
 
 ## Decision Drivers
 
@@ -72,21 +72,9 @@ already locked. We fine-tune
 **`allenai/Olmo-3-1025-7B` at revision `a81bae42db3975be1671e27b9c9a56da1a9f980f`**: Apache-2.0
 (its model card, read at that revision on 2026-11-24), trained on the Dolma 3 mixes its card
 links, which the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0 (read the same day),
-loaded from these files only:
-
-| File | Bytes | sha256 |
-|---|---|---|
-| `config.json` | 1620 | `277d7ea5c6159d4c2d6986a8a23757d1ef06acaa7abc2c40e0513446f7db0f85` |
-| `generation_config.json` | 69 | `52e8c2bef1d50a9aa99ce1da2a586ec40f524c1eded9c9ece289f3146b909ded` |
-| `merges.txt` | 916646 | `b6fe424e334903f7fb84d3a106d9730455f4744b9fe3c21ee136d97a00e72502` |
-| `model-00001-of-00003.safetensors` | 4969984976 | `0490d6668e613a29b23367e3a7aa9cc6aced3d162694445bb969ed7622b3c4e2` |
-| `model-00002-of-00003.safetensors` | 4981161496 | `e127ea479fb6e208fe9d48d23b11212b5722f4873f6eef9c009b7a855866c641` |
-| `model-00003-of-00003.safetensors` | 4644917240 | `f3ddff10052ffe5de5c6b4cad45c422c0d898acc6beb21b1b8531244adfb3c70` |
-| `model.safetensors.index.json` | 29630 | `47a8266860f2a5f95c021fb4d7d3a469a95ee8b445742becbb6b19632cfc6e95` |
-| `special_tokens_map.json` | 207 | `4cb2b52960bababa8ec27153831e405ef7811e3fad1226106e09c28e715cfb21` |
-| `tokenizer_config.json` | 4308 | `ffa5b2cfee6e73d5dc0a7d3b7e02eb6ed60a491dd782f2bd8ad2b4659b2aafc6` |
-| `tokenizer.json` | 7137177 | `73fd5254624f39a88e3faac6a8e11300fc3c735ed37880d4f4f08db898eaecca` |
-| `vocab.json` | 1611056 | `9e14712c91b37c7aab74b1306baa46ac342d620637a4b44523cdc3aec7d24195` |
+loaded only from the files `bko.slm.weights.OLMO_3_7B` pins by size and sha256 (read from the
+repository at that revision on 2026-11-24), only as safetensors and only after every file
+verifies.
 
 ## Rationale
 
@@ -119,7 +107,9 @@ few fine-tunes; every clone that runs `make setup` downloads the stack.
 ## Enforcement
 
 - Owner: `pyproject.toml`
-- Pinned by: `tests/test_repo_gate.py`, which asserts `make setup` installs the `slm` extra
+- Pinned by: `tests/test_repo_gate.py`, which asserts `make setup` installs the `slm` extra;
+  `tests/test_slm_weights.py`, which refuses a file whose sha256 differs before the loader runs,
+  a file outside the pin and a pickle format, and holds every URL to the pinned revision
 
 ## Reversal Conditions
 

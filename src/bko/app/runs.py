@@ -56,6 +56,8 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "hierarchy.log": "its stderr",
         "training.csv": "the augmented training set of an app fill",
         "pytest": "a `live` test's `--basetemp` directory",
+        "slm-probabilities.csv": "`python -m bko.slm score`'s stdout",
+        "slm.log": "`python -m bko.slm train` or `score`'s stderr",
     }
 )
 """Each artifact's name in a run folder, in reading order, and what writes it."""

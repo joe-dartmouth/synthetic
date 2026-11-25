@@ -129,6 +129,11 @@ import it (ADR `tooling/agent-config-single-home`).
   verify an on-device model's pinned weights into `data/models/`, print the `llama-server` argv
   that serves it on `127.0.0.1`, or probe the running server with one call. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation), Local models).
+- `uv run --no-sync python -m bko.slm {fetch,train,score}`: fetch and verify the pinned OLMo 3 7B
+  weights, fine-tune a LoRA adapter on one arm's training set at one holdout of a recorded run,
+  or score its test records' P(yes) into `slm-probabilities.csv`. It makes no API call, runs on
+  MPS for hours, and keeps every adapter under `data/models/`
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#language-model-classifier)).
 - `uv run --no-sync python -m bko.fusion runs/<run-id>/candidates.jsonl`: read a completeness run's
   candidates, join the ones that pass validation to the training records of their cell, and list
   what closed, stayed open and is new under each BKO gap definition. It makes no API call

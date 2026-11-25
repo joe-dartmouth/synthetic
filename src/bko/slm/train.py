@@ -238,8 +238,8 @@ def _fit(
     *,
     settings: LoraSettings,
     device: torch.device,
-) -> None:
-    """Run every optimizer step of the fine-tune on `fitted`, logging each."""
+) -> float:
+    """Run every optimizer step of the fine-tune on `fitted`, logging each; return the last loss."""
     total = len(batches) * settings.epochs
     trainable = [parameter for parameter in fitted.parameters() if parameter.requires_grad]
     optimizer = torch.optim.AdamW(trainable, lr=settings.learning_rate)
@@ -247,7 +247,7 @@ def _fit(
         optimizer, math.ceil(settings.warmup_share * total), total
     )
     fitted.train()
-    step = 0
+    step, last = 0, math.nan
     for _ in range(settings.epochs):
         for batch in batches:
             started = time.perf_counter()
@@ -260,15 +260,17 @@ def _fit(
             schedule.step()
             optimizer.zero_grad(set_to_none=True)
             step += 1
+            last = float(loss.detach())
             logger.info(
                 "step=%d of=%d loss=%.6f lr=%.3e seconds=%.3f",
                 step,
                 total,
-                float(loss.detach()),
+                last,
                 rate,
                 time.perf_counter() - started,
             )
     fitted.eval()
+    return last
 
 
 def train(
@@ -282,7 +284,8 @@ def train(
     """Fit a LoRA adapter on `model` to answer each example's prompt with its answer.
 
     The base weights stay frozen. Rows run in `order`, `settings.micro_batch` per AdamW step;
-    the rate rises linearly over the warmup steps, then falls linearly to zero.
+    the rate rises linearly over the warmup steps, then falls linearly to zero. Each step logs
+    `step=`, and the fit closes with `train seconds=%.1f seconds_per_row=%.4f final_loss=%.6f`.
 
     Raises:
         ContractError: If there is no example, or a row is not its prompt plus one answer id.
@@ -303,11 +306,19 @@ def train(
         target_modules=settings.target_modules,
         task_type="CAUSAL_LM",
     )
+    started = time.perf_counter()
     with _seeded(settings.seed, device):
         # `PreTrainedModel.to` is wrapped in a decorator ty reads as taking the model first.
         cast("torch.nn.Module", model).to(device)
         fitted = get_peft_model(model, config)
-        _fit(fitted, encoded, batches, settings=settings, device=device)
+        final = _fit(fitted, encoded, batches, settings=settings, device=device)
+    seconds = time.perf_counter() - started
+    logger.info(
+        "train seconds=%.1f seconds_per_row=%.4f final_loss=%.6f",
+        seconds,
+        seconds / (len(examples) * settings.epochs),
+        final,
+    )
     return fitted
 
 
