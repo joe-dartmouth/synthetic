@@ -2,24 +2,21 @@
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `bko.evaluate.named_runs` holds every named run built from it. No
-command-line flag changes a value here.
+command-line flag changes a value here. `bko.evaluate.requests` builds the requests, and this
+module re-exports them.
 """
 
 from __future__ import annotations
 
 import enum
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
 
-import pandas as pd
-
-from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
-from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
-from bko.datasets.frames import FrameSpec
-from bko.datasets.split import kept_count
+from bko.baselines.request import SEED_LIMIT, Method, Stratum
+from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.evaluate.direct_arms import (
     COHERENT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
@@ -28,8 +25,14 @@ from bko.evaluate.direct_arms import (
     NOMAP_ARM,  # ruff: ignore[unused-import]  (re-exported)
     PRAM_ARM,  # ruff: ignore[unused-import]  (re-exported)
 )
-from bko.evaluate.errors import EvaluationError
 from bko.evaluate.ranking import over_ask_error
+from bko.evaluate.requests import (
+    _cells,  # ruff: ignore[unused-import]  (re-exported for tests/test_evaluate_frame.py)
+    _short,  # ruff: ignore[unused-import]  (re-exported for tests/test_evaluate_frame.py)
+    flagged,  # ruff: ignore[unused-import]  (re-exported)
+    gap_request,  # ruff: ignore[unused-import]  (re-exported)
+    replica_request,  # ruff: ignore[unused-import]  (re-exported)
+)
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
 
@@ -392,68 +395,3 @@ PERTURBED_ARM: Final = "bko-direct-perturbed"
 
 PAID_ARMS: Final = frozenset({*MESSAGES_ARMS, PERTURBED_ARM})
 """Every arm that calls the Messages API: a run holding one needs a call log and may spend."""
-
-
-def flagged(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
-) -> tuple[Stratum, ...]:
-    """The cells under `edges` holding fewer than `experiment.threshold` records, in grid order."""
-    return tuple(_short(train, experiment, edges=edges))
-
-
-def gap_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
-) -> Request:
-    """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
-
-    A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
-    further.
-
-    Raises:
-        EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
-    """
-    quota = _short(train, experiment, edges=frame.edges)
-    if not quota:
-        msg = f"no cell holds fewer than {experiment.threshold} training records; nothing to fill"
-        raise EvaluationError(msg)
-    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
-
-
-def replica_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
-) -> Request:
-    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells.
-
-    With `experiment.replica_rows` set, each cell asks for its `kept_count` at the share
-    `replica_rows / len(train)`, so the cap is split across cells in proportion and the rounded
-    cells may sum to a few rows off it; a cap above the training rows asks more rows than they
-    hold, at the same share.
-    """
-    quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
-    if experiment.replica_rows is not None:
-        share = Fraction(experiment.replica_rows, len(train))
-        quota = {cell: kept_count(count, share) for cell, count in quota.items()}
-    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
-
-
-def _short(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
-) -> dict[Stratum, int]:
-    return {
-        cell: experiment.fill_to - count
-        for cell, count, short in _cells(train, experiment.threshold, edges=edges)
-        if short
-    }
-
-
-def _cells(
-    train: pd.DataFrame,
-    below: int = UNDERREPRESENTED_BELOW,
-    *,
-    edges: Sequence[int],
-) -> list[tuple[Stratum, int, bool]]:
-    counts = cell_counts(train, edges=edges, below=below)
-    return [
-        ((str(band), str(sex), int(label)), int(count), bool(short))
-        for band, sex, label, count, short in counts.itertuples(index=False)
-    ]
