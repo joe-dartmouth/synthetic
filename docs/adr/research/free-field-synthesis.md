@@ -86,9 +86,20 @@ donors, which donor reuse reads.
 
 ## Enforcement
 
-- Owner: `src/bko/baselines/classical.py`, `src/bko/evaluate/direct.py`
+- Owner: `src/bko/evaluate/coherent.py` with the draw in `src/bko/baselines/conditional.py` and
+  `src/bko/baselines/classical.py`, `src/bko/evaluate/direct.py`,
+  `src/bko/evaluate/direct_arms.py`, `src/bko/evaluate/trace_perturb.py`,
+  `src/bko/evaluate/donor_attacks.py`, `src/bko/evaluate/attribution.py`,
+  `src/bko/evaluate/runs_direct.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
-  `tests/test_generate_imports.py` (`bko.generate` imports no `bko.baselines`)
+  `tests/test_generate_imports.py` (`bko.generate` imports no `bko.baselines`),
+  `tests/test_baselines_cart_digest.py` (`cart`'s fills unchanged by the shared leaf draw),
+  `tests/test_baselines_conditional.py` (same-leaf donors, given columns kept, determinism and
+  the refusals), `tests/test_evaluate_coherent.py` (the arm's params and pinned fill, the mapped
+  fields and label equal to `bko-direct`'s, its lines and log lines, the trace's leaf donors and
+  its refusal, the attribution class, donor reuse and E17's runs),
+  `tests/test_evaluate_coherent_pinned.py` (a fill of E6's cell completes at both fractions on
+  the pinned data, run with `--releases`)
 
 ## Reversal Conditions
 
