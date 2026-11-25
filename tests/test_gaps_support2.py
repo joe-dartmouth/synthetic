@@ -148,3 +148,11 @@ def test_the_parser_offers_each_catalog_name() -> None:
     with pytest.raises(SystemExit) as stopped:
         main(["--help"], context=make_context(), out=io.StringIO())
     assert stopped.value.code == 0
+
+
+@pytest.mark.parametrize("name", ["uci", "synthea", "first-flag"])
+def test_a_catalog_entry_may_not_take_a_fixed_commands_name(name: str) -> None:
+    entry = dataclasses.replace(CATALOG["support2"], name=name)
+    context = make_context(catalog={name: entry})
+    with pytest.raises(ValueError, match=f"^catalog entry {name} takes the name of the fixed gaps"):
+        main([name], context=context, out=io.StringIO())

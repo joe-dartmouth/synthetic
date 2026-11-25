@@ -246,8 +246,7 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
         ):
             return context.releases
         case Dataset.SUPPORT2:
-            own = context.catalog[dataset.value].releases
-            return context.releases if own is None else own
+            return context.catalog[dataset.value].resolved_releases(context.releases)
         case _:
             assert_never(dataset)
 

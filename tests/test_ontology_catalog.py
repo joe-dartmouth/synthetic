@@ -70,3 +70,11 @@ def test_an_entry_with_no_source_or_mixed_agreements_is_refused() -> None:
     with pytest.raises(ValueError, match="different agreements"):
         dataclasses.replace(entry, sources=(PIN, held))
     assert dataclasses.replace(entry, sources=(held,)).agreement == Agreement("dua")
+
+
+def test_resolved_releases_are_the_entrys_own_else_the_default() -> None:
+    default = {"HP": dataclasses.replace(PIN, name="hpo")}
+    own = {"MONDO": dataclasses.replace(PIN, name="mondo")}
+    entry = CATALOG["support2"]
+    assert entry.resolved_releases(default) is default
+    assert dataclasses.replace(entry, releases=own).resolved_releases(default) is own

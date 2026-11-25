@@ -68,6 +68,8 @@ from bko.ontology.terms import Ontology
 
 logger = logging.getLogger("bko.gaps")
 
+FIXED_COMMANDS: Final = ("uci", "synthea", "first-flag")
+"""The commands that are not a catalogued dataset's; no catalog entry may take one's name."""
 CLOSED_DETECTORS: Final = frozenset({Definition.SUBGROUP.value, "count"})
 """The detectors that, under a removal of whole patients, put no gap new outside the truth and
 lose none (`bko.gaps.experiment`); a reading of either that does is a defect."""
@@ -130,12 +132,15 @@ def main(
         0 done, 2 the command could not run, a BKB error included, 3 the data contradicts its pin
             or schema or a BKB document is malformed. Any other exception propagates, so the
             process exits 1.
+
+    Raises:
+        ValueError: If a catalog entry takes the name of one of `FIXED_COMMANDS`.
     """
     context = Context() if context is None else context
     args = _parser(context.catalog).parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        fixed = {"uci": _uci, "synthea": _synthea, "first-flag": _first_flag}
+        fixed = dict(zip(FIXED_COMMANDS, (_uci, _synthea, _first_flag), strict=True))
         command = fixed.get(args.command, partial(_catalogued, name=args.command))
         logger.info(
             "data_dir=%s pandas=%s scipy=%s",
@@ -194,6 +199,9 @@ def _parser(catalog: Mapping[str, Catalogued]) -> argparse.ArgumentParser:
         help="find where each detector first flags a truth item as E2's whole ablations thin",
     )
     for name in catalog:
+        if name in FIXED_COMMANDS:
+            msg = f"catalog entry {name} takes the name of the fixed gaps command {name}"
+            raise ValueError(msg)
         commands.add_parser(
             name,
             parents=[common],
@@ -238,7 +246,7 @@ def _catalogued(data_dir: Path, context: Context, *, name: str) -> list[Row]:
     parts = split(records, seed=SPLIT_SEED, edges=spec.edges)
     log_split(parts)
     train = parts.train
-    releases = context.releases if entry.releases is None else entry.releases
+    releases = entry.resolved_releases(context.releases)
     ontologies, fragments = load_scope(
         {row.concept for row in entry.rows}, data_dir, releases=releases, open_url=context.open_url
     )

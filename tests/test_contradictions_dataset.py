@@ -64,6 +64,30 @@ def test_dataset_selects_one_frame(tmp_path: Path, monkeypatch) -> None:
     assert read == [(Dataset.SUPPORT2,), (Dataset.SUPPORT2, Dataset.UCI)]
 
 
+def test_a_repeated_dataset_is_read_once_at_its_first_place(tmp_path: Path, monkeypatch) -> None:
+    read = _recording(monkeypatch)
+    argv = ("--dataset", "support2", "--dataset", "uci", "--dataset", "support2")
+    assert _census(tmp_path, *argv)[0] == 0
+    assert read == [(Dataset.SUPPORT2, Dataset.UCI)]
+
+
+def test_a_dataset_beside_a_run_exits_2_naming_both(tmp_path: Path, monkeypatch, caplog) -> None:
+    read = _recording(monkeypatch)
+    assert _census(tmp_path, "e1", "--dataset", "support2") == (2, "")
+    errors = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors == [
+        (
+            "contradictions --dataset reads the census of the named frames, which takes no run, "
+            "not 'e1'; a run's added rows are read with --rows"
+        )
+    ]
+    assert read == []
+
+
+def test_every_catalog_name_is_a_dataset() -> None:
+    assert {name: Dataset(name) for name in CATALOG} == {"support2": Dataset.SUPPORT2}
+
+
 def test_the_choices_are_the_census_and_the_catalog() -> None:
     assert CHOICES == (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES, Dataset.SUPPORT2)
     assert tuple(CATALOG) == ("support2",)

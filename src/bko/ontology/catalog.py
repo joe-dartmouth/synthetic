@@ -45,7 +45,7 @@ class Catalogued:
         frame: Builds its frame from its records.
         rows: Its field rows.
         releases: The pinned ontology release for each concept prefix its rows name; None reads
-            the command's own releases.
+            the command's own releases (`resolved_releases`).
     """
 
     name: str
@@ -67,6 +67,10 @@ class Catalogued:
         if len({source.agreement for source in self.sources}) != 1:
             msg = f"catalog entry {self.name}: its sources are held under different agreements"
             raise ValueError(msg)
+
+    def resolved_releases(self, default: Mapping[str, Source]) -> Mapping[str, Source]:
+        """The entry's own `releases`, or `default`, a command's own, when it pins none."""
+        return default if self.releases is None else self.releases
 
     @property
     def agreement(self) -> Agreement | None:

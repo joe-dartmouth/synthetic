@@ -1683,8 +1683,9 @@ commands, inside `.venv`:
 
 - **Which frames**: UCI Heart Disease's, Synthea's and Diabetes 130's, in that order, with no
   `--dataset`. A repeatable `--dataset NAME` reads the named frames instead, in the order given:
-  `uci`, `synthea`, `diabetes` or a catalogued dataset such as `support2`. `--dataset` and
-  `--rows` exclude each other.
+  `uci`, `synthea`, `diabetes` or a catalogued dataset such as `support2`; a name given twice is
+  read once, at its first place. `--dataset` and `--rows` exclude each other, and `--dataset`
+  takes no run.
 - **What it needs**: for the default frames, the pinned Synthea population in the data root,
   which `make synthea` generates and the command never does. It fetches UCI Heart Disease,
   Diabetes 130, a named catalogued dataset's archive and the pinned MONDO and HPO releases into
