@@ -1110,7 +1110,8 @@ no rows; a fill with rows but no donation reads `donor-max` 0 and `donor-p95` Na
 direct or perturbation arm it loads the pinned releases of the dataset's mapped concepts, as `trace`
 does, fetching an absent one into the data root, and re-draws each such arm's gap fill at its `arm`
 line's seed to read each row's donors; a perturbation fill's candidate lines are paired with their
-draws as `trace` pairs them. Its `privacy.log` opens with the `versions commit=` line, then `privacy
+draws as `trace` pairs them, and a `bko-coherent` fill's change is re-run so each free field
+donates from its leaf donor. Its `privacy.log` opens with the `versions commit=` line, then `privacy
 run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
 store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the
 bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs, for an arm with rows

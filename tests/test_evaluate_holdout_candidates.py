@@ -420,8 +420,9 @@ def test_a_perturb_on_an_arm_that_perturbs_nothing_is_refused(arm):
 
 
 def test_the_perturbation_arms_are_the_experiments():
-    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM}
+    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM, "bko-coherent"}
     assert PERTURBS[PRAM_ARM] == {"changed", "unchanged"}
+    assert PERTURBS["bko-coherent"] == {"changed", "unchanged"}
 
 
 @pytest.mark.parametrize("outcome", OUTCOMES_MERGED)
