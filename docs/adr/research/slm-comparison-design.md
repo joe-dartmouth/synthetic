@@ -33,7 +33,7 @@ whose training data is published, where HARMONIC's is LLaMA-2-7b-chat.
 
 ## Decision
 
-1. **Serializer.** One prompt template serves training and scoring: one line per feature in the
+1. **Serializer** (`bko.slm.serialize`). One prompt template serves training and scoring: one line per feature in the
    frame's feature order, the feature's description, a colon and its value (a coded value as its
    codebook meaning, a whole value without a decimal point, a fractional value at the frame's
    decimal places), then the frame's question. The answer is ` yes` or ` no`, one token each. A
@@ -43,7 +43,7 @@ whose training data is published, where HARMONIC's is LLaMA-2-7b-chat.
    position.
 4. **Training set per arm.** The training split plus the arm's stored fill. **Controls:** the base
    model with no fine-tune, `none` (the training split alone) and `real` (the un-ablated split).
-5. **LoRA settings.** Rank 16, alpha 32, dropout 0.05, every linear layer; AdamW at torch's
+5. **LoRA settings** (`bko.slm.train.LORA`). Rank 16, alpha 32, dropout 0.05, every linear layer; AdamW at torch's
    defaults and learning rate 2e-4, linear warmup over 3% of the steps then linear decay;
    micro-batch 4; one epoch; seed 0.
 6. **Adapter path.** `data/models/slm-adapters/<run-id>/<holdout>-<arm>/`, under the gitignored
@@ -83,7 +83,10 @@ an adapter path that keeps fitted weights out of the repository and off the netw
 ## Enforcement
 
 - Owner: `docs/adr/tooling/slm-extra.md`
-- Pinned by: `tests/test_repo_gate.py`
+- Pinned by: `tests/test_repo_gate.py`; `tests/test_slm_serialize.py` for the serializer's
+  golden prompt and its training text; `tests/test_slm_train.py` for the answer-only loss, the
+  two-logit P(yes) and the adapter's safetensors file
+- Code: `src/bko/slm/serialize.py`, `src/bko/slm/train.py`
 
 ## Reversal Conditions
 
