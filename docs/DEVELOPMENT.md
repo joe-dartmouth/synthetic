@@ -1079,22 +1079,30 @@ one per draw, or whose lines or stored rows are not their re-draw outside the pe
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
 [`research/syntheval-reading`](adr/research/syntheval-reading.md)), each fill against its
-holdout's training split as the real data and its test split as the holdout data. It needs
-`make syntheval-env` ([Benchmark environments](#benchmark-environments)), runs `rows` first, and
-makes no API call:
+holdout's training split as the real data and the test split the run scored as the holdout data:
+for a run that decontaminates, the split without the records any stored fill of the holdout
+copies. It needs `make syntheval-env` ([Benchmark environments](#benchmark-environments)), runs
+`rows` first, and makes no API call:
 
     mkdir -p runs/<run-id>-syntheval && test ! -e runs/<run-id>-syntheval/syntheval.csv && test ! -e runs/<run-id>-syntheval/syntheval.log && uv run --no-sync python -m bko.evaluate syntheval <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-syntheval/syntheval.csv 2> runs/<run-id>-syntheval/syntheval.log </dev/null
 
 For each fill it writes the real, test and synthetic tables and the metric set into a temporary
-directory, runs `bench/syntheval/score.py` under `bench/syntheval/.venv`, and reads back the metric
-name to value object it writes. The `syntheval.csv` holds one row per holdout, replica fill
-(`<arm>-replica`) and metric SynthEval returns, `holdout,arm,metric,value`, a value SynthEval could
-not compute empty. Its `syntheval.log` opens with the `versions commit=` line and `syntheval
-store=%s sha256=%s`, then logs per fill one `syntheval input holdout=%d arm=%s file=%s sha256=%s`
-line per input file and `syntheval holdout=%d arm=%s rows=%d metrics=%d`, and closes with
-`syntheval rows=%d sha256=%s`, the CSV's rows and sha256. It exits 2 when the environment is absent,
-naming `make syntheval-env`, or when the script exits non-zero, with the last lines of its stderr,
-or writes no metrics; 3 for a folder or store that fails `rows`' identity checks.
+directory, runs `score.py` under the `.venv` of `--bench-dir DIR` (default: this checkout's
+`bench/syntheval/`), seeded with the fill's holdout seed, and reads back the metric name to value
+object it writes. The script gets `PATH`, `HOME`, the locale variables and
+`OMP_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1`, nothing else, and stops at
+`bko.evaluate.syntheval_reading.TIMEOUT_SECONDS`. A reading run from a frozen worktree under
+`PYTHONPATH` passes `--bench-dir <repo>/bench/syntheval`, since the worktree holds no
+environment. The `syntheval.csv` holds one row per holdout, replica fill (`<arm>-replica`) and
+metric SynthEval returns, `holdout,arm,metric,value`, a value SynthEval could not compute or
+returned non-finite empty. Its `syntheval.log` opens with the `versions commit=` line and
+`syntheval store=%s sha256=%s`, then logs per fill `syntheval start holdout=%d arm=%s`, one
+`syntheval input holdout=%d arm=%s file=%s sha256=%s` line per input file and
+`syntheval holdout=%d arm=%s rows=%d metrics=%d`, and closes with `syntheval rows=%d sha256=%s`,
+the CSV's rows and sha256. It exits 2 when the environment is absent, naming
+`make syntheval-env`, when the script exits non-zero, with the last lines of its stdout and
+stderr, runs past its timeout, or writes no metrics; 3 for a folder or store that fails `rows`'
+identity checks, or a holdout or replica arm the folder and store do not hold.
 
 **The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR
@@ -2112,8 +2120,8 @@ subprocess and never imports the tool.
 
 - **What the gate checks**: `make lint` and `make sizes` reach `bench/`; `make typecheck` and
   coverage do not. The gate never imports SynthEval: `tests/test_evaluate_syntheval.py` tests the
-  export, the call and the parsing with a fake runner and parses the script with `ast`, and a PR
-  that changes the script runs `make syntheval-test`.
+  export, the call and the parsing with a fake runner and parses the script with `ast`, its flags
+  against `score_argv`'s, and a PR that changes the script runs `make syntheval-test`.
 
 ## Platforms
 
@@ -2149,8 +2157,8 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `syntheval-test` | `pytest bench/syntheval/tests` | Not part of the gate; needs `make syntheval-env`; runs the SynthEval script's real test ([Benchmark environments](#benchmark-environments)) |
 
 Every step from `lint` down runs as `uv run --no-sync`, except `video-env` and `video`, which run
-in `video/.venv`, and `syntheval-env`, which builds `bench/syntheval/.venv`: the gate measures the environment `make setup` built and never re-locks or
-installs during a run.
+in `video/.venv`, and `syntheval-env`, which builds `bench/syntheval/.venv`: the gate measures the
+environment `make setup` built and never re-locks or installs during a run.
 
 The `check` order puts what invalidates other steps first: a rebase can move `uv.lock`, which
 invalidates `synced`, and a drifted environment makes `lint` and `typecheck` report errors that

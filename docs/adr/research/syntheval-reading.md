@@ -38,34 +38,44 @@ checked against the run's log.
    [`tooling/benchmark-tools-outside-the-lock`](../tooling/benchmark-tools-outside-the-lock.md),
    because LightGBM, which it imports, loads Homebrew's `libomp` at import on macOS.
 2. **The input.** Each arm's replica fill of a holdout, read from the run's `rows` store, is the
-   synthetic table. It is scored against that holdout's training split as the real data and its
-   test split as the holdout data. A gap fill is not scored.
+   synthetic table. It is scored against that holdout's training split as the real data and the
+   test split the run scored as the holdout data: when the run decontaminates
+   (`Experiment.decontaminate`), the test split without each record some stored fill of the
+   holdout, gap or replica, copies, under the rule the run's scoring uses
+   (`bko.evaluate.copies.decontaminated`). A gap fill is not scored.
 3. **The metric set.** The keyword dictionary Lautrup et al.'s code passes to `SynthEval.evaluate`
    at commit `a07cd9c007b58bee37b0837cfdc65252303afadc`
    (`experiments/auxiliaries/03_baselines.py:103-112`, re-read 2026-11-24): `pca`, `h_dist`,
    `corr_diff` with `mixed_corr` true, `auroc_diff` with `model` `rf_cls`, `cls_acc` with
    `F1_type` `macro`, `eps_risk`, `dcr`, and `mia` with `num_eval_iter` 5.
-4. **The reference split.** E1's holdouts. Regenerating Lautrup et al.'s numbers on their own
+4. **The seed.** SynthEval 1.7.3's membership-inference metric draws its splits and samples from
+   NumPy's global random state, unseeded. The script seeds Python's and NumPy's global state with
+   the fill's holdout seed before scoring, so one store gives one `syntheval.csv`.
+5. **The reference split.** E1's holdouts. Regenerating Lautrup et al.'s numbers on their own
    242 and 61 rows is the results unit's (`tasks/evaluate-syntheval-results.md`).
-5. **The `hd` mapping.** `bko.datasets.hd.from_hd` reads their files as records of the UCI
+6. **The `hd` mapping.** `bko.datasets.hd.from_hd` reads their files as records of the UCI
    frame. A match of every row of theirs to the pinned `processed.cleveland.data` on age, sex,
    `trestbps`, `chol`, `thalach` and `oldpeak` (2026-11-24; the key is unique among UCI's 303
    records) gives the maps from their codes to UCI's: `cp` 0 to 4, 1 to 2, 2 to 3, 3 to 1;
-   `restecg` 0 to 2, 1 to 0, 2 to 1; `slope` 0 to 3, 1 to 2, 2 to 1; `thal` 1 to 6, 2 to 3, 3 to
-   7. A missing `ca` is coded 4 and a missing `thal` 0, and `from_hd` drops a row holding either.
-   Their `target` is 1 where UCI's `num` is 0, so ours is 1 minus theirs. UCI record 303, which
-   lacks `ca`, appears in both files, and UCI record 185, a complete record, in neither. Each of
-   the 296 rows `from_hd` keeps (237 training, 59 test) equals its UCI record in every column.
-6. **The register.** [P2](../../EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) holds the
+   `restecg` 0 to 2, 1 to 0, 2 to 1; `slope` 0 to 3, 1 to 2, 2 to 1; `thal` 1 to 6, 2 to 3,
+   3 to 7. A missing `ca` is coded 4 and a missing `thal` 0. `from_hd` checks every code of every
+   row, then drops a row holding either missing code. Their `target` is 1 where UCI's `num` is 0,
+   so ours is 1 minus theirs. UCI record 303, which lacks `ca`, appears in both files, and UCI
+   record 185, a complete record, in neither. Each of the 296 rows `from_hd` keeps (237
+   training, 59 test) equals its UCI record in every column.
+7. **The register.** [P2](../../EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) holds the
    Configuration.
-7. **The arms.** Free arms only: the comparison set, the classical synthesizers, the Bayesian
+8. **The arms.** Free arms only: the comparison set, the classical synthesizers, the Bayesian
    network, TabDDPM, the label bootstrap and `bko-direct`.
 
 ## Rationale
 
 The replica fill is the one fill of each arm that is a synthetic table of the training split's
 whole shape, which is what SynthEval's metrics compare against real data; a gap fill holds a few
-targeted rows. Reading fills from a `rows` store scores exactly the rows the run's log hashes.
+targeted rows. A `rows` store's fills are the rows the run's `arm` lines hash, so reading them scores the fills
+the run scored, and scoring them against the decontaminated test split scores them against the
+records the run's classifiers were tested on. A seeded script makes the reading a function of the
+store.
 Scoring on E1's holdouts keeps the reading inside the harness's split and its many holdouts; their
 single split is regenerated separately, so the two readings sit side by side.
 
@@ -91,10 +101,11 @@ Our split is not theirs, so the reading sits beside their figures rather than re
   `src/bko/evaluate/syntheval_inputs.py` (`METRICS`, `fills`), `src/bko/evaluate/syntheval_reading.py`,
   `src/bko/evaluate/runs_published.py` (`P2`), `bench/syntheval/score.py`
 - Pinned by: `tests/test_datasets_hd.py` (the maps, every code read as UCI's, the inverted target,
-  the missing codes dropped and counted, a code outside a map refused), `tests/test_evaluate_rows.py`,
-  `tests/test_evaluate_syntheval.py` (each replica fill with its holdout's splits, the metric set,
-  P2's configuration, the command's CSV and log lines), `tests/test_named_runs_slices.py` (the run
-  names in order)
+  the missing codes dropped and counted, a code outside a map refused, in a row with a missing
+  code too), `tests/test_evaluate_rows.py`, `tests/test_evaluate_syntheval.py` (each replica fill
+  with its holdout's splits, the decontaminated test split, the metric set, P2's configuration,
+  the seed passed, the command's CSV and log lines), `tests/test_named_runs_slices.py` (the run
+  names in order); outside the gate, `bench/syntheval/tests/test_score.py` (one seed, one JSON)
 
 ## Reversal Conditions
 

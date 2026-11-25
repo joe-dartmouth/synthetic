@@ -38,14 +38,14 @@ gate has no other use for runs in a hashed environment outside the lock, as Mani
   `uv pip sync --require-hashes --only-binary :all:` from `requirements.txt`, as `make video-env`
   does; `make <tool>-test` runs the script's test with that environment's interpreter. Neither is
   part of the gate.
-- **The call.** `bko` runs the script as a subprocess through an injectable runner. It exports the
-  script's inputs to a temporary directory, logs each input's sha256, and refuses with exit 2,
-  naming `make <tool>-env`, when the environment is absent.
-- **The tests.** The gate tests the export and the parsing with a fake runner and parses the script
-  with `ast`. The script's real test runs under `make <tool>-test`, and a PR that changes the
-  script says it ran.
-- **The gate's reach.** ruff and the size cap (`CAPS` in `tools/check_file_size.py`) cover
-  `bench/`; ty and coverage do not.
+- **The call.** `bko` runs the script as a subprocess through an injectable runner, with a
+  timeout and an environment of `PATH`, `HOME`, the locale and thread caps only, so no credential
+  reaches the tool. It exports the script's inputs to a temporary directory, logs each input's
+  sha256, and refuses with exit 2, naming `make <tool>-env`, when the environment is absent.
+- **The tests.** `bko`'s side of a reading is tested in the gate without the tool; the script's
+  real test runs under `make <tool>-test`, and a PR that changes the script says it ran.
+- **The gate's reach.** The gate lints `bench/` and holds it to the size cap; it neither
+  type-checks nor covers it.
 
 ## Rationale
 
@@ -53,9 +53,9 @@ An extra in `uv.lock` is installed by `make setup` on every machine, so a tool t
 library would make the gate fail where the library is absent, and a tool on another Python cannot
 share the lock at all. A hashed environment per tool keeps the lock and the gate's machine
 requirements as they are and still installs the same packages everywhere. Running the script as a
-subprocess keeps the tool out of `bko`'s imports, so `bko` stays typed and covered while its side
-of the reading is tested with a fake runner; the script's real test is the one step the gate cannot
-run, so it has its own Make target.
+subprocess keeps the tool out of `bko`'s imports, so `bko` stays typed and covered, and its side
+of the reading can be tested without the tool; the script's real test is the one step the gate
+cannot run, so it has its own Make target.
 
 ## Consequences
 
@@ -78,9 +78,12 @@ when someone runs `make <tool>-test`. Each tool's environment must be rebuilt wh
 - Owner: `Makefile` (`syntheval-env`, `syntheval-test`), `tools/check_file_size.py`,
   `bench/syntheval/requirements.txt`, `src/bko/evaluate/syntheval_reading.py`
 - Pinned by: `tests/test_repo_gate.py` (the `syntheval-env` and `syntheval-test` recipes),
-  `tests/test_file_size.py` (the `bench/` cap), `tests/test_evaluate_syntheval.py` (the runner,
-  the missing environment, a failing script, the script parsed with `ast`); outside the gate,
-  `bench/syntheval/tests/test_score.py` under `make syntheval-test`
+  `tests/test_file_size.py` (the `bench/` cap, `CAPS` in `tools/check_file_size.py`; ruff's
+  configuration reaches `bench/`), `tests/test_evaluate_syntheval.py` (a fake runner for the
+  export, the call and the parsing; the runner's environment and timeout; the missing
+  environment; a failing script; the script parsed with `ast`, its imports and its flags against
+  `score_argv`); outside the gate, `bench/syntheval/tests/test_score.py` under
+  `make syntheval-test`
 
 ## Reversal Conditions
 

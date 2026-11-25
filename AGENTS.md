@@ -169,7 +169,7 @@ synthetic/
 ├── src/bko/     # one subpackage per pipeline stage, plus core, each with a README
 ├── presentations/ # Marp slide decks; `marp` renders PDF or PPTX locally, gitignored
 ├── video/       # ManimGL scenes for the demo video; rendered output gitignored (video/README.md)
-├── bench/       # benchmark tools, each in a hashed environment outside the lock (docs/DEVELOPMENT.md#benchmark-environments)
+├── bench/       # benchmark tools, each in a hashed env outside the lock (docs/DEVELOPMENT.md)
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
 ```
