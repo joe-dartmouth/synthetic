@@ -44,7 +44,8 @@ the arm that cannot fill a cell and the recall the margin reads all need a rule.
    training split.
 4. **What a generator fits on.** Every generator fits on the whole training split at every share,
    so a fill can carry values of the rows it replaces. Membership inference counts the whole split
-   as members, so it measures that.
+   as members, so it reads how far a fill memorises the training split as a whole, not the
+   dropped rows apart from the kept ones.
 5. **The training set.** The classifier trains on the kept rows plus the fill. `real` adds the
    dropped rows back, so it trains on the whole split at every share. The test split is untouched.
 6. **A short arm.** An arm short of a cell's count scores the partial fill, and its `rows` measure
@@ -61,7 +62,9 @@ the arm that cannot fill a cell and the recall the margin reads all need a rule.
    code-share error reads the removed rows, and a share removes none.
 9. **Privacy.** The readings are over the synthetic rows against the whole split, with
    `bko-direct` the reference arm, so each comparator's reading is its contrast with
-   `bko-direct`, and E6's cell the cell scope.
+   `bko-direct`, and E6's cell the cell scope. `real`'s added rows are the dropped rows, members
+   of the split, so its DCR is 0 by construction; its privacy rows are read beside `bko-direct`'s,
+   not as a comparator's.
 
 ## Rationale
 
@@ -71,15 +74,16 @@ of a smaller share's. Asking each cell for its dropped count makes the synthetic
 of the cells they replace, so the label and age-sex mix of the training set is the same at every
 share. Fitting each generator on the whole split keeps one fit per holdout and share comparable
 across arms, at the cost of letting a fill carry values of the rows it replaces; membership
-inference reads exactly that leak. Reading the margin on E6's cell keeps it on the rows its
+inference reads that leak as memorisation of the whole training split, with no attack that singles
+out the dropped rows. Reading the margin on E6's cell keeps it on the rows its
 half-width was measured on, which an all-rows recall would not.
 
 ## Consequences
 
 **Gained**: the five shares read on a real frame against `real`, with every privacy reading
 contrasted with `bko-direct`, at no API spend.
-**Accepted**: five runs fit each generator once per share and holdout, so a TabDDPM fit's 435.9
-seconds on the whole split and a CTGAN fit of over an hour repeat at every share (ADR
+**Accepted**: five runs fit each generator once per share and holdout, so each generator's fit on
+the whole split, TabDDPM's and CTGAN's the longest, repeats at every share (ADR
 [`research/diffusion-baseline`](diffusion-baseline.md)); the runs run as parallel slices.
 
 ## Ruled Out
@@ -95,16 +99,23 @@ seconds on the whole split and a CTGAN fit of over an hour repeat at every share
 
 - Owner: `src/bko/datasets/split.py`, `src/bko/evaluate/requests.py`,
   `src/bko/evaluate/experiment.py`, `src/bko/evaluate/prepare.py`, `src/bko/evaluate/run.py`,
-  `src/bko/evaluate/runs_direct.py`
+  `src/bko/evaluate/run_scores.py`, `src/bko/evaluate/runs_direct.py`,
+  `src/bko/evaluate/named_runs.py`, `src/bko/evaluate/reference.py`,
+  `src/bko/evaluate/provenance.py`, `src/bko/evaluate/run_folder.py`,
+  `src/bko/evaluate/membership.py`, `src/bko/baselines/records.py`
 - Pinned by: `tests/test_datasets_share.py` (the dropped count's rounding with no floor, the
   nesting, the hash ranking, share 1 dropping every row), `tests/test_evaluate_share.py` (a share
   refused beside a removal or with no flagged cell, the test split untouched at every share, the
   request's quota, the training size at every share, `real` on the whole split, a partial fill,
-  a fill of fewer than two labels at share 1, `prior-shift` and `class-weight` refused,
+  a fill of fewer than two labels at share 1, `prior-shift`, `class-weight` and `bko-tree`
+  refused,
   the `experiment` line's key and its assumed value), `tests/test_evaluate_share_runs.py` (the
   shares, the arms, no paid arm, each run's slices, the reference arm and cell),
   `tests/test_evaluate_share_readers.py` (`rows`, `panel`, `shared`, `merge`, `trace`, `privacy`
-  and `contradictions` on a share run's folder)
+  and `contradictions` on a share run's folder), `tests/test_named_runs_slices.py` (each run's ten
+  slices), `tests/test_baselines_records.py` (a training set of a subset of the rows its weights
+  cover, empty included), `tests/test_datasets_diabetes_pinned.py` (with `--releases`, each run's
+  dropped rows and request on the pinned Diabetes frame)
 
 ## Reversal Conditions
 

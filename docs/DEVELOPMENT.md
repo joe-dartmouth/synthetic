@@ -693,9 +693,8 @@ start or the supervisor cannot run.
   every distance reads the whole split (ADR
   [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). A classifier
   fit on the real rows, weighted as the arm says, and the added rows is scored on the test split,
-  then a
-  gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
-  logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
+  then a gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the
+  arm's logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
   `grep -v -- '-hgb,'` leaves the regression's rows alone. A run whose `Experiment.flagged_cell`
   is set also writes each model's ROC AUC, `auc-roc` and `auc-roc-hgb`, after its AUC-PR on each
   scope, empty where the scope holds one label; no other run writes it. The replica
@@ -808,9 +807,9 @@ start or the supervisor cannot run.
   ` replica_rows=<rows>` follows `replica=` only when the run's `Experiment.replica_rows` caps the
   replica fill near that many rows in all: each cell asks its `kept_count` at the share
   `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
-  `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
-  record positive; `spend_ceiling=` is the named run's own, a resume under `--ceiling` included),
-  and a
+  `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's
+  0.5, the probability at which utility calls a record positive; `spend_ceiling=` is the named
+  run's own, a resume under `--ceiling` included), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
   a `resume` line (`log=`, `sha256=`, `answered=`, `dropped=`, `carried_usd=`) before any call,
