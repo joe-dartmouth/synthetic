@@ -50,8 +50,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
-| [`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) | ready | -- | direct-method-research |
-| [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | blocked | evaluate-syntheval-heart-disease | direct-method-research |
+| [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | ready | -- | direct-method-research |
 | [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | ready | -- | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | blocked | evaluate-synthetic-share-sweep | direct-method-research |
 
@@ -88,7 +87,6 @@ flowchart LR
     u20 --> u21[evaluate-quota-sweep-results]
     u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]
     u49[datasets-non-health-selection] --> u50[datasets-generalised-cell-axes]
-    u43[evaluate-syntheval-heart-disease] --> u44[evaluate-syntheval-results]
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
     u28 --> u29[evaluate-composite-dev-results]
