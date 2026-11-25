@@ -11,16 +11,8 @@ from dataclasses import replace
 from typing import Final
 
 from bko.baselines.request import Method
-from bko.evaluate.direct_arms import CAPPED_ARM
-from bko.evaluate.experiment import (
-    DIRECT_ARM,
-    LOGIC_ARM,
-    METHOD_ARMS,
-    NOMAP_ARM,
-    PRIOR_SHIFT_ARM,
-    REAL_ARM,
-    Experiment,
-)
+from bko.evaluate.direct_arms import CAPPED_ARM, DIRECT_ARM, LOGIC_ARM, NOMAP_ARM
+from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_run import BAYES_NET, E3
 from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
 

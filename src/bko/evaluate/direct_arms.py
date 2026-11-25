@@ -1,6 +1,7 @@
 """The direct arms by name, each with the draw spec it reads: a light module the run table imports.
 
-`bko.evaluate.experiment` re-exports these names; an arm added later is imported from here.
+`bko.evaluate.experiment` re-exports every name here but `CAPPED_ARM`; `CAPPED_ARM` and any arm
+added later are imported from here.
 """
 
 from __future__ import annotations
