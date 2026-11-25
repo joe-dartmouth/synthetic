@@ -1236,10 +1236,11 @@ arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`) differ from its arm's, and a perturbation fill whose rebuilt rows miss its `arm`
-  sha256, whose returned attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
-  trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
-  over a frame whose unmapped fields are not its pinned ones, exit 2.
+  `mapped`, `min_donors`, `reuse_cap`) differ from its arm's, and a perturbation fill whose
+  rebuilt rows miss its `arm` sha256, whose returned attempt is not one line per draw, or whose
+  unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
+  components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
+  are not its pinned ones, exit 2.
 
 **`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),
