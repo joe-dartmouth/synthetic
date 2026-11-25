@@ -24,8 +24,8 @@ from bko.baselines.request import Method, Request, Strata, plan, stratum_keys
 from bko.baselines.synthesizers import metadata
 from bko.datasets.cells import cell_counts
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate import experiment as experiment_module
 from bko.evaluate import fidelity as fidelity_module
+from bko.evaluate import requests as requests_module
 from bko.evaluate.classifier import build, probabilities
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import Data
@@ -288,7 +288,7 @@ def test_a_rehearsal_refuses_a_call_for_another_frame():
     ("helper", "args"),
     [
         pytest.param(flagged, (TOY_TRAIN, TOY_EXPERIMENT), id="flagged"),
-        pytest.param(experiment_module._cells, (TOY_TRAIN,), id="_cells"),
+        pytest.param(requests_module._cells, (TOY_TRAIN,), id="_cells"),
         pytest.param(held_out_ratio, (TOY_PARTS,), id="held_out_ratio"),
         pytest.param(in_scope, (TOY_PARTS.test, Scope.ALL, SHORT), id="in_scope"),
         pytest.param(
@@ -309,7 +309,7 @@ def test_named_helpers_require_edges(helper, args):
     ("helper", "args"),
     [
         pytest.param(Strata.CELL.grid, (), id="grid"),
-        pytest.param(experiment_module._short, (TOY_TRAIN, TOY_EXPERIMENT), id="_short"),
+        pytest.param(requests_module._short, (TOY_TRAIN, TOY_EXPERIMENT), id="_short"),
     ],
 )
 def test_edges_are_keyword_only(helper, args):

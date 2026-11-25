@@ -49,11 +49,12 @@ def gap_request(
     """
     if experiment.flagged_cell is not None:
         quota = _restored(train, experiment, experiment.flagged_cell, frame=frame)
-        return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
-    quota = _short(train, experiment, edges=frame.edges)
-    if not quota:
-        msg = f"no cell holds fewer than {experiment.threshold} training records; nothing to fill"
-        raise EvaluationError(msg)
+    else:
+        quota = _short(train, experiment, edges=frame.edges)
+        if not quota:
+            msg = f"no cell holds fewer than {experiment.threshold} training records;"
+            msg += " nothing to fill"
+            raise EvaluationError(msg)
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
 
 

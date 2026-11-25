@@ -111,7 +111,7 @@ def juwara_total(count: int, fraction: float) -> int:
         msg = f"the removal fraction {fraction} must lie strictly between 0 and 1"
         raise ValueError(msg)
     remaining = count - removed_count(fraction, count)
-    return math.floor(remaining / (1 - share))
+    return math.floor(Fraction(remaining) / (1 - share))
 
 
 P3: Final[Mapping[str, Experiment]] = MappingProxyType(
@@ -132,5 +132,6 @@ P3: Final[Mapping[str, Experiment]] = MappingProxyType(
 )
 """One experiment per fraction: `E6_THIN` with `P3_ARMS`, `bko-direct` the candidate against every
 arm but `real`, no replica, `fraction` of `E6_CELL`'s training rows removed, that cell flagged by
-name and each row-adding arm filling it to `juwara_total` of its 1,269 training rows, which
-`E6_THIN.fill_to` holds (ADR `research/covariate-bias-comparison`)."""
+name and each row-adding arm filling it to `juwara_total` of its training rows, which
+`E6_THIN.fill_to` holds (ADR `research/covariate-bias-comparison`). No arm calls the API, so the
+ceiling is inert."""

@@ -27,8 +27,6 @@ from bko.evaluate.direct_arms import (
 )
 from bko.evaluate.ranking import over_ask_error
 from bko.evaluate.requests import (
-    _cells,  # ruff: ignore[unused-import]  (re-exported for tests/test_evaluate_frame.py)
-    _short,  # ruff: ignore[unused-import]  (re-exported for tests/test_evaluate_frame.py)
     flagged,  # ruff: ignore[unused-import]  (re-exported)
     gap_request,  # ruff: ignore[unused-import]  (re-exported)
     replica_request,  # ruff: ignore[unused-import]  (re-exported)
