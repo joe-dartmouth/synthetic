@@ -18,7 +18,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell
 from bko.generate.direct import Draw, sample
-from bko.generate.donors import _pick_limited
+from bko.generate.donors import _pick_limited, _Tally
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
 from bko.generate.presence import Presence
@@ -124,6 +124,14 @@ def test_a_singleton_pattern_is_never_copied_from_the_cell():
         assert found.record["trestbps"] == 150
 
 
+def test_a_pattern_no_cell_record_shows_is_no_floor_redirect(caplog):
+    caplog.set_level(logging.INFO)
+    drawn = draw(singleton(pressured=0), {YOUNG_WOMEN_1: 20}, CAPPED)
+    assert any(ELEVATED in d.concepts for d in drawn)
+    (line,) = [m for m in caplog.messages if m.startswith("limits ")]
+    assert "floor_redirects=0 " in line
+
+
 def test_a_pattern_at_the_floor_is_read_from_the_cell():
     train = singleton(pressured=2)
     draws = draw(train, {YOUNG_WOMEN_1: 20}, DrawSpec(min_donors=2))
@@ -137,23 +145,30 @@ SOURCES: Final = [(1, {"x": 1.0}), (2, {"x": 2.0})]
 OTHERS: Final = [(1, {"x": 1.0}), (2, {"x": 2.0}), (7, {"x": 7.0})]
 
 
-def _picked(used: Counter[tuple[tuple[str, ...], int]], *, floor: int = 1) -> tuple[int, bool]:
+def _picked(
+    used: Counter[tuple[tuple[str, ...], int]],
+    *,
+    floor: int = 1,
+    other: list[tuple[int, dict[str, float]]] = OTHERS,
+    tally: _Tally | None = None,
+) -> tuple[int, bool]:
     (source, _), fell = _pick_limited(
         YOUNG_WOMEN_1,
         ("x",),
         SOURCES,
-        OTHERS,
+        other,
         np.random.default_rng(0),
         floor=floor,
         cap=1,
         used=used,
+        tally=tally,
     )
     return source, fell
 
 
 def test_a_donor_at_the_cap_is_skipped():
     used: Counter[tuple[tuple[str, ...], int]] = Counter({(("x",), 1): 1})
-    assert {_picked(Counter(used)) for _ in range(20)} == {(2, False)}
+    assert _picked(Counter(used)) == (2, False)
     used[("y",), 2] = 1
     assert _picked(Counter(used)) == (2, False), "a cap counts per unit"
     used[("x",), 2] = 1
@@ -162,7 +177,41 @@ def test_a_donor_at_the_cap_is_skipped():
 
 
 def test_below_the_floor_the_cells_own_donors_are_barred_from_the_label_group():
-    assert {_picked(Counter(), floor=3) for _ in range(20)} == {(7, True)}
+    assert _picked(Counter(), floor=3) == (7, True)
+
+
+def test_below_the_floor_with_no_label_group_donor_but_the_cells_raises_sampling_error():
+    with pytest.raises(SamplingError, match="no matching donor is left at min_donors=3"):
+        _picked(Counter(), floor=3, other=SOURCES)
+
+
+def test_the_tally_counts_a_redirect_only_for_a_cell_with_a_matching_record():
+    tally = _Tally()
+    _pick_limited(
+        YOUNG_WOMEN_1,
+        ("x",),
+        [],
+        OTHERS,
+        np.random.default_rng(0),
+        floor=2,
+        cap=1,
+        used=Counter(),
+        tally=tally,
+    )
+    assert (tally.redirects, tally.skips) == (0, 0)
+    _picked(Counter(), floor=3, tally=tally)
+    assert (tally.redirects, tally.skips) == (1, 0)
+
+
+def test_the_tally_counts_each_pick_whose_first_pool_held_a_capped_donor():
+    tally = _Tally()
+    used: Counter[tuple[tuple[str, ...], int]] = Counter()
+    picked = [_picked(used, tally=tally) for _ in range(3)]
+    assert sorted(source for source, _ in picked) == [1, 2, 7]
+    assert tally.skips == 2, "the second and third picks skip a capped cell donor"
+    others = [*OTHERS, (8, {"x": 8.0})]
+    assert _picked(used, floor=3, other=others, tally=tally) == (8, True)
+    assert (tally.redirects, tally.skips) == (1, 3), "a floor-fail pick skips capped donor 7"
 
 
 def test_exhausted_pools_raise_sampling_error():
@@ -172,7 +221,8 @@ def test_exhausted_pools_raise_sampling_error():
     with pytest.raises(SamplingError, match=r"<55/female/1 cannot draw x: .* reuse_cap=1"):
         _picked(used)
     train = singleton(pressured=1)
-    with pytest.raises(SamplingError, match="reuse_cap=1"):
+    message = "<55/female/1 cannot draw trestbps: no matching donor is left at min_donors=2"
+    with pytest.raises(SamplingError, match=f"^{message} reuse_cap=1$"):
         draw(train, {YOUNG_WOMEN_1: 66}, CAPPED)
 
 
@@ -181,6 +231,28 @@ def test_the_capped_draw_is_deterministic_per_seed():
     quota = {YOUNG_WOMEN_1: 6, YOUNG_WOMEN_0: 6}
     assert draw(train, quota, CAPPED, seed=7) == draw(train, quota, CAPPED, seed=7)
     assert draw(train, quota, CAPPED, seed=7) != draw(train, quota, CAPPED, seed=8)
+
+
+def test_each_cells_limits_line_carries_its_own_counts(caplog):
+    caplog.set_level(logging.INFO)
+    rows = []
+    for label in (0, 1):
+        rows += [planted(age=40, sex=0, target=label, trestbps=150)]
+        rows += [planted(age=40, sex=0, target=label, trestbps=120) for _ in range(4)]
+        rows += [
+            planted(age=41, sex=1, target=label, trestbps=150 - 30 * (i % 2)) for i in range(60)
+        ]
+    drawn = draw(frame(rows), {YOUNG_WOMEN_1: 20, YOUNG_WOMEN_0: 20}, CAPPED, seed=1)
+    lines = [m for m in caplog.messages if m.startswith("limits ")]
+    redirects = [
+        sum(ELEVATED in d.concepts for d in drawn if d.cell == cell)
+        for cell in (YOUNG_WOMEN_1, YOUNG_WOMEN_0)
+    ]
+    assert redirects[0] != redirects[1]
+    assert [line.partition(" cap_skips=")[0] for line in lines] == [
+        f"limits holdout=0 fill=gap key=<55/female/1 floor_redirects={redirects[0]}",
+        f"limits holdout=0 fill=gap key=<55/female/0 floor_redirects={redirects[1]}",
+    ]
 
 
 def test_the_limits_line_counts_redirects_and_skips(caplog):

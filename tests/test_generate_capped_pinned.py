@@ -8,6 +8,7 @@ release fails it rather than skipping it.
 from __future__ import annotations
 
 import functools
+from collections import Counter
 from typing import NoReturn
 
 import pandas as pd
@@ -58,7 +59,9 @@ def test_a_capped_fill_of_e6s_cell_completes_at_both_fractions(name, asked, seed
     """At a floor of 2 and a cap of 1 per unit, the gap fill draws every asked row of E6's cell.
 
     A pool every matching donor of which is at the cap raises `SamplingError`, which fails this
-    test (ADR `research/sampler-donor-limits`).
+    test, and no training record gives one unit's values twice (ADR
+    `research/sampler-donor-limits`). A unit's fields share their source, so a field's reuse is
+    its unit's.
     """
     experiment = RUNS[name].experiment
     edges = DIABETES_FRAME.edges
@@ -78,3 +81,5 @@ def test_a_capped_fill_of_e6s_cell_completes_at_both_fractions(name, asked, seed
         spec=DIRECT_ARMS[CAPPED_ARM],
     )
     assert len(drawn[E6_CELL]) == asked
+    reuse = Counter((field, source) for d in drawn[E6_CELL] for field, source in d.sources.items())
+    assert max(reuse.values()) == 1
