@@ -536,6 +536,7 @@ not a test of it.
 | [E15](EVIDENCE.md#e15-ancestor-shrunk-shares-on-the-diabetes-codes-frame) | Ablation |
 | [E16](EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal) | Ablation |
 | [E17](EVIDENCE.md#e17-coherent-free-fields-on-the-diabetes-130-removal) | Ablation |
+| [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) | Development result |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -582,13 +583,18 @@ the confirmatory ACS run is recorded.
 
 ### Synthetic-share ablation
 
-On E6's frame, each row-adding arm's training set is rebuilt with 2%, 10%, 25%, 50% and 100% of its
-rows synthetic, the synthetic rows a replica of the training split's cells, the total held at the
-training split's size and the test set unchanged. Per share
-and arm the study reads the flagged measures and the privacy readings (membership inference, NNDR,
-DCR). It asks two things of `bko-direct`: whether its utility at each share is non-inferior to
-`real` within the recall margin, and whether its privacy readings are no worse than each
-comparator's. It is a development reading and registers no confirmatory claim.
+On E6's frame, the training set of each row-adding arm, `bko-direct`, `ctgan`, `tvae`, `cart`,
+`bayes-net`, `tabddpm` and `label-bootstrap` (resampled real rows, the control for synthetic adds
+nothing), is rebuilt with 2%, 10%, 25%, 50% and 100% of its rows synthetic, the synthetic rows a
+replica of the training split's cells, the total held at the training split's size and the test
+set unchanged; `real` keeps every real row. Per share and arm the study reads the flagged
+measures, on E6's cell `(6-7, male, 1)` flagged by name, and the privacy readings (membership
+inference, NNDR, DCR). It asks two things of `bko-direct`: whether its utility at each share is
+non-inferior to `real` within the recall margin, and whether its privacy readings are no worse
+than each comparator's. ADR
+[`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md) holds the design
+and [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) the runs. It is a
+development reading and registers no confirmatory claim.
 
 ### Language-model classifier
 
