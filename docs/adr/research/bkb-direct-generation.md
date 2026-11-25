@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -94,7 +94,8 @@ mapping table (ADR `research/no-mapping-ablation`).
     Keeping it adds no draw, so a seed's records are the same with or without it, and
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
-11. **The draw spec.** The sampler takes a `DrawSpec` of `presence` and `mapped`. At its
+11. **The draw spec.** The sampler takes a `DrawSpec` of `presence`, `mapped`, `min_donors` and
+    `reuse_cap`. At its
     default, shares and the mapping table, Decisions 1 to 3 apply and the arm is `bko-direct`. At
     logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
     concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
@@ -102,7 +103,9 @@ mapping table (ADR `research/no-mapping-ablation`).
     and 10 hold for both, so the two arms differ only in presence and closure. At
     `mapped=False`, the arm is `bko-nomap`: ADR `research/no-mapping-ablation` reads an empty
     mapping table, so no concept is drawn and every field but `age`, `sex` and the label is a free
-    field of Decision 6.
+    field of Decision 6. At `min_donors=2` and `reuse_cap=1`, the arm is `bko-capped`: ADR
+    `research/sampler-donor-limits` reads a pattern below the donor floor from outside the cell
+    and skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change.
 
 ## Rationale
 

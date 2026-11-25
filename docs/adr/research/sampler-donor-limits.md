@@ -98,8 +98,13 @@ may exceed the cap; a pool exhausted on every attempt refuses the fill.
 ## Enforcement
 
 - Owner: `src/bko/generate/donors.py` with the spec in `src/bko/generate/draw_spec.py`,
-  `src/bko/generate/direct.py`
-- Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged)
+  `src/bko/generate/direct.py`, `src/bko/evaluate/direct_arms.py`,
+  `src/bko/evaluate/runs_direct.py`
+- Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
+  `tests/test_generate_capped.py` (the spec's refusals and logging, the cap per unit, the floor,
+  the barred cell donors, exhaustion and determinism), `tests/test_evaluate_capped.py` (the arm's
+  params, its trace and the refusal of a float cap, donor reuse per unit, E14's runs and their
+  reference arm)
 
 ## Reversal Conditions
 

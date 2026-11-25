@@ -34,6 +34,7 @@ from bko.gaps.shares import label_only, nested, shares
 from bko.generate.donors import (
     _Group,  # ruff: ignore[unused-import]  (re-exported)
     _label_groups,
+    _Limits,
     _observe_group,  # ruff: ignore[unused-import]  (re-exported)
     _pick,
     _records,
@@ -177,6 +178,14 @@ def sample(
             presence,
         )
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
+        if plan.limits is not None:
+            logger.info(
+                "limits holdout=%d fill=%s key=%s floor_redirects=%d cap_skips=%d",
+                holdout,
+                fill,
+                cell_key(cell),
+                *plan.limits.taken(),
+            )
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
                 "fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s",
@@ -243,6 +252,7 @@ class _Plan:
         spec = DrawSpec(presence=spec) if isinstance(spec, Presence) else spec
         self._frame = frame
         self._spec = spec
+        self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
         self._by_concept = by_concept(rows)
         self._label_only = label_only(rows, frame=frame)
         self._inner_of = {outer: inner for inner, outer in nested(rows).items()}
@@ -262,7 +272,10 @@ class _Plan:
             self.components = components(self._drawn, implies)
 
     def draw(self, sources: _Sources, rng: np.random.Generator) -> Draw:
-        """One record: its concepts, then its fields in column order, then the closure."""
+        """One record: its concepts, then its fields in column order, then the closure.
+
+        Each pick reads the plan's `limits` when its spec sets any (`_choose`).
+        """
         present = self._concepts(sources, rng)
         record: dict[str, int | float] = {}
         fallback: set[str] = set()
@@ -270,7 +283,9 @@ class _Plan:
         cell = sources.cell
         for column in self._frame.columns:
             if column == "age":
-                (source, chosen), fell = _pick(cell, (column,), sources.own, sources.banded, rng)
+                (source, chosen), fell = self._choose(
+                    cell, (column,), sources.own, sources.banded, rng
+                )
                 fields: tuple[str, ...] = (column,)
             elif column == "sex":
                 record[column] = next(code for code, sex in SEXES.items() if sex == cell[1])
@@ -283,10 +298,10 @@ class _Plan:
                 shows = self._pattern(self._first[column], present)
                 own = [r for r in sources.own if shows(r[1])]
                 other = [r for r in sources.group if shows(r[1])]
-                (source, chosen), fell = _pick(cell, fields, own, other, rng)
+                (source, chosen), fell = self._choose(cell, fields, own, other, rng)
             elif column in self._free:
                 fields = (column,)
-                (source, chosen), fell = _pick(cell, fields, sources.own, sources.group, rng)
+                (source, chosen), fell = self._choose(cell, fields, sources.own, sources.group, rng)
             else:
                 continue
             for name in fields:
@@ -298,6 +313,19 @@ class _Plan:
         concepts = frozenset(present)
         closed = self._closure(concepts)
         return Draw(cell, ordered, concepts, closed, frozenset(fallback), read)
+
+    def _choose(
+        self,
+        cell: Cell,
+        fields: tuple[str, ...],
+        own: Sequence[_Source],
+        other: Sequence[_Source],
+        rng: np.random.Generator,
+    ) -> tuple[_Source, bool]:
+        """`_pick`, or `_Limits.pick` when the spec sets a floor or a cap."""
+        if self.limits is None:
+            return _pick(cell, fields, own, other, rng)
+        return self.limits.pick(cell, fields, own, other, rng)
 
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share.

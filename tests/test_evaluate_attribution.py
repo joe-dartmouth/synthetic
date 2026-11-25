@@ -169,7 +169,10 @@ def test_a_perturbation_arm_outside_the_direct_arms_logs_its_spec_once_per_fill(
     _attribution([_write(tmp_path / "trace.jsonl", [*lines, pram])])
     logged = [m for m in caplog.messages if m.startswith("attribution spec")]
     assert logged == [
-        f'attribution spec={{"presence":"shares","mapped":true}} holdout=0 arm={PERTURBED_ARM}'
+        (
+            'attribution spec={"presence":"shares","mapped":true,"min_donors":1,"reuse_cap":null}'
+            f" holdout=0 arm={PERTURBED_ARM}"
+        )
     ]
 
 

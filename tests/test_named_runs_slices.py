@@ -140,19 +140,42 @@ KEYS = [
     "e12-emptyi",
     "e12-emptyj",
     "e13",
+    "e14-thin",
+    "e14-thina",
+    "e14-thinb",
+    "e14-thinc",
+    "e14-thind",
+    "e14-thine",
+    "e14-thinf",
+    "e14-thing",
+    "e14-thinh",
+    "e14-thini",
+    "e14-thinj",
+    "e14-empty",
+    "e14-emptya",
+    "e14-emptyb",
+    "e14-emptyc",
+    "e14-emptyd",
+    "e14-emptye",
+    "e14-emptyf",
+    "e14-emptyg",
+    "e14-emptyh",
+    "e14-emptyi",
+    "e14-emptyj",
     "p1-id",
     "p1-ood",
     "p2",
 ]
 """Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
-E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, P1's runs and P2's."""
+E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, P1's
+runs and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():
     assert list(RUNS) == KEYS
 
 
-@pytest.mark.parametrize("entry", ["e6", "e9", "e10-pram", "e12"])
+@pytest.mark.parametrize("entry", ["e6", "e9", "e10-pram", "e12", "e14"])
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))
 def test_each_slice_maps_to_its_fractions_run(entry, fraction, letter):

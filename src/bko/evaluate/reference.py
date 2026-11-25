@@ -20,6 +20,7 @@ from bko.evaluate.named_runs import NamedRun, wholes_of
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
     | {"e12-thin": REAL_ARM, "e12-empty": REAL_ARM, "e13": REAL_ARM}
+    | {"e14-thin": DIRECT_ARM, "e14-empty": DIRECT_ARM}
     | {
         f"e10-{family}-{cell}": DIRECT_ARM
         for family in ("pilot", "pram")
@@ -27,7 +28,8 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 """Each run family's reference arm, which every other arm's privacy is read against: `real`, or
-`bko-direct` for the perturbation runs, whose arms perturb its rows."""
+`bko-direct` for the perturbation runs, whose arms perturb its rows, and for the donor-limit
+runs, whose arm limits who donates them."""
 
 
 def reference_of(

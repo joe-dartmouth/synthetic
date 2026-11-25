@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # A record's explanation is the stored or re-derivable facts that determine it
 
@@ -40,6 +40,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * `bko-nomap`: as `bko-direct`, drawn with an empty mapping table (ADR
      `research/no-mapping-ablation`); its `concepts` and `closed` are empty, and each copied
      column names its source training record id.
+   * `bko-capped`: as `bko-direct`, drawn under a donor floor and a reuse cap (ADR
+     `research/sampler-donor-limits`); a field read from outside the cell below the floor is a
+     fallback field.
    * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when

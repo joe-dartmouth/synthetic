@@ -28,12 +28,17 @@ NOMAP_ARM: Final = "bko-nomap"
 """The free arm that draws as `DIRECT_ARM` does with an empty mapping table: no concept, and every
 column but `age`, `sex` and the label a free field (ADR `research/no-mapping-ablation`)."""
 
+CAPPED_ARM: Final = "bko-capped"
+"""The free arm that draws as `DIRECT_ARM` does under a donor floor of 2 and a reuse cap of 1 per
+unit (ADR `research/sampler-donor-limits`)."""
+
 DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
     {
         DIRECT_ARM: DEFAULT_SPEC,
         LOGIC_ARM: DrawSpec(presence=Presence.LOGIC),
         PRAM_ARM: DEFAULT_SPEC,
         NOMAP_ARM: DrawSpec(mapped=False),
+        CAPPED_ARM: DrawSpec(min_donors=2, reuse_cap=1),
     }
 )
 """Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""

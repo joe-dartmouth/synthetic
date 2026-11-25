@@ -1,7 +1,8 @@
-"""The direct-method study's runs: the control runs on E6's and E3's frames.
+"""The direct-method study's runs: the control runs on E6's and E3's frames, and its variants.
 
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
-`bko-logic`; `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 and E13).
+`bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`. `bko.evaluate.named_runs.RUNS` names
+them (`docs/EVIDENCE.md`, E12 to E14).
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from dataclasses import replace
 from typing import Final
 
 from bko.baselines.request import Method
+from bko.evaluate.direct_arms import CAPPED_ARM
 from bko.evaluate.experiment import (
     DIRECT_ARM,
     LOGIC_ARM,
@@ -20,7 +22,7 @@ from bko.evaluate.experiment import (
     Experiment,
 )
 from bko.evaluate.named_run import BAYES_NET, E3
-from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN
+from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
 
 
 CONTROL_ARMS: Final[tuple[str, ...]] = (
@@ -59,3 +61,20 @@ E13: Final = replace(_controls(E3, (*CONTROL_ARMS, LOGIC_ARM)), spend_ceiling=1.
 """E13's run: `E3` with `CONTROL_ARMS` and `bko-logic`, `bko-direct` the candidate, no replica and
 E3's removal, holdouts and copy rule, so `compare --beside` pairs it with E3's runs. No arm calls
 the API, so its $1.00 ceiling is inert."""
+
+
+E14_THIN: Final = replace(
+    E9_THIN,
+    arms=("none", REAL_ARM, DIRECT_ARM, CAPPED_ARM),
+    candidate=CAPPED_ARM,
+    comparators=(DIRECT_ARM, "none"),
+)
+E14_EMPTY: Final = replace(
+    E9_EMPTY,
+    arms=("none", REAL_ARM, DIRECT_ARM, CAPPED_ARM),
+    candidate=CAPPED_ARM,
+    comparators=(DIRECT_ARM, "none"),
+)
+"""E14's runs: `E9_THIN` and `E9_EMPTY` with `bko-capped` in place of `bko-logic` as the candidate
+against `bko-direct` and `none`, and no replica, since a replica of every cell would exhaust a
+cap of 1 (ADR `research/sampler-donor-limits`). No arm calls the API, so the ceiling is inert."""

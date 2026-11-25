@@ -2,13 +2,16 @@
 
 `label_group` observes a label's training records as the group whose prior a share reads, and
 `_pick` draws a donor record from a cell's matches, else from its label group's (ADRs
-`research/bkb-direct-generation` and `research/data-contradiction-handling`).
+`research/bkb-direct-generation` and `research/data-contradiction-handling`). `_pick_limited`
+draws under a donor floor and a reuse cap, and `_Limits` holds one fill attempt's counts (ADR
+`research/sampler-donor-limits`).
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -21,6 +24,9 @@ from bko.ontology.schema import FieldMapping
 
 type _Source = tuple[int, dict[str, float]]
 """A training record with its id."""
+
+type _Used = Counter[tuple[tuple[str, ...], int]]
+"""How many times each (unit, record id) has donated in one fill attempt."""
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -50,6 +56,92 @@ def _pick(
         return other[int(rng.integers(len(other)))], True
     msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: no training record matches the draw"
     raise SamplingError(msg)
+
+
+def _pick_limited(
+    cell: Cell,
+    fields: tuple[str, ...],
+    own: Sequence[_Source],
+    other: Sequence[_Source],
+    rng: np.random.Generator,
+    *,
+    floor: int,
+    cap: int | None,
+    used: _Used,
+) -> tuple[_Source, bool]:
+    """A record drawn as `_pick` draws, under a donor floor and a reuse cap, and its fallback.
+
+    With at least `floor` records in `own`, the pool is `own` less the donors at `cap` for
+    `fields`; when that is empty, or the floor fails, the pool is `other` less the donors at the
+    cap, and less `own`'s records when the floor fails. One uniform draw picks from the pool, and
+    the pick counts one donation in `used`.
+
+    Raises:
+        SamplingError: If the pool is empty.
+    """
+    under = len(own) < floor
+    pool = [] if under else _below_cap(own, fields, cap, used)
+    fell = not pool
+    if fell:
+        barred = {source for source, _ in own} if under else set()
+        pool = [r for r in _below_cap(other, fields, cap, used) if r[0] not in barred]
+    if not pool:
+        msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: no matching donor is left at"
+        msg += f" min_donors={floor} reuse_cap={cap}"
+        raise SamplingError(msg)
+    chosen = pool[int(rng.integers(len(pool)))]
+    used[fields, chosen[0]] += 1
+    return chosen, fell
+
+
+def _below_cap(
+    pool: Sequence[_Source], fields: tuple[str, ...], cap: int | None, used: _Used
+) -> list[_Source]:
+    return [r for r in pool if cap is None or used[fields, r[0]] < cap]
+
+
+@dataclass(slots=True, eq=False)
+class _Limits:
+    """One fill attempt's floor, cap and donations, with the picks each limit changed.
+
+    Attributes:
+        floor: The spec's `min_donors`.
+        cap: The spec's `reuse_cap`.
+        used: Each (unit, record id)'s donations so far.
+        redirects: Picks since the last `taken` whose cell held at least one but fewer than
+            `floor` matching records.
+        skips: Picks since the last `taken` whose first pool held a donor at the cap.
+    """
+
+    floor: int
+    cap: int | None
+    used: _Used = field(default_factory=Counter)
+    redirects: int = 0
+    skips: int = 0
+
+    def taken(self) -> tuple[int, int]:
+        """The redirects and skips since the last call, which restarts both at 0."""
+        counts = (self.redirects, self.skips)
+        self.redirects = self.skips = 0
+        return counts
+
+    def pick(
+        self,
+        cell: Cell,
+        fields: tuple[str, ...],
+        own: Sequence[_Source],
+        other: Sequence[_Source],
+        rng: np.random.Generator,
+    ) -> tuple[_Source, bool]:
+        """`_pick_limited` at these limits, counting a redirect or a skip first."""
+        under = len(own) < self.floor
+        self.redirects += 0 < len(own) < self.floor
+        barred = {source for source, _ in own}
+        first = [r for r in other if r[0] not in barred] if under else own
+        self.skips += len(_below_cap(first, fields, self.cap, self.used)) < len(first)
+        return _pick_limited(
+            cell, fields, own, other, rng, floor=self.floor, cap=self.cap, used=self.used
+        )
 
 
 def label_group(
