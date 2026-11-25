@@ -61,7 +61,8 @@ MISSING: Final[Mapping[str, int]] = {"ca": MISSING_CA, "thal": MISSING_THAL}
 def from_hd(text: str) -> pd.DataFrame:
     """Read one `hd` file into the UCI frame's columns, codes and dtypes.
 
-    A row holding a missing code is dropped; one `hd rows=%d kept=%d dropped=%d missing_ca=%d
+    Every code is checked, a missing code included, before a row holding a missing code is
+    dropped; one `hd rows=%d kept=%d dropped=%d missing_ca=%d
     missing_thal=%d` line counts them. The index is `record_id`, the row's 1-based position among
     the file's data rows.
 
@@ -92,6 +93,11 @@ def from_hd(text: str) -> pd.DataFrame:
         },
         index=raw.index,
     )
+    for name in FEATURES:
+        allowed = RECODED.get(name) or CODEBOOK.get(name)
+        if allowed is not None:
+            _within(values[name], name, [*allowed, *([MISSING[name]] if name in MISSING else [])])
+    _within(values[LABEL], LABEL, LABEL_CODES)
     missing = {name: values[name] == code for name, code in MISSING.items()}
     dropped = missing["ca"] | missing["thal"]
     kept = values.loc[~dropped]
@@ -107,12 +113,8 @@ def from_hd(text: str) -> pd.DataFrame:
         msg = "the hd file holds no complete row"
         raise ContractError(msg)
     frame = kept.copy()
-    for name in FEATURES:
-        if name in RECODED:
-            frame[name] = _recoded(kept[name], name, RECODED[name])
-        elif name in CODEBOOK:
-            _within(kept[name], name, CODEBOOK[name])
-    _within(kept[LABEL], LABEL, LABEL_CODES)
+    for name, codes in RECODED.items():
+        frame[name] = kept[name].map({float(theirs): float(ours) for theirs, ours in codes.items()})
     frame[LABEL] = 1 - kept[LABEL]
     return frame[list(FRAME_COLUMNS)].astype(dict(FRAME_DTYPES))
 
@@ -135,16 +137,6 @@ def _number(value: str, name: str, row: object) -> float:
         msg = f"hd row {row}: {name} is {value!r}, not a whole number"
         raise ContractError(msg)
     return number
-
-
-def _recoded(column: pd.Series, name: str, codes: Mapping[int, int]) -> pd.Series:
-    """`column` mapped from their codes to UCI's.
-
-    Raises:
-        ContractError: If a code is outside `codes`.
-    """
-    _within(column, name, codes)
-    return column.map({float(theirs): float(ours) for theirs, ours in codes.items()})
 
 
 def _within(column: pd.Series, name: str, codes: Iterable[int]) -> None:

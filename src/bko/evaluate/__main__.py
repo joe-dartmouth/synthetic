@@ -42,8 +42,9 @@ ARM's fill of holdout H in FOLDER with the facts that determine it, to stdout, w
 (`bko.evaluate.trace`).
 `attribution RUN --trace PATH...` counts what each fill's record fields in the trace files can be
 attributed to, as CSV, with no API call (`bko.evaluate.attribution`).
-`syntheval RUN --folder FOLDER --rows PATH` scores each replica fill of the store at PATH under
-SynthEval's metrics in `bench/syntheval/.venv`, to stdout as CSV (`bko.evaluate.syntheval_reading`).
+`syntheval RUN --folder FOLDER --rows PATH [--bench-dir DIR]` scores each replica fill of the store
+at PATH under SynthEval's metrics in DIR's `.venv`, by default this checkout's `bench/syntheval/`,
+to stdout as CSV (`bko.evaluate.syntheval_reading`).
 `likelihood [RUN] --candidates FILE...` reads one run's candidates files, one per slice of a sliced
 run, as one, and logs G7's gate (`bko.evaluate.likelihood`).
 `score --in-flight N` keeps at most N BKO calls in flight at once (`bko.generate.flight`).
@@ -71,9 +72,9 @@ paid or direct arm, one path for both files, more than one of `--replay`, `--res
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a
 run, a `privacy` run with no reference arm or removed cell, a `contradictions` run without
-`--rows`, a `syntheval` run with no `make syntheval-env` environment or whose script fails,
-a `trace` of a holdout, arm or record the folder does not hold or over a call log line
-it cannot read, and scores whose validity cannot be read;
+`--rows`, a `syntheval` run with no `make syntheval-env` environment or whose script fails or
+runs past its timeout, a `trace` of a holdout, arm or record the folder does not hold or over a
+call log line it cannot read, and scores whose validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
 contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`,
 `syntheval` or `trace` run folder or store fails an identity check, a `trace` re-draw

@@ -1,10 +1,10 @@
 """What `syntheval` hands SynthEval: each replica fill with its holdout's splits, and the metrics.
 
-`fills` reads each replica fill of a bound `rows` store with the training and test splits of its
-holdout, and `METRICS` is the metric set, the one home of the keyword dictionary passed to
-`bench/syntheval/score.py` as JSON. `export` writes one fill's inputs into a directory and
-`score_argv` names the script's call on them. ADR `research/syntheval-reading` records the
-choices; ADR `tooling/benchmark-tools-outside-the-lock` the environment.
+`fills` reads each replica fill of a bound `rows` store with the training split of its holdout
+and the test split the run scored, and `METRICS` is the metric set, the one home of the keyword
+dictionary passed to `bench/syntheval/score.py` as JSON. `export` writes one fill's inputs into a
+directory and `score_argv` names the script's call on them. ADR `research/syntheval-reading`
+records the choices; ADR `tooling/benchmark-tools-outside-the-lock` the environment.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from typing import Final
 
 import pandas as pd
 
+from bko.evaluate.copies import decontaminated
 from bko.evaluate.data import Data, held_split
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import Experiment
@@ -60,7 +61,8 @@ class SynthevalFill:
         holdout: The holdout's seed.
         arm: The `arm` line's arm, `<arm>-replica`.
         real: The holdout's training split, in the frame's columns.
-        test: The holdout's test split, in the frame's columns.
+        test: The test split the run scored, in the frame's columns: without each record some
+            fill of the holdout copies when the experiment decontaminates.
         synthetic: The fill's rows, read from the store.
     """
 
@@ -77,27 +79,43 @@ def fills(
     """Each replica fill of `rows`, holdout by holdout in the experiment's order, arms in order.
 
     `rows` must already be bound to `folder` (`bko.evaluate.rows_read.bind`). Each holdout's
-    split is prepared as the run prepared it and held to the folder's `split` line.
+    split is prepared as the run prepared it and held to the folder's `split` line. When the
+    experiment decontaminates (`Experiment.decontaminate`), the test split loses each record some
+    stored fill of the holdout, gap or replica, copies (`bko.evaluate.copies.decontaminated`), as
+    the run's scoring did.
 
     Raises:
-        IdentityError: If a holdout's split line is not the folder's, or as `frame_of`.
+        IdentityError: If the folder holds no `split` line for a holdout or another one, if a
+            replica arm of the experiment has no stored fill and `arm` line for a holdout, or as
+            `frame_of`.
     """
     frame = data.frame
     columns = list(frame.columns)
     for seed in experiment.holdout_seeds:
+        if seed not in folder.splits:
+            msg = f"{folder.path} holds no split line for holdout {seed}"
+            raise IdentityError(msg)
         ready = prepared(held_split(data, seed), experiment, edges=frame.edges)
         line = split_line(ready.ablated)
-        if line != folder.splits.get(seed):
-            msg = f"holdout {seed}'s split {line!r} is not {folder.path}'s"
-            msg += f" {folder.splits.get(seed)!r}"
+        if line != folder.splits[seed]:
+            msg = f"holdout {seed}'s split {line!r} is not {folder.path}'s {folder.splits[seed]!r}"
             raise IdentityError(msg)
-        real, test = ready.ablated.train[columns], ready.ablated.test[columns]
-        for name in experiment.replica_arms:
-            arm = f"{name}{REPLICA}"
-            synthetic = frame_of(
-                rows.lines[seed, arm], arm_line=folder.arms[seed, arm], frame=frame
-            )
-            yield SynthevalFill(seed, arm, real, test, synthetic)
+        arms = [f"{name}{REPLICA}" for name in experiment.replica_arms]
+        for arm in arms:
+            if (seed, arm) not in rows.lines or (seed, arm) not in folder.arms:
+                msg = f"holdout {seed}'s {arm} has no stored fill and arm line in {folder.path}"
+                raise IdentityError(msg)
+        stored = {
+            arm: frame_of(rows.lines[held, arm], arm_line=folder.arms[held, arm], frame=frame)
+            for held, arm in sorted(rows.lines)
+            if held == seed
+        }
+        test = ready.ablated.test
+        if experiment.decontaminate:
+            test = decontaminated(test, stored.values(), frame=frame)
+        real = ready.ablated.train[columns]
+        for arm in arms:
+            yield SynthevalFill(seed, arm, real, test[columns], stored[arm])
 
 
 def export(fill: SynthevalFill, directory: Path) -> dict[str, str]:
@@ -120,9 +138,18 @@ def export(fill: SynthevalFill, directory: Path) -> dict[str, str]:
 
 
 def score_argv(
-    *, python: Path, script: Path, inputs: Path, target: str, categorical: Sequence[str]
+    *,
+    python: Path,
+    script: Path,
+    inputs: Path,
+    target: str,
+    categorical: Sequence[str],
+    seed: int,
 ) -> list[str]:
-    """The call of `script` under `python` on the files `export` wrote into `inputs`."""
+    """The call of `script` under `python` on the files `export` wrote into `inputs`.
+
+    `seed` seeds the script's global random state; the reading passes the fill's holdout seed.
+    """
     return [
         str(python),
         str(script),
@@ -138,6 +165,8 @@ def score_argv(
         *categorical,
         "--metrics",
         str(inputs / "metrics.json"),
+        "--seed",
+        str(seed),
         "--out",
         str(inputs / OUT),
     ]

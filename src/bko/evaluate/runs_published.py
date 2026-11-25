@@ -53,5 +53,7 @@ P2: Final = replace(
     criteria=(),
 )
 """E1 on its own holdouts and UCI Heart Disease with `P1_ARMS`, `bko-direct` the candidate against
-every other arm, a replica for every row-adding arm and the candidate, and no criterion. Its
-replica fills are what `syntheval` scores (`bko.evaluate.syntheval_reading`)."""
+every other arm, a replica for every row-adding arm and the candidate, no criterion, and E1's
+`decontaminate` true: each holdout's test split loses the records some arm's rows copy. Its
+replica fills are what `syntheval` scores (`bko.evaluate.syntheval_reading`), against that
+decontaminated test split."""

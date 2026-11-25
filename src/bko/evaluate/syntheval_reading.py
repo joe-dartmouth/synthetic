@@ -2,8 +2,9 @@
 
 `run_syntheval` binds the `rows` store at PATH to FOLDER, and for each replica fill
 (`bko.evaluate.syntheval_inputs.fills`) writes the fill's inputs into a temporary directory, logs
-each file's sha256, runs `bench/syntheval/score.py` under `bench/syntheval/.venv` through an
-injectable runner, and reads back the metrics it writes. It returns one CSV row per holdout, arm
+each file's sha256, runs `score.py` under the `.venv` of `--bench-dir` (default: this checkout's
+`bench/syntheval/`) through an injectable runner, seeded with the fill's holdout seed, and reads
+back the metrics it writes. It returns one CSV row per holdout, arm
 and metric, and makes no API call. ADR `research/syntheval-reading` records the reading; ADR
 `tooling/benchmark-tools-outside-the-lock` the environment, which `make syntheval-env` builds.
 """
@@ -26,6 +27,7 @@ from typing import Final
 
 from bko.datasets.errors import UnavailableError
 from bko.datasets.fetch import default_data_dir
+from bko.datasets.synthea_run import child_environment
 from bko.evaluate.context import Context
 from bko.evaluate.data import load
 from bko.evaluate.errors import EvaluationError
@@ -46,7 +48,13 @@ COLUMNS: Final = ("holdout", "arm", "metric", "value")
 """The CSV's columns: one row per holdout, replica fill and metric."""
 
 TAIL: Final = 20
-"""The most lines of the script's stderr a failure names."""
+"""The most lines of each of the script's stdout and stderr a failure names."""
+
+TIMEOUT_SECONDS: Final = 3600.0
+"""The longest one fill's script may run before the reading stops."""
+
+THREADS: Final[dict[str, str]] = {"OMP_NUM_THREADS": "1", "VECLIB_MAXIMUM_THREADS": "1"}
+"""The thread caps the script gets, beside `child_environment`'s variables; no other is passed."""
 
 
 def bench_dir() -> Path:
@@ -59,14 +67,27 @@ def bench_dir() -> Path:
 
 
 def run_script(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    """Run `argv` with no stdin, its stdout and stderr captured as text."""
-    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-        list(argv),
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    """Run `argv` with no stdin, its stdout and stderr captured as text.
+
+    The script gets `PATH`, `HOME`, the locale variables and `THREADS` only, so no credential
+    reaches it.
+
+    Raises:
+        EvaluationError: If it runs longer than `TIMEOUT_SECONDS`.
+    """
+    try:
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
+            list(argv),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=child_environment() | THREADS,
+            timeout=TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = f"the SynthEval script ran longer than {TIMEOUT_SECONDS:g} s"
+        raise EvaluationError(msg) from exc
 
 
 def run_syntheval(
@@ -74,19 +95,21 @@ def run_syntheval(
 ) -> str:
     """The `syntheval` command over `context`, the context of the run `args.run`; the CSV.
 
-    It logs the versions, `syntheval store=%s sha256=%s`, per input file
-    `syntheval input holdout=%d arm=%s file=%s sha256=%s`, per fill
+    It logs the versions, `syntheval store=%s sha256=%s`, per fill
+    `syntheval start holdout=%d arm=%s`, per input file
+    `syntheval input holdout=%d arm=%s file=%s sha256=%s`, then
     `syntheval holdout=%d arm=%s rows=%d metrics=%d`, and last `syntheval rows=%d sha256=%s`,
-    the CSV's rows and sha256.
+    the CSV's rows and sha256. The script runs from `args.bench_dir`, else `bench_dir()`.
 
     Raises:
-        UnavailableError: If `bench/syntheval/.venv` holds no interpreter, naming
+        UnavailableError: If the bench directory's `.venv` holds no interpreter, naming
             `make syntheval-env`, before any file is read.
         IdentityError: As `bind` and `fills`.
-        EvaluationError: If the script exits non-zero, with the last `TAIL` lines of its stderr,
-            or writes no JSON object of metric name to number or null.
+        EvaluationError: As `run_script`, or if the script exits non-zero, with the last `TAIL`
+            lines of its stdout and its stderr, or writes no JSON object of metric name to number
+            or null.
     """
-    bench = bench_dir()
+    bench = bench_dir() if args.bench_dir is None else args.bench_dir
     python, script = bench / ".venv" / "bin" / "python", bench / "score.py"
     if not python.is_file():
         msg = f"no SynthEval environment at {python}; run make syntheval-env"
@@ -109,6 +132,7 @@ def run_syntheval(
     writer.writerow(COLUMNS)
     written = 0
     for fill in fills(folder, rows, data, context.experiment):
+        logger.info("syntheval start holdout=%d arm=%s", fill.holdout, fill.arm)
         metrics = _scored(fill, runner, argv)
         for metric, value in metrics.items():
             writer.writerow((fill.holdout, fill.arm, metric, "" if value is None else repr(value)))
@@ -130,8 +154,8 @@ def _scored(
 ) -> dict[str, float | None]:
     """`fill`'s metrics: its inputs exported to a temporary directory, the script run on them.
 
-    `argv` is `score_argv` with every keyword but `inputs` bound. Each input file logs its
-    `syntheval input` line.
+    `argv` is `score_argv` with every keyword but `inputs` and `seed` bound; the seed is the
+    fill's holdout seed. Each input file logs its `syntheval input` line.
 
     Raises:
         EvaluationError: As `_metrics`.
@@ -146,22 +170,22 @@ def _scored(
                 file,
                 sha,
             )
-        done = runner(argv(inputs=inputs))
+        done = runner(argv(inputs=inputs, seed=fill.holdout))
         return _metrics(done, inputs / OUT, where=f"{fill.arm}/{fill.holdout}")
 
 
 def _metrics(
     done: subprocess.CompletedProcess[str], path: Path, *, where: str
 ) -> dict[str, float | None]:
-    """The metrics the script wrote to `path`, once it exited 0.
+    """The metrics the script wrote to `path`, once it exited 0; a non-finite number as None.
 
     Raises:
         EvaluationError: If it exited non-zero, or `path` holds no JSON object of metric name to
-            finite number or null.
+            number or null.
     """
     if done.returncode != 0:
-        tail = "\n".join((done.stderr or "").splitlines()[-TAIL:])
-        msg = f"the SynthEval script exited {done.returncode} on {where}:\n{tail}"
+        msg = f"the SynthEval script exited {done.returncode} on {where}"
+        msg += f"\nstdout:\n{_tail(done.stdout)}\nstderr:\n{_tail(done.stderr)}"
         raise EvaluationError(msg)
     try:
         found = json.loads(path.read_text(encoding="utf-8"))
@@ -171,16 +195,20 @@ def _metrics(
     if not isinstance(found, dict) or not all(_value(value) for value in found.values()):
         msg = f"the SynthEval script's metrics on {where} are not names to numbers: {found!r}"
         raise EvaluationError(msg)
-    return {str(name): None if value is None else float(value) for name, value in found.items()}
+    return {
+        str(name): None if value is None or not math.isfinite(value) else float(value)
+        for name, value in found.items()
+    }
 
 
 def _value(value: object) -> bool:
-    """Whether `value` is a finite number or null (a JSON `true` is not a number)."""
-    if value is None:
-        return True
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return False
-    return math.isfinite(value)
+    """Whether `value` is a number or null (a JSON `true` is not a number)."""
+    return value is None or (isinstance(value, int | float) and not isinstance(value, bool))
+
+
+def _tail(text: str | None) -> str:
+    """The last `TAIL` lines of `text`."""
+    return "\n".join((text or "").splitlines()[-TAIL:])
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -195,4 +223,10 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     )
     reading.add_argument(
         "--data-dir", type=Path, default=None, help="the data root; default: the repository's"
+    )
+    reading.add_argument(
+        "--bench-dir",
+        type=Path,
+        default=None,
+        help="the directory of score.py and its .venv; default: this checkout's bench/syntheval",
     )
