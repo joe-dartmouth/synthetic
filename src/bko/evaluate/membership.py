@@ -4,13 +4,15 @@ The attack scores each record by minus its DCR-metric distance to the nearest of
 rows, every measured column's span read from the training split (`privacy.nearest_from`). Members
 are the holdout's prepared training split; non-members are its whole test split, copied records
 included; the removed records are neither. It reads three scopes: the records outside the removed
-cell, the removed cell's (undefined with no member in it, as at a removal fraction of 1), and
-label 1's outside the cell. Each scope reads the AUC (`roc_auc_score`, ties at their midrank) and
-the true positive rate at false positive rates 0.01 and 0.001 (`bko.evaluate.attack_stats`), by
-linear interpolation on `roc_curve(drop_intermediate=False)`; the cell scope reads no rate at
-0.001, and a rate below one over the scope's non-members reads NaN, below what the curve
-resolves. Each arm also reads the NNDR and DCR of its added rows to the training split, and the
-held-out rows the same as a baseline (`privacy.distances_and_nndr`).
+cell, the removed cell's (undefined with no member in it, as at a removal fraction of 1), and label
+1's outside the cell; a run with no removal reads its flagged cell in the removed cell's place, and
+its whole training split, a synthetic share's dropped rows included, as members. Each scope reads
+the AUC (`roc_auc_score`, ties at their midrank) and the true positive rate at false positive rates
+0.01 and 0.001 (`bko.evaluate.attack_stats`), by linear interpolation on
+`roc_curve(drop_intermediate=False)`; the cell scope reads no rate at 0.001, and a rate below one
+over the scope's non-members reads NaN, below what the curve resolves. Each arm also reads the NNDR
+and DCR of its added rows to the training split, and the held-out rows the same as a baseline
+(`privacy.distances_and_nndr`).
 
 Each arm also reads the match attack and, for an arm of `DONOR_ARMS`, donor reuse
 (`bko.evaluate.donor_attacks`); both attacks read their scopes and statistics through

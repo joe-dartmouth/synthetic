@@ -50,10 +50,15 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     cutoff: float,
     calibration: bool,
     *,
+    kept: pd.DataFrame,
     share_error: Mapping[str, pd.Series] = MappingProxyType({}),
     roc: bool = False,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
+
+    Each classifier trains on `kept`, the real rows of `parts.train` it keeps (all of them but a
+    synthetic share's dropped rows), plus the arm's added rows; the distances read all of
+    `parts.train`.
 
     With `share_error`, each tree field's value shares in the removed training rows
     (`value_shares`), the arm writes `Measure.CODE_SHARE_ERROR` at the flagged scope after its
@@ -77,7 +82,7 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
         scores.append(
             Score(seed, name, Source.ADDED, Measure.CODE_SHARE_ERROR, Scope.FLAGGED, error)
         )
-    training = training_set(train, baseline, frame=frame)
+    training = training_set(kept, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     shift_counts = (
         cast("Mapping[str, Sequence[int]]", baseline.params["shift"])

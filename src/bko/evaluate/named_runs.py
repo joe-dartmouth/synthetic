@@ -61,6 +61,7 @@ from bko.evaluate.runs_direct import (
     E16_THIN,
     E17_EMPTY,
     E17_THIN,
+    E18,
 )
 from bko.evaluate.runs_published import P1, P2, P3
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -313,6 +314,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e17", "thin", E17_THIN),
         **_slices("e17", "empty", E17_EMPTY),
         **{key: run for name in P3 for key, run in _slices("p3", name, P3[name]).items()},
+        **{key: run for name in E18 for key, run in _slices("e18", name, E18[name]).items()},
         "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
         "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
         "p2": NamedRun(P2, SETTINGS),
@@ -322,9 +324,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM-only full runs
 `e10-pram-*`, the control runs `e12-*` and `e13`, the donor-limit runs `e14-*`, the tree-share
 runs `e15-*` on `diabetes-codes`, the conditional `is_a` runs `e16-*`, the coherent free-field
-runs `e17-*`, Juwara et al.'s removal fractions `p3-*`, TableShift's `p1-id` and `p1-ood`, and
-SynthEval's `p2`, each family's experiment saying what it is. A variant adds its own entry in its
-own change, with its arms, candidate, comparators and ceiling."""
+runs `e17-*`, Juwara et al.'s removal fractions `p3-*`, the synthetic-share sweep `e18-*`,
+TableShift's `p1-id` and `p1-ood`, and SynthEval's `p2`, each family's experiment saying what it
+is. A variant adds its own entry in its own change, with its arms, candidate, comparators and
+ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

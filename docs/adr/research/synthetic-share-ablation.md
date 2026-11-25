@@ -93,7 +93,14 @@ seconds on the whole split and a CTGAN fit of over an hour repeat at every share
 - Owner: `src/bko/datasets/split.py`, `src/bko/evaluate/requests.py`,
   `src/bko/evaluate/experiment.py`, `src/bko/evaluate/prepare.py`, `src/bko/evaluate/run.py`,
   `src/bko/evaluate/runs_direct.py`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_datasets_share.py` (the dropped count's rounding with no floor, the
+  nesting, the hash ranking, share 1 dropping every row), `tests/test_evaluate_share.py` (a share
+  refused beside a removal or with no flagged cell, the test split untouched at every share, the
+  request's quota, the training size at every share, `real` on the whole split, a partial fill,
+  the `experiment` line's key and its assumed value), `tests/test_evaluate_share_runs.py` (the
+  shares, the arms, no paid arm, each run's slices, the reference arm and cell),
+  `tests/test_evaluate_share_readers.py` (`rows`, `panel`, `shared`, `merge`, `trace`, `privacy`
+  and `contradictions` on a share run's folder)
 
 ## Reversal Conditions
 

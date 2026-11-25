@@ -7,12 +7,24 @@ import hashlib
 import logging
 from fractions import Fraction
 
+import pandas as pd
 import pytest
 
-from bko.evaluate.experiment import E1, REAL_ARM, Experiment, Removal
+import bko.evaluate.run_scores as run_scores_module
+from bko.baselines.errors import ShortfallError
+from bko.baselines.methods import Runner
+from bko.baselines.records import Baseline, number
+from bko.baselines.request import Request
+from bko.datasets.cells import CELL_COLUMNS, cell_keys
+from bko.evaluate.classifier import Model, build
+from bko.evaluate.errors import EvaluationError
+from bko.evaluate.experiment import E1, REAL_ARM, Experiment, Removal, gap_request
 from bko.evaluate.prepare import prepared
 from bko.evaluate.provenance import experiment_line
+from bko.evaluate.run import score_holdout
 from bko.evaluate.run_folder import ASSUMED
+from bko.evaluate.scores import Measure, Scope, Source
+from tests._evaluate_fixtures import FAST_ARMS
 from tests._frame_fixtures import TOY, TOY_PARTS
 from tests.test_evaluate_shared import edit_log, refused, run_folder, shared
 
@@ -127,3 +139,138 @@ def test_an_older_experiment_line_reads_at_the_assumed_synthetic_share(tmp_path,
     )
     error = refused(tmp_path, caplog, folder)
     assert error.endswith("differ: {'synthetic_share': ('1/2', 'none')}")
+
+
+QUARTER: dict[tuple[str, str, int], int] = {
+    (band, sex, label): 1 if (band, label) == ("45-69", 1) else 5
+    for band in ("<45", "45-69", ">=70")
+    for sex in ("female", "male")
+    for label in (0, 1)
+}
+"""Each toy cell's dropped rows at a quarter: 5 of 20, and 1 of the 5 in each `45-69` cell with
+the condition."""
+
+ARMS = (REAL_ARM, "smote", "label-bootstrap")
+SCORED = dataclasses.replace(SHARE_RUN, arms=ARMS, comparators=("label-bootstrap",))
+"""`SHARE_RUN` with the label bootstrap beside SMOTE."""
+
+
+def _trainings(
+    experiment: Experiment, monkeypatch, arms: dict[str, Runner] | None = None
+) -> tuple[dict[str, pd.DataFrame], list]:
+    """Each arm's training set at holdout 0 of the toy split, and the holdout's scores."""
+    seen: list[pd.DataFrame] = []
+    real = run_scores_module.probabilities
+
+    def spy(training, test, **options):
+        seen.append(training)
+        return real(training, test, **options)
+
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
+    runners = arms or {name: FAST_ARMS[name] for name in experiment.arms if name != REAL_ARM}
+    scores = score_holdout(TOY_PARTS, experiment, runners, models={Model.LR: build}, frame=TOY)
+    return dict(zip(experiment.arms, seen, strict=True)), scores
+
+
+def _real_ids(training: pd.DataFrame) -> set[int]:
+    """The training set's real record ids: an added row's id is negative."""
+    return {int(record) for record in training.index if record > 0}
+
+
+@pytest.mark.parametrize("share", SHARES[1:])
+def test_each_arms_training_set_is_the_training_size_at_every_share(share, monkeypatch):
+    experiment = dataclasses.replace(SCORED, synthetic_share=share)
+    trainings, _ = _trainings(experiment, monkeypatch)
+    dropped = set(prepared(TOY_PARTS, experiment, edges=TOY.edges).dropped.index)
+    assert dropped
+    for arm, training in trainings.items():
+        assert len(training) == 210, arm
+        if arm != REAL_ARM:
+            assert _real_ids(training) == set(TOY_PARTS.train.index) - dropped, arm
+
+
+def test_the_request_asks_each_cells_dropped_count():
+    assert gap_request(TOY_PARTS.train, SHARE_RUN, seed=0, frame=TOY).quota == QUARTER
+    tenth = dataclasses.replace(SHARE_RUN, synthetic_share=Fraction(1, 10))
+    expected = {cell: 1 if rows == 1 else 2 for cell, rows in QUARTER.items()}
+    assert gap_request(TOY_PARTS.train, tenth, seed=0, frame=TOY).quota == expected
+    # With no share, the flagged cell alone is restored to `fill_to`.
+    restored = dataclasses.replace(SHARE_RUN, arms=("smote",), synthetic_share=None, fill_to=26)
+    assert gap_request(TOY_PARTS.train, restored, seed=0, frame=TOY).quota == {FULL: 6}
+
+
+def test_a_share_that_drops_no_row_is_refused():
+    fiftieth = dataclasses.replace(SHARE_RUN, synthetic_share=Fraction(1, 50))
+    with pytest.raises(EvaluationError, match=r"the synthetic share 1/50 drops no training row"):
+        gap_request(TOY_PARTS.train, fiftieth, seed=0, frame=TOY)
+
+
+def test_every_reader_rebuilds_a_share_runs_request(caplog, monkeypatch):
+    caplog.set_level(logging.INFO, logger="bko.evaluate.run")
+    _trainings(SCORED, monkeypatch)
+    used = {}
+    for record in caplog.records:
+        message = record.getMessage()
+        if message.startswith("quota holdout=0 "):
+            _, _, stratum, rows = message.split(" ")
+            band, sex, label = stratum.removeprefix("stratum=").split("/")
+            used[band, sex, int(label)] = int(rows.removeprefix("rows="))
+    assert used == QUARTER
+    # trace, shared and membership each call `gap_request` on the prepared split, as here.
+    train = prepared(TOY_PARTS, SCORED, edges=TOY.edges).ablated.train
+    assert gap_request(train, SCORED, seed=0, frame=TOY).quota == used
+
+
+@pytest.mark.parametrize("share", SHARES[1:])
+def test_real_at_any_share_trains_on_the_whole_split(share, monkeypatch):
+    experiment = dataclasses.replace(SCORED, synthetic_share=share)
+    training = _trainings(experiment, monkeypatch)[0][REAL_ARM]
+    columns = list(TOY.columns)
+    found = training.loc[:, columns].sort_values(columns).reset_index(drop=True)
+    whole = TOY_PARTS.train.loc[:, columns].sort_values(columns).reset_index(drop=True)
+    assert found.equals(whole)
+    assert training["weight"].tolist() == pytest.approx([1.0] * 210)
+
+
+def test_share_1_trains_on_synthetic_rows_alone(monkeypatch):
+    experiment = dataclasses.replace(SCORED, synthetic_share=Fraction(1))
+    trainings, _ = _trainings(experiment, monkeypatch)
+    for arm in ("smote", "label-bootstrap"):
+        assert len(trainings[arm]) == 210
+        assert _real_ids(trainings[arm]) == set()
+    assert len(trainings[REAL_ARM]) == 210
+
+
+def _shorting(runner: Runner) -> Runner:
+    """`runner`'s rows but those of the request's first cell, reported short on every attempt."""
+
+    def short(train: pd.DataFrame, request: Request) -> Baseline:
+        full = runner(train, request)
+        cell, *_ = request.quota
+        keys = cell_keys(full.added, edges=TOY.edges).loc[:, list(CELL_COLUMNS)]
+        keep = [tuple(key) != cell for key in keys.itertuples(index=False)]
+        missing = {"/".join(map(str, cell)): request.quota[cell]}
+        kept = Baseline(number(full.added.loc[keep]), full.weights, {"short": missing})
+        raise ShortfallError(f"short of {missing}", missing, kept.added, kept)
+
+    return short
+
+
+def test_an_arm_short_of_a_cells_count_scores_its_partial_fill(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    arms = {"smote": _shorting(FAST_ARMS["smote"]), "label-bootstrap": FAST_ARMS["label-bootstrap"]}
+    trainings, scores = _trainings(SCORED, monkeypatch, arms)
+    # The first cell, `<45/female/0`, drops 5 rows, which the short arm never adds.
+    assert len(trainings["smote"]) == 205
+    assert len(trainings["label-bootstrap"]) == 210
+    rows = {
+        s.arm: s.value
+        for s in scores
+        if (s.source, s.measure, s.scope) == (Source.ADDED, Measure.ROWS, Scope.ALL)
+    }
+    assert rows == {REAL_ARM: 52.0, "smote": 47.0, "label-bootstrap": 52.0}
+    assert (
+        "shortfall holdout=0 arm=smote attempt=5 cell=<45/female/0 short=5 quota=5" in caplog.text
+    )
+    assert "added=47 " in caplog.text
+    assert 'params={"short": {"<45/female/0": 5}}' in caplog.text

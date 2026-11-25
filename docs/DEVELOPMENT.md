@@ -687,8 +687,13 @@ start or the supervisor cannot run.
   data with that seed and gives every arm the split's training rows and the request that fills
   each cell under the threshold up to the fill target (`Experiment.threshold` and
   `Experiment.fill_to`, both 20 in `E1`), or only the cell `Experiment.flagged_cell` names when
-  it is set. A classifier fit on the
-  real rows, weighted as the arm says, and the added rows is scored on the test split, then a
+  it is set. Under `Experiment.synthetic_share` the request asks each cell for the training rows
+  the share drops there (`bko.datasets.split.dropped`), every arm fits on the whole training
+  split, the real rows a classifier fits on leave the dropped rows out, `real` adds them back, and
+  every distance reads the whole split (ADR
+  [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). A classifier
+  fit on the real rows, weighted as the arm says, and the added rows is scored on the test split,
+  then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
   `grep -v -- '-hgb,'` leaves the regression's rows alone. A run whose `Experiment.flagged_cell`
@@ -820,10 +825,10 @@ start or the supervisor cannot run.
   and kept, and the held-out ratio the holdout's intervals read),
   the split line `cells` prints, for a run with a removal (`e3` and its slices) a
   `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
-  before the removal, those it removed and those it kept), for a run with a synthetic share a
-  `share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s` line (the share, the training
-  rows kept and dropped, and the sha256 of the dropped record ids, sorted and joined by commas),
-  one `quota` line per stratum, a
+  before the removal, those it removed and those it kept), for a run with a synthetic share (the
+  `e18-*` runs) a `share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s` line (the
+  share, the training rows kept and dropped, and the sha256 of the dropped record ids, sorted and
+  joined by commas), one `quota` line per stratum, a
   `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
   comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
@@ -1041,7 +1046,14 @@ start or the supervisor cannot run.
   0.30, 0.50, 0.80 and 0.95 of `E6_CELL`'s training rows, that cell flagged by name and filled to
   `juwara_total`, no replica, the ceiling inert) and their slices `p3-fifteena` to
   `p3-ninetyfivej`, sliced as E6's are; `docs/EVIDENCE.md`, P3, describes them (ADR
-  [`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md)). `RUNS` also
+  [`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md)). `RUNS`
+  holds E18's runs, `e18-two`, `e18-ten`, `e18-quarter`, `e18-half` and `e18-all`
+  (`bko.evaluate.runs_direct.E18`: `E6_THIN` with `real`, `ctgan`, `tvae`, `cart`, `bayes-net`,
+  `tabddpm`, `label-bootstrap` and the candidate `bko-direct`, no removal, 1/50, 1/10, 1/4, 1/2
+  and 1 of each cell's training rows replaced by each arm's fill, `E6_CELL` flagged by name, no
+  replica, the ceiling inert) and their slices `e18-twoa` to `e18-allj`, sliced as E6's are;
+  `docs/EVIDENCE.md`, E18, describes them (ADR
+  [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). `RUNS` also
   holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,

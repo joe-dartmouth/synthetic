@@ -2,13 +2,17 @@
 
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
 `bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
-`E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, and `E17_THIN` and `E17_EMPTY`
-`bko-coherent`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E17).
+`E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, `E17_THIN` and `E17_EMPTY`
+`bko-coherent`, and `E18` the synthetic-share sweep. `bko.evaluate.named_runs.RUNS` names them
+(`docs/EVIDENCE.md`, E12 to E18).
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
+from fractions import Fraction
+from types import MappingProxyType
 from typing import Final
 
 from bko.baselines.request import Method
@@ -25,7 +29,7 @@ from bko.evaluate.direct_arms import (
 )
 from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_run import BAYES_NET, E3
-from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
+from bko.evaluate.runs_diabetes import E6_CELL, E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
 
 
 CONTROL_ARMS: Final[tuple[str, ...]] = (
@@ -124,3 +128,49 @@ E17_THIN, E17_EMPTY = (
 """E17's runs: `E9_THIN` and `E9_EMPTY` with `bko-coherent` in place of `bko-logic` as the candidate
 against `bko-direct` and `none`, and no replica (ADR `research/free-field-synthesis`). No arm calls
 the API, so the ceiling is inert."""
+
+
+E18_SHARES: Final[Mapping[str, Fraction]] = MappingProxyType(
+    {
+        "two": Fraction(1, 50),
+        "ten": Fraction(1, 10),
+        "quarter": Fraction(1, 4),
+        "half": Fraction(1, 2),
+        "all": Fraction(1),
+    }
+)
+"""The synthetic shares of E18, by the run name each is spelled as: 2%, 10%, 25%, 50% and 100%."""
+
+E18_ARMS: Final[tuple[str, ...]] = (
+    REAL_ARM,
+    DIRECT_ARM,
+    str(Method.CTGAN),
+    str(Method.TVAE),
+    str(Method.CART),
+    BAYES_NET,
+    str(Method.TABDDPM),
+    str(Method.LABEL_BOOTSTRAP),
+)
+"""E18's arms: `real`, `bko-direct`, the row-adding comparators and the label bootstrap, the control
+for synthetic rows adding nothing."""
+
+E18: Final[Mapping[str, Experiment]] = MappingProxyType(
+    {
+        name: replace(
+            E6_THIN,
+            arms=E18_ARMS,
+            candidate=DIRECT_ARM,
+            comparators=tuple(arm for arm in E18_ARMS if arm not in {DIRECT_ARM, REAL_ARM}),
+            replica_arms=(),
+            replica_rows=None,
+            removal=None,
+            flagged_cell=E6_CELL,
+            synthetic_share=share,
+        )
+        for name, share in E18_SHARES.items()
+    }
+)
+"""One experiment per share: `E6_THIN` with `E18_ARMS`, `bko-direct` the candidate against every
+arm but `real`, no replica and no removal, `share` of each cell's training rows replaced by each
+arm's fill and `E6_CELL` flagged by name, whose recall the margin reads (ADR
+`research/synthetic-share-ablation`). No arm calls the API, so the ceiling is inert."""
