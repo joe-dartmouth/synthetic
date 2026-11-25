@@ -22,14 +22,18 @@ import pandas as pd
 import pytest
 
 from bko.datasets.diabetes import DIAGNOSES
+from bko.datasets.split import split
+from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset
 from bko.evaluate.direct_arms import DIRECT_ARM, NOMAP_ARM, TREE_ARM
+from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, REAL_ARM, Experiment, Removal
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.reference import REFERENCE
+from bko.evaluate.run import score_holdout
 from bko.evaluate.run_scores import code_share_error, value_shares
 from bko.evaluate.runs_diabetes import E9_EMPTY, E9_THIN
 from bko.evaluate.runs_direct import E15_EMPTY, E15_THIN
@@ -38,6 +42,7 @@ from bko.generate.messages import SETTINGS, AnySend
 from bko.generate.tree import TOP, UNMAPPED, TreePart
 from bko.ontology.icd9_codes import ICD9_CODES
 from tests._diabetes_fixtures import diabetes_releases, pin, toy_archive
+from tests._evaluate_fixtures import FAST_ARMS, GRADED
 from tests._ontology_fixtures import RoutingOpener
 from tests.test_evaluate_diabetes import PREVALENCE, REMOVED
 from tests.test_evaluate_trace import _scored
@@ -252,6 +257,12 @@ def test_a_run_without_bko_tree_writes_no_code_share_error_row(tmp_path):
     assert main(argv, context=_context(direct), out=out) == 0
     assert {score.arm for score in parse(out.getvalue())} >= {REAL_ARM, DIRECT_ARM}
     assert _error_rows(out.getvalue()) == {}
+
+
+def test_a_tree_run_whose_field_rows_hold_no_tree_field_is_refused():
+    parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
+    with pytest.raises(EvaluationError, match=f"{TREE_ARM} needs a tree field"):
+        score_holdout(parts, TREE_RUN, FAST_ARMS, frame=UCI_FRAME)
 
 
 def test_a_tree_folder_rescores_to_its_own_bytes(scored, tmp_path, caplog):

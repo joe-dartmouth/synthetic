@@ -119,7 +119,8 @@ def run(
 
     Raises:
         EvaluationError: If the removal's cell is not a cell of `frame`, an arm other than
-            `REAL_ARM` has no runner, no cell needs filling, or a fit does not converge.
+            `REAL_ARM` has no runner, no cell needs filling, the experiment holds `TREE_ARM`
+            and `rows` hold no tree field, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
         DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout,
             or as `records_split`, if a held id is not among the records.
@@ -186,11 +187,13 @@ def score_holdout(
     the rows the removal took, NaN for a fill with no rows.
 
     Raises:
-        EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
+        EvaluationError: If `models` lacks `Model.LR`, the experiment holds `TREE_ARM` and `rows`
+            hold no tree field, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
         DatasetError: As `prepared`, if the removal's cell holds no training row.
     """
     _require_regression(models)
+    _require_tree(rows, experiment, frame)
     ready = prepared(parts, experiment, edges=frame.edges)
     ablated = ready.ablated
     train, test, seed = ablated.train, ablated.test, ablated.seed
@@ -295,6 +298,13 @@ def score_holdout(
         if name in replica_counts:
             scores += _rows(seed, name, Source.REPLICA_CANDIDATES, replica_counts[name])
     return scores
+
+
+def _require_tree(rows: Sequence[FieldMapping], experiment: Experiment, frame: FrameSpec) -> None:
+    """Refuse an experiment holding `TREE_ARM` when `rows` hold no tree field of `frame`."""
+    if TREE_ARM in experiment.arms and not tree_fields(rows, frame):
+        msg = f"{TREE_ARM} needs a tree field, and the field rows of {frame.name} hold none"
+        raise EvaluationError(msg)
 
 
 def _removed_shares(
