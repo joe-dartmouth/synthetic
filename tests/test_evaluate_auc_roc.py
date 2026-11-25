@@ -83,3 +83,22 @@ def test_a_run_with_a_flagged_cell_writes_it_on_both_scopes():
                 Scope.ALL,
                 Scope.FLAGGED,
             ]
+
+
+@pytest.mark.parametrize("model", list(Model))
+def test_every_model_has_an_auc_roc_measure(model):
+    expected = "auc-roc" if model is Model.LR else f"auc-roc-{model.value}"
+    assert suffixed(Measure.AUC_ROC, model).value == expected
+
+
+def test_auc_roc_sits_after_auc_pr_and_before_the_calibration_measures():
+    scores = utility(SIX, PROBABILITY, MALE, edges=TOY.edges, roc=True, calibration=True)
+    for scope in Scope:
+        assert [m for m, s in scores if s is scope] == [
+            Measure.RECALL,
+            Measure.PRECISION,
+            Measure.AUC_PR,
+            Measure.AUC_ROC,
+            Measure.BRIER,
+            Measure.CALIBRATION,
+        ]
