@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-11-18
-updated: 2026-11-18
+updated: 2026-11-24
 ---
 # Demo video scenes in `video/`, with ManimGL outside the lock
 
@@ -78,4 +78,5 @@ project's dependencies with no package at two versions.
 
 - [uv, ruff and ty](uv-ruff-ty.md)
 - [Per-tree line caps on Python files](file-size-cap.md)
+- [Benchmark tools in `bench/<tool>/`, outside the lock](benchmark-tools-outside-the-lock.md)
 - [BKB layer source](../research/bkb-layer-source.md)

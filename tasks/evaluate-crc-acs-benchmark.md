@@ -27,8 +27,10 @@ only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
 
 **In.**
 
-- SDNist in a hashed environment outside the lock on Python 3.12 that reads the written CSV, as
-  `video/` does. SDNist 2.4 on PyPI pins numpy 1.24.2 and scipy 1.10.1 with no Python
+- SDNist in a hashed environment outside the lock on Python 3.12 that reads the written CSV,
+  laid out as `bench/sdnist/` under ADR
+  [`tooling/benchmark-tools-outside-the-lock`](../docs/adr/tooling/benchmark-tools-outside-the-lock.md).
+  SDNist 2.4 on PyPI pins numpy 1.24.2 and scipy 1.10.1 with no Python
   requirement, and those have no Python 3.14 wheels. GitHub main is 2.5, not on PyPI, and states
   Python 3.9 to 3.12. The unit pins one of them and says which, by PyPI version or by commit
   SHA, every package hashed.

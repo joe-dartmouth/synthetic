@@ -304,3 +304,14 @@ folder is its record.
 | Runs | |
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#published-comparisons) (Published comparisons: a development comparison, outside the confirmatory family) and TableShift's Table 7; no criterion applies, so no verdict |
+
+## P2. UCI Heart Disease scored by SynthEval
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On UCI Heart Disease, how do `bko-direct` and the row-adding comparators score under the SynthEval metrics Lautrup et al. report, beside their heart-disease figures? |
+| Configuration | Data: the UCI archive `bko.datasets.sources` names, split by `bko.datasets.split` at each of E1's holdout seeds. Arms: the free arms `none`, `class-weight`, `smote`, `adasyn`, `ctgan`, `tvae`, `gaussian-copula`, `cart`, `bayes-net`, `tabddpm`, `label-bootstrap` and the candidate `bko-direct`, a replica for every row-adding arm and the candidate, no criterion, no API spend. Each replica fill, read from the run's `rows` store, is scored by SynthEval 1.7.3 against its holdout's training split as the real data and its test split as the holdout data, under the metric set of Lautrup et al.'s code at commit `a07cd9c007b58bee37b0837cfdc65252303afadc` [`lautrup-2026`](literature.md#tabular-generators): `pca`, `h_dist`, `corr_diff` (`mixed_corr`), `auroc_diff` (`rf_cls`), `cls_acc` (macro F1), `eps_risk`, `dcr`, `mia` (5 iterations) [`lautrup-2024`](literature.md#evaluation-and-failure-modes). Design: ADR [`research/syntheval-reading`](adr/research/syntheval-reading.md). |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#published-comparisons) (Published comparisons: a development comparison, outside the confirmatory family) and Lautrup et al.'s heart-disease figures, beside their numbers regenerated from their code; no criterion applies, so no verdict |
