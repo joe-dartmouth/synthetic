@@ -2,9 +2,9 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-24
+updated: 2026-11-25
 ---
-# Each stage keeps a data contradiction and reports it; none forces the ontology onto the data
+# Each stage keeps a data contradiction and reports it; only an ablation arm forces the ontology onto the data
 
 ## Context
 
@@ -83,12 +83,17 @@ or its sample, and the direct sampler draws a child without its parent.
    `p_g` (ADR `research/bkb-direct-generation`, Decision 1): `shares` returns `p_g` itself there,
    since multiplying it by `GROUP_WEIGHT` and dividing it back can move it by one ulp; a
    non-empty cell's share is the formula.
-7. **`bko-direct`** never forces an `is_a` ancestor into a field. A `nested` field pair keeps the
-   outer concept whenever the inner is drawn. A draw no record matches falls back to the label
-   group's records, then raises `SamplingError`. A label group with no record raises `GapError`,
-   once.
+7. **`bko-direct`**, and every direct arm that shares its concept draw, never forces an `is_a`
+   ancestor into a field. A `nested` field pair keeps the outer concept whenever the inner is
+   drawn. A draw no record matches falls back to the label group's records, then raises
+   `SamplingError`. A label group with no record raises `GapError`, once. `bko-hier-0` and
+   `bko-hier-w` draw a pair's broad concept given its narrow one at the data's conditional shrunk
+   toward the `is_a` S-node (ADR `research/bkb-direct-generation`, Decision 12), forcing none.
+   `bko-hier-closed` forces each pair's broad concept whenever its narrow one is drawn, and
+   `bko-logic` reads the closure into fields (ADR `research/logic-only-ablation`); both are
+   ablation arms only.
 8. **Reported, not corrected.** The `contradictions` command reports every kind; no stage
-   rewrites the data or the draw to remove one.
+   rewrites the data, and no draw but an ablation arm's removes one (Decision 7).
 
 ## Rationale
 
@@ -129,12 +134,13 @@ table does not nest them, a pattern the data shows.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Forcing ancestors into fields | Asserts values no share supports, and the data shows the child without the ancestor far more often than with it (Rationale) | 2026-11-05 |
+| Forcing ancestors into `bko-direct`'s fields | Asserts values no share supports, and the data shows the child without the ancestor far more often than with it (Rationale) | 2026-11-05 |
 | Dropping the dataset prior a contradiction touches | Changes an input probability, which `check_fused` refuses | 2026-11-05 |
 | Requiring mutual exclusion of a fused BKB | A class with two scoped children is already non-mutex (ADR `research/bko-fragment-encoding`) | 2026-11-05 |
 | The census in `bko.gaps` | It would move the evaluate loader, `Context` and `log_versions` below `bko.evaluate` for a command nothing outside evaluate runs | 2026-11-09 |
 | The training split as the only basis | It cannot show whether an arm's added rows contradict the ontology or break the Diabetes coherence rules, the measure the generation units target | 2026-11-24 |
 | One share of rows breaking any coherence rule, as `incoherent` reads it | It hides which rule a fill breaks; each rule is counted on its own | 2026-11-24 |
+| Forcing ancestors in every direct arm | It would replace the data's reading with the ontology's in every fill; `bko-hier-closed` forces them as one ablation arm beside the shrunk conditional, so the forcing is measured against `bko-direct` | 2026-11-25 |
 
 ## Enforcement
 
@@ -152,7 +158,8 @@ table does not nest them, a pattern the data shows.
 
 ## Reversal Conditions
 
-**A stage forces ancestors when the mapping table gains a row that implies its parent's values**;
+**`bko-direct` and the stages force ancestors when the mapping table gains a row that implies its
+parent's values**;
 the check is a search of `bko.ontology.mapping.FIELD_MAPPINGS` and the Diabetes field rows for a
 row that reads a concept's parent. **The valid-BKB check requires mutual exclusion if ADR
 `research/bko-fragment-encoding` comes to encode a state for absence.** **The census moves to

@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # The logic-only ablation draws each component of mapped concepts uniformly from the assignments the ontology allows
 
@@ -154,5 +154,5 @@ that component in the run's `scores.log`.
 - [Direct generation draws each mapped concept at its fused share and reads fields from matching records](bkb-direct-generation.md)
 - [A dataset becomes a fragment of one prior per mapped concept its records show](dataset-fragment-encoding.md)
 - [A frequency-aware gap: a concept credibly under four-fifths of its share in the rest of its label group](frequency-aware-gap-score.md)
-- [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)
+- [Each stage keeps a data contradiction and reports it; only an ablation arm forces the ontology onto the data](data-contradiction-handling.md)
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)

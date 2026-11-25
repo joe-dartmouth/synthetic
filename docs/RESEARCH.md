@@ -491,11 +491,12 @@ registered `candidate` stays `bko`.
 ### Ablations and comparators
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped`, `bko-tree` and `bko-skeleton`, and the guidance levels, are ablations: each changes
-one part of how the BKB guides generation. The row-adding methods (the comparison set, the classical
-synthesizers, TabDDPM, the Bayesian network and the label bootstrap) are comparators. The control
-`prior-shift` adds no rows: it scores `none`'s fit with each requested subgroup's test logits moved
-to the subgroup's prevalence after the gap request's fill (ADR
+`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed` and `bko-skeleton`,
+and the guidance levels, are ablations: each changes one part of how the BKB guides generation.
+The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the Bayesian
+network and the label bootstrap) are comparators. The control `prior-shift` adds no rows: it
+scores `none`'s fit with each requested subgroup's test logits moved to the subgroup's prevalence
+after the gap request's fill (ADR
 [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)).
 
 ### Data
@@ -533,6 +534,7 @@ not a test of it.
 | [E13](EVIDENCE.md#e13-control-arms-on-the-synthea-removal) | Development result |
 | [E14](EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal) | Ablation |
 | [E15](EVIDENCE.md#e15-ancestor-shrunk-shares-on-the-diabetes-codes-frame) | Ablation |
+| [E16](EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -613,7 +615,7 @@ on E6's and E3's frames. Each contrast falls in one branch:
 
 What follows: every unit proceeds in every branch. Against `label-bootstrap` or `bko-nomap`,
 anything but `above` means pooling is reported as the mechanism at that fraction, and a mapping or
-structure claim can come only from the arms of `generate-is-a-conditional-draws` or the arm
+structure claim can come only from the arms `bko-hier-0`, `bko-hier-w`, `bko-hier-closed` and
 `bko-tree`. The confirmatory primary endpoint
 (`evaluate-confirmatory-registration`) is removed-cell recall if the `prior-shift` contrast is
 `above` on recall on E6's frame at either fraction; else flagged Brier if that contrast is in
@@ -638,7 +640,8 @@ A variant enters `bko-direct-2` when, on each development frame it
 runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
 recall is non-inferior within the margin above. Each variant registers one parameter value, except
 the `is_a` pseudo-count: of the registered values that pass, the largest enters. `bko-capped`'s
-pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value.
+pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value. The closed arm
+`bko-hier-closed` is an ablation and registers no value.
 
 "Improves" means the interval lies wholly on the measure's better side (below 0 for Brier). Each
 variant's target measure is the one its register entry names, and no correction is made across

@@ -195,6 +195,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
 
+## E16. Conditional is_a draws on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does drawing each `is_a` pair's broad concept given its narrow one, at the data's conditional shrunk toward the `is_a` S-node (`bko-hier-0`, `bko-hier-w`) or with the closure forced (`bko-hier-closed`), lower the narrow-without-broad rows of a fill against `bko-direct`, and at what cost to removed-cell recall? |
+| Configuration | Design: ADR [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 12, fixes the conditional, the complement that keeps the broad concept's marginal, the clamp at 0 and the refusals; ADR [`research/data-contradiction-handling`](adr/research/data-contradiction-handling.md) records `bko-hier-closed` as an ablation arm only. Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e16-thin` (0.985) and `e16-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e16-thina` to `e16-thinj` and `e16-emptya` to `e16-emptyj`, at E6's settings. Arms: `none`, `real`, `bko-direct`, `bko-hier-0`, `bko-hier-w` and `bko-hier-closed`; candidate `bko-hier-w`, comparators `bko-direct`, `bko-hier-0` and `none`; no replica. Target measure: the narrow-without-broad count of `contradictions --rows` (ADR `research/data-contradiction-handling`, Decision 2). The frame holds two `is_a` pairs, so the arms are a contradiction-handling ablation: `MONDO:0005016` under `MONDO:0005300`, 757 of its 838 training records without it, and `MONDO:0005607` under `MONDO:0005002`, 2,092 of 2,095 without it (`runs/d2-2/contradictions.log:37-38`). E3's frame is left out because its one pair shows no narrow-without-broad record among 17, so the three arms would draw the same rows there. The [variant inclusion rule](RESEARCH.md#variant-inclusion-rule) reads each registered arm minus `bko-direct`; `bko-hier-w` minus `bko-hier-0` is read beside it as the ontology's own contribution, since `bko-hier-0` minus `bko-direct` measures the data's dependence. The registered pseudo-counts are 0 and `GROUP_WEIGHT`; `bko-hier-closed` is an ablation that registers no value. No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |

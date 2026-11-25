@@ -95,7 +95,7 @@ mapping table (ADR `research/no-mapping-ablation`).
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
 11. **The draw spec.** The sampler takes a `DrawSpec` of `presence`, `mapped`, `min_donors`,
-    `reuse_cap` and `tree`. At its
+    `reuse_cap`, `tree`, `hierarchy` and `closed`. At its
     default, shares and the mapping table, Decisions 1 to 3 apply and the arm is `bko-direct`. At
     logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
     concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
@@ -108,7 +108,29 @@ mapping table (ADR `research/no-mapping-ablation`).
     and skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change. At
     `tree=True`, the arm is `bko-tree`: ADR `research/ancestor-shrunk-shares` draws each tree
     field, a column whose rows partition its codes, as one leaf at its ancestor-shrunk share and
-    copies it from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5.
+    copies it from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5. At
+    `hierarchy=0.0`, `hierarchy=20.0` and `closed=True`, the arms are `bko-hier-0`, `bko-hier-w`
+    and `bko-hier-closed`: Decision 12 draws each `is_a` pair's broad concept given its narrow
+    one, so only the pairs' concepts leave Decision 2.
+12. **Conditional `is_a` draws.** Under `hierarchy` or `closed`, each `is_a` pair of drawn
+    concepts (`bko.gaps.contradictions.is_a_pairs`), narrow `N` under broad `B`, draws `B` given
+    `N`. With `n_c` and `w` as in Decision 1, `p` a source's prior of `N` and `c` its conditional
+    of `B` given `N` (the S-node `bko.gaps.observe.conditional_fragment` holds; a source no record
+    of which shows `N` contributes 0), `m = n_c p_c + w p_g` and `b = n_c p_c c_c + w p_g c_g`. At
+    pseudo-count `h` the conditional is `c_h = (b + h) / (m + h)`, shrunk toward the `is_a`
+    S-node's probability 1; `closed` sets `c_h = 1`. `N` is drawn at its share `s(N)`; `B` at
+    `c_h` when `N` is present, else at the complement `(s(B) - s(N) c_h) / (1 - s(N))` clamped to
+    [0, 1], which keeps `B`'s marginal at `s(B)` whenever the clamp does not fire. When
+    `s(N) = 1`, `N` is always present and no complement is read. At `h = 0`, `c_0 = b / m` and
+    the pair's joint is the two sources' joints weighted as Decision 1 weighs their priors. Each
+    concept still takes one `random()` in Decision 7's order, and presence is then decided narrow
+    before broad (`bko.gaps.shares.draw_order`), so a concept outside every pair is present
+    exactly when `bko-direct` draws it present at the same seed. A broad concept with two narrow
+    ones is refused, so each broad concept has one conditional, as is a frame with no pair, which
+    would draw as `bko-direct`, and a frame whose rows hold a nested pair: Decision 7 spends no
+    uniform on an outer concept whose inner one is present, so the two rules cannot share one
+    stream. The registered pseudo-counts are 0 (`bko-hier-0`) and `w` (`bko-hier-w`);
+    `bko-hier-closed`, which forces each pair's closure, is an ablation and registers no value.
 
 ## Rationale
 
@@ -120,10 +142,12 @@ its group's equally, and an empty cell draws its group's shares. The label group
 record, keeps the label's share: the population pools both labels, so a target 0 cell would draw
 target 1 findings at the pooled rate.
 
-Drawing concepts independently is all the sampler's BKB supports: it reads the priors of
-`dataset_fragment` only, which represent no co-occurrence, and no conditional S-node of a mapped
-`is_a` pair (ADR `research/dataset-fragment-encoding`, Decision and Consequences). `restecg` is the
-one exception the table forces: its two `restecg` rows nest, so independent draws would produce
+`bko-direct` draws concepts independently because its BKB supports nothing more: it reads the
+priors of `dataset_fragment` only, which represent no co-occurrence, and no conditional S-node of
+a mapped `is_a` pair (ADR `research/dataset-fragment-encoding`, Decision and Consequences). The
+`bko-hier` arms read that conditional (Decision 12), so the data's pairing of a narrow and a broad
+concept, and the ontology's weight against it, can be measured beside `bko-direct`. `restecg` is
+the one exception the table forces: its two `restecg` rows nest, so independent draws would produce
 LVH without an abnormal EKG, a pattern no record shows, and the conditional keeps both shares as
 marginals.
 
@@ -132,7 +156,8 @@ keeps every value a training value and every within-group combination one a reco
 record passes validation by construction and the numeric fallback the unit asked for is the same
 record draw at the label group. `bko-direct` records closure rather than reading it into fields
 because the ontology fragments carry no prior: forcing an ancestor's row would assert values no
-share supports.
+share supports. `bko-hier-closed` forces it as an ablation arm only, to bound what the `is_a`
+S-node alone does to a fill.
 
 Run `g2-4` over E1's 100 holdouts
 ([EVIDENCE.md](../../EVIDENCE.md#g2-direct-generation-from-the-fused-bkb), G2) measured validity
@@ -167,6 +192,7 @@ group shows no record matching a draw refuses the attempt.
 | Independent `restecg` concepts | Draws LVH without an abnormal EKG, a pattern no record shows | 2026-10-26 |
 | A random generator inside `bko.bkb` | `bko.bkb` stays standard-library only (ADR `research/bkb-layer-source`) | 2026-10-26 |
 | An `age` read from any label-group record when the cell holds none | The record would name another cell, and the join drops it as off-cell | 2026-10-27 |
+| Reading the closure into `bko-direct` | It would change every recorded run's draw, and the data shows each Diabetes 130 pair's narrow concept without its broad one in most records; the `bko-hier` arms measure the conditional and the forced closure beside it (Decision 12) | 2026-11-25 |
 
 ## Enforcement
 
@@ -179,10 +205,11 @@ group shows no record matching a draw refuses the attempt.
 
 ## Reversal Conditions
 
-**The share and the concept draw change when `bko.generate.direct` reads a conditional S-node**
-(ADR `research/dataset-fragment-encoding`, Decision); the check is a search of
-`src/bko/generate/direct.py` for `conditional_fragment`. **`bko-direct` reads closure into
-fields if the ontology fragments gain priors** (ADR `research/bko-fragment-encoding`, Decision).
+**`bko-direct`'s share and concept draw change when its draw reads a conditional S-node** (ADR
+`research/dataset-fragment-encoding`, Decision), as the `bko-hier` arms' does: the check is that
+`DEFAULT_SPEC` in `bko.generate.draw_spec` sets `hierarchy` to None and `closed` to false.
+**`bko-direct` reads closure into fields if the ontology fragments gain priors** (ADR
+`research/bko-fragment-encoding`, Decision).
 
 ## Related
 
@@ -193,4 +220,4 @@ fields if the ontology fragments gain priors** (ADR `research/bko-fragment-encod
 - [The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows](ontology-mapping-design.md)
 - [A record's explanation is the stored or re-derivable facts that determine it](record-explainability.md)
 - [The no-mapping ablation draws bko-direct's records with an empty mapping table](no-mapping-ablation.md)
-- [Each stage keeps a data contradiction and reports it; none forces the ontology onto the data](data-contradiction-handling.md)
+- [Each stage keeps a data contradiction and reports it; only an ablation arm forces the ontology onto the data](data-contradiction-handling.md)
