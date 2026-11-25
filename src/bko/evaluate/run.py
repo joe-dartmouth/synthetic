@@ -47,7 +47,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
-from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
+from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cells, split_line
 from bko.evaluate.privacy import distances
 from bko.evaluate.run_scores import (
     MIN_LABELS,  # ruff: ignore[unused-import]  (re-exported)
@@ -118,14 +118,14 @@ def run(
     no runner.
 
     Raises:
-        EvaluationError: If the removal's cell is not a cell of `frame`, an arm other than
-            `REAL_ARM` has no runner, no cell needs filling, the experiment holds `TREE_ARM`
-            and `rows` hold no tree field, or a fit does not converge.
+        EvaluationError: If the removal's or the flagged cell is not a cell of `frame`, an arm
+            other than `REAL_ARM` has no runner, no cell needs filling, the experiment holds
+            `TREE_ARM` and `rows` hold no tree field, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
         DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout,
             or as `records_split`, if a held id is not among the records.
     """
-    require_cell(experiment.removal, frame)
+    require_cells(experiment, frame)
     missing = sorted(set(experiment.arms) - set(arms) - {REAL_ARM})
     if missing:
         msg = f"no runner for arms {missing}"
@@ -182,7 +182,8 @@ def score_holdout(
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
     is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
     `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
-    replica utility never does. When the experiment holds `TREE_ARM`, each arm writes
+    replica utility never does. An experiment with a `flagged_cell` adds each model's AUGMENTED
+    ROC AUC on each scope. When the experiment holds `TREE_ARM`, each arm writes
     `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the dataset's field rows, against
     the rows the removal took, NaN for a fill with no rows.
 
@@ -280,6 +281,7 @@ def score_holdout(
             experiment.cutoff,
             calibration,
             share_error=removed,
+            roc=experiment.flagged_cell is not None,
         )
         if name in replicas:
             scores += _replica_scores(

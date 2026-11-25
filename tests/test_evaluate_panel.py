@@ -399,6 +399,8 @@ def test_admitted_holds_rows_keys_and_the_panel_and_calibration_measures():
     assert admitted(key(Measure.CALIBRATION_HGB))
     assert not admitted(key(Measure.RECALL))
     assert not admitted(key(Measure.AUC_PR_HGB))
+    assert admitted(key(Measure.AUC_ROC_MLP))
+    assert not admitted(key(Measure.AUC_ROC_HGB))
     assert admitted(key(Measure.HELD_OUT_RATIO, Source.HELD_OUT))
     assert admitted(key(Measure.FLAGGED_FINGERPRINT, Source.HELD_OUT))
     assert not admitted(key(Measure.RECALL_RF, Source.REPLICA))
@@ -535,3 +537,35 @@ def test_a_fill_stored_at_a_later_attempt_replays_its_refusals(tmp_path, caplog)
         f"replay holdout={seed} arm=cart attempt=1" for seed in ONLY_CART.holdout_seeds
     )
     assert not [r for r in caplog.records if r.getMessage().startswith("retry ")]
+
+
+FLAGGED = dataclasses.replace(
+    MIXED,
+    arms=("none", "class-weight", "smote"),
+    candidate="smote",
+    comparators=("none", "class-weight"),
+    flagged_cell=("<55", "female", 1),
+)
+"""`MIXED` without its BKO arm, flagging one cell by name, so every model writes ROC AUC."""
+
+
+def test_a_flagged_cell_run_passes_rows_shared_and_panel_with_its_auc_roc_rows(tmp_path, caplog):
+    folder = run_folder(tmp_path, "run", caplog, experiment=FLAGGED, arms=MIXED_ARMS)
+    recorded = (folder / "scores.csv").read_text(encoding="utf-8")
+    assert ",augmented,auc-roc-hgb," in recorded
+    store = tmp_path / "run-rows" / "rows.jsonl"
+    store.parent.mkdir()
+    data = ["--data-dir", str(tmp_path / "data")]
+    ctx = rescorer(experiment=FLAGGED, arms=MIXED_ARMS)
+    for argv in (
+        ["rows", "--folder", str(folder), "--rows", str(store), *data],
+        ["shared", "--folder", str(folder), *data],
+    ):
+        out = io.StringIO()
+        assert main(argv, context=ctx, out=out) == 0
+        assert out.getvalue() == recorded
+    code, text = paneled(tmp_path, folder, store, experiment=FLAGGED, arms=MIXED_ARMS)
+    assert code == 0
+    augmented = {line.split(",")[3] for line in text.splitlines()[1:] if ",augmented," in line}
+    assert {"auc-roc", "auc-roc-hgb", "auc-roc-rf", "auc-roc-et", "auc-roc-mlp"} < augmented
+    assert "auc-roc-nb" in augmented

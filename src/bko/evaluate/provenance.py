@@ -51,18 +51,21 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
     """The run's configuration, frame and models, as the `experiment` log line's message.
 
     `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
-    band, sex and label joined by `/`, then `@` and the fraction, or `none`; `cutoff=` follows
-    `fill_to=` only when it is not E1's; `replica_rows=` follows `replica=` only when set.
+    band, sex and label joined by `/`, then `@` and the fraction, or `none`; `flagged_cell=`
+    follows `removal=` only when set, as the cell's band, sex and label joined by `/`; `cutoff=`
+    follows `fill_to=` only when it is not E1's; `replica_rows=` follows `replica=` only when set.
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
     removed = (
         "none" if removal is None else f"{'/'.join(map(str, removal.cell))}@{removal.fraction}"
     )
+    cell = experiment.flagged_cell
+    named = "" if cell is None else f"flagged_cell={'/'.join(map(str, cell))} "
     cutoff = "" if experiment.cutoff == THRESHOLD else f"cutoff={experiment.cutoff} "
     capped = "" if experiment.replica_rows is None else f"replica_rows={experiment.replica_rows} "
     return (
         f"experiment run={name} frame={frame} holdouts={len(seeds)} seeds={seeds[0]}-{seeds[-1]} "
-        f"removal={removed} training_fraction={experiment.training_fraction} "
+        f"removal={removed} {named}training_fraction={experiment.training_fraction} "
         f"decontaminate={'true' if experiment.decontaminate else 'false'} "
         f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} {capped}"
         f"threshold={experiment.threshold} fill_to={experiment.fill_to} {cutoff}"

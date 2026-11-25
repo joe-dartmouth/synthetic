@@ -53,7 +53,7 @@ from bko.evaluate.experiment import (
 from bko.evaluate.filling import Logged
 from bko.evaluate.holdout_candidates import FILLS, KEPT, REJECTED, Candidate
 from bko.evaluate.named_runs import DEFAULT_RUN
-from bko.evaluate.prepare import prepared, require_cell
+from bko.evaluate.prepare import prepared, require_cells
 from bko.evaluate.provenance import experiment_line, log_experiment
 from bko.evaluate.run import score_holdout
 from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
@@ -322,7 +322,7 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
     check_folders(
         folder, others, run=run, current=current, data=data, uci=uci, extend_models=extend_models
     )
-    require_cell(experiment.removal, frame)
+    require_cells(experiment, frame)
     stored = {name: StoredArm(name, folder) for name in experiment.arms if name in BKO}
     runners = {**arms, **stored}
     _require_runners(experiment, runners)

@@ -1,9 +1,10 @@
 """Recall, precision and AUC-PR of one classifier's probabilities on the test split, per scope.
 
 A record is called positive at `cutoff` or above, `THRESHOLD` by default. A measure a scope cannot
-define is NaN, never scikit-learn's fallback: recall needs a positive record, AUC-PR a positive and
-a negative one, and precision a record called positive. With calibration on, the Brier score and
-calibration-in-the-large follow, each NaN on an empty scope.
+define is NaN, never scikit-learn's fallback: recall needs a positive record, AUC-PR and ROC AUC a
+positive and a negative one, and precision a record called positive. With ROC on, ROC AUC follows
+AUC-PR; with calibration on, the Brier score and calibration-in-the-large follow, each NaN on an
+empty scope.
 """
 
 from __future__ import annotations
@@ -14,7 +15,12 @@ from typing import Final
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import average_precision_score, precision_score, recall_score
+from sklearn.metrics import (
+    average_precision_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 
 from bko.baselines.request import Stratum
 from bko.datasets.cells import LABEL, cell_keys
@@ -51,10 +57,12 @@ def utility(
     edges: Sequence[int],
     cutoff: float = THRESHOLD,
     calibration: bool = False,
+    roc: bool = False,
 ) -> dict[tuple[Measure, Scope], float]:
     """Each measure in each scope, `probability` holding P(disease) per test record by index.
 
-    A record is called positive at `cutoff` or above; AUC-PR reads no cutoff. With `calibration`,
+    A record is called positive at `cutoff` or above; AUC-PR and ROC AUC read no cutoff. With
+    `roc`, each scope holds `Measure.AUC_ROC` after AUC-PR. With `calibration`,
     each scope also holds `Measure.BRIER`, mean((p - y)^2), and `Measure.CALIBRATION`,
     mean(p) - mean(y), after its other measures.
     """
@@ -76,6 +84,10 @@ def utility(
         scores[Measure.AUC_PR, scope] = (
             float(average_precision_score(truth, score)) if positives and negatives else math.nan
         )
+        if roc:
+            scores[Measure.AUC_ROC, scope] = (
+                float(roc_auc_score(truth, score)) if positives and negatives else math.nan
+            )
         if calibration:
             empty = not len(truth)
             scores[Measure.BRIER, scope] = (

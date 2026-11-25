@@ -40,8 +40,7 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) | ready | -- | direct-method-research |
-| [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | blocked | evaluate-covariate-bias-fractions | direct-method-research |
+| [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | ready | -- | direct-method-research |
 | [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
@@ -69,7 +68,6 @@ unit's `milestone` is `direct-method-research`, the
 
 ```mermaid
 flowchart LR
-    u37[evaluate-covariate-bias-fractions] --> u38[evaluate-covariate-bias-results]
     u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]

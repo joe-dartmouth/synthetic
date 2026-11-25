@@ -30,3 +30,10 @@ def test_the_app_refuses_an_experiment_that_removes():
     with pytest.raises(ValueError, match="raw training split") as caught:
         Context(experiment=experiment)
     assert str(removal) in str(caught.value)
+
+
+def test_the_app_refuses_an_experiment_that_flags_a_cell_by_name():
+    experiment = dataclasses.replace(EXPERIMENT, flagged_cell=YOUNG_SICK)
+    with pytest.raises(ValueError, match="flags each cell by its count") as caught:
+        Context(experiment=experiment)
+    assert f"flagged_cell={YOUNG_SICK}" in str(caught.value)

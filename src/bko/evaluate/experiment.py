@@ -2,24 +2,21 @@
 
 ADR `research/e1-evaluation-protocol` records the protocol and `docs/EVIDENCE.md` (E1) states how
 each criterion is read. `bko.evaluate.named_runs` holds every named run built from it. No
-command-line flag changes a value here.
+command-line flag changes a value here. `bko.evaluate.requests` builds the requests, and this
+module re-exports them.
 """
 
 from __future__ import annotations
 
 import enum
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from types import MappingProxyType
 from typing import Final
 
-import pandas as pd
-
-from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
-from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
-from bko.datasets.frames import FrameSpec
-from bko.datasets.split import kept_count
+from bko.baselines.request import SEED_LIMIT, Method, Stratum
+from bko.datasets.cells import UNDERREPRESENTED_BELOW
 from bko.evaluate.direct_arms import (
     COHERENT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
@@ -28,8 +25,12 @@ from bko.evaluate.direct_arms import (
     NOMAP_ARM,  # ruff: ignore[unused-import]  (re-exported)
     PRAM_ARM,  # ruff: ignore[unused-import]  (re-exported)
 )
-from bko.evaluate.errors import EvaluationError
 from bko.evaluate.ranking import over_ask_error
+from bko.evaluate.requests import (
+    flagged,  # ruff: ignore[unused-import]  (re-exported)
+    gap_request,  # ruff: ignore[unused-import]  (re-exported)
+    replica_request,  # ruff: ignore[unused-import]  (re-exported)
+)
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
 
@@ -102,6 +103,10 @@ class Experiment:
         replica_rows: The rows a replica asks for in all, split across cells in proportion to their
             training counts (`bko.datasets.split.kept_count`), each cell's count rounded, so the
             cells may sum to a few rows off it; None asks for every training row.
+        flagged_cell: The one cell flagged whatever its count, which the gap request restores to
+            `fill_to` alone. It may be set without a removal; beside one it must be the removal's
+            cell. Setting it also writes each model's `auc-roc` on both scopes
+            (`bko.evaluate.utility.utility`'s `roc`). None flags each cell below `threshold`.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -126,6 +131,7 @@ class Experiment:
     training_fraction: Fraction = Fraction(1)
     cutoff: float = THRESHOLD
     replica_rows: int | None = None
+    flagged_cell: Stratum | None = None
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -141,7 +147,8 @@ class Experiment:
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
-                bool among them), or the replica rows are below 1.
+                bool among them), or the replica rows are below 1, or a flagged cell set beside a
+                removal is not the removal's cell.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -179,6 +186,7 @@ class Experiment:
         self._check_attempts()
         self._check_fill()
         self._check_training()
+        self._check_flagged_cell()
         if not 0 < self.validity <= 1:
             msg = f"validity {self.validity} must lie in (0, 1]"
             raise ValueError(msg)
@@ -234,6 +242,12 @@ class Experiment:
             raise ValueError(msg)
         if self.training_fraction < 1 and self.removal is not None:
             msg = "a training fraction below 1 and a removal cannot both thin the training rows"
+            raise ValueError(msg)
+
+    def _check_flagged_cell(self) -> None:
+        cell, removal = self.flagged_cell, self.removal
+        if cell is not None and removal is not None and cell != removal.cell:
+            msg = f"flagged cell {cell} is not the removal's cell {removal.cell}"
             raise ValueError(msg)
 
     def _check_fill(self) -> None:
@@ -392,68 +406,3 @@ PERTURBED_ARM: Final = "bko-direct-perturbed"
 
 PAID_ARMS: Final = frozenset({*MESSAGES_ARMS, PERTURBED_ARM})
 """Every arm that calls the Messages API: a run holding one needs a call log and may spend."""
-
-
-def flagged(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
-) -> tuple[Stratum, ...]:
-    """The cells under `edges` holding fewer than `experiment.threshold` records, in grid order."""
-    return tuple(_short(train, experiment, edges=edges))
-
-
-def gap_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
-) -> Request:
-    """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
-
-    A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
-    further.
-
-    Raises:
-        EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
-    """
-    quota = _short(train, experiment, edges=frame.edges)
-    if not quota:
-        msg = f"no cell holds fewer than {experiment.threshold} training records; nothing to fill"
-        raise EvaluationError(msg)
-    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
-
-
-def replica_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
-) -> Request:
-    """Ask for as many rows per cell as the training split holds: a synthetic copy of its cells.
-
-    With `experiment.replica_rows` set, each cell asks for its `kept_count` at the share
-    `replica_rows / len(train)`, so the cap is split across cells in proportion and the rounded
-    cells may sum to a few rows off it; a cap above the training rows asks more rows than they
-    hold, at the same share.
-    """
-    quota = {cell: count for cell, count, _ in _cells(train, edges=frame.edges) if count}
-    if experiment.replica_rows is not None:
-        share = Fraction(experiment.replica_rows, len(train))
-        quota = {cell: kept_count(count, share) for cell, count in quota.items()}
-    return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
-
-
-def _short(
-    train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
-) -> dict[Stratum, int]:
-    return {
-        cell: experiment.fill_to - count
-        for cell, count, short in _cells(train, experiment.threshold, edges=edges)
-        if short
-    }
-
-
-def _cells(
-    train: pd.DataFrame,
-    below: int = UNDERREPRESENTED_BELOW,
-    *,
-    edges: Sequence[int],
-) -> list[tuple[Stratum, int, bool]]:
-    counts = cell_counts(train, edges=edges, below=below)
-    return [
-        ((str(band), str(sex), int(label)), int(count), bool(short))
-        for band, sex, label, count, short in counts.itertuples(index=False)
-    ]

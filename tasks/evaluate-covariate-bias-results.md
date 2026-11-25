@@ -1,8 +1,8 @@
 ---
 id: evaluate-covariate-bias-results
 title: Run the covariate-bias fractions and read them beside Juwara's Table 2
-status: blocked
-depends_on: evaluate-covariate-bias-fractions
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
@@ -16,9 +16,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-Unit [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) lands the runs
-and their Configuration. This unit runs them and records what they show beside the published
-table. Every arm is free.
+[P3](../docs/EVIDENCE.md#p3-juwara-removal-fractions-on-the-diabetes-130-frame) holds the runs
+`p3-fifteen` to `p3-ninetyfive` and their Configuration. This unit runs them and records what
+they show beside the published table. Every arm is free.
 
 ## Scope
 

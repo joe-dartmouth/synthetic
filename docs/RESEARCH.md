@@ -551,6 +551,7 @@ not a test of it.
 | [D2](EVIDENCE.md#d2-data-contradictions-census) | Not read |
 | [P1](EVIDENCE.md#p1-tableshift-readmission-split) | Development comparison |
 | [P2](EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) | Development comparison |
+| [P3](EVIDENCE.md#p3-juwara-removal-fractions-on-the-diabetes-130-frame) | Development comparison |
 
 ### Completeness and validity for bko-direct
 
@@ -563,9 +564,12 @@ claim of clinical validity. The ontology does not constrain `bko-direct`'s unmap
 
 ### Published comparisons
 
-The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, not the
-fractions of the control reading rule, read on the minority group's AUC [`juwara-2024`][juwara-2024]. TableShift's `diabetes_readmission`
-splits [`gardner-2023`][gardner-2023], reproduced as ADR
+The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, not
+those of the control reading rule, are run on E6's cell as ADR
+[`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md) records and
+registered as [P3](EVIDENCE.md#p3-juwara-removal-fractions-on-the-diabetes-130-frame), beside
+their Table 2, whose AUC is the full model's on simulated data [`juwara-2024`][juwara-2024].
+TableShift's `diabetes_readmission` splits [`gardner-2023`][gardner-2023], reproduced as ADR
 [`research/tableshift-comparison`](adr/research/tableshift-comparison.md) records and registered
 as [P1](EVIDENCE.md#p1-tableshift-readmission-split). The NIST CRC ACS excerpts, scored with SDNist
 [`task-2024`][task-2024]. UCI Heart Disease under SynthEval's metrics

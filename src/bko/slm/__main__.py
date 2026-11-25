@@ -46,6 +46,7 @@ from bko.evaluate.context import Context as EvaluateContext
 from bko.evaluate.data import load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import flagged
+from bko.evaluate.prepare import require_cells
 from bko.evaluate.privacy_stores import Store, checked
 from bko.evaluate.provenance import log_versions
 from bko.evaluate.rows_read import bind, frame_of, read_rows
@@ -136,8 +137,9 @@ def read_holdout(
     the harness's own by default.
 
     Raises:
-        EvaluationError: If no run has the name, or the run's experiment decontaminates: the test
-            split is scored whole, so no arm's copies of test records leave it.
+        EvaluationError: If no run has the name, the run's experiment decontaminates (the test
+            split is scored whole, so no arm's copies of test records leave it), or its removal's
+            or flagged cell is not a cell of the dataset's frame.
         IdentityError: As `bind`, `checked` and `frame_of`, or if the store holds no fill of the
             arm at the holdout.
         DatasetError: As `bko.evaluate.data.load`.
@@ -152,6 +154,7 @@ def read_holdout(
         raise EvaluationError(msg)
     reached = replace(base, experiment=named.experiment, dataset=named.dataset)
     data = load(named.dataset, data_dir, reached)
+    require_cells(named.experiment, data.frame)
     rows, folder = read_rows(request.rows), read_folder(request.folder)
     bind(rows, folder, data.frame, run=request.run, data=data.digest)
     ready = checked(request.holdout, Store(request.rows, rows, folder), data, named.experiment)

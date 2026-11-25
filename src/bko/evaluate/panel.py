@@ -55,12 +55,13 @@ ADMITTED: Final = frozenset(
             suffixed(measure, model)
             for model in PANEL
             if model not in MODELS
-            for measure in (Measure.RECALL, Measure.PRECISION, Measure.AUC_PR)
+            for measure in (Measure.RECALL, Measure.PRECISION, Measure.AUC_PR, Measure.AUC_ROC)
         ),
         *(suffixed(measure, model) for model in PANEL for measure in CALIBRATION_MEASURES),
     }
 )
-"""The augmented measures `panel` writes beyond a folder scored at `MODELS`."""
+"""The augmented measures `panel` writes beyond a folder scored at `MODELS`; a panel model's ROC
+AUC only for a run that flags a cell by name."""
 
 
 def admitted(key: ScoreKey) -> bool:

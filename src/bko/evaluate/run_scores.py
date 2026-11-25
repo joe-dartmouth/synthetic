@@ -51,6 +51,7 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     calibration: bool,
     *,
     share_error: Mapping[str, pd.Series] = MappingProxyType({}),
+    roc: bool = False,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
 
@@ -59,7 +60,7 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     distances, NaN when it added no rows, so every holdout of the run holds the same keys.
 
     The regression's utility comes first, then each other model's in `models`' order, each with
-    its calibration measures when `calibration` holds.
+    its calibration measures when `calibration` holds and its ROC AUC when `roc` holds.
     `PRIOR_SHIFT_ARM`'s probabilities are `shifted` per model by offsets solved on the model's
     `out_of_fold` predictions of the training split.
     """
@@ -103,7 +104,13 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
                 folds=folds,
             )
         measured = utility(
-            clean, fitted, cells, edges=frame.edges, cutoff=cutoff, calibration=calibration
+            clean,
+            fitted,
+            cells,
+            edges=frame.edges,
+            cutoff=cutoff,
+            calibration=calibration,
+            roc=roc,
         )
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
