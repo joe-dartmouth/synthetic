@@ -119,6 +119,11 @@ class Measure(enum.StrEnum):
     unit to (`bko.evaluate.donor_attacks`)."""
     DONOR_P95 = "donor-p95"
     """The 95th percentile (linear) of donations over the training records that donate."""
+    CODE_SHARE_ERROR = "code-share-error"
+    """The mean over a run's tree fields (`bko.generate.tree.tree_fields`) of the total variation
+    distance between an arm's added rows' value shares and the removed training rows'; written
+    at the flagged scope for every arm of a run that holds `bko-tree`, NaN for a fill with no
+    rows."""
     HELD_OUT_RATIO = "held-out-ratio"
     FLAGGED_FINGERPRINT = "flagged-fingerprint"
     """The holdout's flagged cells, as the first 12 hex digits of the sha256 of their sorted

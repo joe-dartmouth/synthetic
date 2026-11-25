@@ -11,7 +11,7 @@ import pytest
 
 import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
-from bko.evaluate.direct_arms import CAPPED_ARM
+from bko.evaluate.direct_arms import CAPPED_ARM, TREE_ARM
 from bko.evaluate.experiment import (
     DIRECT_ARM,
     DIRECT_ARMS,
@@ -50,6 +50,7 @@ def test_the_direct_arms_draw_at_their_specs():
         PRAM_ARM: DEFAULT_SPEC,
         NOMAP_ARM: DrawSpec(mapped=False),
         CAPPED_ARM: DrawSpec(min_donors=2, reuse_cap=1),
+        TREE_ARM: DrawSpec(tree=True),
     }
 
 

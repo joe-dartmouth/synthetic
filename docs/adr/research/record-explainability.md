@@ -43,6 +43,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * `bko-capped`: as `bko-direct`, drawn under a donor floor and a reuse cap (ADR
      `research/sampler-donor-limits`); a field read from outside the cell below the floor is a
      fallback field.
+   * `bko-tree`: as `bko-direct` for every concept no tree field reads, then, per tree field, its
+     drawn leaf with each level's counts, weight, conditional and share (ADR
+     `research/ancestor-shrunk-shares`); the field names its source training record id.
    * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when

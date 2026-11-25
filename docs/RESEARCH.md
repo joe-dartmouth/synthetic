@@ -491,11 +491,11 @@ registered `candidate` stays `bko`.
 ### Ablations and comparators
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped` and `bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB guides
-generation. The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the
-Bayesian network and the label bootstrap) are comparators. The control `prior-shift` adds no rows:
-it scores `none`'s fit with each requested subgroup's test logits moved to the subgroup's
-prevalence after the gap request's fill (ADR
+`bko-capped`, `bko-tree` and `bko-skeleton`, and the guidance levels, are ablations: each changes
+one part of how the BKB guides generation. The row-adding methods (the comparison set, the classical
+synthesizers, TabDDPM, the Bayesian network and the label bootstrap) are comparators. The control
+`prior-shift` adds no rows: it scores `none`'s fit with each requested subgroup's test logits moved
+to the subgroup's prevalence after the gap request's fill (ADR
 [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)).
 
 ### Data
@@ -532,6 +532,7 @@ not a test of it.
 | [E12](EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) | Development result |
 | [E13](EVIDENCE.md#e13-control-arms-on-the-synthea-removal) | Development result |
 | [E14](EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal) | Ablation |
+| [E15](EVIDENCE.md#e15-ancestor-shrunk-shares-on-the-diabetes-codes-frame) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -612,8 +613,8 @@ on E6's and E3's frames. Each contrast falls in one branch:
 
 What follows: every unit proceeds in every branch. Against `label-bootstrap` or `bko-nomap`,
 anything but `above` means pooling is reported as the mechanism at that fraction, and a mapping or
-structure claim can come only from the arms of `generate-is-a-conditional-draws` or
-`generate-ancestor-shrunk-shares`. The confirmatory primary endpoint
+structure claim can come only from the arms of `generate-is-a-conditional-draws` or the arm
+`bko-tree`. The confirmatory primary endpoint
 (`evaluate-confirmatory-registration`) is removed-cell recall if the `prior-shift` contrast is
 `above` on recall on E6's frame at either fraction; else flagged Brier if that contrast is in
 `bko-direct`'s favour (for Brier, where lower is better, the interval of `bko-direct` minus the

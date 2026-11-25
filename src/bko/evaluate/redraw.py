@@ -4,12 +4,16 @@
 `bko.evaluate.attempts.Attempt` as `bko.evaluate.direct.DirectArm` does, so its rows are the fill's
 rows byte for byte when the code and the data are the run's. `Shares` holds each asked cell's
 records and its label group's, from which `concept_facts` reads one concept's share, its parts,
-its S-nodes and its label. `bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read
-both (ADR `research/record-explainability`).
+its S-nodes and its label. `TreeShares` reads a `bko-tree` draw's tree fields instead, through the
+draw's own `bko.generate.tree_draw.TreeDraw`: each drawn leaf's parts at every level of its tree
+(ADR `research/ancestor-shrunk-shares`).
+`bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read them (ADR
+`research/record-explainability`).
 """
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 
@@ -17,6 +21,7 @@ import pandas as pd
 
 from bko.baselines.request import Request
 from bko.bkb.fusion import source_component
+from bko.datasets.cells import cell_keys
 from bko.evaluate.attempts import Attempt
 from bko.evaluate.call_prompts import Json
 from bko.evaluate.data import Data
@@ -24,7 +29,10 @@ from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
+from bko.generate.donors import _records, cell_records, members
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.tree import TOP, column_trees, leaf_concept
+from bko.generate.tree_draw import Placed, TreeDraw
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
 
@@ -112,6 +120,71 @@ class Shares:
             concept_facts(concept, part, draw.concepts, records.observed, group, self._ontologies)
             for concept, part in share_parts(records, group).items()
         )
+
+
+class TreeShares:
+    """A `bko-tree` draw's facts: concept shares off the tree fields, then each drawn leaf."""
+
+    def __init__(
+        self,
+        train: pd.DataFrame,
+        cells: Collection[Cell],
+        *,
+        data: Data,
+        ontologies: Mapping[str, Ontology],
+    ) -> None:
+        """Read each tree field's parts at each of `cells` through the draw's `TreeDraw`.
+
+        Raises:
+            GapError: As `Shares`.
+            SamplingError: As `TreeDraw.at`, if a record's value of a tree field is not finite.
+        """
+        self._shares = Shares(train, cells, data=data, ontologies=ontologies)
+        self._trees = column_trees(data.field_rows, data.frame, ontologies)
+        self._read = {
+            row.concept
+            for row in data.field_rows
+            if any(clause.field in self._trees for clause in row.when)
+        }
+        self._ontologies = ontologies
+        frame = data.frame
+        keys = cell_keys(train, edges=frame.edges)
+        draw = TreeDraw(self._trees)
+        groups = {
+            label: _records(members(train, label, frame), frame)
+            for label in {int(cell[2]) for cell in cells}
+        }
+        self._placed: dict[Cell, dict[str, Placed]] = {
+            cell: draw.at(cell, cell_records(train, keys, cell, frame), groups[int(cell[2])])
+            for cell in cells
+        }
+
+    def concepts(self, draw: Draw) -> tuple[Json, ...]:
+        """`Shares.concepts` of each concept no tree field reads, then each tree field's leaf.
+
+        A leaf's entry names its field, the leaf, its concept and label (None for `unmapped`),
+        and `parts`, each level's `TreePart` from the top's child down to the leaf.
+        """
+        facts = [f for f in self._shares.concepts(draw) if f["concept"] not in self._read]
+        for column, tree in self._trees.items():
+            leaf = tree.leaf(draw.record)
+            parts = self._placed[draw.cell][column].parts
+            path = [parts[leaf]]
+            while path[-1].parent != TOP:
+                path.append(parts[path[-1].parent])
+            concept = leaf_concept(leaf)
+            release = None if concept is None else self._ontologies.get(concept.partition(":")[0])
+            term = None if release is None or concept is None else release.terms.get(concept)
+            facts.append(
+                {
+                    "field": column,
+                    "leaf": leaf,
+                    "concept": concept,
+                    "label": None if term is None else term.name,
+                    "parts": [dataclasses.asdict(part) for part in reversed(path)],
+                }
+            )
+        return tuple(facts)
 
 
 def concept_facts(

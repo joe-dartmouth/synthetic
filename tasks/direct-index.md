@@ -20,10 +20,9 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
-| [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | ready | -- | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
-| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
+| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 
@@ -65,7 +64,7 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | generate-ancestor-shrunk-shares | direct-method-research |
+| [`ontology-auto-mapping`](ontology-auto-mapping.md) | ready | -- | direct-method-research |
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-day-budget`](slm-lora-day-budget.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-day-budget | direct-method-research |
@@ -74,7 +73,6 @@ unit's `milestone` is `direct-method-research`, the
 flowchart LR
     u37[evaluate-covariate-bias-fractions] --> u38[evaluate-covariate-bias-results]
     u11[generate-is-a-conditional-draws] --> u19[evaluate-variant-dev-results]
-    u13[generate-ancestor-shrunk-shares] --> u19
     u16[privacy-value-microaggregation] --> u19
     u17[generate-coherent-free-fields] --> u19
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
@@ -95,8 +93,7 @@ flowchart LR
     u30 --> u31[evaluate-confirmatory-results]
     u41 --> u42[evaluate-crc-acs-results]
     u31 --> u42
-    u13 --> u32[ontology-auto-mapping]
-    u32 --> u33[ontology-auto-mapping-results]
+    u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]
     u29 --> u36[slm-lora-results]
     u51[slm-lora-day-budget] --> u36
 ```
