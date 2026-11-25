@@ -24,6 +24,7 @@ from bko.generate.api import default_async_send
 from bko.generate.local import local_send
 from bko.generate.messages import SETTINGS, AnySend, Settings
 from bko.generate.weights import LOCAL_MODELS
+from bko.ontology.catalog import CATALOG, Catalogued
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -50,6 +51,8 @@ class Context:
         synthea_jar: The jar that population was generated with.
         diabetes: The pinned Diabetes 130 archive, which a Diabetes 130 run's records are read
             from (`bko.evaluate.data.load`).
+        catalog: The catalogued datasets by name, which a catalogued run's records are read
+            through (`bko.ontology.catalog`).
         send: Builds the send every BKO arm's call goes through, for an API model.
         local_send: Builds the send for an on-device model, given its id
             (`bko.generate.weights.LOCAL_MODELS`).
@@ -77,6 +80,7 @@ class Context:
     synthea: SyntheaRun = SYNTHEA_RUN
     synthea_jar: Source = SYNTHEA_JAR
     diabetes: Source = DIABETES_130
+    catalog: Mapping[str, Catalogued] = CATALOG
     send: Callable[[], AnySend] = default_async_send
     local_send: Callable[[str], AnySend] = local_send
     rehearse: Rehearse = CannedSend

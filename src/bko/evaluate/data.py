@@ -27,10 +27,12 @@ from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, check_records
 from bko.datasets.sources import Agreement, Source
 from bko.datasets.split import Split, fixed, split
+from bko.datasets.support2 import SUPPORT2_NAME
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.tableshift import load_tableshift
 from bko.datasets.uci import UCI_FRAME, load_uci
+from bko.ontology.catalog import Catalogued
 from bko.ontology.code_frames import (
     DIABETES_CODES_FIELD_ROWS,
     DIABETES_CODES_NAME,
@@ -63,6 +65,7 @@ class Dataset(StrEnum):
     DIABETES_CODES = DIABETES_CODES_NAME
     TABLESHIFT_ID = "tableshift-id"
     TABLESHIFT_OOD = "tableshift-ood"
+    SUPPORT2 = SUPPORT2_NAME
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -135,6 +138,11 @@ class Reach(Protocol):
         """The pinned ontology release for each concept prefix."""
         ...
 
+    @property
+    def catalog(self) -> Mapping[str, Catalogued]:
+        """The catalogued datasets by name (`bko.ontology.catalog`)."""
+        ...
+
 
 def digest(records: pd.DataFrame) -> str:
     """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
@@ -188,8 +196,8 @@ def frame(dataset: Dataset) -> FrameSpec:
     """The frame `load` gives `dataset`'s records, read with no data loaded.
 
     Raises:
-        ValueError: For `diabetes-codes` and the TableShift datasets, whose codebooks are built
-            from their records.
+        ValueError: For `diabetes-codes`, the TableShift datasets and the catalogued datasets,
+            whose frames are built from their records.
     """
     match dataset:
         case Dataset.UCI:
@@ -198,8 +206,13 @@ def frame(dataset: Dataset) -> FrameSpec:
             return SYNTHEA_FRAME
         case Dataset.DIABETES:
             return DIABETES_FRAME
-        case Dataset.DIABETES_CODES | Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
-            msg = f"the {dataset} frame's codebook is built from its records; load them"
+        case (
+            Dataset.DIABETES_CODES
+            | Dataset.TABLESHIFT_ID
+            | Dataset.TABLESHIFT_OOD
+            | Dataset.SUPPORT2
+        ):
+            msg = f"the {dataset} frame is built from its records; load them"
             raise ValueError(msg)
         case _:
             assert_never(dataset)
@@ -210,7 +223,8 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
 
     UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS`, Diabetes 130's
     `DIABETES_FIELD_ROWS`, `diabetes-codes`' `DIABETES_CODES_FIELD_ROWS` and the TableShift
-    datasets' `LAB_FIELD_ROWS`, whatever the context's.
+    datasets' `LAB_FIELD_ROWS`, whatever the context's; a catalogued dataset's are its entry's in
+    the context's catalog.
     """
     match dataset:
         case Dataset.UCI:
@@ -223,6 +237,8 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             return DIABETES_CODES_FIELD_ROWS
         case Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
             return LAB_FIELD_ROWS
+        case Dataset.SUPPORT2:
+            return context.catalog[dataset.value].rows
         case _:
             assert_never(dataset)
 
@@ -231,7 +247,8 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
     """The pinned ontology release for each concept prefix `dataset`'s field rows may name.
 
     Every dataset reads the context's releases, HP and MONDO; a dataset whose rows name another
-    ontology gets its own map here (ADR `research/ontology-mapping-design`).
+    ontology gets its own map here (ADR `research/ontology-mapping-design`). A catalogued dataset
+    reads its entry's `releases`, the context's when they are None.
     """
     match dataset:
         case (
@@ -243,6 +260,9 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
             | Dataset.TABLESHIFT_OOD
         ):
             return context.releases
+        case Dataset.SUPPORT2:
+            own = context.catalog[dataset.value].releases
+            return context.releases if own is None else own
         case _:
             assert_never(dataset)
 
@@ -258,7 +278,9 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     diagnosis codes in place of the indicators, checked against `diabetes_codes_frame` of
     themselves. The TableShift datasets' are `bko.datasets.tableshift.load_tableshift`'s training
     split and in-domain or out-of-domain test split, the test split held, checked against the
-    `tableshift` frame of every kept row. Each takes `field_rows(dataset, context)`, and a
+    `tableshift` frame of every kept row. A catalogued dataset's are its context catalog entry's
+    (`bko.ontology.catalog.Catalogued.read`): each source ensured, the records loaded, their frame
+    built from them and checked. Each takes `field_rows(dataset, context)`, and a
     fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
     records' sha256, with the held ids when there are some: `Data.digest`) and its agreement:
@@ -312,6 +334,10 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             records, held, spec = load_tableshift(data_dir, source=source, domain=domain)
             check_records(records, spec)
             data = Data(records, spec, rows, source.name, source.agreement, held=held)
+        case Dataset.SUPPORT2:
+            entry = context.catalog[dataset.value]
+            records, spec = entry.read(data_dir, open_url=context.open_url)
+            data = Data(records, spec, rows, entry.name, entry.agreement)
         case _:
             assert_never(dataset)
     agreement = data.agreement

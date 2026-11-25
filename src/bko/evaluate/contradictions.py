@@ -1,6 +1,7 @@
 """`python -m bko.evaluate contradictions`: count each data contradiction in every frame's cells.
 
-`run` loads UCI Heart Disease, Synthea and Diabetes 130 through `bko.evaluate.data.load`, takes
+`run` loads UCI Heart Disease, Synthea and Diabetes 130, or the datasets `--dataset` names,
+through `bko.evaluate.data.load`, takes
 each frame's training split at holdout seed `SEED` with no removal, loads once the pinned releases
 any frame's field rows name, and `census` writes every finding `bko.gaps.contradictions.survey`
 makes as CSV. ADR `research/data-contradiction-handling` names the kinds and the bases. It makes
@@ -33,6 +34,7 @@ from bko.evaluate.data import Dataset, dataset_releases, digest, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.provenance import log_versions
 from bko.gaps.contradictions import KINDS, Finding, survey
+from bko.ontology.catalog import CATALOG
 from bko.ontology.releases import load_releases
 from bko.ontology.schema import Clause, Codes, FieldMapping
 from bko.ontology.terms import Ontology
@@ -46,6 +48,11 @@ SEED: Final = 0
 CENSUS: Final = (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES)
 """The datasets whose frames the census reads, in order; `diabetes-codes` is not among them (ADR
 `research/diabetes-diagnosis-codes`)."""
+
+CHOICES: Final = (*CENSUS, *(Dataset(name) for name in CATALOG))
+"""The datasets `--dataset` may name: `CENSUS`'s, then each catalogued dataset; the census reads
+each frame's split by seed, so the datasets that hold a published partition out are not among
+them."""
 
 COLUMNS: Final = (
     "kind",
@@ -93,7 +100,21 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     counting.add_argument(
         "run", nargs="?", default=None, help="the named run whose --rows stores are read"
     )
-    counting.add_argument(
+    basis = counting.add_mutually_exclusive_group()
+    basis.add_argument(
+        "--dataset",
+        dest="datasets",
+        type=Dataset,
+        choices=CHOICES,
+        action="append",
+        default=None,
+        metavar="NAME",
+        help=(
+            "a dataset whose frame the census reads, in place of the default three; repeatable; "
+            f"one of {', '.join(CHOICES)}"
+        ),
+    )
+    basis.add_argument(
         "--rows",
         dest="stores",
         type=Path,
@@ -157,14 +178,14 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
     ]
 
 
-def run(data_dir: Path, context: Context) -> str:
-    """The census of each `CENSUS` dataset's frame, in order, as CSV.
+def run(data_dir: Path, context: Context, datasets: Sequence[Dataset] | None = None) -> str:
+    """The census of each of `datasets`' frames, in order, as CSV; `CENSUS`'s when None.
 
     Logs the `versions` line (`bko.evaluate.provenance.log_versions`) and the data root first.
     """
     log_versions()
     logger.info("census data_dir=%s", data_dir)
-    return census(frames(CENSUS, data_dir, context))
+    return census(frames(CENSUS if datasets is None else tuple(datasets), data_dir, context))
 
 
 def census(framed: Sequence[Framed]) -> str:

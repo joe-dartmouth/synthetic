@@ -46,7 +46,11 @@ or its sample, and the direct sampler draws a child without its parent.
      kind; UCI's `HP:0012250` row reads a threshold beside its codes, and only its codes count.
 2. **Bases.** The `contradictions` command reads one of two bases.
    - **The census.** With no run, it examines, for each frame, every cell of the frame's
-     training split at holdout seed 0 with no removal, and lists each finding.
+     training split at holdout seed 0 with no removal, and lists each finding. The frames are
+     `CENSUS`'s, UCI Heart Disease, Synthea and Diabetes 130, unless a repeatable `--dataset`
+     names others: one of `CENSUS`'s or a catalogued dataset (`bko.ontology.catalog`). The
+     default set stays `CENSUS`, so a recorded census keeps its bytes and the bare command fetches
+     no catalogued archive. `--dataset` and `--rows` exclude each other.
    - **The added rows.** `contradictions <run> --rows <store>...` reads each holdout and fill of
      a run's `rows` stores, gap and replica fills alike, and counts in the fill's added rows A:
      `narrow-without-broad`, the rows of A showing a narrow concept without its broad one,
@@ -140,6 +144,7 @@ table does not nest them, a pattern the data shows.
 | The census in `bko.gaps` | It would move the evaluate loader, `Context` and `log_versions` below `bko.evaluate` for a command nothing outside evaluate runs | 2026-11-09 |
 | The training split as the only basis | It cannot show whether an arm's added rows contradict the ontology or break the Diabetes coherence rules, the measure the generation units target | 2026-11-24 |
 | One share of rows breaking any coherence rule, as `incoherent` reads it | It hides which rule a fill breaks; each rule is counted on its own | 2026-11-24 |
+| Appending each catalogued dataset to `CENSUS` | It would change the bytes of a recorded census and make the bare command fetch every catalogued archive; `--dataset` names them instead | 2026-11-25 |
 | Forcing ancestors in every direct arm | It would replace the data's reading with the ontology's in every fill; `bko-hier-closed` forces them as one ablation arm beside the shrunk conditional, so the forcing is measured against `bko-direct` | 2026-11-25 |
 
 ## Enforcement
@@ -148,7 +153,8 @@ table does not nest them, a pattern the data shows.
   `src/bko/generate/donors.py` (the label-group fallback in `_pick`),
   `src/bko/gaps/shares.py`, `src/bko/gaps/contradictions.py`, `src/bko/evaluate/contradictions.py`,
   `src/bko/evaluate/added_contradictions.py`, `src/bko/ontology/frames.py`
-- Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_added.py`,
+- Pinned by: `tests/test_contradictions_census.py`, `tests/test_contradictions_dataset.py`,
+  `tests/test_contradictions_added.py`,
   `tests/test_contradictions_added_diabetes.py`, `tests/test_contradictions_kinds.py`,
   `tests/test_contradictions_fusion.py`, `tests/test_contradictions_gaps.py`,
   `tests/test_contradictions_shares.py`, `tests/test_contradictions_direct.py`,

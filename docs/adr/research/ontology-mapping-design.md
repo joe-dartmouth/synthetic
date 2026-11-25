@@ -134,6 +134,12 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   lower. A numeric field with missing values and no cited cutoff is coded the same way at the
   tertiles of its measured values over the published file and maps no concept (ADR
   [`research/support2-frame`](support2-frame.md)).
+- **The catalog**: a frame added after Diabetes 130 joins `bko.ontology.catalog.CATALOG`, an
+  entry naming its pins, its loader, its frame builder, its field rows and, when its rows name
+  another ontology, its own release map. `bko.evaluate.data` reaches it through its context's
+  `catalog`, and `bko.gaps` lists each entry's training split as its own command, so a new frame
+  edits no stage beyond one `Dataset` member and one alternative at each of
+  `bko.evaluate.data`'s four `match` sites.
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record

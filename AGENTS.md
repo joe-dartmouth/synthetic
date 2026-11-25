@@ -114,16 +114,18 @@ import it (ADR `tooling/agent-config-single-home`).
 - `uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null`:
   check the table and the fusion reproduction against the pinned releases already in `data/`
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
-- `uv run --no-sync python -m bko.gaps uci` or `uv run --no-sync python -m bko.gaps synthea`:
-  list the gaps under each BKO gap definition and the count-based gaps of the UCI training split,
-  or of the Synthea population before and after each of E2's ablations
+- `uv run --no-sync python -m bko.gaps uci`, `uv run --no-sync python -m bko.gaps support2` or
+  `uv run --no-sync python -m bko.gaps synthea`: list the gaps under each BKO gap definition and
+  the count-based gaps of the UCI or SUPPORT2 training split, or of the Synthea population before
+  and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.gaps first-flag`: remove each whole E2 ablation's cases one at a
   time in its seed's draw order and list, per detector and truth item, the removed count at which
   the item is first flagged ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
-- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
+- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   list where each mapped frame's training split contradicts its ontology, in the five kinds of ADR
-  `research/data-contradiction-handling`. It makes no API call
+  `research/data-contradiction-handling`: UCI's, Synthea's and Diabetes 130's frames, or those
+  `--dataset` names, such as `support2`. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   count those kinds and the three Diabetes coherence rules' breaks in each fill's added rows of a

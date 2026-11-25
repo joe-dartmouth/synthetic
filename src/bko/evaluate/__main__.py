@@ -440,7 +440,7 @@ def _contradictions(args: argparse.Namespace, context: Context) -> str:
         if args.run is not None or args.runs_dir is not None:
             msg = "contradictions reads a run's added rows from its stores, so it needs --rows"
             raise EvaluationError(msg)
-        return census(data_dir(args), context)
+        return census(data_dir(args), context, args.datasets)
     log_versions()
     run = args.run or DEFAULT_RUN
     named = _named(run, context)

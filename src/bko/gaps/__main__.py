@@ -1,4 +1,6 @@
-"""Command line for gap detection: `python -m bko.gaps uci`, `synthea` and `first-flag`.
+"""Command line for gap detection: `python -m bko.gaps uci`, `synthea`, `first-flag`, `support2`.
+
+The commands after `first-flag` are one per catalogued dataset (`bko.ontology.catalog`).
 
 `uci` fetches UCI Heart Disease and the releases its field mappings name into the data root if
 they are absent, splits the records, and lists the training split's gaps under each definition of
@@ -7,7 +9,9 @@ than the threshold. `synthea` generates the population E2 reads if it is absent,
 releases its code mappings name, and for each of E2's ablations lists every definition's gaps and
 the count-based ones before and after the removal, marking the gaps the removed patients account
 for. `first-flag` reads the same population and, for each of E2's whole ablations, lists where each
-detector first flags each truth item as the cases go one at a time (`bko.gaps.scan`). Each writes
+detector first flags each truth item as the cases go one at a time (`bko.gaps.scan`). A catalogued
+dataset's command fetches its sources and the releases its rows name, splits its records at
+`SPLIT_SEED` and lists the training split's gaps as `uci` does (`bko.gaps.listing`). Each writes
 one CSV to stdout, the same bytes on every run over the same inputs, and nothing unless the whole
 report is built; each input's identity, each cell's records, each flagged concept,
 each list's length, each detector's recovery and the report's digest go to stderr through logging,
@@ -30,6 +34,7 @@ import logging
 import sys
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Final, TextIO
 
@@ -41,17 +46,19 @@ from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
+from bko.datasets.split import SPLIT_SEED, split
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.definitions import Definition
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
 from bko.gaps.listing import listed, log_cells, log_observed
-from bko.gaps.observe import observe_population
+from bko.gaps.observe import observe_population, record_cells
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
 from bko.gaps.scan import FIRST_FLAG_COLUMNS, first_flag_rows, log_first_flags, scan
 from bko.gaps.scope import load_scope, load_uci_scope
 from bko.gaps.sweep import Sweep, choose, log_choice, log_sweep, sweep
+from bko.ontology.catalog import CATALOG, Catalogued
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
 from bko.ontology.terms import Ontology
@@ -88,6 +95,7 @@ class Context:
         runner: Runs Synthea's argv in a directory and returns its exit status.
         run: The Synthea population E2 reads.
         ablations: E2's ablations by name, in report order.
+        catalog: The catalogued datasets by name, each listed by its own command.
     """
 
     open_url: UrlOpener = open_https
@@ -100,6 +108,7 @@ class Context:
     runner: Runner = run_java
     run: SyntheaRun = E2_RUN
     ablations: Mapping[str, AblationSpec] = E2_ABLATIONS
+    catalog: Mapping[str, Catalogued] = CATALOG
 
 
 def main(
@@ -120,17 +129,19 @@ def main(
             or schema or a BKB document is malformed. Any other exception propagates, so the
             process exits 1.
     """
-    args = _parser().parse_args(argv)
+    context = Context() if context is None else context
+    args = _parser(context.catalog).parse_args(argv)
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
-        command = {"uci": _uci, "synthea": _synthea, "first-flag": _first_flag}[args.command]
+        fixed = {"uci": _uci, "synthea": _synthea, "first-flag": _first_flag}
+        command = fixed.get(args.command, partial(_catalogued, name=args.command))
         logger.info(
             "data_dir=%s pandas=%s scipy=%s",
             data_dir,
             importlib.metadata.version("pandas"),
             importlib.metadata.version("scipy"),
         )
-        rows = command(data_dir, Context() if context is None else context)
+        rows = command(data_dir, context)
     except (DatasetError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -152,7 +163,7 @@ def configure_logging() -> None:
     configure()
 
 
-def _parser() -> argparse.ArgumentParser:
+def _parser(catalog: Mapping[str, Catalogued]) -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument(
         "--data-dir",
@@ -180,6 +191,12 @@ def _parser() -> argparse.ArgumentParser:
         parents=[common],
         help="find where each detector first flags a truth item as E2's whole ablations thin",
     )
+    for name in catalog:
+        commands.add_parser(
+            name,
+            parents=[common],
+            help=f"list each definition's gaps and the count-based ones in {name}'s training split",
+        )
     return parser
 
 
@@ -198,6 +215,19 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
         fragments=scope.fragments,
         cells=scope.cells,
     )
+
+
+def _catalogued(data_dir: Path, context: Context, *, name: str) -> list[Row]:
+    """List the gaps of catalogued dataset `name`'s training split at `SPLIT_SEED`."""
+    entry = context.catalog[name]
+    records, spec = entry.read(data_dir, open_url=context.open_url)
+    train = split(records, seed=SPLIT_SEED, edges=spec.edges).train
+    releases = context.releases if entry.releases is None else entry.releases
+    ontologies, fragments = load_scope(
+        {row.concept for row in entry.rows}, data_dir, releases=releases, open_url=context.open_url
+    )
+    cells = record_cells(train, entry.rows, name=entry.name, edges=spec.edges)
+    return listed(train, edges=spec.edges, ontologies=ontologies, fragments=fragments, cells=cells)
 
 
 def _population(
