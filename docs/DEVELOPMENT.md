@@ -1241,25 +1241,27 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 `--record N` writes the record at 0-based position N alone, and `--data-dir` sets the data root.
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
-Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`,
-`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`) re-draws at its `arm`
-line's seed with that arm's draw spec and no extra random draw; a `bko-logic` record's concepts
-are its closed draw, not share priors, a `bko-nomap` record names no concept, and a `bko-tree`
-record's concepts end in one entry per tree field: its `field`, `leaf`, `concept` and `label`, and
-`parts`, each level's node from the top's child down to the leaf with both counts at the node and
-its parent, the weight, the conditional and the share. A `bko-hier` record's broad concepts add
-`hierarchy` beside their share facts: the narrow concept `given`, the weighted counts `both` and
-`narrow`, the `pseudo`-count (null when closed), the `conditional`, the `complement` (null when
-the narrow concept's share is within one float of 1) and whether it was `clamped`.
-`bko-direct-pram` and `bko-direct-perturbed` rebuild their rows from their candidate lines and
-re-draw underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
+Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`, `bko-capped`,
+`bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`) re-draws at its `arm`
+line's seed with that arm's draw spec and no extra random draw; a `bko-logic` record's concepts are
+its closed draw, not share priors, a `bko-nomap` record names no concept, and a `bko-tree` record's
+concepts end in one entry per tree field: its `field`, `leaf`, `concept` and `label`, and `parts`,
+each level's node from the top's child down to the leaf with both counts at the node and its parent,
+the weight, the conditional and the share. A `bko-hier` record's broad concepts add `hierarchy`
+beside their share facts: the narrow concept `given`, the weighted counts `both` and `narrow`, the
+`pseudo`-count (null when closed), the `conditional`, the `complement` (null when the narrow
+concept's share is within one float of 1) and whether it was `clamped`. `bko-direct-pram`,
+`bko-direct-perturbed` and `bko-coherent` rebuild their rows from their candidate lines and re-draw
+underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
 `perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
 line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`); `fields`, the
-fields that differ from the draw; and `drawn`, the draw's values for them. The other arm kinds read
-their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes `trace.jsonl`,
-one sorted-key JSON line per record (one per fill for a baseline), which holds source training
-record ids; keep the file in its run folder. `<run-id>` is the folder read, `<run>` the named run,
-`<h>` the holdout and `<arm>` the arm:
+fields that differ from the draw; and `drawn`, the draw's values for them. `bko-coherent` then
+re-runs its change at the fill's seed, which reads its own stream, refuses unless the changed rows
+are the lines' records, and names each free field's leaf donor in `sources`. The other arm kinds
+read their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes
+`trace.jsonl`, one sorted-key JSON line per record (one per fill for a baseline), which holds source
+training record ids; keep the file in its run folder. `<run-id>` is the folder read, `<run>` the
+named run, `<h>` the holdout and `<arm>` the arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 

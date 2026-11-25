@@ -491,12 +491,12 @@ registered `candidate` stays `bko`.
 ### Ablations and comparators
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed` and `bko-skeleton`,
-and the guidance levels, are ablations: each changes one part of how the BKB guides generation.
-The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the Bayesian
-network and the label bootstrap) are comparators. The control `prior-shift` adds no rows: it
-scores `none`'s fit with each requested subgroup's test logits moved to the subgroup's prevalence
-after the gap request's fill (ADR
+`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent` and
+`bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB
+guides generation. The row-adding methods (the comparison set, the classical synthesizers,
+TabDDPM, the Bayesian network and the label bootstrap) are comparators. The control `prior-shift`
+adds no rows: it scores `none`'s fit with each requested subgroup's test logits moved to the
+subgroup's prevalence after the gap request's fill (ADR
 [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)).
 
 ### Data
@@ -535,6 +535,7 @@ not a test of it.
 | [E14](EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal) | Ablation |
 | [E15](EVIDENCE.md#e15-ancestor-shrunk-shares-on-the-diabetes-codes-frame) | Ablation |
 | [E16](EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal) | Ablation |
+| [E17](EVIDENCE.md#e17-coherent-free-fields-on-the-diabetes-130-removal) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
