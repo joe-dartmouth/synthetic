@@ -68,23 +68,36 @@ def _pick_limited(
     floor: int,
     cap: int | None,
     used: _Used,
+    tally: _Tally | None = None,
 ) -> tuple[_Source, bool]:
     """A record drawn as `_pick` draws, under a donor floor and a reuse cap, and its fallback.
 
     With at least `floor` records in `own`, the pool is `own` less the donors at `cap` for
     `fields`; when that is empty, or the floor fails, the pool is `other` less the donors at the
     cap, and less `own`'s records when the floor fails. One uniform draw picks from the pool, and
-    the pick counts one donation in `used`.
+    the pick counts one donation in `used`. `tally`, when given, counts a floor redirect when
+    `own` holds at least one but fewer than `floor` records, and a cap skip when the first pool
+    held a donor at the cap.
 
     Raises:
         SamplingError: If the pool is empty.
     """
     under = len(own) < floor
-    pool = [] if under else _below_cap(own, fields, cap, used)
-    fell = not pool
-    if fell:
-        barred = {source for source, _ in own} if under else set()
-        pool = [r for r in _below_cap(other, fields, cap, used) if r[0] not in barred]
+    if under:
+        barred = {source for source, _ in own}
+        first = [r for r in other if r[0] not in barred]
+    else:
+        first = list(own)
+    pool = _below_cap(first, fields, cap, used)
+    skipped = len(pool) < len(first)
+    fell = under or not pool
+    if fell and not under:
+        pool = _below_cap(other, fields, cap, used)
+    if tally is not None:
+        if under and own:
+            tally.redirects += 1
+        if skipped:
+            tally.skips += 1
     if not pool:
         msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: no matching donor is left at"
         msg += f" min_donors={floor} reuse_cap={cap}"
@@ -101,6 +114,19 @@ def _below_cap(
 
 
 @dataclass(slots=True, eq=False)
+class _Tally:
+    """The picks each limit changed since the last `_Limits.taken`.
+
+    Attributes:
+        redirects: Picks whose cell held at least one but fewer than `floor` matching records.
+        skips: Picks whose first pool held a donor at the cap.
+    """
+
+    redirects: int = 0
+    skips: int = 0
+
+
+@dataclass(slots=True, eq=False)
 class _Limits:
     """One fill attempt's floor, cap and donations, with the picks each limit changed.
 
@@ -108,21 +134,18 @@ class _Limits:
         floor: The spec's `min_donors`.
         cap: The spec's `reuse_cap`.
         used: Each (unit, record id)'s donations so far.
-        redirects: Picks since the last `taken` whose cell held at least one but fewer than
-            `floor` matching records.
-        skips: Picks since the last `taken` whose first pool held a donor at the cap.
+        tally: The redirects and skips `_pick_limited` counted since the last `taken`.
     """
 
     floor: int
     cap: int | None
     used: _Used = field(default_factory=Counter)
-    redirects: int = 0
-    skips: int = 0
+    tally: _Tally = field(default_factory=_Tally)
 
     def taken(self) -> tuple[int, int]:
         """The redirects and skips since the last call, which restarts both at 0."""
-        counts = (self.redirects, self.skips)
-        self.redirects = self.skips = 0
+        counts = (self.tally.redirects, self.tally.skips)
+        self.tally = _Tally()
         return counts
 
     def pick(
@@ -133,14 +156,17 @@ class _Limits:
         other: Sequence[_Source],
         rng: np.random.Generator,
     ) -> tuple[_Source, bool]:
-        """`_pick_limited` at these limits, counting a redirect or a skip first."""
-        under = len(own) < self.floor
-        self.redirects += 0 < len(own) < self.floor
-        barred = {source for source, _ in own}
-        first = [r for r in other if r[0] not in barred] if under else own
-        self.skips += len(_below_cap(first, fields, self.cap, self.used)) < len(first)
+        """`_pick_limited` at these limits, counting into `tally`."""
         return _pick_limited(
-            cell, fields, own, other, rng, floor=self.floor, cap=self.cap, used=self.used
+            cell,
+            fields,
+            own,
+            other,
+            rng,
+            floor=self.floor,
+            cap=self.cap,
+            used=self.used,
+            tally=self.tally,
         )
 
 
