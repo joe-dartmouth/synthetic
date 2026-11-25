@@ -1,14 +1,17 @@
 """A perturbation arm's fill rebuilt from its candidate lines, each record over its direct draw.
 
-`bko-direct-pram` and `bko-direct-perturbed` change the unmapped fields of a `bko-direct` draw
-(`bko.evaluate.perturb.unmapped`), so a re-draw alone gives their unperturbed rows.
+`bko-direct-pram`, `bko-direct-perturbed` and `bko-coherent` change the unmapped fields of a
+`bko-direct` draw (`bko.evaluate.perturb.unmapped`), so a re-draw alone gives their unperturbed
+rows.
 `trace_perturbation` rebuilds the fill's rows from its lines (`bko.evaluate.shared.rebuilt`) and
 refuses (`IdentityError`, exit 3) unless they hash to the `arm` line's sha256. It then re-draws the
 fill at that line's seed (`bko.evaluate.redraw.redraw`), aligns the returned attempt's lines with
 the draws in generation order, and refuses unless every other column of every line is its draw's.
 Each record carries its draw's facts, as `bko.evaluate.trace_direct` writes them, and a `perturb`
 object: the line's result, the fields that differ from the draw and the draw's values for them
-(ADR `research/record-explainability`).
+(ADR `research/record-explainability`). A `bko-coherent` fill re-runs its change over the re-draw
+(`bko.evaluate.coherent.coherent_draws`), refuses unless it gives every line's record, and names
+each free field's leaf donor as its source (`leaf_sourced`).
 
 A schema-4 line holds its result. An older line's is read from the draw: a PRAM line is
 `CHANGED` when a field differs, else `UNCHANGED`; a rewrite line that names its call is
@@ -25,9 +28,10 @@ from collections.abc import Mapping, Sequence
 import pandas as pd
 
 from bko.baselines.request import Request
+from bko.evaluate.coherent import coherent_draws
 from bko.evaluate.data import Data, digest
 from bko.evaluate.errors import IdentityError
-from bko.evaluate.experiment import PRAM_ARM
+from bko.evaluate.experiment import COHERENT_ARM, PRAM_ARM
 from bko.evaluate.holdout_candidates import CHANGED, KEPT, PERTURBED, UNCHANGED, Candidate
 from bko.evaluate.perturb import unmapped
 from bko.evaluate.redraw import Shares, redraw
@@ -60,8 +64,9 @@ def trace_perturbation(
 
     Raises:
         IdentityError: If the rebuilt rows' sha256 is not the `arm` line's, a returned line holds
-            no record, the returned attempt's lines are not one per draw, or a column no
-            perturbation changes differs from its draw's; or as `bko.evaluate.shared.rebuilt`.
+            no record, the returned attempt's lines are not one per draw, a column no
+            perturbation changes differs from its draw's, or a `bko-coherent` line's record is
+            not its change re-run's; or as `bko.evaluate.shared.rebuilt`.
         EvaluationError: As `bko.evaluate.perturb.unmapped`.
     """
     where = f"holdout {fill.holdout}'s {fill.arm} fill"
@@ -73,6 +78,9 @@ def trace_perturbation(
     redrawn = redraw(train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag)
     free = unmapped(data.field_rows, frame=data.frame)
     paired, differs = line_draws(returned, redrawn.drawn, free)
+    if fill.name == COHERENT_ARM and not differs:
+        changed = coherent_draws(train, seeded, redrawn.drawn, fields=free)
+        paired, differs = leaf_sourced(paired, changed)
     log_arm(fill, logged=logged, rebuilt=found, check="unperturbed", held=not differs)
     if found != logged:
         msg = f"{where}'s rows rebuilt from its lines hash to {found}, not its arm line's {logged}"
@@ -105,6 +113,30 @@ def line_draws(
     if differs:
         return [], differs
     return list(zip(returned, records, drawn, strict=True)), ""
+
+
+def leaf_sourced(paired: Sequence[Paired], changed: Sequence[Draw]) -> tuple[list[Paired], str]:
+    """`paired`, each draw sourcing its changed fields as its change in `changed` does.
+
+    `changed` holds each pair's draw as `bko-coherent`'s change re-run left it
+    (`bko.evaluate.coherent.coherent_draws`). Each draw keeps its own record, so the trace's
+    `perturb` still names what the change moved, and takes the re-run's sources and fallback
+    fields. The second value says why the lines' records are not the re-run's, with no pair; it is
+    the empty string when they are.
+    """
+    names = sorted(
+        {
+            name
+            for (_, record, _), draw in zip(paired, changed, strict=True)
+            for name in _changed(record, draw)
+        }
+    )
+    if names:
+        return [], f"the change re-run gives other values than the lines in: {','.join(names)}"
+    return [
+        (line, record, dataclasses.replace(draw, sources=new.sources, fallback=new.fallback))
+        for (line, record, draw), new in zip(paired, changed, strict=True)
+    ], ""
 
 
 def kept_draws(paired: Sequence[Paired], request: Request, *, where: str) -> list[Paired]:

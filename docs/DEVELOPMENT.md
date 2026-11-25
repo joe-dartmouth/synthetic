@@ -289,6 +289,17 @@ of their complements were clamped; where one was, the line ends in `clamped_conc
 clamped broad concepts in pair order, comma-separated. A frame with no `is_a` pair among its drawn concepts, a broad
 concept with two narrow ones, or a nested pair is refused before any draw.
 
+The coherent free-field direct arm `bko-coherent` draws as `bko-direct` does, then redraws the
+free fields by sequential CART given `age`, `sex`, the label and the mapped fields, each value
+copied from a training row in the new row's leaf (ADR
+[`research/free-field-synthesis`](adr/research/free-field-synthesis.md)); the runs `e17-thin`
+and `e17-empty` hold it. Its `direct` and `direct arm=` lines are `bko-direct`'s, and its `arm`
+line's params add `"perturb": "coherent"`. Like `bko-direct-pram`, it logs
+`perturb arm=%s fields=%s stream=2` at construction, `perturb coherent holdout=%d arm=%s rows=%d`
+per fill with the rows it redrew, and the `perturb shapes`, `perturb columns` and
+`perturb summary` lines the perturbation runs' paragraph below lists; each of its candidates
+lines' `perturb` is `changed` or `unchanged`.
+
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
 and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`, `--resume` and
@@ -1008,7 +1019,11 @@ start or the supervisor cannot run.
   `E16_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct`, `bko-hier-0`,
   `bko-hier-closed` and the candidate `bko-hier-w`, no replica, the ceiling inert) and their
   slices `e16-thina` to `e16-thinj` and `e16-emptya` to `e16-emptyj`, sliced as E6's are;
-  `docs/EVIDENCE.md`, E16, describes them. `RUNS` holds P1's runs,
+  `docs/EVIDENCE.md`, E16, describes them. `RUNS` holds the coherent free-field runs, `e17-thin`
+  and `e17-empty` (`bko.evaluate.runs_direct.E17_THIN` and `E17_EMPTY`: `E9_THIN` and
+  `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate `bko-coherent`, no replica, the
+  ceiling inert) and their slices `e17-thina` to `e17-thinj` and `e17-emptya` to `e17-emptyj`,
+  sliced as E6's are; `docs/EVIDENCE.md`, E17, describes them. `RUNS` holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1193,12 +1208,13 @@ directly has no keep-awake or battery guard, so keep the machine on AC power and
 `merge` joins each run's ten slices, and `rows`, `panel` and `privacy` read them against
 `bko-direct`.
 
-Both arms log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
-`bko.evaluate.perturbed`):
+Both arms, and `bko-coherent`, log to `scores.log` (`bko.evaluate.perturb`, `bko.evaluate.pram`,
+`bko.evaluate.perturbed`, `bko.evaluate.coherent`):
 
-- `perturb arm=%s fields=%s` at construction, ending `theta=%s` for PRAM and
-  `per_call=%d model=%s` for the perturbed arm.
-- `perturb pram holdout=%d arm=%s rows=%d`: the rows PRAM read.
+- `perturb arm=%s fields=%s` at construction, ending `theta=%s` for PRAM,
+  `per_call=%d model=%s` for the perturbed arm and `stream=%d` for `bko-coherent`.
+- `perturb pram holdout=%d arm=%s rows=%d`: the rows PRAM read; `bko-coherent` logs
+  `perturb coherent holdout=%d arm=%s rows=%d` in its place.
 - `perturb call=%d holdout=%d rows=%d returned=%d accepted=%d refused=%d reason=%s stop_reason=%s
   checks=%s quota_off=%d` per rewrite call: `returned` the items its reply decoded to, `reason`
   the first refusal (`empty`, `short`, `undecodable` or `order` for the whole call; `keys`,
@@ -1270,7 +1286,8 @@ named run, `<h>` the holdout and `<arm>` the arm:
   re-drawn or rebuilt one, the arm's own check and `matches=`, at WARNING when either check
   fails. A direct arm's check is `kept_lines=`, whether its re-drawn kept records are the
   candidates file's kept lines; a perturbation arm's is `unperturbed=`, whether its returned
-  attempt holds one line per draw and every column no perturbation changes is its draw's. For a
+  attempt holds one line per draw and every column no perturbation changes is its draw's, and
+  for `bko-coherent` whether its change re-run gives every line's record. For a
   Messages arm, the `trace partial` WARNING counts the records left `untraced`, names the calls
   the log lacks (`missing=`) and each reason; and `trace rows=` closes with the output's sha256,
   the record written (`record=`) and the untraced count.
@@ -1282,15 +1299,16 @@ named run, `<h>` the holdout and `<arm>` the arm:
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
   `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and
   a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt is not one
-  line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
+  line per draw, or whose unperturbed columns differ from the re-draw, or a `bko-coherent` fill
+  whose change re-run does not give its lines' records. A `bko-logic` trace over an ontology whose logic
   components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
   are not its pinned ones, exit 2.
 
 **`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),
 decision 7): `knowledge`, a field a mapping row of `<run>`'s dataset reads under an arm whose draw
-reads the mapping table; `donor`, a field with a source training record id; `prompt`, a Messages
-record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
+reads the mapping table; `donor`, a field with a source training record id, a field
+`bko-coherent` changed among them; `prompt`, a Messages record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
 of an `untraced` record among them. It reads an arm's kind from each line, reads no data and
 makes no API call. Each record arm's fill gets one row per class, zeros included, in the unit
 `field`; a baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no

@@ -2,8 +2,8 @@
 
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
 `bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
-and `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms. `bko.evaluate.named_runs.RUNS` names
-them (`docs/EVIDENCE.md`, E12 to E16).
+`E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, and `E17_THIN` and `E17_EMPTY`
+`bko-coherent`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E17).
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Final
 from bko.baselines.request import Method
 from bko.evaluate.direct_arms import (
     CAPPED_ARM,
+    COHERENT_ARM,
     DIRECT_ARM,
     HIER_0_ARM,
     HIER_CLOSED_ARM,
@@ -109,3 +110,17 @@ E16_THIN, E16_EMPTY = (
 """E16's runs: `E9_THIN` and `E9_EMPTY` with the three `bko-hier` arms in place of `bko-logic`,
 `bko-hier-w` the candidate against `bko-direct`, `bko-hier-0` and `none`, and no replica (ADR
 `research/bkb-direct-generation`, Decision 12). No arm calls the API, so the ceiling is inert."""
+
+
+E17_THIN, E17_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, COHERENT_ARM),
+        candidate=COHERENT_ARM,
+        comparators=(DIRECT_ARM, "none"),
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E17's runs: `E9_THIN` and `E9_EMPTY` with `bko-coherent` in place of `bko-logic` as the candidate
+against `bko-direct` and `none`, and no replica (ADR `research/free-field-synthesis`). No arm calls
+the API, so the ceiling is inert."""

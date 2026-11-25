@@ -21,6 +21,7 @@ from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import kept_count
 from bko.evaluate.direct_arms import (
+    COHERENT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARMS,  # ruff: ignore[unused-import]  (re-exported)
     LOGIC_ARM,  # ruff: ignore[unused-import]  (re-exported)

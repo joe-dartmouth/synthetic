@@ -14,7 +14,8 @@ null call, to the run's candidates file when the harness drains it
 them, one per name of `DIRECT_ARMS`, each drawing at its own spec. ADR
 `research/bkb-direct-generation` records the sampler, ADR `research/logic-only-ablation` the
 logic-only draw of `bko-logic`, whose components `run_direct` checks before any arm fits, and ADR
-`research/no-mapping-ablation` the draw of `bko-nomap` without the mapping table.
+`research/no-mapping-ablation` the draw of `bko-nomap` without the mapping table. `bko-direct-pram`
+and `bko-coherent` wrap a `DirectArm` and change its draw (`WRAPPERS`).
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import logging
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from types import MappingProxyType
+from typing import Final
 
 import pandas as pd
 
@@ -34,8 +36,9 @@ from bko.baselines.request import Request, Strata
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
+from bko.evaluate.coherent import CoherentArm
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARMS, PRAM_ARM, Experiment
+from bko.evaluate.experiment import COHERENT_ARM, DIRECT_ARMS, PRAM_ARM, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
 from bko.evaluate.perturb import Change, unmapped
@@ -240,6 +243,19 @@ class DirectArm:
         return sum(bool(draw.fallback) for draws in drawn.values() for draw in draws)
 
 
+type Wrapper = Callable[[DirectArm, Sequence[str]], PramArm | CoherentArm]
+"""Builds a perturbing arm over the direct arm that draws for it and the fields it perturbs."""
+
+WRAPPERS: Final[Mapping[str, Wrapper]] = MappingProxyType(
+    {
+        PRAM_ARM: lambda arm, fields: PramArm(arm, THETA, fields=fields),
+        COHERENT_ARM: lambda arm, fields: CoherentArm(arm, fields=fields),
+    }
+)
+"""The direct arms that perturb their draw, by name, each with what wraps its `DirectArm`:
+`bko.evaluate.pram.PramArm` and `bko.evaluate.coherent.CoherentArm`."""
+
+
 def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside the direct ones)
     records: pd.DataFrame,
     experiment: Experiment,
@@ -258,14 +274,14 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
 
     `held` is `bko.evaluate.run.run`'s.
 
-    Each name is a key of `DIRECT_ARMS`, which says what its arm's draw reads; `PRAM_ARM` then
-    perturbs its draw (`bko.evaluate.pram.PramArm`). Each arm logs its run's validity sums on
+    Each name is a key of `DIRECT_ARMS`, which says what its arm's draw reads; an arm of
+    `WRAPPERS` then perturbs its draw's unmapped fields. Each arm logs its run's validity sums on
     the way out, a stopped run included.
 
     Raises:
         EvaluationError: If a logic-only arm's components cannot be enumerated
-            (`bko.generate.direct.logic_components`), or the PRAM arm's fields are not the frame's
-            pinned ones (`bko.evaluate.perturb.unmapped`); raised before any arm fits.
+            (`bko.generate.direct.logic_components`), or a perturbing arm's fields are not the
+            frame's pinned ones (`bko.evaluate.perturb.unmapped`); raised before any arm fits.
         As `bko.evaluate.run.run`.
     """
     for name in names:
@@ -275,14 +291,14 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
             except ValueError as exc:
                 msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
                 raise EvaluationError(msg) from exc
-    direct: dict[str, DirectArm | PramArm] = {}
+    direct: dict[str, DirectArm | PramArm | CoherentArm] = {}
     for name in names:
         arm = direct_arm(name, knowledge, experiment, sink)
-        if name == PRAM_ARM:
-            fields = unmapped(knowledge.field_rows, frame=frame)
-            direct[name] = PramArm(arm, THETA, fields=fields)
-        else:
+        wrapper = WRAPPERS.get(name)
+        if wrapper is None:
             direct[name] = arm
+        else:
+            direct[name] = wrapper(arm, unmapped(knowledge.field_rows, frame=frame))
     try:
         return run(
             records,

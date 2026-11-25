@@ -59,6 +59,8 @@ from bko.evaluate.runs_direct import (
     E15_THIN,
     E16_EMPTY,
     E16_THIN,
+    E17_EMPTY,
+    E17_THIN,
 )
 from bko.evaluate.runs_published import P1, P2
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -308,6 +310,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e15", "empty", E15_EMPTY, Dataset.DIABETES_CODES),
         **_slices("e16", "thin", E16_THIN),
         **_slices("e16", "empty", E16_EMPTY),
+        **_slices("e17", "thin", E17_THIN),
+        **_slices("e17", "empty", E17_EMPTY),
         "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
         "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
         "p2": NamedRun(P2, SETTINGS),
@@ -316,9 +320,10 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
 """Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, the
 Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM-only full runs
 `e10-pram-*`, the control runs `e12-*` and `e13`, the donor-limit runs `e14-*`, the tree-share
-runs `e15-*` on `diabetes-codes`, the conditional `is_a` runs `e16-*`, TableShift's `p1-id`
-and `p1-ood`, and SynthEval's `p2`, each family's experiment saying what it is. A variant
-adds its own entry in its own change, with its arms, candidate, comparators and ceiling."""
+runs `e15-*` on `diabetes-codes`, the conditional `is_a` runs `e16-*`, the coherent free-field
+runs `e17-*`, TableShift's `p1-id` and `p1-ood`, and SynthEval's `p2`, each family's experiment
+saying what it is. A variant adds its own entry in its own change, with its arms, candidate,
+comparators and ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

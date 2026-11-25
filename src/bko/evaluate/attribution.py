@@ -19,11 +19,12 @@ import logging
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final, cast
 
 from bko.evaluate.data import Dataset, field_rows, frame
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARMS, PERTURBED_ARM, PRAM_ARM
+from bko.evaluate.experiment import COHERENT_ARM, DIRECT_ARMS, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_versions
 from bko.evaluate.run_folder import base
@@ -58,8 +59,14 @@ class Attribution(enum.StrEnum):
 
 ATTRIBUTION_COLUMNS: Final = ("holdout", "arm", "kind", "class", "unit", "count")
 
-PERTURBATION_ARMS: Final = frozenset({PERTURBED_ARM, PRAM_ARM})
+PERTURBATION_ARMS: Final = frozenset({PERTURBED_ARM, PRAM_ARM, COHERENT_ARM})
 """The arms whose trace lines carry a `perturb` key, by name without a `-replica` suffix."""
+
+CHANGED_CLASS: Final[Mapping[str, Attribution]] = MappingProxyType(
+    {PRAM_ARM: Attribution.SEED, COHERENT_ARM: Attribution.DONOR}
+)
+"""A changed field's class under each perturbation arm but the rewrite arm, whose is `PROMPT`:
+PRAM's redraw is its method and seed's, and `bko-coherent`'s copy names its leaf donor."""
 
 ARM_NAME: Final = re.compile(r"[a-z0-9-]+")
 """The shape of every arm name, so a CSV cell holding one cannot start a spreadsheet formula."""
@@ -113,8 +120,9 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     `mapped` holds the fields a mapping row's `when` clause reads, the label aside. A direct
     arm's field in it is a knowledge fact when the arm's `DrawSpec` reads the mapping table;
     else a field with a source id is a donor's, and any other the method and seed's. A
-    perturbation arm's changed field is the prompt's under the rewrite arm and the method and
-    seed's under PRAM, its other fields read as a direct arm's over `bko-direct`'s spec. A
+    perturbation arm's changed field is the prompt's under the rewrite arm, the method and seed's
+    under PRAM and a donor's under `bko-coherent` (`CHANGED_CLASS`), its other fields read as a
+    direct arm's over `bko-direct`'s spec. A
     Messages record's fields are the prompt's, or the method and seed's when it is `untraced`.
     A changed field's class comes first, since its value is no longer the drawn fact.
 
@@ -138,7 +146,7 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     donated = set(cast("Mapping[str, object]", line["sources"]))
     perturb = cast("Mapping[str, list[str]] | None", line.get("perturb"))
     changed = set(perturb["fields"]) if perturb is not None else set()
-    rewritten = Attribution.SEED if name == PRAM_ARM else Attribution.PROMPT
+    rewritten = CHANGED_CLASS.get(name, Attribution.PROMPT)
     found = {}
     for field in map(str, record):
         if field in changed:

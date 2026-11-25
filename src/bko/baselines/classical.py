@@ -193,12 +193,22 @@ def _donated(
     new: np.ndarray, trained: np.ndarray, values: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
     """For each new row's leaf, the value of a uniformly chosen training row in that leaf."""
-    out = np.empty(len(new), dtype=values.dtype)
+    return values[leaf_donors(new, trained, rng)]
+
+
+def leaf_donors(new: np.ndarray, trained: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """For each new row's leaf in `new`, the position of a uniformly chosen training row there.
+
+    `trained` holds each training row's leaf. Leaves are visited in ascending order, each taking
+    one `rng.integers` call over its training rows for all its new rows, so the draw depends on
+    `rng` and the leaves alone.
+    """
+    out = np.empty(len(new), dtype=np.intp)
     order = np.argsort(trained, kind="stable")
     sorted_leaves = trained[order]
     for leaf in np.unique(new):
         at = new == leaf
         start, stop = np.searchsorted(sorted_leaves, [leaf, leaf + 1])
         donors = order[start:stop]
-        out[at] = values[donors[rng.integers(len(donors), size=int(at.sum()))]]
+        out[at] = donors[rng.integers(len(donors), size=int(at.sum()))]
     return out
