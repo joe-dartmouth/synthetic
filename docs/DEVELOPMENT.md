@@ -285,7 +285,8 @@ runs `e16-thin` and `e16-empty` hold them. Their `direct` and `fallback` lines r
 `"hierarchy": 20.0` and `"closed": true`; like every direct arm but `bko-direct`, their
 `direct arm=` lines end in `fallback_draws=%d`. The sampler writes one
 `hier holdout=%d fill=%s key=%s pairs=%d clamped=%d` line per cell: the pairs drawn and how many
-of their complements were clamped. A frame with no `is_a` pair among its drawn concepts, a broad
+of their complements were clamped; where one was, the line ends in `clamped_concepts=%s`, the
+clamped broad concepts in pair order, comma-separated. A frame with no `is_a` pair among its drawn concepts, a broad
 concept with two narrow ones, or a nested pair is refused before any draw.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and

@@ -164,7 +164,12 @@ def test_each_hier_arm_logs_only_its_nondefault_fields(scored):
         assert all({k: p[k] for k in d} == d for p, d in zip(params, direct, strict=True))
         token = " ".join(f"{name}={str(value).lower()}" for name, value in own.items())
         assert re.search(rf"direct holdout=0 fill=gap key=\S+ .* {token} presence=shares", log)
-    assert re.search(r"^.*hier holdout=0 fill=gap key=\S+ pairs=2 clamped=\d+$", log, re.MULTILINE)
+    hier = r"^.*hier holdout=0 fill=gap key=\S+ pairs=2 clamped=(\d+)(?: clamped_concepts=(\S+))?$"
+    for clamped, named in re.findall(hier, log, re.MULTILINE):
+        concepts = named.split(",") if named else []
+        assert len(concepts) == int(clamped)
+        assert set(concepts) <= set(PAIRS.values())
+    assert re.search(hier, log, re.MULTILINE)
 
 
 def test_a_hier_fill_traces_to_its_arm_sha(scored, caplog):

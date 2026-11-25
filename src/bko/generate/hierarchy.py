@@ -249,13 +249,18 @@ class Hierarchy:
 
 
 def log_pairs(holdout: int, fill: str, cell: Cell, parts: Mapping[str, PairPart]) -> None:
-    """Log the pairs drawn at `cell` and how many of their complements were clamped."""
-    clamped = sum(part.clamped for part in parts.values())
+    """Log the pairs drawn at `cell` and how many of their complements were clamped.
+
+    Where one was, the line ends in `clamped_concepts=`, each clamped broad concept in pair order.
+    """
+    clamped = [broad for broad, part in parts.items() if part.clamped]
+    named = f" clamped_concepts={','.join(clamped)}" if clamped else ""
     logger.info(
-        "hier holdout=%d fill=%s key=%s pairs=%d clamped=%d",
+        "hier holdout=%d fill=%s key=%s pairs=%d clamped=%d%s",
         holdout,
         fill,
         cell_key(cell),
         len(parts),
-        clamped,
+        len(clamped),
+        named,
     )

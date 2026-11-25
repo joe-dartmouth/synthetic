@@ -385,7 +385,10 @@ def test_the_hier_line_counts_each_cells_pairs_and_clamps(caplog):
     caplog.set_level(logging.INFO, logger="bko.generate.hierarchy")
     _draw(CLOSED)
     assert [m for m in caplog.messages if m.startswith("hier ")] == [
-        "hier holdout=3 fill=gap key=<55/female/1 pairs=1 clamped=1",
+        (
+            "hier holdout=3 fill=gap key=<55/female/1 pairs=1 clamped=1"
+            f" clamped_concepts={PLANTED_BROAD}"
+        ),
         "hier holdout=3 fill=gap key=<55/male/1 pairs=1 clamped=0",
         "hier holdout=3 fill=gap key=>=55/male/1 pairs=1 clamped=0",
         "hier holdout=3 fill=gap key=<55/female/0 pairs=1 clamped=0",
