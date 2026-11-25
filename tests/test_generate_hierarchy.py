@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+from collections import Counter
 from collections.abc import Mapping
 from fractions import Fraction
 from typing import Final
@@ -26,6 +27,8 @@ from bko.generate.direct import Draw, _Plan, sample
 from bko.generate.donors import _label_groups, cell_records
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.hierarchy import (
+    Hierarchy,
+    PairPart,
     always_present,
     broad_chance,
     conditional,
@@ -223,6 +226,34 @@ def test_a_narrow_share_one_ulp_below_1_reads_no_complement():
     assert (drawn[False, True], drawn[False, False]) == (2**-55, 3 * 2**-55)
 
 
+def test_a_cell_where_every_record_shows_the_narrow_concept_draws_the_broad_at_c():
+    """Cell 6 of 10 and group 24 of 40 show both, all show N: `c_20 = (18 + 20) / (30 + 20)`."""
+    pair = (PLANTED_NARROW, PLANTED_BROAD)
+    hierarchy = Hierarchy((PLANTED_BROAD, PLANTED_NARROW), {}, ontologies(), pseudo=20.0)
+    assert hierarchy.pairs == (pair,)
+    cell = Observed("cell", 10, {PLANTED_BROAD: 6, PLANTED_NARROW: 10}, {pair: 6})
+    group = Observed("group", 40, {PLANTED_BROAD: 24, PLANTED_NARROW: 40}, {pair: 24})
+    below = math.nextafter(1.0, 0.0)
+    for share_narrow in (1.0, below):
+        share = {PLANTED_BROAD: 0.6, PLANTED_NARROW: share_narrow}
+        parts = hierarchy.at(cell, group, share)
+        assert parts == {
+            PLANTED_BROAD: PairPart(PLANTED_NARROW, 18.0, 30.0, 20.0, 0.76, None, False)
+        }
+        drawn = {
+            (u_broad, u_narrow): hierarchy.present(set(), (u_broad, u_narrow), share, parts)
+            for u_broad in (0.7, 0.8)
+            for u_narrow in (0.5, below)
+        }
+        narrow = set() if share_narrow == below else {PLANTED_NARROW}
+        assert drawn == {
+            (0.7, 0.5): {PLANTED_BROAD, PLANTED_NARROW},
+            (0.7, below): {PLANTED_BROAD} | narrow,
+            (0.8, 0.5): {PLANTED_NARROW},
+            (0.8, below): narrow,
+        }
+
+
 def test_an_empty_label_group_is_refused():
     with pytest.raises(ValueError, match="label group group holds no record"):
         pair_weights(CELL, _observed("group", 0, 0, 0, 0), PAIR)
@@ -290,6 +321,7 @@ def test_concepts_outside_a_pair_match_bko_direct_at_the_same_seed():
         assert len(hier[cell]) == len(draws)
         for mine, theirs in zip(hier[cell], draws, strict=True):
             assert (OUTER in mine.concepts) == (OUTER in theirs.concepts)
+            assert (PLANTED_NARROW in mine.concepts) == (PLANTED_NARROW in theirs.concepts)
             differs += (PLANTED_BROAD in mine.concepts) != (PLANTED_BROAD in theirs.concepts)
     assert differs > 0
 
@@ -311,6 +343,42 @@ def test_the_narrow_concept_draws_at_its_share_and_the_broad_at_its_parts():
     assert (part.conditional,) == (float(Fraction(10, 29)),)
     assert part.complement is not None
     assert math.isclose(part.complement, 1.0, rel_tol=1e-12)
+
+
+def test_a_cells_drawn_joint_is_the_pair_joint_of_its_part():
+    """At `YM1` under `bko-hier-0`, 20000 draws land within 4 standard errors of each joint
+    chance and of the broad share, and the independent product `bko-direct` draws lies outside.
+    """
+    planted = plant("narrow-without-broad")
+    plan = _Plan(ROWS, planted.ontologies, UCI_FRAME, HIER_0)
+    cells = record_cells(planted.frame, ROWS, name=NAME, edges=UCI_FRAME.edges, pairs=plan.pairs)
+    keys = cell_keys(planted.frame, edges=UCI_FRAME.edges)
+    groups = _label_groups(planted.frame, keys, {1}, ROWS, NAME, UCI_FRAME, plan.pairs)
+    own = cell_records(planted.frame, keys, YM1, UCI_FRAME)
+    sources = plan.sources(YM1, cells.each[YM1], groups[1], own)
+    (part,) = sources.pairs.values()
+    assert not part.clamped
+    share_broad, share_narrow = sources.share[PLANTED_BROAD], sources.share[PLANTED_NARROW]
+    chance = pair_joint(share_broad=share_broad, share_narrow=share_narrow, given=part.conditional)
+    rows = 20000
+    (draws,) = sample(
+        planted.frame,
+        {YM1: rows},
+        rows=ROWS,
+        ontologies=planted.ontologies,
+        name=NAME,
+        seed=0,
+        frame=UCI_FRAME,
+        spec=HIER_0,
+    ).values()
+    found = Counter((PLANTED_NARROW in d.concepts, PLANTED_BROAD in d.concepts) for d in draws)
+
+    def within(seen: int, p: float) -> bool:
+        return abs(seen / rows - p) <= 4 * math.sqrt(p * (1 - p) / rows) + 1e-12
+
+    assert all(within(found[key], p) for key, p in chance.items()), (found, chance)
+    assert within(found[True, True] + found[False, True], share_broad)
+    assert not within(found[True, True], share_narrow * share_broad)
 
 
 def test_the_hier_line_counts_each_cells_pairs_and_clamps(caplog):

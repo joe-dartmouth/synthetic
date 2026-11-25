@@ -13,6 +13,7 @@ import json
 import logging
 import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Final
 
@@ -28,7 +29,9 @@ from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.reference import REFERENCE
 from bko.evaluate.runs_diabetes import E9_EMPTY, E9_THIN
 from bko.evaluate.runs_direct import E16_EMPTY, E16_THIN
-from bko.generate.hierarchy import PairPart
+from bko.gaps.observe import Cell, cell_key
+from bko.generate import direct
+from bko.generate.hierarchy import PairPart, log_pairs
 from bko.generate.messages import SETTINGS, AnySend
 from bko.ontology.icd9 import ICD9_MAPPINGS
 from tests._diabetes_fixtures import diabetes_releases, pin, toy_archive
@@ -110,11 +113,28 @@ def _context(experiment: Experiment = HIER_RUN) -> Context:
 
 @pytest.fixture(scope="module")
 def scored(tmp_path_factory) -> Path:
-    """A finished `toy` folder of `HIER_RUN`, its data root beside it."""
+    """A finished `toy` folder of `HIER_RUN`, its data root beside it.
+
+    Each cell's `PairPart`s as the draw logs them are kept in `parts.json` beside the folder, by
+    holdout, pseudo-count and cell key.
+    """
     base = tmp_path_factory.mktemp("hier")
     folder = base / "run"
     argv = ["score", "toy", "--candidates", str(folder / "holdout-candidates.jsonl")]
-    _scored(folder, _context(), [*argv, "--data-dir", str(base / "data")])
+    drawn: dict[str, dict[str, dict[str, object]]] = {}
+
+    def keep(holdout: int, fill: str, cell: Cell, parts: Mapping[str, PairPart]) -> None:
+        (pseudo,) = {part.pseudo for part in parts.values()}
+        found: dict[str, dict[str, object]] = {
+            broad: dataclasses.asdict(part) for broad, part in parts.items()
+        }
+        assert drawn.setdefault(f"{holdout} {pseudo} {cell_key(cell)}", found) == found
+        log_pairs(holdout, fill, cell, parts)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(direct, "log_pairs", keep)
+        _scored(folder, _context(), [*argv, "--data-dir", str(base / "data")])
+    (base / "parts.json").write_text(json.dumps(drawn), encoding="utf-8")
     return folder
 
 
@@ -148,7 +168,9 @@ def test_each_hier_arm_logs_only_its_nondefault_fields(scored):
 
 
 def test_a_hier_fill_traces_to_its_arm_sha(scored, caplog):
+    """Each record's `PairPart`s are the ones its draw logged at its cell, value for value."""
     caplog.set_level(logging.INFO)
+    drawn = json.loads((scored.parent / "parts.json").read_text(encoding="utf-8"))
     lines = read((scored / "holdout-candidates.jsonl").read_bytes()).candidates
     for arm, own in OWN.items():
         caplog.clear()
@@ -169,8 +191,7 @@ def test_a_hier_fill_traces_to_its_arm_sha(scored, caplog):
                 assert part["pseudo"] == pseudo
                 if pseudo is None:
                     assert (part["conditional"],) == (1.0,)
-                if part["complement"] is not None:
-                    assert 0.0 <= part["complement"] <= 1.0
+            assert broad == drawn[f"0 {pseudo} {record['request']['cell']}"]
 
 
 def test_a_bko_direct_trace_names_no_pair_parts(scored):

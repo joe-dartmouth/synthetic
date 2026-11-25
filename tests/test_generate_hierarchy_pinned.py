@@ -58,6 +58,7 @@ def _ontologies() -> dict[str, Ontology]:
     return dict(ontologies)
 
 
+@functools.cache
 def _fill(name: str, seed: int, spec: DrawSpec) -> tuple[dict[Cell, int], tuple[Draw, ...]]:
     experiment = RUNS[name].experiment
     edges = DIABETES_FRAME.edges
@@ -106,9 +107,21 @@ def test_the_frames_pairs_are_the_two_the_census_names():
 @pytest.mark.parametrize(("name", "asked"), [("e16-thin", 1250), ("e16-empty", 1269)])
 @pytest.mark.parametrize("arm", [HIER_0_ARM, HIER_W_ARM, HIER_CLOSED_ARM])
 def test_a_hier_fill_of_e6s_cell_completes_at_both_fractions(arm, name, asked, seed):
+    """Narrow-without-broad rows fall from `bko-hier-0` to `bko-hier-w` to the closed fill's 0.
+
+    `bko-hier-0` reads the data's conditional, which leaves most records' narrow concept without
+    its broad one, so its count stays near `bko-direct`'s; `c_w >= c_0` lowers it at `bko-hier-w`.
+    """
     quota, draws = _fill(name, seed, DIRECT_ARMS[arm])
     assert quota == {E6_CELL: asked}
     assert len(draws) == asked
+    found = _narrow_without_broad(draws)
+    if arm == HIER_CLOSED_ARM:
+        assert found == 0
+    elif arm == HIER_0_ARM:
+        assert found > 0
+    else:
+        assert found < _narrow_without_broad(_fill(name, seed, DIRECT_ARMS[HIER_0_ARM])[1])
 
 
 @pytest.mark.parametrize(("name", "asked"), [("e16-thin", 1250), ("e16-empty", 1269)])
