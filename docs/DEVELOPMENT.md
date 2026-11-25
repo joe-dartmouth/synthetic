@@ -251,6 +251,15 @@ The no-mapping direct arm `bko-nomap` draws as `bko-direct` does with an empty m
 ` mapped=false presence=shares`, its `arm` line's params add `"mapped": false`, and its
 `direct arm=` line ends in `fallback_draws=%d`.
 
+The donor-limit direct arm `bko-capped` draws as `bko-direct` does under a donor floor of 2 and a
+reuse cap of 1 per unit (ADR [`research/sampler-donor-limits`](adr/research/sampler-donor-limits.md));
+the runs `e14-thin` and `e14-empty` hold it. Its `direct` and `fallback` lines read
+` min_donors=2 reuse_cap=1 presence=shares`, its `arm` line's params add `"min_donors": 2` and
+`"reuse_cap": 1`, its `direct arm=` line ends in `fallback_draws=%d`, and the sampler writes one
+`limits holdout=%d fill=%s key=%s floor_redirects=%d cap_skips=%d` line per cell: the picks whose
+cell held fewer matching records than the floor, at least one, and the picks whose first pool
+held a donor at the cap. A fill whose pools run out is refused and retried at a derived seed.
+
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
 and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`, `--resume` and
@@ -956,8 +965,13 @@ start or the supervisor cannot run.
   `bko-nomap`, `label-bootstrap` and `prior-shift`, the candidate `bko-direct` and no replica) and
   their slices `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, sliced as E6's are,
   and `e13` (`E13`: `E3` with those arms and `bko-logic`, the candidate `bko-direct`, no replica and
-  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them. It
-  holds P1's runs, `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them.
+  `RUNS` holds the donor-limit runs, `e14-thin` and `e14-empty`
+  (`bko.evaluate.runs_direct.E14_THIN` and `E14_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`,
+  `real`, `bko-direct` and the candidate `bko-capped`, no replica, the ceiling inert) and their
+  slices `e14-thina` to `e14-thinj` and `e14-emptya` to `e14-emptyj`, sliced as E6's are;
+  `docs/EVIDENCE.md`, E14, describes them. `RUNS` holds P1's runs, `p1-id` on `tableshift-id` and
+  `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
   candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
@@ -1191,7 +1205,8 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 `--record N` writes the record at 0-based position N alone, and `--data-dir` sets the data root.
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
-Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`) re-draws
+Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`,
+`bko-capped`) re-draws
 at its `arm` line's seed with that arm's draw spec and no extra random draw; a `bko-logic`
 record's concepts are its closed draw, not share priors, and a `bko-nomap` record names no
 concept. `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows
@@ -1222,10 +1237,11 @@ arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`) differ from its arm's, and a perturbation fill whose rebuilt rows miss its `arm`
-  sha256, whose returned attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic`
-  trace over an ontology whose logic components cannot be enumerated, and a perturbation trace
-  over a frame whose unmapped fields are not its pinned ones, exit 2.
+  `mapped`, `min_donors`, `reuse_cap`) differ from its arm's, and a perturbation fill whose
+  rebuilt rows miss its `arm` sha256, whose returned attempt is not one line per draw, or whose
+  unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
+  components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
+  are not its pinned ones, exit 2.
 
 **`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),

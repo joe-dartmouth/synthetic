@@ -2,7 +2,7 @@
 id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
-depends_on: generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields
+depends_on: generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-value-microaggregation, generate-coherent-free-fields
 blocks: evaluate-composite-arm
 parallel_safe: true
 milestone: direct-method-research
@@ -27,9 +27,10 @@ says which enter `bko-direct-2`.
 - The development runs registered by units
   [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md),
   [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md),
-  [`privacy-donor-limits`](privacy-donor-limits.md),
   [`privacy-value-microaggregation`](privacy-value-microaggregation.md) and
-  [`generate-coherent-free-fields`](generate-coherent-free-fields.md).
+  [`generate-coherent-free-fields`](generate-coherent-free-fields.md), and `bko-capped`'s runs
+  `e14-thin` and `e14-empty`
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal)).
 - For each arm, `contradictions --rows` (ADR
   [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
   Decision 2), `attribution` (ADR

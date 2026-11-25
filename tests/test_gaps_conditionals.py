@@ -22,7 +22,7 @@ from bko.gaps.observe import (
 )
 from bko.gaps.shares import draw_order, label_only, nested, shares
 from bko.generate.direct import _Plan
-from bko.generate.presence import Presence
+from bko.generate.draw_spec import DEFAULT_SPEC
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import FieldMapping
@@ -231,7 +231,7 @@ def test_draw_order_names_exactly_a_cycle_and_the_concepts_above_it():
 
 
 def _plan_order(rows: tuple[FieldMapping, ...], releases: Mapping) -> tuple[str, ...]:
-    return tuple(_Plan(rows, releases, UCI_FRAME, Presence.SHARES)._order)
+    return tuple(_Plan(rows, releases, UCI_FRAME, DEFAULT_SPEC)._order)
 
 
 @pytest.mark.parametrize(

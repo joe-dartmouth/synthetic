@@ -20,12 +20,17 @@ from bko.baselines.request import SEED_LIMIT, Method, Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import kept_count
+from bko.evaluate.direct_arms import (
+    DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
+    DIRECT_ARMS,  # ruff: ignore[unused-import]  (re-exported)
+    LOGIC_ARM,  # ruff: ignore[unused-import]  (re-exported)
+    NOMAP_ARM,  # ruff: ignore[unused-import]  (re-exported)
+    PRAM_ARM,  # ruff: ignore[unused-import]  (re-exported)
+)
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.ranking import over_ask_error
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
-from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
-from bko.generate.presence import Presence
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -277,31 +282,6 @@ BKO_ARMS: Final[Mapping[str, Definition]] = MappingProxyType(
     }
 )
 """The BKO arms, each with the gap definition that guides it; `bko` is E1's candidate."""
-
-DIRECT_ARM: Final = "bko-direct"
-"""The free arm that draws records from the fused BKB with no API call (`bko.evaluate.direct`)."""
-
-LOGIC_ARM: Final = "bko-logic"
-"""The free arm that draws as `DIRECT_ARM` does with each concept's presence from logic alone, no
-data prior (ADR `research/logic-only-ablation`)."""
-
-PRAM_ARM: Final = "bko-direct-pram"
-"""The free arm that redraws `DIRECT_ARM`'s unmapped fields by PRAM toward each field's label-group
-training marginal (`bko.evaluate.pram`; ADR `research/identifier-perturbation`)."""
-
-NOMAP_ARM: Final = "bko-nomap"
-"""The free arm that draws as `DIRECT_ARM` does with an empty mapping table: no concept, and every
-column but `age`, `sex` and the label a free field (ADR `research/no-mapping-ablation`)."""
-
-DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
-    {
-        DIRECT_ARM: DEFAULT_SPEC,
-        LOGIC_ARM: DrawSpec(presence=Presence.LOGIC),
-        PRAM_ARM: DEFAULT_SPEC,
-        NOMAP_ARM: DrawSpec(mapped=False),
-    }
-)
-"""Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""
 
 SKELETON_ARM: Final = "bko-skeleton"
 """The prescribing arm: a Messages arm guided by per-subgroup gaps, as `bko` is, whose every

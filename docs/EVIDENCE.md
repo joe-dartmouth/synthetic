@@ -173,6 +173,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#control-reading-rule), the control reading rule; each contrast's branch is the reading, a development result |
 
+## E14. Donor floor and reuse cap on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does drawing as `bko-direct` does with a donor floor of 2 and a reuse cap of 1 per unit (`bko-capped`) lower the field-group match attack's AUC against `bko-direct`, and at what cost to removed-cell recall? |
+| Configuration | Design: ADR [`research/sampler-donor-limits`](adr/research/sampler-donor-limits.md) fixes the floor, the cap, the pool each pick reads and the refusal at exhaustion. Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e14-thin` (0.985) and `e14-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e14-thina` to `e14-thinj` and `e14-emptya` to `e14-emptyj`, at E6's settings. Arms: `none`, `real`, `bko-direct` and `bko-capped`; candidate `bko-capped`, comparators `bko-direct` and `none`; no replica, since a replica of every cell would exhaust a cap of 1. Target measure: `privacy`'s match-attack AUC of `bko-capped` against the reference arm `bko-direct`. Manipulation check: donor reuse, `donor-max`, which may exceed the cap since the cap counts per unit. Removed-cell recall is read for the [variant inclusion rule](RESEARCH.md#variant-inclusion-rule). No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |

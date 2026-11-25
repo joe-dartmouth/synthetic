@@ -34,6 +34,7 @@ from bko.gaps.shares import label_only, nested, shares
 from bko.generate.donors import (
     _Group,  # ruff: ignore[unused-import]  (re-exported)
     _label_groups,
+    _Limits,
     _observe_group,  # ruff: ignore[unused-import]  (re-exported)
     _pick,
     _records,
@@ -122,15 +123,24 @@ def sample(
             concept the drawn and label-only concepts imply through `is_a` and nesting before
             any field is read. At `mapped=False` the draw reads `rows` as empty, so it draws no
             concept and picks every column but `age`, `sex` and the label alone, from a cell
-            record, else a label-group record. The `direct` and `fallback` lines name its
+            record, else a label-group record. `min_donors` and `reuse_cap` limit who donates
+            (ADR `research/sampler-donor-limits`): a unit whose cell holds fewer than
+            `min_donors` records showing the drawn pattern reads the label group less the
+            cell's records, and a record that has given a unit's values `reuse_cap` times in
+            this call is skipped for that unit. The `direct` and `fallback` lines name its
             presence, after a ` name=value` token per other field off its default (`tokens`).
+            When either limit is set, a `limits` line per cell follows its `direct` line and
+            counts `floor_redirects`, the cell's picks below the floor with at least one
+            matching cell record, and `cap_skips`, its picks whose first pool held a donor at
+            the cap.
 
     Returns:
         Each cell's draws, in quota order.
 
     Raises:
         SamplingError: If a field group has no record matching a draw in the cell or its label
-            group, or a free field has no record to read from.
+            group, or a free field has no record to read from; under a floor or a cap, if a
+            unit's pool is empty once the records it bars or holds at the cap are left out.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, or as
             `bko.generate.logic.components`, for a component too large to enumerate, naming the
@@ -142,7 +152,7 @@ def sample(
     keys = cell_keys(train, edges=frame.edges)
     holdout, fill = (-1, "none") if tag is None else tag
     try:
-        plan = _Plan(mappings, ontologies, frame, presence)
+        plan = _Plan(mappings, ontologies, frame, spec)
     except ValueError as exc:
         msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
         raise ValueError(msg) from exc
@@ -177,6 +187,14 @@ def sample(
             presence,
         )
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
+        if plan.limits is not None:
+            logger.info(
+                "limits holdout=%d fill=%s key=%s floor_redirects=%d cap_skips=%d",
+                holdout,
+                fill,
+                cell_key(cell),
+                *plan.limits.taken(),
+            )
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
                 "fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s",
@@ -200,7 +218,7 @@ def logic_components(
     Raises:
         ValueError: As `nested` and `bko.generate.logic.components`.
     """
-    plan = _Plan(tuple(rows), ontologies, frame, Presence.LOGIC)
+    plan = _Plan(tuple(rows), ontologies, frame, DrawSpec(presence=Presence.LOGIC))
     return () if plan.components is None else plan.components
 
 
@@ -237,9 +255,12 @@ class _Plan:
         rows: Sequence[FieldMapping],
         ontologies: Mapping[str, Ontology],
         frame: FrameSpec,
-        presence: Presence,
+        spec: DrawSpec,
     ) -> None:
+        """`spec` is the draw's."""
         self._frame = frame
+        self._spec = spec
+        self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
         self._by_concept = by_concept(rows)
         self._label_only = label_only(rows, frame=frame)
         self._inner_of = {outer: inner for inner, outer in nested(rows).items()}
@@ -253,13 +274,16 @@ class _Plan:
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None
-        if presence is Presence.LOGIC:
+        if spec.presence is Presence.LOGIC:
             implies = [(inner, outer) for outer, inner in self._inner_of.items()]
             implies += [(c, a) for c in self._order for a in self._closure(frozenset({c})) - {c}]
             self.components = components(self._drawn, implies)
 
     def draw(self, sources: _Sources, rng: np.random.Generator) -> Draw:
-        """One record: its concepts, then its fields in column order, then the closure."""
+        """One record: its concepts, then its fields in column order, then the closure.
+
+        Each pick reads the plan's `limits` when its spec sets any (`_choose`).
+        """
         present = self._concepts(sources, rng)
         record: dict[str, int | float] = {}
         fallback: set[str] = set()
@@ -267,7 +291,9 @@ class _Plan:
         cell = sources.cell
         for column in self._frame.columns:
             if column == "age":
-                (source, chosen), fell = _pick(cell, (column,), sources.own, sources.banded, rng)
+                (source, chosen), fell = self._choose(
+                    cell, (column,), sources.own, sources.banded, rng
+                )
                 fields: tuple[str, ...] = (column,)
             elif column == "sex":
                 record[column] = next(code for code, sex in SEXES.items() if sex == cell[1])
@@ -280,10 +306,10 @@ class _Plan:
                 shows = self._pattern(self._first[column], present)
                 own = [r for r in sources.own if shows(r[1])]
                 other = [r for r in sources.group if shows(r[1])]
-                (source, chosen), fell = _pick(cell, fields, own, other, rng)
+                (source, chosen), fell = self._choose(cell, fields, own, other, rng)
             elif column in self._free:
                 fields = (column,)
-                (source, chosen), fell = _pick(cell, fields, sources.own, sources.group, rng)
+                (source, chosen), fell = self._choose(cell, fields, sources.own, sources.group, rng)
             else:
                 continue
             for name in fields:
@@ -295,6 +321,19 @@ class _Plan:
         concepts = frozenset(present)
         closed = self._closure(concepts)
         return Draw(cell, ordered, concepts, closed, frozenset(fallback), read)
+
+    def _choose(
+        self,
+        cell: Cell,
+        fields: tuple[str, ...],
+        own: Sequence[_Source],
+        other: Sequence[_Source],
+        rng: np.random.Generator,
+    ) -> tuple[_Source, bool]:
+        """`_pick`, or `_Limits.pick` when the spec sets a floor or a cap."""
+        if self.limits is None:
+            return _pick(cell, fields, own, other, rng)
+        return self.limits.pick(cell, fields, own, other, rng)
 
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share.
