@@ -137,6 +137,7 @@ class TreeShares:
 
         Raises:
             GapError: As `Shares`.
+            SamplingError: As `TreeDraw.at`, if a record's value of a tree field is not finite.
         """
         self._shares = Shares(train, cells, data=data, ontologies=ontologies)
         self._trees = column_trees(data.field_rows, data.frame, ontologies)

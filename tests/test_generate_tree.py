@@ -25,6 +25,7 @@ from bko.gaps.observe import Cell
 from bko.gaps.shares import GROUP_WEIGHT
 from bko.generate.direct import Draw, _Plan, sample
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.errors import SamplingError
 from bko.generate.presence import Presence
 from bko.generate.tree import (
     TOP,
@@ -368,6 +369,14 @@ def test_a_leaf_the_cell_lacks_is_copied_from_the_label_group():
     fell = [d for each in draws.values() for d in each if d.record["cp"] == 3]
     assert fell
     assert all("cp" in d.fallback for d in fell)
+
+
+def test_a_tree_fields_value_that_is_no_code_names_its_column_and_record():
+    train = varied().astype({"cp": float})
+    first = int(train.index[train[LABEL].eq(YOUNG_WOMEN_1[2])][0])
+    train.loc[first, "cp"] = math.nan
+    with pytest.raises(SamplingError, match=f"training record {first}: cp holds nan, not a code"):
+        _tree_draw(train, {YOUNG_WOMEN_1: 1})
 
 
 def test_a_tree_field_leaves_the_concept_draw_and_the_field_groups():

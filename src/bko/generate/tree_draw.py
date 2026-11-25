@@ -57,6 +57,9 @@ class TreeDraw:
 
         `group` is the label group's records; the first call for a label reads them, and later
         calls for that label reuse that reading.
+
+        Raises:
+            SamplingError: If a record's value of a tree field is not finite (`ColumnTree.leaf`).
         """
         placed = {}
         for column, tree in self.trees.items():
@@ -93,9 +96,19 @@ def leaf_at(placed: Placed, uniform: float, cell: Cell) -> str:
 
 
 def _by_leaf(tree: ColumnTree, records: Sequence[_Source]) -> dict[str, list[_Source]]:
+    """`records` by the leaf each shows.
+
+    Raises:
+        SamplingError: As `ColumnTree.leaf`, naming the record's id.
+    """
     shown: dict[str, list[_Source]] = {}
     for record in records:
-        shown.setdefault(tree.leaf(record[1]), []).append(record)
+        try:
+            leaf = tree.leaf(record[1])
+        except SamplingError as exc:
+            msg = f"training record {record[0]}: {exc}"
+            raise SamplingError(msg) from exc
+        shown.setdefault(leaf, []).append(record)
     return shown
 
 

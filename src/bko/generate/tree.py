@@ -11,6 +11,7 @@ the leaf each of its codes shows, which the direct sampler (`bko.generate.direct
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from fractions import Fraction
 from typing import Final
 
 from bko.datasets.frames import FrameSpec
+from bko.generate.errors import SamplingError
 from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
@@ -61,7 +63,7 @@ class TreePart:
     share: float
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class ColumnTree:
     """One tree field's tree and the leaf each mapped code shows.
 
@@ -76,8 +78,16 @@ class ColumnTree:
     codes: Mapping[int, str]
 
     def leaf(self, record: Mapping[str, float]) -> str:
-        """The leaf `record`'s value of the column shows."""
-        return self.leaf_of(int(record[self.column]))
+        """The leaf `record`'s value of the column shows.
+
+        Raises:
+            SamplingError: If the value is not finite, as a missing code reads, naming the column.
+        """
+        value = record[self.column]
+        if not math.isfinite(value):
+            msg = f"{self.column} holds {value}, not a code"
+            raise SamplingError(msg)
+        return self.leaf_of(int(value))
 
     def leaf_of(self, code: int) -> str:
         """The leaf `code` shows in the column."""
