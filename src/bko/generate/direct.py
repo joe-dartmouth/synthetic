@@ -142,7 +142,7 @@ def sample(
     keys = cell_keys(train, edges=frame.edges)
     holdout, fill = (-1, "none") if tag is None else tag
     try:
-        plan = _Plan(mappings, ontologies, frame, presence)
+        plan = _Plan(mappings, ontologies, frame, spec)
     except ValueError as exc:
         msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
         raise ValueError(msg) from exc
@@ -200,7 +200,7 @@ def logic_components(
     Raises:
         ValueError: As `nested` and `bko.generate.logic.components`.
     """
-    plan = _Plan(tuple(rows), ontologies, frame, Presence.LOGIC)
+    plan = _Plan(tuple(rows), ontologies, frame, DrawSpec(presence=Presence.LOGIC))
     return () if plan.components is None else plan.components
 
 
@@ -237,9 +237,12 @@ class _Plan:
         rows: Sequence[FieldMapping],
         ontologies: Mapping[str, Ontology],
         frame: FrameSpec,
-        presence: Presence,
+        spec: DrawSpec | Presence,
     ) -> None:
+        """`spec` is the draw's; a bare `Presence` reads as the default spec at that presence."""
+        spec = DrawSpec(presence=spec) if isinstance(spec, Presence) else spec
         self._frame = frame
+        self._spec = spec
         self._by_concept = by_concept(rows)
         self._label_only = label_only(rows, frame=frame)
         self._inner_of = {outer: inner for inner, outer in nested(rows).items()}
@@ -253,7 +256,7 @@ class _Plan:
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None
-        if presence is Presence.LOGIC:
+        if spec.presence is Presence.LOGIC:
             implies = [(inner, outer) for outer, inner in self._inner_of.items()]
             implies += [(c, a) for c in self._order for a in self._closure(frozenset({c})) - {c}]
             self.components = components(self._drawn, implies)
