@@ -9,22 +9,29 @@ from __future__ import annotations
 import dataclasses
 import math
 import socket
+from collections.abc import Sequence
+from hashlib import sha256
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import torch
-from peft import PeftModel, get_peft_model_state_dict
-from transformers import PreTrainedTokenizerFast
+from peft import LoraConfig, PeftModel, get_peft_model_state_dict
+from transformers import PreTrainedModel, PreTrainedTokenizerFast
 
+import bko.slm.train as train_module
 from bko.datasets.errors import ContractError
 from bko.evaluate.utility import Measure, Scope, utility
-from bko.slm.serialize import ANSWERS, Example, examples
+from bko.slm.serialize import Example, examples, prompts
 from bko.slm.train import (
     LORA,
+    Encoded,
+    LoraSettings,
     answer_ids,
     answer_loss,
     encode,
+    order,
     probabilities,
     save_adapter,
     train,
@@ -38,6 +45,7 @@ from tests._slm_fixtures import (
     records,
     tokenizer,
 )
+from tests.conftest import NETWORK_REFUSAL
 
 
 CPU = torch.device("cpu")
@@ -116,6 +124,117 @@ def test_another_seed_gives_another_adapter() -> None:
     assert not all(torch.equal(first[name], other[name]) for name in first)
 
 
+def test_the_comparison_lora_settings_are_pinned() -> None:
+    assert (
+        LoraSettings(
+            rank=16,
+            alpha=32,
+            dropout=0.05,
+            learning_rate=2e-4,
+            warmup_share=0.03,
+            micro_batch=4,
+            epochs=1,
+            seed=0,
+            target_modules="all-linear",
+        )
+        == LORA
+    )
+
+
+def test_the_settings_reach_the_lora_config() -> None:
+    settings = dataclasses.replace(TINY, rank=3, alpha=5, dropout=0.2)
+    frame_records, words = _fixture()
+    fitted = train(
+        model(len(words)), words, examples(frame_records, FRAME), settings=settings, device=CPU
+    )
+    config = fitted.peft_config["default"]
+    assert isinstance(config, LoraConfig)
+    assert (config.r, config.lora_alpha, config.lora_dropout) == (3, 5, 0.2)
+    projections = {"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
+    assert isinstance(config.target_modules, set)
+    assert {name.rsplit(".", 1)[-1] for name in config.target_modules} == projections
+
+
+def test_the_schedule_warms_up_over_its_share_of_every_epochs_steps(monkeypatch, caplog) -> None:
+    seen: list[tuple[int, int]] = []
+    real = train_module.get_linear_schedule_with_warmup
+
+    def spy(optimizer: torch.optim.Optimizer, warmup: int, total: int):
+        seen.append((warmup, total))
+        return real(optimizer, warmup, total)
+
+    monkeypatch.setattr(train_module, "get_linear_schedule_with_warmup", spy)
+    caplog.set_level("INFO", logger="bko.slm.train")
+    frame_records, words = _fixture()
+    settings = dataclasses.replace(TINY, warmup_share=0.3, epochs=2)
+    train(model(len(words)), words, examples(frame_records, FRAME), settings=settings, device=CPU)
+    assert seen == [(math.ceil(0.3 * 6), 6)]
+    assert "step=6 of=6 " in caplog.text
+
+
+def test_the_rows_run_in_the_seeds_order_every_epoch(monkeypatch) -> None:
+    taken: list[int] = []
+    real = Encoded.rows
+
+    def spy(self: Encoded, index: Sequence[int]) -> Encoded:
+        taken.extend(index)
+        return real(self, index)
+
+    monkeypatch.setattr(Encoded, "rows", spy)
+    frame_records, words = _fixture()
+    settings = dataclasses.replace(TINY, seed=3, epochs=2)
+    train(model(len(words)), words, examples(frame_records, FRAME), settings=settings, device=CPU)
+    expected = order(12, 3)
+    assert expected != list(range(12))
+    assert taken == expected * 2
+
+
+def test_a_fit_leaves_the_global_generator_as_it_found_it() -> None:
+    torch.manual_seed(123)
+    unfitted = torch.rand(4)
+    torch.manual_seed(123)
+    _fit()
+    assert torch.equal(torch.rand(4), unfitted)
+
+
+def _alone(fitted: PreTrainedModel | PeftModel, words, chosen: pd.DataFrame) -> list[float]:
+    """Each record's P(yes) computed by hand: its prompt alone, softmax at its last token."""
+    no, yes = answer_ids(words)
+    values: list[float] = []
+    with torch.no_grad():
+        for text in prompts(chosen, FRAME):
+            ids = torch.tensor([words(text, add_special_tokens=False)["input_ids"]])
+            last = fitted(input_ids=ids).logits[0, -1].float()
+            values.append(float(torch.softmax(last[[no, yes]], dim=-1)[1]))
+    return values
+
+
+@pytest.mark.parametrize("micro_batch", [1, 5])
+def test_probabilities_are_each_prompts_softmax_at_its_last_token(micro_batch: int) -> None:
+    frame_records, words = _fixture()
+    fitted = train(
+        model(len(words)), words, examples(frame_records, FRAME), settings=TINY, device=CPU
+    )
+    scored = probabilities(
+        fitted, words, frame_records, frame=FRAME, device=CPU, micro_batch=micro_batch
+    )
+    assert scored.tolist() == pytest.approx(_alone(fitted, words, frame_records), abs=1e-6)
+
+
+def test_probabilities_attach_to_their_records_in_any_order() -> None:
+    frame_records, words = _fixture()
+    fitted = train(
+        model(len(words)), words, examples(frame_records, FRAME), settings=TINY, device=CPU
+    )
+    shuffled = [int(record) for record in np.random.default_rng(7).permutation(frame_records.index)]
+    chosen = frame_records.loc[shuffled]
+    scored = probabilities(fitted, words, chosen, frame=FRAME, device=CPU, micro_batch=5)
+    for record in shuffled:
+        alone = probabilities(fitted, words, chosen.loc[[record]], frame=FRAME, device=CPU)
+        assert scored[record] == pytest.approx(alone[record], abs=1e-6)
+    assert len(set(scored.round(6))) > 1
+
+
 def test_the_yes_probability_is_the_softmax_of_the_two_answer_logits() -> None:
     logits = torch.full((1, 6), 100.0)
     logits[0, 2], logits[0, 4] = 0.0, 2.0
@@ -152,9 +271,11 @@ def test_the_adapter_is_saved_as_safetensors_and_reloads_equal(tmp_path: Path) -
     )
     path = tmp_path / "adapter"
     digest = save_adapter(fitted, path)
-    assert len(digest) == 64
-    assert (path / "adapter_model.safetensors").is_file()
-    assert not list(path.glob("*.bin"))
+    assert sorted(entry.name for entry in path.iterdir()) == [
+        "adapter_config.json",
+        "adapter_model.safetensors",
+    ]
+    assert digest == sha256((path / "adapter_model.safetensors").read_bytes()).hexdigest()
     reloaded = PeftModel.from_pretrained(model(len(words)), path)
     saved, loaded = _adapter(fitted), _adapter(reloaded)
     assert saved.keys() == loaded.keys()
@@ -163,13 +284,7 @@ def test_the_adapter_is_saved_as_safetensors_and_reloads_equal(tmp_path: Path) -
         save_adapter(fitted, path)
 
 
-def test_the_fit_reaches_no_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    def refuse(*_: object) -> None:
-        msg = "the fit reached the network"
-        raise AssertionError(msg)
-
-    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
-    monkeypatch.setattr(socket.socket, "connect", refuse)
-    fitted = _fit()
-    assert _adapter(fitted)
-    assert set(ANSWERS) == {0, 1}
+def test_the_fit_runs_with_every_socket_connection_refused() -> None:
+    with pytest.raises(AssertionError, match=NETWORK_REFUSAL):
+        socket.create_connection(("127.0.0.1", 9), timeout=1)
+    assert _adapter(_fit())

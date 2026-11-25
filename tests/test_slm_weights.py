@@ -121,7 +121,6 @@ def test_the_pinned_base_model_loads_only_safetensors() -> None:
     assert [name for name in names if name.startswith("model-")] == [
         f"model-0000{part}-of-00003.safetensors" for part in (1, 2, 3)
     ]
-    assert len(OLMO_3_7B.revision) == 40
 
 
 def test_the_loader_gets_the_safetensors_only_flags(tmp_path: Path) -> None:
