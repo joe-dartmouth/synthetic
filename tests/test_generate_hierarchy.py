@@ -7,16 +7,43 @@ is worked by hand from ADR `research/bkb-direct-generation`, Decision 12, at `GR
 
 from __future__ import annotations
 
+import logging
 import math
+import re
 from collections.abc import Mapping
 from fractions import Fraction
 from typing import Final
 
+import pandas as pd
 import pytest
 
-from bko.gaps.observe import Observed
+from bko.datasets.cells import cell_keys
+from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.added_contradictions import added_counts
+from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart
+from bko.generate.direct import Draw, _Plan, sample
+from bko.generate.donors import _label_groups, cell_records
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.hierarchy import broad_chance, conditional, pair_joint, pair_weights
+from bko.generate.presence import Presence
+from bko.ontology.schema import FieldMapping
+from tests._contradiction_fixtures import (
+    BASE_ROWS,
+    INNER,
+    NAME,
+    OM1,
+    OUTER,
+    YM1,
+    YW0,
+    YW1,
+    ontologies,
+    plant,
+    row,
+)
+from tests._contradiction_fixtures import BROAD as PLANTED_BROAD
+from tests._contradiction_fixtures import NARROW as PLANTED_NARROW
+from tests._contradiction_fixtures import ROOT as PLANTED_ROOT
 
 
 NARROW: Final = "MONDO:9000002"
@@ -173,3 +200,151 @@ def test_no_complement_is_read_when_every_record_shows_the_narrow_concept():
         broad_chance(share_broad=0.5, share_narrow=1.0, conditional=0.5, narrow_present=False)
     drawn = pair_joint(share_broad=0.5, share_narrow=1.0, conditional=0.5)
     assert drawn == {(True, True): 0.5, (True, False): 0.5, (False, True): 0.0, (False, False): 0.0}
+
+
+ROWS: Final = (
+    row(OUTER, "restecg", 1, 2),
+    row(PLANTED_NARROW, "cp", 1),
+    row(PLANTED_BROAD, "exang", 1),
+)
+"""The planted `is_a` pair on `cp` and `exang`, beside one concept outside every pair and no
+nested pair."""
+
+QUOTA: Final = {YW1: 300, YM1: 300, OM1: 300, YW0: 300}
+
+HIER_0: Final = DrawSpec(hierarchy=0.0)
+HIER_W: Final = DrawSpec(hierarchy=float(GROUP_WEIGHT))
+CLOSED: Final = DrawSpec(closed=True)
+
+
+def _draw(
+    spec: DrawSpec, rows: tuple[FieldMapping, ...] = ROWS, kind: str = "narrow-without-broad"
+) -> dict[Cell, tuple[Draw, ...]]:
+    planted = plant(kind)
+    return sample(
+        planted.frame,
+        QUOTA,
+        rows=rows,
+        ontologies=planted.ontologies,
+        name=NAME,
+        seed=0,
+        frame=UCI_FRAME,
+        tag=(3, "gap"),
+        spec=spec,
+    )
+
+
+def _narrow_without_broad(spec: DrawSpec) -> int:
+    drawn = _draw(spec)
+    added = pd.DataFrame([dict(d.record) for draws in drawn.values() for d in draws])
+    found = added_counts(added, ROWS, ontologies(), frame=UCI_FRAME, asked=None, name="added")[
+        "narrow-without-broad"
+    ]
+    assert found is not None
+    return found
+
+
+def test_the_closed_arm_yields_no_narrow_without_broad_row():
+    assert _narrow_without_broad(CLOSED) == 0
+    assert _narrow_without_broad(DEFAULT_SPEC) > 0
+    assert _narrow_without_broad(HIER_0) > 0
+    for draws in _draw(CLOSED).values():
+        assert all(PLANTED_BROAD in d.concepts for d in draws if PLANTED_NARROW in d.concepts)
+
+
+def test_narrow_without_broad_rows_do_not_rise_with_the_pseudo_count():
+    counts = [_narrow_without_broad(spec) for spec in (HIER_0, HIER_W, CLOSED)]
+    assert counts[0] > counts[1] > counts[2] == 0
+
+
+def test_concepts_outside_a_pair_match_bko_direct_at_the_same_seed():
+    direct, hier = _draw(DEFAULT_SPEC), _draw(HIER_W)
+    differs = 0
+    for cell, draws in direct.items():
+        assert len(hier[cell]) == len(draws)
+        for mine, theirs in zip(hier[cell], draws, strict=True):
+            assert (OUTER in mine.concepts) == (OUTER in theirs.concepts)
+            differs += (PLANTED_BROAD in mine.concepts) != (PLANTED_BROAD in theirs.concepts)
+    assert differs > 0
+
+
+def test_the_narrow_concept_draws_at_its_share_and_the_broad_at_its_parts():
+    """At `YW1`, `m = 6 + 20 * 12/18`, `b = 20 * 6/18`, so `c_0 = 10/29`; hand worked."""
+    planted = plant("narrow-without-broad")
+    plan = _Plan(ROWS, planted.ontologies, UCI_FRAME, HIER_0)
+    assert plan.pairs == ((PLANTED_NARROW, PLANTED_BROAD),)
+    cells = record_cells(planted.frame, ROWS, name=NAME, edges=UCI_FRAME.edges, pairs=plan.pairs)
+    keys = cell_keys(planted.frame, edges=UCI_FRAME.edges)
+    groups = _label_groups(planted.frame, keys, {1}, ROWS, NAME, UCI_FRAME, plan.pairs)
+    own = cell_records(planted.frame, keys, YW1, UCI_FRAME)
+    sources = plan.sources(YW1, cells.each[YW1], groups[1], own)
+    (part,) = sources.pairs.values()
+    assert (part.given, part.pseudo, part.clamped) == (PLANTED_NARROW, 0.0, False)
+    assert math.isclose(part.both, float(Fraction(20, 3)), rel_tol=1e-15)
+    assert math.isclose(part.narrow, float(Fraction(58, 3)), rel_tol=1e-15)
+    assert (part.conditional,) == (float(Fraction(10, 29)),)
+    assert part.complement is not None
+    assert math.isclose(part.complement, 1.0, rel_tol=1e-12)
+
+
+def test_the_hier_line_counts_each_cells_pairs_and_clamps(caplog):
+    caplog.set_level(logging.INFO, logger="bko.generate.hierarchy")
+    _draw(CLOSED)
+    assert [m for m in caplog.messages if m.startswith("hier ")] == [
+        "hier holdout=3 fill=gap key=<55/female/1 pairs=1 clamped=1",
+        "hier holdout=3 fill=gap key=<55/male/1 pairs=1 clamped=0",
+        "hier holdout=3 fill=gap key=>=55/male/1 pairs=1 clamped=0",
+        "hier holdout=3 fill=gap key=<55/female/0 pairs=1 clamped=0",
+    ]
+
+
+def test_a_broad_with_two_narrow_concepts_is_refused():
+    rows = (*ROWS, row(PLANTED_ROOT, "thal", 7))
+    with pytest.raises(ValueError, match=rf"cannot draw: {PLANTED_ROOT} each hold more than one"):
+        _draw(HIER_0, rows)
+
+
+def test_a_frame_with_a_nested_pair_is_refused():
+    with pytest.raises(ValueError, match=rf"nested pairs {INNER} in {OUTER}$"):
+        _draw(CLOSED, BASE_ROWS)
+    assert _draw(DEFAULT_SPEC, BASE_ROWS)
+
+
+def test_a_frame_with_no_pair_is_refused():
+    with pytest.raises(ValueError, match="needs an is_a pair among the drawn concepts"):
+        _draw(HIER_W, (row(OUTER, "restecg", 1, 2), row(PLANTED_BROAD, "exang", 1)))
+
+
+@pytest.mark.parametrize(
+    ("fields", "says"),
+    [
+        ({"hierarchy": 0}, "hierarchy 0 must be a finite non-negative float"),
+        ({"hierarchy": -1.0}, "hierarchy -1.0 must be"),
+        ({"hierarchy": math.inf}, "hierarchy inf must be"),
+        ({"hierarchy": 0.0, "closed": True}, "closed sets the conditional to 1"),
+        ({"hierarchy": 0.0, "mapped": False}, "hierarchy needs the mapping table"),
+        ({"closed": True, "presence": Presence.LOGIC}, "closed needs the mapping table"),
+    ],
+    ids=["int", "negative", "infinite", "both", "unmapped", "logic"],
+)
+def test_a_spec_the_conditional_draw_cannot_read_is_refused(fields, says):
+    with pytest.raises(ValueError, match=re.escape(says)):
+        DrawSpec(**fields)
+
+
+def test_the_conditional_specs_log_only_their_fields():
+    assert [spec.params() for spec in (HIER_0, HIER_W, CLOSED)] == [
+        {"hierarchy": 0.0},
+        {"hierarchy": 20.0},
+        {"closed": True},
+    ]
+    assert [spec.tokens() for spec in (HIER_0, HIER_W, CLOSED)] == [
+        " hierarchy=0.0",
+        " hierarchy=20.0",
+        " closed=true",
+    ]
+    assert (DEFAULT_SPEC.conditional, HIER_0.conditional, CLOSED.conditional) == (
+        False,
+        True,
+        True,
+    )

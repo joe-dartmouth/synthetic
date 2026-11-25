@@ -13,7 +13,9 @@ set's closure is forced into the fields (ADR `research/logic-only-ablation`). At
 `mapped=False`, `sample` reads an empty mapping table: no concept is drawn, and every column but
 `age`, `sex` and the label is a free field (ADR `research/no-mapping-ablation`). At a spec with
 `tree=True`, each tree field is drawn as one leaf of its ontology tree at its ancestor-shrunk share
-(`bko.generate.tree` and `bko.generate.tree_draw`; ADR `research/ancestor-shrunk-shares`).
+(`bko.generate.tree` and `bko.generate.tree_draw`; ADR `research/ancestor-shrunk-shares`). At a
+spec with `hierarchy` or `closed`, each `is_a` pair's broad concept is drawn given its narrow one
+(`bko.generate.hierarchy`; ADR `research/bkb-direct-generation`, Decision 12).
 """
 
 from __future__ import annotations
@@ -31,10 +33,10 @@ import pandas as pd
 
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.frames import FrameSpec
-from bko.gaps.observe import Cell, by_concept, cell_key, record_cells
+from bko.gaps.observe import Cell, CellRecords, by_concept, cell_key, record_cells
 from bko.gaps.shares import label_only, nested, shares
 from bko.generate.donors import (
-    _Group,  # ruff: ignore[unused-import]  (re-exported)
+    _Group,
     _label_groups,
     _Limits,
     _observe_group,  # ruff: ignore[unused-import]  (re-exported)
@@ -49,6 +51,7 @@ from bko.generate.fields import (
     field_groups,
     free_fields,
 )
+from bko.generate.hierarchy import Hierarchy, PairPart, log_pairs
 from bko.generate.logic import Component, components, logic_assignment
 from bko.generate.presence import Presence
 from bko.generate.tree import column_trees, leaf_concept
@@ -141,7 +144,11 @@ def sample(
             share over the leaves of positive share (`bko.generate.tree_draw.TreeDraw`, the
             cell's records against the label group's), and its value is
             copied from a record whose column shows the leaf, the cell's, else the label
-            group's; the leaf's concept joins the draw's concepts.
+            group's; the leaf's concept joins the draw's concepts. At `hierarchy` or `closed`,
+            the cells and label groups count each `is_a` pair of drawn concepts, every concept
+            takes its uniform in the order above, and presence is decided narrow before broad,
+            a pair's broad concept at its `bko.generate.hierarchy.PairPart` chance; a
+            `hier` line per cell counts the pairs and the clamped complements.
 
     Returns:
         Each cell's draws, in quota order.
@@ -152,40 +159,28 @@ def sample(
             share; under a floor or a cap, if a unit's pool is empty once the records it bars or
             holds at the cap are left out.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
-        ValueError: As `nested`, for nesting deeper or wider than one pair, or as
-            `bko.generate.logic.components`, for a component too large to enumerate, naming the
-            dataset, the frame, the holdout and the fill.
+        ValueError: As `nested`, for nesting deeper or wider than one pair, as
+            `bko.generate.logic.components`, for a component too large to enumerate, or as
+            `bko.generate.hierarchy.Hierarchy`, naming the dataset, the frame, the holdout and
+            the fill.
     """
     mappings = tuple(rows) if spec.mapped else ()
     presence = spec.presence
-    cells = record_cells(train, mappings, name=name, edges=frame.edges)
-    keys = cell_keys(train, edges=frame.edges)
     holdout, fill = (-1, "none") if tag is None else tag
     try:
         plan = _Plan(mappings, ontologies, frame, spec)
     except ValueError as exc:
         msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
         raise ValueError(msg) from exc
-    groups = _label_groups(train, keys, {int(cell[2]) for cell in quota}, mappings, name, frame)
+    cells = record_cells(train, mappings, name=name, edges=frame.edges, pairs=plan.pairs)
+    keys = cell_keys(train, edges=frame.edges)
+    labels = {int(cell[2]) for cell in quota}
+    groups = _label_groups(train, keys, labels, mappings, name, frame, plan.pairs)
     rng = np.random.default_rng(seed)
     drawn: dict[Cell, tuple[Draw, ...]] = {}
     for cell, count in quota.items():
-        group = groups[int(cell[2])]
         own = cell_records(train, keys, cell, frame)
-        sources = _Sources(
-            cell=cell,
-            share=(
-                shares(cells.each[cell], group.observed)
-                if presence is Presence.SHARES
-                else MappingProxyType({})
-            ),
-            own=own,
-            group=group.records,
-            banded=[
-                r for r, band in zip(group.records, group.bands, strict=True) if band == cell[0]
-            ],
-            trees=plan.tree_draw.at(cell, own, group.records),
-        )
+        sources = plan.sources(cell, cells.each[cell], groups[int(cell[2])], own)
         logger.info(
             "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d%s presence=%s",
             holdout,
@@ -198,6 +193,8 @@ def sample(
             presence,
         )
         log_trees(holdout, fill, cell, sources.trees)
+        if plan.hierarchy is not None:
+            log_pairs(holdout, fill, cell, sources.pairs)
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
         if plan.limits is not None:
             logger.info(
@@ -234,6 +231,20 @@ def logic_components(
     return () if plan.components is None else plan.components
 
 
+def plan_hierarchy(
+    rows: Sequence[FieldMapping],
+    ontologies: Mapping[str, Ontology],
+    frame: FrameSpec,
+    spec: DrawSpec,
+) -> Hierarchy | None:
+    """The `Hierarchy` a draw of `rows` at `spec` reads; None unless `spec.conditional`.
+
+    Raises:
+        ValueError: As `bko.generate.hierarchy.Hierarchy`.
+    """
+    return _Plan(tuple(rows) if spec.mapped else (), ontologies, frame, spec).hierarchy
+
+
 def draw_line(call: int, position: int, draw: Draw) -> str:
     """The draw log's line for one record, ending in a newline, its keys sorted."""
     line = {
@@ -254,6 +265,7 @@ class _Sources:
 
     cell: Cell
     share: Mapping[str, float]
+    pairs: Mapping[str, PairPart]
     own: list[_Source]
     group: list[_Source]
     banded: list[_Source]
@@ -307,10 +319,36 @@ class _Plan:
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None
+        self.hierarchy = (
+            Hierarchy(self._order, self._inner_of, ontologies, pseudo=spec.hierarchy)
+            if spec.conditional
+            else None
+        )
+        self.pairs = () if self.hierarchy is None else self.hierarchy.pairs
         if spec.presence is Presence.LOGIC:
             implies = [(inner, outer) for outer, inner in self._inner_of.items()]
             implies += [(c, a) for c in self._order for a in self._closure(frozenset({c})) - {c}]
             self.components = components(self._drawn, implies)
+
+    def sources(
+        self, cell: Cell, records: CellRecords, group: _Group, own: list[_Source]
+    ) -> _Sources:
+        """What `cell`'s draws read: its shares, its pairs' parts and the records it copies."""
+        share = shares(records, group.observed) if self._spec.presence is Presence.SHARES else {}
+        hierarchy = self.hierarchy
+        return _Sources(
+            cell=cell,
+            share=MappingProxyType(share),
+            pairs={}
+            if hierarchy is None
+            else hierarchy.at(records.observed, group.observed, share),
+            own=own,
+            group=group.records,
+            banded=[
+                r for r, band in zip(group.records, group.bands, strict=True) if band == cell[0]
+            ],
+            trees=self.tree_draw.at(cell, own, group.records),
+        )
 
     def draw(self, sources: _Sources, rng: np.random.Generator) -> Draw:
         """One record: its concepts, then its fields in column order, then the closure.
@@ -389,6 +427,9 @@ class _Plan:
                 present |= logic_assignment(component, rng)
             return self._implied(present)
         share = sources.share
+        if self.hierarchy is not None:
+            uniforms = [rng.random() for _ in self._order]
+            return self.hierarchy.present(present, uniforms, share, sources.pairs)
         for concept in self._order:
             inner = self._inner_of.get(concept)
             if inner is None:

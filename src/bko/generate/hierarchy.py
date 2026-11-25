@@ -8,14 +8,28 @@ source holds `N`'s prior `p` and the conditional `c` of `B` given `N`, the S-nod
 probability 1 by a pseudo-count, and `broad_chance` reads `B`'s chance given whether `N` is
 present, the complement keeping `B`'s marginal at its share unless the clamp at 0 or 1 fires (ADR
 `research/bkb-direct-generation`, Decision 12). Each is computed exactly and rounded once.
+
+`Hierarchy` holds a draw's pairs; `Hierarchy.at` reads each pair's `PairPart` at a cell and
+`Hierarchy.present` decides presence from one uniform per concept. `bko.generate.direct.sample`
+draws through it and `bko.evaluate.redraw.Shares` traces through it, so the trace reads the
+draw's own parts.
 """
 
 from __future__ import annotations
 
+import logging
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from fractions import Fraction
 
-from bko.gaps.observe import Observed
-from bko.gaps.shares import GROUP_WEIGHT
+from bko.gaps.contradictions import is_a_pairs
+from bko.gaps.observe import Cell, Observed, cell_key
+from bko.gaps.shares import GROUP_WEIGHT, draw_order
+from bko.ontology.terms import Ontology
+
+
+logger = logging.getLogger(__name__)
 
 
 type Exact = float | Fraction
@@ -104,3 +118,127 @@ def _complement(
     raw = (share_broad - share_narrow * given) / (1 - share_narrow)
     clamped = min(Fraction(1), max(Fraction(0), raw))
     return clamped, clamped != raw
+
+
+@dataclass(frozen=True, slots=True)
+class PairPart:
+    """What a broad concept's draw reads at a cell: its pair's weights and its two chances.
+
+    Attributes:
+        given: The narrow concept it is drawn given.
+        both: `b`, the weighted records showing both concepts.
+        narrow: `m`, the weighted records showing the narrow one.
+        pseudo: The pseudo-count; None for the closed draw.
+        conditional: Its chance when the narrow concept is present (`conditional`).
+        complement: Its chance when the narrow concept is absent (`broad_chance`); None where the
+            narrow concept's share is 1, so it is always present.
+        clamped: Whether the complement was clamped to [0, 1].
+    """
+
+    given: str
+    both: float
+    narrow: float
+    pseudo: float | None
+    conditional: float
+    complement: float | None
+    clamped: bool
+
+
+class Hierarchy:
+    """The `is_a` pairs of a draw's concepts, the order presence is decided in, and the pseudo."""
+
+    def __init__(
+        self,
+        order: Sequence[str],
+        inner_of: Mapping[str, str],
+        ontologies: Mapping[str, Ontology],
+        *,
+        pseudo: float | None,
+    ) -> None:
+        """`order` is the concepts drawn at a share, in the order their uniforms are drawn.
+
+        `inner_of` maps each nested pair's outer concept to its inner one.
+
+        Raises:
+            ValueError: If `inner_of` names a nested pair, if no `is_a` pair joins two of `order`,
+                or if a broad concept has more than one narrow one.
+        """
+        if inner_of:
+            pairs = ", ".join(f"{inner} in {outer}" for outer, inner in sorted(inner_of.items()))
+            msg = f"a conditional draw cannot share a stream with the nested pairs {pairs}"
+            raise ValueError(msg)
+        self.pairs = is_a_pairs(order, ontologies)
+        if not self.pairs:
+            msg = "a conditional draw needs an is_a pair among the drawn concepts, and none joins"
+            raise ValueError(msg)
+        narrow = Counter(broad for _, broad in self.pairs)
+        wide = sorted(broad for broad, times in narrow.items() if times > 1)
+        if wide:
+            msg = f"{', '.join(wide)} each hold more than one narrow concept; one is drawn given"
+            raise ValueError(msg)
+        self.order = order
+        self.decided = draw_order(order, self.pairs)
+        self.pseudo = pseudo
+
+    def at(
+        self, cell: Observed, group: Observed, share: Mapping[str, float]
+    ) -> dict[str, PairPart]:
+        """Each broad concept's `PairPart` at a cell, by broad concept, in pair order.
+
+        `cell` and `group` must count the pairs (`Observed.both`); `share` is each concept's.
+        """
+        parts = {}
+        for narrow, broad in self.pairs:
+            both, held = pair_weights(cell, group, (narrow, broad))
+            given = conditional(both=both, narrow=held, pseudo=self.pseudo)
+            complement, clamped = None, False
+            if share[narrow] != 1:
+                complement, clamped = broad_chance(
+                    share_broad=share[broad],
+                    share_narrow=share[narrow],
+                    conditional=given,
+                    narrow_present=False,
+                )
+            parts[broad] = PairPart(
+                narrow, float(both), float(held), self.pseudo, given, complement, clamped
+            )
+        return parts
+
+    def present(
+        self,
+        present: set[str],
+        uniforms: Sequence[float],
+        share: Mapping[str, float],
+        parts: Mapping[str, PairPart],
+    ) -> set[str]:
+        """`present` with each concept whose uniform falls below its chance.
+
+        `uniforms` holds one per concept of `order`, in that order; presence is decided in
+        `decided`, each narrow concept before its broad one. A concept outside every pair reads
+        its share; a broad one its `PairPart`'s conditional or complement.
+        """
+        drawn = dict(zip(self.order, uniforms, strict=True))
+        for concept in self.decided:
+            part = parts.get(concept)
+            if part is None:
+                chance = share[concept]
+            elif part.given in present or part.complement is None:
+                chance = part.conditional
+            else:
+                chance = part.complement
+            if drawn[concept] < chance:
+                present.add(concept)
+        return present
+
+
+def log_pairs(holdout: int, fill: str, cell: Cell, parts: Mapping[str, PairPart]) -> None:
+    """Log the pairs drawn at `cell` and how many of their complements were clamped."""
+    clamped = sum(part.clamped for part in parts.values())
+    logger.info(
+        "hier holdout=%d fill=%s key=%s pairs=%d clamped=%d",
+        holdout,
+        fill,
+        cell_key(cell),
+        len(parts),
+        clamped,
+    )

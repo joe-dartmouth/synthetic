@@ -22,6 +22,7 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     | {"e12-thin": REAL_ARM, "e12-empty": REAL_ARM, "e13": REAL_ARM}
     | {"e14-thin": DIRECT_ARM, "e14-empty": DIRECT_ARM}
     | {"e15-thin": DIRECT_ARM, "e15-empty": DIRECT_ARM}
+    | {"e16-thin": DIRECT_ARM, "e16-empty": DIRECT_ARM}
     | {
         f"e10-{family}-{cell}": DIRECT_ARM
         for family in ("pilot", "pram")
@@ -29,8 +30,8 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 """Each run family's reference arm, which every other arm's privacy is read against: `real`, or
-`bko-direct` for the perturbation runs, whose arms perturb its rows, and for the donor-limit
-and tree-share runs, whose arms change who donates them."""
+`bko-direct` for the perturbation runs, whose arms perturb its rows, and for the donor-limit,
+tree-share and conditional `is_a` runs, whose arms change who donates them or what they draw."""
 
 
 def reference_of(

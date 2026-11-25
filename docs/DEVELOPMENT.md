@@ -275,6 +275,19 @@ top. Every arm of a run that holds it writes `code-share-error` at the
 scope `flagged-subgroups`: the mean over the tree fields of the total variation distance between
 its added rows' value shares and the removed training rows', NaN for a fill with no rows.
 
+The conditional `is_a` direct arms `bko-hier-0`, `bko-hier-w` and `bko-hier-closed` draw as
+`bko-direct` does but for each `is_a` pair of drawn concepts, whose broad concept they draw given
+its narrow one at the data's conditional, at pseudo-count 0, at `GROUP_WEIGHT`, or set to 1 (ADR
+[`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 12); the
+runs `e16-thin` and `e16-empty` hold them. Their `direct` and `fallback` lines read
+` hierarchy=0.0 presence=shares`, ` hierarchy=20.0 presence=shares` and
+` closed=true presence=shares`, their `arm` lines' params add `"hierarchy": 0.0`,
+`"hierarchy": 20.0` and `"closed": true`, and their `direct arm=` lines end in
+`fallback_draws=%d`. The sampler writes one `hier holdout=%d fill=%s key=%s pairs=%d clamped=%d`
+line per cell: the pairs drawn and how many of their complements were clamped. A frame with no
+`is_a` pair among its drawn concepts, a broad concept with two narrow ones, or a nested pair is
+refused before any draw.
+
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
 and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`, `--resume` and
@@ -989,7 +1002,12 @@ start or the supervisor cannot run.
   `e15-empty` on `diabetes-codes` (`bko.evaluate.runs_direct.E15_THIN` and `E15_EMPTY`: `E9_THIN`
   and `E9_EMPTY` with `none`, `real`, `bko-direct`, `bko-nomap` and the candidate `bko-tree`, no
   replica, the ceiling inert) and their slices `e15-thina` to `e15-thinj` and `e15-emptya` to
-  `e15-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E15, describes them. `RUNS` holds P1's runs,
+  `e15-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E15, describes them. `RUNS` holds the
+  conditional `is_a` runs, `e16-thin` and `e16-empty` (`bko.evaluate.runs_direct.E16_THIN` and
+  `E16_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct`, `bko-hier-0`,
+  `bko-hier-closed` and the candidate `bko-hier-w`, no replica, the ceiling inert) and their
+  slices `e16-thina` to `e16-thinj` and `e16-emptya` to `e16-emptyj`, sliced as E6's are;
+  `docs/EVIDENCE.md`, E16, describes them. `RUNS` holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1223,11 +1241,15 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
 Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`,
-`bko-capped`, `bko-tree`) re-draws at its `arm` line's seed with that arm's draw spec and no extra
-random draw; a `bko-logic` record's concepts are its closed draw, not share priors, a `bko-nomap`
-record names no concept, and a `bko-tree` record's concepts end in one entry per tree field: its
-`field`, `leaf`, `concept` and `label`, and `parts`, each level's node from the top's child down to
-the leaf with both counts at the node and its parent, the weight, the conditional and the share.
+`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`) re-draws at its `arm`
+line's seed with that arm's draw spec and no extra random draw; a `bko-logic` record's concepts
+are its closed draw, not share priors, a `bko-nomap` record names no concept, and a `bko-tree`
+record's concepts end in one entry per tree field: its `field`, `leaf`, `concept` and `label`, and
+`parts`, each level's node from the top's child down to the leaf with both counts at the node and
+its parent, the weight, the conditional and the share. A `bko-hier` record's broad concepts add
+`hierarchy` beside their share facts: the narrow concept `given`, the weighted counts `both` and
+`narrow`, the `pseudo`-count (null when closed), the `conditional`, the `complement` (null when
+the narrow concept's share is 1) and whether it was `clamped`.
 `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows from their candidate lines and
 re-draw underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
 `perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
@@ -1255,7 +1277,7 @@ record ids; keep the file in its run folder. `<run-id>` is the folder read, `<ru
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`, `min_donors`, `reuse_cap`, `tree`) differ from its arm's, and a perturbation fill whose
+  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and a perturbation fill whose
   rebuilt rows miss its `arm` sha256, whose returned attempt is not one line per draw, or whose
   unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
   components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields

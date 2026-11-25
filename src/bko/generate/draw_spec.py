@@ -2,8 +2,8 @@
 
 `bko.generate.direct.sample` takes a `DrawSpec`. Its default is `bko-direct`'s draw; each other
 field value names an ablation or a variant (ADRs `research/logic-only-ablation`,
-`research/no-mapping-ablation`, `research/sampler-donor-limits` and
-`research/ancestor-shrunk-shares`). Only fields that differ from
+`research/no-mapping-ablation`, `research/sampler-donor-limits`, `research/ancestor-shrunk-shares`
+and `research/bkb-direct-generation`, Decision 12). Only fields that differ from
 their defaults are logged, so the default spec's lines and params keep their bytes.
 """
 
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import math
 from dataclasses import dataclass
 from typing import Final
 
@@ -31,6 +32,11 @@ class DrawSpec:
             sets no cap.
         tree: Whether each tree field (`bko.generate.tree.tree_fields`) is drawn as one leaf of
             its ontology tree at its ancestor-shrunk share, from a donor of that column alone.
+        hierarchy: The pseudo-count that shrinks each `is_a` pair's conditional toward 1, the broad
+            concept drawn given its narrow one (`bko.generate.hierarchy`); None draws each concept
+            at its share.
+        closed: Whether each `is_a` pair's broad concept is drawn present whenever its narrow
+            one is, the conditional set to 1.
     """
 
     presence: Presence = Presence.SHARES
@@ -38,13 +44,16 @@ class DrawSpec:
     min_donors: int = 1
     reuse_cap: int | None = None
     tree: bool = False
+    hierarchy: float | None = None
+    closed: bool = False
 
     def __post_init__(self) -> None:
         """Refuse a field combination the draw cannot read.
 
         Raises:
             ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false; if a limit
-                is below 1; or if a field of `_VARIANTS` is off its default without the mapping
+                is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
+                `closed`; or if a field of `_VARIANTS` is off its default without the mapping
                 table or at a presence other than shares.
         """
         if self.presence is not Presence.SHARES and not self.mapped:
@@ -54,6 +63,15 @@ class DrawSpec:
             if value is not None and value < 1:
                 msg = f"{name} {value} must be at least 1"
                 raise ValueError(msg)
+        pseudo = self.hierarchy
+        if pseudo is not None and (
+            type(pseudo) is not float or not math.isfinite(pseudo) or pseudo < 0
+        ):
+            msg = f"hierarchy {pseudo!r} must be a finite non-negative float"
+            raise ValueError(msg)
+        if pseudo is not None and self.closed:
+            msg = "closed sets the conditional to 1, so it takes no hierarchy pseudo-count"
+            raise ValueError(msg)
         defaults = {field.name: field.default for field in dataclasses.fields(self)}
         changed = [name for name in _VARIANTS if getattr(self, name) != defaults[name]]
         if changed and (self.presence is not Presence.SHARES or not self.mapped):
@@ -64,6 +82,11 @@ class DrawSpec:
     def limited(self) -> bool:
         """Whether the draw sets a donor floor above 1 or a reuse cap."""
         return self.min_donors > 1 or self.reuse_cap is not None
+
+    @property
+    def conditional(self) -> bool:
+        """Whether the draw reads each `is_a` pair's conditional: `hierarchy` set, or `closed`."""
+        return self.hierarchy is not None or self.closed
 
     def values(self) -> dict[str, object]:
         """Every field, an enum as its value, in field order: what `params` logs it as."""
@@ -91,7 +114,7 @@ class DrawSpec:
         ]
 
 
-_VARIANTS: Final = ("min_donors", "reuse_cap", "tree")
+_VARIANTS: Final = ("min_donors", "reuse_cap", "tree", "hierarchy", "closed")
 """The fields that need `mapped=True` and `Presence.SHARES` off their defaults."""
 
 
