@@ -1056,7 +1056,7 @@ arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING `privacy ho
 scope=%s undefined ...` line for an arm with rows whose distance attack is undefined in a scope
 (INFO for a cell scope with no member); and last `privacy holdout=%d done=%d/%d seconds=%.1f
 elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the mean, the contrast
-against the reference arm (each run family's `REFERENCE` arm (`bko.evaluate.reference`); a slice
+against the run family's reference arm, set in `REFERENCE` of `bko.evaluate.reference` (a slice
 reads its run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
 contrasts), and `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or
 NNDR quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
