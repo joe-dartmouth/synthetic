@@ -10,26 +10,29 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Final
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate import coherent as coherent_module
 from bko.evaluate import donor_attacks, trace_perturb
 from bko.evaluate.__main__ import Context, _named, main
 from bko.evaluate.attribution import Attribution, arm_kind, classify
-from bko.evaluate.coherent import COHERENT_STREAM, CoherentArm, coherent_records
+from bko.evaluate.coherent import CoherentArm, coherent_draws, coherent_records
 from bko.evaluate.data import digest, load
 from bko.evaluate.direct import WRAPPERS, DirectArm
 from bko.evaluate.direct_arms import COHERENT_ARM
-from bko.evaluate.errors import IdentityError
+from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import DIRECT_ARM, DIRECT_ARMS, PRAM_ARM
 from bko.evaluate.holdout_candidates import CHANGED, KEPT, PERTURBS, UNCHANGED, read
 from bko.evaluate.named_runs import RUNS, NamedRun
-from bko.evaluate.pram import PRAM_STREAM, PramArm
+from bko.evaluate.pram import PramArm
 from bko.evaluate.reference import REFERENCE
 from bko.evaluate.run_folder import BKO
 from bko.evaluate.runs_diabetes import E9_EMPTY, E9_THIN
-from bko.generate.direct import Draw
+from bko.generate.direct import Draw, sample
 from bko.generate.draw_spec import DEFAULT_SPEC
 from tests._gaps_fixtures import ANGINA, STENOSIS
 from tests.test_evaluate_attribution import MAPPED, _direct
@@ -99,7 +102,6 @@ def test_the_coherent_arm_is_a_direct_arm_at_the_default_spec_a_bko_arm_and_a_pe
     assert DIRECT_ARMS[COHERENT_ARM] == DEFAULT_SPEC
     assert COHERENT_ARM in BKO
     assert PERTURBS[COHERENT_ARM] == frozenset({CHANGED, UNCHANGED})
-    assert (COHERENT_STREAM, PRAM_STREAM) == (2, 1)
     inner = coherent_arm().inner
     assert isinstance(WRAPPERS[COHERENT_ARM](inner, FIELDS), CoherentArm)
     assert isinstance(WRAPPERS[PRAM_ARM](inner, FIELDS), PramArm)
@@ -131,6 +133,55 @@ def test_each_free_value_is_a_training_value():
     added = coherent_arm()(train, request).added
     for name in FIELDS:
         assert set(added[name]) <= set(train[name])
+
+
+@pytest.mark.parametrize("field", ["age", "sex", "target", "cp"])
+def test_the_arm_refuses_to_redraw_the_cell_the_label_or_a_mapped_field(field):
+    train, request, _ = varied_arm()
+    arm = CoherentArm(coherent_arm().inner, fields=(*FIELDS, field))
+    with pytest.raises(EvaluationError, match="may not perturb"):
+        arm(train, request)
+
+
+def test_the_leaf_draws_read_the_seed_and_stream_2(monkeypatch):
+    train, request, _ = varied_arm(5)
+    real = np.random.default_rng
+    seeds: list[Any] = []
+
+    def recorded(seed: Any = None) -> np.random.Generator:
+        seeds.append(seed)
+        return real(seed)
+
+    monkeypatch.setattr(coherent_module.np.random, "default_rng", recorded)
+    coherent_arm()(train, request)
+    assert [5, 2] in seeds
+    assert [5, 1] not in seeds
+
+
+def test_coherent_records_of_no_record_is_empty():
+    train, request, _ = varied_arm()
+    assert coherent_records(train, request, [], fields=FIELDS) == ([], [])
+
+
+def test_a_free_field_the_draw_fell_back_on_is_no_fallback_once_redrawn():
+    train, request, _ = varied_arm()
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    cell = next(iter(request.quota))
+    reduced = train[[tuple(key) != cell for key in keys.itertuples(index=False, name=None)]]
+    drawn = sample(
+        reduced,
+        {cell: 4},
+        rows=(ANGINA, STENOSIS),
+        ontologies={},
+        name="uci-test",
+        seed=0,
+        frame=UCI_FRAME,
+    )[cell]
+    assert all(set(FIELDS) <= draw.fallback for draw in drawn)
+    seeded = dataclasses.replace(request, quota={cell: 4})
+    for old, new in zip(drawn, coherent_draws(reduced, seeded, drawn, fields=FIELDS), strict=True):
+        assert not set(FIELDS) & new.fallback
+        assert new.fallback == old.fallback - set(FIELDS)
 
 
 def test_coherent_records_refuses_a_field_outside_the_frame_by_name():
