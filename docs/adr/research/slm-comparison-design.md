@@ -22,6 +22,17 @@ trains on the training split plus an arm's fill, where HARMONIC trains on synthe
 its budget is fixed in machine time, where HARMONIC's is 5 epochs; and its base model is OLMo 3 7B,
 whose training data is published, where HARMONIC's is LLaMA-2-7b-chat.
 
+**Determinism, 2026-11-24.** At commit `4f28c416ffa40d835f904e8683ee4114aae23bd0` (`dirty=false`),
+on the Apple M5 Max on AC power under `caffeinate -i -s`, a scratch script called
+`bko.slm.train.train` twice at `LORA` (seed 0) on MPS in BF16, each time on a fresh load of the
+pinned base model, over the same first 400 rows of E6 holdout 0's `none` training split
+(`runs/e6-25`, run `e6-thina`; 27 positive), 100 steps each. The two adapters' tensors were
+`torch.equal` throughout (largest absolute difference 0.0), both `adapter_model.safetensors` files
+had sha256 `c8085661aebd030009daa1a222412ae83d77435e63a467625ab67c91adc0b4b0`, both final losses
+were 0.059293, and P(yes) over the holdout's first 200 test records differed by at most 0.0
+(mean 0.0584). Training took 409.7 s and 434.4 s (1.024 and 1.086 s per row). The adapters were
+deleted after the comparison.
+
 ## Decision Drivers
 
 * **Must give every arm the same serializer, base model and recipe**, so an arm difference is the
@@ -49,7 +60,10 @@ whose training data is published, where HARMONIC's is LLaMA-2-7b-chat.
 6. **Adapter path.** `data/models/slm-adapters/<run-id>/<holdout>-<arm>/`, under the gitignored
    `data/`. An adapter never leaves the machine: one fitted on patient-derived records can
    reproduce training rows.
-7. **Budget.** A full-split fine-tune takes 17 to 28 hours (ADR `tooling/slm-extra`), so eight
+7. **Reproducibility.** A fine-tune is reproducible at one seed on this machine: two fits give
+   bitwise-equal adapters (Context, Determinism), so one fine-tune per arm and seed stands for
+   that arm, and a stored adapter's sha256 can be re-derived by fitting again.
+8. **Budget.** A full-split fine-tune takes 17 to 28 hours (ADR `tooling/slm-extra`), so eight
    fine-tunes per holdout cost about 6 to 10 days; the team does not run that. The whole
    comparison fits in under one day of machine time. The holdouts, seeds, rows per fine-tune,
    base model size, power limit and share mixes are fixed by unit `slm-lora-day-budget`, which
