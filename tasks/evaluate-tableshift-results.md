@@ -1,13 +1,13 @@
 ---
 id: evaluate-tableshift-results
 title: Run the TableShift readmission runs and read them beside its Table 7
-status: blocked
-depends_on: evaluate-tableshift-readmission
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/tableshift-comparison
 ---
 
 # Run the TableShift readmission runs and read them beside its Table 7
@@ -16,9 +16,10 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-Unit [`evaluate-tableshift-readmission`](evaluate-tableshift-readmission.md) lands the split, the
-runs and their Configuration. This unit runs them and records what they show beside TableShift's
-published baselines.
+ADR [`research/tableshift-comparison`](../docs/adr/research/tableshift-comparison.md) records the
+split, and the [P1 entry](../docs/EVIDENCE.md#p1-tableshift-readmission-split) of
+`docs/EVIDENCE.md` names the runs `p1-id` and `p1-ood` and their Configuration. This unit runs them
+and records what they show beside TableShift's published baselines.
 
 ## Scope
 
