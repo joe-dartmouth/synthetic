@@ -182,7 +182,8 @@ def score_holdout(
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
     is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
     `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
-    replica utility never does. When the experiment holds `TREE_ARM`, each arm writes
+    replica utility never does. An experiment with a `flagged_cell` adds each model's AUGMENTED
+    ROC AUC on each scope. When the experiment holds `TREE_ARM`, each arm writes
     `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the dataset's field rows, against
     the rows the removal took, NaN for a fill with no rows.
 
@@ -280,6 +281,7 @@ def score_holdout(
             experiment.cutoff,
             calibration,
             share_error=removed,
+            roc=experiment.flagged_cell is not None,
         )
         if name in replicas:
             scores += _replica_scores(

@@ -109,11 +109,17 @@ each CTGAN fit takes over an hour on this frame, so the five runs run as paralle
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/runs_published.py`, `src/bko/evaluate/requests.py` (`flagged`,
-  `gap_request`), `src/bko/evaluate/experiment.py` (`Experiment.flagged_cell`)
+- Owner: `src/bko/evaluate/runs_published.py` (`P3`, `P3_FRACTIONS`, `P3_ARMS`,
+  `juwara_total`), `src/bko/evaluate/requests.py` (`flagged`, `gap_request`),
+  `src/bko/evaluate/experiment.py` (`Experiment.flagged_cell`), `src/bko/evaluate/utility.py`
+  (`roc`), `src/bko/evaluate/run.py`
 - Pinned by: `tests/test_evaluate_flagged_cell.py` (the cell flagged above the threshold, its
   quota, a cell other than the removal's refused, a cell at `fill_to` refused, the `experiment`
-  line's key and its assumed value)
+  line's key and its assumed value), `tests/test_evaluate_auc_roc.py` (a hand-computed ROC AUC,
+  NaN on one label, no `auc-roc` row without a flagged cell, both scopes with one),
+  `tests/test_evaluate_covariate.py` (the fractions, the arms, the sizing on a toy cell and at
+  1,269 rows, no paid arm, each run's slices), `tests/test_named_runs_slices.py` (the run names
+  in order)
 
 ## Reversal Conditions
 

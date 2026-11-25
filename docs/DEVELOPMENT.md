@@ -435,9 +435,10 @@ It runs `rows`' identity checks and the strict check 7, with the keys ADR
 admit. Its scores CSV holds the folder's rows plus each panel model's, suffixed by its
 `bko.evaluate.classifier.Model` value as `hgb` suffixes its own (`recall-rf`, `auc-pr-nb`), and
 `brier` and `calibration-in-the-large` for every model and scope, suffixed the same way
-(`brier-hgb`). Its `experiment` line logs `models=lr,hgb,rf,et,mlp,nb`. Exit codes are `rows`'. A
-run succeeded when it exits 0 and its log's last line is `panel done`; its `scores` line reads
-`matches_folder=false`, since its CSV holds rows the folder's lacks. A refused run leaves the
+(`brier-hgb`), with `auc-roc` for every model where the run's `Experiment.flagged_cell` is set. Its
+`experiment` line logs `models=lr,hgb,rf,et,mlp,nb`. Exit codes are `rows`'. A run succeeded when it
+exits 0 and its log's last line is `panel done`; its `scores` line reads `matches_folder=false`,
+since its CSV holds rows the folder's lacks. A refused run leaves the
 redirect's `scores.csv`, empty or partial, which the `test ! -e` guard then refuses: rerun into a
 new folder.
 
@@ -690,7 +691,9 @@ start or the supervisor cannot run.
   real rows, weighted as the arm says, and the added rows is scored on the test split, then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
-  `grep -v -- '-hgb,'` leaves the regression's rows alone. The replica
+  `grep -v -- '-hgb,'` leaves the regression's rows alone. A run whose `Experiment.flagged_cell`
+  is set also writes each model's ROC AUC, `auc-roc` and `auc-roc-hgb`, after its AUC-PR on each
+  scope, empty where the scope holds one label; no other run writes it. The replica
   arms also fill the training split's own cell counts, or, when `Experiment.replica_rows` is set, that
   many rows split across the cells in proportion to those counts; those rows alone train a
   classifier and are compared with the training split for fidelity. A replica holding rows of fewer
@@ -1026,7 +1029,15 @@ start or the supervisor cannot run.
   and `e17-empty` (`bko.evaluate.runs_direct.E17_THIN` and `E17_EMPTY`: `E9_THIN` and
   `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate `bko-coherent`, no replica, the
   ceiling inert) and their slices `e17-thina` to `e17-thinj` and `e17-emptya` to `e17-emptyj`,
-  sliced as E6's are; `docs/EVIDENCE.md`, E17, describes them. `RUNS` holds P1's runs,
+  sliced as E6's are; `docs/EVIDENCE.md`, E17, describes them. `RUNS` holds P3's runs,
+  `p3-fifteen`, `p3-thirty`, `p3-fifty`, `p3-eighty` and `p3-ninetyfive`
+  (`bko.evaluate.runs_published.P3`: `E6_THIN` with `none`, `real`, `smote`, `ctgan`, `cart`,
+  `bko-nomap`, `label-bootstrap`, `prior-shift` and the candidate `bko-direct`, removing 0.15,
+  0.30, 0.50, 0.80 and 0.95 of `E6_CELL`'s training rows, that cell flagged by name and filled to
+  `juwara_total`, no replica, the ceiling inert) and their slices `p3-fifteena` to
+  `p3-ninetyfivej`, sliced as E6's are; `docs/EVIDENCE.md`, P3, describes them (ADR
+  [`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md)). It holds
+  P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
