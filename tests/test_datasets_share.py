@@ -9,7 +9,7 @@ from fractions import Fraction
 import pytest
 
 from bko.datasets.cells import CELL_COLUMNS, cell_keys
-from bko.datasets.split import dropped, dropped_count, require_share, share_text
+from bko.datasets.split import dropped, dropped_count, require_share, share_text, subsampled
 from tests._frame_fixtures import TOY, TOY_TRAIN
 
 
@@ -68,18 +68,19 @@ def test_the_dropped_rows_are_the_lowest_ranked():
 
 
 def test_the_ranking_is_not_the_subsamples():
-    # The tag sets the order: under `train-fraction:` the same quarter would differ.
+    # At a quarter, each 20-row cell drops 5 rows and `subsampled` keeps 5: the same 5 in every
+    # cell were the tag `train-fraction:`, and the split's own lowest 5 were it empty.
     share = Fraction(1, 4)
     found = set(dropped(TOY_TRAIN, share, seed=0, edges=TOY.edges))
-    other: set[int] = set()
+    kept = set(subsampled(TOY_TRAIN, share, seed=0, edges=TOY.edges).index)
     cells = cell_keys(TOY_TRAIN, edges=TOY.edges).groupby(list(CELL_COLUMNS)).groups
-    for records in cells.values():
-        ranked = sorted(
-            records,
-            key=lambda record: hashlib.sha256(f"0:train-fraction:{record}".encode()).digest(),
-        )
-        other |= set(ranked[: (2 * len(ranked) + 4) // 8])
-    assert found != other
+    full = [set(records) for records in cells.values() if len(records) == 20]
+    assert len(full) == 10
+    for records in full:
+        untagged = sorted(records, key=lambda r: hashlib.sha256(f"0:{r}".encode()).digest())[:5]
+        assert len(found & records) == len(kept & records) == 5
+        assert found & records != kept & records
+        assert found & records != set(untagged)
 
 
 def test_share_1_drops_every_row():

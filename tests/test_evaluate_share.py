@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import bko.evaluate.run_scores as run_scores_module
+import bko.evaluate.shared as shared_module
 from bko.baselines.errors import ShortfallError
 from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, number
@@ -77,8 +78,25 @@ def test_an_arm_reading_the_whole_split_is_refused_under_a_share(arm):
         dataclasses.replace(removing, removal=None, synthetic_share=Fraction(1, 4))
 
 
+def test_the_tree_arm_is_refused_under_a_share():
+    # Its code-share error reads `Prepared.removed`, which a share leaves empty.
+    with pytest.raises(ValueError, match=r"bko-tree reads the removed rows' code shares"):
+        dataclasses.replace(SHARE_RUN, arms=(*SHARE_RUN.arms, "bko-tree"))
+
+
 def test_real_is_admitted_under_a_share():
-    assert SHARE_RUN.arms == (REAL_ARM, "smote")
+    admitted = Experiment(
+        holdout_seeds=(0, 1),
+        arms=(REAL_ARM, "smote"),
+        candidate="smote",
+        comparators=(),
+        replica_arms=(),
+        decontaminate=False,
+        flagged_cell=FULL,
+        synthetic_share=Fraction(1, 2),
+    )
+    assert REAL_ARM in admitted.arms
+    assert admitted.synthetic_share == Fraction(1, 2)
     with pytest.raises(ValueError, match=r"needs a removal or a synthetic share"):
         dataclasses.replace(SHARE_RUN, synthetic_share=None)
 
@@ -232,9 +250,16 @@ def test_every_reader_rebuilds_a_share_runs_request(caplog, monkeypatch):
             band, sex, label = stratum.removeprefix("stratum=").split("/")
             used[band, sex, int(label)] = int(rows.removeprefix("rows="))
     assert used == QUARTER
-    # trace, shared and membership each call `gap_request` on the prepared split, as here.
-    train = prepared(TOY_PARTS, SCORED, edges=TOY.edges).ablated.train
-    assert gap_request(train, SCORED, seed=0, frame=TOY).quota == used
+    # `shared` rebuilds the request from the prepared split, as membership's donor reuse does.
+    rebuilt: list[Request] = []
+
+    def spy(others, seed, gap, replica):
+        rebuilt.append(gap)
+        return []
+
+    monkeypatch.setattr(shared_module, "excluded", spy)
+    assert shared_module._exclude([], TOY_PARTS, SCORED, TOY) == []
+    assert [gap.quota for gap in rebuilt] == [used]
 
 
 @pytest.mark.parametrize("share", SHARES[1:])
@@ -307,3 +332,36 @@ def test_a_share_1_fill_of_fewer_than_two_labels_names_its_holdout_and_arm(
     message = rf"holdout 0 arm smote trains on \d+ rows of {held} labels"
     with pytest.raises(EvaluationError, match=message):
         _trainings(experiment, monkeypatch, arms)
+
+
+def test_a_fiftieth_drops_only_the_cells_large_enough(monkeypatch, caplog):
+    # `FULL` doubled to 40 training rows drops round(0.8) = 1 at 1/50; every other cell, of 20
+    # or 5 rows, drops none and is left out of the request.
+    cell = cell_keys(TOY_PARTS.train, edges=TOY.edges).loc[:, list(CELL_COLUMNS)]
+    inside = [tuple(key) == FULL for key in cell.itertuples(index=False)]
+    extra = TOY_PARTS.train.loc[inside].copy()
+    extra.index += 1000
+    assert not set(extra.index) & (set(TOY_PARTS.train.index) | set(TOY_PARTS.test.index))
+    parts = dataclasses.replace(TOY_PARTS, train=pd.concat([TOY_PARTS.train, extra]))
+    experiment = dataclasses.replace(SCORED, synthetic_share=Fraction(1, 50))
+    caplog.set_level(logging.INFO, logger="bko.evaluate")
+    seen: list[pd.DataFrame] = []
+    real = run_scores_module.probabilities
+
+    def spy(training, test, **options):
+        seen.append(training)
+        return real(training, test, **options)
+
+    monkeypatch.setattr(run_scores_module, "probabilities", spy)
+    runners = {name: FAST_ARMS[name] for name in experiment.arms if name != REAL_ARM}
+    score_holdout(parts, experiment, runners, models={Model.LR: build}, frame=TOY)
+    quotas = [r.getMessage() for r in caplog.records if r.getMessage().startswith("quota ")]
+    assert quotas == ["quota holdout=0 stratum=<45/male/1 rows=1"]
+    (gone,) = prepared(parts, experiment, edges=TOY.edges).dropped.index
+    assert gone in set(TOY_PARTS.train.index[inside]) | set(extra.index)
+    trainings = dict(zip(experiment.arms, seen, strict=True))
+    for arm, training in trainings.items():
+        assert len(training) == 230, arm
+    # Every arm keeps the same 229 real rows; `real` adds the dropped row back under a new id.
+    for arm, training in trainings.items():
+        assert _real_ids(training) == set(parts.train.index) - {gone}, arm

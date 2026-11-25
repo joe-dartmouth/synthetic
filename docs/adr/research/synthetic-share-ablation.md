@@ -57,7 +57,8 @@ the arm that cannot fill a cell and the recall the margin reads all need a rule.
 8. **The arms.** `real`, `bko-direct`, `ctgan`, `tvae`, `cart`, `bayes-net`, `tabddpm` and
    `label-bootstrap`; `bko-direct` the candidate, every other arm but `real` a comparator, no
    replica and no criterion. `prior-shift` and `class-weight` are refused under a share: their
-   offsets and weights read the whole training split, not the kept rows.
+   offsets and weights read the whole training split, not the kept rows. So is `bko-tree`: its
+   code-share error reads the removed rows, and a share removes none.
 9. **Privacy.** The readings are over the synthetic rows against the whole split, with
    `bko-direct` the reference arm, so each comparator's reading is its contrast with
    `bko-direct`, and E6's cell the cell scope.
