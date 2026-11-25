@@ -13,6 +13,7 @@ from collections import Counter
 from collections.abc import Mapping
 from fractions import Fraction
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final, cast
 
 import numpy as np
@@ -21,9 +22,10 @@ import pytest
 
 from bko.datasets.cells import LABEL, SEXES, cell_keys
 from bko.datasets.uci import UCI_FRAME
-from bko.gaps.observe import Cell
-from bko.gaps.shares import GROUP_WEIGHT
+from bko.gaps.observe import Cell, observe_records, record_cells
+from bko.gaps.shares import GROUP_WEIGHT, shares
 from bko.generate.direct import Draw, _Plan, sample
+from bko.generate.donors import _records, cell_records, members
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
 from bko.generate.presence import Presence
@@ -310,21 +312,48 @@ def _leaf(record: Mapping[str, object]) -> str:
     return CP_LEAVES.get(int(cast("int", record["cp"])), UNMAPPED)
 
 
+SLOPE_ROWS: Final = (
+    _row("slope", 1, concept="HP:0003074"),
+    _row("slope", 2, concept="HP:0003115"),
+)
+"""`slope` as a second tree field: two siblings; `slope` 3 maps no concept."""
+
+SLOPE_LEAVES: Final = {1: "HP:0003074", 2: "HP:0003115"}
+
+EXANG: Final = _row("exang", 1, concept="HP:0003124")
+"""A mapped concept off the tree fields, drawn at its share."""
+
+
 def _tree_oracle(
-    train: pd.DataFrame, quota: Mapping[Cell, int], seed: int
-) -> dict[Cell, list[dict[str, object]]]:
-    """An independent draw: one uniform per record placing `cp`'s leaf, then a uniform pick per
-    column from the cell's records, else the label group's, `cp`'s among those showing the leaf.
+    train: pd.DataFrame,
+    quota: Mapping[Cell, int],
+    seed: int,
+    *,
+    trees: Mapping[str, Mapping[int, str]] = MappingProxyType({"cp": CP_LEAVES}),
+    concept: FieldMapping | None = None,
+) -> dict[Cell, list[tuple[dict[str, object], frozenset[str]]]]:
+    """An independent draw with its concepts, per ADR Decision 5.
+
+    Per record: one uniform for `concept` at its share, then, in frame column order, one uniform
+    placing each tree field's leaf (`trees`, each code's leaf by hand) followed by a uniform pick
+    from the cell's records showing it, else the label group's; `concept`'s field from records
+    showing the drawn presence; every other column from the cell's records, else the label
+    group's, `age` from the label group's in the cell's band.
     """
     rng = np.random.default_rng(seed)
-    tree = code_tree({row.concept for row in CP_ROWS}, ONTOLOGIES)
+    shaped = {
+        column: code_tree({leaf.removesuffix("/self") for leaf in codes.values()}, ONTOLOGIES)
+        for column, codes in trees.items()
+    }
     keys = cell_keys(train, edges=UCI_FRAME.edges)
     records: list[dict[str, object]] = [
         {str(k): v for k, v in row.items()}
         for row in train[list(UCI_FRAME.columns)].to_dict("records")
     ]
     cells = list(keys.itertuples(index=False, name=None))
-    drawn: dict[Cell, list[dict[str, object]]] = {}
+    mapped = () if concept is None else (concept,)
+    observed = record_cells(train, mapped, name=NAME, edges=UCI_FRAME.edges).each
+    drawn: dict[Cell, list[tuple[dict[str, object], frozenset[str]]]] = {}
     for cell, count in quota.items():
         band, sex, label = cell
         inside = [r for r, key in zip(records, cells, strict=True) if key == cell]
@@ -332,13 +361,22 @@ def _tree_oracle(
         banded = [
             r for r, key in zip(records, cells, strict=True) if (key[0], key[2]) == (band, label)
         ]
-        shares, _ = tree_shares(
-            Counter(map(_leaf, inside)), Counter(map(_leaf, group)), tree, GROUP_WEIGHT
-        )
-        placed = [leaf for leaf in leaves(tree) if shares[leaf] > 0]
-        cumulative = np.cumsum([shares[leaf] for leaf in placed])
+        members = train.loc[train[LABEL].eq(label)]
+        share = shares(observed[cell], observe_records(members, mapped, name=f"{NAME}/g"))
+        placed = {}
+        for column, tree in shaped.items():
+            found, _ = tree_shares(
+                Counter(_leaf_in(trees[column], r[column]) for r in inside),
+                Counter(_leaf_in(trees[column], r[column]) for r in group),
+                tree,
+                GROUP_WEIGHT,
+            )
+            positive = [leaf for leaf in leaves(tree) if found[leaf] > 0]
+            placed[column] = (positive, np.cumsum([found[leaf] for leaf in positive]))
         made = []
         for _ in range(count):
+            present = concept is not None and rng.random() < share[concept.concept]
+            shown: set[str] = {concept.concept} if concept is not None and present else set()
             record: dict[str, object] = {}
             for column in UCI_FRAME.columns:
                 if column == "sex":
@@ -347,18 +385,33 @@ def _tree_oracle(
                 if column == LABEL:
                     record[column] = label
                     continue
-                if column == "cp":
+                if column in placed:
+                    positive, cumulative = placed[column]
                     position = int(np.searchsorted(cumulative, rng.random(), side="right"))
-                    leaf = placed[min(position, len(placed) - 1)]
-                    pool = [r for r in inside if _leaf(r) == leaf] or [
-                        r for r in group if _leaf(r) == leaf
+                    leaf = positive[min(position, len(positive) - 1)]
+                    if leaf != UNMAPPED:
+                        shown.add(leaf.removesuffix("/self"))
+                    pool = [r for r in inside if _leaf_in(trees[column], r[column]) == leaf] or [
+                        r for r in group if _leaf_in(trees[column], r[column]) == leaf
+                    ]
+                elif concept is not None and column == concept.when[0].field:
+                    pool = [r for r in inside if _shows(concept, r) == present] or [
+                        r for r in group if _shows(concept, r) == present
                     ]
                 else:
                     pool = inside or (banded if column == "age" else group)
                 record[column] = pool[int(rng.integers(len(pool)))][column]
-            made.append(record)
+            made.append((record, frozenset(shown)))
         drawn[cell] = made
     return drawn
+
+
+def _shows(row: FieldMapping, record: Mapping[str, object]) -> bool:
+    return row.applies(cast("Mapping[str, float]", record))
+
+
+def _leaf_in(codes: Mapping[int, str], value: object) -> str:
+    return codes.get(int(cast("int", value)), UNMAPPED)
 
 
 @pytest.mark.parametrize("seed", [0, 1, 7])
@@ -367,7 +420,24 @@ def test_a_tree_draw_spends_one_uniform_per_tree_column(seed):
     quota = {YOUNG_WOMEN_1: 25, YOUNG_WOMEN_0: 25}
     drawn = _tree_draw(train, quota, seed=seed)
     found = {cell: [dict(d.record) for d in draws] for cell, draws in drawn.items()}
-    assert found == _tree_oracle(train, quota, seed)
+    oracle = _tree_oracle(train, quota, seed)
+    assert found == {cell: [record for record, _ in made] for cell, made in oracle.items()}
+
+
+@pytest.mark.parametrize("seed", [0, 1, 7])
+def test_two_tree_fields_and_a_concept_draw_the_concept_first_then_each_field_in_column_order(
+    seed,
+):
+    train = varied()
+    quota = {YOUNG_WOMEN_1: 25, YOUNG_WOMEN_0: 25}
+    drawn = _tree_draw(train, quota, seed=seed, rows=(*CP_ROWS, EXANG, *SLOPE_ROWS))
+    found = {cell: [(dict(d.record), d.concepts) for d in draws] for cell, draws in drawn.items()}
+    oracle = _tree_oracle(
+        train, quota, seed, trees={"cp": CP_LEAVES, "slope": SLOPE_LEAVES}, concept=EXANG
+    )
+    assert found == oracle
+    concepts = {c for made in oracle.values() for _, drawn_concepts in made for c in drawn_concepts}
+    assert {EXANG.concept, "HP:0003074", "HP:0003115"} <= concepts
 
 
 def test_a_tree_columns_value_comes_from_a_donor_showing_the_drawn_leaf():
@@ -385,12 +455,36 @@ def test_a_tree_columns_value_comes_from_a_donor_showing_the_drawn_leaf():
 
 
 def test_a_leaf_the_cell_lacks_is_copied_from_the_label_group():
+    """`varied()`'s young women of label 0 all hold `cp` 1, and its men of label 0 `cp` 2."""
     train = varied()
-    lacking = train.loc[~((train["cp"] == 3) & (train["age"] < 55) & (train["sex"] == 0))]
-    draws = _tree_draw(lacking, {YOUNG_WOMEN_1: 200, YOUNG_WOMEN_0: 200})
-    fell = [d for each in draws.values() for d in each if d.record["cp"] == 3]
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    inside = keys.eq(list(YOUNG_WOMEN_0)).all(axis=1)
+    group = train[LABEL].eq(YOUNG_WOMEN_0[2])
+    assert set(train.loc[inside, "cp"]) == {1}
+    assert train.loc[group & ~inside, "cp"].eq(2).any()
+    placed = TreeDraw(column_trees(CP_ROWS, UCI_FRAME, ONTOLOGIES)).at(
+        YOUNG_WOMEN_0,
+        cell_records(train, keys, YOUNG_WOMEN_0, UCI_FRAME),
+        _records(members(train, int(YOUNG_WOMEN_0[2]), UCI_FRAME), UCI_FRAME),
+    )
+    assert placed["cp"].parts[CP_LEAVES[2]].share > 0.05
+    (draws,) = _tree_draw(train, {YOUNG_WOMEN_0: 200}).values()
+    fell = [d for d in draws if d.record["cp"] == 2]
     assert fell
-    assert all("cp" in d.fallback for d in fell)
+    for d in fell:
+        assert "cp" in d.fallback
+        source = d.sources["cp"]
+        assert bool(group.at[source])
+        assert not bool(inside.at[source])
+
+
+def test_column_trees_maps_each_code_to_its_leaf_and_an_ancestor_concept_to_its_own():
+    trees = column_trees(CP_ROWS, UCI_FRAME, ONTOLOGIES)
+    assert list(trees) == ["cp"]
+    assert dict(trees["cp"].codes) == CP_LEAVES
+    assert trees["cp"].tree["HP:0100749/self"] == "HP:0100749"
+    assert trees["cp"].tree["HP:0001681"] == "HP:0100749"
+    assert [trees["cp"].leaf_of(code) for code in (1, 2, 3, 4)] == [*CP_LEAVES.values(), UNMAPPED]
 
 
 def test_a_label_group_with_no_record_leaves_no_leaf_to_place():
@@ -399,6 +493,21 @@ def test_a_label_group_with_no_record_leaves_no_leaf_to_place():
     assert placed.leaves == ()
     with pytest.raises(SamplingError, match="cannot draw cp: no leaf has a positive share"):
         leaf_at(placed, 0.5, YOUNG_WOMEN_1)
+
+
+def test_a_tree_draw_under_a_donor_floor_and_a_reuse_cap_copies_each_column_within_them():
+    train = varied()
+    spec = DrawSpec(tree=True, min_donors=2, reuse_cap=1)
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    draws = [d for each in _tree_draw(train, {YOUNG_WOMEN_0: 10}, spec=spec).values() for d in each]
+    inside = keys.eq(list(YOUNG_WOMEN_0)).all(axis=1)
+    showing = Counter(train.loc[inside, "cp"])
+    assert {showing[d.record["cp"]] >= 2 for d in draws} == {True, False}
+    for d in draws:
+        source = d.sources["cp"]
+        assert train.at[source, "cp"] == d.record["cp"]
+        assert bool(inside.at[source]) is (showing[d.record["cp"]] >= 2)
+    assert set(Counter(d.sources["cp"] for d in draws).values()) == {1}
 
 
 def test_a_tree_fields_value_that_is_no_code_names_its_column_and_record():

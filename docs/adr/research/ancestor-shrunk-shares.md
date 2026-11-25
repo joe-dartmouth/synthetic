@@ -66,7 +66,8 @@ them, so the rule depends on how deep the release happens to nest a code.
    depth-first order with children by id, clipped to the last such leaf. The column's value is
    copied from a record whose column shows the drawn leaf, the cell's first, else the label
    group's, by one uniform pick as `bko-direct`'s. `Draw.concepts` holds each drawn leaf's
-   concept, none for `unmapped`.
+   concept, none for `unmapped`. A spec that also sets `min_donors` or `reuse_cap` picks the
+   column as a unit of its own under the floor and the cap of ADR `research/sampler-donor-limits`.
 6. **The trace.** For each drawn leaf, the trace names each level's node from the top's child down
    to the leaf, the cell's and the label group's counts at the node and at its parent, the weight,
    the conditional and the share.
@@ -109,9 +110,12 @@ depend on the release's hierarchy, so a new release is a new arm's reading.
   `src/bko/evaluate/redraw.py`, `src/bko/evaluate/run_scores.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
   `tests/test_generate_tree.py` (the hand shares, their sum, the unseen code's share, single
-  children, the parent rule, the own leaf, the tree fields, one uniform per tree field and the
-  donor showing the drawn leaf), `tests/test_evaluate_tree.py` (the arm's params, its trace and
-  each level's parts, the refusal of an int `tree`, `code-share-error` and E15's runs),
+  children, the parent rule, the own leaf and each code's leaf, the tree fields, the refusal of
+  a count off the leaves, the placement of a uniform, one uniform per tree field after the
+  concept draw, the donor showing the drawn leaf, the label group's donor of a leaf the cell
+  lacks, and the floor and the cap), `tests/test_evaluate_tree.py` (the arm's params, its trace
+  and each level's parts, the refusal of an arm line whose `tree` is not its arm's, the refusal
+  of a run with no tree field, `code-share-error` and E15's runs),
   `tests/test_generate_tree_pinned.py` (on `diabetes-codes` the tree fields are the three
   diagnosis columns, each one's shares sum to 1 in E6's cell and its label group, and E15's gap
   request asks E6's quota, run with `--releases`)

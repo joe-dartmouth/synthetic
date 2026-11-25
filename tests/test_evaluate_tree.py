@@ -161,7 +161,7 @@ def test_a_tree_fill_traces_to_its_arm_sha(scored, caplog):
 
 def test_the_trace_names_each_levels_parts(scored):
     _, found = _trace(scored, "--arm", TREE_ARM)
-    mapped = []
+    mapped, unmapped = [], []
     for line in found:
         leaves = [fact for fact in line["concepts"] if "leaf" in fact]
         assert [fact["field"] for fact in leaves] == list(DIAGNOSES)
@@ -174,11 +174,13 @@ def test_the_trace_names_each_levels_parts(scored):
             assert all(part["weight"] == 20 for part in parts)
             if fact["leaf"] == UNMAPPED:
                 assert (fact["concept"], fact["label"], len(parts)) == (None, None, 1)
+                unmapped.append(fact)
             else:
                 mapped.append(fact)
         concepts = {fact["concept"] for fact in line["concepts"] if "leaf" not in fact}
         assert concepts.isdisjoint({PNEUMONIA, KIDNEY})
     assert mapped
+    assert unmapped
     for fact in mapped:
         assert fact["concept"] == fact["leaf"]
         assert fact["concept"] in {PNEUMONIA, KIDNEY}
@@ -190,21 +192,33 @@ def test_the_trace_names_each_levels_parts(scored):
         assert fact["label"] == _UNDER[fact["leaf"]]
 
 
-def test_a_tree_fill_whose_tree_param_is_1_exits_3(scored, tmp_path, caplog):
+@pytest.mark.parametrize(
+    ("arm", "old", "new", "says"),
+    [
+        (TREE_ARM, '"tree": true', '"tree": 1', "draws tree 1, not True"),
+        (TREE_ARM, '"tree": true', '"tree": false', "draws tree False, not True"),
+        (TREE_ARM, ', "tree": true', "", "draws tree False, not True"),
+        (DIRECT_ARM, '"seed": 0', '"seed": 0, "tree": true', "draws tree True, not False"),
+    ],
+    ids=["int", "false", "absent", "direct-true"],
+)
+def test_an_arm_line_whose_tree_param_is_not_its_arms_exits_3(
+    scored, tmp_path, caplog, arm, old, new, says
+):
     shutil.copytree(scored.parent, tmp_path / "copy")
     folder = tmp_path / "copy" / "run"
     log = folder / "scores.log"
 
     def edit(found: re.Match[str]) -> str:
-        assert '"tree": true' in found[0]
-        return found[0].replace('"tree": true', '"tree": 1')
+        assert old in found[0]
+        return found[0].replace(old, new)
 
-    pattern = rf"arm holdout=0 arm={TREE_ARM} attempt=.*"
+    pattern = rf"arm holdout=0 arm={arm} attempt=.*"
     text, count = re.subn(pattern, edit, log.read_text(encoding="utf-8"))
     assert count == 1
     log.write_text(text, encoding="utf-8")
-    assert _trace(folder, "--arm", TREE_ARM) == (3, [])
-    assert f"{TREE_ARM}'s arm line draws tree 1, not True" in caplog.text
+    assert _trace(folder, "--arm", arm) == (3, [])
+    assert f"{arm}'s arm line {says}" in caplog.text
 
 
 def _error_rows(text: str) -> dict[tuple[int, str], float]:
