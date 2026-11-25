@@ -50,11 +50,14 @@ class Split:
         train: The rows every stage before Evaluate reads.
         test: The held-out rows; only `bko.evaluate` reads them.
         seed: The seed that ranked the records.
+        fixed: True when `test` is a published partition's test split, the same at every seed
+            (`fixed`), so no two holdouts' splits differ.
     """
 
     train: pd.DataFrame
     test: pd.DataFrame
     seed: int
+    fixed: bool = False
 
     @property
     def fingerprint(self) -> str:
@@ -100,14 +103,22 @@ def fixed(records: pd.DataFrame, *, held: Collection[int], seed: int) -> Split:
         `records`.
 
     Raises:
-        ContractError: If a held id is not in the index.
+        ContractError: If `held` is empty, the index has a duplicate, or a held id is not in the
+            index.
     """
+    if not held:
+        msg = "a fixed split needs one or more held records"
+        raise ContractError(msg)
+    if not records.index.is_unique:
+        msg = "a fixed split needs a unique record index"
+        raise ContractError(msg)
     missing = sorted(set(held) - set(records.index))
     if missing:
         msg = f"held record {missing[0]} is not among the records ({len(missing)} missing)"
         raise ContractError(msg)
     is_test = records.index.isin(list(held))
-    return Split(train=records.loc[~is_test].copy(), test=records.loc[is_test].copy(), seed=seed)
+    train, test = records.loc[~is_test].copy(), records.loc[is_test].copy()
+    return Split(train=train, test=test, seed=seed, fixed=True)
 
 
 def kept_count(cell_size: int, fraction: Fraction) -> int:

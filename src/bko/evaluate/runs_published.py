@@ -36,6 +36,8 @@ P1: Final = replace(
     decontaminate=False,
 )
 """E1 on ten holdouts with `P1_ARMS`, `bko-direct` the candidate against every other arm, a
-replica for every row-adding arm, no criterion, and test copies kept, since the partition is
-TableShift's. Every holdout scores the same test records (`bko.evaluate.data.held_split`), so
-its intervals read the arms' draw variance only."""
+replica for every row-adding arm and the candidate, no criterion, and test copies kept, since the
+partition is TableShift's. Every holdout scores the same test records after the same training
+records (`bko.evaluate.data.held_split`), so its intervals read the arms' draw variance only, and
+its held-out ratio is 0 (`bko.evaluate.prepare.held_out_ratio`): each interval is the plain t
+interval, with no Nadeau and Bengio test-overlap term."""

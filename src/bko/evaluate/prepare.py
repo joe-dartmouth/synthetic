@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 from hashlib import sha256
 
@@ -61,9 +61,7 @@ def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> P
 def _sized(parts: Split, fraction: Fraction, *, edges: Sequence[int]) -> Split:
     if fraction == 1:
         return parts
-    sized = Split(
-        subsampled(parts.train, fraction, seed=parts.seed, edges=edges), parts.test, parts.seed
-    )
+    sized = replace(parts, train=subsampled(parts.train, fraction, seed=parts.seed, edges=edges))
     logger.info(
         "subsample holdout=%d fraction=%s train=%d kept=%d ratio=%.6f",
         parts.seed,
@@ -92,7 +90,7 @@ def _ablated(
         len(removed),
         len(kept),
     )
-    return Split(kept, parts.test, parts.seed), removed
+    return replace(parts, train=kept), removed
 
 
 def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
@@ -101,8 +99,13 @@ def held_out_ratio(parts: Split, *, edges: Sequence[int]) -> float:
     Taking the largest keeps every scope's interval at least as wide as its own cells need. The
     harness reads it from the sized split (`Prepared.sized`): after the training fraction, which
     shrinks every training cell and so widens every interval, and before any removal, so one
-    thinned cell does not set it.
+    thinned cell does not set it. A fixed split's (`Split.fixed`) is 0: every holdout scores
+    the same test records after the same training records, so its contrasts vary only by the
+    arms' draws, independent across holdouts, and the plain t interval applies (ADR
+    `research/tableshift-comparison`, Decision 7).
     """
+    if parts.fixed:
+        return 0.0
     kept = cell_counts(parts.train, edges=edges)["count"].tolist()
     held = cell_counts(parts.test, edges=edges)["count"].tolist()
     return max(out / into for out, into in zip(held, kept, strict=True) if out)

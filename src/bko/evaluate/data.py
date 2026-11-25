@@ -77,7 +77,8 @@ class Data:
         agreement: The data use agreement the records are held under; None for open data. Every
             Messages arm refuses records whose agreement grants no permission to send them.
         digest: The sha256 of `records` as `digest` renders them, computed from them when the
-            value is made, which the candidates file's header names.
+            value is made, which the candidates file's header names; with `held`, the sha256
+            of that text followed by a `held=` line of the sorted held ids (`held_digest`).
         held: The record ids every holdout holds out, a published partition's test split; None
             splits each holdout by its seed (`bko.datasets.split.split`).
     """
@@ -91,8 +92,9 @@ class Data:
     digest: str = field(init=False)
 
     def __post_init__(self) -> None:
-        """Compute `digest` from `records`, so the two never disagree."""
-        object.__setattr__(self, "digest", digest(self.records))
+        """Compute `digest` from `records` and `held`, so they never disagree."""
+        found = digest(self.records) if self.held is None else held_digest(self.records, self.held)
+        object.__setattr__(self, "digest", found)
 
 
 class Reach(Protocol):
@@ -146,6 +148,15 @@ def digested(records: pd.DataFrame) -> tuple[str, str]:
     """The CSV text `digest` hashes, and its sha256, from one rendering of `records`."""
     text = records.to_csv(lineterminator="\n")
     return text, hashlib.sha256(text.encode()).hexdigest()
+
+
+def held_digest(records: pd.DataFrame, held: frozenset[int]) -> str:
+    """The sha256 of `records` as `digested` renders them, then `held=` and the sorted held ids.
+
+    Two runs whose records agree but whose held test splits differ get different digests.
+    """
+    ids = ",".join(str(record) for record in sorted(held))
+    return hashlib.sha256(f"{digested(records)[0]}held={ids}\n".encode()).hexdigest()
 
 
 def held_split(data: Data, seed: int) -> Split:
@@ -250,7 +261,8 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     `tableshift` frame of every kept row. Each takes `field_rows(dataset, context)`, and a
     fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
-    records' sha256) and its agreement: `none` for open data, else the agreement's name quoted.
+    records' sha256, with the held ids when there are some: `Data.digest`) and its agreement:
+    `none` for open data, else the agreement's name quoted.
 
     Raises:
         DatasetError: As `bko.datasets.fetch.ensure`, `bko.datasets.uci.load_uci` and

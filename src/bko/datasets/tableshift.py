@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from bko.datasets.archive import member_text
-from bko.datasets.diabetes import MEMBER, checked, parse_diabetic
+from bko.datasets.diabetes import MEMBER, STATE_CODES, checked, parse_diabetic
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.frames import FrameSpec
@@ -29,7 +29,6 @@ from bko.datasets.sources import DIABETES_130, Source
 from bko.datasets.tableshift_frame import (
     DOMAIN,
     DRUG_COLUMNS,
-    ID_FIELDS,
     STATES,
     encode,
     tableshift_frame,
@@ -102,23 +101,30 @@ def kept_rows(raw: pd.DataFrame) -> pd.DataFrame:
         row's 1-based position in `raw`.
 
     Raises:
-        ContractError: As `bko.datasets.diabetes.checked`, or if a drug column, an id column or
-            the domain column holds a value outside its codes.
+        ContractError: As `bko.datasets.diabetes.checked`, or if a drug column `checked` does not
+            read, `admission_type_id` or the domain column holds a value outside its codes,
+            naming the first such row's encounter in file order as `checked` does.
     """
     checked(raw)
     rows = raw.reset_index(drop=True)
     rows.index = pd.RangeIndex(1, len(rows) + 1, name="record_id")
     tests = [
-        *((name, STATES[name], f"not one of {sorted(STATES[name])}") for name in DRUG_COLUMNS),
-        *((name, None, "not a whole number") for name in (*ID_FIELDS, DOMAIN)),
+        *(
+            (name, rows[name].isin(list(STATES[name])), f"not one of {sorted(STATES[name])}")
+            for name in DRUG_COLUMNS
+            if name not in STATE_CODES
+        ),
+        *(
+            (name, rows[name].str.fullmatch(_WHOLE), "not a whole number")
+            for name in ("admission_type_id", DOMAIN)
+        ),
     ]
-    for name, codes, why in tests:
-        column = rows[name]
-        fits = column.isin(list(codes)) if codes is not None else column.str.fullmatch(_WHOLE)
+    for name, fits, why in tests:
         bad = ~fits.to_numpy(dtype=bool)
         if bad.any():
             first = int(bad.argmax())
-            msg = f"{MEMBER} row {rows.index[first]}: {name} is {column.iloc[first]!r}, {why}"
+            encounter = rows["encounter_id"].iloc[first]
+            msg = f"{MEMBER} encounter {encounter}: {name} is {rows[name].iloc[first]!r}, {why}"
             raise ContractError(msg)
     return rows.loc[rows["race"] != MISSING_RACE]
 
@@ -159,8 +165,8 @@ def load_tableshift(
 
     Raises:
         UnavailableError: If the snapshot is absent.
-        ContractError: If the archive contradicts its pin or schema (`kept_rows`), or no row
-            records a race.
+        ContractError: If the archive contradicts its pin or schema (`kept_rows`), no row
+            records a race, or `domain`'s test split holds no record.
     """
     data = read_verified(source, data_dir)
     raw = parse_diabetic(member_text(data, MEMBER, source))
@@ -182,6 +188,10 @@ def load_tableshift(
         len(raw) - len(kept),
     )
     test = parts.test if domain == "id" else parts.ood_test
+    if test.empty:
+        part = "test" if domain == "id" else "ood_test"
+        msg = f"{source.name}: TableShift's {part} split holds no record"
+        raise ContractError(msg)
     chosen = np.sort(np.concatenate([parts.train.to_numpy(), test.to_numpy()]))
     records = encode(kept).loc[chosen]
     return records, frozenset(int(record) for record in test), tableshift_frame(kept)
