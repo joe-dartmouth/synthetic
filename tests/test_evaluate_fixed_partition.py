@@ -160,7 +160,7 @@ def test_p1_names_the_stated_configuration():
     assert RUNS["p1-ood"].experiment == P1
     assert RUNS["p1-id"].dataset is Dataset.TABLESHIFT_ID
     assert RUNS["p1-ood"].dataset is Dataset.TABLESHIFT_OOD
-    assert list(RUNS)[-2:] == ["p1-id", "p1-ood"]
+    assert list(RUNS)[-3:-1] == ["p1-id", "p1-ood"]
 
 
 def _held(records: pd.DataFrame) -> frozenset[int]:

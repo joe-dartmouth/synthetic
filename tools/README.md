@@ -6,7 +6,7 @@ Run by `make check` and imported by nothing under `bko`. `tests/` imports them f
 
 | Module | Role |
 |--------|------|
-| `check_file_size.py` | `make sizes`: refuses a tracked Python file over its per-tree line cap. `CAPS` is the only home for the numbers, and the module is under its own cap (ADR `tooling/file-size-cap`). |
+| `check_file_size.py` | `make sizes`: refuses a tracked Python file over its per-tree line cap. `CAPS` is the only home for the numbers, and covers `src/`, `tests/`, `tools/`, `video/` and `bench/`; the module is under its own cap (ADR `tooling/file-size-cap`). |
 | `check_lock_drift.py` | `make synced`: compares the installed environment against `uv.lock`, for the packages that are installed. Refuses a lock it cannot read as one version per package. |
 | `check_rebased.py` | `make rebased` / `rebased-final`: refuses a tree the trunk has moved past (ADR `tooling/refuse-a-stale-trunk-ref`). |
 | `_git.py` | Not a checker. The one `git` runner, its timeout, and the toplevel guard that must be paired with it. |

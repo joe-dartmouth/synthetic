@@ -543,6 +543,7 @@ not a test of it.
 | [D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level) | Not read |
 | [D2](EVIDENCE.md#d2-data-contradictions-census) | Not read |
 | [P1](EVIDENCE.md#p1-tableshift-readmission-split) | Development comparison |
+| [P2](EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) | Development comparison |
 
 ### Completeness and validity for bko-direct
 
@@ -562,7 +563,9 @@ splits [`gardner-2023`][gardner-2023], reproduced as ADR
 as [P1](EVIDENCE.md#p1-tableshift-readmission-split). The NIST CRC ACS excerpts, scored with SDNist
 [`task-2024`][task-2024]. UCI Heart Disease under SynthEval's metrics
 [`lautrup-2024`][lautrup-2024], beside the heart-disease results Lautrup et al. report in figures
-[`lautrup-2026`][lautrup-2026]. Each
+[`lautrup-2026`][lautrup-2026], as ADR
+[`research/syntheval-reading`](adr/research/syntheval-reading.md) records and registered as
+[P2](EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval). Each
 is a development comparison, outside the confirmatory family. The CRC ACS reading runs only after
 the confirmatory ACS run is recorded.
 

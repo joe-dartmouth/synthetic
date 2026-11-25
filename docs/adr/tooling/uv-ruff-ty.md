@@ -42,12 +42,16 @@ We will use:
 - **Runtime dependencies as optional extras** (`data`, `ontology`, `llm`, `synth`, `eval`, `app`,
   `slm`),
   declared and locked now. **An extra joins `make setup` when something in `src/`, `tests/` or
-  `tools/` imports it, and not before.** `make sync` installs every extra.
+  `tools/` imports it, and not before.** `make sync` installs every extra. A tool joins the lock
+  as an extra only when the gate can import it with nothing but the interpreter and the lock;
+  any other tool runs in a hashed environment outside it (ADR
+  [`tooling/benchmark-tools-outside-the-lock`](benchmark-tools-outside-the-lock.md)).
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
   `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, `cells`, `synthea` and
   `reproduce`, which run dataset and ontology commands outside the gate, `app`, which serves
-  the Streamlit interface outside it, and `video-env` and `video`, which build and run the demo
-  video's environment outside the lock.
+  the Streamlit interface outside it, `video-env` and `video`, which build and run the demo
+  video's environment outside the lock, and `syntheval-env` and `syntheval-test`, which build and
+  test SynthEval's.
 
 ## Rationale
 

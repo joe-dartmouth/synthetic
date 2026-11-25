@@ -1,13 +1,13 @@
 ---
 id: evaluate-syntheval-results
 title: Run the SynthEval readings and regenerate Lautrup et al.'s heart-disease numbers
-status: blocked
-depends_on: evaluate-syntheval-heart-disease
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/syntheval-reading
 ---
 
 # Run the SynthEval readings and regenerate Lautrup et al.'s heart-disease numbers
@@ -18,15 +18,17 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 Lautrup et al. tabulate SynthEval numbers only for their hepatitis dataset. Their heart-disease
 results are figures, so a comparison needs their numbers regenerated from their MIT code
-([repository](https://github.com/notna07/disjoint-synthetic-data-generation)). Unit
-[`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) lands the scoring
-command and the runs.
+([repository](https://github.com/notna07/disjoint-synthetic-data-generation)). ADR
+[`research/syntheval-reading`](../docs/adr/research/syntheval-reading.md) records the scoring
+command, the `hd` mapping and the run `p2`, and the
+[P2 entry](../docs/EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) of `docs/EVIDENCE.md` its
+Configuration.
 
 ## Scope
 
 **In.**
 
-- Run the named runs and score each fill with the unit's command.
+- Run `p2`, then `rows` over its folder, and score each replica fill with `syntheval`.
 - Regenerate Lautrup et al.'s numbers from their code and codebooks on their `hd` split. Their
   code runs in a scratch environment outside the lock, its commit recorded.
 - The EVIDENCE entry's Runs, Result and Read against, recording both.

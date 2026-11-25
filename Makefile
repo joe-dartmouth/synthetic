@@ -1,5 +1,5 @@
 .NOTPARALLEL:
-.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce app video-env video
+.PHONY: setup sync lint format typecheck test sizes rebased rebased-final synced check cells synthea reproduce app video-env video syntheval-env syntheval-test
 
 # Install the extras the gate needs from the lock (ADR tooling/uv-ruff-ty says when an extra joins
 # this line). `--locked` refuses a lock that disagrees with pyproject.toml rather than rewriting it;
@@ -86,6 +86,21 @@ video-env:
 video:
 	@test -x video/.venv/bin/python || { echo "video: no video/.venv; run make video-env" >&2; exit 2; }
 	@PYTHONPATH=src:. video/.venv/bin/python -m video.render
+
+# Build SynthEval's own environment in bench/syntheval/.venv from the hashed
+# bench/syntheval/requirements.txt (ADR tooling/benchmark-tools-outside-the-lock). Not part of the
+# gate; it installs outside the lock and leaves uv.lock and .venv untouched. On macOS LightGBM,
+# which SynthEval imports, needs Homebrew's libomp. The interpreter flag is the environment's, not
+# one of the project pin's homes.
+syntheval-env:
+	uv venv --allow-existing --python 3.14 bench/syntheval/.venv
+	uv pip sync --python bench/syntheval/.venv/bin/python --require-hashes --only-binary :all: bench/syntheval/requirements.txt
+
+# Score a tiny fixture fill with the real SynthEval through bench/syntheval/score.py
+# (docs/DEVELOPMENT.md, Benchmark environments). Not part of the gate; needs make syntheval-env.
+syntheval-test:
+	@test -x bench/syntheval/.venv/bin/python || { echo "syntheval-test: no bench/syntheval/.venv; run make syntheval-env" >&2; exit 2; }
+	uv run --no-sync pytest bench/syntheval/tests -q -p no:cacheprovider --no-cov
 
 # The whole gate, ordered by what invalidates what and then by cost (docs/DEVELOPMENT.md).
 check: rebased synced lint sizes typecheck test rebased-final

@@ -327,6 +327,40 @@ def test_the_lock_records_exactly_the_declared_requirements():
     )
 
 
+def test_the_syntheval_env_recipe_syncs_hashed_requirements():
+    """`make syntheval-env` installs SynthEval from hashes into its own environment, binary only.
+
+    ADR `tooling/benchmark-tools-outside-the-lock`: it never touches `uv.lock` or `.venv`, and
+    `make syntheval-test` runs the script's real test, refusing with exit 2 without the
+    environment. Neither target is a dependency of `make check`.
+    """
+    venv, sync = _recipe("syntheval-env")
+    assert venv.split() == [
+        "uv", "venv", "--allow-existing", "--python", "3.14", "bench/syntheval/.venv"
+    ]  # fmt: skip
+    assert sync.split() == [
+        "uv",
+        "pip",
+        "sync",
+        "--python",
+        "bench/syntheval/.venv/bin/python",
+        "--require-hashes",
+        "--only-binary",
+        ":all:",
+        "bench/syntheval/requirements.txt",
+    ]
+    requirements = (REPO_ROOT / "bench/syntheval/requirements.txt").read_text(encoding="utf-8")
+    pins = re.findall(r"^([A-Za-z0-9_.-]+)==\S+ \\$", requirements, flags=re.MULTILINE)
+    assert "syntheval" in pins
+    assert requirements.count("--hash=sha256:") >= len(pins)
+    guard, run = _recipe("syntheval-test")
+    assert "make syntheval-env" in guard
+    assert "exit 2" in guard
+    assert run == "uv run --no-sync pytest bench/syntheval/tests -q -p no:cacheprovider --no-cov"
+    phony = next(line for line in makefile_text().splitlines() if line.startswith(".PHONY:"))
+    assert {"syntheval-env", "syntheval-test"} <= set(phony.split()[1:])
+
+
 def stray_tests(paths: list[str]) -> list[str]:
     """The tracked test files outside `tests/`, ignoring dot-directories and `scratchpad/`."""
     return sorted(

@@ -237,3 +237,7 @@ scratchpad/
 /presentations/*.pdf
 /presentations/*.pptx
 /video/media/
+
+# Each benchmark tool's environment, built by make <tool>-env (ADR
+# tooling/benchmark-tools-outside-the-lock)
+bench/*/.venv/

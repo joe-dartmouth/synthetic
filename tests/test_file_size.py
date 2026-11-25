@@ -110,6 +110,7 @@ BY_PREFIX = dict(CAPS)
         ("src/bko/example.py", "src/"),
         ("tools/check_file_size.py", "tools/"),
         ("video/model.py", "video/"),
+        ("bench/syntheval/score.py", "bench/"),
     ],
 )
 def test_each_tree_selects_the_rule_for_its_own_prefix(path: str, prefix: str):
