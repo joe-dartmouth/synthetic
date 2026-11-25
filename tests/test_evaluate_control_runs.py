@@ -10,11 +10,11 @@ import pytest
 from bko.datasets.split import split
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, load
-from bko.evaluate.experiment import PAID_ARMS, gap_request
+from bko.evaluate.experiment import DIRECT_ARMS, PAID_ARMS, REAL_ARM, gap_request
 from bko.evaluate.named_runs import E3, RUNS
 from bko.evaluate.prepare import prepared
 from bko.evaluate.reference import reference_of
-from bko.evaluate.run import method_arms
+from bko.evaluate.run import ARMS, method_arms
 from bko.evaluate.runs_diabetes import E6_CELL, E6_EMPTY, E6_THIN
 from bko.evaluate.runs_direct import CONTROL_ARMS, E12_EMPTY, E12_THIN, E13
 from bko.generate.messages import AnySend
@@ -173,3 +173,10 @@ def test_each_e12_run_requests_only_the_removed_cell_on_the_toy_cohort(tmp_path,
     request = gap_request(train, experiment, seed=0, frame=data.frame)
     assert set(request.quota) == {E6_CELL}
     assert request.quota[E6_CELL] > 0
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_every_control_arm_has_a_runner_or_is_the_reference(name):
+    """No `Experiment` refuses an unknown arm when built, so each name is checked here."""
+    runnable = {REAL_ARM, *ARMS, *DIRECT_ARMS}
+    assert set(RUNS[name].experiment.arms) <= runnable
