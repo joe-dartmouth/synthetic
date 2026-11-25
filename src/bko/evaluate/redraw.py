@@ -4,8 +4,9 @@
 `bko.evaluate.attempts.Attempt` as `bko.evaluate.direct.DirectArm` does, so its rows are the fill's
 rows byte for byte when the code and the data are the run's. `Shares` holds each asked cell's
 records and its label group's, from which `concept_facts` reads one concept's share, its parts,
-its S-nodes and its label. `TreeShares` reads a `bko-tree` draw's tree fields instead: each drawn
-leaf's parts at every level of its tree (ADR `research/ancestor-shrunk-shares`).
+its S-nodes and its label. `TreeShares` reads a `bko-tree` draw's tree fields instead, through the
+draw's own `bko.generate.tree_draw.TreeDraw`: each drawn leaf's parts at every level of its tree
+(ADR `research/ancestor-shrunk-shares`).
 `bko.evaluate.trace_direct` and `bko.evaluate.trace_perturb` read them (ADR
 `research/record-explainability`).
 """
@@ -28,8 +29,10 @@ from bko.evaluate.holdout_candidates import KEPT
 from bko.gaps.observe import Cell, Observed, record_cells
 from bko.gaps.shares import GROUP_WEIGHT, SharePart, share_parts
 from bko.generate.direct import Draw, label_group, sample
+from bko.generate.donors import _records, cell_records, members
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
-from bko.generate.tree import TOP, TreePart, column_trees, leaf_concept, tree_shares
+from bko.generate.tree import TOP, column_trees, leaf_concept
+from bko.generate.tree_draw import Placed, TreeDraw
 from bko.ontology.fragments import INDIVIDUAL
 from bko.ontology.terms import Ontology
 
@@ -130,7 +133,7 @@ class TreeShares:
         data: Data,
         ontologies: Mapping[str, Ontology],
     ) -> None:
-        """Read each tree field's parts at each of `cells`, as the draw reads its shares.
+        """Read each tree field's parts at each of `cells` through the draw's `TreeDraw`.
 
         Raises:
             GapError: As `Shares`.
@@ -145,18 +148,15 @@ class TreeShares:
         self._ontologies = ontologies
         frame = data.frame
         keys = cell_keys(train, edges=frame.edges)
-        self._parts: dict[tuple[Cell, str], dict[str, TreePart]] = {}
-        for cell in cells:
-            own = train.loc[keys.eq(pd.Series(cell, index=keys.columns)).all(axis=1).to_numpy()]
-            group = train.loc[train[frame.label].eq(int(cell[2]))]
-            for column, tree in self._trees.items():
-                _, parts = tree_shares(
-                    tree.counts({column: float(value)} for value in own[column]),
-                    tree.counts({column: float(value)} for value in group[column]),
-                    tree.tree,
-                    GROUP_WEIGHT,
-                )
-                self._parts[cell, column] = {part.node: part for part in parts}
+        draw = TreeDraw(self._trees)
+        groups = {
+            label: _records(members(train, label, frame), frame)
+            for label in {int(cell[2]) for cell in cells}
+        }
+        self._placed: dict[Cell, dict[str, Placed]] = {
+            cell: draw.at(cell, cell_records(train, keys, cell, frame), groups[int(cell[2])])
+            for cell in cells
+        }
 
     def concepts(self, draw: Draw) -> tuple[Json, ...]:
         """`Shares.concepts` of each concept no tree field reads, then each tree field's leaf.
@@ -167,7 +167,7 @@ class TreeShares:
         facts = [f for f in self._shares.concepts(draw) if f["concept"] not in self._read]
         for column, tree in self._trees.items():
             leaf = tree.leaf(draw.record)
-            parts = self._parts[draw.cell, column]
+            parts = self._placed[draw.cell][column].parts
             path = [parts[leaf]]
             while path[-1].parent != TOP:
                 path.append(parts[path[-1].parent])

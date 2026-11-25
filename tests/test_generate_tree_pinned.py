@@ -74,8 +74,8 @@ def test_each_columns_shares_sum_to_one_in_e6s_cell_and_its_label_group(name):
     trees = column_trees(DIABETES_CODES_FIELD_ROWS, frame, _ontologies())
     assert tuple(trees) == DIAGNOSES
     for column, tree in trees.items():
-        own = tree.counts({column: float(value)} for value in train.loc[inside, column])
-        held = tree.counts({column: float(value)} for value in group[column])
+        own = tree.counts(map(int, train.loc[inside, column]))
+        held = tree.counts(map(int, group[column]))
         for cell in (own, {}):
             shares, _ = tree_shares(cell, held, tree.tree, GROUP_WEIGHT)
             total = math.fsum(shares[leaf] for leaf in leaves(tree.tree))

@@ -178,8 +178,21 @@ def label_group(
     Raises:
         GapError: As `observe_records`.
     """
-    members = train.loc[train[frame.label].eq(label)]
-    return _observe_group(members, label, rows, name=name, frame=frame)
+    return _observe_group(members(train, label, frame), label, rows, name=name, frame=frame)
+
+
+def members(train: pd.DataFrame, label: int, frame: FrameSpec) -> pd.DataFrame:
+    """The training records of `label`: its label group."""
+    return train.loc[train[frame.label].eq(label)]
+
+
+def cell_records(
+    train: pd.DataFrame, keys: pd.DataFrame, cell: Cell, frame: FrameSpec
+) -> list[_Source]:
+    """`_records` of the training records whose `keys`, `cell_keys(train)`, are `cell`."""
+    return _records(
+        train.loc[keys.eq(pd.Series(cell, index=keys.columns)).all(axis=1).to_numpy()], frame
+    )
 
 
 def _observe_group(
@@ -204,10 +217,10 @@ def _label_groups(
 ) -> dict[int, _Group]:
     groups: dict[int, _Group] = {}
     for label in sorted(labels):
-        members = train.loc[train[frame.label].eq(label)]
-        observed = _observe_group(members, label, rows, name=name, frame=frame)
-        bands = [str(band) for band in keys.loc[members.index, keys.columns[0]]]
-        groups[label] = _Group(observed, _records(members, frame), bands)
+        group = members(train, label, frame)
+        observed = _observe_group(group, label, rows, name=name, frame=frame)
+        bands = [str(band) for band in keys.loc[group.index, keys.columns[0]]]
+        groups[label] = _Group(observed, _records(group, frame), bands)
     return groups
 
 

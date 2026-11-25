@@ -77,11 +77,15 @@ class ColumnTree:
 
     def leaf(self, record: Mapping[str, float]) -> str:
         """The leaf `record`'s value of the column shows."""
-        return self.codes.get(int(record[self.column]), UNMAPPED)
+        return self.leaf_of(int(record[self.column]))
 
-    def counts(self, records: Iterable[Mapping[str, float]]) -> Counter[str]:
-        """How many of `records` show each leaf."""
-        return Counter(self.leaf(record) for record in records)
+    def leaf_of(self, code: int) -> str:
+        """The leaf `code` shows in the column."""
+        return self.codes.get(code, UNMAPPED)
+
+    def counts(self, codes: Iterable[int]) -> Counter[str]:
+        """How many of `codes` show each leaf."""
+        return Counter(self.leaf_of(code) for code in codes)
 
 
 def column_trees(
