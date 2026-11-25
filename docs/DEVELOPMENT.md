@@ -1852,19 +1852,23 @@ Inside `.venv`:
   size and sha256 match, and verifies a file already present.
 - **`train`** reads the folder and its `rows` store, bound as `rows` binds them, and prepares the
   holdout as the run did. The training set is the prepared training split for `none`, the
-  un-ablated split for `real`, and the split plus the arm's stored fill for any other arm. It
-  verifies every weight file's sha256 before the load, loads the model in BF16 on MPS, and
-  writes the adapter to `data/models/slm-adapters/<folder-id>/<h>-<arm>/`, refusing a path that
-  exists. An adapter stays on the machine. Its log holds the `versions` line, a `step` line per
+  un-ablated split for `real`, and the split plus the arm's stored fill for any other arm; a run
+  whose experiment decontaminates is refused, since the test split is scored whole. It verifies
+  every weight file's sha256 before the load, loads the model in BF16 on MPS, and writes the
+  adapter to `data/models/slm-adapters/<folder-id>/<h>-<arm>/`, refusing a path that exists:
+  `adapter_config.json`, `adapter_model.safetensors` and `adapter_meta.json`, which names the
+  run, folder, store sha256, holdout, arm and base revision. An adapter stays on the machine. Its log holds the `versions` line, a `step` line per
   optimizer step, a `train seconds=` line and the `adapter` line with the adapter's sha256.
 - **`score`** writes `record_id,probability` for every test record of the holdout, from the
   adapter of `--arm` or the base model with `--base`, and logs each `utility` measure with the
-  calibration measures, then `probabilities rows=<n> sha256=<sha>`.
+  calibration measures, then `probabilities rows=<n> sha256=<sha>`. It refuses an adapter
+  directory holding any other file, or whose meta differs from its own arguments.
 - **Power**: a fine-tune runs for hours. Check that `pmset -g batt | head -1` names AC Power
   first; `caffeinate -i -s` keeps the machine awake on AC power.
 - **Exit codes**: 0 done; 1 an unexpected error; 2 the command could not run (no MPS, an absent
-  model directory, a failed download, an adapter path that exists or is absent); 3 a file or a
-  record contradicts its pin or contract (a weight file's sha256, a stored fill's identity).
+  model directory, a failed download, an adapter path that exists or is absent, any other
+  `OSError`); 3 a file or a record contradicts its pin or contract (a weight file's sha256, a
+  stored fill's identity or its absence, an adapter directory's files or meta).
 
 ## Runs
 
@@ -2146,6 +2150,9 @@ A targeted run while working:
   the state as each test's setup starts and compares it after its teardown, then restores it. A
   logger created during the test compares against `NOTSET`. A test that calls `configure`
   restores the state itself or stubs it.
+- **No `bko.slm` test connects a socket.** `tests/conftest.py` patches `socket.socket.connect` to
+  raise its `NETWORK_REFUSAL` for each test, fixtures included, of a module named `test_slm_*`,
+  so a load that would reach the Hugging Face Hub fails the test.
 - **One test reaches the network.** The `check_rebased` recipe case in `tests/test_git_runner.py`
   runs the real probe against `origin` and carries the `integration` marker;
   `-m "not integration"` deselects it.

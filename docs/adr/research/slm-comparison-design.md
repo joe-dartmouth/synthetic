@@ -8,12 +8,13 @@ updated: 2026-11-24
 
 ## Context
 
-The arms' records are scored by tabular classifiers ([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
-Whether the differences between generators survive in a fine-tuned language model is unknown. A
-comparison of the arms through a language model is fair only if every arm shares one serializer,
-one base model and one training budget. ADR [`tooling/slm-extra`](../tooling/slm-extra.md) holds
-the stack and the base model, OLMo 3 7B, and measures one fine-tune over E6 holdout 0's full
-training split at 17 to 28 hours on this machine.
+The arms' records are scored by tabular classifiers
+([EVIDENCE.md](../../EVIDENCE.md#e6-diabetes-130-subgroup-removal)). Whether the differences
+between generators survive in a fine-tuned language model is unknown. A comparison of the arms
+through a language model is fair only if every arm shares one serializer, one base model and one
+training budget. ADR [`tooling/slm-extra`](../tooling/slm-extra.md) holds the stack and the base
+model, OLMo 3 7B, and measures one fine-tune over E6 holdout 0's full training split at 17 to 28
+hours on this machine.
 
 The nearest prior study is HARMONIC's LLM Efficacy
 ([`harmonic-2024`](../../literature.md#tabular-generators)), which fine-tunes a language model on
@@ -44,30 +45,34 @@ deleted after the comparison.
 
 ## Decision
 
-1. **Serializer** (`bko.slm.serialize`). One prompt template serves training and scoring: one line per feature in the
-   frame's feature order, the feature's description, a colon and its value (a coded value as its
-   codebook meaning, a whole value without a decimal point, a fractional value at the frame's
-   decimal places), then the frame's question. The answer is ` yes` or ` no`, one token each. A
-   training text minus its answer is the scoring prompt.
+1. **Serializer** (`bko.slm.serialize`). One prompt template serves training and scoring: one
+   line per feature in the frame's feature order, the feature's description, a colon and its
+   value (a coded value as its codebook meaning, a whole value without a decimal point, a
+   fractional value at the frame's decimal places), then the frame's question. The answer is
+   ` yes` or ` no`, one token each. A training text minus its answer is the scoring prompt.
 2. **Loss.** The loss falls on the answer token alone, over records of both labels.
 3. **Probability.** P(yes) is the softmax over the two answer tokens' logits at the last prompt
    position.
 4. **Training set per arm.** The training split plus the arm's stored fill. **Controls:** the base
    model with no fine-tune, `none` (the training split alone) and `real` (the un-ablated split).
-5. **LoRA settings** (`bko.slm.train.LORA`). Rank 16, alpha 32, dropout 0.05, every linear layer; AdamW at torch's
-   defaults and learning rate 2e-4, linear warmup over 3% of the steps then linear decay;
-   micro-batch 4; one epoch; seed 0.
+   The test split is scored whole, so a run whose experiment decontaminates is refused.
+5. **LoRA settings** (`bko.slm.train.LORA`). Rank 16, alpha 32, dropout 0.05, every linear
+   layer; AdamW at torch's defaults and learning rate 2e-4, linear warmup over 3% of the steps
+   then linear decay; micro-batch 4; one epoch; seed 0.
 6. **Adapter path.** `data/models/slm-adapters/<run-id>/<holdout>-<arm>/`, under the gitignored
    `data/`. An adapter never leaves the machine: one fitted on patient-derived records can
-   reproduce training rows.
+   reproduce training rows. The directory holds the adapter's configuration, its safetensors
+   weights and `adapter_meta.json`, which names the run, folder, `rows` store sha256, holdout, arm
+   and base revision; scoring refuses a directory holding any other file or a meta that differs
+   from its arguments.
 7. **Reproducibility.** A fine-tune is reproducible at one seed on this machine: two fits give
    bitwise-equal adapters (Context, Determinism), so one fine-tune per arm and seed stands for
    that arm, and a stored adapter's sha256 can be re-derived by fitting again.
 8. **Budget.** A full-split fine-tune takes 17 to 28 hours (ADR `tooling/slm-extra`), so eight
-   fine-tunes per holdout cost about 6 to 10 days; the team does not run that. The whole
-   comparison fits in under one day of machine time. The holdouts, seeds, rows per fine-tune,
-   base model size, power limit and share mixes are fixed by unit `slm-lora-day-budget`, which
-   revises this record.
+   fine-tunes per holdout cost about 6 to 10 days. The comparison's budget is under one day of
+   machine time. This record does not fix the comparison's holdouts, seeds, rows per fine-tune,
+   base model size, power limit or share mixes; unit `slm-lora-day-budget` fixes them and revises
+   this record.
 
 ## Rationale
 
@@ -99,8 +104,11 @@ an adapter path that keeps fitted weights out of the repository and off the netw
 - Owner: `docs/adr/tooling/slm-extra.md`
 - Pinned by: `tests/test_repo_gate.py`; `tests/test_slm_serialize.py` for the serializer's
   golden prompt and its training text; `tests/test_slm_train.py` for the answer-only loss, the
-  two-logit P(yes) and the adapter's safetensors file
-- Code: `src/bko/slm/serialize.py`, `src/bko/slm/train.py`
+  two-logit P(yes) at each prompt's last token, the settings reaching the fit, and the adapter's
+  safetensors file, and `test_the_comparison_lora_settings_are_pinned` for `LORA`'s values;
+  `tests/test_slm_holdout.py` for each arm's training set and the refused decontaminating run;
+  `tests/test_slm_cli.py` for the adapter directory's files and meta
+- Code: `src/bko/slm/serialize.py`, `src/bko/slm/train.py`, `src/bko/slm/__main__.py`
 
 ## Reversal Conditions
 

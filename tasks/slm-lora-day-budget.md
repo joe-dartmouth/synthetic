@@ -7,7 +7,7 @@ blocks: slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/slm-comparison-design, tooling/slm-extra
 ---
 
 # Fit the LoRA comparison of the arms into one day of machine time

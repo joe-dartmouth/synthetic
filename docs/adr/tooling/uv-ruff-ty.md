@@ -69,8 +69,8 @@ verdicts that move only when a pin moves.
 **Accepted**: a new lint rule never arrives on its own; a ruff or ty bump needs a commit and
 `make setup`. A developer working on a stage installs its extra by hand until the stage's first
 import moves it into `make setup`. `make setup` installs `synth` because `bko.baselines` imports
-it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto and fastobo,
-and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
+it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto and
+fastobo, and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
 paid-request guard, and `app` because `bko.app` imports streamlit, which `make typecheck` must
 resolve, and `slm` because `bko.slm` imports transformers and peft. `synth`
 brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packages and `triton`.
@@ -94,7 +94,8 @@ brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packag
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
   distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
   `make setup` installs at least the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`, `app` and
-  `slm` extras, and that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
+  `slm` extras, and that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe
+  `--locked`.
 
 ## Reversal Conditions
 

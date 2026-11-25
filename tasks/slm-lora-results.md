@@ -7,7 +7,7 @@ blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/slm-comparison-design, tooling/slm-extra
 ---
 
 # Run the LoRA comparison of the arms on E6's frame

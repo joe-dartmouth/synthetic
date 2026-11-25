@@ -67,14 +67,13 @@ extra exited 0, building only the project itself, and MPS was available.
 
 The lock holds an **`slm` extra of transformers, peft, tokenizers, safetensors and accelerate,
 with torch**, which the `synth` extra already locks; `make setup` installs it because `bko.slm`
-imports it. `uv.lock` holds the exact versions; adding the extra added packages and moved none
-already locked. We fine-tune
+imports it. `uv.lock` holds the exact versions, and every package the other extras lock is at
+the version it holds without the `slm` extra. We fine-tune
 **`allenai/Olmo-3-1025-7B` at revision `a81bae42db3975be1671e27b9c9a56da1a9f980f`**: Apache-2.0
 (its model card, read at that revision on 2026-11-24), trained on the Dolma 3 mixes its card
 links, which the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0 (read the same day),
-loaded only from the files `bko.slm.weights.OLMO_3_7B` pins by size and sha256 (read from the
-repository at that revision on 2026-11-24), only as safetensors and only after every file
-verifies.
+from the files `bko.slm.weights.OLMO_3_7B` pins by size and sha256 (read from the repository at
+that revision on 2026-11-24), as safetensors alone.
 
 ## Rationale
 
@@ -107,13 +106,18 @@ few fine-tunes; every clone that runs `make setup` downloads the stack.
 ## Enforcement
 
 - Owner: `pyproject.toml`
+- Guard: `bko.slm.weights` verifies every pinned file's size and sha256 before the model loads,
+  and loads local files alone, as safetensors, with no remote code; `python -m bko.slm score`
+  loads an adapter directory only when it holds the adapter's configuration, its safetensors
+  weights and its meta alone, with `use_safetensors`
 - Pinned by: `tests/test_repo_gate.py`, which asserts `make setup` installs the `slm` extra;
   `tests/test_slm_weights.py`, which refuses a file whose sha256 differs before the loader runs,
   a file outside the pin and a pickle format, and holds every URL to the pinned revision
 
 ## Reversal Conditions
 
-`uv lock` with the extra stops exiting 0, or a re-lock moves a package other extras hold; or the base model's weights stop shipping as safetensors at the pinned revision.
+`uv lock` with the extra stops exiting 0, or a re-lock moves a package other extras hold; or the
+base model's weights stop shipping as safetensors at the pinned revision.
 
 ## Related
 
