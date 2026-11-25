@@ -20,7 +20,7 @@ from bko.evaluate.data import load
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.direct_arms import CAPPED_ARM, DIRECT_ARM, DIRECT_ARMS
 from bko.evaluate.donor_attacks import donor_counts, match_groups
-from bko.evaluate.experiment import REAL_ARM, gap_request
+from bko.evaluate.experiment import gap_request
 from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.prepare import prepared
@@ -164,13 +164,15 @@ def test_donor_reuse_of_a_capped_fill_is_at_most_the_cap_per_unit(scored):
 
 @pytest.mark.parametrize(("capped", "e9"), [(E14_THIN, E9_THIN), (E14_EMPTY, E9_EMPTY)])
 def test_e14_is_e9_with_the_capped_arm_against_bko_direct(capped, e9):
-    assert capped == dataclasses.replace(
-        e9,
-        arms=("none", REAL_ARM, DIRECT_ARM, CAPPED_ARM),
-        candidate=CAPPED_ARM,
-        comparators=(DIRECT_ARM, "none"),
-    )
+    assert capped.arms == ("none", "real", "bko-direct", "bko-capped")
+    assert capped.candidate == "bko-capped"
+    assert capped.comparators == ("bko-direct", "none")
     assert capped.replica_arms == ()
+    changed = {"arms", "candidate", "comparators", "replica_arms"}
+    for field in dataclasses.fields(capped):
+        if field.name not in changed:
+            assert getattr(capped, field.name) == getattr(e9, field.name), field.name
+    assert capped.removal is not None
 
 
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
