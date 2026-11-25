@@ -48,26 +48,36 @@ def test_the_arms_are_the_stated_set():
     )
     fill_to = {"fifteen": 1268, "thirty": 1268, "fifty": 1268, "eighty": 1265, "ninetyfive": 1260}
     assert tuple(P3) == NAMES
+    changed = {
+        "arms",
+        "candidate",
+        "comparators",
+        "replica_arms",
+        "replica_rows",
+        "removal",
+        "flagged_cell",
+        "fill_to",
+    }
     for name, experiment in P3.items():
-        assert experiment == dataclasses.replace(
-            E6_THIN,
-            arms=P3_ARMS,
-            candidate="bko-direct",
-            comparators=(
-                "none",
-                "smote",
-                "ctgan",
-                "cart",
-                "bko-nomap",
-                "label-bootstrap",
-                "prior-shift",
-            ),
-            replica_arms=(),
-            replica_rows=None,
-            removal=Removal(CELL, P3_FRACTIONS[name]),
-            flagged_cell=CELL,
-            fill_to=fill_to[name],
+        assert experiment.arms == P3_ARMS
+        assert experiment.candidate == "bko-direct"
+        assert experiment.comparators == (
+            "none",
+            "smote",
+            "ctgan",
+            "cart",
+            "bko-nomap",
+            "label-bootstrap",
+            "prior-shift",
         )
+        assert experiment.replica_arms == ()
+        assert experiment.replica_rows is None
+        assert experiment.removal == Removal(CELL, P3_FRACTIONS[name])
+        assert experiment.flagged_cell == CELL
+        assert experiment.fill_to == fill_to[name]
+        for field in dataclasses.fields(Experiment):
+            if field.name not in changed:
+                assert getattr(experiment, field.name) == getattr(E6_THIN, field.name), field.name
 
 
 @pytest.mark.parametrize(
@@ -103,7 +113,11 @@ def test_juwaras_total_floors_the_restored_count():
         1265,
         1260,
     ]
-    assert juwara_total(7, 0.5) == 6
+
+
+def test_juwaras_total_floors_where_ceiling_and_rounding_would_not():
+    # 0.15 of 7 rows removes ceil(1.05) = 2, so 5 remain and 5 / 0.85 is 5.88: floored to 5.
+    assert juwara_total(7, 0.15) == 5
 
 
 @pytest.mark.parametrize("fraction", [0.0, 1.0])
@@ -114,9 +128,22 @@ def test_juwaras_total_refuses_a_fraction_it_cannot_restore(fraction):
 
 def test_no_p3_run_holds_a_paid_arm():
     names = [name for name in RUNS if name.startswith("p3-")]
-    assert len(names) == len(NAMES) * 11
+    assert names
     for name in names:
         assert not set(RUNS[name].experiment.arms) & PAID_ARMS
+
+
+def test_every_p3_run_is_a_whole_or_one_of_the_slices_that_cover_its_holdouts_once():
+    held: dict[str, list[int]] = {f"p3-{name}": [] for name in NAMES}
+    for name in (name for name in RUNS if name.startswith("p3-")):
+        wholes = wholes_of(name)
+        if not wholes:
+            assert name in held
+            continue
+        (whole,) = wholes
+        held[whole] += RUNS[name].experiment.holdout_seeds
+    for whole, seeds in held.items():
+        assert sorted(seeds) == list(RUNS[whole].experiment.holdout_seeds), whole
 
 
 @pytest.mark.parametrize("name", NAMES)
