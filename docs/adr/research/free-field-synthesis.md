@@ -99,7 +99,8 @@ donors, which donor reuse reads.
   fields and label equal to `bko-direct`'s, its lines and log lines, the trace's leaf donors and
   its refusal, the attribution class, donor reuse and E17's runs),
   `tests/test_evaluate_coherent_pinned.py` (a fill of E6's cell completes at both fractions on
-  the pinned data, run with `--releases`)
+  the pinned data, each coherence rule breaking in at most as many rows as under `bko-direct` at
+  the same seed, run with `--releases`)
 
 ## Reversal Conditions
 

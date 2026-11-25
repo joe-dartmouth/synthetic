@@ -3,7 +3,8 @@
 The draw reads the pinned Diabetes 130 archive and the pinned releases over its field rows. It is
 skipped unless `--releases` is passed, since the gate reads no `data/`; an absent snapshot or
 release fails it rather than skipping it. Each fill logs its three coherence counts beside
-`bko-direct`'s at the same seed.
+`bko-direct`'s at the same seed, and each rule's breaks under `bko-coherent` are at most
+`bko-direct`'s.
 """
 
 from __future__ import annotations
@@ -114,3 +115,5 @@ def test_a_coherent_fill_of_e6s_cell_completes_at_both_fractions(name, asked):
         asked,
         " ".join(f"{rule}={ours[rule]}/{theirs[rule]}" for rule in RULES),
     )
+    for rule in RULES:
+        assert ours[rule] <= theirs[rule], (rule, ours[rule], theirs[rule])
