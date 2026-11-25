@@ -423,3 +423,50 @@ def test_frames_loads_every_release_once_and_gives_each_frame_its_own(tmp_path, 
 def test_the_census_reads_its_three_frames():
     assert CENSUS == (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES)
     assert Dataset.DIABETES_CODES not in CENSUS
+
+
+def _per_dataset(
+    monkeypatch, own: Mapping[str, Source], uci_rows: tuple[FieldMapping, ...] = (ANGINA,)
+) -> list[dict[str, Source]]:
+    """Give Synthea `own` as its releases and every other dataset the context's; record loads."""
+    given = {
+        Dataset.UCI: Data(clean().train, UCI_FRAME, uci_rows, NAME, None),
+        Dataset.SYNTHEA: Data(clean().train, UCI_FRAME, (STENOSIS,), NAME, None),
+    }
+    loads: list[dict[str, Source]] = []
+
+    def load_releases(sources, data_dir, *, open_url) -> dict[str, Ontology]:
+        loads.append(dict(sources))
+        return {prefix: ontologies()["HP"] for prefix in sources}
+
+    def dataset_releases(dataset: Dataset, context: Context) -> Mapping[str, Source]:
+        return own if dataset is Dataset.SYNTHEA else context.releases
+
+    monkeypatch.setattr(census_module, "load", lambda dataset, *_: given[dataset])
+    monkeypatch.setattr(census_module, "load_releases", load_releases)
+    monkeypatch.setattr(census_module, "dataset_releases", dataset_releases)
+    return loads
+
+
+def test_frames_loads_a_datasets_own_release_map(tmp_path, monkeypatch):
+    pins, _ = ladder_releases()
+    own = {"MONDO": dataclasses.replace(pins["MONDO"], name="mondo-own")}
+    loads = _per_dataset(monkeypatch, own)
+    frames((Dataset.UCI, Dataset.SYNTHEA), tmp_path, Context(releases={"HP": pins["HP"]}))
+    assert loads == [{"HP": pins["HP"], "MONDO": own["MONDO"]}]
+
+
+def test_frames_refuses_two_datasets_pinning_one_prefix_to_different_releases(
+    tmp_path, monkeypatch
+):
+    pins, _ = ladder_releases()
+    other = dataclasses.replace(pins["MONDO"], name="mondo-own", sha256="f" * 64)
+    loads = _per_dataset(monkeypatch, {"MONDO": other}, (ANGINA, STENOSIS))
+    held = pins["MONDO"]
+    msg = (
+        f"^two datasets pin the prefix MONDO to different releases: {held.name} "
+        f"sha256={held.sha256[:16]} and mondo-own sha256={'f' * 16}$"
+    )
+    with pytest.raises(EvaluationError, match=msg):
+        frames((Dataset.UCI, Dataset.SYNTHEA), tmp_path, Context(releases=pins))
+    assert loads == []

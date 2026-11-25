@@ -98,7 +98,7 @@ is_a: TOY:0000001
 TOY_OWL: Final = b'<?xml version="1.0"?>\n<rdf:RDF><owl:Ontology rdf:about="toy"/></rdf:RDF>\n'
 
 
-def test_a_fixture_datasets_own_prefix_loads_its_scope(tmp_path):
+def test_a_converted_releases_prefix_loads_its_scope_through_dataset_releases(tmp_path):
     owl = dataclasses.replace(pin(TOY_OWL, name="toy-owl"), filename="toy.owl")
     jar = pin(b"robot" * 50, name="robot-jar")
     opener = RoutingOpener({owl.url: TOY_OWL, jar.url: b"robot" * 50})

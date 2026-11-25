@@ -409,7 +409,8 @@ class FakeRobot:
     """Writes its stderr, then a canned OBO to the argv's output, or fails as told.
 
     The OBO is `text` when given, else `ELK_MONDO` for an input naming `mondo` and `LADDER_HPO`
-    for any other.
+    for any other. With `leak`, the OBO is written before a non-zero exit or a timeout too, as a
+    ROBOT killed mid-write leaves part of one.
     """
 
     def __init__(
@@ -419,12 +420,14 @@ class FakeRobot:
         timeout: bool = False,
         write: bool = True,
         text: str | None = None,
+        leak: bool = False,
     ) -> None:
         self.status = status
         self.stderr = stderr
         self.timeout = timeout
         self.write = write
         self.text = text
+        self.leak = leak
         self.calls: list[list[str]] = []
         self.cwds: list[Path] = []
 
@@ -432,11 +435,12 @@ class FakeRobot:
         self.calls.append(list(argv))
         self.cwds.append(cwd)
         stderr.write_bytes(self.stderr)
-        if self.timeout:
-            raise subprocess.TimeoutExpired(list(argv), timeout)
-        if self.status == 0 and self.write:
+        succeeds = self.status == 0 and not self.timeout
+        if self.write and (succeeds or self.leak):
             out = Path(argv[argv.index("--output") + 1])
             owl = Path(argv[argv.index("--input") + 1]).read_bytes()
             canned = ELK_MONDO if b"mondo" in owl else LADDER_HPO
             out.write_text(canned if self.text is None else self.text, encoding="utf-8")
+        if self.timeout:
+            raise subprocess.TimeoutExpired(list(argv), timeout)
         return self.status

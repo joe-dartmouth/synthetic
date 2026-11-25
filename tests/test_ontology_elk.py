@@ -332,6 +332,17 @@ def test_classify_raises_unavailable_on_a_timeout(tmp_path):
         )
 
 
+def test_classify_raises_unavailable_naming_a_java_that_cannot_start(tmp_path):
+    def runner(argv, timeout, cwd, stderr) -> int:
+        raise PermissionError(13, "Permission denied", argv[0])
+
+    owl = tmp_path / "m.owl"
+    with pytest.raises(UnavailableError, match=f"^could not run {JAVA} classifying {owl}: "):
+        elk_module.classify(
+            owl, tmp_path / "m.obo", java=JAVA, jar=tmp_path / "robot.jar", runner=runner
+        )
+
+
 def test_the_real_runner_writes_stderr_to_the_file_in_the_given_directory(monkeypatch, tmp_path):
     seen: dict[str, object] = {}
 
