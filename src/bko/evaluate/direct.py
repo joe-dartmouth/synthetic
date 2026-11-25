@@ -293,6 +293,7 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
             on_holdout=on_holdout,
             frame=frame,
             held=held,
+            rows=knowledge.field_rows,
         )
     finally:
         for arm in direct.values():

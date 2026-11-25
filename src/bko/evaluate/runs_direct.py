@@ -1,8 +1,8 @@
 """The direct-method study's runs: the control runs on E6's and E3's frames, and its variants.
 
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
-`bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`. `bko.evaluate.named_runs.RUNS` names
-them (`docs/EVIDENCE.md`, E12 to E14).
+`bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, and `E15_THIN` and `E15_EMPTY`
+`bko-tree`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E15).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from dataclasses import replace
 from typing import Final
 
 from bko.baselines.request import Method
-from bko.evaluate.direct_arms import CAPPED_ARM, DIRECT_ARM, LOGIC_ARM, NOMAP_ARM
+from bko.evaluate.direct_arms import CAPPED_ARM, DIRECT_ARM, LOGIC_ARM, NOMAP_ARM, TREE_ARM
 from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_run import BAYES_NET, E3
 from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
@@ -70,3 +70,18 @@ E14_EMPTY: Final = replace(
 """E14's runs: `E9_THIN` and `E9_EMPTY` with `bko-capped` in place of `bko-logic` as the candidate
 against `bko-direct` and `none`, and no replica, since a replica of every cell would exhaust a
 cap of 1 (ADR `research/sampler-donor-limits`). No arm calls the API, so the ceiling is inert."""
+
+
+E15_THIN, E15_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM, TREE_ARM),
+        candidate=TREE_ARM,
+        comparators=(DIRECT_ARM, NOMAP_ARM, "none"),
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E15's runs: `E9_THIN` and `E9_EMPTY` with `bko-nomap` beside `bko-direct` and `bko-tree` in
+place of `bko-logic` as the candidate, and no replica (ADR `research/ancestor-shrunk-shares`).
+`bko.evaluate.named_runs.RUNS` scores them on `diabetes-codes`. No arm calls the API, so the
+ceiling is inert."""

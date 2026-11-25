@@ -345,6 +345,7 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
             exclude=exclude,
             logged=logged,
             calibration=calibration,
+            rows=data.field_rows,
         )
         _check_holdout(folder, seed, logged)
         if after is not None:

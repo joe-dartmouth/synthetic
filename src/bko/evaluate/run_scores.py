@@ -3,7 +3,8 @@
 `_arm_scores` scores an arm's augmented training set under every model, the regression first, and
 `_replica_scores` scores a replica fill alone. Each fit goes through `probabilities`, and a
 fixed-epoch model's fit is logged under the harness's logger name, `bko.evaluate.run`, which
-its log readers and tests filter on.
+its log readers and tests filter on. `value_shares` and `code_share_error` read how far an arm's
+added rows' codes sit from the removed rows' in a run that holds `bko-tree`.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Mapping, Sequence
+from types import MappingProxyType
 from typing import Final, cast
 
 import pandas as pd
@@ -36,7 +38,7 @@ MIN_LABELS: Final = 2
 """The labels a replica's rows must hold for a classifier fit on them alone to be scored."""
 
 
-def _arm_scores(
+def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside the fit's inputs)
     seed: int,
     name: str,
     baseline: Baseline,
@@ -47,8 +49,14 @@ def _arm_scores(
     frame: FrameSpec,
     cutoff: float,
     calibration: bool,
+    *,
+    share_error: Mapping[str, pd.Series] = MappingProxyType({}),
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
+
+    With `share_error`, each tree field's value shares in the removed training rows
+    (`value_shares`), the arm writes `Measure.CODE_SHARE_ERROR` at the flagged scope after its
+    distances, NaN when it added no rows, so every holdout of the run holds the same keys.
 
     The regression's utility comes first, then each other model's in `models`' order, each with
     its calibration measures when `calibration` holds.
@@ -63,6 +71,11 @@ def _arm_scores(
     scores = _rows(seed, name, Source.ADDED, counts)
     if len(added):
         scores += _rows(seed, name, Source.ADDED, distances(added, train, frame=frame))
+    if share_error:
+        error = code_share_error(added, share_error) if len(added) else math.nan
+        scores.append(
+            Score(seed, name, Source.ADDED, Measure.CODE_SHARE_ERROR, Scope.FLAGGED, error)
+        )
     training = training_set(train, baseline, frame=frame)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     shift_counts = (
@@ -94,6 +107,30 @@ def _arm_scores(
         )
         scores += _scoped(seed, name, Source.AUGMENTED, _suffixed(measured, model))
     return scores
+
+
+def value_shares(values: pd.Series) -> pd.Series:
+    """Each value's share of `values`, indexed by the value as a float; empty for no value."""
+    return values.astype(float).value_counts(normalize=True, sort=False)
+
+
+def code_share_error(added: pd.DataFrame, removed: Mapping[str, pd.Series]) -> float:
+    """The mean over `removed`'s columns of the total variation distance from `added`'s shares.
+
+    Each column's distance is half the sum, over every value either side holds, of the absolute
+    difference between `added`'s share (`value_shares`) and `removed`'s. A column `removed` holds
+    no value of reads NaN, and so does the mean.
+    """
+    distances = []
+    for column, held in removed.items():
+        if held.empty:
+            distances.append(math.nan)
+            continue
+        drawn = value_shares(added[column])
+        values = drawn.index.union(held.index)
+        gaps = drawn.reindex(values, fill_value=0.0) - held.reindex(values, fill_value=0.0)
+        distances.append(math.fsum(gaps.abs()) / 2)
+    return math.fsum(distances) / len(distances)
 
 
 def _fitted(

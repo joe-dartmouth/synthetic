@@ -5,13 +5,14 @@ A tree field is a column whose rows each map one set of its codes and partition 
 one parent per node, under a virtual top that also holds the `unmapped` leaf. `tree_shares` reads
 each node's share as its parent's share times a conditional: the cell's split of the parent shrunk
 toward the label group's. ADR `research/ancestor-shrunk-shares` records the rule; the ontologies
-are passed in, so this module loads no release.
+are passed in, so this module loads no release. `column_trees` holds each tree field's tree and
+the leaf each of its codes shows, which the direct sampler (`bko.generate.direct`) draws from.
 """
 
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
@@ -58,6 +59,50 @@ class TreePart:
     weight: int
     conditional: float
     share: float
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnTree:
+    """One tree field's tree and the leaf each mapped code shows.
+
+    Attributes:
+        column: The tree field.
+        tree: Each node with its parent (`code_tree`).
+        codes: Each mapped code's leaf; any other value shows `UNMAPPED`.
+    """
+
+    column: str
+    tree: Mapping[str, str]
+    codes: Mapping[int, str]
+
+    def leaf(self, record: Mapping[str, float]) -> str:
+        """The leaf `record`'s value of the column shows."""
+        return self.codes.get(int(record[self.column]), UNMAPPED)
+
+    def counts(self, records: Iterable[Mapping[str, float]]) -> Counter[str]:
+        """How many of `records` show each leaf."""
+        return Counter(self.leaf(record) for record in records)
+
+
+def column_trees(
+    rows: Sequence[FieldMapping], frame: FrameSpec, ontologies: Mapping[str, Ontology]
+) -> dict[str, ColumnTree]:
+    """Each tree field of `rows` on `frame` with its tree over the concepts its rows map.
+
+    A concept that is an ancestor of another shows as its `<concept>/self` leaf.
+    """
+    trees = {}
+    for column in tree_fields(rows, frame):
+        mapped = [row for row in rows if row.when[0].field == column]
+        tree = code_tree({row.concept for row in mapped}, ontologies)
+        codes = {
+            code: f"{row.concept}{SELF}" if f"{row.concept}{SELF}" in tree else row.concept
+            for row in mapped
+            if isinstance(row.when[0], Codes)
+            for code in row.when[0].codes
+        }
+        trees[column] = ColumnTree(column, tree, codes)
+    return trees
 
 
 def tree_fields(rows: Sequence[FieldMapping], frame: FrameSpec) -> tuple[str, ...]:

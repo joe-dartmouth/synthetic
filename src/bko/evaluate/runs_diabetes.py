@@ -164,8 +164,12 @@ place of `bko-logic` as the candidate, and no API call, so the ceiling kept from
 (ADR `research/identifier-perturbation`, Full runs)."""
 
 
-def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
-    """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `whole`.
+def _slices(
+    prefix: str, name: str, whole: Experiment, dataset: Dataset = Dataset.DIABETES
+) -> dict[str, NamedRun]:
+    """Run `<prefix>-<name>` on `dataset` at `E6_SETTINGS` and its `E6_SLICES` slices.
+
+    `whole` is the run's experiment; `dataset` is Diabetes 130's frame or another over its cohort.
 
     Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
 
@@ -176,12 +180,12 @@ def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
     if left:
         msg = f"{len(whole.holdout_seeds)} holdouts do not divide into {E6_SLICES} slices"
         raise ValueError(msg)
-    runs = {f"{prefix}-{name}": NamedRun(whole, E6_SETTINGS, Dataset.DIABETES)}
+    runs = {f"{prefix}-{name}": NamedRun(whole, E6_SETTINGS, dataset)}
     for index, letter in enumerate("abcdefghij"[:E6_SLICES]):
         sliced = replace(
             whole,
             holdout_seeds=whole.holdout_seeds[index * size : (index + 1) * size],
             spend_ceiling=whole.spend_ceiling / E6_SLICES,
         )
-        runs[f"{prefix}-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, Dataset.DIABETES)
+        runs[f"{prefix}-{name}{letter}"] = NamedRun(sliced, E6_SETTINGS, dataset)
     return runs

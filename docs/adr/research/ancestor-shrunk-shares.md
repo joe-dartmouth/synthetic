@@ -104,10 +104,13 @@ depend on the release's hierarchy, so a new release is a new arm's reading.
 ## Enforcement
 
 - Owner: `src/bko/generate/tree.py` with `src/bko/generate/direct.py`, the spec in
-  `src/bko/generate/draw_spec.py`, `src/bko/evaluate/direct_arms.py`
+  `src/bko/generate/draw_spec.py`, `src/bko/evaluate/direct_arms.py`,
+  `src/bko/evaluate/runs_direct.py`, `src/bko/evaluate/redraw.py`, `src/bko/evaluate/run_scores.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
   `tests/test_generate_tree.py` (the hand shares, their sum, the unseen code's share, single
-  children, the parent rule, the own leaf and the tree fields)
+  children, the parent rule, the own leaf, the tree fields, one uniform per tree field and the
+  donor showing the drawn leaf), `tests/test_evaluate_tree.py` (the arm's params, its trace and
+  each level's parts, the refusal of an int `tree`, `code-share-error` and E15's runs)
 
 ## Reversal Conditions
 

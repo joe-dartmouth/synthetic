@@ -1,7 +1,7 @@
 """The direct arms by name, each with the draw spec it reads: a light module the run table imports.
 
-`bko.evaluate.experiment` re-exports every name here but `CAPPED_ARM`; `CAPPED_ARM` and any arm
-added later are imported from here.
+`bko.evaluate.experiment` re-exports every name here but `CAPPED_ARM` and `TREE_ARM`; those and
+any arm added later are imported from here.
 """
 
 from __future__ import annotations
@@ -33,6 +33,10 @@ CAPPED_ARM: Final = "bko-capped"
 """The free arm that draws as `DIRECT_ARM` does under a donor floor of 2 and a reuse cap of 1 per
 unit (ADR `research/sampler-donor-limits`)."""
 
+TREE_ARM: Final = "bko-tree"
+"""The free arm that draws as `DIRECT_ARM` does with each tree field drawn as one leaf of its
+ontology tree at its ancestor-shrunk share (ADR `research/ancestor-shrunk-shares`)."""
+
 DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
     {
         DIRECT_ARM: DEFAULT_SPEC,
@@ -40,6 +44,7 @@ DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
         PRAM_ARM: DEFAULT_SPEC,
         NOMAP_ARM: DrawSpec(mapped=False),
         CAPPED_ARM: DrawSpec(min_donors=2, reuse_cap=1),
+        TREE_ARM: DrawSpec(tree=True),
     }
 )
 """Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""

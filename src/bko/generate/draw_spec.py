@@ -2,7 +2,8 @@
 
 `bko.generate.direct.sample` takes a `DrawSpec`. Its default is `bko-direct`'s draw; each other
 field value names an ablation or a variant (ADRs `research/logic-only-ablation`,
-`research/no-mapping-ablation` and `research/sampler-donor-limits`). Only fields that differ from
+`research/no-mapping-ablation`, `research/sampler-donor-limits` and
+`research/ancestor-shrunk-shares`). Only fields that differ from
 their defaults are logged, so the default spec's lines and params keep their bytes.
 """
 
@@ -18,7 +19,7 @@ from bko.generate.presence import Presence
 
 @dataclass(frozen=True, slots=True)
 class DrawSpec:
-    """How a direct draw decides presence, whether it reads the mapping table, and who donates.
+    """How a direct draw decides presence, reads the mapping table, picks donors and codes.
 
     Attributes:
         presence: How each concept's presence is drawn.
@@ -28,12 +29,15 @@ class DrawSpec:
             copied from; below it the unit reads the label group less the cell's records.
         reuse_cap: The most times one record may give one unit's values in a fill attempt; None
             sets no cap.
+        tree: Whether each tree field (`bko.generate.tree.tree_fields`) is drawn as one leaf of
+            its ontology tree at its ancestor-shrunk share, from a donor of that column alone.
     """
 
     presence: Presence = Presence.SHARES
     mapped: bool = True
     min_donors: int = 1
     reuse_cap: int | None = None
+    tree: bool = False
 
     def __post_init__(self) -> None:
         """Refuse a field combination the draw cannot read.
@@ -87,7 +91,7 @@ class DrawSpec:
         ]
 
 
-_VARIANTS: Final = ("min_donors", "reuse_cap")
+_VARIANTS: Final = ("min_donors", "reuse_cap", "tree")
 """The fields that need `mapped=True` and `Presence.SHARES` off their defaults."""
 
 

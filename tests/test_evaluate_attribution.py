@@ -170,7 +170,8 @@ def test_a_perturbation_arm_outside_the_direct_arms_logs_its_spec_once_per_fill(
     logged = [m for m in caplog.messages if m.startswith("attribution spec")]
     assert logged == [
         (
-            'attribution spec={"presence":"shares","mapped":true,"min_donors":1,"reuse_cap":null}'
+            'attribution spec={"presence":"shares","mapped":true,"min_donors":1,"reuse_cap":null,'
+            '"tree":false}'
             f" holdout=0 arm={PERTURBED_ARM}"
         )
     ]

@@ -11,7 +11,9 @@ in quota, record and column order, so `bko.bkb` stays standard-library only. ADR
 `sample` reads no share: each concept's presence comes from `bko.generate.logic`, and the drawn
 set's closure is forced into the fields (ADR `research/logic-only-ablation`). At a spec with
 `mapped=False`, `sample` reads an empty mapping table: no concept is drawn, and every column but
-`age`, `sex` and the label is a free field (ADR `research/no-mapping-ablation`).
+`age`, `sex` and the label is a free field (ADR `research/no-mapping-ablation`). At a spec with
+`tree=True`, each tree field is drawn as one leaf of its ontology tree at its ancestor-shrunk share
+(`bko.generate.tree`; ADR `research/ancestor-shrunk-shares`).
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ import pandas as pd
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import Cell, by_concept, cell_key, record_cells
-from bko.gaps.shares import label_only, nested, shares
+from bko.gaps.shares import GROUP_WEIGHT, label_only, nested, shares
 from bko.generate.donors import (
     _Group,  # ruff: ignore[unused-import]  (re-exported)
     _label_groups,
@@ -42,6 +44,7 @@ from bko.generate.donors import (
     label_group,  # ruff: ignore[unused-import]  (re-exported)
 )
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.errors import SamplingError
 from bko.generate.fields import (
     FieldGroup,
     field_groups,
@@ -49,6 +52,7 @@ from bko.generate.fields import (
 )
 from bko.generate.logic import Component, components, logic_assignment
 from bko.generate.presence import Presence
+from bko.generate.tree import ColumnTree, column_trees, leaf_concept, leaves, tree_shares
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
@@ -132,14 +136,20 @@ def sample(
             When either limit is set, a `limits` line per cell follows its `direct` line and
             counts `floor_redirects`, the cell's picks below the floor with at least one
             matching cell record, and `cap_skips`, its picks whose first pool held a donor at
-            the cap.
+            the cap. At `tree=True`, each tree field leaves the concept draw and the field
+            groups: per record, in column order, one uniform places its leaf by cumulative
+            share over the leaves of positive share (`bko.generate.tree.tree_shares` at
+            `GROUP_WEIGHT`, the cell's records against the label group's), and its value is
+            copied from a record whose column shows the leaf, the cell's, else the label
+            group's; the leaf's concept joins the draw's concepts.
 
     Returns:
         Each cell's draws, in quota order.
 
     Raises:
         SamplingError: If a field group has no record matching a draw in the cell or its label
-            group, or a free field has no record to read from; under a floor or a cap, if a
+            group, a free field has no record to read from, or a tree field no leaf of positive
+            share; under a floor or a cap, if a
             unit's pool is empty once the records it bars or holds at the cap are left out.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, or as
@@ -161,7 +171,9 @@ def sample(
     drawn: dict[Cell, tuple[Draw, ...]] = {}
     for cell, count in quota.items():
         group = groups[int(cell[2])]
-        inside = keys.eq(pd.Series(cell, index=keys.columns)).all(axis=1).to_numpy()
+        own = _records(
+            train.loc[keys.eq(pd.Series(cell, index=keys.columns)).all(axis=1).to_numpy()], frame
+        )
         sources = _Sources(
             cell=cell,
             share=(
@@ -169,11 +181,14 @@ def sample(
                 if presence is Presence.SHARES
                 else MappingProxyType({})
             ),
-            own=_records(train.loc[inside], frame),
+            own=own,
             group=group.records,
             banded=[
                 r for r, band in zip(group.records, group.bands, strict=True) if band == cell[0]
             ],
+            trees={
+                column: _placed(tree, own, group.records) for column, tree in plan.trees.items()
+            },
         )
         logger.info(
             "direct holdout=%d fill=%s key=%s rows=%d records=%d group_records=%d%s presence=%s",
@@ -245,6 +260,56 @@ class _Sources:
     own: list[_Source]
     group: list[_Source]
     banded: list[_Source]
+    trees: Mapping[str, _Placed] = dataclasses.field(default_factory=lambda: MappingProxyType({}))
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _Placed:
+    """One tree field's leaves of positive share at a cell, and the records showing each."""
+
+    leaves: tuple[str, ...]
+    cumulative: np.ndarray
+    own: Mapping[str, list[_Source]]
+    group: Mapping[str, list[_Source]]
+
+
+def _placed(tree: ColumnTree, own: Sequence[_Source], group: Sequence[_Source]) -> _Placed:
+    """`tree`'s leaves of positive share at the cell whose records are `own`."""
+    found, _ = tree_shares(
+        tree.counts(r[1] for r in own), tree.counts(r[1] for r in group), tree.tree, GROUP_WEIGHT
+    )
+    placed = tuple(leaf for leaf in leaves(tree.tree) if found[leaf] > 0)
+    return _Placed(
+        placed,
+        np.cumsum([found[leaf] for leaf in placed]),
+        _by_leaf(tree, own),
+        _by_leaf(tree, group),
+    )
+
+
+def _showing(
+    placed: _Placed, cell: Cell, column: str, rng: np.random.Generator
+) -> tuple[list[_Source], list[_Source]]:
+    """The cell's and the label group's records showing the leaf one uniform places.
+
+    The uniform is placed by cumulative share and clipped to the last leaf.
+
+    Raises:
+        SamplingError: If no leaf has a positive share.
+    """
+    if not placed.leaves:
+        msg = f"{cell_key(cell)} cannot draw {column}: no leaf has a positive share"
+        raise SamplingError(msg)
+    position = int(np.searchsorted(placed.cumulative, rng.random(), side="right"))
+    leaf = placed.leaves[min(position, len(placed.leaves) - 1)]
+    return placed.own.get(leaf, []), placed.group.get(leaf, [])
+
+
+def _by_leaf(tree: ColumnTree, records: Sequence[_Source]) -> dict[str, list[_Source]]:
+    shown: dict[str, list[_Source]] = {}
+    for record in records:
+        shown.setdefault(tree.leaf(record[1]), []).append(record)
+    return shown
 
 
 class _Plan:
@@ -261,6 +326,8 @@ class _Plan:
         self._frame = frame
         self._spec = spec
         self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
+        self.trees = column_trees(rows, frame, ontologies) if spec.tree else {}
+        rows = tuple(r for r in rows if not any(c.field in self.trees for c in r.when))
         self._by_concept = by_concept(rows)
         self._label_only = label_only(rows, frame=frame)
         self._inner_of = {outer: inner for inner, outer in nested(rows).items()}
@@ -270,7 +337,7 @@ class _Plan:
         )
         groups = field_groups(rows, frame=frame)
         self._first = {group.fields[0]: group for group in groups}
-        self._free = frozenset(free_fields(rows, frame=frame))
+        self._free = frozenset(free_fields(rows, frame=frame)) - self.trees.keys()
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None
@@ -301,6 +368,10 @@ class _Plan:
             elif column == self._frame.label:
                 record[column] = int(cell[2])
                 continue
+            elif column in self.trees:
+                fields = (column,)
+                own, other = _showing(sources.trees[column], cell, column, rng)
+                (source, chosen), fell = self._choose(cell, fields, own, other, rng)
             elif column in self._first:
                 fields = self._first[column].fields
                 shows = self._pattern(self._first[column], present)
@@ -318,9 +389,14 @@ class _Plan:
             if fell:
                 fallback.update(fields)
         ordered = {column: record[column] for column in self._frame.columns}
-        concepts = frozenset(present)
+        concepts = frozenset(present | self._shown(ordered))
         closed = self._closure(concepts)
         return Draw(cell, ordered, concepts, closed, frozenset(fallback), read)
+
+    def _shown(self, record: Record) -> set[str]:
+        """The concept of each tree field's leaf `record` shows, which the draw placed."""
+        concepts = (leaf_concept(tree.leaf(record)) for tree in self.trees.values())
+        return {concept for concept in concepts if concept is not None}
 
     def _choose(
         self,

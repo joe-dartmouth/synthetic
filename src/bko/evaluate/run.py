@@ -36,6 +36,7 @@ from bko.datasets.split import Split
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.copies import copies, decontaminated
 from bko.evaluate.data import records_split
+from bko.evaluate.direct_arms import TREE_ARM
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     PRIOR_SHIFT_ARM,
@@ -57,10 +58,13 @@ from bko.evaluate.run_scores import (
     _rows,
     _scoped,  # ruff: ignore[unused-import]  (re-exported)
     _suffixed,  # ruff: ignore[unused-import]  (re-exported)
+    value_shares,
 )
 from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source
 from bko.evaluate.shared_split import marked, marker
 from bko.evaluate.shift import prior_shift
+from bko.generate.tree import tree_fields
+from bko.ontology.schema import FieldMapping
 
 
 logger = logging.getLogger(__name__)
@@ -102,12 +106,14 @@ def run(
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
     held: frozenset[int] | None = None,
+    rows: Sequence[FieldMapping] = (),
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
     `on_holdout` is called after each holdout, so a caller can stop the run between holdouts.
     `held` names the test records every holdout holds out (`bko.evaluate.data.records_split`);
-    None splits each holdout by its seed.
+    None splits each holdout by its seed. `rows` are the dataset's field rows, which
+    `score_holdout` reads.
     `models` must hold `Model.LR`, which the criteria and replica utility read. `REAL_ARM` needs
     no runner.
 
@@ -128,7 +134,9 @@ def run(
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
         parts = records_split(records, held=held, seed=seed, edges=frame.edges)
-        scores += score_holdout(parts, experiment, arms, models=models, drains=drains, frame=frame)
+        scores += score_holdout(
+            parts, experiment, arms, models=models, drains=drains, frame=frame, rows=rows
+        )
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
         if on_holdout is not None:
@@ -162,6 +170,7 @@ def score_holdout(
     exclude: Sequence[pd.DataFrame] | None = None,
     logged: Logged | None = None,
     calibration: bool = False,
+    rows: Sequence[FieldMapping] = (),
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -172,7 +181,9 @@ def score_holdout(
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
     is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
     `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
-    replica utility never does.
+    replica utility never does. When the experiment holds `TREE_ARM`, each arm writes
+    `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the dataset's field rows, against
+    the rows the removal took, NaN for a fill with no rows.
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, or a fit does not converge.
@@ -252,20 +263,46 @@ def score_holdout(
             **({} if exclude is None else marker(clean)),
         },
     )
-    cutoff = experiment.cutoff
+    removed = _removed_shares(ready.removed, rows, experiment, frame)
     for name in experiment.arms:
         scores += _arm_scores(
-            seed, name, fills[name], ablated, clean, cells, models, frame, cutoff, calibration
+            seed,
+            name,
+            fills[name],
+            ablated,
+            clean,
+            cells,
+            models,
+            frame,
+            experiment.cutoff,
+            calibration,
+            share_error=removed,
         )
         if name in replicas:
             scores += _replica_scores(
-                seed, name, replicas[name], ablated, clean, cells, models[Model.LR], frame, cutoff
+                seed,
+                name,
+                replicas[name],
+                ablated,
+                clean,
+                cells,
+                models[Model.LR],
+                frame,
+                experiment.cutoff,
             )
         if name in gap_counts:
             scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
         if name in replica_counts:
             scores += _rows(seed, name, Source.REPLICA_CANDIDATES, replica_counts[name])
     return scores
+
+
+def _removed_shares(
+    removed: pd.DataFrame, rows: Sequence[FieldMapping], experiment: Experiment, frame: FrameSpec
+) -> dict[str, pd.Series]:
+    """Each tree field's value shares in `removed` when `experiment` holds `TREE_ARM`."""
+    tree = tree_fields(rows, frame) if TREE_ARM in experiment.arms else ()
+    return {column: value_shares(removed[column]) for column in tree}
 
 
 def _scored_split(

@@ -94,8 +94,8 @@ mapping table (ADR `research/no-mapping-ablation`).
     Keeping it adds no draw, so a seed's records are the same with or without it, and
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
-11. **The draw spec.** The sampler takes a `DrawSpec` of `presence`, `mapped`, `min_donors` and
-    `reuse_cap`. At its
+11. **The draw spec.** The sampler takes a `DrawSpec` of `presence`, `mapped`, `min_donors`,
+    `reuse_cap` and `tree`. At its
     default, shares and the mapping table, Decisions 1 to 3 apply and the arm is `bko-direct`. At
     logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
     concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
@@ -105,7 +105,10 @@ mapping table (ADR `research/no-mapping-ablation`).
     mapping table, so no concept is drawn and every field but `age`, `sex` and the label is a free
     field of Decision 6. At `min_donors=2` and `reuse_cap=1`, the arm is `bko-capped`: ADR
     `research/sampler-donor-limits` reads a pattern below the donor floor from outside the cell
-    and skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change.
+    and skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change. At
+    `tree=True`, the arm is `bko-tree`: ADR `research/ancestor-shrunk-shares` draws each tree
+    field, a column whose rows partition its codes, as one leaf at its ancestor-shrunk share and
+    copies it from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5.
 
 ## Rationale
 
