@@ -949,7 +949,13 @@ start or the supervisor cannot run.
   PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
   `E10_PRAM_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
   `bko-direct-pram`, the ceiling inert) and their slices `e10-pram-thina` to `e10-pram-thinj` and
-  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds P1's runs, `p1-id` on
+  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds the control runs,
+  `e12-thin` and `e12-empty` (`bko.evaluate.runs_direct.E12_THIN` and `E12_EMPTY`: `E6_THIN` and
+  `E6_EMPTY` with `CONTROL_ARMS`, the comparison set, `real`, `bayes-net`, `bko-direct`,
+  `bko-nomap`, `label-bootstrap` and `prior-shift`, the candidate `bko-direct` and no replica) and
+  their slices `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, sliced as E6's are,
+  and `e13` (`E13`: `E3` with those arms and `bko-logic`, the candidate `bko-direct`, no replica and
+  a $1.00 ceiling that no arm's call reaches); `docs/EVIDENCE.md`, E12 and E13. It holds P1's runs, `p1-id` on
   `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
