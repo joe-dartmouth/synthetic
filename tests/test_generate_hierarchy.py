@@ -25,7 +25,13 @@ from bko.gaps.shares import GROUP_WEIGHT, SharePart
 from bko.generate.direct import Draw, _Plan, sample
 from bko.generate.donors import _label_groups, cell_records
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
-from bko.generate.hierarchy import broad_chance, conditional, pair_joint, pair_weights
+from bko.generate.hierarchy import (
+    always_present,
+    broad_chance,
+    conditional,
+    pair_joint,
+    pair_weights,
+)
 from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
 from tests._contradiction_fixtures import (
@@ -112,7 +118,7 @@ def test_pseudo_count_0_reproduces_the_pairs_training_joint(
     assert (found,) == (float(hand_conditional),)
     share_broad, share_narrow = _share(CELL, group, BROAD), _share(CELL, group, NARROW)
     assert (share_broad, share_narrow) == (0.3, 0.5)
-    drawn = pair_joint(share_broad=share_broad, share_narrow=share_narrow, conditional=found)
+    drawn = pair_joint(share_broad=share_broad, share_narrow=share_narrow, given=found)
     keys = ((True, True), (True, False), (False, True), (False, False))
     _close(drawn, dict(zip(keys, joint, strict=True)))
     assert math.isclose(drawn[True, True] + drawn[False, True], 0.3, rel_tol=1e-15)
@@ -123,7 +129,7 @@ def test_the_fused_joint_differs_from_the_product_bko_direct_draws():
     drawn = pair_joint(
         share_broad=0.3,
         share_narrow=0.5,
-        conditional=conditional(both=both, narrow=narrow, pseudo=0.0),
+        given=conditional(both=both, narrow=narrow, pseudo=0.0),
     )
     independent = float(Fraction(3, 20))
     assert not math.isclose(drawn[True, True], independent, rel_tol=1e-3)
@@ -142,10 +148,11 @@ def test_the_shrunk_conditional_is_the_hand_value():
 
 def test_the_closed_conditional_is_1_and_the_marginal_is_clamped():
     assert (conditional(both=Fraction(4), narrow=Fraction(15), pseudo=None),) == (1.0,)
-    assert broad_chance(
-        share_broad=0.3, share_narrow=0.5, conditional=1.0, narrow_present=False
-    ) == (0.0, True)
-    drawn = pair_joint(share_broad=0.3, share_narrow=0.5, conditional=1.0)
+    assert broad_chance(share_broad=0.3, share_narrow=0.5, given=1.0, narrow_present=False) == (
+        0.0,
+        True,
+    )
+    drawn = pair_joint(share_broad=0.3, share_narrow=0.5, given=1.0)
     assert drawn == {(True, True): 0.5, (True, False): 0.0, (False, True): 0.0, (False, False): 0.5}
     assert (drawn[True, True] + drawn[False, True],) == (0.5,)
 
@@ -154,23 +161,24 @@ def test_the_broad_marginal_is_kept_when_the_clamp_does_not_fire():
     chance, clamped = broad_chance(
         share_broad=float(Fraction(7, 10)),
         share_narrow=0.5,
-        conditional=float(Fraction(26, 35)),
+        given=float(Fraction(26, 35)),
         narrow_present=False,
     )
     assert not clamped
     assert math.isclose(chance, float(Fraction(23, 35)), rel_tol=1e-15)
     given = broad_chance(
-        share_broad=0.7, share_narrow=0.5, conditional=float(Fraction(26, 35)), narrow_present=True
+        share_broad=0.7, share_narrow=0.5, given=float(Fraction(26, 35)), narrow_present=True
     )
     assert given == (float(Fraction(26, 35)), False)
-    drawn = pair_joint(share_broad=0.7, share_narrow=0.5, conditional=float(Fraction(26, 35)))
+    drawn = pair_joint(share_broad=0.7, share_narrow=0.5, given=float(Fraction(26, 35)))
     assert math.isclose(drawn[True, True] + drawn[False, True], 0.7, rel_tol=1e-15)
 
 
 def test_a_complement_above_1_is_clamped():
-    assert broad_chance(
-        share_broad=0.9, share_narrow=0.5, conditional=0.0, narrow_present=False
-    ) == (1.0, True)
+    assert broad_chance(share_broad=0.9, share_narrow=0.5, given=0.0, narrow_present=False) == (
+        1.0,
+        True,
+    )
 
 
 def test_a_pair_with_no_narrow_holder_leaves_the_broad_at_its_share():
@@ -185,7 +193,7 @@ def test_a_pair_with_no_narrow_holder_leaves_the_broad_at_its_share():
         assert broad_chance(
             share_broad=share_broad,
             share_narrow=share_narrow,
-            conditional=found,
+            given=found,
             narrow_present=False,
         ) == (share_broad, False)
 
@@ -197,9 +205,27 @@ def test_a_source_with_no_narrow_holder_contributes_0():
 
 def test_no_complement_is_read_when_every_record_shows_the_narrow_concept():
     with pytest.raises(ValueError, match="share 1"):
-        broad_chance(share_broad=0.5, share_narrow=1.0, conditional=0.5, narrow_present=False)
-    drawn = pair_joint(share_broad=0.5, share_narrow=1.0, conditional=0.5)
+        broad_chance(share_broad=0.5, share_narrow=1.0, given=0.5, narrow_present=False)
+    drawn = pair_joint(share_broad=0.5, share_narrow=1.0, given=0.5)
     assert drawn == {(True, True): 0.5, (True, False): 0.5, (False, True): 0.0, (False, False): 0.0}
+
+
+def test_a_narrow_share_one_ulp_below_1_reads_no_complement():
+    below = math.nextafter(1.0, 0.0)
+    assert (below, always_present(below), always_present(0.9999999999999998)) == (
+        1 - 2**-53,
+        True,
+        False,
+    )
+    with pytest.raises(ValueError, match="share 1"):
+        broad_chance(share_broad=0.5, share_narrow=below, given=0.25, narrow_present=False)
+    drawn = pair_joint(share_broad=0.5, share_narrow=below, given=0.25)
+    assert (drawn[False, True], drawn[False, False]) == (2**-55, 3 * 2**-55)
+
+
+def test_an_empty_label_group_is_refused():
+    with pytest.raises(ValueError, match="label group group holds no record"):
+        pair_weights(CELL, _observed("group", 0, 0, 0, 0), PAIR)
 
 
 ROWS: Final = (

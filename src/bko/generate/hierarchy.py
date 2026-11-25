@@ -7,7 +7,10 @@ source holds `N`'s prior `p` and the conditional `c` of `B` given `N`, the S-nod
 `bko.gaps.shares.GROUP_WEIGHT`; `conditional` shrinks `b / m` toward the `is_a` S-node's
 probability 1 by a pseudo-count, and `broad_chance` reads `B`'s chance given whether `N` is
 present, the complement keeping `B`'s marginal at its share unless the clamp at 0 or 1 fires (ADR
-`research/bkb-direct-generation`, Decision 12). Each is computed exactly and rounded once.
+`research/bkb-direct-generation`, Decision 12). Each reads its inputs as exact binary fractions
+and rounds its result once; a `PairPart`'s complement reads its rounded conditional, the value the
+draw uses. A narrow share within one ulp of 1 counts as 1 (`always_present`), so no complement is
+read there.
 
 `Hierarchy` holds a draw's pairs; `Hierarchy.at` reads each pair's `PairPart` at a cell and
 `Hierarchy.present` decides presence from one uniform per concept. `bko.generate.direct.sample`
@@ -18,6 +21,7 @@ draw's own parts.
 from __future__ import annotations
 
 import logging
+import math
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -45,7 +49,13 @@ def pair_weights(
     the narrow one, so a source no record of which shows the narrow concept contributes 0; the
     group's terms are those counts over its records, times `GROUP_WEIGHT`. Both observations must
     count the pair (`Observed.both`).
+
+    Raises:
+        ValueError: If `group` holds no record, so it has no share to weigh.
     """
+    if group.records == 0:
+        msg = f"label group {group.name} holds no record, so it weighs no {pair} pair"
+        raise ValueError(msg)
     narrow, _ = pair
     scale = Fraction(GROUP_WEIGHT, group.records)
     both = cell.both[pair] + scale * group.both[pair]
@@ -67,38 +77,45 @@ def conditional(*, both: Exact, narrow: Exact, pseudo: float | None) -> float:
     return float((Fraction(both) + Fraction(pseudo)) / weight)
 
 
+def always_present(share_narrow: Exact) -> bool:
+    """Whether a narrow concept at this share is always present: its share at least 1's float below.
+
+    No record lacks it there, so no complement is read.
+    """
+    return Fraction(share_narrow) >= Fraction(math.nextafter(1.0, 0.0))
+
+
 def broad_chance(
-    *, share_broad: Exact, share_narrow: Exact, conditional: Exact, narrow_present: bool
+    *, share_broad: Exact, share_narrow: Exact, given: Exact, narrow_present: bool
 ) -> tuple[float, bool]:
     """The broad concept's chance given the narrow one's presence, and whether the clamp fired.
 
-    With the narrow concept present it is `conditional`; absent, it is the complement
+    With the narrow concept present it is `given`, the conditional; absent, it is the complement
     `(s_B - s_N c) / (1 - s_N)`, clamped to [0, 1].
 
     Raises:
-        ValueError: If the narrow concept is absent at a share of 1, where it is always present.
+        ValueError: If the narrow concept is absent where it is `always_present`.
     """
     if narrow_present:
-        return float(conditional), False
-    chance, clamped = _complement(
-        Fraction(share_broad), Fraction(share_narrow), Fraction(conditional)
-    )
+        return float(given), False
+    chance, clamped = _complement(Fraction(share_broad), Fraction(share_narrow), Fraction(given))
     return float(chance), clamped
 
 
 def pair_joint(
-    *, share_broad: Exact, share_narrow: Exact, conditional: Exact
+    *, share_broad: Exact, share_narrow: Exact, given: Exact
 ) -> dict[tuple[bool, bool], float]:
     """The chance of each (narrow present, broad present) under the conditional draw.
 
-    The narrow concept is drawn at its share and the broad one at `broad_chance`; at a narrow
-    share of 1 the narrow concept is always present.
+    The narrow concept is drawn at its share and the broad one at `broad_chance`; where the
+    narrow concept is `always_present`, no complement is read and the broad one reads `given`
+    either way, as `Hierarchy.present` does.
     """
-    s_b, s_n, given = Fraction(share_broad), Fraction(share_narrow), Fraction(conditional)
-    absent = Fraction(0) if s_n == 1 else _complement(s_b, s_n, given)[0]
+    s_b, s_n, c = Fraction(share_broad), Fraction(share_narrow), Fraction(given)
+    absent = c if always_present(s_n) else _complement(s_b, s_n, c)[0]
     return {
-        (True, True): float(s_n * given),
-        (True, False): float(s_n * (1 - given)),
+        (True, True): float(s_n * c),
+        (True, False): float(s_n * (1 - c)),
         (False, True): float((1 - s_n) * absent),
         (False, False): float((1 - s_n) * (1 - absent)),
     }
@@ -110,9 +127,9 @@ def _complement(
     """`(s_B - s_N c) / (1 - s_N)` clamped to [0, 1], and whether the clamp fired.
 
     Raises:
-        ValueError: If `share_narrow` is 1.
+        ValueError: If the narrow concept is `always_present`.
     """
-    if share_narrow == 1:
+    if always_present(share_narrow):
         msg = "the narrow concept has share 1, so no record lacks it and no complement is read"
         raise ValueError(msg)
     raw = (share_broad - share_narrow * given) / (1 - share_narrow)
@@ -131,7 +148,7 @@ class PairPart:
         pseudo: The pseudo-count; None for the closed draw.
         conditional: Its chance when the narrow concept is present (`conditional`).
         complement: Its chance when the narrow concept is absent (`broad_chance`); None where the
-            narrow concept's share is 1, so it is always present.
+            narrow concept is `always_present`.
         clamped: Whether the complement was clamped to [0, 1].
     """
 
@@ -176,7 +193,7 @@ class Hierarchy:
         if wide:
             msg = f"{', '.join(wide)} each hold more than one narrow concept; one is drawn given"
             raise ValueError(msg)
-        self.order = order
+        self.order = tuple(order)
         self.decided = draw_order(order, self.pairs)
         self.pseudo = pseudo
 
@@ -192,11 +209,11 @@ class Hierarchy:
             both, held = pair_weights(cell, group, (narrow, broad))
             given = conditional(both=both, narrow=held, pseudo=self.pseudo)
             complement, clamped = None, False
-            if share[narrow] != 1:
+            if not always_present(share[narrow]):
                 complement, clamped = broad_chance(
                     share_broad=share[broad],
                     share_narrow=share[narrow],
-                    conditional=given,
+                    given=given,
                     narrow_present=False,
                 )
             parts[broad] = PairPart(
