@@ -33,8 +33,10 @@ and `app` extras from the lock, and `source .venv/bin/activate` enters the envir
 The evaluation data is downloaded or generated, never committed. It lives under `data/` at the
 repository root, which `.gitignore` ignores, and only
 [`bko.datasets`](../src/bko/datasets/README.md) writes there, apart from the classified OBO files
-`python -m bko.ontology elk` keeps under `data/elk/` ([ELK comparison](#elk-comparison)) and the
-OBO file an OWL-only release is converted to beside its OWL ([Ontologies](#ontologies)). Each
+`python -m bko.ontology elk` keeps under `data/elk/` ([ELK comparison](#elk-comparison)) and what
+converting an OWL-only release writes beside its OWL ([Ontologies](#ontologies)): the OBO, written
+as a hidden partial file renamed into place, and ROBOT's stderr, kept only when the conversion
+fails. Each
 download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
 releases, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
@@ -1264,8 +1266,11 @@ inside `.venv`:
   the releases.
 - **OWL-only releases**: a release pinned as OWL, a `Source` whose `filename` ends `.owl`, is
   converted to OBO when a command first loads it: the pinned ROBOT jar's `convert`, run with no
-  reasoning, writes the OBO beside the OWL in its snapshot directory, and later loads reuse it.
-  Each load logs the OBO's size and sha256. Conversion needs a JDK, found as
+  reasoning, writes a hidden partial file beside the OWL in its snapshot directory, renamed to
+  `<owl stem>.robot-<jar sha256[:16]>.obo` once ROBOT exits 0. Later loads reuse that OBO, and a
+  re-pinned jar converts again. Each load logs the OBO's size and sha256. A failed conversion
+  leaves no OBO and keeps ROBOT's stderr at the OBO's path with `.stderr` added; its message
+  quotes the last lines. Conversion needs a JDK, found as
   [ELK comparison](#elk-comparison) finds it. Exit 2 means no JDK or a ROBOT failure; exit 3 an
   OWL file that names an import, refused before ROBOT runs, or a converted file the loader
   refuses. Every current dataset reads the HP and MONDO OBO releases, so no command converts one

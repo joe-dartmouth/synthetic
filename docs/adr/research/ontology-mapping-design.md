@@ -65,13 +65,18 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **Pins and fetch**: the releases are `MONDO`, `HPO` and `DO` in `bko.datasets.sources`, with the size
   and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
   `bko.datasets.fetch.ensure` for the commands that read them. Releases are held per dataset:
-  the evaluate stage reads a dataset's releases through
+  the evaluate stage alone reads a dataset's releases through
   `bko.evaluate.data.dataset_releases(dataset, context)`, and every current dataset reads
-  `context.releases`, so its map stays HP and MONDO. An OWL-only release is a `Source` whose
-  `filename` ends `.owl`. Its conversion refuses an OWL file that names an import, then runs the
-  pinned ROBOT jar's `convert` to OBO beside the OWL in its snapshot directory at fetch time,
-  reuses that OBO on later loads, and logs the OBO's size and sha256 on every load. A converted
-  file the loader refuses is a `ReleaseFormatError` (exit 3), as for any release.
+  `context.releases`, so its map stays HP and MONDO. The app, `gaps`, `generate`, `fusion` and
+  `ontology` commands each serve one dataset per run and read their `Context.releases`. A
+  command that reads several datasets loads one release per prefix, and the contradiction census
+  refuses two datasets that pin one prefix to different releases. An OWL-only release is a
+  `Source` whose `filename` ends `.owl`. Its conversion refuses an OWL file that names an import,
+  then runs the pinned ROBOT jar's `convert` to OBO at fetch time. The OBO sits beside the OWL in
+  its snapshot directory, named `<owl stem>.robot-<jar sha256[:16]>.obo`, so a snapshot that
+  fails its pin is removed with it and a re-pinned jar converts again. Later loads reuse it, and
+  every load logs its size and sha256. A converted file the loader refuses is a
+  `ReleaseFormatError` (exit 3), as for any release.
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto or fastobo; it
   returns frozen standard-library `Ontology` and `Term` values with sorted tuples and a sorted term
   map. A term keeps each xref's qualifiers, read by a second fastobo pass over the same path since
@@ -198,7 +203,7 @@ the team-specified bounds await clinician review (RESEARCH, Represent); an ICD-9
 equivalence, so the choice among a category's holders is the team's; load time has no budget; the
 ELK comparison needs a JDK and a 16 GB Java heap (`bko.ontology.elk.ELK_MEMORY_GB`), and the gate
 cannot catch a change in ROBOT's or ELK's output; a converted OWL release is not guaranteed to
-load, and its OBO is held by the OWL's pin and the jar's, not by its own sha256. Measured on
+load, and its OBO is keyed by the OWL's and the jar's sha256s and has none of its own. Measured on
 2026-11-24 under the pinned ROBOT jar, with the output read by pronto in memory: the Occupation
 Ontology's OWL (version IRI `releases/2025-10-06`, no import statement) converts to an OBO that
 pronto reads with no skipped construct, 1,801 terms under `data-version: releases/2025-10-06`;
@@ -244,8 +249,10 @@ term's `def:` whose xref is written `Pathbase: Curation`).
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
   `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
   comparison and ROBOT's argv, with a fake runner), `tests/test_ontology_convert.py` (an OWL-only
-  release's conversion through `src/bko/ontology/convert.py`, with a fake runner),
-  `tests/test_evaluate_data.py` (each dataset's releases), and
+  release's conversion through `src/bko/ontology/convert.py`, its jar-keyed name and its
+  failures, with a fake runner), `tests/test_evaluate_data.py` (each dataset's releases),
+  `tests/test_contradictions_census.py` (one release per prefix across the census's datasets),
+  and
   `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
