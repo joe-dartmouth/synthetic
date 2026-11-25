@@ -965,12 +965,13 @@ start or the supervisor cannot run.
   `bko-nomap`, `label-bootstrap` and `prior-shift`, the candidate `bko-direct` and no replica) and
   their slices `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, sliced as E6's are,
   and `e13` (`E13`: `E3` with those arms and `bko-logic`, the candidate `bko-direct`, no replica and
-  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them. It
-  holds the donor-limit runs, `e14-thin` and `e14-empty` (`bko.evaluate.runs_direct.E14_THIN` and
-  `E14_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
-  `bko-capped`, no replica, the ceiling inert) and their slices `e14-thina` to `e14-thinj` and
-  `e14-emptya` to `e14-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E14, describes them. It
-  holds P1's runs, `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them.
+  `RUNS` holds the donor-limit runs, `e14-thin` and `e14-empty`
+  (`bko.evaluate.runs_direct.E14_THIN` and `E14_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`,
+  `real`, `bko-direct` and the candidate `bko-capped`, no replica, the ceiling inert) and their
+  slices `e14-thina` to `e14-thinj` and `e14-emptya` to `e14-emptyj`, sliced as E6's are;
+  `docs/EVIDENCE.md`, E14, describes them. `RUNS` holds P1's runs, `p1-id` on `tableshift-id` and
+  `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
   candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;

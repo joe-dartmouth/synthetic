@@ -123,15 +123,24 @@ def sample(
             concept the drawn and label-only concepts imply through `is_a` and nesting before
             any field is read. At `mapped=False` the draw reads `rows` as empty, so it draws no
             concept and picks every column but `age`, `sex` and the label alone, from a cell
-            record, else a label-group record. The `direct` and `fallback` lines name its
+            record, else a label-group record. `min_donors` and `reuse_cap` limit who donates
+            (ADR `research/sampler-donor-limits`): a unit whose cell holds fewer than
+            `min_donors` records showing the drawn pattern reads the label group less the
+            cell's records, and a record that has given a unit's values `reuse_cap` times in
+            this call is skipped for that unit. The `direct` and `fallback` lines name its
             presence, after a ` name=value` token per other field off its default (`tokens`).
+            When either limit is set, a `limits` line per cell follows its `direct` line and
+            counts `floor_redirects`, the cell's picks below the floor with at least one
+            matching cell record, and `cap_skips`, its picks whose first pool held a donor at
+            the cap.
 
     Returns:
         Each cell's draws, in quota order.
 
     Raises:
         SamplingError: If a field group has no record matching a draw in the cell or its label
-            group, or a free field has no record to read from.
+            group, or a free field has no record to read from; under a floor or a cap, if a
+            unit's pool is empty once the records it bars or holds at the cap are left out.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, or as
             `bko.generate.logic.components`, for a component too large to enumerate, naming the

@@ -52,7 +52,8 @@ whole, so a limit on exposure has to act on who donates.
 4. **Cap.** Within one fill attempt, a donor that has given a unit's values `reuse_cap` times is
    skipped for that unit. The count is kept per (unit, donor): one record may still give each
    unit once, so a record's total donations can reach `reuse_cap` times the frame's unit count,
-   which `donor-max` reads.
+   which `donor-max` reads. The count spans every cell of one `sample` call, which is one fill
+   attempt, and the next call starts it at 0.
 5. **Exhaustion.** When the floor holds and every matching cell donor is at the cap, the pick
    reads the label group's matching records less those at the cap. When the floor fails, the
    pool of Decision 3 less those at the cap is the only pool. When the pool a pick reaches is
@@ -68,10 +69,10 @@ whole, so a limit on exposure has to act on who donates.
 ## Rationale
 
 A cap per (unit, donor) is the one form that both bounds reuse and fills E6's cell. Each row
-makes one pick per unit, so on E6's thinned cell 1,250 rows make 40,000 picks, and a cap of 1 on a
-record's total donations would need as many donors against the 3,749 records of the cell's label
-group (`runs/e9-2/scores.log`); a cap per unit asks only
-that a unit's pool hold as many records as the fill has rows, which the cell's label group does.
+makes one pick per unit, so a cap of 1 on a record's total donations would need a donor per pick,
+the fill's rows times the frame's units, against the 3,749 records of the cell's label group
+(`runs/e9-2/scores.log`); a cap per unit asks only that a unit's pool hold as many records as the
+fill has rows, which the cell's label group does.
 A floor of 2 is the smallest that keeps a singleton pattern out of the cell. A cap of 1 is the
 tightest a uniform pick can meet. Raising at exhaustion keeps the cap a bound: a fallback to the
 least-used donor would let the cap break silently. The retry at a derived seed is the harness's
