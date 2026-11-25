@@ -290,7 +290,7 @@ def score_holdout(
             frame,
             experiment.cutoff,
             calibration,
-            kept=train.drop(index=ready.dropped.index),
+            kept=ready.kept,
             share_error=removed,
             roc=experiment.flagged_cell is not None,
         )

@@ -93,6 +93,8 @@ def test_prepared_keeps_the_whole_split_and_names_the_dropped_rows(caplog):
     assert len(ready.dropped) == 52
     assert set(ready.dropped.index) <= set(TOY_PARTS.train.index)
     assert ready.dropped.equals(TOY_PARTS.train.loc[ready.dropped.index])
+    assert len(ready.kept) == 158
+    assert set(ready.kept.index) == set(TOY_PARTS.train.index) - set(ready.dropped.index)
     ids = ",".join(str(record) for record in sorted(ready.dropped.index))
     digest = hashlib.sha256(ids.encode("ascii")).hexdigest()
     (line,) = [r.getMessage() for r in caplog.records if r.getMessage().startswith("share ")]
@@ -105,6 +107,7 @@ def test_no_share_drops_no_row(caplog):
     ready = prepared(TOY_PARTS, plain, edges=TOY.edges)
     assert ready.dropped.empty
     assert list(ready.dropped.columns) == list(TOY_PARTS.train.columns)
+    assert ready.kept is ready.ablated.train
     assert "share holdout=" not in caplog.text
 
 

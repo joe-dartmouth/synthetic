@@ -41,12 +41,17 @@ class Prepared:
         dropped: The training rows of `ablated` the experiment's synthetic share replaces, which
             `ablated.train` still holds: every arm fits on them, and no classifier trains on
             them but `real`'s. Empty with no share.
+        kept: The real rows a classifier trains on, `ablated.train` less `dropped`, computed once
+            per holdout: `ablated.train` itself, uncopied, when no row is dropped. A reader that
+            trains a classifier on a holdout's real rows reads them here, so a share's dropped
+            rows stay out.
     """
 
     sized: Split
     ablated: Split
     removed: pd.DataFrame
     dropped: pd.DataFrame
+    kept: pd.DataFrame
 
 
 def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> Prepared:
@@ -65,7 +70,10 @@ def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> P
     """
     sized = _sized(parts, experiment.training_fraction, edges=edges)
     ablated, removed = _ablated(sized, experiment.removal, edges=edges)
-    return Prepared(sized, ablated, removed, _dropped(ablated, experiment.synthetic_share, edges))
+    lost = _dropped(ablated, experiment.synthetic_share, edges)
+    train = ablated.train
+    kept = train if lost.empty else train.drop(index=lost.index)
+    return Prepared(sized, ablated, removed, lost, kept)
 
 
 def share_text(share: Fraction) -> str:
