@@ -127,6 +127,15 @@ PaO2/FiO2 below 400 reads as on room air; its row's limits say the ratio is not 
 
 ## Consequences
 
+**The order, by commit.** The rows were committed in `cb15592` (Add the SUPPORT2 loader, frame
+and mapping rows). At `14be75a`, before any gap listing or census, the training split was counted
+by a scratch script that runs `CATALOG["support2"].read` on the data root, then
+`split(records, seed=0, edges=frame.edges).train`: the cohort holds 9,104 records (9,105 rows,
+one dropped for a missing `scoma`, 2,359 in-hospital deaths); the training split holds 7,282
+records, 1,887 of them in-hospital deaths, an in-hospital death rate of 0.2591, digest
+`a9231c19529069a9bd0cc94a02209bac5c1242baf8da610f4dc93eca868347e7`. The split is above the 5,000
+records condition 5 asks.
+
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the
 two scores stay unread; a re-read that differs from Singer et al.'s reproduction would change a
