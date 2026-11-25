@@ -38,7 +38,7 @@ the fused shares and the neighbouring cells says how many rows a cell needs to b
   [E12](../docs/EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) registers, at the fixed
   fill, the coverage count, the expected-size count and the recommended count. Those arms are all
   free, so the sweep makes no paid call; E6's own `RUNS` arms include paid Messages arms and are
-  not swept. Three of those arms land in that unit's dependencies, so this unit depends on it.
+  not swept.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`.
   It fixes the representativeness measure as the reading: the largest gap between a cell's
   realized and fused concept shares, and the cell's share of the training set against `real`'s.
