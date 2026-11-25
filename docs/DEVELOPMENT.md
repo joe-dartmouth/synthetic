@@ -102,6 +102,22 @@ root or to see the module's own code, run it directly:
   `bko.ontology.icd9_codes` and diagnosis column, then the lab rows (ADR
   [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). No named run
   reads it, and the `contradictions` census does not.
+- **The TableShift frame**: `bko.datasets.tableshift` rebuilds TableShift's Hospital Readmission
+  partition of the same archive in numpy (ADR
+  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It drops the rows
+  whose race is `?`, puts `admission_source_id` 7 out of domain, and splits each domain with
+  `RandomState(264738)` as TableShift's `train_test_split` calls do; `record_id` is the row's
+  1-based position in the file. `bko.datasets.tableshift_frame` holds the frame `tableshift`:
+  every column but the identifiers, `admission_source_id` and `readmitted`, `sex` male against
+  every other gender, `race` Caucasian against every other race, the diagnoses as
+  `code_number`, band edges 1, 2, 4, 6 and 8, and the label 1 for any readmission. Its codebooks
+  for `weight`, `payer_code`, `medical_specialty`, the two id columns and the diagnoses are read
+  from the kept rows, so the frame is built from them. `tests/test_datasets_tableshift_pinned.py`
+  checks the partition's sizes against TableShift's Table 12 and the flagged cells of the
+  in-domain training split; the gate skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_tableshift_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's

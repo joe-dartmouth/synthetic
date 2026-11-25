@@ -67,8 +67,9 @@ split per run.
 7. **Holdouts.** Every holdout seed reuses the fixed partition, so a run's intervals read the arms'
    draw variance only.
 8. **Gap request.** E1's rule on the in-domain training split with edges `(1, 2, 4, 6, 8)`: a cell
-   with fewer than 20 training rows is filled to 20. It flags the cells the `--releases` test
-   names.
+   with fewer than 20 training rows is filled to 20. On the pinned archive it flags
+   `(<1, female, 1)` with 4 rows, `(<1, male, 0)` with 15 and `(<1, male, 1)` with 7;
+   `(<1, female, 0)` holds 20 (measured 2026-11-24).
 9. **Runs.** Experiment P1, runs `p1-id` and `p1-ood`, with `decontaminate=False`, since the
    partition is TableShift's. Accuracy at the 0.5 cutoff is derived from recall, precision and the
    test prevalence.
@@ -111,8 +112,14 @@ variance. The diagnosis columns carry no ontology concept.
 
 ## Enforcement
 
-- Owner: `src/bko/datasets/diabetes.py`
-- Pinned by: `tests/test_datasets_diabetes_pinned.py`
+- Owner: `src/bko/datasets/tableshift.py`, `src/bko/datasets/tableshift_frame.py`,
+  `src/bko/datasets/diabetes.py`
+- Pinned by: `tests/test_datasets_tableshift.py` (the dropped rows, the label, the domains, the
+  ceil rule, membership equal to scikit-learn's `train_test_split` in TableShift's three calls,
+  `sex` and `race` against every other value, the 46 features without the domain column, the lab
+  rows' codes in the codebook), `tests/test_datasets_tableshift_pinned.py` (under `--releases`:
+  Table 12's counts and the three flagged cells on the pinned archive),
+  `tests/test_datasets_diabetes_pinned.py`
 
 ## Reversal Conditions
 
