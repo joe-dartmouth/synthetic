@@ -47,9 +47,18 @@ checked against the run's log.
    `F1_type` `macro`, `eps_risk`, `dcr`, and `mia` with `num_eval_iter` 5.
 4. **The reference split.** E1's holdouts. Regenerating Lautrup et al.'s numbers on their own
    242 and 61 rows is the results unit's (`tasks/evaluate-syntheval-results.md`).
-5. **The register.** [P2](../../EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) holds the
+5. **The `hd` mapping.** `bko.datasets.hd.from_hd` reads their files as records of the UCI
+   frame. A match of every row of theirs to the pinned `processed.cleveland.data` on age, sex,
+   `trestbps`, `chol`, `thalach` and `oldpeak` (2026-11-24; the key is unique among UCI's 303
+   records) gives the maps from their codes to UCI's: `cp` 0 to 4, 1 to 2, 2 to 3, 3 to 1;
+   `restecg` 0 to 2, 1 to 0, 2 to 1; `slope` 0 to 3, 1 to 2, 2 to 1; `thal` 1 to 6, 2 to 3, 3 to
+   7. A missing `ca` is coded 4 and a missing `thal` 0, and `from_hd` drops a row holding either.
+   Their `target` is 1 where UCI's `num` is 0, so ours is 1 minus theirs. UCI record 303, which
+   lacks `ca`, appears in both files, and UCI record 185, a complete record, in neither. Each of
+   the 296 rows `from_hd` keeps (237 training, 59 test) equals its UCI record in every column.
+6. **The register.** [P2](../../EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval) holds the
    Configuration.
-6. **The arms.** Free arms only: the comparison set, the classical synthesizers, the Bayesian
+7. **The arms.** Free arms only: the comparison set, the classical synthesizers, the Bayesian
    network, TabDDPM, the label bootstrap and `bko-direct`.
 
 ## Rationale
@@ -78,8 +87,9 @@ Our split is not theirs, so the reading sits beside their figures rather than re
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/rows_read.py`
-- Pinned by: `tests/test_evaluate_rows.py`
+- Owner: `src/bko/datasets/hd.py`, `src/bko/evaluate/rows_read.py`
+- Pinned by: `tests/test_datasets_hd.py` (the maps, every code read as UCI's, the inverted target,
+  the missing codes dropped and counted, a code outside a map refused), `tests/test_evaluate_rows.py`
 
 ## Reversal Conditions
 
