@@ -292,7 +292,7 @@ def frame_records(
         ContractError: If a value contradicts the archive's schema.
     """
     categories = _categories(indicators)
-    rows = _checked(raw)
+    rows = checked(raw)
     patients = rows["patient_nbr"].astype("int64")
     first = rows.loc[~patients.duplicated()]
     kept = first.loc[~first["discharge_disposition_id"].astype("int64").isin(EXCLUDED_DISCHARGES)]
@@ -400,8 +400,21 @@ def _categories(
     return parsed
 
 
-def _checked(raw: pd.DataFrame) -> pd.DataFrame:
-    """Return `raw` sorted by `encounter_id` once every value it is read for fits the schema."""
+def checked(raw: pd.DataFrame) -> pd.DataFrame:
+    """Return `raw` sorted by `encounter_id` once every value it is read for fits the schema.
+
+    Args:
+        raw: The output of `parse_diabetic`.
+
+    Returns:
+        `raw`'s rows in encounter order, on a fresh index.
+
+    Raises:
+        ContractError: If an `encounter_id` is not a whole number or repeats, or a value of
+            `patient_nbr`, `discharge_disposition_id`, `COUNTS`, `gender`, `age`, `STATE_CODES`,
+            `readmitted` or `DIAGNOSES` contradicts the archive's schema, naming the first
+            encounter in encounter order.
+    """
     malformed = ~raw["encounter_id"].str.fullmatch(_WHOLE).to_numpy(dtype=bool)
     if malformed.any():
         first = int(malformed.argmax())

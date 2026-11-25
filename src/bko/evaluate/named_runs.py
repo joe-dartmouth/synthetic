@@ -49,6 +49,7 @@ from bko.evaluate.runs_diabetes import (
     _e6_ceiling,  # ruff: ignore[unused-import]  (re-exported)
     _slices,
 )
+from bko.evaluate.runs_published import P1
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 
 
@@ -287,12 +288,15 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e10", "pram-thin", E10_PRAM_THIN),
         **_slices("e10", "pram-empty", E10_PRAM_EMPTY),
         "g5": NamedRun(G5, G4_SETTINGS),
+        "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
+        "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
     }
 )
-"""Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, and the
+"""Every named run, by family: `e1`, `g2` to `g6-*`, `b1-*` to `b3-*`, `e3` to `e5-*`, the
 Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM-only full runs
-`e10-pram-*`, each family's experiment saying what it is. A variant adds its own entry in its own
-change, with its arms, candidate, comparators and ceiling."""
+`e10-pram-*`, and TableShift's `p1-id` and `p1-ood`, each family's experiment saying what it is.
+A variant adds its own entry in its own change, with its arms, candidate, comparators and
+ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:

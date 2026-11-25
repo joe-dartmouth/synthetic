@@ -359,11 +359,14 @@ def test_the_mapped_fields_leave_out_the_label():
     assert mapped_fields(Dataset.UCI, _context()) == frozenset({"cp"})
 
 
-def test_attribution_refuses_diabetes_codes_whose_frame_needs_its_records(tmp_path):
-    named = dataclasses.replace(_context(), dataset=Dataset.DIABETES_CODES)
-    why = "the diabetes-codes frame's codebook is built from its loaded records"
+@pytest.mark.parametrize(
+    "dataset", [Dataset.DIABETES_CODES, Dataset.TABLESHIFT_ID, Dataset.TABLESHIFT_OOD]
+)
+def test_attribution_refuses_a_dataset_whose_frame_needs_its_records(tmp_path, dataset):
+    named = dataclasses.replace(_context(), dataset=dataset)
+    why = f"the {dataset} frame's codebook is built from its loaded records"
     with pytest.raises(EvaluationError, match=why):
-        mapped_fields(Dataset.DIABETES_CODES, named)
+        mapped_fields(dataset, named)
     args = argparse.Namespace(traces=[tmp_path / "absent.jsonl"], run="g2")
     with pytest.raises(EvaluationError, match=why):
         run_attribution(args, named)

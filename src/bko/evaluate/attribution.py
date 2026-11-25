@@ -350,15 +350,17 @@ def _frame(dataset: Dataset) -> FrameSpec:
     """`dataset`'s frame, read with no data loaded, as attribution reads it.
 
     Raises:
-        EvaluationError: For `diabetes-codes`, whose frame is built from its loaded records.
+        EvaluationError: For a dataset whose frame is built from its loaded records, the ones
+            `bko.evaluate.data.frame` refuses.
     """
-    if dataset is Dataset.DIABETES_CODES:
+    try:
+        return frame(dataset)
+    except ValueError as error:
         msg = (
             f"attribution reads no data, and the {dataset} frame's codebook is built from its "
             "loaded records; attribution does not run on it"
         )
-        raise EvaluationError(msg)
-    return frame(dataset)
+        raise EvaluationError(msg) from error
 
 
 def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:

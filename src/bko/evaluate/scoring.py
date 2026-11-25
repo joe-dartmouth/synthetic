@@ -158,7 +158,12 @@ def _score(
         scores = _guided(args, data, guided, named, context, answers, direct=direct)
     else:
         scores = run(
-            data.records, experiment, context.arms, models=context.models, frame=data.frame
+            data.records,
+            experiment,
+            context.arms,
+            models=context.models,
+            frame=data.frame,
+            held=data.held,
         )
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
@@ -305,6 +310,7 @@ def _guided(
                 sink=kept,
                 models=context.models,
                 frame=frame,
+                held=data.held,
             )
     settings = named.settings
     canned = context.rehearse(data, experiment, settings) if args.rehearse else None
@@ -339,6 +345,7 @@ def _guided(
                 drains=drains,
                 on_holdout=paid.watch.holdout_done,
                 frame=frame,
+                held=data.held,
             )
         return run(
             records,
@@ -348,6 +355,7 @@ def _guided(
             drains=drains,
             on_holdout=paid.watch.holdout_done,
             frame=frame,
+            held=data.held,
         )
 
 

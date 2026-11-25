@@ -5,6 +5,8 @@ candidates file, so each reads the same records, frame, field mappings and diges
 logs name the frame. ADR `research/uci-evaluation-frame` records why the run, not a flag, chooses
 it. The Synthea and Diabetes 130 frames, their indicators and their field rows are in
 `bko.ontology.frames`, and the `diabetes-codes` frame and its rows in `bko.ontology.code_frames`.
+The two TableShift datasets hold a published partition's test records out at every holdout seed
+(`Data.held`, `held_split`; ADR `research/tableshift-comparison`).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -24,8 +26,10 @@ from bko.datasets.diabetes import load_diabetes
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, check_records
 from bko.datasets.sources import Agreement, Source
+from bko.datasets.split import Split, fixed, split
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_population
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
+from bko.datasets.tableshift import load_tableshift
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.ontology.code_frames import (
     DIABETES_CODES_FIELD_ROWS,
@@ -37,6 +41,7 @@ from bko.ontology.frames import (
     DIABETES_FRAME,
     DIABETES_INDICATORS,
     DIABETES_NAME,
+    LAB_FIELD_ROWS,
     SYNTHEA_ADULTS_FROM,
     SYNTHEA_FIELD_ROWS,
     SYNTHEA_FRAME,
@@ -56,6 +61,8 @@ class Dataset(StrEnum):
     SYNTHEA = "synthea"
     DIABETES = DIABETES_NAME
     DIABETES_CODES = DIABETES_CODES_NAME
+    TABLESHIFT_ID = "tableshift-id"
+    TABLESHIFT_OOD = "tableshift-ood"
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -70,7 +77,10 @@ class Data:
         agreement: The data use agreement the records are held under; None for open data. Every
             Messages arm refuses records whose agreement grants no permission to send them.
         digest: The sha256 of `records` as `digest` renders them, computed from them when the
-            value is made, which the candidates file's header names.
+            value is made, which the candidates file's header names; with `held`, the sha256
+            of that text followed by a `held=` line of the sorted held ids (`held_digest`).
+        held: The record ids every holdout holds out, a published partition's test split; None
+            splits each holdout by its seed (`bko.datasets.split.split`).
     """
 
     records: pd.DataFrame
@@ -78,11 +88,13 @@ class Data:
     field_rows: tuple[FieldMapping, ...]
     name: str
     agreement: Agreement | None
+    held: frozenset[int] | None = None
     digest: str = field(init=False)
 
     def __post_init__(self) -> None:
-        """Compute `digest` from `records`, so the two never disagree."""
-        object.__setattr__(self, "digest", digest(self.records))
+        """Compute `digest` from `records` and `held`, so they never disagree."""
+        found = digest(self.records) if self.held is None else held_digest(self.records, self.held)
+        object.__setattr__(self, "digest", found)
 
 
 class Reach(Protocol):
@@ -138,11 +150,46 @@ def digested(records: pd.DataFrame) -> tuple[str, str]:
     return text, hashlib.sha256(text.encode()).hexdigest()
 
 
+def held_digest(records: pd.DataFrame, held: frozenset[int]) -> str:
+    """The sha256 of `records` as `digested` renders them, then `held=` and the sorted held ids.
+
+    Two runs whose records agree but whose held test splits differ get different digests.
+    """
+    ids = ",".join(str(record) for record in sorted(held))
+    return hashlib.sha256(f"{digested(records)[0]}held={ids}\n".encode()).hexdigest()
+
+
+def held_split(data: Data, seed: int) -> Split:
+    """Holdout `seed`'s split of `data`'s records under its frame's edges.
+
+    `bko.datasets.split.split` when `data.held` is None, else `bko.datasets.split.fixed`, the
+    same test records at every seed.
+
+    Raises:
+        ContractError: As `fixed`, if a held id is not among the records.
+    """
+    return records_split(data.records, held=data.held, seed=seed, edges=data.frame.edges)
+
+
+def records_split(
+    records: pd.DataFrame, *, held: frozenset[int] | None, seed: int, edges: Sequence[int]
+) -> Split:
+    """`held_split` of bare records: `split` when `held` is None, else `fixed`.
+
+    Raises:
+        ContractError: As `fixed`.
+    """
+    if held is None:
+        return split(records, seed=seed, edges=edges)
+    return fixed(records, held=held, seed=seed)
+
+
 def frame(dataset: Dataset) -> FrameSpec:
     """The frame `load` gives `dataset`'s records, read with no data loaded.
 
     Raises:
-        ValueError: For `diabetes-codes`, whose codebook is built from its records.
+        ValueError: For `diabetes-codes` and the TableShift datasets, whose codebooks are built
+            from their records.
     """
     match dataset:
         case Dataset.UCI:
@@ -151,7 +198,7 @@ def frame(dataset: Dataset) -> FrameSpec:
             return SYNTHEA_FRAME
         case Dataset.DIABETES:
             return DIABETES_FRAME
-        case Dataset.DIABETES_CODES:
+        case Dataset.DIABETES_CODES | Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
             msg = f"the {dataset} frame's codebook is built from its records; load them"
             raise ValueError(msg)
         case _:
@@ -162,8 +209,8 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
     """The field rows `load` gives `dataset`'s data, read with no data loaded.
 
     UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS`, Diabetes 130's
-    `DIABETES_FIELD_ROWS` and `diabetes-codes`' `DIABETES_CODES_FIELD_ROWS`, whatever the
-    context's.
+    `DIABETES_FIELD_ROWS`, `diabetes-codes`' `DIABETES_CODES_FIELD_ROWS` and the TableShift
+    datasets' `LAB_FIELD_ROWS`, whatever the context's.
     """
     match dataset:
         case Dataset.UCI:
@@ -174,6 +221,8 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             return DIABETES_FIELD_ROWS
         case Dataset.DIABETES_CODES:
             return DIABETES_CODES_FIELD_ROWS
+        case Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
+            return LAB_FIELD_ROWS
         case _:
             assert_never(dataset)
 
@@ -185,7 +234,14 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
     ontology gets its own map here (ADR `research/ontology-mapping-design`).
     """
     match dataset:
-        case Dataset.UCI | Dataset.SYNTHEA | Dataset.DIABETES | Dataset.DIABETES_CODES:
+        case (
+            Dataset.UCI
+            | Dataset.SYNTHEA
+            | Dataset.DIABETES
+            | Dataset.DIABETES_CODES
+            | Dataset.TABLESHIFT_ID
+            | Dataset.TABLESHIFT_OOD
+        ):
             return context.releases
         case _:
             assert_never(dataset)
@@ -200,14 +256,18 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     `DIABETES_INDICATORS`, checked against `DIABETES_FRAME`
     (`bko.datasets.frames.check_records`). `diabetes-codes`' are the same cohort with the
     diagnosis codes in place of the indicators, checked against `diabetes_codes_frame` of
-    themselves. Each takes `field_rows(dataset, context)`, and a
+    themselves. The TableShift datasets' are `bko.datasets.tableshift.load_tableshift`'s training
+    split and in-domain or out-of-domain test split, the test split held, checked against the
+    `tableshift` frame of every kept row. Each takes `field_rows(dataset, context)`, and a
     fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
-    records' sha256) and its agreement: `none` for open data, else the agreement's name quoted.
+    records' sha256, with the held ids when there are some: `Data.digest`) and its agreement:
+    `none` for open data, else the agreement's name quoted.
 
     Raises:
         DatasetError: As `bko.datasets.fetch.ensure`, `bko.datasets.uci.load_uci` and
-            `bko.datasets.diabetes.load_diabetes`, as `check_records`, or as
+            `bko.datasets.diabetes.load_diabetes` and `bko.datasets.tableshift.load_tableshift`,
+            as `check_records`, or as
             `bko.datasets.synthea_run.check_population` and
             `bko.datasets.synthea.load_population`.
         OSError: If the data root cannot be written.
@@ -245,6 +305,13 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             # each token against `DIAGNOSIS_PATTERN`, so this check cannot fail on a diag column.
             check_records(records, spec)
             data = Data(records, spec, rows, source.name, source.agreement)
+        case Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
+            source = context.diabetes
+            ensure(source, data_dir, open_url=context.open_url)
+            domain = "id" if dataset is Dataset.TABLESHIFT_ID else "ood"
+            records, held, spec = load_tableshift(data_dir, source=source, domain=domain)
+            check_records(records, spec)
+            data = Data(records, spec, rows, source.name, source.agreement, held=held)
         case _:
             assert_never(dataset)
     agreement = data.agreement

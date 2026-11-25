@@ -7,7 +7,8 @@ are the same for every seed. Records are ranked by `sha256(f"{seed}:{record_id}"
 library upgrade can change. `subsampled` keeps a share of each cell's training rows for a
 scarcity run, ranked the same way under its own tag so a smaller share nests in a larger one.
 `uci_split` fetches UCI Heart Disease through `ensure`, loads and
-splits it, and logs the split; `split` never fetches.
+splits it, and logs the split; `split` never fetches. `fixed` holds out a published partition's
+test records at every seed instead (ADR `research/tableshift-comparison`).
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -49,11 +50,14 @@ class Split:
         train: The rows every stage before Evaluate reads.
         test: The held-out rows; only `bko.evaluate` reads them.
         seed: The seed that ranked the records.
+        fixed: True when `test` is a published partition's test split, the same at every seed
+            (`fixed`), so no two holdouts' splits differ.
     """
 
     train: pd.DataFrame
     test: pd.DataFrame
     seed: int
+    fixed: bool = False
 
     @property
     def fingerprint(self) -> str:
@@ -84,6 +88,37 @@ def split(frame: pd.DataFrame, *, seed: int = SPLIT_SEED, edges: Sequence[int]) 
     held_out = _lowest(frame, held_out_count, tag="", seed=seed, edges=edges)
     is_test = frame.index.isin(held_out)
     return Split(train=frame.loc[~is_test].copy(), test=frame.loc[is_test].copy(), seed=seed)
+
+
+def fixed(records: pd.DataFrame, *, held: Collection[int], seed: int) -> Split:
+    """Hold out the records `held` names, whatever the seed: a published partition's test split.
+
+    Args:
+        records: Records with a unique integer index.
+        held: The record ids of the test split.
+        seed: The holdout's seed, which the split carries and which chooses nothing.
+
+    Returns:
+        The partition, each part a frame of its own that can be changed without touching
+        `records`.
+
+    Raises:
+        ContractError: If `held` is empty, the index has a duplicate, or a held id is not in the
+            index.
+    """
+    if not held:
+        msg = "a fixed split needs one or more held records"
+        raise ContractError(msg)
+    if not records.index.is_unique:
+        msg = "a fixed split needs a unique record index"
+        raise ContractError(msg)
+    missing = sorted(set(held) - set(records.index))
+    if missing:
+        msg = f"held record {missing[0]} is not among the records ({len(missing)} missing)"
+        raise ContractError(msg)
+    is_test = records.index.isin(list(held))
+    train, test = records.loc[~is_test].copy(), records.loc[is_test].copy()
+    return Split(train=train, test=test, seed=seed, fixed=True)
 
 
 def kept_count(cell_size: int, fraction: Fraction) -> int:

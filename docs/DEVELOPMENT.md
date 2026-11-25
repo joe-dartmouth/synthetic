@@ -102,6 +102,27 @@ root or to see the module's own code, run it directly:
   `bko.ontology.icd9_codes` and diagnosis column, then the lab rows (ADR
   [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). No named run
   reads it, and the `contradictions` census does not.
+- **The TableShift frame**: `bko.datasets.tableshift` rebuilds TableShift's Hospital Readmission
+  partition of the same archive in numpy (ADR
+  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It drops the rows
+  whose race is `?`, puts `admission_source_id` 7 out of domain, and splits each domain with
+  `RandomState(264738)` as TableShift's `train_test_split` calls do; `record_id` is the row's
+  1-based position in the file. `bko.datasets.tableshift_frame` holds the frame `tableshift`:
+  every column but the identifiers, `admission_source_id` and `readmitted`, `sex` male against
+  every other gender, `race` Caucasian against every other race, the diagnoses as
+  `code_number`, band edges 1, 2, 4, 6 and 8, and the label 1 for any readmission. Its codebooks
+  for `weight`, `payer_code`, `medical_specialty`, the two id columns and the diagnoses are read
+  from the kept rows, so the frame is built from them. The dataset `tableshift-id` loads the
+  in-domain training split with the in-domain test split held, and `tableshift-ood` the same
+  training split with the out-of-domain test split held; every holdout seed holds out the same
+  test records (`bko.evaluate.data.held_split`), and the field rows are the lab rows alone.
+  `attribution` refuses both, since it loads no records to build their frame.
+  `tests/test_datasets_tableshift_pinned.py` checks the partition's sizes against TableShift's
+  Table 12 and the flagged cells of the in-domain training split; the gate skips it, and
+  `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_tableshift_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -709,7 +730,8 @@ start or the supervisor cannot run.
   `unknown_gender` + `under_20` + `records` ([Data](#data), The Diabetes frame). `score` logs a
   `data` line once it has loaded the named run's data,
   `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the dataset, its frame, its record
-  count, the sha256 of its records that the candidates file's header names under `data`, and the
+  count, the sha256 of its records (with its held test ids for a TableShift dataset,
+  `bko.evaluate.data.Data.digest`) that the candidates file's header names under `data`, and the
   data use agreement the records are held under: `none` for open data, else the agreement's name
   in double quotes ([Data](#data), Agreements)), then an `experiment` line,
   `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
@@ -926,7 +948,13 @@ start or the supervisor cannot run.
   PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
   `E10_PRAM_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
   `bko-direct-pram`, the ceiling inert) and their slices `e10-pram-thina` to `e10-pram-thinj` and
-  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. No flag
+  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds P1's runs, `p1-id` on
+  `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
+  the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
+  candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
+  ADR
+  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`

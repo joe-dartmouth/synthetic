@@ -47,8 +47,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-covariate-bias-fractions`](evaluate-covariate-bias-fractions.md) | ready | -- | direct-method-research |
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | blocked | evaluate-covariate-bias-fractions | direct-method-research |
-| [`evaluate-tableshift-readmission`](evaluate-tableshift-readmission.md) | ready | -- | direct-method-research |
-| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-tableshift-readmission | direct-method-research |
+| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-syntheval-heart-disease`](evaluate-syntheval-heart-disease.md) | ready | -- | direct-method-research |
@@ -77,7 +76,6 @@ unit's `milestone` is `direct-method-research`, the
 ```mermaid
 flowchart LR
     u37[evaluate-covariate-bias-fractions] --> u38[evaluate-covariate-bias-results]
-    u39[evaluate-tableshift-readmission] --> u40[evaluate-tableshift-results]
     u6[evaluate-control-runs-registered] --> u7[evaluate-diabetes-control-results]
     u6 --> u8[evaluate-synthea-direct-results]
     u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
