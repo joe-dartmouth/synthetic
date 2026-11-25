@@ -989,21 +989,19 @@ start or the supervisor cannot run.
   `e15-empty` on `diabetes-codes` (`bko.evaluate.runs_direct.E15_THIN` and `E15_EMPTY`: `E9_THIN`
   and `E9_EMPTY` with `none`, `real`, `bko-direct`, `bko-nomap` and the candidate `bko-tree`, no
   replica, the ceiling inert) and their slices `e15-thina` to `e15-thinj` and `e15-emptya` to
-  `e15-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E15, describes them. `RUNS` holds P1's runs, `p1-id` on `tableshift-id` and
-  `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
-  holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
-  the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
-  candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
-  ADR
-  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It holds P2's run,
-  `p2` (`bko.evaluate.runs_published.P2`: E1 on UCI Heart Disease with P1's arms, the candidate
-  `bko-direct`, a replica for every row-adding arm and the candidate and no criterion), whose
-  replica fills `syntheval` scores (ADR
-  [`research/syntheval-reading`](adr/research/syntheval-reading.md)). No flag
-  changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
-  calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
-  calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
-  per run.
+  `e15-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E15, describes them. `RUNS` holds P1's runs,
+  `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
+  on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
+  TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
+  and the candidate, no criterion and test copies kept, every holdout on TableShift's fixed test
+  split; ADR [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It holds
+  P2's run, `p2` (`bko.evaluate.runs_published.P2`: E1 on UCI Heart Disease with P1's arms, the
+  candidate `bko-direct`, a replica for every row-adding arm and the candidate and no criterion),
+  whose replica fills `syntheval` scores (ADR
+  [`research/syntheval-reading`](adr/research/syntheval-reading.md)). No flag changes a value;
+  `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where calls and candidates
+  are recorded and where calls are answered from, and `--in-flight` how many calls overlap, never a
+  value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT` per run.
 - **Exit codes**: as in [Data](#data), with 2 also for a request with nothing to fill, a fit that
   does not converge, a method that refuses a request on every attempt (but a generator short at
   its row limit, which fills partially) or scores that cannot be
@@ -1225,21 +1223,20 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
 Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`,
-`bko-capped`, `bko-tree`) re-draws
-at its `arm` line's seed with that arm's draw spec and no extra random draw; a `bko-logic`
-record's concepts are its closed draw, not share priors, a `bko-nomap` record names no
-concept, and a `bko-tree` record's concepts end in one entry per tree field: its `field`, `leaf`,
-`concept` and `label`, and `parts`, each level's node from the top's child down to the leaf with
-both counts at the node and its parent, the weight, the conditional and the share. `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows
-from their candidate lines and re-draw underneath, and each of their records gets a `perturb`
-object: `result`, the line's schema-4 `perturb` value (on a schema-3 line, `perturbed` or
-`unchanged` by comparison with the draw when the line names a call, `kept` when it names none, and
-PRAM's `changed` or `unchanged`); `fields`, the fields that differ from the draw; and `drawn`, the
-draw's values for them. The other arm kinds read their facts from the run folder, a Messages
-arm's from its `calls.jsonl`. It writes `trace.jsonl`, one sorted-key JSON line per record (one
-per fill for a baseline), which holds source training record ids; keep the file in its run
-folder. `<run-id>` is the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the
-arm:
+`bko-capped`, `bko-tree`) re-draws at its `arm` line's seed with that arm's draw spec and no extra
+random draw; a `bko-logic` record's concepts are its closed draw, not share priors, a `bko-nomap`
+record names no concept, and a `bko-tree` record's concepts end in one entry per tree field: its
+`field`, `leaf`, `concept` and `label`, and `parts`, each level's node from the top's child down to
+the leaf with both counts at the node and its parent, the weight, the conditional and the share.
+`bko-direct-pram` and `bko-direct-perturbed` rebuild their rows from their candidate lines and
+re-draw underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
+`perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
+line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`); `fields`, the
+fields that differ from the draw; and `drawn`, the draw's values for them. The other arm kinds read
+their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes `trace.jsonl`,
+one sorted-key JSON line per record (one per fill for a baseline), which holds source training
+record ids; keep the file in its run folder. `<run-id>` is the folder read, `<run>` the named run,
+`<h>` the holdout and `<arm>` the arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 

@@ -492,10 +492,10 @@ registered `candidate` stays `bko`.
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
 `bko-capped`, `bko-tree` and `bko-skeleton`, and the guidance levels, are ablations: each changes
-one part of how the BKB guides generation. The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the
-Bayesian network and the label bootstrap) are comparators. The control `prior-shift` adds no rows:
-it scores `none`'s fit with each requested subgroup's test logits moved to the subgroup's
-prevalence after the gap request's fill (ADR
+one part of how the BKB guides generation. The row-adding methods (the comparison set, the classical
+synthesizers, TabDDPM, the Bayesian network and the label bootstrap) are comparators. The control
+`prior-shift` adds no rows: it scores `none`'s fit with each requested subgroup's test logits moved
+to the subgroup's prevalence after the gap request's fill (ADR
 [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)).
 
 ### Data

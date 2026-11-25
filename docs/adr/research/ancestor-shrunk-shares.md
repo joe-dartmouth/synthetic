@@ -9,8 +9,8 @@ updated: 2026-11-25
 ## Context
 
 The `diabetes-codes` frame keeps each encounter's three diagnosis codes, and its field rows map
-each of 32 codes in each diagnosis column to the MONDO concept that carries the code's xref (ADR
-`research/diabetes-diagnosis-codes`). With a field this fine, most codes are rare in a small cell.
+each code ADR `research/diabetes-diagnosis-codes` selects, in each diagnosis column, to the MONDO
+concept that carries the code's xref. With a field this fine, most codes are rare in a small cell.
 `bko-direct` draws each concept present at its fused share, the cell's prior shrunk toward its
 label group's, and copies the three diagnosis columns from one record that shows exactly the drawn
 concepts (ADR `research/bkb-direct-generation`). Its share reads the cell and the label group and
@@ -24,10 +24,10 @@ hyper-Dirichlet of Dennis puts a distribution on a tree's leaves through one con
 distribution per internal node ([`dennis-1991`](../../literature.md#knowledge-guided-generation)).
 Neither work is fetched, so both readings are this record's.
 
-The unit's literal rule shrinks a code's cell share toward its parent's cell share times its share
-within the parent in the label group, recursively from the release's root. Shares computed that
-way do not sum to 1 unless every leaf sits at one depth, and a chain of single children changes
-them, so the rule depends on how deep the release happens to nest a code.
+A direct rule would shrink a code's cell share toward its parent's cell share times the code's
+share within the parent in the label group, recursively from the release's root. Shares computed
+that way do not sum to 1 unless every leaf sits at one depth, and a chain of single children
+changes them, so the rule depends on how deep the release happens to nest a code.
 
 ## Decision Drivers
 
@@ -74,7 +74,7 @@ them, so the rule depends on how deep the release happens to nest a code.
 
 ## Rationale
 
-The conditional form is the Dirichlet-tree reading of the unit's rule: each node splits its
+The conditional form is the Dirichlet-tree reading of that direct rule: each node splits its
 parent's share among its children, so the leaves sum to 1 by construction and a chain of single
 children passes its share down whole. Each split is the cell's conditional shrunk toward the label
 group's with the weight `bko-direct`'s share uses, so a cell of `GROUP_WEIGHT` records weighs as
@@ -98,7 +98,7 @@ depend on the release's hierarchy, so a new release is a new arm's reading.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| The unit's literal recursion | Does not sum to 1 unless leaves are padded to one depth, and depends on chain length | 2026-11-25 |
+| The direct recursion of Context | Does not sum to 1 unless leaves are padded to one depth, and depends on chain length | 2026-11-25 |
 | Shrinking toward the label group only | That is `bko-direct` | 2026-11-25 |
 | One categorical over the three columns' joint pattern | Donors are too sparse | 2026-11-25 |
 
