@@ -685,7 +685,8 @@ start or the supervisor cannot run.
   Heart Disease if the data root lacks it. Then for each of `E1`'s holdout seeds it splits the
   data with that seed and gives every arm the split's training rows and the request that fills
   each cell under the threshold up to the fill target (`Experiment.threshold` and
-  `Experiment.fill_to`, both 20 in `E1`). A classifier fit on the
+  `Experiment.fill_to`, both 20 in `E1`), or only the cell `Experiment.flagged_cell` names when
+  it is set. A classifier fit on the
   real rows, weighted as the arm says, and the added rows is scored on the test split, then a
   gradient boosting model fit on the same rows on one OpenMP thread; its rows follow the arm's
   logistic regression rows as `recall-hgb`, `precision-hgb` and `auc-pr-hgb`, so
@@ -791,11 +792,13 @@ start or the supervisor cannot run.
   models the command scores, which `panel` alone extends past `lr,hgb`; `seeds=` the first and last
   holdout seed, `removal=` the removed cell as `<band>/<sex>/<label>@<fraction>`, the fraction in
   (0, 1] and 1 removing every row of the cell, or `none`, `training_fraction=` an exact fraction
-  such as `1/4`, or `1`, `decontaminate=` `true` or `false`; ` replica_rows=<rows>` follows
-  `replica=` only when the run's `Experiment.replica_rows` caps the replica fill near that many
-  rows in all: each cell asks its `kept_count` at the share `replica_rows` over the training rows,
-  so the rounded cells may sum to a few rows off it; `cutoff=<probability>` follows `fill_to=` only
-  when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
+  such as `1/4`, or `1`, `decontaminate=` `true` or `false`; ` flagged_cell=<band>/<sex>/<label>`
+  follows `removal=` only when the run's `Experiment.flagged_cell` names the one cell its gap
+  request asks for, flagged whatever its count and restored to `fill_to`; ` replica_rows=<rows>`
+  follows `replica=` only when the run's `Experiment.replica_rows` caps the replica fill near that
+  many rows in all: each cell asks its `kept_count` at the share `replica_rows` over the training
+  rows, so the rounded cells may sum to a few rows off it; `cutoff=<probability>` follows `fill_to=`
+  only when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
   record positive; `spend_ceiling=` is the named run's own, a resume under `--ceiling` included),
   and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,

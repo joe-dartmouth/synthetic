@@ -105,6 +105,9 @@ class Experiment:
         replica_rows: The rows a replica asks for in all, split across cells in proportion to their
             training counts (`bko.datasets.split.kept_count`), each cell's count rounded, so the
             cells may sum to a few rows off it; None asks for every training row.
+        flagged_cell: The one cell flagged whatever its count, which the gap request restores to
+            `fill_to` alone; with a removal it is the removal's cell. None flags each cell below
+            `threshold`.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -129,6 +132,7 @@ class Experiment:
     training_fraction: Fraction = Fraction(1)
     cutoff: float = THRESHOLD
     replica_rows: int | None = None
+    flagged_cell: Stratum | None = None
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -144,7 +148,8 @@ class Experiment:
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
-                bool among them), or the replica rows are below 1.
+                bool among them), or the replica rows are below 1, or the flagged cell is not the
+                removal's cell.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -182,6 +187,7 @@ class Experiment:
         self._check_attempts()
         self._check_fill()
         self._check_training()
+        self._check_flagged_cell()
         if not 0 < self.validity <= 1:
             msg = f"validity {self.validity} must lie in (0, 1]"
             raise ValueError(msg)
@@ -237,6 +243,12 @@ class Experiment:
             raise ValueError(msg)
         if self.training_fraction < 1 and self.removal is not None:
             msg = "a training fraction below 1 and a removal cannot both thin the training rows"
+            raise ValueError(msg)
+
+    def _check_flagged_cell(self) -> None:
+        cell, removal = self.flagged_cell, self.removal
+        if cell is not None and removal is not None and cell != removal.cell:
+            msg = f"flagged cell {cell} is not the removal's cell {removal.cell}"
             raise ValueError(msg)
 
     def _check_fill(self) -> None:

@@ -109,8 +109,11 @@ each CTGAN fit takes over an hour on this frame, so the five runs run as paralle
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/runs_published.py`
-- Pinned by: nothing yet beyond the register entry
+- Owner: `src/bko/evaluate/runs_published.py`, `src/bko/evaluate/requests.py` (`flagged`,
+  `gap_request`), `src/bko/evaluate/experiment.py` (`Experiment.flagged_cell`)
+- Pinned by: `tests/test_evaluate_flagged_cell.py` (the cell flagged above the threshold, its
+  quota, a cell other than the removal's refused, a cell at `fill_to` refused, the `experiment`
+  line's key and its assumed value)
 
 ## Reversal Conditions
 

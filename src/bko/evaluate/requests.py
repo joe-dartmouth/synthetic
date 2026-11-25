@@ -25,7 +25,12 @@ if TYPE_CHECKING:
 def flagged(
     train: pd.DataFrame, experiment: Experiment, *, edges: Sequence[int]
 ) -> tuple[Stratum, ...]:
-    """The cells under `edges` holding fewer than `experiment.threshold` records, in grid order."""
+    """The cells under `edges` holding fewer than `experiment.threshold` records, in grid order.
+
+    With `experiment.flagged_cell` set, that cell alone, whatever its count.
+    """
+    if experiment.flagged_cell is not None:
+        return (experiment.flagged_cell,)
     return tuple(_short(train, experiment, edges=edges))
 
 
@@ -35,11 +40,16 @@ def gap_request(
     """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
 
     A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
-    further.
+    further. With `experiment.flagged_cell` set, the request asks for that cell alone, up to
+    `fill_to`.
 
     Raises:
-        EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill.
+        EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill, or
+            the flagged cell is not a cell of `frame` or already holds `fill_to` records.
     """
+    if experiment.flagged_cell is not None:
+        quota = _restored(train, experiment, experiment.flagged_cell, frame=frame)
+        return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
     quota = _short(train, experiment, edges=frame.edges)
     if not quota:
         msg = f"no cell holds fewer than {experiment.threshold} training records; nothing to fill"
@@ -62,6 +72,23 @@ def replica_request(
         share = Fraction(experiment.replica_rows, len(train))
         quota = {cell: kept_count(count, share) for cell, count in quota.items()}
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
+
+
+def _restored(
+    train: pd.DataFrame, experiment: Experiment, cell: Stratum, *, frame: FrameSpec
+) -> dict[Stratum, int]:
+    counts = {found: count for found, count, _ in _cells(train, edges=frame.edges)}
+    if cell not in counts:
+        msg = f"the flagged cell {cell} is not a cell of the frame {frame.name}"
+        raise EvaluationError(msg)
+    asked = experiment.fill_to - counts[cell]
+    if asked <= 0:
+        msg = (
+            f"the flagged cell {cell} holds {counts[cell]} training records, so fill_to "
+            f"{experiment.fill_to} adds none"
+        )
+        raise EvaluationError(msg)
+    return {cell: asked}
 
 
 def _short(
