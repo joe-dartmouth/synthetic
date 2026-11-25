@@ -100,7 +100,7 @@ from bko.evaluate.attribution import run_attribution
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
 from bko.evaluate.contradictions import run as census
-from bko.evaluate.data import Dataset, load
+from bko.evaluate.data import Dataset, dataset_releases, load
 from bko.evaluate.donor_attacks import DONOR_ARMS
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import PAID_ARMS
@@ -410,7 +410,8 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
     ontologies = None
     if DONOR_ARMS & set(named.experiment.arms):
         concepts = {row.concept for row in data.field_rows}
-        ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
+        releases = dataset_releases(named.dataset, named)
+        ontologies, _ = load_scope(concepts, root, releases=releases, open_url=named.open_url)
     return privacy(
         args.run,
         args.stores,
@@ -439,7 +440,8 @@ def _contradictions(args: argparse.Namespace, context: Context) -> str:
     root = data_dir(args)
     data = load(named.dataset, root, named)
     concepts = {row.concept for row in data.field_rows}
-    ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
+    releases = dataset_releases(named.dataset, named)
+    ontologies, _ = load_scope(concepts, root, releases=releases, open_url=named.open_url)
     return run_added(
         run,
         args.stores,

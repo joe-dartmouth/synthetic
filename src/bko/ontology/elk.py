@@ -273,31 +273,65 @@ def classify(
     added; a stale `out` or stderr file is removed first.
 
     Raises:
-        UnavailableError: If ROBOT times out, exits non-zero, or writes no `out`; the message
-            names the stderr file and quotes its last `TAIL_LINES` lines.
+        UnavailableError: As `run_checked`.
     """
     argv = robot_argv(java=java, jar=jar, owl=owl, out=out)
     out.parent.mkdir(parents=True, exist_ok=True)
     kept = out.with_name(out.name + ".stderr")
     out.unlink(missing_ok=True)
     kept.unlink(missing_ok=True)
+    return run_checked(
+        argv,
+        runner=runner,
+        timeout=timeout,
+        cwd=owl.parent,
+        kept=kept,
+        out=out,
+        doing="classifying",
+    )
+
+
+def run_checked(
+    argv: Sequence[str],
+    *,
+    runner: Runner,
+    timeout: float,
+    cwd: Path,
+    kept: Path,
+    out: Path,
+    doing: str,
+) -> float:
+    """Run ROBOT's `argv` through `runner` in `cwd`, check it wrote `out`, and return its seconds.
+
+    `argv[0]` is the Java ROBOT runs with, and `argv`'s `--input` value is the file ROBOT reads;
+    `doing` is the verb each failure's message uses for that work, such as `classifying`.
+
+    Raises:
+        UnavailableError: If Java cannot start, or ROBOT times out, exits non-zero, or writes no
+            `out`; each message but the first names the stderr file at `kept` and quotes its last
+            `TAIL_LINES` lines.
+    """
+    source = argv[argv.index("--input") + 1]
     started = time.monotonic()
     try:
-        status = runner(argv, timeout, owl.parent, kept)
+        status = runner(argv, timeout, cwd, kept)
     except subprocess.TimeoutExpired as exc:
-        msg = f"ROBOT did not finish in {exc.timeout} s classifying {owl}; {_tail(kept)}"
+        msg = f"ROBOT did not finish in {exc.timeout} s {doing} {source}; {tail(kept)}"
+        raise UnavailableError(msg) from exc
+    except OSError as exc:
+        msg = f"could not run {argv[0]} {doing} {source}: {exc}"
         raise UnavailableError(msg) from exc
     seconds = time.monotonic() - started
     if status != 0:
-        msg = f"ROBOT exited {status} after {seconds:.1f} s classifying {owl}; {_tail(kept)}"
+        msg = f"ROBOT exited {status} after {seconds:.1f} s {doing} {source}; {tail(kept)}"
         raise UnavailableError(msg)
     if not out.is_file():
-        msg = f"ROBOT exited 0 after {seconds:.1f} s but wrote no {out}; {_tail(kept)}"
+        msg = f"ROBOT exited 0 after {seconds:.1f} s but wrote no {out}; {tail(kept)}"
         raise UnavailableError(msg)
     return seconds
 
 
-def _tail(kept: Path) -> str:
+def tail(kept: Path) -> str:
     """Where ROBOT's stderr is, with its last `TAIL_LINES` lines."""
     if not kept.is_file():
         return f"no stderr at {kept}"

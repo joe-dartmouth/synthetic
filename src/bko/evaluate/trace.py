@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 
 from bko.datasets.split import split
 from bko.evaluate.call_prompts import CALLS
-from bko.evaluate.data import Data, Dataset, load
+from bko.evaluate.data import Data, Dataset, dataset_releases, load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARMS,
@@ -173,7 +173,8 @@ def run_trace(args: argparse.Namespace, named: Context) -> str:
     ontologies = None
     if fill.name in DIRECT_ARMS or fill.name in PERTURBS:
         concepts = {row.concept for row in data.field_rows}
-        ontologies, _ = load_scope(concepts, root, releases=named.releases, open_url=named.open_url)
+        releases = dataset_releases(named.dataset, named)
+        ontologies, _ = load_scope(concepts, root, releases=releases, open_url=named.open_url)
     return trace(
         folder,
         fill,

@@ -22,6 +22,7 @@ from bko.datasets.uci import UCI_FRAME
 from bko.gaps.detect import ontology_fragments
 from bko.gaps.errors import GapError
 from bko.gaps.observe import Cells, record_cells
+from bko.ontology.convert import Convert, converted
 from bko.ontology.releases import load_releases
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
@@ -36,6 +37,7 @@ def load_scope(
     *,
     releases: Mapping[str, Source],
     open_url: UrlOpener,
+    convert: Convert = converted,
 ) -> tuple[dict[str, Ontology], tuple[BKB, ...]]:
     """Load the release for each concept's prefix and the fragment each scopes to `concepts`.
 
@@ -47,6 +49,7 @@ def load_scope(
         data_dir: The data root the releases are read from and fetched into.
         releases: The pinned release for each concept prefix.
         open_url: The HTTPS opener.
+        convert: Converts an OWL-only release to OBO (`bko.ontology.releases.load_releases`).
 
     Returns:
         The loaded ontologies by prefix, and their fragments over `concepts`.
@@ -60,7 +63,7 @@ def load_scope(
         msg = f"no pinned release for the prefix {', '.join(unpinned)}"
         raise GapError(msg)
     sources = {prefix: releases[prefix] for prefix in prefixes}
-    ontologies = load_releases(sources, data_dir, open_url=open_url)
+    ontologies = load_releases(sources, data_dir, open_url=open_url, convert=convert)
     fragments = ontology_fragments(ontologies, concepts)
     for fragment in fragments:
         logger.info(

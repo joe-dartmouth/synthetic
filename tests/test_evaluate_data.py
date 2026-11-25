@@ -15,7 +15,7 @@ from bko.datasets.sources import Agreement
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.arguments import parser
 from bko.evaluate.context import Context
-from bko.evaluate.data import Data, Dataset, load
+from bko.evaluate.data import Data, Dataset, dataset_releases, load
 from bko.evaluate.errors import CandidatesFormatError, EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM
 from bko.evaluate.holdout_candidates import SCHEMA, CandidateFile, Origin, read
@@ -285,3 +285,9 @@ def test_a_canned_send_refuses_a_user_turn_it_cannot_read():
     with pytest.raises(GenerationError, match="does not read as the prompt renders it"):
         send(call)
     assert send.calls == 0
+
+
+@pytest.mark.parametrize("dataset", tuple(Dataset))
+def test_every_dataset_reads_the_contexts_releases(dataset):
+    context = _toy_context()
+    assert dataset_releases(dataset, context) is context.releases

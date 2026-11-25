@@ -34,21 +34,11 @@ from bko.ontology.elk import (
 from bko.ontology.errors import ReleaseFormatError
 from tests._datasets_fixtures import pin
 from tests._gaps_fixtures import LADDER_HPO, LADDER_MONDO
-from tests._ontology_fixtures import RoutingOpener
+from tests._ontology_fixtures import FakeRobot, RoutingOpener
 
 
 JAVA: Final = Path("/opt/jdk/bin/java")
 VERSION: Final = 'openjdk version "21.0.4"'
-
-ELK_MONDO: Final = LADDER_MONDO.replace(
-    "id: MONDO:9000005\nname: unrelated disorder\nis_a: MONDO:9000001\n",
-    "id: MONDO:9000005\nname: unrelated disorder\nis_a: MONDO:9000002 ! heart disorder\n",
-).replace(
-    "id: MONDO:9000003\nname: myocardial ischemia\nis_a: MONDO:9000002\n",
-    "id: MONDO:9000003\nname: myocardial ischemia\nis_a: MONDO:9000001\n",
-)
-"""ELK's output for the MONDO ladder: the unrelated disorder moved under heart disorder, and
-myocardial ischemia moved from under heart disorder to under disease."""
 
 OWL_MONDO: Final = b'<?xml version="1.0"?>\n<rdf:RDF><owl:Ontology rdf:about="mondo"/></rdf:RDF>\n'
 OWL_HPO: Final = b'<?xml version="1.0"?>\n<rdf:RDF><owl:Ontology rdf:about="hp"/></rdf:RDF>\n'
@@ -197,32 +187,6 @@ def test_the_argv_runs_robots_elk_then_converts_to_obo(tmp_path):
     ]
 
 
-class FakeRobot:
-    """Writes its stderr, then a canned OBO to the argv's output, or fails as told."""
-
-    def __init__(
-        self, status: int = 0, stderr: bytes = b"", timeout: bool = False, write: bool = True
-    ) -> None:
-        self.status = status
-        self.stderr = stderr
-        self.timeout = timeout
-        self.write = write
-        self.calls: list[list[str]] = []
-        self.cwds: list[Path] = []
-
-    def __call__(self, argv: Sequence[str], timeout: float, cwd: Path, stderr: Path) -> int:
-        self.calls.append(list(argv))
-        self.cwds.append(cwd)
-        stderr.write_bytes(self.stderr)
-        if self.timeout:
-            raise subprocess.TimeoutExpired(list(argv), timeout)
-        if self.status == 0 and self.write:
-            out = Path(argv[argv.index("--output") + 1])
-            owl = Path(argv[argv.index("--input") + 1]).read_bytes()
-            out.write_text(ELK_MONDO if b"mondo" in owl else LADDER_HPO, encoding="utf-8")
-        return self.status
-
-
 def elk_context(robot: FakeRobot, *, mondo_owl: bytes = OWL_MONDO) -> Context:
     obo = {"HP": LADDER_HPO.encode(), "MONDO": LADDER_MONDO.encode()}
     releases = {"HP": pin(obo["HP"], name="hpo"), "MONDO": pin(obo["MONDO"], name="mondo")}
@@ -365,6 +329,17 @@ def test_classify_raises_unavailable_on_a_timeout(tmp_path):
             java=JAVA,
             jar=tmp_path / "robot.jar",
             runner=FakeRobot(timeout=True),
+        )
+
+
+def test_classify_raises_unavailable_naming_a_java_that_cannot_start(tmp_path):
+    def runner(argv, timeout, cwd, stderr) -> int:
+        raise PermissionError(13, "Permission denied", argv[0])
+
+    owl = tmp_path / "m.owl"
+    with pytest.raises(UnavailableError, match=f"^could not run {JAVA} classifying {owl}: "):
+        elk_module.classify(
+            owl, tmp_path / "m.obo", java=JAVA, jar=tmp_path / "robot.jar", runner=runner
         )
 
 

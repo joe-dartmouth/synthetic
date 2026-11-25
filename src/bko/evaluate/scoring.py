@@ -22,7 +22,7 @@ from typing import Final
 
 from bko.datasets.fetch import default_data_dir
 from bko.evaluate.context import Context
-from bko.evaluate.data import Data, field_rows, load
+from bko.evaluate.data import Data, dataset_releases, field_rows, load
 from bko.evaluate.direct import run_direct
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARMS, PAID_ARMS, PERTURBED_ARM
@@ -283,15 +283,16 @@ def _guided(
     direct arm logs its run's validity sums on the way out, a stopped run included.
     """
     rows = data.field_rows
+    releases = dataset_releases(named.dataset, context)
     ontologies, fragments = load_scope(
         {row.concept for row in rows},
         data_dir(args),
-        releases=context.releases,
+        releases=releases,
         open_url=context.open_url,
     )
     knowledge = Knowledge(data.name, ontologies, fragments, rows)
     experiment = named.experiment
-    origin = Origin(args.run, data, context.releases)
+    origin = Origin(args.run, data, releases)
     records, frame = data.records, data.frame
     if not names:
         with CandidateFile(args.candidates, origin, None) as kept:

@@ -1,8 +1,8 @@
 ---
 id: datasets-acs-frame
 title: Add one ACS PUMS state-year as an exploratory non-health frame with occupation codes on the Occupation Ontology
-status: blocked
-depends_on: ontology-per-dataset-releases
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration, evaluate-crc-acs-benchmark
 parallel_safe: true
 milestone: direct-method-research
@@ -34,8 +34,8 @@ gap is read.
   - the detailed occupation code mapped to the Occupation Ontology through its SOC annotations,
     aggregate codes to their broad or minor class;
   - the six disability items mapped to HPO;
-  - every column the survey found an ontology for, its release held per dataset (unit
-    [`ontology-per-dataset-releases`](ontology-per-dataset-releases.md));
+  - every column the survey found an ontology for, its release held per dataset (ADR
+    [`research/ontology-mapping-design`](../docs/adr/research/ontology-mapping-design.md));
   - a `python -m bko.gaps acs` subcommand.
 - The `Source` pin carries the `agreement` value ADR `research/confirmatory-dataset-selection`
   records for the Census terms, and the frame follows that ADR's reading of their

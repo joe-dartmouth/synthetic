@@ -64,7 +64,19 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   releases carry no assets.
 - **Pins and fetch**: the releases are `MONDO`, `HPO` and `DO` in `bko.datasets.sources`, with the size
   and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
-  `bko.datasets.fetch.ensure` for the commands that read them.
+  `bko.datasets.fetch.ensure` for the commands that read them. Releases are held per dataset:
+  the evaluate stage alone reads a dataset's releases through
+  `bko.evaluate.data.dataset_releases(dataset, context)`, and every current dataset reads
+  `context.releases`, so its map stays HP and MONDO. The app, `gaps`, `generate`, `fusion` and
+  `ontology` commands each serve one dataset per run and read their `Context.releases`. A
+  command that reads several datasets loads one release per prefix, and the contradiction census
+  refuses two datasets that pin one prefix to different releases. An OWL-only release is a
+  `Source` whose `filename` ends `.owl`. Its conversion refuses an OWL file that names an import,
+  then runs the pinned ROBOT jar's `convert` to OBO at fetch time. The OBO sits beside the OWL in
+  its snapshot directory, named `<owl stem>.robot-<jar sha256[:16]>.obo`, so a snapshot that
+  fails its pin is removed with it and a re-pinned jar converts again. Later loads reuse it, and
+  every load logs its size and sha256. A converted file the loader refuses is a
+  `ReleaseFormatError` (exit 3), as for any release.
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto or fastobo; it
   returns frozen standard-library `Ontology` and `Term` values with sorted tuples and a sorted term
   map. A term keeps each xref's qualifiers, read by a second fastobo pass over the same path since
@@ -190,7 +202,13 @@ validation leans on the ranges and the codebook; the guideline cutoffs, the Detr
 the team-specified bounds await clinician review (RESEARCH, Represent); an ICD-9 xref asserts no
 equivalence, so the choice among a category's holders is the team's; load time has no budget; the
 ELK comparison needs a JDK and a 16 GB Java heap (`bko.ontology.elk.ELK_MEMORY_GB`), and the gate
-cannot catch a change in ROBOT's or ELK's output.
+cannot catch a change in ROBOT's or ELK's output; a converted OWL release is not guaranteed to
+load, and its OBO is keyed by the OWL's and the jar's sha256s and has none of its own. Measured on
+2026-11-24 under the pinned ROBOT jar, with the output read by pronto in memory: the Occupation
+Ontology's OWL (version IRI `releases/2025-10-06`, no import statement) converts to an OBO that
+pronto reads with no skipped construct, 1,801 terms under `data-version: releases/2025-10-06`;
+the pinned `hp.owl` converts too, but pronto refuses the result (a `SyntaxError` on an imported
+term's `def:` whose xref is written `Pathbase: Curation`).
 
 ## Ruled Out
 
@@ -219,6 +237,10 @@ cannot catch a change in ROBOT's or ELK's output.
 | Leaving ST-elevation myocardial infarction out because myocardial infarction already maps | The rule is mechanical; a judgment per code would need a source the release does not give | 2026-10-27 |
 | An out-of-scope row for diabetes mellitus | Once type 2 diabetes maps it is an is_a ancestor and in scope; the check refuses an out-of-scope row above a mapped concept | 2026-10-27 |
 | Parsing the OWL releases in Python, with owlready2 or an RDF library, for the ELK comparison | A second OWL reader beside the OWL API the release builds use, and owlready2 builds an sdist; see Rationale | 2026-11-05 |
+| One global `RELEASES` map for every dataset | A dataset whose concepts come from another ontology would need its prefix in every dataset's map | 2026-11-24 |
+| A Python OWL parser for an OWL-only release | A second OWL reader beside the OWL API ROBOT runs; ROBOT already converts OWL to OBO | 2026-11-24 |
+| Pinning a converted OBO by its own sha256 | ROBOT's serialisation is not known to be byte-stable across JDKs; the OWL and the jar are pinned, and each load logs the OBO's digest | 2026-11-24 |
+| A second, tolerant OBO reader for converted files | A third reader beside pronto and `read_hierarchy`; a converted file pronto refuses is refused as any release is | 2026-11-24 |
 
 ## Enforcement
 
@@ -226,8 +248,12 @@ cannot catch a change in ROBOT's or ELK's output.
 - Pinned by: `tests/test_ontology_obo.py`, `tests/test_ontology_imports.py`,
   `tests/test_datasets_sources.py`, `tests/test_ontology_mapping.py`, `tests/test_ontology_check.py`,
   `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
-  comparison and ROBOT's argv, with a fake runner), and `tests/test_ontology_pinned_releases.py`
-  with `--releases`
+  comparison and ROBOT's argv, with a fake runner), `tests/test_ontology_convert.py` (an OWL-only
+  release's conversion through `src/bko/ontology/convert.py`, its jar-keyed name and its
+  failures, with a fake runner), `tests/test_evaluate_data.py` (each dataset's releases),
+  `tests/test_contradictions_census.py` (one release per prefix across the census's datasets),
+  and
+  `tests/test_ontology_pinned_releases.py` with `--releases`
 - `python -m bko.ontology check` is the check the gate cannot make, and
   `tests/test_ontology_pinned_releases.py` asserts it over the real releases when `--releases` is
   passed; a person runs one of them after editing the table, re-pinning, or changing
@@ -248,6 +274,9 @@ a search of `tasks/` for one.
 
 **A clinician's verdicts replace the team's choices when a clinician reviews the table**; this
 record and the rows are then edited.
+
+**A converted OBO gains its own pin when two machines log different sha256s for one OWL release
+under the pinned ROBOT jar**; the check is the converted release's log line on each machine.
 
 **The releases are re-pinned when E1's or E2's configuration names another release**; the check
 is a comparison of that configuration with `bko.datasets.sources`.
