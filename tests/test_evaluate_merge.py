@@ -344,3 +344,22 @@ def test_merges_log_opens_with_its_versions_line(tmp_path, caplog, monkeypatch):
         code, _ = _merged(tmp_path, [HIGH, LOW])
     assert code == 0
     assert caplog.messages[0].startswith("versions commit=")
+
+
+def test_slices_of_a_flagged_cell_run_merge_with_their_auc_roc_rows(tmp_path):
+    flagged = dataclasses.replace(WHOLE, fill_to=26, flagged_cell=("<45", "male", 1))
+    arms = {name: ARMS[name] for name in flagged.arms}
+
+    def scored(seeds: tuple[int, ...]) -> str:
+        sliced = dataclasses.replace(flagged, holdout_seeds=seeds)
+        return render(run(toy_records(), sliced, arms, frame=TOY))
+
+    whole = scored((0, 1, 2, 3))
+    assert ",augmented,auc-roc-hgb," in whole
+    texts = [scored((0, 1)), scored((2, 3))]
+    logs: list[str | None] = [
+        scores_log(dataclasses.replace(flagged, holdout_seeds=held), name=f"toy-{part}")
+        for held, part in (((0, 1), "a"), ((2, 3), "b"))
+    ]
+    context = Context(runs={"toy": NamedRun(flagged)})
+    assert _merged(tmp_path, texts, context=context, logs=logs) == (0, whole)
