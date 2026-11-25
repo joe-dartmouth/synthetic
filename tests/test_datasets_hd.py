@@ -125,3 +125,13 @@ def test_a_fraction_in_a_whole_field_is_refused():
 def test_a_file_of_only_missing_codes_is_refused():
     with pytest.raises(ContractError, match="no complete"):
         from_hd(hd_text(hd_line(ca=MISSING_CA)))
+
+
+@pytest.mark.parametrize(
+    ("missing", "bad"),
+    [({"ca": MISSING_CA}, {"cp": 4}), ({"thal": MISSING_THAL}, {"slope": 3})],
+)
+def test_a_bad_code_in_a_row_with_a_missing_code_is_refused(missing, bad):
+    (name,) = bad
+    with pytest.raises(ContractError, match=f"hd row 2: {name}"):
+        from_hd(hd_text(hd_line(), hd_line(**missing, **bad)))
