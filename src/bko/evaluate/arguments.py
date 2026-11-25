@@ -18,6 +18,7 @@ from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import add_parser as add_panel
 from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
+from bko.evaluate.syntheval_reading import add_parser as add_syntheval
 from bko.evaluate.trace import add_parser as add_trace
 from bko.generate.flight import IN_FLIGHT
 
@@ -157,6 +158,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         add_contradictions,
         add_trace,
         add_attribution,
+        add_syntheval,
     ):
         add(commands)
     liking = commands.add_parser(

@@ -75,8 +75,12 @@ when someone runs `make <tool>-test`. Each tool's environment must be rebuilt wh
 
 ## Enforcement
 
-- Owner: `Makefile`, `tools/check_file_size.py`
-- Pinned by: `tests/test_repo_gate.py`, `tests/test_file_size.py`
+- Owner: `Makefile` (`syntheval-env`, `syntheval-test`), `tools/check_file_size.py`,
+  `bench/syntheval/requirements.txt`, `src/bko/evaluate/syntheval_reading.py`
+- Pinned by: `tests/test_repo_gate.py` (the `syntheval-env` and `syntheval-test` recipes),
+  `tests/test_file_size.py` (the `bench/` cap), `tests/test_evaluate_syntheval.py` (the runner,
+  the missing environment, a failing script, the script parsed with `ast`); outside the gate,
+  `bench/syntheval/tests/test_score.py` under `make syntheval-test`
 
 ## Reversal Conditions
 

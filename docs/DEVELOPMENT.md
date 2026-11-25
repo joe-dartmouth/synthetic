@@ -955,7 +955,11 @@ start or the supervisor cannot run.
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
   candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
   ADR
-  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). No flag
+  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It holds P2's run,
+  `p2` (`bko.evaluate.runs_published.P2`: E1 on UCI Heart Disease with P1's arms, the candidate
+  `bko-direct`, a replica for every row-adding arm and the candidate and no criterion), whose
+  replica fills `syntheval` scores (ADR
+  [`research/syntheval-reading`](adr/research/syntheval-reading.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
@@ -1071,6 +1075,26 @@ line's sha256, whose holdouts overlap another store's or leave one of the run's 
 `split` line the data does not reproduce, and for a direct fill whose re-draw does not hash to its
 `arm` line's sha256, or a perturbation fill whose candidate lines do not rebuild its rows or are not
 one per draw, or whose lines or stored rows are not their re-draw outside the perturbed fields.
+
+**SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
+metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
+[`research/syntheval-reading`](adr/research/syntheval-reading.md)), each fill against its
+holdout's training split as the real data and its test split as the holdout data. It needs
+`make syntheval-env` ([Benchmark environments](#benchmark-environments)), runs `rows` first, and
+makes no API call:
+
+    mkdir -p runs/<run-id>-syntheval && test ! -e runs/<run-id>-syntheval/syntheval.csv && test ! -e runs/<run-id>-syntheval/syntheval.log && uv run --no-sync python -m bko.evaluate syntheval <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-syntheval/syntheval.csv 2> runs/<run-id>-syntheval/syntheval.log </dev/null
+
+For each fill it writes the real, test and synthetic tables and the metric set into a temporary
+directory, runs `bench/syntheval/score.py` under `bench/syntheval/.venv`, and reads back the metric
+name to value object it writes. The `syntheval.csv` holds one row per holdout, replica fill
+(`<arm>-replica`) and metric SynthEval returns, `holdout,arm,metric,value`, a value SynthEval could
+not compute empty. Its `syntheval.log` opens with the `versions commit=` line and `syntheval
+store=%s sha256=%s`, then logs per fill one `syntheval input holdout=%d arm=%s file=%s sha256=%s`
+line per input file and `syntheval holdout=%d arm=%s rows=%d metrics=%d`, and closes with
+`syntheval rows=%d sha256=%s`, the CSV's rows and sha256. It exits 2 when the environment is absent,
+naming `make syntheval-env`, or when the script exits non-zero, with the last lines of its stderr,
+or writes no metrics; 3 for a folder or store that fails `rows`' identity checks.
 
 **The perturbation runs.** `e10-pilot-thin` and `e10-pilot-empty` run two holdouts per removal
 fraction, each at a $5.00 ceiling, and judge no criterion (ADR
@@ -1897,6 +1921,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `syntheval.csv` | `python -m bko.evaluate syntheval`'s stdout |
+| `syntheval.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
 | `trace.log` | its stderr |
 | `attribution.csv` | `python -m bko.evaluate attribution`'s stdout |
@@ -2060,6 +2086,35 @@ talks over.
 
       uv run --no-sync pytest tests/test_video_model_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+## Benchmark environments
+
+A benchmark tool that needs a system library, another Python, or packages the gate has no other
+use for runs in its own hashed environment under `bench/<tool>/`, outside the lock (ADR
+[`tooling/benchmark-tools-outside-the-lock`](adr/tooling/benchmark-tools-outside-the-lock.md)).
+`bench/<tool>/` holds `requirements.in`, the hashed `requirements.txt` compiled from it, one script
+that imports no `bko`, the script's own test under `tests/` and a README. `bko` runs the script as a
+subprocess and never imports the tool.
+
+- **SynthEval** ([README](../bench/syntheval/README.md)): `make syntheval-env` builds
+  `bench/syntheval/.venv` from `bench/syntheval/requirements.txt`, with hashes and wheels only, on
+  Python 3.14; `uv.lock` and `.venv` are untouched. On macOS LightGBM, which SynthEval imports,
+  needs Homebrew's OpenMP runtime, for this environment only:
+
+      brew install libomp
+
+  `make syntheval-test` runs `bench/syntheval/tests/` with the project's pytest; it calls
+  `bench/syntheval/score.py` under the environment's interpreter on a tiny fixture fill and exits
+  2 without the environment. `python -m bko.evaluate syntheval` reads with it
+  ([Evaluation](#evaluation)).
+- **Changing the requirements**: edit `bench/<tool>/requirements.in`, then from the repository root:
+
+      uv pip compile bench/syntheval/requirements.in --universal --python-version 3.14 --generate-hashes -o bench/syntheval/requirements.txt
+
+- **What the gate checks**: `make lint` and `make sizes` reach `bench/`; `make typecheck` and
+  coverage do not. The gate never imports SynthEval: `tests/test_evaluate_syntheval.py` tests the
+  export, the call and the parsing with a fake runner and parses the script with `ast`, and a PR
+  that changes the script runs `make syntheval-test`.
+
 ## Platforms
 
 The gate is POSIX-only: macOS and Linux. The checkers shell out to `git`, and the Makefile recipes
@@ -2090,9 +2145,11 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 | `check` | `rebased synced lint sizes typecheck test rebased-final` | `.NOTPARALLEL`, so the order is a guarantee |
 | `video-env` | `uv venv` then `uv pip sync --require-hashes --only-binary :all: video/requirements.txt` into `video/.venv` | Not part of the gate; installs outside the lock ([Video](#video)) |
 | `video` | `python -m video.render` in `video/.venv` | Not part of the gate; needs `make video-env` and FFmpeg; no API call ([Video](#video)) |
+| `syntheval-env` | `uv venv` then `uv pip sync --require-hashes --only-binary :all: bench/syntheval/requirements.txt` into `bench/syntheval/.venv` | Not part of the gate; installs outside the lock; on macOS needs `brew install libomp` ([Benchmark environments](#benchmark-environments)) |
+| `syntheval-test` | `pytest bench/syntheval/tests` | Not part of the gate; needs `make syntheval-env`; runs the SynthEval script's real test ([Benchmark environments](#benchmark-environments)) |
 
 Every step from `lint` down runs as `uv run --no-sync`, except `video-env` and `video`, which run
-in `video/.venv`: the gate measures the environment `make setup` built and never re-locks or
+in `video/.venv`, and `syntheval-env`, which builds `bench/syntheval/.venv`: the gate measures the environment `make setup` built and never re-locks or
 installs during a run.
 
 The `check` order puts what invalidates other steps first: a rebase can move `uv.lock`, which

@@ -33,6 +33,10 @@ import it (ADR `tooling/agent-config-single-home`).
 - `make video-env`, then `make video`: build ManimGL's own environment outside the lock, then render
   the demo video into `video/media/`. It needs FFmpeg and makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#video)).
+- `make syntheval-env`, then `make syntheval-test`: build SynthEval's own environment outside the
+  lock, then run its scoring script's real test on a tiny fixture fill. On macOS it needs
+  `brew install libomp`
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#benchmark-environments)).
 - `uv run --no-sync python -m bko.baselines <method> [--rows N]`: build one comparison method's
   training set from the UCI training split and print it as CSV
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#baselines)).
@@ -70,6 +74,10 @@ import it (ADR `tooling/agent-config-single-home`).
   reuse, read from a re-draw of the fill. `--rows` repeats,
   once per slice's store. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
+- `mkdir -p runs/<run-id>-syntheval && test ! -e runs/<run-id>-syntheval/syntheval.csv && test ! -e runs/<run-id>-syntheval/syntheval.log && uv run --no-sync python -m bko.evaluate syntheval <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-syntheval/syntheval.csv 2> runs/<run-id>-syntheval/syntheval.log </dev/null`:
+  score each replica fill of a run's `rows` store under SynthEval's metrics in the environment
+  `make syntheval-env` builds outside the lock. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the paragraph).
 - `test ! -e runs/<run-id>/likelihood.csv && mkdir -p runs/<run-id> && uv run --no-sync python -m bko.evaluate likelihood [<run>] --candidates <file> > runs/<run-id>/likelihood.csv 2> runs/<run-id>/likelihood.log`:
   split each cell's `bko` replica candidates at their median BKB log-probability and log whether
   the top halves' fidelity beats the bottom halves' on every measure (`gate separated=`). It makes
@@ -161,6 +169,7 @@ synthetic/
 ├── src/bko/     # one subpackage per pipeline stage, plus core, each with a README
 ├── presentations/ # Marp slide decks; `marp` renders PDF or PPTX locally, gitignored
 ├── video/       # ManimGL scenes for the demo video; rendered output gitignored (video/README.md)
+├── bench/       # benchmark tools, each in a hashed environment outside the lock (docs/DEVELOPMENT.md#benchmark-environments)
 ├── tools/       # the repository's own checkers, run by `make check` (tools/README.md)
 └── tests/
 ```
@@ -177,6 +186,10 @@ synthetic/
 - **ManimGL is not a dependency.** It lives in `video/.venv`, built by `make video-env` from a
   hashed requirements file; `uv pip sync` there leaves `uv.lock` and `.venv` untouched, and nothing
   under `src/`, `tests/` or `tools/` imports `manimlib` (ADR `tooling/video-scenes-outside-the-lock`).
+- **SynthEval is not a dependency.** It lives in `bench/syntheval/.venv`, built by
+  `make syntheval-env` from a hashed requirements file; on macOS it needs `brew install libomp`.
+  `bko` runs its script as a subprocess, the gate never imports it, and `make syntheval-test` runs
+  the script's real test (ADR `tooling/benchmark-tools-outside-the-lock`).
 - **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`,
   `app` and `slm`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never

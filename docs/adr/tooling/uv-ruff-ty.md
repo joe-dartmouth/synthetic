@@ -49,8 +49,9 @@ We will use:
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
   `test`, `sizes`, `synced`, `rebased`, `rebased-final`, `check`, `cells`, `synthea` and
   `reproduce`, which run dataset and ontology commands outside the gate, `app`, which serves
-  the Streamlit interface outside it, and `video-env` and `video`, which build and run the demo
-  video's environment outside the lock.
+  the Streamlit interface outside it, `video-env` and `video`, which build and run the demo
+  video's environment outside the lock, and `syntheval-env` and `syntheval-test`, which build and
+  test SynthEval's.
 
 ## Rationale
 

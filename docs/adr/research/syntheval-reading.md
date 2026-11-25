@@ -87,9 +87,14 @@ Our split is not theirs, so the reading sits beside their figures rather than re
 
 ## Enforcement
 
-- Owner: `src/bko/datasets/hd.py`, `src/bko/evaluate/rows_read.py`
+- Owner: `src/bko/datasets/hd.py`, `src/bko/evaluate/rows_read.py`,
+  `src/bko/evaluate/syntheval_inputs.py` (`METRICS`, `fills`), `src/bko/evaluate/syntheval_reading.py`,
+  `src/bko/evaluate/runs_published.py` (`P2`), `bench/syntheval/score.py`
 - Pinned by: `tests/test_datasets_hd.py` (the maps, every code read as UCI's, the inverted target,
-  the missing codes dropped and counted, a code outside a map refused), `tests/test_evaluate_rows.py`
+  the missing codes dropped and counted, a code outside a map refused), `tests/test_evaluate_rows.py`,
+  `tests/test_evaluate_syntheval.py` (each replica fill with its holdout's splits, the metric set,
+  P2's configuration, the command's CSV and log lines), `tests/test_named_runs_slices.py` (the run
+  names in order)
 
 ## Reversal Conditions
 
