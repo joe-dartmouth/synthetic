@@ -35,7 +35,8 @@ from bko.evaluate.utility import undefined, utility
 logger = logging.getLogger("bko.evaluate.run")
 
 MIN_LABELS: Final = 2
-"""The labels a replica's rows must hold for a classifier fit on them alone to be scored."""
+"""The labels a replica's rows must hold for a classifier fit on them alone to be scored, and an
+arm's training set for any classifier to fit."""
 
 
 def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside the fit's inputs)
@@ -68,6 +69,10 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     its calibration measures when `calibration` holds and its ROC AUC when `roc` holds.
     `PRIOR_SHIFT_ARM`'s probabilities are `shifted` per model by offsets solved on the model's
     `out_of_fold` predictions of the training split.
+
+    Raises:
+        EvaluationError: If the training set holds rows of fewer than 2 labels, as a short fill
+            at a synthetic share of 1 may leave it.
     """
     train, added = parts.train, baseline.added
     counts = {
@@ -83,6 +88,11 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
             Score(seed, name, Source.ADDED, Measure.CODE_SHARE_ERROR, Scope.FLAGGED, error)
         )
     training = training_set(kept, baseline, frame=frame)
+    labels = training[frame.label].nunique()
+    if labels < MIN_LABELS:
+        msg = f"holdout {seed} arm {name} trains on {len(training)} rows of {labels} labels;"
+        msg += " a classifier needs both"
+        raise EvaluationError(msg)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     shift_counts = (
         cast("Mapping[str, Sequence[int]]", baseline.params["shift"])

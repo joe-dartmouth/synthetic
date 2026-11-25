@@ -48,14 +48,16 @@ the arm that cannot fill a cell and the recall the margin reads all need a rule.
 5. **The training set.** The classifier trains on the kept rows plus the fill. `real` adds the
    dropped rows back, so it trains on the whole split at every share. The test split is untouched.
 6. **A short arm.** An arm short of a cell's count scores the partial fill, and its `rows` measure
-   shows the realised count.
+   shows the realised count. A fill that leaves the training set empty or of one label, as a short
+   fill at share 1 may, stops the run with an error naming the holdout and the arm.
 7. **The recall the margin reads.** Recall on E6's cell, flagged by name
    (`Experiment.flagged_cell`), the same test rows the margin was calibrated on. All-rows recall
    is reported beside it with no margin. Since the run names its flagged cell, it also writes
    `auc-roc` on both scopes.
 8. **The arms.** `real`, `bko-direct`, `ctgan`, `tvae`, `cart`, `bayes-net`, `tabddpm` and
    `label-bootstrap`; `bko-direct` the candidate, every other arm but `real` a comparator, no
-   replica and no criterion.
+   replica and no criterion. `prior-shift` and `class-weight` are refused under a share: their
+   offsets and weights read the whole training split, not the kept rows.
 9. **Privacy.** The readings are over the synthetic rows against the whole split, with
    `bko-direct` the reference arm, so each comparator's reading is its contrast with
    `bko-direct`, and E6's cell the cell scope.
@@ -97,6 +99,7 @@ seconds on the whole split and a CTGAN fit of over an hour repeat at every share
   nesting, the hash ranking, share 1 dropping every row), `tests/test_evaluate_share.py` (a share
   refused beside a removal or with no flagged cell, the test split untouched at every share, the
   request's quota, the training size at every share, `real` on the whole split, a partial fill,
+  a fill of fewer than two labels at share 1, `prior-shift` and `class-weight` refused,
   the `experiment` line's key and its assumed value), `tests/test_evaluate_share_runs.py` (the
   shares, the arms, no paid arm, each run's slices, the reference arm and cell),
   `tests/test_evaluate_share_readers.py` (`rows`, `panel`, `shared`, `merge`, `trace`, `privacy`

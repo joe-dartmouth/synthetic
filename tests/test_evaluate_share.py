@@ -66,6 +66,17 @@ def test_a_share_needs_a_flagged_cell():
         dataclasses.replace(SHARE_RUN, flagged_cell=None)
 
 
+@pytest.mark.parametrize("arm", ["prior-shift", "class-weight"])
+def test_an_arm_reading_the_whole_split_is_refused_under_a_share(arm):
+    arms = (*SHARE_RUN.arms, arm)
+    removing = dataclasses.replace(
+        SHARE_RUN, arms=arms, synthetic_share=None, removal=Removal(FULL, 0.5)
+    )
+    assert arm in removing.arms
+    with pytest.raises(ValueError, match=rf"\['{arm}'\] read the whole training split"):
+        dataclasses.replace(removing, removal=None, synthetic_share=Fraction(1, 4))
+
+
 def test_real_is_admitted_under_a_share():
     assert SHARE_RUN.arms == (REAL_ARM, "smote")
     with pytest.raises(ValueError, match=r"needs a removal or a synthetic share"):
@@ -110,7 +121,9 @@ def test_the_test_split_and_its_fingerprint_are_untouched_at_every_share(share):
 def test_the_experiment_line_names_a_share_only_when_set():
     plain = experiment_line("x", E1, ["lr"], frame="uci")
     assert "synthetic_share" not in plain
-    cell = dataclasses.replace(E1, flagged_cell=FULL)
+    arms = tuple(arm for arm in E1.arms if arm != "class-weight")
+    comparators = tuple(arm for arm in E1.comparators if arm != "class-weight")
+    cell = dataclasses.replace(E1, arms=arms, comparators=comparators, flagged_cell=FULL)
     named = experiment_line("x", cell, ["lr"], frame="uci")
     for share, spelled in [(Fraction(1, 50), "1/50"), (Fraction(1), "1/1")]:
         sharing = dataclasses.replace(cell, synthetic_share=share)
@@ -274,3 +287,20 @@ def test_an_arm_short_of_a_cells_count_scores_its_partial_fill(monkeypatch, capl
     )
     assert "added=47 " in caplog.text
     assert 'params={"short": {"<45/female/0": 5}}' in caplog.text
+
+
+@pytest.mark.parametrize(("labels", "held"), [((), 0), ((1,), 1)])
+def test_a_share_1_fill_of_fewer_than_two_labels_names_its_holdout_and_arm(
+    labels, held, monkeypatch
+):
+    experiment = dataclasses.replace(SCORED, synthetic_share=Fraction(1))
+    full = FAST_ARMS["smote"]
+
+    def thin(train: pd.DataFrame, request: Request) -> Baseline:
+        added = full(train, request).added
+        return Baseline(added.loc[added[TOY.label].isin(labels)], full(train, request).weights, {})
+
+    arms = {"smote": thin, "label-bootstrap": FAST_ARMS["label-bootstrap"]}
+    message = rf"holdout 0 arm smote trains on \d+ rows of {held} labels"
+    with pytest.raises(EvaluationError, match=message):
+        _trainings(experiment, monkeypatch, arms)

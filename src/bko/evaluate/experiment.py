@@ -110,8 +110,9 @@ class Experiment:
         synthetic_share: The share of each cell's training rows every holdout replaces with
             synthetic rows (`bko.datasets.split.dropped`): the gap request asks each cell for its
             dropped count, each arm fits on the whole training split, and each classifier trains
-            on the kept rows plus the fill. It needs `flagged_cell`, admits no removal and no
-            training fraction below 1. None replaces no row.
+            on the kept rows plus the fill. It needs `flagged_cell`, admits no removal, no
+            training fraction below 1, and no arm whose maths reads the whole training split
+            (`PRIOR_SHIFT_ARM`, class weighting). None replaces no row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -155,8 +156,9 @@ class Experiment:
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
                 bool among them), or the replica rows are below 1, or a flagged cell set beside a
                 removal is not the removal's cell, or the synthetic share is not a Fraction in
-                (0, 1], is set beside a removal or a training fraction below 1, or names no
-                flagged cell.
+                (0, 1], is set beside a removal or a training fraction below 1, names no
+                flagged cell, or stands beside `PRIOR_SHIFT_ARM` or class weighting, whose
+                offsets and weights read the whole training split.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -272,6 +274,10 @@ class Experiment:
             raise ValueError(msg)
         if self.flagged_cell is None:
             msg = "a synthetic share needs a flagged cell: its margin reads that cell's recall"
+            raise ValueError(msg)
+        whole = sorted({PRIOR_SHIFT_ARM, str(Method.CLASS_WEIGHT)} & set(self.arms))
+        if whole:
+            msg = f"{whole} read the whole training split, which a synthetic share does not keep"
             raise ValueError(msg)
 
     def _check_fill(self) -> None:
