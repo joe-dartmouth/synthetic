@@ -257,16 +257,17 @@ def parse_support2(text: str) -> pd.DataFrame:
         indexed by `record_id`, the row number each row starts with.
 
     Raises:
-        ContractError: If the header is not `COLUMNS`, a line has other than `FIELDS` fields, or a
-            row number is not a whole number or repeats.
+        ContractError: If a line, the header included, is not readable CSV, the header is not
+            `COLUMNS`, a line has other than `FIELDS` fields, or a row number is not a whole
+            number or repeats.
     """
     reader = csv.reader(io.StringIO(text, newline=""))
-    header = tuple(next(reader, ()))
-    if header != COLUMNS:
-        msg = f"{MEMBER}: the header is not the archive's {len(COLUMNS)} names in order"
-        raise ContractError(msg)
     read: list[tuple[int, list[str]]] = []
     try:
+        header = tuple(next(reader, ()))
+        if header != COLUMNS:
+            msg = f"{MEMBER}: the header is not the archive's {len(COLUMNS)} names in order"
+            raise ContractError(msg)
         read.extend((reader.line_num, row) for row in reader)
     except csv.Error as exc:
         msg = f"{MEMBER} line {reader.line_num}: {exc}"

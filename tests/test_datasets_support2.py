@@ -50,6 +50,37 @@ def test_the_header_must_be_the_archives_47_names_in_order() -> None:
         parse_support2(text(REAL_ROW, header=swapped))
 
 
+@pytest.mark.parametrize(
+    ("header", "rows", "line"),
+    [
+        (REAL_HEADER.replace("adlsc", "adlsc" + "x" * 200_000), (REAL_ROW,), 1),
+        (REAL_HEADER, (row(1), row(2, sfdm2="x" * 200_000)), 3),
+    ],
+    ids=["header", "row"],
+)
+def test_an_unreadable_line_is_a_contract_error(
+    header: str, rows: tuple[str, ...], line: int
+) -> None:
+    with pytest.raises(
+        ContractError,
+        match=rf"^support2\.csv line {line}: field larger than field limit \(131072\)$",
+    ):
+        parse_support2(text(*rows, header=header))
+
+
+def test_a_quoted_field_keeps_its_comma() -> None:
+    raw = parse_support2(text(row(1, sfdm2='"no(M2 and SIP pres), or not"'), row(2)))
+    assert raw["sfdm2"].tolist() == ["no(M2 and SIP pres), or not", ""]
+    assert raw["adlsc"].tolist() == ["7.0000000", "7.0000000"]
+
+
+def test_crlf_line_endings_read_as_newlines() -> None:
+    lines = text(row(1), row(2, hrt=" 91.0"))
+    crlf = parse_support2(lines.replace("\n", "\r\n"))
+    pd.testing.assert_frame_equal(crlf, parse_support2(lines))
+    assert crlf["hrt"].tolist() == ["69.000000", "91.0"]
+
+
 def test_a_row_holds_one_field_more_than_the_header() -> None:
     assert FIELDS == 48
     assert len(REAL_ROW.split(",")) == len(REAL_HEADER.split(",")) + 1
