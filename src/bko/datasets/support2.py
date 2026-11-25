@@ -365,7 +365,8 @@ def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
     logger.info(
-        "cohort rows=%d missing_scoma=%d records=%d hospital_deaths=%d",
+        "cohort dataset=%s rows=%d missing_scoma=%d records=%d hospital_deaths=%d",
+        SUPPORT2_NAME,
         len(rows),
         len(rows) - len(kept),
         len(records),

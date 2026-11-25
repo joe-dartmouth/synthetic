@@ -140,7 +140,9 @@ def test_a_missing_scoma_drops_its_record_and_is_counted(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.support2"):
         records = _records(row(1), row(2, scoma=""), row(3, hospdead="1"))
     assert records.index.tolist() == [1, 3]
-    assert caplog.messages == ["cohort rows=3 missing_scoma=1 records=2 hospital_deaths=1"]
+    assert caplog.messages == [
+        "cohort dataset=support2 rows=3 missing_scoma=1 records=2 hospital_deaths=1"
+    ]
 
 
 def test_missing_race_and_income_are_code_0_not_recorded() -> None:

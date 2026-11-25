@@ -11,7 +11,8 @@ the count-based ones before and after the removal, marking the gaps the removed 
 for. `first-flag` reads the same population and, for each of E2's whole ablations, lists where each
 detector first flags each truth item as the cases go one at a time (`bko.gaps.scan`). A catalogued
 dataset's command fetches its sources and the releases its rows name, splits its records at
-`SPLIT_SEED` and lists the training split's gaps as `uci` does (`bko.gaps.listing`). Each writes
+`SPLIT_SEED` and lists the training split's gaps as `uci` does (`bko.gaps.listing`), after
+logging its records' `data` line and its `split` line. Each writes
 one CSV to stdout, the same bytes on every run over the same inputs, and nothing unless the whole
 report is built; each input's identity, each cell's records, each flagged concept,
 each list's length, each detector's recovery and the report's digest go to stderr through logging,
@@ -45,8 +46,9 @@ from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
+from bko.datasets.frames import digest, log_data
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
-from bko.datasets.split import SPLIT_SEED, split
+from bko.datasets.split import SPLIT_SEED, log_split, split
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import UCI_FRAME
@@ -218,10 +220,24 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
 
 
 def _catalogued(data_dir: Path, context: Context, *, name: str) -> list[Row]:
-    """List the gaps of catalogued dataset `name`'s training split at `SPLIT_SEED`."""
+    """List the gaps of catalogued dataset `name`'s training split at `SPLIT_SEED`.
+
+    Logs one `data` line for the loaded records (`bko.datasets.frames.log_data`) and one `split`
+    line (`bko.datasets.split.log_split`) before the listing's own lines.
+    """
     entry = context.catalog[name]
     records, spec = entry.read(data_dir, open_url=context.open_url)
-    train = split(records, seed=SPLIT_SEED, edges=spec.edges).train
+    log_data(
+        logger,
+        dataset=entry.name,
+        frame=spec,
+        records=len(records),
+        records_digest=digest(records),
+        agreement=entry.agreement,
+    )
+    parts = split(records, seed=SPLIT_SEED, edges=spec.edges)
+    log_split(parts)
+    train = parts.train
     releases = context.releases if entry.releases is None else entry.releases
     ontologies, fragments = load_scope(
         {row.concept for row in entry.rows}, data_dir, releases=releases, open_url=context.open_url

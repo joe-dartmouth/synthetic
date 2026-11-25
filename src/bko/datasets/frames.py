@@ -7,11 +7,14 @@ always an age band, a sex and the label (`bko.datasets.cells`), so a frame holds
 edges. ADR `research/uci-evaluation-frame` records why. `check_records` refuses records whose
 columns or codes a frame does not hold. Beside the standard library it imports
 `bko.datasets.cells` (`LABEL`, `LABEL_CODES`, `SEXES`), which loads pandas, and
-`bko.datasets.errors` (`ContractError`).
+`bko.datasets.errors` (`ContractError`). `digest` hashes a frame's records and `log_data` logs
+the one `data` line that names them.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -24,7 +27,11 @@ from bko.datasets.errors import ContractError
 
 
 if TYPE_CHECKING:
+    import logging
+
     import pandas as pd
+
+    from bko.datasets.sources import Agreement
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,3 +216,41 @@ def check_records(records: pd.DataFrame, frame: FrameSpec) -> None:
         if stray:
             msg = f"{name} holds codes {stray} that frame {frame.name}'s codebook lacks"
             raise ContractError(msg)
+
+
+def digest(records: pd.DataFrame) -> str:
+    """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
+
+    `bko.evaluate.data.Data.digest` and each arm's `arm` log line (`bko.evaluate.run`) hash a
+    frame this way.
+    """
+    return digested(records)[1]
+
+
+def digested(records: pd.DataFrame) -> tuple[str, str]:
+    """The CSV text `digest` hashes, and its sha256, from one rendering of `records`."""
+    text = records.to_csv(lineterminator="\n")
+    return text, hashlib.sha256(text.encode()).hexdigest()
+
+
+def log_data(
+    log: logging.Logger,
+    *,
+    dataset: str,
+    frame: FrameSpec,
+    records: int,
+    records_digest: str,
+    agreement: Agreement | None,
+) -> None:
+    """Log one `data` line: the dataset, its frame, its record count, digest and agreement.
+
+    The agreement reads `none` for open data, else the agreement's name quoted.
+    """
+    log.info(
+        "data dataset=%s frame=%s records=%d digest=%s agreement=%s",
+        dataset,
+        frame.name,
+        records,
+        records_digest,
+        "none" if agreement is None else json.dumps(agreement.name),
+    )

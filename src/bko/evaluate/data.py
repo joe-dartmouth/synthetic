@@ -12,7 +12,6 @@ The two TableShift datasets hold a published partition's test records out at eve
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -24,7 +23,7 @@ import pandas as pd
 
 from bko.datasets.diabetes import load_diabetes
 from bko.datasets.fetch import UrlOpener, ensure
-from bko.datasets.frames import FrameSpec, check_records
+from bko.datasets.frames import FrameSpec, check_records, digest, digested, log_data
 from bko.datasets.sources import Agreement, Source
 from bko.datasets.split import Split, fixed, split
 from bko.datasets.support2 import SUPPORT2_NAME
@@ -142,20 +141,6 @@ class Reach(Protocol):
     def catalog(self) -> Mapping[str, Catalogued]:
         """The catalogued datasets by name (`bko.ontology.catalog`)."""
         ...
-
-
-def digest(records: pd.DataFrame) -> str:
-    """The sha256 of `records` as CSV with newline line ends (`to_csv(lineterminator=...)`).
-
-    `Data.digest` and each arm's `arm` log line (`bko.evaluate.run`) hash a frame this way.
-    """
-    return digested(records)[1]
-
-
-def digested(records: pd.DataFrame) -> tuple[str, str]:
-    """The CSV text `digest` hashes, and its sha256, from one rendering of `records`."""
-    text = records.to_csv(lineterminator="\n")
-    return text, hashlib.sha256(text.encode()).hexdigest()
 
 
 def held_digest(records: pd.DataFrame, held: frozenset[int]) -> str:
@@ -340,13 +325,12 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             data = Data(records, spec, rows, entry.name, entry.agreement)
         case _:
             assert_never(dataset)
-    agreement = data.agreement
-    logger.info(
-        "data dataset=%s frame=%s records=%d digest=%s agreement=%s",
-        dataset,
-        data.frame.name,
-        len(data.records),
-        data.digest,
-        "none" if agreement is None else json.dumps(agreement.name),
+    log_data(
+        logger,
+        dataset=dataset,
+        frame=data.frame,
+        records=len(data.records),
+        records_digest=data.digest,
+        agreement=data.agreement,
     )
     return data

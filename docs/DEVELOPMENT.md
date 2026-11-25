@@ -1596,7 +1596,10 @@ commands, inside `.venv`:
   `support2` among them: it fetches the dataset's archive and the releases its field rows name
   into the data root if absent, splits the records at `SPLIT_SEED` under the frame's age bands,
   and lists the training split's gaps in `uci`'s columns, logging as `uci` does (ADR
-  `research/support2-frame`).
+  `research/support2-frame`). Before the listing's lines it logs the loader's `cohort` line, one
+  `data dataset=<name> frame=<name> records=<n> digest=<sha256> agreement=<a>` line for the
+  loaded records, the line `score` logs for them, and one `split seed=<s> train=<n> test=<n>
+  fingerprint=<sha256>` line, the line `uci_split` logs.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
   ([Data](#data)), fetches the releases the code mappings name, observes every mapped condition
   code, and for each ablation in `E2_ABLATIONS`, each removing all of a spec's cases or a seeded

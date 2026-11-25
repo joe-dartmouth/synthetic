@@ -7,9 +7,9 @@ are the same for every seed. Records are ranked by `sha256(f"{seed}:{record_id}"
 library upgrade can change. `subsampled` keeps a share of each cell's training rows for a
 scarcity run, ranked the same way under its own tag so a smaller share nests in a larger one, and
 `dropped` names the share of each cell's rows a synthetic-share run replaces, under a third tag.
-`uci_split` fetches UCI Heart Disease through `ensure`, loads and
-splits it, and logs the split; `split` never fetches. `fixed` holds out a published partition's
-test records at every seed instead (ADR `research/tableshift-comparison`).
+`uci_split` fetches UCI Heart Disease through `ensure`, loads and splits it, and logs the split
+(`log_split`); `split` never fetches. `fixed` holds out a published partition's test records at
+every seed instead (ADR `research/tableshift-comparison`).
 """
 
 from __future__ import annotations
@@ -260,6 +260,12 @@ def uci_split(
     """
     ensure(source, data_dir, open_url=open_url)
     parts = split(load_uci(data_dir, source=source), seed=seed, edges=UCI_FRAME.edges)
+    log_split(parts)
+    return parts
+
+
+def log_split(parts: Split) -> None:
+    """Log one `split` line: the seed, the train and test counts and the test fingerprint."""
     logger.info(
         "split seed=%d train=%d test=%d fingerprint=%s",
         parts.seed,
@@ -267,4 +273,3 @@ def uci_split(
         len(parts.test),
         parts.fingerprint,
     )
-    return parts

@@ -81,6 +81,36 @@ def test_gaps_support2_lists_the_training_splits_gaps(tmp_path: Path, caplog) ->
     assert any(m.startswith("gaps rows=") for m in caplog.messages)
 
 
+def test_gaps_support2_logs_its_records_and_its_split_once(tmp_path: Path, caplog) -> None:
+    caplog.set_level(logging.INFO)
+    assert run(tmp_path, make_context())[0] == 0
+    found = [
+        (record.name, record.getMessage())
+        for record in caplog.records
+        if record.getMessage().startswith(("cohort ", "data ", "split "))
+    ]
+    assert found == [
+        (
+            "bko.datasets.support2",
+            "cohort dataset=support2 rows=12 missing_scoma=0 records=12 hospital_deaths=4",
+        ),
+        (
+            "bko.gaps",
+            (
+                "data dataset=support2 frame=support2 records=12 digest="
+                "b82d2872761d699238d7045ebb7485b05449640f33b5755a8c335c3fcf2177a9 agreement=none"
+            ),
+        ),
+        (
+            "bko.datasets",
+            (
+                "split seed=0 train=12 test=0 "
+                "fingerprint=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            ),
+        ),
+    ]
+
+
 def test_a_second_run_writes_the_same_bytes_and_fetches_nothing(tmp_path: Path) -> None:
     first = run(tmp_path, make_context())
     again = make_context()
