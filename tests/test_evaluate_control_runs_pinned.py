@@ -35,8 +35,13 @@ pytestmark = [pytest.mark.releases, pytest.mark.integration]
 
 
 @functools.cache
-def _records() -> pd.DataFrame:
+def _loaded() -> pd.DataFrame:
     return load_diabetes(default_data_dir(), indicators=DIABETES_INDICATORS)
+
+
+def _records() -> pd.DataFrame:
+    """A copy of the cached archive, so no test mutates what the next one reads."""
+    return _loaded().copy()
 
 
 def _no_fetch(url: str, timeout: float) -> NoReturn:
@@ -45,6 +50,12 @@ def _no_fetch(url: str, timeout: float) -> NoReturn:
 
 @pytest.mark.parametrize(("name", "asked"), [("e12-thin", 1250), ("e12-empty", 1269)])
 def test_each_e12_run_requests_only_the_removed_cell(name, asked):
+    """The removed cell alone is asked for, as many rows as the removal leaves it short of its fill.
+
+    `E6_CELL` holds 1,269 training rows at every holdout (`fill_to` of `E6_THIN` in
+    `bko.evaluate.runs_diabetes`). `e12-empty` removes all of them, so it asks 1,269; `e12-thin`
+    removes 0.985 of them, rounded up to 1,250, so it asks 1,250.
+    """
     experiment = RUNS[name].experiment
     edges = DIABETES_FRAME.edges
     for seed in experiment.holdout_seeds:
@@ -55,6 +66,12 @@ def test_each_e12_run_requests_only_the_removed_cell(name, asked):
 
 
 def test_bko_logic_draws_on_the_synthea_frame():
+    """`logic_components` finds 5 components over the Synthea field rows and the pinned releases.
+
+    The 5 is what that call returns here (`bko.generate.logic.components` groups the concepts the
+    ontologies connect, ADR `research/logic-only-ablation`); the test reads it, it does not derive
+    it.
+    """
     concepts = {row.concept for row in SYNTHEA_FIELD_ROWS}
     ontologies, _ = load_scope(concepts, default_data_dir(), releases=RELEASES, open_url=_no_fetch)
     found = logic_components(SYNTHEA_FIELD_ROWS, ontologies, SYNTHEA_FRAME)
