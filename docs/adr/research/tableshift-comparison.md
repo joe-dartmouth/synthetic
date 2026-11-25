@@ -4,7 +4,7 @@ topic: research
 created: 2026-11-24
 updated: 2026-11-24
 ---
-# TableShift's readmission split: reproduced in numpy on the pinned Diabetes 130 archive, scored as two datasets
+# TableShift's readmission split, rebuilt in numpy on the pinned Diabetes 130 archive as two datasets
 
 ## Context
 
@@ -34,13 +34,15 @@ split per run.
 1. **Source.** The task is read from `mlfoundations/tableshift` at commit
    `fca9429814703a07e3902d005d46563a207b7f0a` (MIT).
 2. **Rows and label.** Rows whose `race` is `?` are dropped (2,273 rows; TableShift reads the
-   CSV with `na_values="?"`, then `df.dropna(subset=["race"], inplace=True)`,
-   `tableshift/datasets/diabetes_readmission.py:374`). The label is any readmission,
+   CSV with `na_values="?"` (`tableshift/core/data_source.py:491`), then
+   `df.dropna(subset=["race"], inplace=True)` (`tableshift/datasets/diabetes_readmission.py:374`)). The label is any readmission,
    `readmitted != "NO"` (`:377`), so it is not E6's 30-day label. Out of domain is
    `admission_source_id == 7` (`domain_split_ood_values=[7, ]`,
    `tableshift/configs/benchmark_configs.py:127`). No other row is dropped: TableShift's
-   row-wise `dropna` finds nothing, since every categorical column is cast with
-   `x.apply(str)` (`tableshift/core/features.py:28`) and the numeric columns hold no gap.
+   row-wise `dropna` (`dropna: ... = "rows"`, `tableshift/core/features.py:340`, applied at
+   `tableshift/core/tabular_dataset.py:305`) finds nothing, since every categorical column is
+   cast with `x.apply(str)` (`tableshift/core/features.py:28`) and the numeric columns hold no
+   gap.
 3. **Partition.** Rows stay in archive file order. The in-domain positions are split by
    `RandomState(264738).permutation(n)`: the first `ceil(0.2 n)` are held, the rest train. That
    held part, in its permuted order, is split again by a fresh `RandomState(264738)`: the first
@@ -65,7 +67,10 @@ split per run.
    `tableshift-ood` holds the in-domain train and the out-of-domain test, the test held. The
    validation partitions are built and counted, never loaded.
 7. **Holdouts.** Every holdout seed reuses the fixed partition, so a run's intervals read the arms'
-   draw variance only.
+   draw variance only. No holdout's training records differ from another's, so Nadeau and Bengio's
+   test-overlap term does not apply: a fixed split's held-out ratio is 0
+   (`bko.evaluate.prepare.held_out_ratio`), every interval read from the logged ratio is the plain
+   t interval, and the `data` digest covers the held ids (`bko.evaluate.data.held_digest`).
 8. **Gap request.** E1's rule on the in-domain training split with edges `(1, 2, 4, 6, 8)`: a cell
    with fewer than 20 training rows is filled to 20. On the pinned archive it flags
    `(<1, female, 1)` with 4 rows, `(<1, male, 0)` with 15 and `(<1, male, 1)` with 7;
@@ -83,7 +88,7 @@ one fit.
 ## Rationale
 
 A numpy permutation under the same seed is the draw `train_test_split` makes, so the partition
-needs no new dependency, and Table 12's counts check it on the archive. Two datasets keep the
+needs no new dependency. Two datasets keep the
 harness's one test split per run and give each published column, in-domain and out-of-domain, its
 own run. Lab rows alone keep `bko-direct` drawing: the diagnosis rows of `diabetes-codes` name a
 concept per code, and a draw of two codes for one field has no donor. Building a new frame rather
@@ -117,12 +122,16 @@ variance. The diagnosis columns carry no ontology concept.
   `src/bko/evaluate/runs_published.py`
 - Pinned by: `tests/test_datasets_tableshift.py` (the dropped rows, the label, the domains, the
   ceil rule, membership equal to scikit-learn's `train_test_split` in TableShift's three calls,
-  `sex` and `race` against every other value, the 46 features without the domain column, the lab
-  rows' codes in the codebook), `tests/test_datasets_tableshift_pinned.py` (under `--releases`:
-  Table 12's counts and the three flagged cells on the pinned archive),
-  `tests/test_evaluate_fixed_partition.py` (the same test records at every seed, the seed-based
-  split unchanged without held ids, a missing held id refused, `bko-direct` drawing on the lab
-  rows, P1's stated configuration), `tests/test_named_runs_slices.py` (the run names in order),
+  `sex` and `race` against every other value, the 46 features without the domain column, the text
+  codes and count ranges, the lab rows' codes in the codebook, a value outside the schema refused
+  by its encounter, an empty test split refused), `tests/test_datasets_tableshift_pinned.py`
+  (under `--releases`: Table 12's counts and the three flagged cells on the pinned archive),
+  `tests/test_evaluate_fixed_partition.py` (the same test records at every seed and through
+  `run`, `run_direct`, `score` and the rehearsal's ranges, the seed-based split unchanged without
+  held ids, a missing held id, a duplicate index and an empty held set refused, the digest over
+  the held ids, a held-out ratio of 0 and the plain t interval, `load` holding each domain's
+  test split, `bko-direct` drawing on the lab rows, P1's stated configuration),
+  `tests/test_named_runs_slices.py` (the run names in order),
   `tests/test_datasets_diabetes_pinned.py`
 
 ## Reversal Conditions

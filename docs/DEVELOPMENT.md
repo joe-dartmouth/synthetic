@@ -730,7 +730,8 @@ start or the supervisor cannot run.
   `unknown_gender` + `under_20` + `records` ([Data](#data), The Diabetes frame). `score` logs a
   `data` line once it has loaded the named run's data,
   `data dataset=%s frame=%s records=%d digest=%s agreement=%s` (the dataset, its frame, its record
-  count, the sha256 of its records that the candidates file's header names under `data`, and the
+  count, the sha256 of its records (with its held test ids for a TableShift dataset,
+  `bko.evaluate.data.Data.digest`) that the candidates file's header names under `data`, and the
   data use agreement the records are held under: `none` for open data, else the agreement's name
   in double quotes ([Data](#data), Agreements)), then an `experiment` line,
   `experiment run=%s frame=%s holdouts=%d seeds=%d-%d
@@ -950,8 +951,9 @@ start or the supervisor cannot run.
   `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds P1's runs, `p1-id` on
   `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
-  the label bootstrap and the candidate `bko-direct`, no criterion and test copies kept, every
-  holdout on TableShift's fixed test split; ADR
+  the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
+  candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
+  ADR
   [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
