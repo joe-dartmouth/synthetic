@@ -8,9 +8,11 @@ import pytest
 
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import E1, Experiment, Removal, flagged, gap_request
+from bko.evaluate.prepare import require_cells
 from bko.evaluate.provenance import experiment_line
+from bko.evaluate.run import ARMS, run
 from bko.evaluate.run_folder import ASSUMED
-from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
+from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN, toy_records
 from tests.test_evaluate_shared import edit_log, refused, run_folder, shared
 
 
@@ -83,3 +85,14 @@ def test_an_older_experiment_line_reads_at_the_assumed_flagged_cell(tmp_path, ca
     )
     error = refused(tmp_path, caplog, folder)
     assert error.endswith("differ: {'flagged_cell': ('<45/male/1', 'none')}")
+
+
+def test_a_flagged_cell_the_frame_lacks_is_refused_before_any_holdout():
+    absent = dataclasses.replace(TOY_RUN, fill_to=26, flagged_cell=("90+", "male", 1))
+    message = r"the flagged cell \('90\+', 'male', 1\) is not a cell of the toy frame"
+    with pytest.raises(EvaluationError, match=message):
+        require_cells(absent, TOY)
+    arms = {name: ARMS[name] for name in absent.arms}
+    with pytest.raises(EvaluationError, match=message):
+        run(toy_records(), absent, arms, frame=TOY)
+    require_cells(dataclasses.replace(absent, flagged_cell=FULL), TOY)

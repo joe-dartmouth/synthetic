@@ -106,8 +106,9 @@ class Experiment:
             training counts (`bko.datasets.split.kept_count`), each cell's count rounded, so the
             cells may sum to a few rows off it; None asks for every training row.
         flagged_cell: The one cell flagged whatever its count, which the gap request restores to
-            `fill_to` alone; with a removal it is the removal's cell. None flags each cell below
-            `threshold`.
+            `fill_to` alone. It may be set without a removal; beside one it must be the removal's
+            cell. Setting it also writes each model's `auc-roc` on both scopes
+            (`bko.evaluate.utility.utility`'s `roc`). None flags each cell below `threshold`.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -148,8 +149,8 @@ class Experiment:
                 training fraction is not in (0, 1] or is below 1 beside a removal, or
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
-                bool among them), or the replica rows are below 1, or the flagged cell is not the
-                removal's cell.
+                bool among them), or the replica rows are below 1, or a flagged cell set beside a
+                removal is not the removal's cell.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):

@@ -47,7 +47,7 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
-from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cell, split_line
+from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cells, split_line
 from bko.evaluate.privacy import distances
 from bko.evaluate.run_scores import (
     MIN_LABELS,  # ruff: ignore[unused-import]  (re-exported)
@@ -118,14 +118,14 @@ def run(
     no runner.
 
     Raises:
-        EvaluationError: If the removal's cell is not a cell of `frame`, an arm other than
-            `REAL_ARM` has no runner, no cell needs filling, the experiment holds `TREE_ARM`
-            and `rows` hold no tree field, or a fit does not converge.
+        EvaluationError: If the removal's or the flagged cell is not a cell of `frame`, an arm
+            other than `REAL_ARM` has no runner, no cell needs filling, the experiment holds
+            `TREE_ARM` and `rows` hold no tree field, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
         DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout,
             or as `records_split`, if a held id is not among the records.
     """
-    require_cell(experiment.removal, frame)
+    require_cells(experiment, frame)
     missing = sorted(set(experiment.arms) - set(arms) - {REAL_ARM})
     if missing:
         msg = f"no runner for arms {missing}"

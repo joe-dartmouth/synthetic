@@ -130,20 +130,23 @@ def fingerprint(cells: Sequence[Stratum]) -> float:
     return float(int(sorted_digest(cells), 16))
 
 
-def require_cell(removal: Removal | None, frame: FrameSpec) -> None:
-    """Refuse a removal whose cell is not one of `frame`'s cells.
+def require_cells(experiment: Experiment, frame: FrameSpec) -> None:
+    """Refuse a removal's cell or a flagged cell that is not one of `frame`'s cells.
 
     Raises:
-        EvaluationError: If the cell's band, sex label or label is not `frame`'s.
+        EvaluationError: If either cell's band, sex label or label is not `frame`'s.
     """
-    if removal is None:
-        return
     cells = {
         (band, sex, label)
         for band in age_band_labels(frame.edges)
         for sex in SEXES.values()
         for label in frame.label_codes
     }
-    if removal.cell not in cells:
+    removal = experiment.removal
+    if removal is not None and removal.cell not in cells:
         msg = f"the removal's cell {removal.cell} is not a cell of the {frame.name} frame"
+        raise EvaluationError(msg)
+    flagged = experiment.flagged_cell
+    if flagged is not None and flagged not in cells:
+        msg = f"the flagged cell {flagged} is not a cell of the {frame.name} frame"
         raise EvaluationError(msg)

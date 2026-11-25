@@ -117,3 +117,17 @@ def test_a_run_with_no_name_is_refused(tmp_path, scored) -> None:
     request, reach = scored
     with pytest.raises(EvaluationError, match="no run named 'e9'"):
         _read(tmp_path, dataclasses.replace(request, run="e9"), reach, "none")
+
+
+def test_a_flagged_cell_the_frame_lacks_is_refused(tmp_path, scored) -> None:
+    request, reach = scored
+    absent = dataclasses.replace(
+        THREE_ARMS,
+        arms=("none", "smote"),
+        candidate="smote",
+        removal=None,
+        flagged_cell=("90+", "male", 1),
+    )
+    reach = dataclasses.replace(reach, runs={"e1": NamedRun(absent)})
+    with pytest.raises(EvaluationError, match=r"flagged cell .*'90\+'.* is not a cell of the uci"):
+        _read(tmp_path, request, reach, "none")
