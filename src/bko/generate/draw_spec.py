@@ -53,8 +53,9 @@ class DrawSpec:
         Raises:
             ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false; if a limit
                 is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
-                `closed`; or if a field of `_VARIANTS` is off its default without the mapping
-                table or at a presence other than shares.
+                `closed`; if `tree` is set beside `hierarchy` or `closed`; or if a field of
+                `_VARIANTS` is off its default without the mapping table or at a presence other
+                than shares.
         """
         if self.presence is not Presence.SHARES and not self.mapped:
             msg = f"presence {self.presence.value} has no meaning without the mapping table"
@@ -71,6 +72,9 @@ class DrawSpec:
             raise ValueError(msg)
         if pseudo is not None and self.closed:
             msg = "closed sets the conditional to 1, so it takes no hierarchy pseudo-count"
+            raise ValueError(msg)
+        if self.tree and self.conditional:
+            msg = "tree draws each tree field as one leaf, so it takes no conditional is_a draw"
             raise ValueError(msg)
         defaults = {field.name: field.default for field in dataclasses.fields(self)}
         changed = [name for name in _VARIANTS if getattr(self, name) != defaults[name]]

@@ -322,10 +322,12 @@ def test_a_frame_with_no_pair_is_refused():
         ({"hierarchy": -1.0}, "hierarchy -1.0 must be"),
         ({"hierarchy": math.inf}, "hierarchy inf must be"),
         ({"hierarchy": 0.0, "closed": True}, "closed sets the conditional to 1"),
+        ({"tree": True, "hierarchy": 0.0}, "tree draws each tree field as one leaf"),
+        ({"tree": True, "closed": True}, "tree draws each tree field as one leaf"),
         ({"hierarchy": 0.0, "mapped": False}, "hierarchy needs the mapping table"),
         ({"closed": True, "presence": Presence.LOGIC}, "closed needs the mapping table"),
     ],
-    ids=["int", "negative", "infinite", "both", "unmapped", "logic"],
+    ids=["int", "negative", "infinite", "both", "tree-hier", "tree-closed", "unmapped", "logic"],
 )
 def test_a_spec_the_conditional_draw_cannot_read_is_refused(fields, says):
     with pytest.raises(ValueError, match=re.escape(says)):

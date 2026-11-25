@@ -131,6 +131,8 @@ mapping table (ADR `research/no-mapping-ablation`).
     uniform on an outer concept whose inner one is present, so the two rules cannot share one
     stream. The registered pseudo-counts are 0 (`bko-hier-0`) and `w` (`bko-hier-w`);
     `bko-hier-closed`, which forces each pair's closure, is an ablation and registers no value.
+    A spec with `tree` beside `hierarchy` or `closed` is refused: a tree field leaves the concept
+    draw, so its pairs would have no conditional to read.
 
 ## Rationale
 
