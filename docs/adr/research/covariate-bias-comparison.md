@@ -52,12 +52,13 @@ and `prior-shift`.
      synth.sel<-synth[sample(x = which(synth$Z==0),size = (total_size-countminor), replace = T),]
    ```
 
-   `countminor` is the minority count the removal leaves, so `total_size` is the count before it.
+   `countminor` is the minority count the removal leaves, so `total_size` is about the count
+   before it.
    With `r` the cell's rows the removal leaves, each run's `fill_to` is `floor(r / (1 - fraction))`
    in exact arithmetic (`juwara_total`), their `total_size`, and each row-adding arm's quota is
    `fill_to - r`, their `total_size-countminor`. Their removal takes the floor of the share
-   (`samps<-floor(table(data$X1)[1]*prop_out)`) and ours its ceiling (`removed_count`), so
-   `fill_to` sits a few rows under 1,269: 1,268 at 0.15, 0.30 and 0.50, 1,265 at 0.80 and 1,260 at
+   (`samps<-floor(table(data$X1)[1]*prop_out)`) and ours its ceiling (`removed_count`). On
+   `E6_CELL`'s 1,269 rows, `fill_to` is 1,268 at 0.15, 0.30 and 0.50, 1,265 at 0.80 and 1,260 at
    0.95.
 4. **The flagged cell.** `Experiment.flagged_cell` is `E6_CELL`: it is flagged whatever its
    count, since at 0.15 it keeps 1,078 rows, far above the threshold, and the gap request asks for
@@ -119,7 +120,9 @@ each CTGAN fit takes over an hour on this frame, so the five runs run as paralle
   NaN on one label, no `auc-roc` row without a flagged cell, both scopes with one),
   `tests/test_evaluate_covariate.py` (the fractions, the arms, the sizing on a toy cell and at
   1,269 rows, no paid arm, each run's slices), `tests/test_named_runs_slices.py` (the run names
-  in order)
+  in order); outside the gate, `tests/test_datasets_diabetes_pinned.py` with `--releases` (each
+  P3 run asks for `E6_CELL` alone, `juwara_total(1269, fraction)` less the rows the removal
+  leaves, on holdout seeds 0 to 2)
 
 ## Reversal Conditions
 

@@ -17,7 +17,7 @@ import zipfile
 import pandas as pd
 import pytest
 
-from bko.datasets.cells import LABEL
+from bko.datasets.cells import LABEL, cell_counts
 from bko.datasets.diabetes import (
     COLUMNS,
     DRUGS,
@@ -35,6 +35,7 @@ from bko.evaluate.experiment import E1, Experiment, Removal, flagged, gap_reques
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.perturb import incoherent
 from bko.evaluate.prepare import prepared
+from bko.evaluate.runs_published import P3_FRACTIONS, juwara_total
 from bko.ontology.frames import DIABETES_FRAME, DIABETES_INDICATORS
 
 
@@ -156,3 +157,37 @@ def test_each_perturbation_run_requests_only_the_removed_cell(name, asked):
         train = prepared(parts, experiment, edges=edges).ablated.train
         request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
         assert dict(request.quota) == {CELL: asked}, seed
+
+
+@pytest.mark.parametrize(
+    ("name", "remaining", "asked"),
+    [
+        ("fifteen", 1078, 190),
+        ("thirty", 888, 380),
+        ("fifty", 634, 634),
+        ("eighty", 253, 1012),
+        ("ninetyfive", 63, 1197),
+    ],
+)
+def test_each_p3_run_asks_only_the_removed_cell(name, remaining, asked):
+    experiment = RUNS[f"p3-{name}"].experiment
+    fraction = P3_FRACTIONS[name]
+    edges = DIABETES_FRAME.edges
+    for seed in range(3):
+        parts = split(_records(), seed=seed, edges=edges)
+        assert _cell_count(parts.train) == 1269, seed
+        train = prepared(parts, experiment, edges=edges).ablated.train
+        r = _cell_count(train)
+        assert r == remaining, seed
+        request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+        assert dict(request.quota) == {CELL: juwara_total(1269, fraction) - r}, seed
+        assert dict(request.quota) == {CELL: asked}, seed
+
+
+def _cell_count(train: pd.DataFrame) -> int:
+    """`CELL`'s training rows in `train`."""
+    counts = cell_counts(train, edges=DIABETES_FRAME.edges)
+    keys = zip(counts["age_band"], counts["sex"], counts[LABEL], strict=True)
+    found = [int(count) for key, count in zip(keys, counts["count"], strict=True) if key == CELL]
+    (count,) = found
+    return count
