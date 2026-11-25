@@ -246,8 +246,8 @@ arm fits:
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e9-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
 
 The no-mapping direct arm `bko-nomap` draws as `bko-direct` does with an empty mapping table (ADR
-[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)), and no named run holds
-it. Its `direct` and `fallback` lines read ` mapped=false presence=shares`, its `arm` line's
+[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)); the control runs
+`e12-thin`, `e12-empty` and `e13` hold it. Its `direct` and `fallback` lines read ` mapped=false presence=shares`, its `arm` line's
 params add `"mapped": false`, and its `direct arm=` line ends in `fallback_draws=%d`.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
@@ -1050,8 +1050,8 @@ arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING `privacy ho
 scope=%s undefined ...` line for an arm with rows whose distance attack is undefined in a scope
 (INFO for a cell scope with no member); and last `privacy holdout=%d done=%d/%d seconds=%.1f
 elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the mean, the contrast
-against the reference arm (`real` for E6, `bko-direct` for the perturbation runs; a slice reads its
-run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
+against the reference arm (each run family's `REFERENCE` arm (`bko.evaluate.reference`); a slice
+reads its run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
 contrasts), and `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or
 NNDR quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
 statistics, each scope's match statistics (`scope=match-outside`, `match-cell`, `match-label`) and

@@ -69,8 +69,8 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null`:
   read a run's stored fills for membership inference and NNDR beside distance to closest record,
-  each arm's contrast against the run's reference arm (`real` for E6, `bko-direct` for the
-  perturbation runs) per scope, with a field-group match attack and each direct fill's donor
+  each arm's contrast against the run's reference arm (each run family's `REFERENCE` arm
+  (`bko.evaluate.reference`)) per scope, with a field-group match attack and each direct fill's donor
   reuse, read from a re-draw of the fill. `--rows` repeats,
   once per slice's store. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
