@@ -15,9 +15,10 @@ from bko.evaluate.named_runs import E3, RUNS
 from bko.evaluate.prepare import prepared
 from bko.evaluate.reference import reference_of
 from bko.evaluate.run import method_arms
-from bko.evaluate.runs_diabetes import E6_EMPTY, E6_THIN
+from bko.evaluate.runs_diabetes import E6_CELL, E6_EMPTY, E6_THIN
 from bko.evaluate.runs_direct import CONTROL_ARMS, E12_EMPTY, E12_THIN, E13
 from bko.generate.messages import AnySend
+from tests._diabetes_fixtures import pin, toy_archive
 from tests._evaluate_fixtures import FAST_METHODS
 from tests._ontology_fixtures import RoutingOpener
 from tests._synthea_frame_fixtures import (
@@ -157,3 +158,18 @@ def test_e13s_gap_request_asks_the_removed_cell(tmp_path, seed):
 @pytest.mark.parametrize("name", NAMES)
 def test_the_reference_of_each_control_run_is_real(name):
     assert reference_of(name, RUNS[name].experiment, RUNS)[0] == "real"
+
+
+@pytest.mark.parametrize("name", ["e12-thin", "e12-empty"])
+def test_each_e12_run_requests_only_the_removed_cell_on_the_toy_cohort(tmp_path, name):
+    """The toy cohort holds `E6_CELL`, so each E12 request asks that cell alone."""
+    archive = toy_archive()
+    source = pin(archive, "uci-diabetes-130")
+    context = Context(open_url=RoutingOpener({source.url: archive}), diabetes=source)
+    data = load(Dataset.DIABETES, tmp_path / "data", context)
+    experiment = RUNS[name].experiment
+    parts = split(data.records, seed=0, edges=data.frame.edges)
+    train = prepared(parts, experiment, edges=data.frame.edges).ablated.train
+    request = gap_request(train, experiment, seed=0, frame=data.frame)
+    assert set(request.quota) == {E6_CELL}
+    assert request.quota[E6_CELL] > 0
