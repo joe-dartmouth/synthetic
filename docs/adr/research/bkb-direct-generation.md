@@ -197,11 +197,14 @@ group shows no record matching a draw refuses the attempt.
 ## Enforcement
 
 - Owner: `src/bko/generate/direct.py`, with the field groups in `src/bko/generate/fields.py`, the
-  donor picks in `src/bko/generate/donors.py` and the shares in `src/bko/gaps/shares.py`
+  donor picks in `src/bko/generate/donors.py`, the shares in `src/bko/gaps/shares.py` and the
+  conditional `is_a` draw in `src/bko/generate/hierarchy.py`
 - Pinned by: `tests/test_generate_direct.py`, `tests/test_generate_candidates.py`,
   `tests/test_generate_cli.py`, `tests/test_fusion_pipeline.py`, `tests/test_evaluate_direct.py`,
-  and for the presence parameter `tests/test_generate_logic_only.py` and
-  `tests/test_evaluate_logic_only.py`
+  for the presence parameter `tests/test_generate_logic_only.py` and
+  `tests/test_evaluate_logic_only.py`, and for Decision 12 `tests/test_generate_hierarchy.py`,
+  `tests/test_evaluate_hierarchy.py` and, against the pinned data,
+  `tests/test_generate_hierarchy_pinned.py`
 
 ## Reversal Conditions
 

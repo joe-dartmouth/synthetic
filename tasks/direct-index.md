@@ -19,10 +19,9 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | ready | -- | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
-| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
+| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 
@@ -72,8 +71,7 @@ unit's `milestone` is `direct-method-research`, the
 ```mermaid
 flowchart LR
     u37[evaluate-covariate-bias-fractions] --> u38[evaluate-covariate-bias-results]
-    u11[generate-is-a-conditional-draws] --> u19[evaluate-variant-dev-results]
-    u16[privacy-value-microaggregation] --> u19
+    u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u17[generate-coherent-free-fields] --> u19
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]
