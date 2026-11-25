@@ -77,7 +77,8 @@ The fractions and the sizing are the two things their protocol fixes that ours c
 unchanged. Their code is the only statement of the sizing, so the quota follows its lines. ROC
 AUC is the measure their table reports; reading it on the cell's age-sex group, where both labels
 occur, is the nearest scope the harness defines, and gating it on `flagged_cell` leaves every
-other run's scores file as it is.
+other run's scores file as it is. Their Figures 1C and 2G to 2I give the minority group's AUC in
+simulation, a nearer analogue of `flagged-subgroups` than Table 2's full-model AUC.
 
 What differs from the paper:
 
@@ -104,7 +105,7 @@ each CTGAN fit takes over an hour on this frame, so the five runs run as paralle
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Their request-only datasets | Access is by request, so no reader could rebuild the reading | 2026-11-25 |
+| Their request-only datasets | Each must be requested from its custodian, as their data availability statement says | 2026-11-25 |
 | Their UCI breast-cancer data | It has no sex column, so no age-sex cell exists on it | 2026-11-25 |
 | A new `Scope` for the removed cell | Every run's scores file would gain rows, and the cell holds one label, so ROC AUC is undefined there | 2026-11-25 |
 

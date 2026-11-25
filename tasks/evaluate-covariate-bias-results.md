@@ -17,8 +17,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 [P3](../docs/EVIDENCE.md#p3-juwara-removal-fractions-on-the-diabetes-130-frame) holds the runs
-`p3-fifteen` to `p3-ninetyfive` and their Configuration. This unit runs them and records what they show beside the published
-table. Every arm is free.
+`p3-fifteen` to `p3-ninetyfive` and their Configuration. This unit runs them and records what
+they show beside the published table. Every arm is free.
 
 ## Scope
 

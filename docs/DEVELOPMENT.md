@@ -435,10 +435,10 @@ It runs `rows`' identity checks and the strict check 7, with the keys ADR
 admit. Its scores CSV holds the folder's rows plus each panel model's, suffixed by its
 `bko.evaluate.classifier.Model` value as `hgb` suffixes its own (`recall-rf`, `auc-pr-nb`), and
 `brier` and `calibration-in-the-large` for every model and scope, suffixed the same way
-(`brier-hgb`), with `auc-roc` for every model where the run's `Experiment.flagged_cell` is set. Its
-`experiment` line logs `models=lr,hgb,rf,et,mlp,nb`. Exit codes are `rows`'. A run succeeded when it
-exits 0 and its log's last line is `panel done`; its `scores` line reads `matches_folder=false`,
-since its CSV holds rows the folder's lacks. A refused run leaves the
+(`brier-hgb`), with `auc-roc` for every model where the run's `Experiment.flagged_cell` is set.
+Its `experiment` line logs `models=lr,hgb,rf,et,mlp,nb`. Exit codes are `rows`'. A
+run succeeded when it exits 0 and its log's last line is `panel done`; its `scores` line reads
+`matches_folder=false`, since its CSV holds rows the folder's lacks. A refused run leaves the
 redirect's `scores.csv`, empty or partial, which the `test ! -e` guard then refuses: rerun into a
 new folder.
 
@@ -1036,8 +1036,8 @@ start or the supervisor cannot run.
   0.30, 0.50, 0.80 and 0.95 of `E6_CELL`'s training rows, that cell flagged by name and filled to
   `juwara_total`, no replica, the ceiling inert) and their slices `p3-fifteena` to
   `p3-ninetyfivej`, sliced as E6's are; `docs/EVIDENCE.md`, P3, describes them (ADR
-  [`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md)). It holds
-  P1's runs,
+  [`research/covariate-bias-comparison`](adr/research/covariate-bias-comparison.md)). `RUNS` also
+  holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
