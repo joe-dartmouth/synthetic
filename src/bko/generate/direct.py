@@ -257,7 +257,7 @@ class _Sources:
     own: list[_Source]
     group: list[_Source]
     banded: list[_Source]
-    trees: Mapping[str, Placed] = dataclasses.field(default_factory=lambda: MappingProxyType({}))
+    trees: Mapping[str, Placed]
 
 
 def _showing(
