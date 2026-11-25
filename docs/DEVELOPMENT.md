@@ -112,9 +112,14 @@ root or to see the module's own code, run it directly:
   every other gender, `race` Caucasian against every other race, the diagnoses as
   `code_number`, band edges 1, 2, 4, 6 and 8, and the label 1 for any readmission. Its codebooks
   for `weight`, `payer_code`, `medical_specialty`, the two id columns and the diagnoses are read
-  from the kept rows, so the frame is built from them. `tests/test_datasets_tableshift_pinned.py`
-  checks the partition's sizes against TableShift's Table 12 and the flagged cells of the
-  in-domain training split; the gate skips it, and `--releases` runs it:
+  from the kept rows, so the frame is built from them. The dataset `tableshift-id` loads the
+  in-domain training split with the in-domain test split held, and `tableshift-ood` the same
+  training split with the out-of-domain test split held; every holdout seed holds out the same
+  test records (`bko.evaluate.data.held_split`), and the field rows are the lab rows alone.
+  `attribution` refuses both, since it loads no records to build their frame.
+  `tests/test_datasets_tableshift_pinned.py` checks the partition's sizes against TableShift's
+  Table 12 and the flagged cells of the in-domain training split; the gate skips it, and
+  `--releases` runs it:
 
       uv run --no-sync pytest tests/test_datasets_tableshift_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 

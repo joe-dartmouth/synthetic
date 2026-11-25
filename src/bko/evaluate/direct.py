@@ -240,7 +240,7 @@ class DirectArm:
         return sum(bool(draw.fallback) for draws in drawn.values() for draw in draws)
 
 
-def run_direct(
+def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside the direct ones)
     records: pd.DataFrame,
     experiment: Experiment,
     arms: Mapping[str, Runner],
@@ -252,8 +252,11 @@ def run_direct(
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
+    held: frozenset[int] | None = None,
 ) -> list[Score]:
     """Score every arm of `experiment` with a `DirectArm` per name of `names` writing `sink`.
+
+    `held` is `bko.evaluate.run.run`'s.
 
     Each name is a key of `DIRECT_ARMS`, which says what its arm's draw reads; `PRAM_ARM` then
     perturbs its draw (`bko.evaluate.pram.PramArm`). Each arm logs its run's validity sums on
@@ -289,6 +292,7 @@ def run_direct(
             drains={**drains, **{name: arm.drain for name, arm in direct.items()}},
             on_holdout=on_holdout,
             frame=frame,
+            held=held,
         )
     finally:
         for arm in direct.values():

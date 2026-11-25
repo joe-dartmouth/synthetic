@@ -41,9 +41,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from bko.datasets.split import split
 from bko.evaluate.call_prompts import CALLS
-from bko.evaluate.data import Data, Dataset, dataset_releases, load
+from bko.evaluate.data import Data, Dataset, dataset_releases, held_split, load
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     DIRECT_ARMS,
@@ -106,7 +105,7 @@ def trace(
     frame = data.frame
     current = experiment_line(run, experiment, models, frame=frame.name)
     check_folders(folder, [], run=run, current=current, data=data, uci=uci)
-    parts = split(data.records, seed=fill.holdout, edges=frame.edges)
+    parts = held_split(data, fill.holdout)
     ablated = prepared(parts, experiment, edges=frame.edges).ablated
     if split_line(ablated) != folder.splits[fill.holdout]:
         msg = (

@@ -37,10 +37,10 @@ from bko.baselines.methods import Runner
 from bko.baselines.records import Baseline, Drop, no_rows, number, unit_weights
 from bko.baselines.request import Request, Strata, stratum_keys
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import Split, split
+from bko.datasets.split import Split
 from bko.evaluate.attempts import Attempt, Tally
 from bko.evaluate.classifier import Factory, Model
-from bko.evaluate.data import Data, digest
+from bko.evaluate.data import Data, digest, held_split
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import (
     MESSAGES_ARMS,
@@ -332,7 +332,7 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
     total = len(experiment.holdout_seeds)
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
-        parts = split(data.records, seed=seed, edges=frame.edges)
+        parts = held_split(data, seed)
         exclude = None if not others else _exclude(others, parts, experiment, frame)
         logged = Logged()
         scored = score_holdout(

@@ -32,9 +32,10 @@ from bko.baselines.methods import METHODS, Runner, augment
 from bko.baselines.records import Baseline, number, unit_weights
 from bko.baselines.request import Method, Request
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import Split, split
+from bko.datasets.split import Split
 from bko.evaluate.classifier import MODELS, Factory, Model
 from bko.evaluate.copies import copies, decontaminated
+from bko.evaluate.data import records_split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import (
     PRIOR_SHIFT_ARM,
@@ -100,10 +101,13 @@ def run(
     drains: Mapping[str, Drain] = MappingProxyType({}),
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
+    held: frozenset[int] | None = None,
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
     `on_holdout` is called after each holdout, so a caller can stop the run between holdouts.
+    `held` names the test records every holdout holds out (`bko.evaluate.data.records_split`);
+    None splits each holdout by its seed.
     `models` must hold `Model.LR`, which the criteria and replica utility read. `REAL_ARM` needs
     no runner.
 
@@ -111,7 +115,8 @@ def run(
         EvaluationError: If the removal's cell is not a cell of `frame`, an arm other than
             `REAL_ARM` has no runner, no cell needs filling, or a fit does not converge.
         BaselineError: If an arm cannot fill a request.
-        DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout.
+        DatasetError: As `prepared`, if the removal's cell holds no training row of a holdout,
+            or as `records_split`, if a held id is not among the records.
     """
     require_cell(experiment.removal, frame)
     missing = sorted(set(experiment.arms) - set(arms) - {REAL_ARM})
@@ -122,7 +127,7 @@ def run(
     total = len(experiment.holdout_seeds)
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
-        parts = split(records, seed=seed, edges=frame.edges)
+        parts = records_split(records, held=held, seed=seed, edges=frame.edges)
         scores += score_holdout(parts, experiment, arms, models=models, drains=drains, frame=frame)
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)

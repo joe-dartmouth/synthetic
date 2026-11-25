@@ -16,8 +16,7 @@ from typing import Final, Literal
 import pandas as pd
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import split
-from bko.evaluate.data import Data
+from bko.evaluate.data import Data, held_split
 from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
@@ -111,7 +110,7 @@ def checked(seed: int, store: Store, data: Data, experiment: Experiment) -> Prep
         IdentityError: If the split line differs, naming the folder and the store.
     """
     edges = data.frame.edges
-    ready = prepared(split(data.records, seed=seed, edges=edges), experiment, edges=edges)
+    ready = prepared(held_split(data, seed), experiment, edges=edges)
     if split_line(ready.ablated) != store.folder.splits[seed]:
         msg = f"holdout {seed}'s split {split_line(ready.ablated)!r} is not"
         msg += f" {store.folder.path}'s {store.folder.splits[seed]!r}, which the store"

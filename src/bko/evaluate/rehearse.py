@@ -26,8 +26,7 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import split
-from bko.evaluate.data import Data
+from bko.evaluate.data import Data, records_split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.prepare import prepared
@@ -75,20 +74,26 @@ settings."""
 
 
 def safe_ranges(
-    records: pd.DataFrame, experiment: Experiment, *, frame: FrameSpec
+    records: pd.DataFrame,
+    experiment: Experiment,
+    *,
+    frame: FrameSpec,
+    held: frozenset[int] | None = None,
 ) -> dict[str, tuple[float, float]]:
     """Each of `frame`'s measured fields' range inside every holdout's training rows.
 
     Each split bands its cells by `frame`'s edges, and its training rows are those the
     experiment's training fraction and removal leave (`bko.evaluate.prepare.prepared`), as the
-    harness's are.
+    harness's are; `held` is `bko.evaluate.run.run`'s.
 
     Raises:
         EvaluationError: If no value of a field lies inside every split's range.
     """
     trains = [
         prepared(
-            split(records, seed=seed, edges=frame.edges), experiment, edges=frame.edges
+            records_split(records, held=held, seed=seed, edges=frame.edges),
+            experiment,
+            edges=frame.edges,
         ).ablated.train
         for seed in experiment.holdout_seeds
     ]
@@ -143,7 +148,7 @@ class CannedSend:
         """
         frame = data.frame
         self._frame = frame
-        ranges = safe_ranges(data.records, experiment, frame=frame)
+        ranges = safe_ranges(data.records, experiment, frame=frame, held=data.held)
         self._grids = {name: _grid(*ranges[name], name, frame) for name in frame.numeric}
         self._steps = {
             name: STEPS.get(name, FALLBACK_STEPS[position % len(FALLBACK_STEPS)])

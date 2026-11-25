@@ -100,7 +100,7 @@ def test_a_datas_digest_is_computed_from_its_records():
     records = toy_records()
     assert Data(records, TOY, (), "toy", None).digest == _digest(records)
     with pytest.raises(TypeError):
-        Data(records, TOY, (), "toy", None, "ab" * 32)  # ty: ignore[too-many-positional-arguments]
+        Data(records, TOY, (), "toy", None, digest="ab" * 32)  # ty: ignore[unknown-argument]
 
 
 def test_load_refuses_a_dataset_it_does_not_know(tmp_path):

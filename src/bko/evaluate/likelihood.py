@@ -28,9 +28,8 @@ from typing import TextIO
 import pandas as pd
 
 from bko.baselines.request import Strata, stratum_keys
-from bko.datasets.split import split
 from bko.evaluate.criteria import corrected_interval
-from bko.evaluate.data import Data, Dataset
+from bko.evaluate.data import Data, Dataset, held_split
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.fidelity import MEASURES, fidelity
@@ -208,7 +207,7 @@ def _holdout(
 ) -> None:
     """Score one holdout's records, split each cell at its median, and add the paired contrasts."""
     frame = data.frame
-    parts = split(data.records, seed=seed, edges=frame.edges)
+    parts = held_split(data, seed)
     ready = prepared(parts, experiment, edges=frame.edges)
     tally.ratios.append(held_out_ratio(ready.sized, edges=frame.edges))
     ablated = ready.ablated
