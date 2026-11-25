@@ -114,8 +114,8 @@ class Experiment:
             dropped count, each arm fits on the whole training split, and each classifier trains
             on the kept rows plus the fill. It needs `flagged_cell`, admits no removal, no
             training fraction below 1, and no arm whose maths reads the whole training split
-            (`PRIOR_SHIFT_ARM`, class weighting) or the removed rows (`TREE_ARM`). None
-            replaces no row.
+            (`PRIOR_SHIFT_ARM`, class weighting, any replica arm) or the removed rows
+            (`TREE_ARM`). None replaces no row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -161,8 +161,9 @@ class Experiment:
                 removal is not the removal's cell, or the synthetic share is not a Fraction in
                 (0, 1], is set beside a removal or a training fraction below 1, names no
                 flagged cell, or stands beside `PRIOR_SHIFT_ARM` or class weighting, whose
-                offsets and weights read the whole training split, or beside `TREE_ARM`, whose
-                code-share error reads the removed rows.
+                offsets and weights read the whole training split, or beside a replica arm,
+                whose replica scores read it too, or beside `TREE_ARM`, whose code-share error
+                reads the removed rows.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -280,6 +281,10 @@ class Experiment:
         whole = sorted({PRIOR_SHIFT_ARM, str(Method.CLASS_WEIGHT)} & set(self.arms))
         if whole:
             msg = f"{whole} read the whole training split, which a synthetic share does not keep"
+            raise ValueError(msg)
+        if self.replica_arms:
+            msg = f"replica arms {list(self.replica_arms)} score a replica fill on the whole"
+            msg += " training split, which a synthetic share does not keep"
             raise ValueError(msg)
         if TREE_ARM in self.arms:
             msg = f"{TREE_ARM} reads the removed rows' code shares, and a synthetic share"

@@ -78,6 +78,16 @@ def test_an_arm_reading_the_whole_split_is_refused_under_a_share(arm):
         dataclasses.replace(removing, removal=None, synthetic_share=Fraction(1, 4))
 
 
+def test_a_replica_arm_is_refused_under_a_share():
+    # Replica scores fit and compare on the whole training split, not the kept rows.
+    removing = dataclasses.replace(
+        SHARE_RUN, replica_arms=("smote",), synthetic_share=None, removal=Removal(FULL, 0.5)
+    )
+    assert removing.replica_arms == ("smote",)
+    with pytest.raises(ValueError, match=r"replica arms \['smote'\] score a replica fill"):
+        dataclasses.replace(removing, removal=None, synthetic_share=Fraction(1, 4))
+
+
 def test_the_tree_arm_is_refused_under_a_share():
     # Its code-share error reads `Prepared.removed`, which a share leaves empty.
     with pytest.raises(ValueError, match=r"bko-tree reads the removed rows' code shares"):
@@ -144,7 +154,9 @@ def test_the_experiment_line_names_a_share_only_when_set():
     assert "synthetic_share" not in plain
     arms = tuple(arm for arm in E1.arms if arm != "class-weight")
     comparators = tuple(arm for arm in E1.comparators if arm != "class-weight")
-    cell = dataclasses.replace(E1, arms=arms, comparators=comparators, flagged_cell=FULL)
+    cell = dataclasses.replace(
+        E1, arms=arms, comparators=comparators, replica_arms=(), flagged_cell=FULL
+    )
     named = experiment_line("x", cell, ["lr"], frame="uci")
     for share, spelled in [(Fraction(1, 50), "1/50"), (Fraction(1), "1/1")]:
         sharing = dataclasses.replace(cell, synthetic_share=share)

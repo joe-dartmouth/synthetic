@@ -59,7 +59,8 @@ the arm that cannot fill a cell and the recall the margin reads all need a rule.
    `label-bootstrap`; `bko-direct` the candidate, every other arm but `real` a comparator, no
    replica and no criterion. `prior-shift` and `class-weight` are refused under a share: their
    offsets and weights read the whole training split, not the kept rows. So is `bko-tree`: its
-   code-share error reads the removed rows, and a share removes none.
+   code-share error reads the removed rows, and a share removes none. A replica arm is refused
+   too: its replica scores read the whole training split.
 9. **Privacy.** The readings are over the synthetic rows against the whole split, with
    `bko-direct` the reference arm, so each comparator's reading is its contrast with
    `bko-direct`, and E6's cell the cell scope. `real`'s added rows are the dropped rows, members
@@ -107,8 +108,8 @@ the whole split, TabDDPM's and CTGAN's the longest, repeats at every share (ADR
   nesting, the hash ranking, share 1 dropping every row), `tests/test_evaluate_share.py` (a share
   refused beside a removal or with no flagged cell, the test split untouched at every share, the
   request's quota, the training size at every share, `real` on the whole split, a partial fill,
-  a fill of fewer than two labels at share 1, `prior-shift`, `class-weight` and `bko-tree`
-  refused,
+  a fill of fewer than two labels at share 1, `prior-shift`, `class-weight`, `bko-tree` and
+  replica arms refused,
   the `experiment` line's key and its assumed value), `tests/test_evaluate_share_runs.py` (the
   shares, the arms, no paid arm, each run's slices, the reference arm and cell),
   `tests/test_evaluate_share_readers.py` (`rows`, `panel`, `shared`, `merge`, `trace`, `privacy`
