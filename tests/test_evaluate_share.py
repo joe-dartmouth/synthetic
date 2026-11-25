@@ -55,7 +55,7 @@ def test_a_share_beside_a_removal_is_refused():
         dataclasses.replace(SHARE_RUN, training_fraction=Fraction(1, 2))
 
 
-@pytest.mark.parametrize("share", [Fraction(0), Fraction(3, 2), 0.25])
+@pytest.mark.parametrize("share", [Fraction(0), Fraction(3, 2), 0.25, 1, True])
 def test_a_share_outside_the_unit_interval_is_refused(share):
     with pytest.raises(ValueError, match=r"synthetic share .* must be a Fraction in \(0, 1\]"):
         dataclasses.replace(SHARE_RUN, synthetic_share=share)

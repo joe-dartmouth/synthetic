@@ -152,6 +152,22 @@ def subsampled(
     return train.loc[train.index.isin(kept)].copy()
 
 
+def require_share(share: Fraction) -> None:
+    """Refuse a synthetic share that is not a `Fraction` in (0, 1]; an int or a bool is refused.
+
+    Raises:
+        ValueError: If `share` is not a `Fraction`, or lies outside (0, 1].
+    """
+    if not isinstance(share, Fraction) or not 0 < share <= 1:
+        msg = f"synthetic share {share!r} must be a Fraction in (0, 1]"
+        raise ValueError(msg)
+
+
+def share_text(share: Fraction) -> str:
+    """A synthetic share as the logs spell it: `<numerator>/<denominator>`, `1/1` for 1."""
+    return f"{share.numerator}/{share.denominator}"
+
+
 def dropped_count(count: int, share: Fraction) -> int:
     """How many of a cell's `count` training rows a synthetic share drops: rounded half up.
 
@@ -159,11 +175,9 @@ def dropped_count(count: int, share: Fraction) -> int:
     none.
 
     Raises:
-        ValueError: If `share` is not a `Fraction` (or an int) in (0, 1].
+        ValueError: As `require_share`.
     """
-    if not isinstance(share, Fraction | int) or not 0 < share <= 1:
-        msg = f"synthetic share {share!r} must be a Fraction in (0, 1]"
-        raise ValueError(msg)
+    require_share(share)
     return math.floor(share * count + Fraction(1, 2))
 
 
@@ -175,9 +189,9 @@ def dropped(train: pd.DataFrame, share: Fraction, *, seed: int, edges: Sequence[
     record a smaller share drops, a larger one drops too.
 
     Raises:
-        ValueError: As `dropped_count`, or if the index has a duplicate.
+        ValueError: As `require_share`, or if the index has a duplicate.
     """
-    dropped_count(0, share)
+    require_share(share)
     chosen = _lowest(
         train, lambda n: dropped_count(n, share), tag="synthetic-share:", seed=seed, edges=edges
     )

@@ -11,8 +11,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Final
 
+from bko.datasets.split import share_text
 from bko.evaluate.experiment import Experiment
-from bko.evaluate.prepare import share_text
 from bko.evaluate.utility import THRESHOLD
 
 

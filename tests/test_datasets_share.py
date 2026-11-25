@@ -9,7 +9,7 @@ from fractions import Fraction
 import pytest
 
 from bko.datasets.cells import CELL_COLUMNS, cell_keys
-from bko.datasets.split import dropped, dropped_count
+from bko.datasets.split import dropped, dropped_count, require_share, share_text
 from tests._frame_fixtures import TOY, TOY_TRAIN
 
 
@@ -31,10 +31,18 @@ def test_the_dropped_count_rounds_half_up_with_no_floor(count, share, expected):
     assert dropped_count(count, share) == expected
 
 
-@pytest.mark.parametrize("share", [Fraction(0), Fraction(3, 2), 0.5])
+@pytest.mark.parametrize("share", [Fraction(0), Fraction(3, 2), 0.5, 1, True])
 def test_the_dropped_count_refuses_a_share_outside_the_unit_interval(share):
     with pytest.raises(ValueError, match=r"synthetic share .* must be a Fraction in \(0, 1\]"):
         dropped_count(10, share)
+    with pytest.raises(ValueError, match=r"synthetic share .* must be a Fraction in \(0, 1\]"):
+        dropped(TOY_TRAIN, share, seed=0, edges=TOY.edges)
+
+
+def test_a_share_of_one_is_a_fraction():
+    require_share(Fraction(1))
+    assert share_text(Fraction(1)) == "1/1"
+    assert share_text(Fraction(2, 100)) == "1/50"
 
 
 def test_the_dropped_rows_nest_across_shares():

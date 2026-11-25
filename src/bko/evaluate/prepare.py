@@ -21,7 +21,7 @@ from bko.baselines.request import Stratum
 from bko.datasets.ablation import thinned
 from bko.datasets.cells import SEXES, age_band_labels, cell_counts
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import Split, dropped, subsampled
+from bko.datasets.split import Split, dropped, share_text, subsampled
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, Removal
 
@@ -74,11 +74,6 @@ def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> P
     train = ablated.train
     kept = train if lost.empty else train.drop(index=lost.index)
     return Prepared(sized, ablated, removed, lost, kept)
-
-
-def share_text(share: Fraction) -> str:
-    """A synthetic share as the logs spell it: `<numerator>/<denominator>`, `1/1` for 1."""
-    return f"{share.numerator}/{share.denominator}"
 
 
 def _dropped(parts: Split, share: Fraction | None, edges: Sequence[int]) -> pd.DataFrame:

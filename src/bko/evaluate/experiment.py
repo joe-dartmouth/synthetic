@@ -17,6 +17,7 @@ from typing import Final
 
 from bko.baselines.request import SEED_LIMIT, Method, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
+from bko.datasets.split import require_share
 from bko.evaluate.direct_arms import (
     COHERENT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
@@ -266,9 +267,7 @@ class Experiment:
         share = self.synthetic_share
         if share is None:
             return
-        if not isinstance(share, Fraction | int) or not 0 < share <= 1:
-            msg = f"synthetic share {share!r} must be a Fraction in (0, 1]"
-            raise ValueError(msg)
+        require_share(share)
         if self.removal is not None or self.training_fraction < 1:
             msg = "a synthetic share cannot stand beside a removal or a training fraction below 1"
             raise ValueError(msg)
