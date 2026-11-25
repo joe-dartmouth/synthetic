@@ -179,7 +179,7 @@ def test_a_coherent_fill_traces_to_its_arm_sha(cohered, caplog):
     (arm_line,) = [
         m for m in caplog.messages if m.startswith(f"trace arm holdout=0 arm={COHERENT_ARM} ")
     ]
-    assert arm_line.endswith(" unperturbed=true matches=true")
+    assert arm_line.endswith(" coherent=true matches=true")
     assert CHANGED in {line["perturb"]["result"] for line in found} <= {CHANGED, UNCHANGED}
     for line in found:
         assert (line["perturb"]["result"] == CHANGED) == bool(line["perturb"]["fields"])
@@ -221,6 +221,40 @@ def test_a_change_re_run_that_differs_from_the_lines_exits_3(cohered, caplog, mo
     monkeypatch.setattr(trace_perturb, "coherent_draws", _altered(trace_perturb.coherent_draws))
     assert _trace(folder, ctx, COHERENT_ARM) == (3, [])
     assert f"the change re-run gives other values than the lines in: {FIELDS[0]}" in caplog.text
+    (arm_line,) = [
+        m for m in caplog.messages if m.startswith(f"trace arm holdout=0 arm={COHERENT_ARM} ")
+    ]
+    assert arm_line.endswith(" coherent=false matches=false")
+
+
+def test_a_failed_unperturbed_check_skips_the_change_re_run_and_says_so(
+    cohered, caplog, monkeypatch
+):
+    folder, ctx = cohered
+    real = trace_perturb.redraw
+    reruns: list[int] = []
+
+    def one_short(*args: Any, **kwargs: Any) -> Any:
+        found = real(*args, **kwargs)
+        return dataclasses.replace(found, drawn=found.drawn[:-1])
+
+    def counted(*args: Any, **kwargs: Any) -> list[Draw]:
+        reruns.append(1)
+        return []
+
+    monkeypatch.setattr(trace_perturb, "redraw", one_short)
+    monkeypatch.setattr(trace_perturb, "coherent_draws", counted)
+    assert _trace(folder, ctx, COHERENT_ARM) == (3, [])
+    assert reruns == []
+    assert "lines in the returned attempt, not one per draw of" in caplog.text
+    assert (
+        f"trace coherent holdout=0 arm={COHERENT_ARM} rerun=skipped failed=unperturbed"
+        in caplog.messages
+    )
+    (arm_line,) = [
+        m for m in caplog.messages if m.startswith(f"trace arm holdout=0 arm={COHERENT_ARM} ")
+    ]
+    assert arm_line.endswith(" unperturbed=false matches=false")
 
 
 def test_attribution_classes_a_coherent_free_field_as_a_donor():

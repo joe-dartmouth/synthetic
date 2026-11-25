@@ -11,7 +11,10 @@ Each record carries its draw's facts, as `bko.evaluate.trace_direct` writes them
 object: the line's result, the fields that differ from the draw and the draw's values for them
 (ADR `research/record-explainability`). A `bko-coherent` fill re-runs its change over the re-draw
 (`bko.evaluate.coherent.coherent_draws`), refuses unless it gives every line's record, and names
-each free field's leaf donor as its source (`leaf_sourced`).
+each free field's leaf donor as its source (`leaf_sourced`). Its `trace arm` line's check is
+`coherent=`, which holds only when the unperturbed check held and the re-run gives every line's
+record; when the unperturbed check fails, the re-run is skipped, a `trace coherent` WARNING says
+so, and the check stays `unperturbed=`.
 
 A schema-4 line holds its result. An older line's is read from the draw: a PRAM line is
 `CHANGED` when a field differs, else `UNCHANGED`; a rewrite line that names its call is
@@ -23,6 +26,7 @@ it is none of the arm's `PERTURBS`.
 from __future__ import annotations
 
 import dataclasses
+import logging
 from collections.abc import Mapping, Sequence
 
 import pandas as pd
@@ -48,6 +52,9 @@ from bko.evaluate.trace_lines import (
 )
 from bko.generate.direct import Draw
 from bko.ontology.terms import Ontology
+
+
+logger = logging.getLogger(__name__)
 
 
 def trace_perturbation(
@@ -78,10 +85,10 @@ def trace_perturbation(
     redrawn = redraw(train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag)
     free = unmapped(data.field_rows, frame=data.frame)
     paired, differs = line_draws(returned, redrawn.drawn, free)
-    if fill.name == COHERENT_ARM and not differs:
-        changed = coherent_draws(train, seeded, redrawn.drawn, fields=free)
-        paired, differs = leaf_sourced(paired, changed)
-    log_arm(fill, logged=logged, rebuilt=found, check="unperturbed", held=not differs)
+    check, paired, differs = _coherent_rerun(
+        fill, paired, differs, train=train, request=seeded, drawn=redrawn.drawn, free=free
+    )
+    log_arm(fill, logged=logged, rebuilt=found, check=check, held=not differs)
     if found != logged:
         msg = f"{where}'s rows rebuilt from its lines hash to {found}, not its arm line's {logged}"
         raise IdentityError(msg)
@@ -115,6 +122,34 @@ def line_draws(
     return list(zip(returned, records, drawn, strict=True)), ""
 
 
+def _coherent_rerun(
+    fill: Fill,
+    paired: list[Paired],
+    differs: str,
+    *,
+    train: pd.DataFrame,
+    request: Request,
+    drawn: Sequence[Draw],
+    free: Sequence[str],
+) -> tuple[str, list[Paired], str]:
+    """The `trace arm` line's check, with `paired` and `differs` after a `bko-coherent` re-run.
+
+    Another arm's check is `unperturbed`, its pairs as given. A `bko-coherent` fill whose
+    unperturbed check failed skips the re-run and logs a `trace coherent` WARNING; otherwise its
+    check is `coherent` and its pairs are `leaf_sourced` from the re-run at `request`'s seed.
+    """
+    if fill.name != COHERENT_ARM:
+        return "unperturbed", paired, differs
+    if differs:
+        logger.warning(
+            "trace coherent holdout=%d arm=%s rerun=skipped failed=unperturbed",
+            fill.holdout,
+            fill.arm,
+        )
+        return "unperturbed", paired, differs
+    return "coherent", *leaf_sourced(paired, coherent_draws(train, request, drawn, fields=free))
+
+
 def leaf_sourced(paired: Sequence[Paired], changed: Sequence[Draw]) -> tuple[list[Paired], str]:
     """`paired`, each draw sourcing its changed fields as its change in `changed` does.
 
@@ -124,15 +159,16 @@ def leaf_sourced(paired: Sequence[Paired], changed: Sequence[Draw]) -> tuple[lis
     fields. The second value says why the lines' records are not the re-run's, with no pair; it is
     the empty string when they are.
     """
-    names = sorted(
+    mismatched = sorted(
         {
             name
             for (_, record, _), draw in zip(paired, changed, strict=True)
             for name in _changed(record, draw)
         }
     )
-    if names:
-        return [], f"the change re-run gives other values than the lines in: {','.join(names)}"
+    if mismatched:
+        msg = f"the change re-run gives other values than the lines in: {','.join(mismatched)}"
+        return [], msg
     return [
         (line, record, dataclasses.replace(draw, sources=new.sources, fallback=new.fallback))
         for (line, record, draw), new in zip(paired, changed, strict=True)

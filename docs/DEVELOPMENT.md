@@ -1287,8 +1287,10 @@ named run, `<h>` the holdout and `<arm>` the arm:
   re-drawn or rebuilt one, the arm's own check and `matches=`, at WARNING when either check
   fails. A direct arm's check is `kept_lines=`, whether its re-drawn kept records are the
   candidates file's kept lines; a perturbation arm's is `unperturbed=`, whether its returned
-  attempt holds one line per draw and every column no perturbation changes is its draw's, and
-  for `bko-coherent` whether its change re-run gives every line's record. For a
+  attempt holds one line per draw and every column no perturbation changes is its draw's.
+  `bko-coherent`'s is `coherent=`, whether that holds and its change re-run gives every line's
+  record; when the unperturbed check fails, the `trace coherent` WARNING says the re-run was
+  skipped (`rerun=skipped failed=unperturbed`) and the check stays `unperturbed=`. For a
   Messages arm, the `trace partial` WARNING counts the records left `untraced`, names the calls
   the log lacks (`missing=`) and each reason; and `trace rows=` closes with the output's sha256,
   the record written (`record=`) and the untraced count.

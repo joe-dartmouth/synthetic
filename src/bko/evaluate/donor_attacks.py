@@ -207,14 +207,9 @@ def donor_counts(
     perturbed = fill.name in PERTURBS
     spec = DEFAULT_SPEC if perturbed else arm_spec(fill, data, ontologies)
     seeded = dataclasses.replace(request, seed=fill.seed)
+    tag = (fill.holdout, fill.kind)
     redrawn = redraw(
-        train,
-        seeded,
-        data=data,
-        ontologies=ontologies,
-        budget=budget,
-        tag=(fill.holdout, fill.kind),
-        spec=spec,
+        train, seeded, data=data, ontologies=ontologies, budget=budget, tag=tag, spec=spec
     )
     logged = fields(fill.line)["sha256"]
     free = set(unmapped(data.field_rows, frame=data.frame)) if perturbed else set()
@@ -223,7 +218,6 @@ def donor_counts(
         # The change re-run gives each draw its stored values and leaf donors, so every column
         # of a stored row is checked against it below.
         drawn = tuple(coherent_draws(train, seeded, drawn, fields=sorted(free)))
-    kept = set() if coherent else free
     if perturbed:
         draws = _perturbed_draws(lines, drawn, seeded, logged=logged, where=where, free=free)
     else:
@@ -238,19 +232,38 @@ def donor_counts(
         raise IdentityError(msg)
     rows = [{str(name): value for name, value in row.items()} for row in stored.to_dict("records")]
     if perturbed:
-        names = {
-            name
-            for row, draw in zip(rows, draws, strict=True)
-            for name in draw.record
-            if name not in kept and not _same(row[name], draw.record[name])
-        }
-        if names:
-            msg = f"{where}: columns no perturbation changes differ from the re-draw:"
-            if coherent:
-                msg = f"{where}: columns differ from its change re-run:"
-            msg += f" {','.join(sorted(names))}"
-            raise IdentityError(msg)
+        _refuse_moved(rows, draws, free=free, coherent=coherent, where=where)
     return donations(rows, draws, groups)
+
+
+def _refuse_moved(
+    rows: Sequence[Mapping[str, object]],
+    draws: Sequence[Draw],
+    *,
+    free: Collection[str],
+    coherent: bool,
+    where: str,
+) -> None:
+    """Refuse a stored row that differs from its draw in a column the identity check reads.
+
+    A perturbation arm's draws exempt the perturbed fields `free`; a `bko-coherent` draw is its
+    change re-run's, which gives every column, so none is exempt.
+
+    Raises:
+        IdentityError: If a row differs from its draw in a column that is not exempt.
+    """
+    exempt = set() if coherent else set(free)
+    names = {
+        name
+        for row, draw in zip(rows, draws, strict=True)
+        for name in draw.record
+        if name not in exempt and not _same(row[name], draw.record[name])
+    }
+    if names:
+        which = "columns" if coherent else "columns no perturbation changes"
+        against = "its change re-run" if coherent else "the re-draw"
+        msg = f"{where}: {which} differ from {against}: {','.join(sorted(names))}"
+        raise IdentityError(msg)
 
 
 def _perturbed_draws(
