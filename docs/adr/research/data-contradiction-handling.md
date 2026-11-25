@@ -160,8 +160,8 @@ table does not nest them, a pattern the data shows.
 
 ## Reversal Conditions
 
-**`bko-direct` and the stages force ancestors when the mapping table gains a row that implies its
-parent's values**;
+**`bko-direct` and the stages other than the ablations force ancestors when the mapping table
+gains a row that implies its parent's values**;
 the check is a search of `bko.ontology.mapping.FIELD_MAPPINGS` and the Diabetes field rows for a
 row that reads a concept's parent. **The valid-BKB check requires mutual exclusion if ADR
 `research/bko-fragment-encoding` comes to encode a state for absence.** **The census moves to

@@ -281,12 +281,12 @@ its narrow one at the data's conditional, at pseudo-count 0, at `GROUP_WEIGHT`, 
 [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 12); the
 runs `e16-thin` and `e16-empty` hold them. Their `direct` and `fallback` lines read
 ` hierarchy=0.0 presence=shares`, ` hierarchy=20.0 presence=shares` and
-` closed=true presence=shares`, their `arm` lines' params add `"hierarchy": 0.0`,
-`"hierarchy": 20.0` and `"closed": true`, and their `direct arm=` lines end in
-`fallback_draws=%d`. The sampler writes one `hier holdout=%d fill=%s key=%s pairs=%d clamped=%d`
-line per cell: the pairs drawn and how many of their complements were clamped. A frame with no
-`is_a` pair among its drawn concepts, a broad concept with two narrow ones, or a nested pair is
-refused before any draw.
+` closed=true presence=shares`, and their `arm` lines' params add `"hierarchy": 0.0`,
+`"hierarchy": 20.0` and `"closed": true`; like every direct arm but `bko-direct`, their
+`direct arm=` lines end in `fallback_draws=%d`. The sampler writes one
+`hier holdout=%d fill=%s key=%s pairs=%d clamped=%d` line per cell: the pairs drawn and how many
+of their complements were clamped. A frame with no `is_a` pair among its drawn concepts, a broad
+concept with two narrow ones, or a nested pair is refused before any draw.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -1249,7 +1249,7 @@ record's concepts end in one entry per tree field: its `field`, `leaf`, `concept
 its parent, the weight, the conditional and the share. A `bko-hier` record's broad concepts add
 `hierarchy` beside their share facts: the narrow concept `given`, the weighted counts `both` and
 `narrow`, the `pseudo`-count (null when closed), the `conditional`, the `complement` (null when
-the narrow concept's share is 1) and whether it was `clamped`.
+the narrow concept's share is within one float of 1) and whether it was `clamped`.
 `bko-direct-pram` and `bko-direct-perturbed` rebuild their rows from their candidate lines and
 re-draw underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
 `perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
@@ -1277,9 +1277,9 @@ record ids; keep the file in its run folder. `<run-id>` is the folder read, `<ru
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and a perturbation fill whose
-  rebuilt rows miss its `arm` sha256, whose returned attempt is not one line per draw, or whose
-  unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
+  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and
+  a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt is not one
+  line per draw, or whose unperturbed columns differ from the re-draw. A `bko-logic` trace over an ontology whose logic
   components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
   are not its pinned ones, exit 2.
 
@@ -1297,8 +1297,8 @@ takes one or more files:
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/attribution.csv && test ! -e runs/<run-id>/attribution.log && uv run --no-sync python -m bko.evaluate attribution <run> --trace runs/<trace-id>/trace.jsonl <more>... > runs/<run-id>/attribution.csv 2> runs/<run-id>/attribution.log </dev/null
 
 - **Log lines**: `versions commit=` first; `attribution spec=` once per fill of a perturbation
-  arm outside the direct arms (`bko-direct-perturbed`) names the `bko-direct` spec its unchanged
-  fields are read over; `attribution trace=` per file names its sha256, its lines and its
+  arm outside the direct arms (`bko-direct-perturbed`) names every field of the `bko-direct`
+  spec its unchanged fields are read over, so it gains each field the spec gains; `attribution trace=` per file names its sha256, its lines and its
   `untraced` records; `attribution rows=` closes with the CSV's data rows, its sha256 and the file
   count.
 - **Exit codes**: 0 the CSV is written; 1 an unexpected error, with its traceback; 2 a file that

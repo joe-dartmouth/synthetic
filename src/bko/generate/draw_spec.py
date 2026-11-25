@@ -3,8 +3,9 @@
 `bko.generate.direct.sample` takes a `DrawSpec`. Its default is `bko-direct`'s draw; each other
 field value names an ablation or a variant (ADRs `research/logic-only-ablation`,
 `research/no-mapping-ablation`, `research/sampler-donor-limits`, `research/ancestor-shrunk-shares`
-and `research/bkb-direct-generation`, Decision 12). Only fields that differ from
-their defaults are logged, so the default spec's lines and params keep their bytes.
+and `research/bkb-direct-generation`, Decision 12). `params` and `tokens` hold only the fields
+that differ from their defaults, so the default spec's sampler lines and `arm` params keep their
+bytes; `values` holds every field, so `attribution spec=` gains each field the spec gains.
 """
 
 from __future__ import annotations
