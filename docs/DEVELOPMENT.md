@@ -101,8 +101,9 @@ root or to see the module's own code, run it directly:
   (`bko.ontology.code_frames.diabetes_codes_frame`) is built from the loaded records, since the
   three columns' codebook is the codes they hold; its field rows are one per mapped code of
   `bko.ontology.icd9_codes` and diagnosis column, then the lab rows (ADR
-  [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). No named run
-  reads it, and the `contradictions` census does not.
+  [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). The runs
+  `e15-thin` and `e15-empty` and their slices read it (`docs/EVIDENCE.md`, E15); the
+  `contradictions` census does not.
 - **The TableShift frame**: `bko.datasets.tableshift` rebuilds TableShift's Hospital Readmission
   partition of the same archive in numpy (ADR
   [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It drops the rows

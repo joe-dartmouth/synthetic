@@ -184,6 +184,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
 
+## E15. Ancestor-shrunk shares on the Diabetes codes frame
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's removal over the `diabetes-codes` frame, does drawing each diagnosis column as one categorical whose shares are shrunk node by node along MONDO (`bko-tree`) keep removed-cell recall against `bko-direct` and `bko-nomap`, and do its diagnosis codes sit nearer the removed rows' than `bko-direct`'s do? |
+| Configuration | Design: ADR [`research/ancestor-shrunk-shares`](adr/research/ancestor-shrunk-shares.md) fixes the tree fields, the tree, the share rule, the draw and the trace. Frame: `diabetes-codes`, E6's cohort and label with each diagnosis code kept (ADR [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). Removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e15-thin` (0.985) and `e15-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e15-thina` to `e15-thinj` and `e15-emptya` to `e15-emptyj`, at E6's settings. Arms: `none`, `real`, `bko-direct`, `bko-nomap` and `bko-tree`; candidate `bko-tree`, comparators `bko-direct`, `bko-nomap` and `none`; no replica. Target measure: removed-cell recall. Second reading: `code-share-error`, written at the scope `flagged-subgroups` for every row-adding arm of a run that holds `bko-tree`: the mean over the three diagnosis columns of the total variation distance between the fill's code shares and the removed training rows', the cell held out of training. It reads in place of the unit's per-code share error against the held-out cell, one number per fill over every code. `bko-direct`'s draw on this frame is read beside what ADR `research/diabetes-diagnosis-codes` Consequences record of it on E6's cell. Confound: `bko-tree` copies each diagnosis column from a donor of that column alone and `bko-direct` the three from one record, so the contrast mixes the shrinkage with that change. No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |

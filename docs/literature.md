@@ -92,7 +92,9 @@ is the citing source's claim, not a checked one.
 ## Knowledge-guided generation
 
 - `gmgan-2026` · [arXiv:2608.13256](https://arxiv.org/abs/2608.13256) · `not-fetched` · "Novel Knowledge-Guided Generative Methods for Synthetic Transcriptomic Data": Graph-Modulated GAN (GM-GAN) and Graph-Regularized GAN (GR-GAN). Authors not given in source. Cited in: brief A3.
+- `dennis-1991` · [doi:10.1080/03610929108830757](https://doi.org/10.1080/03610929108830757) · `not-fetched` · Samuel Y. Dennis III, "On the hyper-Dirichlet type 1 and hyper-Liouville distributions", Communications in Statistics - Theory and Methods 20(12) (1991); metadata unchecked against its record. Puts a distribution on a tree's leaves through one conditional distribution per internal node. Cited in: ADR `research/ancestor-shrunk-shares`.
 - `kipps-2024` · [arXiv:2409.17315](https://arxiv.org/abs/2409.17315) · `not-fetched` · KIPPS, "Knowledge Infusion in Privacy Preserving Synthetic Data Generation". Authors not given in source. Cited in: brief A3.
+- `mccallum-1998` · identifier not given in source · `not-fetched` · Andrew McCallum, Ronald Rosenfeld, Tom Mitchell & Andrew Y. Ng, "Improving Text Classification by Shrinkage in a Hierarchy of Classes", ICML 1998, pp. 359-367. Shrinks a class's estimate toward its ancestors' in a class hierarchy. Cited in: ADR `research/ancestor-shrunk-shares`.
 - `ontobook-2026` · [arXiv:2607.18927](https://arxiv.org/abs/2607.18927) · `not-fetched` · OntoBook: ontology random walks rewritten by an LLM into synthetic "textbook" prose. Authors not given in source. Cited in: brief A3.
 - `panaccione-2025` · [doi:10.3390/bioengineering12060658](https://doi.org/10.3390/bioengineering12060658) · `not-fetched` · Panaccione et al., "BioGAN", Bioengineering 2025. Graph neural networks inside a GAN for transcriptomic data. Cited in: brief A3, Key Papers 8.
 
