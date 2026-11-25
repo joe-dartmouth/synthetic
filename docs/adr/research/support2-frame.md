@@ -136,6 +136,32 @@ records, 1,887 of them in-hospital deaths, an in-hospital death rate of 0.2591, 
 `a9231c19529069a9bd0cc94a02209bac5c1242baf8da610f4dc93eca868347e7`. The split is above the 5,000
 records condition 5 asks.
 
+**The readings, at `7366752`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0, its log ending `checked 89 rows: 0 disagree`. The gap listing is run `d1-3`, `uv run
+--no-sync python -m bko.gaps support2` into `runs/d1-3/gaps-support2.csv` and
+`runs/d1-3/gaps-support2.log`, exit 0, closing `gaps rows=298
+sha256=6dbe1c132a94640225fd0d74666a390d0b9b3537707b80feac67143154003d20`: per-subgroup 57 gaps in
+3 cells, population-level none, frequency-aware 241 in 15 cells, and no cell below the count
+threshold. Its csv sha256 is `6dbe1c132a94640225fd0d74666a390d0b9b3537707b80feac67143154003d20`
+and its log sha256 `c535f7992ec9ecc6eeb5f64b8dc8606d6729762511f3f290e9b321dc6ee82003`. The census
+is run `d2-3`, `uv run --no-sync python -m bko.evaluate contradictions --dataset support2` into
+`runs/d2-3/contradictions.csv` and `runs/d2-3/contradictions.log`, exit 0: every `census kind=`
+count is 0 (`narrow-without-broad`, `child-share-above-parent`, `empty-cell`, `all-show`,
+`code-overlap`), over 16 of 16 cells, 19 rows and two `is_a` pairs, lung cancer and malignant
+colon neoplasm under cancer, shown by 733 and 411 records, none of them without cancer. Its csv
+sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
+and its log sha256 `7f29f287c6e5827631ebbf0cf7ba2908aceb8bf034d6b48db09e83ebba55eade`. Both read
+the archive sha256 `8ed43980742a18e1847a8dfc5530bc4b30564ad9e4ad1b1b50bbc5d29d8c86fe`, HPO
+`hp/releases/2026-09-01` and MONDO `releases/2026-10-06`.
+`tests/test_datasets_support2_pinned.py` passes with `--releases`.
+
+**Deviations from the plan.** The cutoffs are read in Singer et al.'s reproduction, not in Bone
+et al. and Vincent et al. themselves (Context). The one record with a missing `scoma` is dropped
+rather than coded (Ruled Out). Each measured value is read at 2 decimals, and the tertile cutoffs
+are rounded to 2 decimals (Decision 3). The frame builder lives in its own module beside the
+loader, which would otherwise pass the 500-line cap. The census reads SUPPORT2 through
+`--dataset support2`; the default census keeps its three frames.
+
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the
 two scores stay unread; a re-read that differs from Singer et al.'s reproduction would change a
@@ -162,7 +188,8 @@ row. Tertile bands can be uneven where values tie at a tertile (`edu`'s 11 and 1
   `tests/test_datasets_support2.py::test_each_cited_field_is_coded_at_its_cutoffs`,
   `tests/test_datasets_support2.py::test_a_missing_value_shows_no_concept`,
   `tests/test_ontology_support2_rows.py::test_the_rows_map_these_states_to_these_concepts`,
-  `tests/test_ontology_support2_rows.py::test_every_cutoff_row_cites_a_registered_source`
+  `tests/test_ontology_support2_rows.py::test_every_cutoff_row_cites_a_registered_source`,
+  `tests/test_datasets_support2_pinned.py` (with `--releases`)
 
 ## Reversal Conditions
 

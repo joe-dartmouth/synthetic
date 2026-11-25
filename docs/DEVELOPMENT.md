@@ -125,6 +125,24 @@ root or to see the module's own code, run it directly:
 
       uv run --no-sync pytest tests/test_datasets_tableshift_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+- **The SUPPORT2 frame**: `bko.datasets.support2` reads `support2.csv` from the verified
+  `support2` snapshot without extracting it (ADR
+  [`research/support2-frame`](adr/research/support2-frame.md)). `record_id` is each row's leading
+  row number; the label is `hospdead`, in-hospital death; a record whose `scoma` is missing is
+  dropped and counted in the `cohort` line. `age` is floored to whole years; `race` and `income`
+  hold code 0 for not recorded; each lab or vital is a coded state, 0 for not measured, then its
+  band at the SIRS or SOFA cutoffs, or at the published file's tertiles for the unmapped ones.
+  The columns the publisher warns against and those known only at or after the outcome never
+  enter. `bko.datasets.support2_frame` builds its frame from the records, band edges 50, 65 and
+  80, and `bko.ontology.support2_rows` holds its field rows; it is the first entry of
+  `bko.ontology.catalog`, so `score`, `gaps support2` and `contradictions --dataset support2`
+  read it through its catalog entry. `tests/test_datasets_support2_pinned.py` checks the
+  archive's sha256, the cohort, the training split's death rate and the tertile cutoffs; the gate
+  skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_support2_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `gaps support2` fetches it.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
