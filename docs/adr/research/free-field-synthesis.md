@@ -25,8 +25,7 @@ structure without a joint copy.
 ## Decision Drivers
 
 * **Must leave `bko-direct`'s draw byte for byte**, so its runs re-read under identity checks.
-* **Must keep `bko.generate` free of `bko.baselines`** (`tests/test_generate_imports.py`), so the
-  model runs outside the sampler.
+* **Must keep `bko.generate` free of `bko.baselines`**, so the model runs outside the sampler.
 * **Must keep each value a training value with a named donor**, so the trace and donor reuse
   read the arm as they read `bko-direct`.
 * **Must draw the free fields given the cell, the label and the mapped fields**, so a row's
