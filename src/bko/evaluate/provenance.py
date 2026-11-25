@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Final
 
 from bko.evaluate.experiment import Experiment
+from bko.evaluate.prepare import share_text
 from bko.evaluate.utility import THRESHOLD
 
 
@@ -53,7 +54,8 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
     `seeds=` is the first and last holdout seed, `<first>-<last>`; `removal=` the removed cell's
     band, sex and label joined by `/`, then `@` and the fraction, or `none`; `flagged_cell=`
     follows `removal=` only when set, as the cell's band, sex and label joined by `/`; `cutoff=`
-    follows `fill_to=` only when it is not E1's; `replica_rows=` follows `replica=` only when set.
+    follows `fill_to=` only when it is not E1's; `replica_rows=` follows `replica=` only when set;
+    `synthetic_share=` follows `training_fraction=` only when set, as `<numerator>/<denominator>`.
     """
     seeds, removal = experiment.holdout_seeds, experiment.removal
     removed = (
@@ -62,10 +64,12 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
     cell = experiment.flagged_cell
     named = "" if cell is None else f"flagged_cell={'/'.join(map(str, cell))} "
     cutoff = "" if experiment.cutoff == THRESHOLD else f"cutoff={experiment.cutoff} "
+    share = experiment.synthetic_share
+    shared = "" if share is None else f"synthetic_share={share_text(share)} "
     capped = "" if experiment.replica_rows is None else f"replica_rows={experiment.replica_rows} "
     return (
         f"experiment run={name} frame={frame} holdouts={len(seeds)} seeds={seeds[0]}-{seeds[-1]} "
-        f"removal={removed} {named}training_fraction={experiment.training_fraction} "
+        f"removal={removed} {named}training_fraction={experiment.training_fraction} {shared}"
         f"decontaminate={'true' if experiment.decontaminate else 'false'} "
         f"arms={','.join(experiment.arms)} replica={','.join(experiment.replica_arms)} {capped}"
         f"threshold={experiment.threshold} fill_to={experiment.fill_to} {cutoff}"

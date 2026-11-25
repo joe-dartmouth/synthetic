@@ -797,11 +797,13 @@ start or the supervisor cannot run.
   (0, 1] and 1 removing every row of the cell, or `none`, `training_fraction=` an exact fraction
   such as `1/4`, or `1`, `decontaminate=` `true` or `false`; ` flagged_cell=<band>/<sex>/<label>`
   follows `removal=` only when the run's `Experiment.flagged_cell` names the one cell its gap
-  request asks for, flagged whatever its count and restored to `fill_to`; ` replica_rows=<rows>`
-  follows `replica=` only when the run's `Experiment.replica_rows` caps the replica fill near that
-  many rows in all: each cell asks its `kept_count` at the share `replica_rows` over the training
-  rows, so the rounded cells may sum to a few rows off it; `cutoff=<probability>` follows `fill_to=`
-  only when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
+  request asks for, flagged whatever its count and restored to `fill_to`;
+  ` synthetic_share=<numerator>/<denominator>` follows `training_fraction=` only when the run's
+  `Experiment.synthetic_share` replaces that share of each cell's training rows;
+  ` replica_rows=<rows>` follows `replica=` only when the run's `Experiment.replica_rows` caps the
+  replica fill near that many rows in all: each cell asks its `kept_count` at the share
+  `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
+  `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's 0.5, the probability at which utility calls a
   record positive; `spend_ceiling=` is the named run's own, a resume under `--ceiling` included),
   and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
@@ -818,7 +820,10 @@ start or the supervisor cannot run.
   and kept, and the held-out ratio the holdout's intervals read),
   the split line `cells` prints, for a run with a removal (`e3` and its slices) a
   `removal holdout=%d cell=%s fraction=%s train=%d removed=%d kept=%d` line (the training rows
-  before the removal, those it removed and those it kept), one `quota` line per stratum, a
+  before the removal, those it removed and those it kept), for a run with a synthetic share a
+  `share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s` line (the share, the training
+  rows kept and dropped, and the sha256 of the dropped record ids, sorted and joined by commas),
+  one `quota` line per stratum, a
   `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
   comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and

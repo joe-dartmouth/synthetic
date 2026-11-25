@@ -129,6 +129,7 @@ def test_e1_is_its_stated_configuration():
         "cutoff": 0.5,
         "replica_rows": None,
         "flagged_cell": None,
+        "synthetic_share": None,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
