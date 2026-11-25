@@ -37,21 +37,21 @@ from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
 from bko.core.logs import configure
 from bko.datasets.ablation import AblationSpec
-from bko.datasets.cells import CELL_COLUMNS, UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.sources import SYNTHEA_JAR, UCI_HEART_DISEASE, Source
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import UCI_FRAME
-from bko.gaps.definitions import Definition, gaps, under_represented
-from bko.gaps.detect import count_gaps
+from bko.gaps.definitions import Definition
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
-from bko.gaps.observe import Cells, Observed, cell_key, observe_population
+from bko.gaps.listing import listed, log_cells, log_observed
+from bko.gaps.observe import observe_population
 from bko.gaps.report import STATEMENT_COLUMNS, Label, Row, cell_cells, labeller, statement_cells
 from bko.gaps.scan import FIRST_FLAG_COLUMNS, first_flag_rows, log_first_flags, scan
 from bko.gaps.scope import load_scope, load_uci_scope
-from bko.gaps.sweep import Sweep, choose, listing, log_choice, log_listing, log_sweep, sweep
+from bko.gaps.sweep import Sweep, choose, log_choice, log_sweep, sweep
 from bko.ontology.mapping import CODE_MAPPINGS, FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import CodeMapping, FieldMapping
 from bko.ontology.terms import Ontology
@@ -59,7 +59,6 @@ from bko.ontology.terms import Ontology
 
 logger = logging.getLogger("bko.gaps")
 
-UCI_COLUMNS: Final[Row] = ("detector", *STATEMENT_COLUMNS, *CELL_COLUMNS, "count")
 CLOSED_DETECTORS: Final = frozenset({Definition.SUBGROUP.value, "count"})
 """The detectors that, under a removal of whole patients, put no gap new outside the truth and
 lose none (`bko.gaps.experiment`); a reading of either that does is a defect."""
@@ -192,42 +191,13 @@ def _uci(data_dir: Path, context: Context) -> list[Row]:
         field_rows=context.field_rows,
         open_url=context.open_url,
     )
-    parts, ontologies, fragments, cells = (
-        scope.parts,
-        scope.ontologies,
-        scope.fragments,
-        scope.cells,
+    return listed(
+        scope.parts.train,
+        edges=UCI_FRAME.edges,
+        ontologies=scope.ontologies,
+        fragments=scope.fragments,
+        cells=scope.cells,
     )
-    _log_observed(cells.whole)
-    _log_cells(cells, f"dataset={cells.whole.name}")
-    label = labeller(ontologies)
-    rows: list[Row] = [UCI_COLUMNS]
-    for definition in Definition:
-        found = gaps(definition, fragments, cells)
-        logger.info(
-            "bko definition=%s dataset=%s gaps=%d cells=%d",
-            definition,
-            cells.whole.name,
-            len(found),
-            len({gap.cell for gap in found}),
-        )
-        rows.extend(
-            (definition.value, *statement_cells(gap.statement, label), *cell_cells(gap.cell), "")
-            for gap in found
-        )
-    log_listing(cells.whole.name, listing(fragments, cells))
-    counted = count_gaps(cell_counts(parts.train, edges=UCI_FRAME.edges))
-    logger.info(
-        "count dataset=%s flagged=%d below=%d",
-        cells.whole.name,
-        len(counted),
-        UNDERREPRESENTED_BELOW,
-    )
-    rows.extend(
-        ("count", "", "", "", "", "", cell.age_band, cell.sex, str(cell.target), str(cell.count))
-        for cell in counted
-    )
-    return rows
 
 
 def _population(
@@ -244,7 +214,7 @@ def _population(
     population = load_population(directory, snapshot_date=context.run.snapshot_date)
     concepts = {row.concept for row in context.code_rows}
     ontologies, fragments = _ontology(concepts, data_dir, context)
-    _log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
+    log_observed(observe_population(population, context.code_rows, name=SYNTHEA))
     return population, ontologies, fragments
 
 
@@ -280,8 +250,8 @@ def _synthea(data_dir: Path, context: Context) -> list[Row]:
             spec.seed,
             len(run.ablation.removed),
         )
-        _log_cells(run.before_cells, f"ablation={name} when=before")
-        _log_cells(run.after_cells, f"ablation={name} when=after")
+        log_cells(run.before_cells, f"ablation={name} when=before")
+        log_cells(run.after_cells, f"ablation={name} when=after")
         for definition in Definition:
             logger.info(
                 "bko ablation=%s definition=%s before=%d after=%d listed=%d",
@@ -363,43 +333,6 @@ def _ontology(
     concepts: Collection[str], data_dir: Path, context: Context
 ) -> tuple[dict[str, Ontology], tuple[BKB, ...]]:
     return load_scope(concepts, data_dir, releases=context.releases, open_url=context.open_url)
-
-
-def _log_observed(observed: Observed) -> None:
-    logger.info(
-        "observed dataset=%s records=%d held=%d of=%d %s",
-        observed.name,
-        observed.records,
-        len(observed.held),
-        len(observed.holders),
-        " ".join(f"{concept}={count}" for concept, count in observed.holders.items()),
-    )
-
-
-def _log_cells(cells: Cells, where: str) -> None:
-    for cell, records in cells.each.items():
-        logger.info(
-            "cell %s key=%s records=%d held=%d of=%d assumed=%s",
-            where,
-            cell_key(cell),
-            records.observed.records,
-            len(records.observed.held),
-            len(records.observed.holders),
-            ",".join(sorted(records.assumed)),
-        )
-    for flag in under_represented(cells):
-        logger.info(
-            "flagged %s key=%s concept=%s shown=%d records=%d reference_shown=%d "
-            "reference_records=%d mass=%.4f",
-            where,
-            cell_key(flag.cell),
-            flag.concept,
-            flag.shown,
-            flag.records,
-            flag.reference_shown,
-            flag.reference_records,
-            flag.mass,
-        )
 
 
 if __name__ == "__main__":
