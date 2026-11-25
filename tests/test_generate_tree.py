@@ -31,11 +31,13 @@ from bko.generate.tree import (
     TOP,
     UNMAPPED,
     code_tree,
+    column_trees,
     leaf_concept,
     leaves,
     tree_fields,
     tree_shares,
 )
+from bko.generate.tree_draw import Placed, TreeDraw, leaf_at
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import AtLeast, Codes, FieldMapping
 from bko.ontology.terms import Ontology
@@ -252,6 +254,26 @@ def test_a_weight_below_one_is_refused():
         tree_shares(CELL, GROUP, TREE, 0)
 
 
+@pytest.mark.parametrize("stray", ["A", TOP, "z"])
+def test_a_count_of_a_node_that_is_not_a_leaf_is_refused(stray):
+    with pytest.raises(ValueError, match=f"counts name {stray}, which are not leaves"):
+        tree_shares(CELL, {**GROUP, stray: 1}, TREE, GROUP_WEIGHT)
+    with pytest.raises(ValueError, match=f"counts name {stray}, which are not leaves"):
+        tree_shares({**CELL, stray: 1}, GROUP, TREE, GROUP_WEIGHT)
+
+
+PLACED: Final = Placed("cp", ("a1", "a2", "b"), np.cumsum([0.25, 0.5, 0.25 - 1e-12]), {}, {}, {})
+"""Three leaves whose float cumulative shares end just below 1."""
+
+
+@pytest.mark.parametrize(
+    ("uniform", "leaf"),
+    [(0.0, "a1"), (0.25, "a2"), (0.75, "b"), (float(PLACED.cumulative[-1]), "b"), (1.0, "b")],
+)
+def test_a_uniform_on_a_boundary_goes_right_and_one_past_the_last_is_clipped(uniform, leaf):
+    assert leaf_at(PLACED, uniform, YOUNG_WOMEN_1) == leaf
+
+
 TREE_SPEC: Final = DrawSpec(tree=True)
 
 CP_ROWS: Final = (
@@ -369,6 +391,14 @@ def test_a_leaf_the_cell_lacks_is_copied_from_the_label_group():
     fell = [d for each in draws.values() for d in each if d.record["cp"] == 3]
     assert fell
     assert all("cp" in d.fallback for d in fell)
+
+
+def test_a_label_group_with_no_record_leaves_no_leaf_to_place():
+    draw = TreeDraw(column_trees(CP_ROWS, UCI_FRAME, ONTOLOGIES))
+    placed = draw.at(YOUNG_WOMEN_1, [], [])["cp"]
+    assert placed.leaves == ()
+    with pytest.raises(SamplingError, match="cannot draw cp: no leaf has a positive share"):
+        leaf_at(placed, 0.5, YOUNG_WOMEN_1)
 
 
 def test_a_tree_fields_value_that_is_no_code_names_its_column_and_record():

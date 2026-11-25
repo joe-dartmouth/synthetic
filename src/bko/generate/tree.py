@@ -176,15 +176,7 @@ def code_tree(concepts: Collection[str], ontologies: Mapping[str, Ontology]) -> 
 def leaves(tree: Mapping[str, str]) -> tuple[str, ...]:
     """The tree's leaves in depth-first order from `TOP`, children by id."""
     children = _children(tree)
-    found: list[str] = []
-    pending = [TOP]
-    while pending:
-        node = pending.pop()
-        below = children.get(node, [])
-        if not below and node != TOP:
-            found.append(node)
-        pending += reversed(below)
-    return tuple(found)
+    return tuple(node for node in _preorder(children) if node != TOP and node not in children)
 
 
 def leaf_concept(leaf: str) -> str | None:
@@ -204,12 +196,17 @@ def tree_shares(
     share, the group term 0 where `n_g(u)` is 0, computed exactly and rounded once.
 
     Raises:
-        ValueError: If `weight` is below 1.
+        ValueError: If `weight` is below 1, or `cell` or `group` counts a node that is not a leaf
+            of `tree`.
     """
     if weight < 1:
         msg = f"weight {weight} must be at least 1"
         raise ValueError(msg)
     children = _children(tree)
+    stray = sorted((cell.keys() | group.keys()) - (tree.keys() - children.keys()))
+    if stray:
+        msg = f"counts name {', '.join(stray)}, which are not leaves of the tree"
+        raise ValueError(msg)
     n_c, n_g = _totals(cell, children), _totals(group, children)
     exact: dict[str, Fraction] = {TOP: Fraction(1)}
     parts: list[TreePart] = []
