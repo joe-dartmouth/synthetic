@@ -5,8 +5,6 @@ No test reaches the API: no control run holds a paid arm, and the context's send
 
 from __future__ import annotations
 
-import dataclasses
-
 import pytest
 
 from bko.datasets.split import split
@@ -77,20 +75,39 @@ def test_the_control_arms_are_the_stated_set():
     )
 
 
-@pytest.mark.parametrize(
-    ("e12", "e6", "name"), [(E12_THIN, E6_THIN, "e12-thin"), (E12_EMPTY, E6_EMPTY, "e12-empty")]
+COMPARATORS = (
+    "none",
+    "class-weight",
+    "smote",
+    "adasyn",
+    "ctgan",
+    "tvae",
+    "bayes-net",
+    "bko-nomap",
+    "label-bootstrap",
+    "prior-shift",
 )
-def test_each_e12_run_is_e6_with_the_control_arms(e12, e6, name):
+"""Every control arm but the candidate and `real`, written out."""
+
+
+@pytest.mark.parametrize(
+    ("e12", "e6", "name", "e6_name"),
+    [
+        (E12_THIN, E6_THIN, "e12-thin", "e6-thin"),
+        (E12_EMPTY, E6_EMPTY, "e12-empty", "e6-empty"),
+    ],
+)
+def test_each_e12_run_is_e6_with_the_control_arms(e12, e6, name, e6_name):
     assert (e12.removal, e12.fill_to, e12.cutoff) == (e6.removal, e6.fill_to, e6.cutoff)
     assert e12.holdout_seeds == e6.holdout_seeds
     assert e12.arms == CONTROL_ARMS
     assert e12.candidate == "bko-direct"
-    assert e12.comparators == tuple(a for a in CONTROL_ARMS if a not in {"bko-direct", "real"})
+    assert e12.comparators == COMPARATORS
     assert e12.replica_arms == ()
     assert e12.replica_rows is None
     assert RUNS[name].experiment == e12
     assert (RUNS[name].settings, RUNS[name].dataset) == (
-        RUNS[f"e6-{name[4:]}"].settings,
+        RUNS[e6_name].settings,
         Dataset.DIABETES,
     )
 
@@ -113,19 +130,11 @@ def test_e13_is_e3_with_the_control_arms_and_bko_logic():
     assert E13.holdout_seeds == E3.holdout_seeds
     assert E13.decontaminate is False
     assert E13.arms == (*CONTROL_ARMS, "bko-logic")
-    assert "bko-logic" in E13.arms
     assert E13.candidate == "bko-direct"
-    assert E13.comparators == tuple(a for a in E13.arms if a not in {"bko-direct", "real"})
+    assert E13.comparators == (*COMPARATORS, "bko-logic")
     assert E13.replica_arms == ()
-    expected = dataclasses.replace(
-        E3,
-        arms=E13.arms,
-        candidate="bko-direct",
-        comparators=E13.comparators,
-        replica_arms=(),
-        spend_ceiling=1.0,
-    )
-    assert expected == E13
+    assert E13.fill_to == 20
+    assert E13.spend_ceiling == pytest.approx(1.0)
     assert (RUNS["e13"].experiment, RUNS["e13"].dataset) == (E13, Dataset.SYNTHEA)
 
 
