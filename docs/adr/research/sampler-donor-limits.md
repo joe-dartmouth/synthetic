@@ -104,7 +104,8 @@ may exceed the cap; a pool exhausted on every attempt refuses the fill.
   `tests/test_generate_capped.py` (the spec's refusals and logging, the cap per unit, the floor,
   the barred cell donors, exhaustion and determinism), `tests/test_evaluate_capped.py` (the arm's
   params, its trace and the refusal of a float cap, donor reuse per unit, E14's runs and their
-  reference arm)
+  reference arm), `tests/test_generate_capped_pinned.py` (a fill of E6's cell completes at
+  both fractions on the pinned data, run with `--releases`)
 
 ## Reversal Conditions
 

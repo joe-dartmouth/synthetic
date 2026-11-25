@@ -21,10 +21,9 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`generate-is-a-conditional-draws`](generate-is-a-conditional-draws.md) | ready | -- | direct-method-research |
 | [`generate-ancestor-shrunk-shares`](generate-ancestor-shrunk-shares.md) | ready | -- | direct-method-research |
-| [`privacy-donor-limits`](privacy-donor-limits.md) | ready | -- | direct-method-research |
-| [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | blocked | privacy-donor-limits | direct-method-research |
+| [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | ready | -- | direct-method-research |
 | [`generate-coherent-free-fields`](generate-coherent-free-fields.md) | ready | -- | direct-method-research |
-| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-donor-limits, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
+| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | generate-is-a-conditional-draws, generate-ancestor-shrunk-shares, privacy-value-microaggregation, generate-coherent-free-fields | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | gaps-share-based-quota | direct-method-research |
 
@@ -74,11 +73,9 @@ unit's `milestone` is `direct-method-research`, the
 ```mermaid
 flowchart LR
     u37[evaluate-covariate-bias-fractions] --> u38[evaluate-covariate-bias-results]
-    u15[privacy-donor-limits] --> u16[privacy-value-microaggregation]
     u11[generate-is-a-conditional-draws] --> u19[evaluate-variant-dev-results]
     u13[generate-ancestor-shrunk-shares] --> u19
-    u15 --> u19
-    u16 --> u19
+    u16[privacy-value-microaggregation] --> u19
     u17[generate-coherent-free-fields] --> u19
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]

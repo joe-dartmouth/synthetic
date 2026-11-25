@@ -1,8 +1,8 @@
 ---
 id: privacy-value-microaggregation
 title: Add the bko-micro arm, microaggregating numeric values over donors
-status: blocked
-depends_on: privacy-donor-limits
+status: ready
+depends_on: --
 blocks: evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
@@ -16,7 +16,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-With donor limits (unit [`privacy-donor-limits`](privacy-donor-limits.md)), a numeric value is
+With donor limits (arm `bko-capped`, ADR
+[`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md)), a numeric value is
 still a verbatim copy of one record's. Averaging over several pattern-matched donors yields a
 value no single record holds when the donors' values differ.
 
@@ -31,7 +32,8 @@ value no single record holds when the donors' values differ.
 - Each micro donor counts against `bko-capped`'s reuse cap.
 - Coded fields are unchanged.
 - The trace names every donor.
-- The ADR of unit [`privacy-donor-limits`](privacy-donor-limits.md) revised in place.
+- ADR [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md) revised in
+  place.
 - Development `RUNS` entries and the [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's
   Configuration with status `not yet run`, with the same target measure as `bko-capped`.
 
