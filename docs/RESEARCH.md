@@ -490,8 +490,8 @@ registered `candidate` stays `bko`.
 
 ### Ablations and comparators
 
-The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap` and
-`bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB guides
+The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
+`bko-capped` and `bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB guides
 generation. The row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the
 Bayesian network and the label bootstrap) are comparators. The control `prior-shift` adds no rows:
 it scores `none`'s fit with each requested subgroup's test logits moved to the subgroup's
@@ -531,6 +531,7 @@ not a test of it.
 | [E11](EVIDENCE.md#e11-lora-classifier-comparison-on-the-diabetes-130-removal) | Development result |
 | [E12](EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) | Development result |
 | [E13](EVIDENCE.md#e13-control-arms-on-the-synthea-removal) | Development result |
+| [E14](EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -635,10 +636,11 @@ either fraction keeps the family-wise error at its level.
 A variant enters `bko-direct-2` when, on each development frame it
 runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
 recall is non-inferior within the margin above. Each variant registers one parameter value, except
-the `is_a` pseudo-count: of the registered values that pass, the largest enters.
+the `is_a` pseudo-count: of the registered values that pass, the largest enters. `bko-capped`'s
+pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value.
 
 "Improves" means the interval lies wholly on the measure's better side (below 0 for Brier). Each
-variant's target measure is the one its own task unit names, and no correction is made across
+variant's target measure is the one its register entry names, and no correction is made across
 variants beyond each interval's own.
 
 [acs-nd]: https://www.census.gov/data/developers/about/terms-of-service.html

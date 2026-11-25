@@ -7,7 +7,7 @@ blocks: privacy-value-microaggregation, evaluate-variant-dev-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: research/direct-sampler-privacy
+adrs: research/sampler-donor-limits
 ---
 
 # Add the bko-capped arm, with a donor floor and a reuse cap
