@@ -24,6 +24,7 @@ from bko.ontology.mapping import (
     UNMAPPED_CODES,
 )
 from bko.ontology.schema import AtLeast, Codes
+from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
 from tests._corpus import REPO_ROOT
 from tests._registry import REGISTRY, read, registry_entries
 
@@ -165,6 +166,7 @@ _TABLES = (
     ICD9_MAPPINGS,
     UNMAPPED_ICD9,
     LAB_MAPPINGS,
+    SUPPORT2_FIELD_ROWS,
 )
 
 

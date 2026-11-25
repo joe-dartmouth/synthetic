@@ -186,3 +186,19 @@ ROBOT_JAR: Final = Source(
 )
 """ROBOT v1.9.11 (BSD-3-Clause), which runs ELK for `bko.ontology.elk`; size and sha256 are
 GitHub's release asset metadata."""
+
+SUPPORT2: Final = Source(
+    name="support2",
+    url="https://hbiostat.org/data/repo/support2csv.zip",
+    filename="support2csv.zip",
+    size=782_193,
+    sha256="8ed43980742a18e1847a8dfc5530bc4b30564ad9e4ad1b1b50bbc5d29d8c86fe",
+    agreement=None,
+)
+"""SUPPORT2 as Vanderbilt's Department of Biostatistics serves it, one member `support2.csv`, which
+`bko.datasets.support2` reads.
+
+Size and sha256 were measured from the bytes the host serves; the size equals its content-length.
+The Vanderbilt permission line grants use to anyone and asks only for a citation, so it is open
+data (ADR `research/confirmatory-dataset-selection`, point 4).
+"""

@@ -170,6 +170,26 @@ name: chronic ulcer of skin
 xref: ICD9:707 {{source="DOID:8549"}}
 
 [Term]
+id: MONDO:0005155
+name: cirrhosis of liver
+
+[Term]
+id: MONDO:0021063
+name: malignant colon neoplasm
+
+[Term]
+id: MONDO:0008903
+name: lung cancer
+
+[Term]
+id: MONDO:0001627
+name: dementia
+
+[Term]
+id: MONDO:0004992
+name: cancer
+
+[Term]
 id: MONDO:9999998
 name: obsolete test term
 is_obsolete: true
@@ -203,6 +223,17 @@ HPO_LABELS: Mapping[str, str] = {
     "HP:0040217": "Elevated hemoglobin A1c",
     "HP:0100749": "Chest pain",
     "HP:0500018": "Abnormal cardiac exercise stress test",
+    "HP:0001259": "Coma",
+    "HP:0001649": "Tachycardia",
+    "HP:0002789": "Tachypnea",
+    "HP:0001945": "Fever",
+    "HP:0002045": "Hypothermia",
+    "HP:0001974": "Increased total leukocyte count",
+    "HP:0001882": "Decreased total leukocyte count",
+    "HP:0002615": "Hypotension",
+    "HP:0003259": "Elevated circulating creatinine concentration",
+    "HP:0002904": "Hyperbilirubinemia",
+    "HP:0012418": "Hypoxemia",
 }
 """Every HP id the mapping table names, with its label in HPO release 2026-09-01."""
 

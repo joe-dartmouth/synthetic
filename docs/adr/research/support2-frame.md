@@ -49,6 +49,9 @@ with markup dropped and whitespace runs collapsed to one space.
 
 ## Decision
 
+The pin is `bko.datasets.sources.SUPPORT2`, the loader `bko.datasets.support2`, the frame
+`bko.datasets.support2_frame` and the rows `bko.ontology.support2_rows`.
+
 **1. The cohort.** One record per row of `support2.csv`, `record_id` the row number. The one
 record whose `scoma` is missing is dropped, and the loader's `cohort` line counts it. The label
 `target` is `hospdead`.
@@ -144,8 +147,13 @@ row. Tertile bands can be uneven where values tie at a tertile (`edu`'s 11 and 1
 
 ## Enforcement
 
-- Owner: `docs/RESEARCH.md`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/support2_rows.py`
+- Pinned by: `tests/test_datasets_support2.py::test_the_frame_holds_exactly_the_named_fields`,
+  `tests/test_datasets_support2.py::test_the_excluded_columns_never_enter_the_frame`,
+  `tests/test_datasets_support2.py::test_each_cited_field_is_coded_at_its_cutoffs`,
+  `tests/test_datasets_support2.py::test_a_missing_value_shows_no_concept`,
+  `tests/test_ontology_support2_rows.py::test_the_rows_map_these_states_to_these_concepts`,
+  `tests/test_ontology_support2_rows.py::test_every_cutoff_row_cites_a_registered_source`
 
 ## Reversal Conditions
 

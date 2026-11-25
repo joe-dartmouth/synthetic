@@ -24,6 +24,7 @@ def test_the_scan_finds_every_pin() -> None:
         "mondo-owl",
         "hpo-owl",
         "robot-jar",
+        "support2",
     }
 
 
