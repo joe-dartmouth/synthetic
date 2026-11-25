@@ -23,7 +23,7 @@ from bko.evaluate import holdout_candidates
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.errors import CandidatesFormatError
-from bko.evaluate.experiment import DIRECT_ARM, PERTURBED_ARM, PRAM_ARM
+from bko.evaluate.experiment import COHERENT_ARM, DIRECT_ARM, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.guided import SEQUENTIAL, Knowledge
 from bko.evaluate.guided_run import guided_arms
 from bko.evaluate.holdout_candidates import (
@@ -420,8 +420,9 @@ def test_a_perturb_on_an_arm_that_perturbs_nothing_is_refused(arm):
 
 
 def test_the_perturbation_arms_are_the_experiments():
-    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM}
+    assert set(PERTURBS) == {PERTURBED_ARM, PRAM_ARM, COHERENT_ARM}
     assert PERTURBS[PRAM_ARM] == {"changed", "unchanged"}
+    assert PERTURBS[COHERENT_ARM] == {"changed", "unchanged"}
 
 
 @pytest.mark.parametrize("outcome", OUTCOMES_MERGED)

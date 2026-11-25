@@ -1,7 +1,8 @@
 """The direct arms by name, each with the draw spec it reads: a light module the run table imports.
 
-`bko.evaluate.experiment` re-exports every name here but `CAPPED_ARM`, `TREE_ARM` and the three
-`bko-hier` arms; those and any arm added later are imported from here.
+`bko.evaluate.experiment` re-exports `DIRECT_ARM`, `DIRECT_ARMS`, `LOGIC_ARM`, `NOMAP_ARM`,
+`PRAM_ARM` and `COHERENT_ARM`, the last for `bko.evaluate.holdout_candidates`; every other name
+here is imported from here.
 """
 
 from __future__ import annotations
@@ -49,6 +50,11 @@ HIER_W_ARM: Final = "bko-hier-w"
 HIER_CLOSED_ARM: Final = "bko-hier-closed"
 """As `HIER_0_ARM`, the conditional set to 1, so each pair's closure is forced: an ablation arm."""
 
+COHERENT_ARM: Final = "bko-coherent"
+"""The free arm that draws as `DIRECT_ARM` does, then redraws its free fields by sequential CART
+given the cell, the label and the mapped fields (`bko.evaluate.coherent`; ADR
+`research/free-field-synthesis`)."""
+
 DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
     {
         DIRECT_ARM: DEFAULT_SPEC,
@@ -60,6 +66,7 @@ DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
         HIER_0_ARM: DrawSpec(hierarchy=0.0),
         HIER_W_ARM: DrawSpec(hierarchy=float(GROUP_WEIGHT)),
         HIER_CLOSED_ARM: DrawSpec(closed=True),
+        COHERENT_ARM: DEFAULT_SPEC,
     }
 )
 """Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""

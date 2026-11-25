@@ -50,6 +50,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      an `is_a` pair adds its pair parts: the narrow concept it is drawn given, the weighted counts
      of records showing both and showing the narrow one, the pseudo-count, the conditional, the
      complement and whether its clamp fired (ADR `research/bkb-direct-generation`, Decision 12).
+   * `bko-coherent`: as `bko-direct-pram` below, and each free field names as its source the
+     training record id of its leaf donor, the training row whose value sequential CART copied
+     (ADR `research/free-field-synthesis`).
    * `bko-direct-pram` and `bko-direct-perturbed`: the record as its candidate line holds it, the
      facts of the direct draw underneath, and a `perturb` object: the line's `perturb` result
      (decision 6; on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when
@@ -63,7 +66,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * Not traceable: a model's choice of value within its prompt.
 3. **Mechanism.** `bko.evaluate.trace` re-draws a fill of an arm of `DIRECT_ARMS` at the logged
    attempt's seed with that arm's spec and no extra random draw, and rebuilds a perturbation
-   arm's fill from its candidate lines over that re-draw. It refuses (exit 3) a holdout whose
+   arm's fill from its candidate lines over that re-draw. `bko-coherent` then re-runs its change
+   at the fill's seed, whose leaf draws read their own stream, and refuses unless the changed
+   rows are the candidate lines' records. It refuses (exit 3) a holdout whose
    `split` line the data does not reproduce, a re-drawn fill whose digest is not the sha256 of the
    folder's `arm` line, re-drawn kept records that are not the candidates file's kept lines, a
    direct fill whose `arm` line's params are not a JSON object or whose logged spec fields are
@@ -79,7 +84,7 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    never in the app's download.
 6. **Perturbation outcomes are stored.** The candidates file (schema 4) carries each perturbation
    row's outcome in its line's `perturb` key: `perturbed`, `unchanged` or `refused_<reason>` for
-   `bko-direct-perturbed`, `changed` or `unchanged` for `bko-direct-pram`.
+   `bko-direct-perturbed`, `changed` or `unchanged` for `bko-direct-pram` and `bko-coherent`.
 7. **Attribution.** A reading over `trace.jsonl` files counts, per arm, what each record field
    can be attributed to. An arm's kind is read from one trace line: a line whose `record` is null
    is a baseline's; one holding a `perturb` key is a perturbation arm's; one whose `request` holds
@@ -90,9 +95,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      `DrawSpec` reads the mapping table, is a knowledge fact; else a field with a source id is a
      donor; else (`sex`, the label) it is method and seed.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
-     rewrite arm and method and seed only under PRAM, a mapped field among them, since its value
-     is no longer the drawn fact; this class comes before every other. Every other field is read
-     as a direct one.
+     rewrite arm, method and seed only under PRAM, and a training donor id under `bko-coherent`,
+     whose leaf donor it names, a mapped field among them, since its value is no longer the drawn
+     fact; this class comes before every other. Every other field is read as a direct one.
    * Messages: every field is prompt section only; every field of a record whose call the log
      lacks (`untraced`) is method and seed only, and the reading counts such records.
    * Baseline: one count per fill, method and seed only, in the unit `fill`, since the trace holds

@@ -206,6 +206,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
 
+## E17. Coherent free fields on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does redrawing `bko-direct`'s free fields by sequential CART conditioned on the cell, the label and the mapped fields (`bko-coherent`) lower the rows of a fill that break the three Diabetes coherence rules against `bko-direct`, and at what cost to removed-cell recall? |
+| Configuration | Design: ADR [`research/free-field-synthesis`](adr/research/free-field-synthesis.md) fixes the trees, their predictors and visit order, the leaf draw, its stream and the trace. Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e17-thin` (0.985) and `e17-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e17-thina` to `e17-thinj` and `e17-emptya` to `e17-emptyj`, at E6's settings. Arms: `none`, `real`, `bko-direct` and `bko-coherent`; candidate `bko-coherent`, comparators `bko-direct` and `none`; no replica. Target measure: the three coherence counts of `contradictions --rows`, `drug-without-med`, `change-without-med` and `dose-without-change` (ADR [`research/data-contradiction-handling`](adr/research/data-contradiction-handling.md), Decision 2). E3's Synthea frame is left out because it has no free field, so the arm would draw `bko-direct`'s rows there. Removed-cell recall is read for the [variant inclusion rule](RESEARCH.md#variant-inclusion-rule). No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |

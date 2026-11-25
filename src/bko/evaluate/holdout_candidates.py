@@ -42,7 +42,7 @@ from bko.datasets.sources import UCI_HEART_DISEASE
 from bko.datasets.sources import Source as Download
 from bko.evaluate.data import Data
 from bko.evaluate.errors import CandidatesFormatError
-from bko.evaluate.experiment import PERTURBED_ARM, PRAM_ARM
+from bko.evaluate.experiment import COHERENT_ARM, PERTURBED_ARM, PRAM_ARM
 from bko.evaluate.scores import Source
 from bko.generate.messages import Settings
 
@@ -85,7 +85,7 @@ UNCHANGED: Final = "unchanged"
 """The result of a row a perturbation step read and left as drawn."""
 
 CHANGED: Final = "changed"
-"""The result of a PRAM row that differs from its draw."""
+"""The result of a PRAM or `bko-coherent` row that differs from its draw."""
 
 REFUSED: Final = "refused_"
 """The prefix of a rewritten row's result when its reply was refused, before the refusal."""
@@ -105,6 +105,7 @@ PERTURBS: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
             (PERTURBED, UNCHANGED, *(REFUSED + why for why in (*CALL_REFUSALS, *ROW_REFUSALS)))
         ),
         PRAM_ARM: frozenset({CHANGED, UNCHANGED}),
+        COHERENT_ARM: frozenset({CHANGED, UNCHANGED}),
     }
 )
 """Each perturbation arm's `perturb` results: a line of another arm holds no `perturb`."""

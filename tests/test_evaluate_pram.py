@@ -419,7 +419,7 @@ def test_shapes_counts_rows_from_the_lines_flags(tmp_path, caplog, monkeypatch):
     def unflagged(record: Record, *, result: str) -> Changed:
         return Changed(record, result=UNCHANGED)
 
-    monkeypatch.setattr(pram_module, "Changed", unflagged)
+    monkeypatch.setattr(perturb, "Changed", unflagged)
     _prammed(tmp_path, caplog)
     prefix = f"perturb shapes holdout=0 arm={PRAM_ARM} "
     (line,) = [m for m in caplog.messages if m.startswith(prefix)]

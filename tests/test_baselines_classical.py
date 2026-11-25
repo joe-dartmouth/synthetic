@@ -13,7 +13,7 @@ import pytest
 import torch
 
 import bko.baselines.classical as classical_module
-from bko.baselines.classical import _predictors, cart, gaussian_copula
+from bko.baselines.classical import cart, gaussian_copula, tree_predictors
 from bko.baselines.errors import ShortfallError
 from bko.baselines.fills import CURRENT_FILL, Fill
 from bko.baselines.records import unit_weights
@@ -111,7 +111,7 @@ def test_cart_records_synthpops_settings_and_visit_order(cart_runs):
 
 def test_cart_one_hot_codes_a_predictor_of_three_or_more_values():
     rows = TRAIN.iloc[:6]
-    predictors = _predictors(rows, ["sex", "cp"], UCI_FRAME)
+    predictors = tree_predictors(rows, ["sex", "cp"], UCI_FRAME)
     assert predictors.shape == (6, 1 + len(UCI_FRAME.codebook["cp"]))
     assert (predictors[:, 1:].sum(axis=1) == 1).all()
 
@@ -187,7 +187,7 @@ def test_the_copula_fit_line_spans_its_fit_alone(monkeypatch, caplog):
 
 def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypatch, caplog):
     clock = _ticking(monkeypatch)
-    tree, predictors = classical_module._tree, classical_module._predictors
+    tree, predictors = classical_module.fit_tree, classical_module.tree_predictors
 
     def slow_tree(*args, **kwargs):
         clock["now"] += 10.0
@@ -197,8 +197,8 @@ def test_the_cart_fit_line_spans_every_columns_tree_and_leaf_assignment(monkeypa
         clock["now"] += 100.0
         return predictors(*args, **kwargs)
 
-    monkeypatch.setattr(classical_module, "_tree", slow_tree)
-    monkeypatch.setattr(classical_module, "_predictors", slow_predictors)
+    monkeypatch.setattr(classical_module, "fit_tree", slow_tree)
+    monkeypatch.setattr(classical_module, "tree_predictors", slow_predictors)
     request = Request(quota=dict.fromkeys(SHORT, 3), strata=Strata.CELL, seed=0, frame=TOY)
     with caplog.at_level(logging.INFO):
         cart(TOY_TRAIN, request)

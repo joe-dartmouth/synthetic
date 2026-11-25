@@ -13,6 +13,7 @@ import bko.generate.logic as logic_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.direct_arms import (
     CAPPED_ARM,
+    COHERENT_ARM,
     HIER_0_ARM,
     HIER_CLOSED_ARM,
     HIER_W_ARM,
@@ -60,6 +61,7 @@ def test_the_direct_arms_draw_at_their_specs():
         HIER_0_ARM: DrawSpec(hierarchy=0.0),
         HIER_W_ARM: DrawSpec(hierarchy=20.0),
         HIER_CLOSED_ARM: DrawSpec(closed=True),
+        COHERENT_ARM: DEFAULT_SPEC,
     }
 
 

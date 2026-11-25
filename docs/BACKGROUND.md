@@ -384,7 +384,8 @@ its values, as Xu et al. (2024) order columns by their dependencies and Gruenbau
 records from one graph, and a seed reruns its draw (general background). It does not keep
 dependencies between values. Concepts are drawn independently apart from nested pairs, and its free
 fields can break implications between field values, such as the rule that a drug other than `No`
-implies `diabetesMed=Yes` ([IDEAS.md](IDEAS.md#coherent-free-field-draws-for-bko-direct)).
+implies `diabetesMed=Yes`; the arm `bko-coherent` redraws them by sequential CART (ADR
+[`research/free-field-synthesis`](adr/research/free-field-synthesis.md)).
 `bko-skeleton` hands the values to a model: the same BKB draw prescribes each record's concepts,
 and the model writes the values (ADR
 [`research/bkb-direct-generation`](adr/research/bkb-direct-generation.md), Decision 9).

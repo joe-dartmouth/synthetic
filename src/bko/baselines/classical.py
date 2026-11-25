@@ -57,9 +57,9 @@ CART_MAX_DEPTH: Final = 30
 CART_COMPLEXITY: Final = 1e-8
 """synthpop's `cp`: a split must cut the impurity by this share of the root's.
 
-`_tree` multiplies it by the column's own root impurity (the Gini index of a coded column, the
-variance of a measured one) for scikit-learn's `min_impurity_decrease`, as rpart scales `cp` by
-the root's risk."""
+`fit_tree` multiplies it by the column's own root impurity (the Gini index of a coded column,
+the variance of a measured one) for scikit-learn's `min_impurity_decrease`, as rpart scales `cp`
+by the root's risk."""
 
 
 def gaussian_copula(train: pd.DataFrame, request: Request) -> Baseline:
@@ -109,8 +109,8 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
     columns = list(frame.columns)
     rows = train.loc[:, columns].reset_index(drop=True)
     start = time.perf_counter()
-    trees = [_tree(rows, columns, at, frame, seed=request.seed) for at in range(1, len(columns))]
-    leaves = [tree.apply(_predictors(rows, columns[:at], frame)) for at, tree in trees]
+    trees = [fit_tree(rows, columns, at, frame, seed=request.seed) for at in range(1, len(columns))]
+    leaves = [tree.apply(tree_predictors(rows, columns[:at], frame)) for at, tree in trees]
     logger.info(
         "fit holdout=%d fill=%s method=cart seconds=%.1f",
         *fill_names(),
@@ -123,7 +123,7 @@ def cart(train: pd.DataFrame, request: Request) -> Baseline:
         out[columns[0]] = rng.choice(rows[columns[0]].to_numpy(), size=size)
         for (at, tree), trained in zip(trees, leaves, strict=True):
             column = columns[at]
-            new = tree.apply(_predictors(out, columns[:at], frame))
+            new = tree.apply(tree_predictors(out, columns[:at], frame))
             out[column] = _donated(new, trained, rows[column].to_numpy(), rng)
         return out.astype(dict(frame.dtypes))
 
@@ -151,7 +151,7 @@ def _coded(column: str, frame: FrameSpec) -> tuple[int, ...] | None:
     return None
 
 
-def _predictors(rows: pd.DataFrame, columns: Sequence[str], frame: FrameSpec) -> np.ndarray:
+def tree_predictors(rows: pd.DataFrame, columns: Sequence[str], frame: FrameSpec) -> np.ndarray:
     """`rows`' `columns` as tree predictors: a code with 3 or more values one-hot, others as is."""
     parts: list[np.ndarray] = []
     for column in columns:
@@ -164,7 +164,7 @@ def _predictors(rows: pd.DataFrame, columns: Sequence[str], frame: FrameSpec) ->
     return np.hstack(parts)
 
 
-def _tree(
+def fit_tree(
     rows: pd.DataFrame, columns: Sequence[str], at: int, frame: FrameSpec, *, seed: int
 ) -> tuple[int, DecisionTreeClassifier | DecisionTreeRegressor]:
     """Column `at`'s tree, fit on the columns before it, with synthpop's settings."""
@@ -185,7 +185,7 @@ def _tree(
         "random_state": derived_seed(seed, "cart", column),
     }
     tree = DecisionTreeClassifier(**settings) if coded else DecisionTreeRegressor(**settings)
-    tree.fit(_predictors(rows, columns[:at], frame), target)
+    tree.fit(tree_predictors(rows, columns[:at], frame), target)
     return at, tree
 
 
@@ -193,12 +193,22 @@ def _donated(
     new: np.ndarray, trained: np.ndarray, values: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
     """For each new row's leaf, the value of a uniformly chosen training row in that leaf."""
-    out = np.empty(len(new), dtype=values.dtype)
+    return values[leaf_donors(new, trained, rng)]
+
+
+def leaf_donors(new: np.ndarray, trained: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """For each new row's leaf in `new`, the position of a uniformly chosen training row there.
+
+    `trained` holds each training row's leaf. Leaves are visited in ascending order, each taking
+    one `rng.integers` call over its training rows for all its new rows, so the draw depends on
+    `rng` and the leaves alone.
+    """
+    out = np.empty(len(new), dtype=np.intp)
     order = np.argsort(trained, kind="stable")
     sorted_leaves = trained[order]
     for leaf in np.unique(new):
         at = new == leaf
         start, stop = np.searchsorted(sorted_leaves, [leaf, leaf + 1])
         donors = order[start:stop]
-        out[at] = values[donors[rng.integers(len(donors), size=int(at.sum()))]]
+        out[at] = donors[rng.integers(len(donors), size=int(at.sum()))]
     return out

@@ -18,10 +18,11 @@ no API call.
   level. A record the log cannot trace is `untraced`, with the reason, and the `trace partial`
   WARNING counts them.
 - A baseline (`trace_baseline`): one line naming its method and its seed.
-- `bko-direct-pram` and `bko-direct-perturbed` (`trace_perturbation`): the fill's rows are
-  rebuilt from its candidate lines and refused unless they hash to the `arm` line's sha256; the
-  draw underneath is re-drawn, and each record adds its line's `perturb` result, the fields that
-  differ from the draw and the draw's values for them. These are the arms of
+- `bko-direct-pram`, `bko-direct-perturbed` and `bko-coherent` (`trace_perturbation`): the
+  fill's rows are rebuilt from its candidate lines and refused unless they hash to the `arm`
+  line's sha256; the draw underneath is re-drawn, and each record adds its line's `perturb`
+  result, the fields that differ from the draw and the draw's values for them; `bko-coherent`
+  re-runs its change to name each free field's leaf donor. These are the arms of
   `bko.evaluate.holdout_candidates.PERTURBS`, tested first since `PRAM_ARM` is also among
   `DIRECT_ARMS`.
 

@@ -2,7 +2,7 @@
 id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
-depends_on: privacy-value-microaggregation, generate-coherent-free-fields
+depends_on: privacy-value-microaggregation
 blocks: evaluate-composite-arm
 parallel_safe: true
 milestone: direct-method-research
@@ -24,15 +24,16 @@ says which enter `bko-direct-2`.
 
 **In.**
 
-- The development runs registered by units
-  [`privacy-value-microaggregation`](privacy-value-microaggregation.md) and
-  [`generate-coherent-free-fields`](generate-coherent-free-fields.md), `bko-capped`'s runs
+- The development runs registered by unit
+  [`privacy-value-microaggregation`](privacy-value-microaggregation.md), `bko-capped`'s runs
   `e14-thin` and `e14-empty`
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal)),
   `bko-tree`'s runs `e15-thin` and `e15-empty`
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e15-ancestor-shrunk-shares-on-the-diabetes-codes-frame)),
-  and the `bko-hier` arms' runs `e16-thin` and `e16-empty`
-  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal)).
+  the `bko-hier` arms' runs `e16-thin` and `e16-empty`
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal)),
+  and `bko-coherent`'s runs `e17-thin` and `e17-empty`
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e17-coherent-free-fields-on-the-diabetes-130-removal)).
 - For each arm, `contradictions --rows` (ADR
   [`research/data-contradiction-handling`](../docs/adr/research/data-contradiction-handling.md),
   Decision 2), `attribution` (ADR

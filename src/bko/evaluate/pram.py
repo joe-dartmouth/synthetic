@@ -25,8 +25,7 @@ from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.frames import FrameSpec
-from bko.evaluate.holdout_candidates import CHANGED, UNCHANGED
-from bko.evaluate.perturb import Changed, Perturbing, Record, drawn_frame, native
+from bko.evaluate.perturb import Changed, Perturbing, Record, native
 
 
 if TYPE_CHECKING:
@@ -110,26 +109,19 @@ class PramArm(Perturbing):
     ) -> dict[Stratum, list[Changed]]:
         frame = request.frame
         rng = np.random.default_rng([request.seed, PRAM_STREAM])
-        original = drawn_frame(drawn, frame)
-        perturbed = pram(
-            original, train, fields=self.fields, theta=self.theta, rng=rng, frame=frame
-        )
-        rows = perturbed.to_dict("records")
-        changed: dict[Stratum, list[Changed]] = {}
-        start = 0
-        for cell, records in drawn.items():
-            news = [native(row, frame) for row in rows[start : start + len(records)]]
-            changed[cell] = [
-                Changed(new, result=CHANGED if old != new else UNCHANGED)
-                for old, new in zip(records, news, strict=True)
-            ]
-            start += len(records)
+
+        def perturbed(records: list[Record]) -> list[Record]:
+            rows = pd.DataFrame(records, columns=list(frame.columns)).astype({**frame.dtypes})
+            out = pram(rows, train, fields=self.fields, theta=self.theta, rng=rng, frame=frame)
+            return [native(row, frame) for row in out.to_dict("records")]
+
+        changed = self.changes(drawn, perturbed)
         fill = CURRENT_FILL.get()
         logger.info(
             "perturb pram holdout=%d arm=%s rows=%d",
             -1 if fill is None else fill.holdout,
             self.name,
-            len(rows),
+            sum(len(records) for records in drawn.values()),
         )
         self.read(train, drawn, changed, frame)
         return changed

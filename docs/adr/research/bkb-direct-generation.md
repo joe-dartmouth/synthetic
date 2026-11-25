@@ -111,7 +111,9 @@ mapping table (ADR `research/no-mapping-ablation`).
     copies it from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5. At
     `hierarchy=0.0`, `hierarchy=20.0` and `closed=True`, the arms are `bko-hier-0`, `bko-hier-w`
     and `bko-hier-closed`: Decision 12 draws each `is_a` pair's broad concept given its narrow
-    one, so only the pairs' concepts leave Decision 2.
+    one, so only the pairs' concepts leave Decision 2. `bko-coherent` draws at the default spec,
+    as `bko-direct` does, and then redraws Decision 6's free fields by sequential CART outside the
+    sampler (ADR `research/free-field-synthesis`).
 12. **Conditional `is_a` draws.** Under `hierarchy` or `closed`, each `is_a` pair of drawn
     concepts (`bko.gaps.contradictions.is_a_pairs`), narrow `N` under broad `B`, draws `B` given
     `N`. With `n_c` and `w` as in Decision 1, `p` a source's prior of `N` and `c` its conditional
