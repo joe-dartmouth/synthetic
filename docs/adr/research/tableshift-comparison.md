@@ -113,7 +113,8 @@ variance. The diagnosis columns carry no ontology concept.
 ## Enforcement
 
 - Owner: `src/bko/datasets/tableshift.py`, `src/bko/datasets/tableshift_frame.py`,
-  `src/bko/datasets/diabetes.py`, `src/bko/datasets/split.py`, `src/bko/evaluate/data.py`
+  `src/bko/datasets/diabetes.py`, `src/bko/datasets/split.py`, `src/bko/evaluate/data.py`,
+  `src/bko/evaluate/runs_published.py`
 - Pinned by: `tests/test_datasets_tableshift.py` (the dropped rows, the label, the domains, the
   ceil rule, membership equal to scikit-learn's `train_test_split` in TableShift's three calls,
   `sex` and `race` against every other value, the 46 features without the domain column, the lab
@@ -121,7 +122,8 @@ variance. The diagnosis columns carry no ontology concept.
   Table 12's counts and the three flagged cells on the pinned archive),
   `tests/test_evaluate_fixed_partition.py` (the same test records at every seed, the seed-based
   split unchanged without held ids, a missing held id refused, `bko-direct` drawing on the lab
-  rows), `tests/test_datasets_diabetes_pinned.py`
+  rows, P1's stated configuration), `tests/test_named_runs_slices.py` (the run names in order),
+  `tests/test_datasets_diabetes_pinned.py`
 
 ## Reversal Conditions
 

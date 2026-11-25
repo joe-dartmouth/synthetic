@@ -117,9 +117,11 @@ KEYS = [
     "e10-pram-emptyi",
     "e10-pram-emptyj",
     "g5",
+    "p1-id",
+    "p1-ood",
 ]
 """Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
-E10's pilots and E10's PRAM-only runs."""
+E10's pilots, E10's PRAM-only runs and P1's runs."""
 
 
 def test_the_runs_keys_are_the_literal_list():

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import pandas as pd
 import pytest
 
@@ -16,9 +18,11 @@ from bko.datasets.errors import ContractError
 from bko.datasets.split import fixed, split
 from bko.datasets.tableshift import kept_rows, partition
 from bko.datasets.tableshift_frame import encode, tableshift_frame
-from bko.evaluate.data import Data, held_split
+from bko.evaluate.data import Data, Dataset, held_split
 from bko.evaluate.direct import DirectArm
 from bko.evaluate.experiment import DIRECT_ARM, E1, gap_request
+from bko.evaluate.named_runs import RUNS
+from bko.evaluate.runs_published import P1
 from bko.ontology.frames import LAB_FIELD_ROWS
 from tests._diabetes_fixtures import text
 from tests._frame_fixtures import TOY, toy_records
@@ -71,3 +75,57 @@ def test_bko_direct_draws_on_the_tableshift_fixture():
     added = arm(train, request).added
     assert len(added) == sum(request.quota.values())
     assert tuple(added.columns) == data.frame.columns
+
+
+def test_p1_names_the_stated_configuration():
+    arms = (
+        "none",
+        "class-weight",
+        "smote",
+        "adasyn",
+        "ctgan",
+        "tvae",
+        "gaussian-copula",
+        "cart",
+        "bayes-net",
+        "tabddpm",
+        "label-bootstrap",
+        "bko-direct",
+    )
+    assert P1.arms == arms
+    assert P1.holdout_seeds == tuple(range(10))
+    assert P1.candidate == "bko-direct"
+    assert P1.comparators == arms[:-1]
+    assert P1.replica_arms == (
+        "smote",
+        "adasyn",
+        "ctgan",
+        "tvae",
+        "gaussian-copula",
+        "cart",
+        "bayes-net",
+        "tabddpm",
+        "label-bootstrap",
+        "bko-direct",
+    )
+    assert P1.criteria == ()
+    assert P1.decontaminate is False
+    assert P1.removal is None
+    assert (
+        dataclasses.replace(
+            P1,
+            holdout_seeds=E1.holdout_seeds,
+            arms=E1.arms,
+            candidate=E1.candidate,
+            comparators=E1.comparators,
+            replica_arms=E1.replica_arms,
+            criteria=E1.criteria,
+            decontaminate=E1.decontaminate,
+        )
+        == E1
+    )
+    assert RUNS["p1-id"].experiment == P1
+    assert RUNS["p1-ood"].experiment == P1
+    assert RUNS["p1-id"].dataset is Dataset.TABLESHIFT_ID
+    assert RUNS["p1-ood"].dataset is Dataset.TABLESHIFT_OOD
+    assert list(RUNS)[-2:] == ["p1-id", "p1-ood"]

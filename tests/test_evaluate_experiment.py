@@ -185,6 +185,8 @@ def test_every_run_name_is_pinned():
         "g6-nemotronthink",
         "g6-olmo",
         "g6-sonnet",
+        "p1-id",
+        "p1-ood",
     }
 
 

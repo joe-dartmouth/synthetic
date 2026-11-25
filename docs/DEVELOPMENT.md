@@ -947,7 +947,12 @@ start or the supervisor cannot run.
   PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
   `E10_PRAM_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
   `bko-direct-pram`, the ceiling inert) and their slices `e10-pram-thina` to `e10-pram-thinj` and
-  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. No flag
+  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds P1's runs, `p1-id` on
+  `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
+  the label bootstrap and the candidate `bko-direct`, no criterion and test copies kept, every
+  holdout on TableShift's fixed test split; ADR
+  [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). No flag
   changes a value; `--log`, `--candidates`, `--replay`, `--resume` and `--rehearse` choose where
   calls and candidates are recorded and where calls are answered from, and `--in-flight` how many
   calls overlap, never a value a call sends. The rate budget is `bko.generate.flight.IN_FLIGHT`
