@@ -17,6 +17,7 @@ changes a row; each arm keeps its own rows on every holdout. ADR
 
 from __future__ import annotations
 
+import abc
 import functools
 import logging
 import math
@@ -30,12 +31,13 @@ from typing import TYPE_CHECKING, Any, Final
 import pandas as pd
 
 from bko.baselines.fills import CURRENT_FILL
+from bko.baselines.records import Baseline
 from bko.baselines.request import Request, Stratum
 from bko.datasets.diabetes import CHANGE_CODES, DIABETES_MED_CODES, DRUG_CODES, DRUGS
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.fidelity import quality_report
-from bko.evaluate.holdout_candidates import MOVED
+from bko.evaluate.holdout_candidates import CHANGED, MOVED, UNCHANGED
 from bko.evaluate.scores import Measure, Source
 from bko.generate.direct import field_groups, free_fields
 from bko.ontology.frames import DIABETES_NAME
@@ -283,7 +285,7 @@ def _holdout() -> int:
     return -1 if fill is None else fill.holdout
 
 
-class Perturbing:
+class Perturbing(abc.ABC):
     """An arm that draws through a `DirectArm` and perturbs its rows; the inner arm keeps the rest.
 
     Attributes:
@@ -306,6 +308,10 @@ class Perturbing:
         self.counts: Counter[str] = Counter()
         self.shapes: list[tuple[float, float]] = []
         logger.info("perturb arm=%s fields=%s %s", self.name, ",".join(self.fields), configuration)
+
+    @abc.abstractmethod
+    def __call__(self, train: pd.DataFrame, request: Request) -> Baseline:
+        """Draw as `bko-direct` and perturb the rows, seeded by the request's seed."""
 
     @property
     def name(self) -> str:
@@ -357,6 +363,28 @@ class Perturbing:
         if held:
             msg = f"{self.name} may not perturb {held}: the cell, the label and mapped fields stay"
             raise EvaluationError(msg)
+
+    @staticmethod
+    def changes(
+        drawn: Mapping[Stratum, list[Record]],
+        redraw: Callable[[list[Record]], Sequence[Record]],
+    ) -> dict[Stratum, list[Changed]]:
+        """Each cell's drawn records as `redraw` changes them, each `CHANGED` or `UNCHANGED`.
+
+        `redraw` reads every cell's records at once, in quota order, and returns one record per
+        record, in that order; each cell takes its slice. A record is `CHANGED` when it differs
+        from its draw, else `UNCHANGED`.
+        """
+        news = redraw([record for records in drawn.values() for record in records])
+        changed: dict[Stratum, list[Changed]] = {}
+        start = 0
+        for cell, records in drawn.items():
+            changed[cell] = [
+                Changed(new, result=CHANGED if old != new else UNCHANGED)
+                for old, new in zip(records, news[start : start + len(records)], strict=True)
+            ]
+            start += len(records)
+        return changed
 
     def read(
         self,

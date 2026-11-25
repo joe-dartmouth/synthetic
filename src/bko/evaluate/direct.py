@@ -41,7 +41,7 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import COHERENT_ARM, DIRECT_ARMS, PRAM_ARM, Experiment
 from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import FILLS, Candidate, CandidateFile, Seen
-from bko.evaluate.perturb import Change, unmapped
+from bko.evaluate.perturb import Change, Perturbing, unmapped
 from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
@@ -243,7 +243,7 @@ class DirectArm:
         return sum(bool(draw.fallback) for draws in drawn.values() for draw in draws)
 
 
-type Wrapper = Callable[[DirectArm, Sequence[str]], PramArm | CoherentArm]
+type Wrapper = Callable[[DirectArm, Sequence[str]], Perturbing]
 """Builds a perturbing arm over the direct arm that draws for it and the fields it perturbs."""
 
 WRAPPERS: Final[Mapping[str, Wrapper]] = MappingProxyType(
@@ -291,7 +291,7 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
             except ValueError as exc:
                 msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
                 raise EvaluationError(msg) from exc
-    direct: dict[str, DirectArm | PramArm | CoherentArm] = {}
+    direct: dict[str, DirectArm | Perturbing] = {}
     for name in names:
         arm = direct_arm(name, knowledge, experiment, sink)
         wrapper = WRAPPERS.get(name)
