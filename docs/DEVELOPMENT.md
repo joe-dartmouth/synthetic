@@ -267,7 +267,11 @@ ancestor-shrunk share and copies from a donor of that column alone (ADR
 [`research/ancestor-shrunk-shares`](adr/research/ancestor-shrunk-shares.md)); the runs `e15-thin`
 and `e15-empty` hold it on `diabetes-codes`. Its `direct` and `fallback` lines read
 ` tree=true presence=shares`, its `arm` line's params add `"tree": true`, and its `direct arm=`
-line ends in `fallback_draws=%d`. Every arm of a run that holds it writes `code-share-error` at the
+line ends in `fallback_draws=%d`. The sampler writes one
+`tree holdout=%d fill=%s key=%s column=%s leaves=%d positive=%d` line per cell and tree field: the
+tree's leaves and those of positive share at the cell. Building a tree logs a warning
+`tree absent=%d concepts=%s` naming each mapped concept its release lacks, which hangs from the
+top. Every arm of a run that holds it writes `code-share-error` at the
 scope `flagged-subgroups`: the mean over the tree fields of the total variation distance between
 its added rows' value shares and the removed training rows', NaN for a fill with no rows.
 

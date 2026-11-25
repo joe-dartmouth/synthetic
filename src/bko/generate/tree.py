@@ -11,6 +11,7 @@ the leaf each of its codes shows, which the direct sampler (`bko.generate.direct
 
 from __future__ import annotations
 
+import logging
 import math
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
@@ -21,7 +22,7 @@ from typing import Final
 from bko.datasets.frames import FrameSpec
 from bko.generate.errors import SamplingError
 from bko.ontology.schema import Codes, FieldMapping
-from bko.ontology.terms import Ontology, ancestors
+from bko.ontology.terms import Ontology, Term, ancestors
 
 
 TOP: Final = "top"
@@ -34,6 +35,8 @@ SELF: Final = "/self"
 """The suffix of a mapped concept's own leaf when the concept is an ancestor of another."""
 
 _MIN_ROWS: Final = 2
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,10 +152,14 @@ def code_tree(concepts: Collection[str], ontologies: Mapping[str, Ontology]) -> 
     The nodes are the concepts and their ancestors within each concept's release, those on some
     concept's path to `TOP`. A node keeps the parent with the most concepts at or below it, ties
     to the lowest CURIE; a node with no parent in the closure, a concept its release lacks
-    included, hangs from `TOP`. A concept that is an ancestor of another gets the leaf
-    `<concept>/self` beneath itself. `UNMAPPED` hangs from `TOP`.
+    included, hangs from `TOP`, and a warning names each concept its release lacks. A concept that
+    is an ancestor of another gets the leaf `<concept>/self` beneath itself. `UNMAPPED` hangs from
+    `TOP`.
     """
     mapped = sorted(set(concepts))
+    absent = [concept for concept in mapped if _term(concept, ontologies) is None]
+    if absent:
+        logger.warning("tree absent=%d concepts=%s", len(absent), ",".join(absent))
     above = {concept: _ancestors(concept, ontologies) for concept in mapped}
     below = Counter(node for concept in mapped for node in above[concept] | {concept})
     tree: dict[str, str] = {}
@@ -237,12 +244,16 @@ def _ancestors(concept: str, ontologies: Mapping[str, Ontology]) -> frozenset[st
     return frozenset() if ontology is None else ancestors(ontology, concept, prefix=prefix)
 
 
+def _term(node: str, ontologies: Mapping[str, Ontology]) -> Term | None:
+    ontology = ontologies.get(node.partition(":")[0])
+    return None if ontology is None else ontology.terms.get(node)
+
+
 def _parents(node: str, ontologies: Mapping[str, Ontology]) -> tuple[str, ...]:
-    prefix = node.partition(":")[0]
-    ontology = ontologies.get(prefix)
-    term = None if ontology is None else ontology.terms.get(node)
+    term = _term(node, ontologies)
     if term is None:
         return ()
+    prefix = node.partition(":")[0]
     return tuple(parent for parent in term.parents if parent.startswith(f"{prefix}:"))
 
 

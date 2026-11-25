@@ -52,7 +52,7 @@ from bko.generate.fields import (
 from bko.generate.logic import Component, components, logic_assignment
 from bko.generate.presence import Presence
 from bko.generate.tree import column_trees, leaf_concept
-from bko.generate.tree_draw import Placed, TreeDraw, leaf_at
+from bko.generate.tree_draw import Placed, TreeDraw, leaf_at, log_trees
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology, ancestors
 
@@ -197,6 +197,7 @@ def sample(
             spec.tokens(),
             presence,
         )
+        log_trees(holdout, fill, cell, sources.trees)
         draws = tuple(plan.draw(sources, rng) for _ in range(count))
         if plan.limits is not None:
             logger.info(

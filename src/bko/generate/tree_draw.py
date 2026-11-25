@@ -4,13 +4,14 @@
 field's label-group records by the leaf they show, read once per label. `TreeDraw.at` reads a
 cell's records against its label group's into each field's `Placed`: the ancestor-shrunk shares at
 `GROUP_WEIGHT`, each node's parts, and the leaves of positive share with their cumulative shares.
-`leaf_at` places one uniform among those leaves. `bko.generate.direct.sample` draws through it and
-`bko.evaluate.redraw.TreeShares` traces through it, so the trace reads the draw's own shares (ADR
-`research/ancestor-shrunk-shares`).
+`leaf_at` places one uniform among those leaves, and `log_trees` logs each field's leaf counts.
+`bko.generate.direct.sample` draws through it and `bko.evaluate.redraw.TreeShares` traces through
+it, so the trace reads the draw's own shares (ADR `research/ancestor-shrunk-shares`).
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -23,12 +24,16 @@ from bko.generate.errors import SamplingError
 from bko.generate.tree import ColumnTree, TreePart, leaves, tree_shares
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Placed:
     """One tree field's shares at a cell and the records showing each leaf.
 
     Attributes:
         column: The tree field.
+        size: How many leaves its tree holds.
         leaves: The leaves of positive share, in depth-first order.
         cumulative: Their cumulative shares, in that order.
         parts: Each node's `TreePart` at the cell, by node.
@@ -37,6 +42,7 @@ class Placed:
     """
 
     column: str
+    size: int
     leaves: tuple[str, ...]
     cumulative: np.ndarray
     parts: Mapping[str, TreePart]
@@ -50,6 +56,7 @@ class TreeDraw:
     def __init__(self, trees: Mapping[str, ColumnTree]) -> None:
         """`trees` are the tree fields' (`column_trees`), in column order."""
         self.trees = trees
+        self._leaves = {column: leaves(tree.tree) for column, tree in trees.items()}
         self._groups: dict[tuple[int, str], dict[str, list[_Source]]] = {}
 
     def at(self, cell: Cell, own: Sequence[_Source], group: Sequence[_Source]) -> dict[str, Placed]:
@@ -68,9 +75,11 @@ class TreeDraw:
                 self._groups[key] = _by_leaf(tree, group)
             mine, theirs = _by_leaf(tree, own), self._groups[key]
             found, parts = tree_shares(_sizes(mine), _sizes(theirs), tree.tree, GROUP_WEIGHT)
-            positive = tuple(leaf for leaf in leaves(tree.tree) if found[leaf] > 0)
+            every = self._leaves[column]
+            positive = tuple(leaf for leaf in every if found[leaf] > 0)
             placed[column] = Placed(
                 column,
+                len(every),
                 positive,
                 np.cumsum([found[leaf] for leaf in positive]),
                 {part.node: part for part in parts},
@@ -78,6 +87,20 @@ class TreeDraw:
                 theirs,
             )
         return placed
+
+
+def log_trees(holdout: int, fill: str, cell: Cell, trees: Mapping[str, Placed]) -> None:
+    """Log each tree field's leaves and its leaves of positive share at `cell`."""
+    for column, tree in trees.items():
+        logger.info(
+            "tree holdout=%d fill=%s key=%s column=%s leaves=%d positive=%d",
+            holdout,
+            fill,
+            cell_key(cell),
+            column,
+            tree.size,
+            len(tree.leaves),
+        )
 
 
 def leaf_at(placed: Placed, uniform: float, cell: Cell) -> str:

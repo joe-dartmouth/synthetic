@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 from collections import Counter
 from collections.abc import Mapping
@@ -207,12 +208,37 @@ def test_a_mapped_concept_above_another_gets_its_own_leaf(tmp_path):
     ]
 
 
-def test_a_concept_its_release_lacks_is_a_root():
+def test_a_concept_its_release_lacks_is_a_root_and_is_named(caplog):
+    caplog.set_level(logging.WARNING, logger="bko.generate.tree")
     assert dict(code_tree({"MONDO:9000009", "HP:9000001"}, {})) == {
         "HP:9000001": TOP,
         "MONDO:9000009": TOP,
         UNMAPPED: TOP,
     }
+    assert caplog.messages == ["tree absent=2 concepts=HP:9000001,MONDO:9000009"]
+    caplog.clear()
+    code_tree({"HP:0001681"}, ONTOLOGIES)
+    assert caplog.messages == []
+
+
+def test_a_tree_draw_logs_each_fields_leaves_and_its_leaves_of_positive_share(caplog):
+    caplog.set_level(logging.INFO, logger="bko.generate.tree_draw")
+    sample(
+        varied(),
+        {YOUNG_WOMEN_0: 2},
+        rows=(*CP_ROWS, *SLOPE_ROWS),
+        ontologies=ONTOLOGIES,
+        name=NAME,
+        seed=0,
+        frame=UCI_FRAME,
+        tag=(3, "gap"),
+        spec=TREE_SPEC,
+    )
+    lines = [m for m in caplog.messages if m.startswith("tree ")]
+    assert lines == [
+        "tree holdout=3 fill=gap key=<55/female/0 column=cp leaves=4 positive=2",
+        "tree holdout=3 fill=gap key=<55/female/0 column=slope leaves=3 positive=3",
+    ]
 
 
 def test_a_column_of_disjoint_single_clause_code_rows_is_a_tree_field():
@@ -264,7 +290,7 @@ def test_a_count_of_a_node_that_is_not_a_leaf_is_refused(stray):
         tree_shares({**CELL, stray: 1}, GROUP, TREE, GROUP_WEIGHT)
 
 
-PLACED: Final = Placed("cp", ("a1", "a2", "b"), np.cumsum([0.25, 0.5, 0.25 - 1e-12]), {}, {}, {})
+PLACED: Final = Placed("cp", 4, ("a1", "a2", "b"), np.cumsum([0.25, 0.5, 0.25 - 1e-12]), {}, {}, {})
 """Three leaves whose float cumulative shares end just below 1."""
 
 
