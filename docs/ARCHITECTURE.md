@@ -79,6 +79,7 @@ each extra installs is in [DEVELOPMENT.md](DEVELOPMENT.md#environment).
 | [`bko.fusion`](../src/bko/fusion/README.md) | Fuse (validated records back into the BKO, and gap closure) |
 | [`bko.baselines`](../src/bko/baselines/README.md) | Evaluate (baseline augmentation) |
 | [`bko.evaluate`](../src/bko/evaluate/README.md) | Evaluate (its BKO arms run Detect, Generate and Validate through `bko.gaps`, `bko.generate` and `bko.validate`) |
+| [`bko.slm`](../src/bko/slm/README.md) | Evaluate (a LoRA language-model classifier of each arm's records) |
 | [`bko.app`](../src/bko/app/README.md) | Front end over every stage |
 
 Fusion appears in two places: `bko.fusion`, which Shirley owns, joins validated records to the

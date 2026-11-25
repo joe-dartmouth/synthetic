@@ -528,6 +528,7 @@ not a test of it.
 | [E8](EVIDENCE.md#e8-membership-inference-nndr-and-dcr-on-e6) | Development result |
 | [E9](EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) | Ablation |
 | [E10](EVIDENCE.md#e10-identifier-perturbation) | Ablation |
+| [E11](EVIDENCE.md#e11-lora-classifier-comparison-on-the-diabetes-130-removal) | Development result |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -574,6 +575,16 @@ and arm the study reads the flagged measures and the privacy readings (membershi
 DCR). It asks two things of `bko-direct`: whether its utility at each share is non-inferior to
 `real` within the recall margin, and whether its privacy readings are no worse than each
 comparator's. It is a development reading and registers no confirmatory claim.
+
+### Language-model classifier
+
+On E6's frame, a language model fine-tuned with LoRA on each arm's training set, the training split
+plus the arm's fill, is scored beside the tabular classifiers, with the base model, `none` and
+`real` as controls ([E11](EVIDENCE.md#e11-lora-classifier-comparison-on-the-diabetes-130-removal)).
+It asks whether the arms' ranking survives a different kind of classifier. ADR
+[`research/slm-comparison-design`](adr/research/slm-comparison-design.md) holds the design, whose
+budget is under one day of machine time. It is a development reading and registers no confirmatory
+claim.
 
 ### Control reading rule
 

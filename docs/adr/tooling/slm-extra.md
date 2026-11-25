@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 topic: tooling
 created: 2026-11-24
 updated: 2026-11-24
@@ -9,11 +9,10 @@ updated: 2026-11-24
 ## Context
 
 The direct-method study's LoRA comparison fine-tunes a small open language model as a classifier
-of the records each arm produces. The lock holds no transformers or peft. This record is the spike
-that unit `slm-lora-trainer` builds on: whether the stack resolves on Python 3.14 beside every
-locked package, and what one fine-tune costs here. Both measurements below are planning
-measurements, made outside the project environment in a scratch worktree, with nothing committed to
-`pyproject.toml`, `uv.lock` or `src/`.
+of the records each arm produces; `bko.slm` holds the trainer. This record says whether the stack
+resolves on Python 3.14 beside every locked package, and what one fine-tune costs here. Both
+measurements below are planning measurements, made outside the project environment in a scratch
+worktree before `bko.slm` existed.
 
 **Scratch lock, 2026-11-22.** In a detached worktree of `origin/main` at `43523b7`, uv 0.13.8 locked
 the project with one more extra, `slm = ["transformers", "peft", "tokenizers", "safetensors",
@@ -66,9 +65,10 @@ extra exited 0, building only the project itself, and MPS was available.
 
 ## Decision
 
-We will add, when unit `slm-lora-trainer` first imports them, an **`slm` extra holding
-transformers 5.24.0, peft 0.22.0, tokenizers 0.23.3, safetensors 0.8.0 and accelerate 1.16.0**
-(with huggingface-hub 2.4.0 and the packages above that the lock pulls in), and fine-tune
+The lock holds an **`slm` extra of transformers, peft, tokenizers, safetensors and accelerate,
+with torch**, which the `synth` extra already locks; `make setup` installs it because `bko.slm`
+imports it. `uv.lock` holds the exact versions; adding the extra added packages and moved none
+already locked. We fine-tune
 **`allenai/Olmo-3-1025-7B` at revision `a81bae42db3975be1671e27b9c9a56da1a9f980f`**: Apache-2.0
 (its model card, read at that revision on 2026-11-24), trained on the Dolma 3 mixes its card
 links, which the `dolma3_mix-6T-1025` dataset card licenses under ODC-By v1.0 (read the same day),
@@ -91,41 +91,39 @@ loaded from these files only:
 ## Rationale
 
 The scratch lock shows the stack sits beside the locked torch and numpy without moving either, so
-the trainer can import from `src/` in the project environment rather than in a second one. The
-transferable figure for the trainer's design (its holdouts, seeds and share mixes) is the rate per
+`bko.slm` imports from `src/` in the project environment rather than in a second one. The
+transferable figure for the comparison's design (its holdouts, seeds and share mixes, which unit
+`slm-lora-day-budget` fixes in ADR `research/slm-comparison-design`) is the rate per
 training row, 1.153 to 1.858 s, times the rows each fine-tune trains on: an arm's set is the
 training split plus its fill, larger than the 54,177 rows measured here, and a share mix holds the
 total at the split's size. The design should budget at the loaded rate. OLMo 3 7B publishes its
 weights and code under Apache-2.0 and its training data under ODC-By; its tokenizer gives ` yes` and
-` no` one token each, so the classifier reads one position. Staying `proposed` until the trainer
-lands keeps the lock unchanged by a decision no code uses yet.
+` no` one token each, so the classifier reads one position.
 
 ## Consequences
 
-**Gained**: a resolved, measured stack and a pinned base model for the trainer to adopt.
+**Gained**: a resolved, measured stack and a pinned base model that `bko.slm` adopts.
 **Accepted**: a fine-tune of a full split takes 17 to 28 hours here, so the trainer's design runs
-few fine-tunes; the scratch lock added 15 packages, a count the trainer's own `uv lock` re-derives.
+few fine-tunes; every clone that runs `make setup` downloads the stack.
 
 ## Ruled Out
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
-| Adding the extra to the lock now | No code imports it yet; ADR `tooling/uv-ruff-ty` adds an extra when its first import lands | 2026-11-22 |
+| Adding the extra to the lock before `bko.slm` imported it | Weighed before the first import: ADR `tooling/uv-ruff-ty` adds an extra when its first import lands | 2026-11-22 |
 | `uv pip install` into the project environment | Resolves past the lock, and `make synced` refuses the result | 2026-11-22 |
 | A separate hashed environment, as `video/` has | The trainer imports from `src/`, which a separate environment would need installed a second way | 2026-11-22 |
-| A smaller model, such as OLMo 2 1B or SmolLM2-360M | The team chose OLMo 3 7B as the one base model to measure; no smaller model was measured here, so the trainer's ADR may still pick one against this rate | 2026-11-22 |
+| A smaller model, such as OLMo 2 1B or SmolLM2-360M | The team chose OLMo 3 7B as the one base model to measure; no smaller model was measured here, so unit `slm-lora-day-budget` may still pick one against this rate | 2026-11-22 |
 | A model whose training data is not published | A reader could not say what the classifier saw before the study's records | 2026-11-22 |
 
 ## Enforcement
 
-- Owner: `pyproject.toml`; unit `slm-lora-trainer` verifies each weight file's sha256 before load
-  and sets this record to accepted when it adds the extra
-- Pinned by: nothing -- convention only
+- Owner: `pyproject.toml`
+- Pinned by: `tests/test_repo_gate.py`, which asserts `make setup` installs the `slm` extra
 
 ## Reversal Conditions
 
-`uv lock` with the extra stops exiting 0, or moves a package already in the lock, when the trainer
-re-resolves it; or the base model's weights stop shipping as safetensors at the pinned revision.
+`uv lock` with the extra stops exiting 0, or a re-lock moves a package other extras hold; or the base model's weights stop shipping as safetensors at the pinned revision.
 
 ## Related
 
@@ -133,3 +131,4 @@ re-resolves it; or the base model's weights stop shipping as safetensors at the 
 - [Python 3.14, without synthcity](python-314-without-synthcity.md)
 - [Video scenes outside the lock](video-scenes-outside-the-lock.md)
 - [On-device generators](../research/local-generator-backend.md)
+- [LoRA comparison design](../research/slm-comparison-design.md)

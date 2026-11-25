@@ -24,6 +24,15 @@ synth = ["sdv>=1.38", "imbalanced-learn>=0.14", "scikit-learn>=1.9", "torch>=2.1
 # imported directly to hold the boosting model to one OpenMP thread.
 eval = ["scikit-learn>=1.9", "sdmetrics>=0.32", "scipy>=1.18", "threadpoolctl>=3.5"]
 app = ["streamlit>=1.65"]
+# bko.slm fine-tunes a LoRA adapter on a causal language model; torch is imported directly.
+slm = [
+    "transformers>=5.24",
+    "peft>=0.22",
+    "tokenizers>=0.23",
+    "safetensors>=0.8",
+    "accelerate>=1.16",
+    "torch>=2.14",
+]
 dev = [
     "pytest>=9",
     "pytest-cov>=7",

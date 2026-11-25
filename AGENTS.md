@@ -16,8 +16,8 @@ import it (ADR `tooling/agent-config-single-home`).
 
 ## Commands
 
-- `make setup`: install the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app` extras
-  from `uv.lock`.
+- `make setup`: install the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`, `app` and `slm`
+  extras from `uv.lock`.
 - `make check`: the whole gate. There is no CI and there are no git hooks, so a person runs it
   before opening a PR.
 - `make format`: apply formatting.
@@ -172,8 +172,8 @@ synthetic/
 - **ManimGL is not a dependency.** It lives in `video/.venv`, built by `make video-env` from a
   hashed requirements file; `uv pip sync` there leaves `uv.lock` and `.venv` untouched, and nothing
   under `src/`, `tests/` or `tools/` imports `manimlib` (ADR `tooling/video-scenes-outside-the-lock`).
-- **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
-  and `app`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
+- **`make setup` installs every declared extra: `dev`, `data`, `synth`, `eval`, `ontology`, `llm`,
+  `app` and `slm`.** ADR `tooling/uv-ruff-ty` says when a new extra joins `make setup`, and
   [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#environment) says how to try one before it does. Never
   `uv pip install`: it resolves past the lock and `make synced` refuses the result.
 - **The gate never re-locks or installs.** Every gate step runs `uv run --no-sync`, and the install

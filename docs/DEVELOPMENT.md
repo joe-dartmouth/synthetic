@@ -7,12 +7,13 @@ summary; this file is the full record behind it. The repository's own checkers a
 ## Environment
 
 Requires `uv`. The interpreter version is the one in `.python-version`, and `uv` downloads it when
-the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`
-and `app` extras from the lock, and `source .venv/bin/activate` enters the environment.
+the machine lacks it. `make setup` installs the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`,
+`app` and `slm` extras from the lock, and `source .venv/bin/activate` enters the environment.
 
 - **Runtime dependencies are optional extras, declared and locked**: `data` (numpy, pandas, scipy),
   `synth` (sdv, imbalanced-learn, scikit-learn, torch), `eval` (scikit-learn, sdmetrics, scipy),
-  `ontology` (pronto), `llm` (anthropic) and `app` (streamlit) are installed by `make setup`.
+  `ontology` (pronto), `llm` (anthropic), `app` (streamlit) and `slm` (transformers, peft,
+  tokenizers, safetensors, accelerate, torch) are installed by `make setup`.
   `synth` brings `torch` to every machine, and on Linux the lock adds the NVIDIA CUDA packages and `triton`. ADR
   [`tooling/uv-ruff-ty`](adr/tooling/uv-ruff-ty.md) states when an extra joins `make setup`.
   `make sync` installs every extra.
@@ -2034,7 +2035,7 @@ probe, so it passes only in its degraded form and never confirms the trunk is cu
 
 | Target | What it runs | Notes |
 |---|---|---|
-| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app` extras and the pinned interpreter | Refuses a stale lock |
+| `setup` | `uv sync --locked` with the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`, `app` and `slm` extras and the pinned interpreter | Refuses a stale lock |
 | `sync` | `uv sync --locked --all-extras` | The whole lock, every extra |
 | `lint` | `ruff check .` then `ruff format --check .` | `ruff format` reaches Python fenced in markdown |
 | `format` | `ruff format .` | Rewrites files, documentation fences included; not part of the gate |

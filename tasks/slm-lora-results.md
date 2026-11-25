@@ -2,7 +2,7 @@
 id: slm-lora-results
 title: Run the LoRA comparison of the arms on E6's frame
 status: blocked
-depends_on: evaluate-composite-dev-results, slm-lora-trainer
+depends_on: evaluate-composite-dev-results, slm-lora-trainer, slm-lora-day-budget
 blocks: --
 parallel_safe: true
 milestone: direct-method-research

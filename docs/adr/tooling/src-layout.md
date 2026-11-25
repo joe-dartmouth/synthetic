@@ -37,6 +37,7 @@ pipeline stage, plus `bko.core`, the helpers no stage owns:
 | `fusion` | Validated records joined back into the BKO; gap closure | `data` |
 | `baselines` | No augmentation, class weighting, SMOTE, ADASYN, CTGAN, TVAE, the Gaussian copula, sequential CART, TabDDPM, the Bayesian network, the label bootstrap | `synth` |
 | `evaluate` | Utility, fidelity, privacy and validity metrics, and the BKO arms | `eval` |
+| `slm` | A LoRA language-model classifier of each arm's records | `slm` |
 | `app` | The Streamlit interface | `app` |
 
 Every subpackage carries a `README.md` giving its role, its extra and its status; the

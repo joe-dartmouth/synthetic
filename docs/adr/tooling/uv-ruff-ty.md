@@ -39,7 +39,8 @@ We will use:
   is kept for editor integration only. **`pandas-stubs`**, which ty reads pandas through, is pinned
   exactly too, to the release that describes the locked pandas.
 - **`hatchling`** as the build backend.
-- **Runtime dependencies as optional extras** (`data`, `ontology`, `llm`, `synth`, `eval`, `app`),
+- **Runtime dependencies as optional extras** (`data`, `ontology`, `llm`, `synth`, `eval`, `app`,
+  `slm`),
   declared and locked now. **An extra joins `make setup` when something in `src/`, `tests/` or
   `tools/` imports it, and not before.** `make sync` installs every extra.
 - **A `Makefile`** wrapping the canonical commands: `setup`, `sync`, `lint`, `format`, `typecheck`,
@@ -71,7 +72,7 @@ import moves it into `make setup`. `make setup` installs `synth` because `bko.ba
 it, `eval` because `bko.evaluate` imports it, `ontology` because `bko.ontology` imports pronto and fastobo,
 and `llm` because `bko.generate.api` imports anthropic, as does `tests/conftest.py` for the
 paid-request guard, and `app` because `bko.app` imports streamlit, which `make typecheck` must
-resolve. `synth`
+resolve, and `slm` because `bko.slm` imports transformers and peft. `synth`
 brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packages and `triton`.
 
 ## Ruled Out
@@ -92,8 +93,8 @@ brings `torch` to every clone, and on Linux the lock adds the NVIDIA CUDA packag
 - Pinned by: `tests/test_repo_gate.py`
 - `test_repo_gate.py` asserts that ruff and ty carry exact pins, that the pins match the installed
   distributions, that `uv.lock` records exactly the requirements `pyproject.toml` declares, that
-  `make setup` installs at least the `dev`, `data`, `synth`, `eval`, `ontology`, `llm` and `app`
-  extras, and that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
+  `make setup` installs at least the `dev`, `data`, `synth`, `eval`, `ontology`, `llm`, `app` and
+  `slm` extras, and that every `uv run` recipe carries `--no-sync` and every `uv sync` recipe `--locked`.
 
 ## Reversal Conditions
 
