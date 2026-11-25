@@ -246,10 +246,9 @@ class _Plan:
         rows: Sequence[FieldMapping],
         ontologies: Mapping[str, Ontology],
         frame: FrameSpec,
-        spec: DrawSpec | Presence,
+        spec: DrawSpec,
     ) -> None:
-        """`spec` is the draw's; a bare `Presence` reads as the default spec at that presence."""
-        spec = DrawSpec(presence=spec) if isinstance(spec, Presence) else spec
+        """`spec` is the draw's."""
         self._frame = frame
         self._spec = spec
         self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
