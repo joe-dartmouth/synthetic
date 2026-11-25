@@ -149,8 +149,8 @@ def sample(
     Raises:
         SamplingError: If a field group has no record matching a draw in the cell or its label
             group, a free field has no record to read from, or a tree field no leaf of positive
-            share; under a floor or a cap, if a
-            unit's pool is empty once the records it bars or holds at the cap are left out.
+            share; under a floor or a cap, if a unit's pool is empty once the records it bars or
+            holds at the cap are left out.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, or as
             `bko.generate.logic.components`, for a component too large to enumerate, naming the

@@ -110,7 +110,10 @@ depend on the release's hierarchy, so a new release is a new arm's reading.
   `tests/test_generate_tree.py` (the hand shares, their sum, the unseen code's share, single
   children, the parent rule, the own leaf, the tree fields, one uniform per tree field and the
   donor showing the drawn leaf), `tests/test_evaluate_tree.py` (the arm's params, its trace and
-  each level's parts, the refusal of an int `tree`, `code-share-error` and E15's runs)
+  each level's parts, the refusal of an int `tree`, `code-share-error` and E15's runs),
+  `tests/test_generate_tree_pinned.py` (on `diabetes-codes` the tree fields are the three
+  diagnosis columns, each one's shares sum to 1 in E6's cell and its label group, and E15's gap
+  request asks E6's quota, run with `--releases`)
 
 ## Reversal Conditions
 
