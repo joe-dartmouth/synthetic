@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from sklearn.tree import DecisionTreeClassifier
 
-from bko.baselines.classical import _tree
+from bko.baselines.classical import fit_tree
 from bko.baselines.conditional import conditional_cart
 from bko.datasets.frames import FrameSpec, RangeConstraint
 
@@ -90,7 +90,7 @@ def test_each_value_is_a_training_value_from_the_rows_leaf():
     columns = [*GIVEN, *VISIT]
     for at, column in enumerate(VISIT, start=len(GIVEN)):
         predictors = columns[:at]
-        _, production = _tree(train, columns, at, PAIRED, seed=0)
+        _, production = fit_tree(train, columns, at, PAIRED, seed=0)
         oracle = DecisionTreeClassifier(**production.get_params())
         oracle.fit(train[predictors].to_numpy(float), train[column])
         ours = oracle.apply(rows[predictors].to_numpy(float))
@@ -156,13 +156,38 @@ def test_no_drawn_row_fits_no_tree_and_names_no_donor():
     assert donors.empty
 
 
+@pytest.mark.parametrize("size", [0, 12], ids=["empty", "drawn"])
+def test_the_donors_are_int64_on_every_path(size):
+    _, donors = _redrawn(_drawn(size))
+    assert list(donors.columns) == list(VISIT)
+    assert all(dtype == np.int64 for dtype in donors.dtypes)
+
+
 @pytest.mark.parametrize(
     ("given", "visit"),
-    [((), VISIT), (GIVEN, ("sex", "dose")), (GIVEN, ("flag", "weight"))],
-    ids=["no-given", "overlap", "outside"],
+    [((), VISIT), (GIVEN, ("sex", "dose"))],
+    ids=["no-given", "overlap"],
 )
 def test_a_bad_column_split_is_refused(given, visit):
     with pytest.raises(ValueError, match="must be distinct columns of the frame"):
+        conditional_cart(
+            _train(),
+            _drawn(),
+            given=given,
+            visit=visit,
+            frame=PAIRED,
+            rng=np.random.default_rng(0),
+            seed=0,
+        )
+
+
+@pytest.mark.parametrize(
+    ("given", "visit"),
+    [(GIVEN, ("flag", "weight")), (("age", "weight"), VISIT)],
+    ids=["visit", "given"],
+)
+def test_a_column_outside_the_frame_is_refused_by_name(given, visit):
+    with pytest.raises(ValueError, match="column 'weight' is not a column of frame 'paired'"):
         conditional_cart(
             _train(),
             _drawn(),

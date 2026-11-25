@@ -54,8 +54,15 @@ def coherent_records(
 
     Returns:
         Each record redrawn, and the training record id each of its `fields` was copied from.
+
+    Raises:
+        ValueError: If an entry of `fields` is not a column of the request's frame.
     """
     frame = request.frame
+    for name in fields:
+        if name not in frame.columns:
+            msg = f"field {name!r} is not a column of frame {frame.name!r}"
+            raise ValueError(msg)
     visit = [name for name in frame.columns if name in fields]
     given = [name for name in frame.columns if name not in fields]
     rows, donors = conditional_cart(

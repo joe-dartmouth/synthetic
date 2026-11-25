@@ -15,7 +15,7 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
-from bko.baselines.classical import _predictors, _tree, leaf_donors
+from bko.baselines.classical import fit_tree, leaf_donors, tree_predictors
 from bko.datasets.frames import FrameSpec
 
 
@@ -51,26 +51,30 @@ def conditional_cart(
         was copied from.
 
     Raises:
-        ValueError: If `given` is empty, or `given` and `visit` share a column or name one
-            outside `frame`.
+        ValueError: If a `given` or `visit` entry is not a column of `frame`, if `given` is
+            empty, or if `given` and `visit` share a column.
     """
     columns = [*given, *visit]
-    if not given or len(set(columns)) != len(columns) or not set(columns) <= set(frame.columns):
+    for name in columns:
+        if name not in frame.columns:
+            msg = f"column {name!r} is not a column of frame {frame.name!r}"
+            raise ValueError(msg)
+    if not given or len(set(columns)) != len(columns):
         msg = f"given {list(given)} and visit {list(visit)} must be distinct columns of the frame,"
         msg += " given at least one"
         raise ValueError(msg)
     out = drawn.copy()
-    donors = pd.DataFrame(index=drawn.index, columns=list(visit), dtype=np.int64)
-    if not len(drawn):
-        return out.astype(dict(frame.dtypes)), donors
-    rows = train.loc[:, columns]
-    ids = train.index.to_numpy()
-    for at in range(len(given), len(columns)):
-        _, tree = _tree(rows, columns, at, frame, seed=seed)
-        trained = tree.apply(_predictors(rows, columns[:at], frame))
-        new = tree.apply(_predictors(out, columns[:at], frame))
-        picked = leaf_donors(new, trained, rng)
-        column = columns[at]
-        out[column] = rows[column].to_numpy()[picked]
-        donors[column] = ids[picked]
+    picks = {name: np.empty(0, dtype=np.int64) for name in visit}
+    if len(drawn):
+        rows = train.loc[:, columns]
+        ids = train.index.to_numpy(dtype=np.int64)
+        for at in range(len(given), len(columns)):
+            _, tree = fit_tree(rows, columns, at, frame, seed=seed)
+            trained = tree.apply(tree_predictors(rows, columns[:at], frame))
+            new = tree.apply(tree_predictors(out, columns[:at], frame))
+            picked = leaf_donors(new, trained, rng)
+            column = columns[at]
+            out[column] = rows[column].to_numpy()[picked]
+            picks[column] = ids[picked]
+    donors = pd.DataFrame(picks, index=drawn.index, columns=list(visit), dtype=np.int64)
     return out.astype(dict(frame.dtypes)), donors

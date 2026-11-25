@@ -17,7 +17,7 @@ from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import donor_attacks, trace_perturb
 from bko.evaluate.__main__ import Context, _named, main
 from bko.evaluate.attribution import Attribution, arm_kind, classify
-from bko.evaluate.coherent import COHERENT_STREAM, CoherentArm
+from bko.evaluate.coherent import COHERENT_STREAM, CoherentArm, coherent_records
 from bko.evaluate.data import digest, load
 from bko.evaluate.direct import WRAPPERS, DirectArm
 from bko.evaluate.direct_arms import COHERENT_ARM
@@ -131,6 +131,12 @@ def test_each_free_value_is_a_training_value():
     added = coherent_arm()(train, request).added
     for name in FIELDS:
         assert set(added[name]) <= set(train[name])
+
+
+def test_coherent_records_refuses_a_field_outside_the_frame_by_name():
+    train, request, _ = varied_arm()
+    with pytest.raises(ValueError, match="field 'weight' is not a column of frame 'uci'"):
+        coherent_records(train, request, [], fields=(*FIELDS, "weight"))
 
 
 def test_a_score_run_with_the_coherent_arm_logs_and_writes_its_lines(tmp_path, caplog):
