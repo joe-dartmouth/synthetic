@@ -1,8 +1,8 @@
 ---
 id: evaluate-synthea-direct-results
 title: Run bko-direct and the controls on Synthea beside E3
-status: blocked
-depends_on: evaluate-control-runs-registered
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
@@ -24,7 +24,7 @@ development result on that frame is missing.
 
 **In.**
 
-- The Synthea run `evaluate-control-runs-registered` names, and its readings, as
+- The Synthea run [E13](../docs/EVIDENCE.md#e13-control-arms-on-the-synthea-removal) names, and its readings, as
   [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) gives them.
 - `compare --beside` against `runs/e3-7/`'s `bko` and the CLLM arms.
 - The EVIDENCE entry's Result and Read against, naming the branch of the control reading rule in

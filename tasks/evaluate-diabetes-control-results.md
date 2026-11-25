@@ -1,8 +1,8 @@
 ---
 id: evaluate-diabetes-control-results
 title: Run the Diabetes 130 control family and read each contrast's branch
-status: blocked
-depends_on: evaluate-control-runs-registered
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration
 parallel_safe: true
 milestone: direct-method-research
@@ -24,7 +24,7 @@ The controls decide what the study can claim for `bko-direct`, and every control
 
 - `score` per slice, then `merge`, `rows`, `panel`, `privacy` and `compare`, as
   [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) gives them, for the Diabetes family
-  `evaluate-control-runs-registered` names.
+  [E12](../docs/EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) names.
 - The EVIDENCE entry's Result and Read against, naming the branch of the control reading rule in
   [`docs/RESEARCH.md`](../docs/RESEARCH.md) that each contrast falls in.
 

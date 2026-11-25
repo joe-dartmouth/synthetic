@@ -19,6 +19,7 @@ from bko.evaluate.named_runs import NamedRun, wholes_of
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
+    | {"e12-thin": REAL_ARM, "e12-empty": REAL_ARM, "e13": REAL_ARM}
     | {
         f"e10-{family}-{cell}": DIRECT_ARM
         for family in ("pilot", "pram")

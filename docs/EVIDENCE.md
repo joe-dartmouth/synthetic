@@ -151,6 +151,28 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#language-model-classifier); a development reading beside the tabular classifiers' ranking, outside the confirmatory family, so no verdict |
 
+## E12. Control arms on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does `bko-direct` beat the controls that pool the label group's rows with no ontology (`label-bootstrap`), draw with an empty mapping table (`bko-nomap`) or add no rows and shift each requested subgroup's prior (`prior-shift`), on removed-cell recall, flagged AUC-PR and flagged Brier? |
+| Configuration | Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e12-thin` (0.985) and `e12-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, at E6's settings. Arms: `none`, `class-weight`, `smote`, `adasyn`, `ctgan`, `tvae`, `real`, `bayes-net`, `bko-direct`, `bko-nomap`, `label-bootstrap` and `prior-shift`; candidate `bko-direct`, every other arm but `real` a comparator; no replica. Contrasts: `bko-direct` minus each of `label-bootstrap`, `bko-nomap` and `prior-shift` on removed-cell recall, flagged AUC-PR and flagged Brier at each fraction, each read into one branch of the [control reading rule](RESEARCH.md#control-reading-rule), whose margin on recall is 0.0480. Flagged Brier comes from `panel` over each run's `rows` store, since `score` writes no calibration measure. No arm calls the API, so the runs spend nothing. Privacy reference arm: `real` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#control-reading-rule), the control reading rule; each contrast's branch is the reading, a development result |
+
+## E13. Control arms on the Synthea removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E3's Synthea frame and removal, does `bko-direct` beat the same three controls as [E12](#e12-control-arms-on-the-diabetes-130-removal) on removed-cell recall, flagged AUC-PR and flagged Brier, with the logic-only arm `bko-logic` scored beside them? |
+| Configuration | Run: `e13`, unsliced, on [E3](#e3-synthea-downstream-augmentation)'s Synthea population: `E3` by `replace`, so its removal (0.9 of `(>=65, female, 1)`'s training rows), holdouts and `decontaminate=False` are E3's and `compare --beside` pairs it with `runs/e3-7/`. Arms: E12's arms plus `bko-logic`; candidate `bko-direct`, every other arm but `real` a comparator; no replica and no paid arm, so its $1.00 ceiling is inert and the run spends nothing. Contrasts: E12's, at E3's fraction, read into the branches of the [control reading rule](RESEARCH.md#control-reading-rule) with its margin on recall of 0.0480. Flagged Brier comes from `panel` over the run's `rows` store, as E12's. Privacy reference arm: `real` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#control-reading-rule), the control reading rule; each contrast's branch is the reading, a development result |
+
 ## B1. Classical baselines
 
 | Field | Entry |

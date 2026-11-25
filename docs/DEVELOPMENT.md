@@ -246,9 +246,10 @@ arm fits:
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/holdout-candidates.jsonl && test ! -e runs/<run-id>/scores.csv && test ! -e runs/<run-id>/scores.log && uv run --no-sync python -m bko.evaluate score e9-thina --candidates runs/<run-id>/holdout-candidates.jsonl [--data-dir <dir>] > runs/<run-id>/scores.csv 2> runs/<run-id>/scores.log </dev/null
 
 The no-mapping direct arm `bko-nomap` draws as `bko-direct` does with an empty mapping table (ADR
-[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)), and no named run holds
-it. Its `direct` and `fallback` lines read ` mapped=false presence=shares`, its `arm` line's
-params add `"mapped": false`, and its `direct arm=` line ends in `fallback_draws=%d`.
+[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md)); the control runs
+`e12-thin`, `e12-empty` and `e13` hold it. Its `direct` and `fallback` lines read
+` mapped=false presence=shares`, its `arm` line's params add `"mapped": false`, and its
+`direct arm=` line ends in `fallback_draws=%d`.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -949,8 +950,14 @@ start or the supervisor cannot run.
   PRAM-only full runs, `e10-pram-thin` and `e10-pram-empty` (`E10_PRAM_THIN` and
   `E10_PRAM_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`, `real`, `bko-direct` and the candidate
   `bko-direct-pram`, the ceiling inert) and their slices `e10-pram-thina` to `e10-pram-thinj` and
-  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds P1's runs, `p1-id` on
-  `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
+  `e10-pram-emptya` to `e10-pram-emptyj`, sliced as E6's are. It holds the control runs,
+  `e12-thin` and `e12-empty` (`bko.evaluate.runs_direct.E12_THIN` and `E12_EMPTY`: `E6_THIN` and
+  `E6_EMPTY` with `CONTROL_ARMS`, the comparison set, `real`, `bayes-net`, `bko-direct`,
+  `bko-nomap`, `label-bootstrap` and `prior-shift`, the candidate `bko-direct` and no replica) and
+  their slices `e12-thina` to `e12-thinj` and `e12-emptya` to `e12-emptyj`, sliced as E6's are,
+  and `e13` (`E13`: `E3` with those arms and `bko-logic`, the candidate `bko-direct`, no replica and
+  a $1.00 ceiling that no arm's call reaches). `docs/EVIDENCE.md`, E12 and E13, describes them. It
+  holds P1's runs, `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1 on ten
   holdouts with the comparison set, the classical synthesizers, the Bayesian network, TabDDPM,
   the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm and the
   candidate, no criterion and test copies kept, every holdout on TableShift's fixed test split;
@@ -1050,8 +1057,8 @@ arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING `privacy ho
 scope=%s undefined ...` line for an arm with rows whose distance attack is undefined in a scope
 (INFO for a cell scope with no member); and last `privacy holdout=%d done=%d/%d seconds=%.1f
 elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the mean, the contrast
-against the reference arm (`real` for E6, `bko-direct` for the perturbation runs; a slice reads its
-run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
+against the run family's reference arm, set in `REFERENCE` of `bko.evaluate.reference` (a slice
+reads its run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
 contrasts), and `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or
 NNDR quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
 statistics, each scope's match statistics (`scope=match-outside`, `match-cell`, `match-label`) and

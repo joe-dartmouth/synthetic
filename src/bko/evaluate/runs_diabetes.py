@@ -165,7 +165,7 @@ place of `bko-logic` as the candidate, and no API call, so the ceiling kept from
 
 
 def _slices(prefix: str, name: str, whole: Experiment) -> dict[str, NamedRun]:
-    """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `a`.
+    """Diabetes run `<prefix>-<name>` at `E6_SETTINGS` and its `E6_SLICES` slices, from `whole`.
 
     Each slice takes the next tenth of the holdouts in order, at that share of the ceiling.
 

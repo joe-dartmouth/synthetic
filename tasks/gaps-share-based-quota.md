@@ -1,8 +1,8 @@
 ---
 id: gaps-share-based-quota
 title: Recommend a cell's row count from coverage and expected size
-status: blocked
-depends_on: evaluate-control-runs-registered
+status: ready
+depends_on: --
 blocks: evaluate-quota-sweep-results
 parallel_safe: true
 milestone: direct-method-research
@@ -34,11 +34,11 @@ the fused shares and the neighbouring cells says how many rows a cell needs to b
   when it is not the default, with its default in `ASSUMED` (`bko.evaluate.run_folder`).
 - `gap_request` takes the field rows.
 - A new ADR under `docs/adr/research/` that records the rule.
-- A sweep family on E6's frame: each arm of the E6 family that unit
-  [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md) registers, at the fixed
+- A sweep family on E6's frame: each arm of the E6 family that
+  [E12](../docs/EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) registers, at the fixed
   fill, the coverage count, the expected-size count and the recommended count. Those arms are all
   free, so the sweep makes no paid call; E6's own `RUNS` arms include paid Messages arms and are
-  not swept. Three of those arms land in that unit's dependencies, so this unit depends on it.
+  not swept.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`.
   It fixes the representativeness measure as the reading: the largest gap between a cell's
   realized and fused concept shares, and the cell's share of the training set against `real`'s.

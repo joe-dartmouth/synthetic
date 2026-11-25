@@ -529,6 +529,8 @@ not a test of it.
 | [E9](EVIDENCE.md#e9-elk-hierarchy-and-the-logic-only-ablation) | Ablation |
 | [E10](EVIDENCE.md#e10-identifier-perturbation) | Ablation |
 | [E11](EVIDENCE.md#e11-lora-classifier-comparison-on-the-diabetes-130-removal) | Development result |
+| [E12](EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) | Development result |
+| [E13](EVIDENCE.md#e13-control-arms-on-the-synthea-removal) | Development result |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -596,7 +598,9 @@ and `prior-shift`, on removed-cell recall, flagged AUC-PR and flagged Brier, at 
 E6's and E3's frames. Margin on recall: 0.0480, the half-width of E6's `bko-direct` minus CTGAN
 interval on removed-cell recall at full removal (+0.0595 [+0.0115, +0.1075]). Flagged AUC-PR and
 flagged Brier have no equivalence margin, so their contrasts fall in `above`, `below` or
-`inconclusive`. Each contrast falls in one branch:
+`inconclusive`. [E12](EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal) and
+[E13](EVIDENCE.md#e13-control-arms-on-the-synthea-removal) register the runs these contrasts read
+on E6's and E3's frames. Each contrast falls in one branch:
 
 | Branch | Interval | Reading |
 |---|---|---|

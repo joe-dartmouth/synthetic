@@ -25,7 +25,7 @@ sweep; this unit runs it.
 **In.**
 
 - The sweep's runs and readings for every arm at every count. The arms are those of the E6
-  family of unit [`evaluate-control-runs-registered`](evaluate-control-runs-registered.md), all
+  family of [E12](../docs/EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal), all
   free; no paid Messages arm runs.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Runs, Result and Read against.
 
