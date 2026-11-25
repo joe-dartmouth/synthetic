@@ -49,7 +49,8 @@ def _controls(experiment: Experiment, arms: tuple[str, ...]) -> Experiment:
     )
 
 
-E12_THIN, E12_EMPTY = (_controls(e6, CONTROL_ARMS) for e6 in (E6_THIN, E6_EMPTY))
+E12_THIN: Final = _controls(E6_THIN, CONTROL_ARMS)
+E12_EMPTY: Final = _controls(E6_EMPTY, CONTROL_ARMS)
 """E12's runs: `E6_THIN` and `E6_EMPTY` with `CONTROL_ARMS`, `bko-direct` the candidate and no
 replica. No arm calls the API, so the spend ceiling kept from E6 is inert."""
 
