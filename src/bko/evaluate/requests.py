@@ -14,7 +14,7 @@ import pandas as pd
 from bko.baselines.request import Request, Strata, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import kept_count
+from bko.datasets.split import dropped_count, kept_count
 from bko.evaluate.errors import EvaluationError
 
 
@@ -41,13 +41,23 @@ def gap_request(
 
     A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
     further. With `experiment.flagged_cell` set, the request asks for that cell alone, up to
-    `fill_to`.
+    `fill_to`. With `experiment.synthetic_share` set, `train` is the whole training split and the
+    request asks each of its cells for the rows the share drops there (`dropped_count`), leaving
+    out each cell that drops none; no cell is restored to `fill_to`.
 
     Raises:
         EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill, or
-            the flagged cell is not a cell of `frame` or already holds `fill_to` records.
+            the flagged cell is not a cell of `frame` or already holds `fill_to` records, or the
+            synthetic share drops no row of any cell.
     """
-    if experiment.flagged_cell is not None:
+    share = experiment.synthetic_share
+    if share is not None:
+        cells = _cells(train, edges=frame.edges)
+        quota = {cell: asked for cell, count, _ in cells if (asked := dropped_count(count, share))}
+        if not quota:
+            msg = f"the synthetic share {share} drops no training row; nothing to fill"
+            raise EvaluationError(msg)
+    elif experiment.flagged_cell is not None:
         quota = _restored(train, experiment, experiment.flagged_cell, frame=frame)
     else:
         quota = _short(train, experiment, edges=frame.edges)

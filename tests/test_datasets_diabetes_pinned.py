@@ -184,6 +184,34 @@ def test_each_p3_run_asks_only_the_removed_cell(name, remaining, asked):
         assert dict(request.quota) == {CELL: asked}, seed
 
 
+@pytest.mark.parametrize(
+    ("name", "dropped", "cell"),
+    [
+        ("two", 1107, 25),
+        ("ten", 5542, 127),
+        ("quarter", 13858, 317),
+        ("half", 27718, 635),
+        ("all", 55427, 1269),
+    ],
+)
+def test_each_e18_run_asks_the_dropped_rows_of_every_cell(name, dropped, cell):
+    experiment = RUNS[f"e18-{name}"].experiment
+    edges = DIABETES_FRAME.edges
+    parts = split(_records(), seed=0, edges=edges)
+    ready = prepared(parts, experiment, edges=edges)
+    train = ready.ablated.train
+    assert len(train) == 55427
+    assert len(ready.dropped) == dropped
+    assert ready.ablated.fingerprint == parts.fingerprint
+    request = gap_request(train, experiment, seed=0, frame=DIABETES_FRAME)
+    assert sum(request.quota.values()) == dropped
+    assert len(request.quota) == 16
+    assert request.quota[CELL] == cell
+    assert _cell_count(ready.dropped) == cell
+    kept = train.drop(index=ready.dropped.index)
+    assert len(kept) + len(ready.dropped) == 55427
+
+
 def _cell_count(train: pd.DataFrame) -> int:
     """`CELL`'s training rows in `train`."""
     counts = cell_counts(train, edges=DIABETES_FRAME.edges)

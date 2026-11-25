@@ -129,6 +129,7 @@ def test_e1_is_its_stated_configuration():
         "cutoff": 0.5,
         "replica_rows": None,
         "flagged_cell": None,
+        "synthetic_share": None,
     }
     assert set(stated) == {field.name for field in dataclasses.fields(Experiment)}
     assert Experiment(**stated) == E1
@@ -201,6 +202,16 @@ def test_every_run_name_is_pinned():
         *(f"p3-eighty{letter}" for letter in "abcdefghij"),
         "p3-ninetyfive",
         *(f"p3-ninetyfive{letter}" for letter in "abcdefghij"),
+        "e18-two",
+        *(f"e18-two{letter}" for letter in "abcdefghij"),
+        "e18-ten",
+        *(f"e18-ten{letter}" for letter in "abcdefghij"),
+        "e18-quarter",
+        *(f"e18-quarter{letter}" for letter in "abcdefghij"),
+        "e18-half",
+        *(f"e18-half{letter}" for letter in "abcdefghij"),
+        "e18-all",
+        *(f"e18-all{letter}" for letter in "abcdefghij"),
         "g2",
         "g3-cell",
         "g3-coherent",

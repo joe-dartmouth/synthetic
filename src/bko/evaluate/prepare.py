@@ -1,5 +1,8 @@
 """Each holdout's training rows: its split sized by the training fraction, after the removal.
 
+Under a synthetic share the training split stays whole, and the rows the share replaces are named
+beside it.
+
 The harness (`bko.evaluate.run`) and the rehearsal (`bko.evaluate.rehearse`) both prepare a
 holdout here, so their training rows agree.
 """
@@ -18,7 +21,7 @@ from bko.baselines.request import Stratum
 from bko.datasets.ablation import thinned
 from bko.datasets.cells import SEXES, age_band_labels, cell_counts
 from bko.datasets.frames import FrameSpec
-from bko.datasets.split import Split, subsampled
+from bko.datasets.split import Split, dropped, share_text, subsampled
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import Experiment, Removal
 
@@ -35,11 +38,20 @@ class Prepared:
             the held-out ratio reads it.
         ablated: `sized` after the experiment's removal; every arm and score reads it.
         removed: The training rows the removal took.
+        dropped: The training rows of `ablated` the experiment's synthetic share replaces, which
+            `ablated.train` still holds: every arm fits on them, and no classifier trains on
+            them but `real`'s. Empty with no share.
+        kept: The real rows a classifier trains on, `ablated.train` less `dropped`, computed once
+            per holdout: `ablated.train` itself, uncopied, when no row is dropped. A reader that
+            trains a classifier on a holdout's real rows reads them here, so a share's dropped
+            rows stay out.
     """
 
     sized: Split
     ablated: Split
     removed: pd.DataFrame
+    dropped: pd.DataFrame
+    kept: pd.DataFrame
 
 
 def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> Prepared:
@@ -48,14 +60,37 @@ def prepared(parts: Split, experiment: Experiment, *, edges: Sequence[int]) -> P
     Both draws take the split's seed (`bko.datasets.split.subsampled`,
     `bko.datasets.ablation.thinned`), and the test rows are `parts`' own. A fraction below 1 logs
     one `subsample` line (the holdout, the fraction, and the training rows before and kept), and a
-    removal one `removal` line.
+    removal one `removal` line. A synthetic share names its dropped rows at the split's seed
+    (`bko.datasets.split.dropped`) and logs one `share` line: the holdout, the share as
+    `<numerator>/<denominator>`, the rows kept and dropped, and the sha256 of the dropped ids,
+    sorted and joined by commas.
 
     Raises:
         DatasetError: As `thinned`, if the removal's cell holds no training row.
     """
     sized = _sized(parts, experiment.training_fraction, edges=edges)
     ablated, removed = _ablated(sized, experiment.removal, edges=edges)
-    return Prepared(sized, ablated, removed)
+    lost = _dropped(ablated, experiment.synthetic_share, edges)
+    train = ablated.train
+    kept = train if lost.empty else train.drop(index=lost.index)
+    return Prepared(sized, ablated, removed, lost, kept)
+
+
+def _dropped(parts: Split, share: Fraction | None, edges: Sequence[int]) -> pd.DataFrame:
+    train = parts.train
+    if share is None:
+        return train.iloc[:0]
+    ids = dropped(train, share, seed=parts.seed, edges=edges)
+    digest = sha256(",".join(str(record) for record in sorted(ids)).encode("ascii")).hexdigest()
+    logger.info(
+        "share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s",
+        parts.seed,
+        share_text(share),
+        len(train) - len(ids),
+        len(ids),
+        digest,
+    )
+    return train.loc[ids]
 
 
 def _sized(parts: Split, fraction: Fraction, *, edges: Sequence[int]) -> Split:

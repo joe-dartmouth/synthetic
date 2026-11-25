@@ -45,8 +45,7 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | ready | -- | direct-method-research |
-| [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) | ready | -- | direct-method-research |
-| [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | blocked | evaluate-synthetic-share-sweep | direct-method-research |
+| [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
 
 ### Composite and confirmation
 
@@ -77,7 +76,6 @@ flowchart LR
     u28 --> u29[evaluate-composite-dev-results]
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]
     u8[evaluate-synthea-direct-results] --> u30
-    u45[evaluate-synthetic-share-sweep] --> u46[evaluate-synthetic-share-results]
     u25[datasets-support2-frame] --> u30
     u26[datasets-nhanes-frame] --> u30
     u27 --> u30

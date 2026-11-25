@@ -217,6 +217,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
 
+## E18. Synthetic-share sweep on the Diabetes 130 frame
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame, with 2%, 10%, 25%, 50% and 100% of each training set's rows synthetic and the total held at the training split's size, is `bko-direct`'s recall on E6's cell non-inferior to `real`'s within the recall margin, and are its privacy readings no worse than each comparator's? |
+| Configuration | Design: ADR [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md). Frame, holdouts, cutoff and settings: [E6](#e6-diabetes-130-subgroup-removal)'s, with no removal. Runs: `e18-two`, `e18-ten`, `e18-quarter`, `e18-half` and `e18-all`, at the shares 1/50, 1/10, 1/4, 1/2 and 1, each cut into ten slices of consecutive holdouts as E6's are, `e18-twoa` to `e18-twoj`, `e18-tena` to `e18-tenj`, `e18-quartera` to `e18-quarterj`, `e18-halfa` to `e18-halfj` and `e18-alla` to `e18-allj`. Per cell of `n` training rows, `floor(n * share + 1/2)` rows are dropped, the lowest by sha256 rank under the tag `synthetic-share:`, so the dropped rows nest across shares; each row-adding arm is asked for each cell's dropped count, fits on the whole training split, and its classifier trains on the kept rows plus its fill; `real` adds the dropped rows back; an arm short of a cell's count scores its partial fill. The test split is untouched. Arms: `real`, `bko-direct`, `ctgan`, `tvae`, `cart`, `bayes-net`, `tabddpm` and `label-bootstrap`; candidate `bko-direct`, every other arm but `real` a comparator; no replica and no criterion. Contrasts, as [RESEARCH.md section 11](RESEARCH.md#synthetic-share-ablation) registers them: `bko-direct` minus `real` on recall over E6's cell `(6-7, male, 1)`, flagged by name, non-inferior within the [control reading rule](RESEARCH.md#control-reading-rule)'s margin of 0.0480, with all-rows recall reported beside it and no margin; and `bko-direct` minus each comparator on each privacy reading, no worse. Readings: the flagged measures, membership inference, NNDR and DCR, each privacy reading over the synthetic rows against the whole training split; `auc-roc` is also written, since the run names its flagged cell. No arm calls the API, so the runs spend nothing. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#synthetic-share-ablation), the synthetic-share ablation; a development result |
+
 ## B1. Classical baselines
 
 | Field | Entry |

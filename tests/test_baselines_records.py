@@ -179,6 +179,25 @@ def test_training_set_puts_the_real_rows_first_with_their_weights():
     assert frame["weight"].tolist() == [2.0] * len(TRAIN) + [1.0] * len(added)
 
 
+def test_training_set_reads_a_subsets_own_weights():
+    added = valid_rows()
+    weights = pd.Series([0.5 + position for position in range(len(TRAIN))], index=TRAIN.index)
+    baseline = Baseline(added=added, weights=weights, params={})
+    subset = TRAIN.iloc[[4, 1, 7]]
+    frame = training_set(subset, baseline, frame=UCI_FRAME)
+    assert frame.index.tolist() == [*subset.index, *added.index]
+    assert frame["weight"].tolist() == [4.5, 1.5, 7.5] + [1.0] * len(added)
+
+
+def test_training_set_of_an_empty_train_is_the_added_rows():
+    added = valid_rows()
+    baseline = Baseline(added=added, weights=unit_weights(TRAIN).mul(2.0), params={})
+    frame = training_set(TRAIN.iloc[:0], baseline, frame=UCI_FRAME)
+    assert list(frame.columns) == [*FRAME_COLUMNS, "weight"]
+    assert frame.index.tolist() == added.index.tolist()
+    assert frame["weight"].tolist() == [1.0] * len(added)
+
+
 @pytest.mark.parametrize("plant", ["range", "below range"])
 def test_a_value_outside_the_split_names_its_column(plant):
     baseline = Baseline(

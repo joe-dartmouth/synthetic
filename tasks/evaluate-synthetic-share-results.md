@@ -1,8 +1,8 @@
 ---
 id: evaluate-synthetic-share-results
 title: Run the synthetic-share ablation and record each share and arm
-status: blocked
-depends_on: evaluate-synthetic-share-sweep
+status: ready
+depends_on: --
 blocks: --
 parallel_safe: true
 milestone: direct-method-research
@@ -16,9 +16,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-Unit [`evaluate-synthetic-share-sweep`](evaluate-synthetic-share-sweep.md) lands the shares, the
-runs and their Configuration. This unit runs them and records what each share shows. Every arm is
-free.
+[E18](../docs/EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) holds the runs
+`e18-two` to `e18-all` and their Configuration. This unit runs them and records what each share
+shows. Every arm is free.
 
 ## Scope
 

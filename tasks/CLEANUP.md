@@ -54,3 +54,26 @@ links to where its blocker is tracked.
   permission (a placeholder included), with a test that a placeholder is refused.
 
   **Trigger:** the first dataset unit that pins a `Source` with an `Agreement`.
+
+## slm
+
+- **`cleanup:slm/share-run-keeps-dropped-rows`: `bko.slm` trains on a synthetic-share run's
+  dropped rows.** `read_holdout` (`src/bko/slm/__main__.py`) builds an arm's training set as
+
+  ```
+  training = pd.concat([split.train, added])
+  ```
+
+  and under a synthetic share `ready.ablated.train` is the whole training split, the dropped rows
+  included (`Prepared.dropped`). So an E18 fill is added beside the rows it replaces, and at
+  share 1 the adapter trains on twice the split's rows, where `bko.evaluate` trains each
+  classifier on the split less the dropped rows plus the fill. Deferred because the change that
+  added the share made no `bko.slm` edit, and no LoRA run reads an E18 folder yet.
+
+  **What discharges it:** `read_holdout` refuses a run with a synthetic share, or trains on the
+  split less `Prepared.dropped` plus the fill, with a test on a share run's holdout.
+
+  **Trigger:** unit `slm-lora-results`, or the first change that points `bko.slm` at a share run.
+
+  **Blocked on** the LoRA unit, which owns `bko.slm`'s training sets. Tracked in
+  [`slm-lora-results`](slm-lora-results.md).

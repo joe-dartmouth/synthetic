@@ -17,6 +17,7 @@ from typing import Final
 
 from bko.baselines.request import SEED_LIMIT, Method, Stratum
 from bko.datasets.cells import UNDERREPRESENTED_BELOW
+from bko.datasets.split import require_share
 from bko.evaluate.direct_arms import (
     COHERENT_ARM,  # ruff: ignore[unused-import]  (re-exported)
     DIRECT_ARM,  # ruff: ignore[unused-import]  (re-exported)
@@ -24,6 +25,7 @@ from bko.evaluate.direct_arms import (
     LOGIC_ARM,  # ruff: ignore[unused-import]  (re-exported)
     NOMAP_ARM,  # ruff: ignore[unused-import]  (re-exported)
     PRAM_ARM,  # ruff: ignore[unused-import]  (re-exported)
+    TREE_ARM,
 )
 from bko.evaluate.ranking import over_ask_error
 from bko.evaluate.requests import (
@@ -107,6 +109,13 @@ class Experiment:
             `fill_to` alone. It may be set without a removal; beside one it must be the removal's
             cell. Setting it also writes each model's `auc-roc` on both scopes
             (`bko.evaluate.utility.utility`'s `roc`). None flags each cell below `threshold`.
+        synthetic_share: The share of each cell's training rows every holdout replaces with
+            synthetic rows (`bko.datasets.split.dropped`): the gap request asks each cell for its
+            dropped count, each arm fits on the whole training split, and each classifier trains
+            on the kept rows plus the fill. It needs `flagged_cell`, admits no removal, no
+            training fraction below 1, and no arm whose maths reads the whole training split
+            (`PRIOR_SHIFT_ARM`, class weighting, any replica arm) or the removed rows
+            (`TREE_ARM`). None replaces no row.
     """
 
     holdout_seeds: tuple[int, ...]
@@ -132,6 +141,7 @@ class Experiment:
     cutoff: float = THRESHOLD
     replica_rows: int | None = None
     flagged_cell: Stratum | None = None
+    synthetic_share: Fraction | None = None
 
     def __post_init__(self) -> None:
         """Refuse a configuration the harness cannot run or judge.
@@ -148,7 +158,12 @@ class Experiment:
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
                 bool among them), or the replica rows are below 1, or a flagged cell set beside a
-                removal is not the removal's cell.
+                removal is not the removal's cell, or the synthetic share is not a Fraction in
+                (0, 1], is set beside a removal or a training fraction below 1, names no
+                flagged cell, or stands beside `PRIOR_SHIFT_ARM` or class weighting, whose
+                offsets and weights read the whole training split, or beside a replica arm,
+                whose replica scores read it too, or beside `TREE_ARM`, whose code-share error
+                reads the removed rows.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -204,17 +219,18 @@ class Experiment:
     def _check_real(self) -> None:
         """Refuse `REAL_ARM` where the harness cannot score it.
 
-        Its added rows are the removal's rows, so it needs a removal; it has no runner, so it
-        fills no replica; and its rows are real training rows, so E3's copy rule, which keeps
-        copies, is the one it is read under.
+        Its added rows are the removal's rows, or a synthetic share's dropped rows, so it needs
+        one of them; it has no runner, so it fills no replica; and its rows are real training
+        rows, so E3's copy rule, which keeps copies, is the one it is read under.
         """
         if REAL_ARM in self.replica_arms:
             msg = f"the reference arm {REAL_ARM!r} has no runner, so it has no replica"
             raise ValueError(msg)
         if REAL_ARM not in self.arms:
             return
-        if self.removal is None:
-            msg = f"the reference arm {REAL_ARM!r} needs a removal: its rows are the removed rows"
+        if self.removal is None and self.synthetic_share is None:
+            msg = f"the reference arm {REAL_ARM!r} needs a removal or a synthetic share: its rows"
+            msg += " are the removed or dropped rows"
             raise ValueError(msg)
         if self.decontaminate:
             msg = f"the reference arm {REAL_ARM!r} needs an experiment that keeps copies"
@@ -243,11 +259,36 @@ class Experiment:
         if self.training_fraction < 1 and self.removal is not None:
             msg = "a training fraction below 1 and a removal cannot both thin the training rows"
             raise ValueError(msg)
+        self._check_share()
 
     def _check_flagged_cell(self) -> None:
         cell, removal = self.flagged_cell, self.removal
         if cell is not None and removal is not None and cell != removal.cell:
             msg = f"flagged cell {cell} is not the removal's cell {removal.cell}"
+            raise ValueError(msg)
+
+    def _check_share(self) -> None:
+        share = self.synthetic_share
+        if share is None:
+            return
+        require_share(share)
+        if self.removal is not None or self.training_fraction < 1:
+            msg = "a synthetic share cannot stand beside a removal or a training fraction below 1"
+            raise ValueError(msg)
+        if self.flagged_cell is None:
+            msg = "a synthetic share needs a flagged cell: its margin reads that cell's recall"
+            raise ValueError(msg)
+        whole = sorted({PRIOR_SHIFT_ARM, str(Method.CLASS_WEIGHT)} & set(self.arms))
+        if whole:
+            msg = f"{whole} read the whole training split, which a synthetic share does not keep"
+            raise ValueError(msg)
+        if self.replica_arms:
+            msg = f"replica arms {list(self.replica_arms)} score a replica fill on the whole"
+            msg += " training split, which a synthetic share does not keep"
+            raise ValueError(msg)
+        if TREE_ARM in self.arms:
+            msg = f"{TREE_ARM} reads the removed rows' code shares, and a synthetic share"
+            msg += " removes none"
             raise ValueError(msg)
 
     def _check_fill(self) -> None:

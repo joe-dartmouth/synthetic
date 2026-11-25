@@ -47,7 +47,14 @@ from bko.evaluate.experiment import (
     replica_request,
 )
 from bko.evaluate.filling import Filled, Logged, fill_arm, log_arm
-from bko.evaluate.prepare import fingerprint, held_out_ratio, prepared, require_cells, split_line
+from bko.evaluate.prepare import (
+    Prepared,
+    fingerprint,
+    held_out_ratio,
+    prepared,
+    require_cells,
+    split_line,
+)
 from bko.evaluate.privacy import distances
 from bko.evaluate.run_scores import (
     MIN_LABELS,  # ruff: ignore[unused-import]  (re-exported)
@@ -177,7 +184,10 @@ def score_holdout(
 
     The holdout's training rows are `parts`' sized by the experiment's training fraction, then
     thinned by its removal (`prepared`); the held-out ratio reads the sized split. `REAL_ARM`
-    adds the removed rows, with no runner. The held-out rows end with the flagged cells'
+    adds the removed rows, with no runner. Under a synthetic share every arm fits on the whole
+    training split and is asked for each cell's dropped rows, each classifier trains on the
+    training split less the dropped rows plus the arm's fill, `REAL_ARM` adds the dropped rows
+    back, and every distance reads the whole split. The held-out rows end with the flagged cells'
     `fingerprint`, then, for an experiment that keeps copies, `Measure.COPIES_KEPT`, then, with
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
     is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
@@ -208,7 +218,7 @@ def score_holdout(
     fills = {
         name: _collect(
             logged,
-            _real(ready.removed, train, holdout=seed, seed=gap.seed, frame=frame)
+            _real(_real_rows(ready, experiment), train, holdout=seed, seed=gap.seed, frame=frame)
             if name == REAL_ARM
             else fill_arm(
                 arms[name],
@@ -280,6 +290,7 @@ def score_holdout(
             frame,
             experiment.cutoff,
             calibration,
+            kept=ready.kept,
             share_error=removed,
             roc=experiment.flagged_cell is not None,
         )
@@ -373,6 +384,11 @@ def _log_training(
 def _log_quota(seed: int, request: Request) -> None:
     for stratum, rows in request.quota.items():
         logger.info("quota holdout=%d stratum=%s rows=%d", seed, "/".join(map(str, stratum)), rows)
+
+
+def _real_rows(ready: Prepared, experiment: Experiment) -> pd.DataFrame:
+    """The real rows `REAL_ARM` adds back: a synthetic share's dropped rows, else the removed."""
+    return ready.removed if experiment.synthetic_share is None else ready.dropped
 
 
 def _collect(logged: Logged, filled: Filled) -> Baseline:

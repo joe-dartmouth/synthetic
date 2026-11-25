@@ -5,7 +5,8 @@ convention ADR `research/uci-evaluation-frame` records and no code enforces. Str
 cell keeps each cell's training count a fixed function of its size, so the underrepresented cells
 are the same for every seed. Records are ranked by `sha256(f"{seed}:{record_id}")`, which no
 library upgrade can change. `subsampled` keeps a share of each cell's training rows for a
-scarcity run, ranked the same way under its own tag so a smaller share nests in a larger one.
+scarcity run, ranked the same way under its own tag so a smaller share nests in a larger one, and
+`dropped` names the share of each cell's rows a synthetic-share run replaces, under a third tag.
 `uci_split` fetches UCI Heart Disease through `ensure`, loads and
 splits it, and logs the split; `split` never fetches. `fixed` holds out a published partition's
 test records at every seed instead (ADR `research/tableshift-comparison`).
@@ -149,6 +150,52 @@ def subsampled(
         train, lambda n: kept_count(n, fraction), tag="train-fraction:", seed=seed, edges=edges
     )
     return train.loc[train.index.isin(kept)].copy()
+
+
+def require_share(share: Fraction) -> None:
+    """Refuse a synthetic share that is not a `Fraction` in (0, 1]; an int or a bool is refused.
+
+    Raises:
+        ValueError: If `share` is not a `Fraction`, or lies outside (0, 1].
+    """
+    if not isinstance(share, Fraction) or not 0 < share <= 1:
+        msg = f"synthetic share {share!r} must be a Fraction in (0, 1]"
+        raise ValueError(msg)
+
+
+def share_text(share: Fraction) -> str:
+    """A synthetic share as the logs spell it: `<numerator>/<denominator>`, `1/1` for 1."""
+    return f"{share.numerator}/{share.denominator}"
+
+
+def dropped_count(count: int, share: Fraction) -> int:
+    """How many of a cell's `count` training rows a synthetic share drops: rounded half up.
+
+    Exact on the share, with no floor, so a share of 1 drops every row and a small share may drop
+    none.
+
+    Raises:
+        ValueError: As `require_share`.
+    """
+    require_share(share)
+    return math.floor(share * count + Fraction(1, 2))
+
+
+def dropped(train: pd.DataFrame, share: Fraction, *, seed: int, edges: Sequence[int]) -> pd.Index:
+    """The ids of `dropped_count` of each cell's rows of `train`, those ranked lowest by hash.
+
+    Records are ranked by the sha256 of `seed`, the tag `synthetic-share` and the record id, an
+    order apart from the split's and the subsample's, so one seed's dropped rows nest: every
+    record a smaller share drops, a larger one drops too.
+
+    Raises:
+        ValueError: As `require_share`, or if the index has a duplicate.
+    """
+    require_share(share)
+    chosen = _lowest(
+        train, lambda n: dropped_count(n, share), tag="synthetic-share:", seed=seed, edges=edges
+    )
+    return train.index[train.index.isin(chosen)]
 
 
 def ranges(train: pd.DataFrame, frame: FrameSpec) -> dict[str, tuple[float, float]]:

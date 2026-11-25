@@ -94,9 +94,10 @@ def unit_weights(train: pd.DataFrame) -> pd.Series:
 def training_set(train: pd.DataFrame, baseline: Baseline, *, frame: FrameSpec) -> pd.DataFrame:
     """The rows a classifier fits on: real rows with their weights, then added rows at 1.0.
 
-    The result has `frame`'s columns and `weight`; the real rows keep `baseline.weights`.
+    The result has `frame`'s columns and `weight`; the real rows keep `baseline.weights`, read at
+    `train`'s ids, so `train` may be a subset of the rows the weights cover, empty included.
     """
-    real = train.loc[:, list(frame.columns)].assign(weight=baseline.weights)
+    real = train.loc[:, list(frame.columns)].assign(weight=baseline.weights.loc[train.index])
     return pd.concat([real, baseline.added.assign(weight=1.0)])
 
 

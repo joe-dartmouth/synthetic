@@ -35,7 +35,8 @@ from bko.evaluate.utility import undefined, utility
 logger = logging.getLogger("bko.evaluate.run")
 
 MIN_LABELS: Final = 2
-"""The labels a replica's rows must hold for a classifier fit on them alone to be scored."""
+"""The labels a replica's rows must hold for a classifier fit on them alone to be scored, and an
+arm's training set for any classifier to fit."""
 
 
 def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside the fit's inputs)
@@ -50,10 +51,15 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     cutoff: float,
     calibration: bool,
     *,
+    kept: pd.DataFrame,
     share_error: Mapping[str, pd.Series] = MappingProxyType({}),
     roc: bool = False,
 ) -> list[Score]:
     """ADDED rows, then copies, then distances when rows were added, then AUGMENTED utility.
+
+    Each classifier trains on `kept`, the real rows of `parts.train` it keeps (all of them but a
+    synthetic share's dropped rows), plus the arm's added rows; the distances read all of
+    `parts.train`.
 
     With `share_error`, each tree field's value shares in the removed training rows
     (`value_shares`), the arm writes `Measure.CODE_SHARE_ERROR` at the flagged scope after its
@@ -63,6 +69,10 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
     its calibration measures when `calibration` holds and its ROC AUC when `roc` holds.
     `PRIOR_SHIFT_ARM`'s probabilities are `shifted` per model by offsets solved on the model's
     `out_of_fold` predictions of the training split.
+
+    Raises:
+        EvaluationError: If the training set holds rows of fewer than 2 labels, as a short fill
+            at a synthetic share of 1 may leave it.
     """
     train, added = parts.train, baseline.added
     counts = {
@@ -77,7 +87,12 @@ def _arm_scores(  # ruff: ignore[too-many-arguments]  (the share error beside th
         scores.append(
             Score(seed, name, Source.ADDED, Measure.CODE_SHARE_ERROR, Scope.FLAGGED, error)
         )
-    training = training_set(train, baseline, frame=frame)
+    training = training_set(kept, baseline, frame=frame)
+    labels = training[frame.label].nunique()
+    if labels < MIN_LABELS:
+        msg = f"holdout {seed} arm {name} trains on {len(training)} rows of {labels} labels;"
+        msg += " a classifier needs both"
+        raise EvaluationError(msg)
     ordered = [Model.LR, *(model for model in models if model is not Model.LR)]
     shift_counts = (
         cast("Mapping[str, Sequence[int]]", baseline.params["shift"])
