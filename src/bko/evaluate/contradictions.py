@@ -117,9 +117,11 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
     """Each dataset's training split at holdout seed `SEED`, its field rows and their releases.
 
     Every release any frame's rows name is loaded once, and each frame gets those its rows name.
+    Each dataset's releases are `dataset_releases`'s, and one prefix loads one release for all.
 
     Raises:
-        EvaluationError: If a row's concept prefix has no pinned release, naming the frame.
+        EvaluationError: If a row's concept prefix has no pinned release, naming the frame, or two
+            datasets pin one prefix to different releases, naming the prefix and both.
         DatasetError: As `load` and `bko.ontology.releases.load_releases`.
     """
     loaded = [load(dataset, data_dir, context) for dataset in datasets]
@@ -133,7 +135,15 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
             msg = f"the {data.frame.name} frame's rows name no pinned release for the prefix "
             raise EvaluationError(msg + ", ".join(unpinned))
         named.append(prefixes)
-        sources |= {prefix: releases[prefix] for prefix in prefixes}
+        for prefix in prefixes:
+            held = sources.setdefault(prefix, releases[prefix])
+            if held != releases[prefix]:
+                msg = (
+                    f"two datasets pin the prefix {prefix} to different releases: "
+                    f"{held.name} sha256={held.sha256[:16]} and "
+                    f"{releases[prefix].name} sha256={releases[prefix].sha256[:16]}"
+                )
+                raise EvaluationError(msg)
     ontologies = load_releases(sources, data_dir, open_url=context.open_url)
     return [
         Framed(
