@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -127,6 +127,13 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   table's scope. The `diabetes-codes` frame's per-code rows are generated from the release's
   `MONDO:equivalentTo` xrefs and stay outside the scope (ADR
   [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md)).
+- **Coded states**: a frame that holds a measured lab or vital with a cited cutoff keeps it as a
+  coded field: `0` = not measured, then one state per band between the cited cutoffs, so a row is
+  a `Codes` clause on the abnormal states and a missing value shows no concept. A cutoff read as
+  "at or above" puts the value at it in the upper state; one read as "above" keeps it in the
+  lower. A numeric field with missing values and no cited cutoff is coded the same way at the
+  tertiles of its measured values over the published file and maps no concept (ADR
+  [`research/support2-frame`](support2-frame.md)).
 - **Range bounds**: published plausibility tables, the OHDSI Data Quality Dashboard v1.4.1 first
   ([`blacketer-2021`](../../literature.md#gap-detection-and-data-quality)) and the MIMIC-III
   benchmark where the Dashboard rejects a Cleveland record

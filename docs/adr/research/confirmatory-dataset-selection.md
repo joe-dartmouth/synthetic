@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # Confirmatory datasets are chosen by a fixed rule before any record is loaded, and each choice's terms are quoted from its primary page
 
@@ -29,8 +29,8 @@ Each dataset's `Source` pin (`bko.datasets.sources`) carries an `agreement`: `No
 which `permits_sending` lets go to a third-party API, or an `Agreement(name, sending)`, which
 `permits_sending` lets go only when `sending` holds non-blank text; any such text passes
 (`cleanup:datasets/agreement-sending-placeholder` in
-[`tasks/CLEANUP.md`](../../../tasks/CLEANUP.md)). None of the five chosen datasets has a pin yet;
-point 4 fixes the value each frame unit's pin carries.
+[`tasks/CLEANUP.md`](../../../tasks/CLEANUP.md)). Each chosen dataset's frame ADR records its pin;
+point 4 fixes the value each pin carries.
 
 ## Decision Drivers
 

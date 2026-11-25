@@ -1557,10 +1557,10 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
 
 ## Gap detection
 
-`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
+`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps as (cell,
 statement) pairs under each definition of ADR `research/bko-formal-gap-definition`
 (`per-subgroup`, `population-level` and `frequency-aware`, in that order), and as the age-sex
-subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). Three
+subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). The
 commands, inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
