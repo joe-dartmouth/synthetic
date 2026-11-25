@@ -541,6 +541,7 @@ not a test of it.
 | [C1](EVIDENCE.md#c1-gap-closure-after-fusion) | Ablation |
 | [D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level) | Not read |
 | [D2](EVIDENCE.md#d2-data-contradictions-census) | Not read |
+| [P1](EVIDENCE.md#p1-tableshift-readmission-split) | Development comparison |
 
 ### Completeness and validity for bko-direct
 
@@ -555,7 +556,9 @@ claim of clinical validity. The ontology does not constrain `bko-direct`'s unmap
 
 The study runs four protocols beside published numbers. Juwara et al.'s removal fractions, not the
 fractions of the control reading rule, read on the minority group's AUC [`juwara-2024`][juwara-2024]. TableShift's `diabetes_readmission`
-splits [`gardner-2023`][gardner-2023]. The NIST CRC ACS excerpts, scored with SDNist
+splits [`gardner-2023`][gardner-2023], reproduced as ADR
+[`research/tableshift-comparison`](adr/research/tableshift-comparison.md) records and registered
+as [P1](EVIDENCE.md#p1-tableshift-readmission-split). The NIST CRC ACS excerpts, scored with SDNist
 [`task-2024`][task-2024]. UCI Heart Disease under SynthEval's metrics
 [`lautrup-2024`][lautrup-2024], beside the heart-disease results Lautrup et al. report in figures
 [`lautrup-2026`][lautrup-2026]. Each
