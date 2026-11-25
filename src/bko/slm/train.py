@@ -36,6 +36,12 @@ IGNORED: Final = -100
 ADAPTER_FILE: Final = "adapter_model.safetensors"
 """The file `save_adapter` digests: the adapter's weights."""
 
+CONFIG_FILE: Final = "adapter_config.json"
+"""The adapter's `peft` configuration, which `save_adapter` writes beside its weights."""
+
+MODEL_CARD: Final = "README.md"
+"""The model card `peft` writes on save, which `save_adapter` removes."""
+
 
 @dataclass(frozen=True, slots=True)
 class LoraSettings:
@@ -49,7 +55,8 @@ class LoraSettings:
         warmup_share: The share of steps, rounded up, over which the rate rises linearly.
         micro_batch: Rows per optimizer step.
         epochs: Passes over the training rows.
-        seed: Seeds the adapter's initialisation, its dropout and the row order.
+        seed: Seeds the adapter's initialisation, its dropout and the row order, which is
+            fixed for the fit: every epoch runs the rows in the same order.
         target_modules: The layers LoRA adapts, in `peft`'s terms.
     """
 
@@ -353,6 +360,8 @@ def probabilities(
 def save_adapter(model: PeftModel, path: Path) -> str:
     """Write the adapter as safetensors into `path` and return its weights file's sha256.
 
+    `path` then holds `CONFIG_FILE` and `ADAPTER_FILE` alone: `peft`'s model card is removed.
+
     Raises:
         ContractError: If `path` exists.
     """
@@ -360,4 +369,5 @@ def save_adapter(model: PeftModel, path: Path) -> str:
         msg = f"{path} exists; an adapter is never written over"
         raise ContractError(msg)
     model.save_pretrained(str(path), safe_serialization=True)
+    (path / MODEL_CARD).unlink(missing_ok=True)
     return hashlib.sha256((path / ADAPTER_FILE).read_bytes()).hexdigest()

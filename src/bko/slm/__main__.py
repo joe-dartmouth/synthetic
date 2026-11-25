@@ -3,16 +3,20 @@
 `fetch` makes the pinned base model's files present and verified under the data root. `train`
 fine-tunes a LoRA adapter on one holdout's training set for one arm of a recorded run, read from
 the run's folder and its `rows` store: `none` the prepared training split, `real` the un-ablated
-split, any other arm the split plus its stored fill. It writes the adapter under
-`data/models/slm-adapters/<folder>/<holdout>-<arm>/` and refuses a path that exists. `score`
+split, any other arm the split plus its stored fill; it refuses a run whose experiment
+decontaminates, since it scores the test split whole. It writes the adapter under
+`data/models/slm-adapters/<folder>/<holdout>-<arm>/`, with an `adapter_meta.json` naming the run,
+folder, store sha256, holdout, arm and base revision, and refuses a path that exists. `score`
 writes each test record's P(yes) as CSV to stdout, from the adapter of `--arm` or the base model
-with `--base`, and logs the `utility` measures and the CSV's sha256. The base model runs on MPS in
+with `--base`, and logs the `utility` measures and the CSV's sha256. It refuses an adapter
+directory holding any file but the adapter's configuration, its safetensors weights and its
+meta, or whose meta differs from its arguments. The base model runs on MPS in
 BF16. It makes no API call. ADR `research/slm-comparison-design` holds the design, and
 `docs/DEVELOPMENT.md` (Language-model classifier) the commands.
 
 Exit codes: 0 done; 1 an unexpected error, with its traceback; 2 the command could not run (no
-MPS, an absent model directory or download, an adapter path that exists or is absent); 3 a file
-or a record contradicts its pin or contract.
+MPS, an absent model directory or download, an adapter path that exists or is absent, any other
+`OSError`); 3 a file, a record, a store or an adapter contradicts its pin or contract.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import logging
 import sys
 from collections.abc import Callable, Sequence
@@ -34,21 +39,28 @@ from transformers import PreTrainedModel, PreTrainedTokenizerBase
 
 from bko.baselines.request import Stratum
 from bko.core.logs import configure
-from bko.datasets.errors import DatasetError, UnavailableError
+from bko.datasets.errors import ContractError, DatasetError, UnavailableError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
 from bko.datasets.frames import FrameSpec
 from bko.evaluate.context import Context as EvaluateContext
 from bko.evaluate.data import load
-from bko.evaluate.errors import EvaluationError
+from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.experiment import flagged
-from bko.evaluate.named_runs import RUNS
 from bko.evaluate.privacy_stores import Store, checked
 from bko.evaluate.provenance import log_versions
 from bko.evaluate.rows_read import bind, frame_of, read_rows
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.utility import utility
 from bko.slm.serialize import examples
-from bko.slm.train import ADAPTER_FILE, LORA, LoraSettings, probabilities, save_adapter, train
+from bko.slm.train import (
+    ADAPTER_FILE,
+    CONFIG_FILE,
+    LORA,
+    LoraSettings,
+    probabilities,
+    save_adapter,
+    train,
+)
 from bko.slm.weights import OLMO_3_7B, BaseModel, fetch, load_base
 
 
@@ -56,6 +68,12 @@ logger = logging.getLogger("bko.slm")
 
 ADAPTERS: Final = Path("models") / "slm-adapters"
 """Where adapters live under the data root."""
+
+META_FILE: Final = "adapter_meta.json"
+"""What `train` wrote the adapter from, which `score` compares with its own arguments."""
+
+ADAPTER_FILES: Final = frozenset({CONFIG_FILE, ADAPTER_FILE, META_FILE})
+"""Every file an adapter directory may hold."""
 
 NONE_ARM: Final = "none"
 """The arm whose training set is the prepared training split alone."""
@@ -87,12 +105,14 @@ class Holdout:
         train: The arm's training set.
         test: The holdout's test split.
         flagged: The cells the run flags, which `utility` scopes.
+        store: The sha256 of the `rows` store the sets were read from.
     """
 
     frame: FrameSpec
     train: pd.DataFrame
     test: pd.DataFrame
     flagged: tuple[Stratum, ...]
+    store: str
 
 
 def _mps() -> torch.device:
@@ -107,21 +127,31 @@ def _mps() -> torch.device:
     return torch.device("mps")
 
 
-def read_holdout(request: Request, data_dir: Path) -> Holdout:
+def read_holdout(
+    request: Request, data_dir: Path, *, reach: EvaluateContext | None = None
+) -> Holdout:
     """The run's holdout, prepared and checked against the folder its store is bound to.
 
+    `reach` is what the data load reaches and where the run's name is looked up (its `runs`);
+    the harness's own by default.
+
     Raises:
-        EvaluationError: If no run has the name.
+        EvaluationError: If no run has the name, or the run's experiment decontaminates: the test
+            split is scored whole, so no arm's copies of test records leave it.
         IdentityError: As `bind`, `checked` and `frame_of`, or if the store holds no fill of the
             arm at the holdout.
         DatasetError: As `bko.evaluate.data.load`.
     """
-    named = RUNS.get(request.run)
+    base = EvaluateContext() if reach is None else reach
+    named = base.runs.get(request.run)
     if named is None:
         msg = f"no run named {request.run!r}"
         raise EvaluationError(msg)
-    reach = replace(EvaluateContext(), experiment=named.experiment, dataset=named.dataset)
-    data = load(named.dataset, data_dir, reach)
+    if named.experiment.decontaminate:
+        msg = f"run {request.run!r} decontaminates its test split, which `bko.slm` scores whole"
+        raise EvaluationError(msg)
+    reached = replace(base, experiment=named.experiment, dataset=named.dataset)
+    data = load(named.dataset, data_dir, reached)
     rows, folder = read_rows(request.rows), read_folder(request.folder)
     bind(rows, folder, data.frame, run=request.run, data=data.digest)
     ready = checked(request.holdout, Store(request.rows, rows, folder), data, named.experiment)
@@ -134,11 +164,11 @@ def read_holdout(request: Request, data_dir: Path) -> Holdout:
         key = (request.holdout, request.arm)
         if key not in rows.lines or key not in folder.arms:
             msg = f"{request.rows} holds no fill of {request.arm} at holdout {request.holdout}"
-            raise EvaluationError(msg)
+            raise IdentityError(msg)
         added = frame_of(rows.lines[key], arm_line=folder.arms[key], frame=data.frame)
         training = pd.concat([split.train, added])
     cells = flagged(split.train, named.experiment, edges=data.frame.edges)
-    return Holdout(data.frame, training, split.test, cells)
+    return Holdout(data.frame, training, split.test, cells, rows.sha256)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +195,19 @@ class Context:
 def adapter_dir(data_dir: Path, folder: Path, holdout: int, arm: str) -> Path:
     """Where the adapter of `arm` at `holdout` of the run in `folder` lives."""
     return data_dir / ADAPTERS / folder.name / f"{holdout}-{arm}"
+
+
+def adapter_meta(args: argparse.Namespace, base: BaseModel, store: str) -> dict[str, object]:
+    """The meta of an adapter of `args`' run, folder, holdout and arm, read from `store`."""
+    return {
+        "arm": args.arm,
+        "base_repo": base.repo,
+        "base_revision": base.revision,
+        "folder": args.folder.name,
+        "holdout": args.holdout,
+        "rows_sha256": store,
+        "run": args.run,
+    }
 
 
 def main(
@@ -224,6 +267,8 @@ def _train(args: argparse.Namespace, context: Context, data_dir: Path) -> str:
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     digest = save_adapter(fitted, path)
+    meta = json.dumps(adapter_meta(args, context.base, held.store), indent=2, sort_keys=True)
+    (path / META_FILE).write_text(meta + "\n", encoding="utf-8")
     size = (path / ADAPTER_FILE).stat().st_size
     logger.info("adapter bytes=%d path=%s sha256=%s", size, path, digest)
     return ""
@@ -233,16 +278,18 @@ def _score(args: argparse.Namespace, context: Context, data_dir: Path) -> str:
     log_versions()
     device = context.device()
     held = context.holdout(_request(args), data_dir)
-    model, tokenizer = context.load_base(context.base, data_dir, dtype=DTYPE, device=device)
+    path = None
     if args.arm is not None:
         path = adapter_dir(data_dir, args.folder, args.holdout, args.arm)
+        _check_adapter(path, adapter_meta(args, context.base, held.store))
+    model, tokenizer = context.load_base(context.base, data_dir, dtype=DTYPE, device=device)
+    if path is not None:
         weights = path / ADAPTER_FILE
-        if not weights.is_file():
-            msg = f"{weights} is absent; run `python -m bko.slm train` first"
-            raise UnavailableError(msg)
         digest = hashlib.sha256(weights.read_bytes()).hexdigest()
         logger.info("adapter bytes=%d path=%s sha256=%s", weights.stat().st_size, path, digest)
-        model = PeftModel.from_pretrained(model, str(path), is_trainable=False)
+        model = PeftModel.from_pretrained(
+            model, str(path), is_trainable=False, use_safetensors=True
+        )
     scored = probabilities(model, tokenizer, held.test, frame=held.frame, device=device)
     measures = utility(held.test, scored, held.flagged, edges=held.frame.edges, calibration=True)
     for (measure, scope), value in measures.items():
@@ -253,6 +300,40 @@ def _score(args: argparse.Namespace, context: Context, data_dir: Path) -> str:
     sha = hashlib.sha256(text.encode()).hexdigest()
     logger.info("probabilities rows=%d sha256=%s", len(scored), sha)
     return text
+
+
+def _check_adapter(path: Path, expected: dict[str, object]) -> None:
+    """Refuse an adapter directory that is absent, holds another file or another fit's meta.
+
+    Raises:
+        UnavailableError: If the weights are absent.
+        ContractError: If the directory holds a file outside `ADAPTER_FILES`, or its meta is not
+            `expected`.
+    """
+    weights = path / ADAPTER_FILE
+    if not weights.is_file():
+        msg = f"{weights} is absent; run `python -m bko.slm train` first"
+        raise UnavailableError(msg)
+    other = sorted(entry.name for entry in path.iterdir() if entry.name not in ADAPTER_FILES)
+    if other:
+        msg = f"{path} holds {other}; an adapter directory holds {sorted(ADAPTER_FILES)} alone"
+        raise ContractError(msg)
+    meta_path = path / META_FILE
+    if not meta_path.is_file():
+        msg = f"{meta_path} is absent; the adapter's fit is unrecorded"
+        raise ContractError(msg)
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        msg = f"{meta_path} is not JSON: {exc}"
+        raise ContractError(msg) from exc
+    if not isinstance(meta, dict):
+        msg = f"{meta_path} is not a JSON object"
+        raise ContractError(msg)
+    if meta != expected:
+        keys = sorted(key for key in {*expected, *meta} if meta.get(key) != expected.get(key))
+        msg = f"{meta_path} differs from this score's arguments at {keys}"
+        raise ContractError(msg)
 
 
 def _parser() -> argparse.ArgumentParser:
