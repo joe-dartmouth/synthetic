@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bko.datasets.cells import LABEL
+from bko.datasets.cells import CELL_COLUMNS, LABEL, cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.gaps.observe import Cell
 from bko.gaps.shares import GROUP_WEIGHT
@@ -234,3 +234,18 @@ def test_pool_all_pools_every_feature_but_age_and_sex():
     assert pooled_units((), UCI_FRAME, Pool.ALL, seed=4) == units
     rows = tuple(r for r in FIELD_MAPPINGS if r.when[0].field != "thal")
     assert draw(POOL_ALL, rows=rows) == draw(POOL_ALL)
+
+
+@pytest.mark.parametrize("spec", [DONOR, POOL_RANDOM, POOL_ALL], ids=["donor", "random", "all"])
+def test_at_an_emptied_cell_every_pooled_pick_reads_the_label_group(spec):
+    train = varied()
+    keys = cell_keys(train, edges=UCI_FRAME.edges)
+    inside = (keys[list(CELL_COLUMNS)].apply(tuple, axis=1) == YOUNG_WOMEN_1).to_numpy()
+    assert inside.any()
+    drawn = draw(spec, seed=2, quota={YOUNG_WOMEN_1: 25}, train=train.loc[~inside])
+    pooled = {
+        f for unit in pooled_units(FIELD_MAPPINGS, UCI_FRAME, spec.pool, seed=2) for f in unit
+    }
+    assert pooled
+    for field in pooled:
+        assert sum(field in d.fallback for d in drawn) == len(drawn) == 25

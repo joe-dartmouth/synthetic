@@ -8,15 +8,13 @@ from __future__ import annotations
 import dataclasses
 import inspect
 import itertools
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Final
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from bko.datasets.frames import FrameSpec, RangeConstraint
-from bko.gaps.observe import Cell
 from bko.generate.direct import Draw, sample
 from bko.generate.draw_spec import DrawSpec
 from bko.generate.errors import SamplingError
@@ -24,75 +22,25 @@ from bko.generate.knowledge_draw import kb_sample
 from bko.generate.logic import components, logic_assignment
 from bko.generate.presence import Presence
 from bko.ontology.schema import AtLeast, Codes, FieldMapping
-from bko.ontology.terms import Ontology, Term
+from tests._kb_fixtures import (
+    BROAD,
+    FRAME,
+    JOINT,
+    MIDDLE_0,
+    NARROW,
+    OLD_1,
+    ONTOLOGIES,
+    QUOTA,
+    ROWS,
+    YOUNG_1,
+    kb_row,
+    kb_train,
+)
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
 
 KB: Final = DrawSpec(presence=Presence.LOGIC, donors=False)
-
-FRAME: Final = FrameSpec(
-    name="kb-toy",
-    features=("age", "sex", "a", "b", "c"),
-    numeric=("age",),
-    fractional=(),
-    fraction_digits=0,
-    categorical=("sex", "a", "b", "c"),
-    codebook={
-        "sex": {0: "female", 1: "male"},
-        "a": {0: "none", 1: "mild", 2: "severe"},
-        "b": {0: "no", 1: "yes"},
-        "c": {0: "zero", 1: "one", 2: "two", 3: "three"},
-    },
-    descriptions={
-        "age": "age",
-        "sex": "sex",
-        "a": "a grade",
-        "b": "b flag",
-        "c": "c level",
-        "target": "the condition",
-    },
-    ranges=(RangeConstraint("age", "a", 20, 90, "toy", "toy"),),
-    label_codes=(0, 1),
-    label_meanings={0: "absent", 1: "present"},
-    edges=(40, 60),
-    study="toy",
-    cohort="toy patient",
-)
-"""A frame every field of which a `Codes` clause reads, but `age` and `sex`."""
-
-
-def _row(concept: str, *when: Codes | AtLeast) -> FieldMapping:
-    return FieldMapping(when=when, concept=concept, label=concept, source="toy", limits="toy")
-
-
-BROAD: Final = _row("MONDO:0000002", Codes("a", frozenset({1, 2})))
-NARROW: Final = _row("MONDO:0000003", Codes("a", frozenset({2})))
-JOINT: Final = _row("HP:0000010", Codes("b", frozenset({1})), Codes("c", frozenset({2, 3})))
-ROWS: Final = (BROAD, NARROW, JOINT)
-"""Two logic components: the `a` pair, `NARROW` is_a `BROAD`, and the `b`-`c` group alone."""
-
-
-def _term(curie: str, *parents: str) -> Term:
-    return Term(curie, curie, parents, (), (), False, ())
-
-
-ONTOLOGIES: Final[Mapping[str, Ontology]] = {
-    "MONDO": Ontology(
-        "mondo",
-        "test",
-        {
-            "MONDO:0000002": _term("MONDO:0000002"),
-            "MONDO:0000003": _term("MONDO:0000003", "MONDO:0000002"),
-        },
-    ),
-    "HP": Ontology("hpo", "test", {"HP:0000010": _term("HP:0000010")}),
-}
-
-YOUNG_1: Final[Cell] = ("<40", "female", 1)
-MIDDLE_0: Final[Cell] = ("40-59", "male", 0)
-OLD_1: Final[Cell] = (">=60", "female", 1)
-QUOTA: Final[Mapping[Cell, int]] = {YOUNG_1: 40, MIDDLE_0: 40, OLD_1: 40}
 
 
 def _kb(
@@ -106,17 +54,6 @@ def _kb(
         QUOTA, rows=rows, ontologies=ONTOLOGIES, frame=frame, seed=seed, age_range=age_range
     )
     return [d for draws in drawn.values() for d in draws]
-
-
-def _train(ages: Sequence[int], shift: int) -> pd.DataFrame:
-    records = [
-        {"age": age, "sex": k % 2, "a": (k + shift) % 3, "b": k % 2, "c": (k * shift) % 4}
-        | {"target": (k // 2) % 2}
-        for k, age in enumerate(ages)
-    ]
-    frame = pd.DataFrame(records).astype(dict(FRAME.dtypes))
-    frame.index = pd.RangeIndex(1, len(frame) + 1, name="record_id")
-    return frame
 
 
 def test_the_draw_takes_no_training_frame():
@@ -134,8 +71,8 @@ def test_the_draw_takes_no_training_frame():
 
 
 def test_two_training_frames_of_one_age_range_give_one_fill():
-    one = _train([25, *range(30, 80, 3), 80], shift=1)
-    two = _train([80, *range(41, 79, 5), 25], shift=2)
+    one = kb_train([25, *range(30, 80, 3), 80], shift=1)
+    two = kb_train([80, *range(41, 79, 5), 25], shift=2)
     assert not one.reset_index(drop=True).equals(two.reset_index(drop=True))
     drawn = [
         sample(
@@ -228,7 +165,7 @@ def test_a_kb_refusal_names_the_holdout_and_the_fill():
         codebook={**FRAME.codebook, "d": {0: "no", 1: "yes"}},
         descriptions={**FRAME.descriptions, "d": "an unmapped flag"},
     )
-    train = _train([25, *range(30, 80, 3), 80], shift=1).assign(d=0)
+    train = kb_train([25, *range(30, 80, 3), 80], shift=1).assign(d=0)
     with pytest.raises(ValueError, match="toy frame=kb-free holdout=3 fill=gap cannot draw: "):
         sample(
             train,
@@ -252,13 +189,13 @@ def test_a_frame_with_a_numeric_clause_is_refused():
         ranges=(*FRAME.ranges, RangeConstraint("level", "u", 0, 9, "toy", "toy")),
         descriptions={**FRAME.descriptions, "level": "a level"},
     )
-    rows = (*ROWS, _row("HP:0000011", AtLeast("level", 5)))
+    rows = (*ROWS, kb_row("HP:0000011", AtLeast("level", 5)))
     with pytest.raises(ValueError, match=r"\blevel\b"):
         _kb(rows=rows, frame=numeric)
 
 
 def test_a_pattern_no_codebook_tuple_shows_is_refused():
-    unshowable = _row("HP:0000012", Codes("b", frozenset({7})), Codes("c", frozenset({2})))
+    unshowable = kb_row("HP:0000012", Codes("b", frozenset({7})), Codes("c", frozenset({2})))
     with pytest.raises(SamplingError, match="no codebook tuple of"):
         _kb(rows=(BROAD, NARROW, unshowable))
 

@@ -283,3 +283,13 @@ def test_an_empty_banded_label_group_is_refused(runner):
     request = Request(quota={("<50", "male", 1): 2}, frame=FRAME)
     with pytest.raises(BaselineError, match="no training record of label 1 in band <50"):
         runner(emptied, request)
+
+
+def test_at_an_emptied_cell_eb_marginals_on_marginals_stream_is_marginals(monkeypatch):
+    cell = ("<50", "female", 1)
+    emptied = TRAIN.loc[~((TRAIN["age"] < 50) & (TRAIN["sex"] == 0) & (TRAIN[LABEL] == 1))]
+    request = Request(quota={cell: 12}, seed=5, frame=FRAME)
+    monkeypatch.setattr(baseline_pooling, "EB_MARGINALS_STREAM", MARGINALS_STREAM)
+    pd.testing.assert_frame_equal(
+        eb_marginals(emptied, request).added, marginals(emptied, request).added
+    )

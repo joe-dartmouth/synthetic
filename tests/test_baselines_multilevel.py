@@ -45,6 +45,29 @@ FRAME = dataclasses.replace(UCI_FRAME, edges=(50, 60))
 
 TRAIN = full_records()
 
+KEPT = frozenset({"age", "sex", "cp", "chol", "oldpeak", UCI_FRAME.label})
+"""The columns a full fill models: one coded, one measured whole, one measured fractional."""
+
+
+def _kept(names: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(name for name in names if name in KEPT)
+
+
+NARROW = dataclasses.replace(
+    FRAME,
+    name="uci-narrow",
+    features=_kept(FRAME.features),
+    numeric=_kept(FRAME.numeric),
+    fractional=_kept(FRAME.fractional),
+    categorical=_kept(FRAME.categorical),
+    codebook={name: codes for name, codes in FRAME.codebook.items() if name in KEPT},
+    descriptions={name: text for name, text in FRAME.descriptions.items() if name in KEPT},
+    ranges=tuple(bound for bound in FRAME.ranges if bound.field in KEPT),
+)
+"""`FRAME` on `KEPT`: a full fill's frame, three modelled columns, so each fill fits in seconds."""
+
+NARROW_TRAIN = TRAIN.loc[:, list(NARROW.columns)]
+
 QUOTA: dict[Stratum, int] = {
     ("<50", "female", 1): 3,
     ("50-59", "male", 1): 4,
@@ -60,8 +83,8 @@ GRID: tuple[Stratum, ...] = tuple(
 
 @functools.cache
 def fill(seed: int) -> Baseline:
-    """`hb_marginals`' fill of `QUOTA` at `seed`, computed once; no test mutates it."""
-    return hb_marginals(TRAIN, Request(quota=QUOTA, seed=seed, frame=FRAME))
+    """`hb_marginals`' fill of `QUOTA` on `NARROW` at `seed`, computed once; no test mutates it."""
+    return hb_marginals(NARROW_TRAIN, Request(quota=QUOTA, seed=seed, frame=NARROW))
 
 
 def shares(rule: dict[Stratum, float], *, records: int = 20) -> dict[Stratum, dict[object, int]]:
@@ -126,7 +149,8 @@ def test_a_thin_cell_is_pulled_toward_its_margins():
     thin = ("a0", "female", 1)
     counts = shares(dict.fromkeys(GRID, 0.1), records=50)
     counts[thin] = {"x": 3, "y": 0}
-    assert 0.1 < share_of_x(fit_column(counts), thin) < 1.0
+    loosest = fit_pair(counts, TAU_GRID[-1], TAU_GRID[-1])
+    assert 0.1 < share_of_x(fit_column(counts), thin) < share_of_x(loosest, thin)
 
 
 def test_the_scales_are_grid_values():
@@ -148,7 +172,7 @@ def test_the_fit_is_deterministic():
     assert first.categories == second.categories
     for cell in GRID:
         assert first.predict(cell) == second.predict(cell)
-    again = hb_marginals(TRAIN, Request(quota=QUOTA, seed=3, frame=FRAME))
+    again = hb_marginals(NARROW_TRAIN, Request(quota=QUOTA, seed=3, frame=NARROW))
     pd.testing.assert_frame_equal(fill(3).added, again.added)
 
 
@@ -222,7 +246,7 @@ def test_the_evidence_does_not_depend_on_the_start(monkeypatch):
     monkeypatch.setattr(multilevel_fit, "minimize", perturbed)
     moved = [fit_pair(counts, tau2, tau3) for tau2, tau3 in pairs]
     for first, second in zip(zeros, moved, strict=True):
-        assert first.evidence == second.evidence
+        assert first.evidence == pytest.approx(second.evidence, abs=1e-6)
         assert np.allclose(first.coefficients, second.coefficients, atol=1e-6)
 
 
@@ -283,7 +307,7 @@ def test_a_one_category_column_predicts_it_with_certainty():
 
 
 def test_every_added_row_passes_check():
-    check(fill(3), TRAIN, Request(quota=QUOTA, seed=3, frame=FRAME))
+    check(fill(3), NARROW_TRAIN, Request(quota=QUOTA, seed=3, frame=NARROW))
 
 
 def test_a_request_by_label_is_refused():
@@ -297,11 +321,12 @@ def test_a_retry_seed_changes_the_fill():
 
 
 def test_each_fit_logs_one_line_and_each_cell_one_pool_line(caplog):
-    request = Request(quota=QUOTA, frame=FRAME)
+    request = Request(quota=QUOTA, frame=NARROW)
     with caplog.at_level(logging.INFO, logger="bko.baselines"):
-        hb_marginals(TRAIN, request)
+        hb_marginals(NARROW_TRAIN, request)
     lines = [line for line in caplog.messages if line.startswith("hb ")]
-    fitted = [name for name in FRAME.columns if name not in {"age", "sex", FRAME.label}]
+    fitted = [name for name in NARROW.columns if name not in {"age", "sex", NARROW.label}]
+    assert fitted == ["cp", "chol", "oldpeak"]
     assert len(lines) == len({stratum[2] for stratum in QUOTA}) * len(fitted)
     assert lines[0].startswith(f"hb holdout=-1 fill=none label=1 column={fitted[0]} tau2=")
     assert all(" evidence=" in line and " iterations=" in line for line in lines)

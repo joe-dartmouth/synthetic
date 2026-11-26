@@ -1,8 +1,9 @@
-"""Each control arm reads its declared inputs and no other.
+"""Each arm of `ARMS` reads its declared inputs and no other.
 
 `tests._arm_inputs.ARM_INPUTS` declares, per arm, which of seven inputs its fill reads (ADR
-`research/matched-knowledge-controls`, Decision 14). Each perturbation below changes one input's
-statistics and leaves the other six as they were:
+`research/matched-knowledge-controls`, Decision 14). The arms of `ARMS` are filled under each
+perturbation below; every other arm of the table is held to the ADR's prose table alone. Each
+perturbation changes one input's statistics and leaves the other six as they were:
 
 - `cell`: every `d` of 0 in the thin cell's rows becomes 9.
 - `label-group`: every `d` of 0 in the rest of the label's rows becomes 9. Those rows include the
@@ -225,8 +226,11 @@ ARMS: Final = (
     str(Method.EB_MARGINALS),
     str(Method.HB_MARGINALS),
 )
-"""E19's row-adding arms: the draws its design adds, and `bko-direct`, `bko-logic` and
-`label-bootstrap` beside them."""
+"""The arms whose fills this module perturbs: E19's row-adding draws, and `bko-direct`,
+`bko-logic` and `label-bootstrap` beside them. `smote` refuses `QUOTA`'s emptied cell, which holds
+fewer than the two records it needs; `bayes-net` keeps only the codes a training record holds, so
+dropping the unheld code 0 cannot move its fill. No other arm of `ARM_INPUTS` is filled here;
+`test_the_adr_table_mirrors_arm_inputs` holds every arm to the ADR table."""
 
 
 def _kb_frame(frame: FrameSpec) -> FrameSpec:

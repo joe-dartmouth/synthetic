@@ -19,10 +19,10 @@ from bko.evaluate.direct_arms import DIRECT_ARMS, KB_ARM
 from bko.evaluate.named_runs import NamedRun
 from bko.generate.draw_spec import DrawSpec
 from bko.generate.presence import Presence
+from tests._kb_fixtures import FRAME, ONTOLOGIES, QUOTA, ROWS, kb_train
 from tests.test_evaluate_attribution import MAPPED, RECORD, _direct
 from tests.test_evaluate_direct import g2_context
 from tests.test_evaluate_logic_only import BOTH
-from tests.test_generate_knowledge_draw import FRAME, ONTOLOGIES, QUOTA, ROWS, _train
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -42,7 +42,7 @@ def test_a_kb_field_is_knowledge_and_its_age_method_seed():
 
 def test_the_kb_arm_fills_a_request_from_k_alone(caplog):
     caplog.set_level(logging.INFO)
-    train = _train([25, *range(30, 80, 3), 80], shift=1)
+    train = kb_train([25, *range(30, 80, 3), 80], shift=1)
     arm = DirectArm(
         ROWS, ONTOLOGIES, name=KB_ARM, budget=2, sink=None, dataset="toy", spec=DIRECT_ARMS[KB_ARM]
     )
