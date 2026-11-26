@@ -105,6 +105,11 @@ class _Column:
     categories: np.ndarray
     label_group: np.ndarray
 
+    def __post_init__(self) -> None:
+        """Make each array read-only, so no draw changes what later draws read."""
+        for array in (self.values, self.categories, self.label_group):
+            array.flags.writeable = False
+
     def draw(self, rng: np.random.Generator, cumulative: np.ndarray, banded: np.ndarray) -> object:
         """One value: a category by `cumulative`, then its code or a record of it."""
         at = min(int(np.searchsorted(cumulative, rng.random(), side="right")), len(cumulative) - 1)

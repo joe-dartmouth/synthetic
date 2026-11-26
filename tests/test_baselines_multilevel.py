@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bko.baselines import multilevel_fit
+from bko.baselines import multilevel, multilevel_fit
 from bko.baselines.categories import categorise
 from bko.baselines.errors import BaselineError
 from bko.baselines.multilevel import hb_marginals
@@ -19,6 +19,7 @@ from bko.baselines.multilevel_fit import (
     GTOL,
     HALVINGS,
     MAIN_SCALE,
+    MAX_PARAMETERS,
     MAXITER,
     NEWTON_STEPS,
     OPTIMISER,
@@ -229,6 +230,39 @@ def test_a_fit_that_does_not_converge_is_refused(monkeypatch):
         fit_column(by_sex(("a0", "female", 1)))
 
 
+def test_a_column_with_too_many_parameters_is_refused(monkeypatch):
+    counts = by_sex(("a0", "female", 1))
+    monkeypatch.setattr(multilevel_fit, "MAX_PARAMETERS", 3)
+    with pytest.raises(BaselineError, match="parameters, above MAX_PARAMETERS 3"):
+        fit_pair(counts, 0.5, 0.5)
+
+
+def test_an_optimiser_stop_short_of_maxiter_is_left_to_the_newton_stage(monkeypatch):
+    counts = by_sex(("a0", "female", 1))
+    expected = fit_pair(counts, 0.5, 0.5)
+    original = multilevel_fit.minimize
+
+    def abnormal(objective, start, **options):
+        result = original(objective, start, **{**options, "options": {"maxiter": 3}})
+        result.success, result.message = False, "ABNORMAL"
+        return result
+
+    monkeypatch.setattr(multilevel_fit, "minimize", abnormal)
+    fit = fit_pair(counts, 0.5, 0.5)
+    assert fit.gradient < GTOL
+    assert np.allclose(fit.coefficients, expected.coefficients, atol=1e-6)
+
+
+def test_a_fit_and_a_column_hold_read_only_arrays():
+    fit = fit_column(by_sex(("a0", "female", 1)))
+    assert not fit.coefficients.flags.writeable
+    column = multilevel._column(
+        TRAIN, cell_keys(TRAIN, edges=FRAME.edges), Request(quota=QUOTA, frame=FRAME), "chol", 1
+    )
+    for array in (column.values, column.categories, column.label_group):
+        assert not array.flags.writeable
+
+
 def test_probabilities_sum_to_one():
     counts = {cell: {"x": 4, "y": 9, "z": 2} for cell in GRID}
     counts["a1", "male", 0] = {}
@@ -280,3 +314,4 @@ def test_every_constant_is_pinned():
     assert EVIDENCE_DECIMALS == 6
     assert NEWTON_STEPS == 20
     assert HALVINGS == 30
+    assert MAX_PARAMETERS == 4096

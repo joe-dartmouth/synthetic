@@ -12,8 +12,8 @@ pair of scales on `TAU_GRID` the fit finds the posterior mode by `OPTIMISER` fro
 analytic gradient, then by Newton steps on the analytic Hessian until the gradient is below
 `GTOL`, and the Laplace log evidence from that Hessian's Cholesky factor; the pair with the
 largest evidence, rounded to `EVIDENCE_DECIMALS` decimals, wins, ties going to the smaller
-`tau2`, then the smaller `tau3`. A fit that stops short of convergence, or a Hessian that is not
-positive definite, raises `BaselineError`.
+`tau2`, then the smaller `tau3`. A fit with more than `MAX_PARAMETERS` free parameters, one that
+stops short of convergence, or a Hessian that is not positive definite raises `BaselineError`.
 """
 
 from __future__ import annotations
@@ -55,6 +55,10 @@ then is refused."""
 HALVINGS: Final = 30
 """The halvings of one Newton step at most before the step is refused."""
 
+MAX_PARAMETERS: Final = 4096
+"""The most free parameters a fit may hold: its dense Hessian holds their square in float64,
+128 MiB at this ceiling. Diabetes 130's largest column holds 585."""
+
 EVIDENCE_DECIMALS: Final = 6
 """The decimals the Laplace log evidence is rounded to before scale pairs are compared."""
 
@@ -95,6 +99,10 @@ class Fit:
     index: Mapping[Key, int]
     coefficients: np.ndarray
     gradient: float
+
+    def __post_init__(self) -> None:
+        """Make `coefficients` read-only, so no caller changes a fit it shares."""
+        self.coefficients.flags.writeable = False
 
     def predict(self, cell: Stratum) -> tuple[float, ...]:
         """Each category's probability in `cell`; a term the fit never met contributes 0."""
@@ -150,8 +158,8 @@ def fit_pair[K: Hashable](
         The posterior mode with its rounded Laplace log evidence.
 
     Raises:
-        BaselineError: If no cell holds a record, the optimiser stops short of convergence, or the
-            Hessian is not positive definite.
+        BaselineError: If no cell holds a record, the fit holds more than `MAX_PARAMETERS` free
+            parameters, or as `_mode` raises it.
         ValueError: If `reference` is not a counted category.
     """
     totals: dict[K, int] = {}
@@ -169,11 +177,13 @@ def fit_pair[K: Hashable](
         msg = f"the reference {reference!r} is not a counted category"
         raise ValueError(msg)
     observed = [cell for cell, held in counts.items() if sum(held.values()) > 0]
+    seen = frozenset(observed)
     index: dict[Key, int] = {}
     for cell in counts:
-        for key in _keys(cell, observed=cell in observed):
+        for key in _keys(cell, observed=cell in seen):
             if _scale(key, tau2, tau3) > 0:
                 index.setdefault(key, len(index))
+    _check_size(len(index) * (len(categories) - 1))
     design = np.zeros((len(observed), len(index)))
     for row, cell in enumerate(observed):
         held = [index[key] for key in _keys(cell, observed=True) if key in index]
@@ -197,6 +207,17 @@ def fit_pair[K: Hashable](
         coefficients=coefficients,
         gradient=gradient,
     )
+
+
+def _check_size(parameters: int) -> None:
+    """Refuse a fit of more than `MAX_PARAMETERS` free parameters, before its Hessian is built.
+
+    Raises:
+        BaselineError: If `parameters` exceeds `MAX_PARAMETERS`.
+    """
+    if parameters > MAX_PARAMETERS:
+        msg = f"the multilevel fit has {parameters} parameters, above MAX_PARAMETERS "
+        raise BaselineError(msg + str(MAX_PARAMETERS))
 
 
 def _keys(cell: Stratum, *, observed: bool) -> list[Key]:
@@ -235,9 +256,12 @@ def _mode(
 ) -> tuple[np.ndarray, float, int, float]:
     """The posterior mode at `scales`, its rounded Laplace log evidence, iterations and gradient.
 
-    `OPTIMISER` runs from zeros; Newton steps on the analytic Hessian, each halved while it
-    raises the objective, then take the mode until its gradient is below `GTOL`. The objective is
-    strictly convex, so the mode is unique and both stages reach the same point from any start.
+    `OPTIMISER` runs from zeros; Newton steps on the analytic Hessian, each halved until it lowers
+    the objective or the largest gradient entry (`_newton`), then take the mode until its gradient
+    is below `GTOL`. The optimiser's own stop is refused only at `MAXITER` iterations or a
+    non-finite point; any other stop leaves the Newton stage and the `GTOL` check to decide. The
+    objective is strictly convex, so the mode is unique and both stages reach the same point from
+    any start.
 
     Args:
         design: One row per observed cell, a 1 at each term the cell's log-odds sums.
@@ -250,8 +274,8 @@ def _mode(
         absolute gradient entry at the mode.
 
     Raises:
-        BaselineError: If the optimiser stops short of convergence, the Newton steps do not bring
-            the gradient below `GTOL`, or a Hessian is not positive definite.
+        BaselineError: If the optimiser reaches `MAXITER` or a non-finite point, the Newton steps
+            do not bring the gradient below `GTOL`, or a Hessian is not positive definite.
     """
     others = [k for k in range(table.shape[1]) if k != reference]
     shape = (design.shape[1], len(others))
@@ -278,7 +302,8 @@ def _mode(
             np.einsum("ck,kl->ckl", shares, np.eye(len(others)))
             - np.einsum("ck,cl->ckl", shares, shares)
         )
-        hessian = np.einsum("ci,cj,ckl->ikjl", design, design, weights).reshape(theta.size, -1)
+        hessian = np.einsum("ci,cj,ckl->ikjl", design, design, weights, optimize=True)
+        hessian = hessian.reshape(theta.size, -1)
         hessian[np.diag_indices_from(hessian)] += precision
         try:
             return np.linalg.cholesky(hessian)
@@ -293,7 +318,7 @@ def _mode(
         method=OPTIMISER,
         options={"gtol": GTOL, "maxiter": MAXITER},
     )
-    if not result.success:
+    if result.nit >= MAXITER or not np.isfinite(result.x).all():
         msg = f"the multilevel fit did not converge in {result.nit} iterations: {result.message}"
         raise BaselineError(msg)
     theta, (value, gradient) = result.x, objective(result.x)
