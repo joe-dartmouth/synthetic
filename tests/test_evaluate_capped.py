@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from bko.datasets.split import split
-from bko.evaluate.__main__ import _named, main
+from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.data import load
 from bko.evaluate.direct import DirectArm
@@ -25,6 +25,7 @@ from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.prepare import prepared
 from bko.evaluate.reference import REFERENCE
+from bko.evaluate.run_context import named as named_run
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.runs_diabetes import E9_EMPTY, E9_THIN
 from bko.evaluate.runs_direct import E14_EMPTY, E14_THIN
@@ -123,7 +124,7 @@ def test_a_capped_fill_whose_cap_param_is_a_float_exits_3(scored, tmp_path, capl
 
 def _unit_donors(folder: Path, data_root: Path, arm: str) -> list[Counter[int]]:
     """Per match unit, how many rows of holdout 0's `arm` gap fill each record donates it to."""
-    named = _named("g2", _context())
+    named = named_run("g2", _context())
     data = load(named.dataset, data_root, named)
     concepts = {row.concept for row in data.field_rows}
     ontologies, _ = load_scope(

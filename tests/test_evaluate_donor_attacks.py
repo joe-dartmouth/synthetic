@@ -22,7 +22,7 @@ import bko.evaluate.reference as reference_module
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import donor_attacks, membership
-from bko.evaluate.__main__ import _named, main
+from bko.evaluate.__main__ import main
 from bko.evaluate.attack_stats import RATES, SCOPE_FPRS, SCOPES, scopes
 from bko.evaluate.context import Context
 from bko.evaluate.data import digest, load
@@ -44,6 +44,7 @@ from bko.evaluate.membership import GROUPS, MI_MEASURES
 from bko.evaluate.prepare import prepared
 from bko.evaluate.privacy_rule import readings
 from bko.evaluate.redraw import Redrawn
+from bko.evaluate.run_context import named as named_run
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scores import Measure, parse
 from bko.evaluate.shared import rebuilt
@@ -329,7 +330,7 @@ def _donors_of(
     """`donor_counts` of holdout 0's `arm` fill of `folder`, its rows rebuilt from its candidate
     lines after `lines` edits them, then edited by `stored`; `sha` replaces the `arm` line's
     sha256."""
-    named = _named("g2", ctx or trace_context())
+    named = named_run("g2", ctx or trace_context())
     data = load(named.dataset, data_root, named)
     concepts = {row.concept for row in data.field_rows}
     ontologies, _ = load_scope(
@@ -362,7 +363,7 @@ def test_donor_reuse_of_a_redrawn_fill_equals_its_trace_sources(folder):
     data = folder.parent / "data"
     code, traced = _trace(folder, data, "--arm", DIRECT_ARM)
     assert code == 0
-    named = _named("g2", trace_context())
+    named = named_run("g2", trace_context())
     groups = match_groups(load(named.dataset, data, named).field_rows, frame=UCI_FRAME)
     expected: Counter[int] = Counter()
     for line in traced:
@@ -474,7 +475,7 @@ def prammed(tmp_path, caplog) -> tuple[Path, Context]:
 
 
 def _pram_groups(folder: Path, ctx: Context) -> tuple[tuple[str, ...], ...]:
-    named = _named("g2", ctx)
+    named = named_run("g2", ctx)
     rows = load(named.dataset, folder.parent / "data", named).field_rows
     return match_groups(rows, frame=UCI_FRAME)
 
@@ -505,7 +506,7 @@ def test_a_pram_row_its_own_line_dropped_pairs_the_rest_with_their_draws(prammed
             edited.append(line)
         return edited
 
-    named = _named("g2", ctx)
+    named = named_run("g2", ctx)
     data = load(named.dataset, folder.parent / "data", named)
     parts = split(data.records, seed=0, edges=UCI_FRAME.edges)
     train = prepared(parts, named.experiment, edges=UCI_FRAME.edges).ablated.train

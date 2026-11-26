@@ -18,7 +18,7 @@ from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import coherent as coherent_module
 from bko.evaluate import donor_attacks, trace_perturb
-from bko.evaluate.__main__ import Context, _named, main
+from bko.evaluate.__main__ import Context, main
 from bko.evaluate.attribution import Attribution, arm_kind, classify
 from bko.evaluate.coherent import CoherentArm, coherent_draws, coherent_records
 from bko.evaluate.data import digest, load
@@ -30,6 +30,7 @@ from bko.evaluate.holdout_candidates import CHANGED, KEPT, PERTURBS, UNCHANGED, 
 from bko.evaluate.named_runs import RUNS, NamedRun
 from bko.evaluate.pram import PramArm
 from bko.evaluate.reference import REFERENCE
+from bko.evaluate.run_context import named as named_run
 from bko.evaluate.run_folder import BKO
 from bko.evaluate.runs_diabetes import E9_EMPTY, E9_THIN
 from bko.generate.direct import Draw, sample
@@ -94,7 +95,7 @@ def cohered(tmp_path, caplog) -> tuple[Path, Context]:
 
 def _training(folder: Path, ctx: Context) -> pd.DataFrame:
     """The `g2` records under `folder`'s data root, indexed by record id."""
-    named = _named("g2", ctx)
+    named = named_run("g2", ctx)
     return load(named.dataset, folder.parent / "data", named).records
 
 
@@ -338,7 +339,7 @@ def test_donor_counts_read_the_leaf_donors(cohered):
     folder, ctx = cohered
     code, traced = _trace(folder, ctx, COHERENT_ARM)
     assert code == 0
-    named = _named("g2", ctx)
+    named = named_run("g2", ctx)
     rows = load(named.dataset, folder.parent / "data", named).field_rows
     groups = donor_attacks.match_groups(rows, frame=UCI_FRAME)
     found = _donors_of(folder, folder.parent / "data", arm=COHERENT_ARM, ctx=ctx)

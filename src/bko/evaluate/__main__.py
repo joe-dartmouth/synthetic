@@ -115,15 +115,15 @@ from bko.evaluate.named_runs import NamedRun, sliced
 from bko.evaluate.provenance import log_experiment, log_versions
 from bko.evaluate.reader_commands import (
     _contradictions,
-    _named,
     _panel,
     _privacy,
     _rows,
-    _runs_root,
     _shared,
     _truth,
 )
 from bko.evaluate.resumes import resumable
+from bko.evaluate.run_context import named as named_run
+from bko.evaluate.run_context import runs_root
 from bko.evaluate.scoring import data_dir, score
 from bko.evaluate.supervise import supervise
 from bko.evaluate.syntheval_reading import run_syntheval
@@ -163,7 +163,7 @@ def main(
     try:
         if args.command != "score":
             return _other(args, context, sink)
-        text = score(args, _named(args.run, context))
+        text = score(args, named_run(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -183,7 +183,7 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_launch(args, context))
     elif args.command == "merge":
         log_versions()
-        sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
+        sink.write(merge(named_run(args.run, context).experiment.holdout_seeds, args.scores))
     elif args.command == "likelihood":
         _likelihood(args, context, sink)
     elif args.command == "shared":
@@ -199,11 +199,11 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
     elif args.command == "contradictions":
         sink.write(_contradictions(args, context))
     elif args.command == "trace":
-        sink.write(run_trace(args, _named(args.run, context)))
+        sink.write(run_trace(args, named_run(args.run, context)))
     elif args.command == "attribution":
-        sink.write(run_attribution(args, _named(args.run, context)))
+        sink.write(run_attribution(args, named_run(args.run, context)))
     elif args.command == "syntheval":
-        sink.write(run_syntheval(args, _named(args.run, context)))
+        sink.write(run_syntheval(args, named_run(args.run, context)))
     else:
         _compare(args, context, sink)
     return 0
@@ -224,7 +224,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         msg = f"{args.run_id!r} is not a run id of record, such as e1-4"
         raise EvaluationError(msg)
     name = args.run or match["entry"]
-    context = _named(name, context)
+    context = named_run(name, context)
     if not set(context.experiment.arms) & PAID_ARMS:
         msg = f"the run {name!r} has no paid arm, so it spends nothing to launch"
         raise EvaluationError(msg)
@@ -239,7 +239,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     found = launch(
         args.run_id,
         name,
-        root=_runs_root(args, context),
+        root=runs_root(args, context),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
@@ -256,7 +256,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
 
 def _supervise(args: argparse.Namespace, context: Context) -> int:
     """Run the launched run's segments; return the last one's exit code."""
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     return supervise(
         args.run_id,
         args.run,
@@ -278,7 +278,7 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
     """Judge the scores of the run `args.run` and write the table to `sink`."""
     log_versions()
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     compare(
         named.experiment,
         args.candidate,
@@ -305,7 +305,7 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
             schema-2, schema-3 or schema-4 file's data digest is not the run's data's.
         CandidatesFormatError: If a file is not a candidates file.
     """
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     paths: list[Path] = args.candidates
     single = len(paths) == 1
     pending = [candidates_file(paths[0], args.run, named.dataset, single=single)]
