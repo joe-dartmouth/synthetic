@@ -319,12 +319,10 @@ def test_one_fill_of_two_kinds_is_refused(tmp_path):
 GOLDEN = (
     "holdout,arm,kind,class,unit,count\n"
     "0,bko-direct,direct,knowledge,field,4\n"
-    "0,bko-direct,direct,donor-mean,field,0\n"
     "0,bko-direct,direct,donor,field,4\n"
     "0,bko-direct,direct,prompt,field,0\n"
     "0,bko-direct,direct,method-seed,field,20\n"
     "0,bko,messages,knowledge,field,0\n"
-    "0,bko,messages,donor-mean,field,0\n"
     "0,bko,messages,donor,field,0\n"
     "0,bko,messages,prompt,field,14\n"
     "0,bko,messages,method-seed,field,0\n"
@@ -340,7 +338,7 @@ def test_the_csv_is_the_golden_string(tmp_path, caplog):
     text = _attribution([direct, messages, baseline])
     assert text == GOLDEN
     closing = caplog.messages[-1]
-    assert closing.startswith("attribution rows=11 sha256=")
+    assert closing.startswith("attribution rows=9 sha256=")
     assert closing.endswith(" files=3")
 
 

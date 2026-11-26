@@ -107,9 +107,13 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      `DrawSpec` reads the mapping table at a presence other than `POOLED`, is a knowledge fact;
      else a field the line's `averaged` names is a donor mean (`donor-mean`), its value the mean
      of its donors'; else a field with a source id is a donor, a pooled field among them, since
-     the mapping chose only which fields pool and the value is a donor's; else (`sex`, the label, and `bko-kb`'s
-     `age`, drawn from its band and range by the seed) it is method and seed. A `bko-kb` mapped
-     field is a knowledge fact, its value drawn from the mapping table and the codebook alone.
+     the mapping chose only which fields pool and the value is a donor's; else (`sex`, the label,
+     and `bko-kb`'s `age`, drawn from its band and range by the seed) it is method and seed. A
+     `bko-kb` mapped field is a knowledge fact, its value drawn from the mapping table and the
+     codebook alone. A direct fill's reading writes one count per class, zeros included, but
+     writes `donor-mean` only for an arm whose `DrawSpec` sets `microaggregate`, so every other
+     fill's counts keep their bytes; a fill that names an averaged field under any other arm is
+     refused.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
      rewrite arm, method and seed only under PRAM, and a training donor id under `bko-coherent`,
      whose leaf donor it names, a mapped field among them, since its value is no longer the drawn
@@ -153,7 +157,7 @@ folder.
 | Keep schema 3 and re-derive perturbation outcomes in `trace` | It needs the reply and the merge code to stay unchanged, and a schema version may grow with its runs repeated | 2026-11-08 |
 | Donor over knowledge as the attribution precedence | Every mapped field of a direct record also names a donor, so the knowledge contrast would vanish | 2026-11-24 |
 | Per-record attribution counts for a baseline | The trace holds no baseline record, only the fill's method and seed | 2026-11-24 |
-| A sixth attribution class for untraced Messages records | Each class names a value's source; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-24 |
+| A sixth attribution class for untraced Messages records | Each class names a value's source; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-26 |
 | A new trace format for the attribution reading | Every class is read from the lines `trace` writes now | 2026-11-24 |
 
 ## Enforcement

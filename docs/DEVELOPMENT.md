@@ -1547,12 +1547,15 @@ attributed to (ADR [`research/record-explainability`](adr/research/record-explai
 decision 7): `knowledge`, a field a mapping row of `<run>`'s dataset reads under an arm whose draw
 reads the mapping table; `donor`, a field with a source training record id, a field
 `bko-coherent` changed among them; `donor-mean`, a field a `bko-micro` record's `averaged`
-names, ranked after `knowledge` and before `donor`; `prompt`, a Messages record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
-of an `untraced` record among them. A pooled field of `bko-donor`, `bko-pool-random` or
+names, ranked after `knowledge` and before `donor`; `prompt`, a Messages record's field or a
+rewritten one; `method-seed`, any other, a PRAM-changed field and every field of an `untraced`
+record among them. A pooled field of `bko-donor`, `bko-pool-random` or
 `bko-pool-all` is `donor`, and a `bko-kb` record's mapped fields are `knowledge` and its `age`
 `method-seed`. It reads an arm's kind from each line, reads no data and
 makes no API call. Each record arm's fill gets one row per class, zeros included, in the unit
-`field`; a baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
+`field`, but a `donor-mean` row only for an arm whose spec sets `microaggregate`, so every other
+fill's rows keep their bytes, and a fill naming an averaged field under any other arm exits 2; a
+baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
 record. `<run>` names the dataset whose field rows and frame columns are read, and `--trace`
 takes one or more files:
 

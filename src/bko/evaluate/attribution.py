@@ -177,9 +177,8 @@ def attribution(
 ) -> str:
     """Each fill's count per class over the trace files `traces`, as CSV.
 
-    A record arm's fill writes one row per class, zeros included, in the unit `field`; a
-    baseline's one `method-seed` row in the unit `fill`. Fills are in the order the files first
-    name them. Every record's fields must be `columns`, the frame columns of the run `run`. Logs
+    A fill writes the rows of `_fill_rows`. Fills are in the order the files first name them.
+    Every record's fields must be `columns`, the frame columns of the run `run`. Logs
     `attribution spec=` once per fill of a perturbation arm that reads `DEFAULT_SPEC`,
     `attribution trace=` per file with its sha256, its lines and its untraced records, and closes
     with `attribution rows=` and the CSV's sha256.
@@ -189,7 +188,7 @@ def attribution(
             holdout, no arm of lowercase letters, digits and hyphens, or a record id that is
             neither an integer nor null; two lines across the files name one holdout, arm and
             record id; a record's fields are not `columns`; a fill's lines are of two kinds; or
-            as `classify`.
+            as `classify` and `_fill_rows`.
         OSError: If a file cannot be read.
     """
     kinds: dict[tuple[int, str], ArmKind] = {}
@@ -242,14 +241,10 @@ def attribution(
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(ATTRIBUTION_COLUMNS)
     rows = 0
-    for (holdout, arm), tally in counts.items():
-        kind = kinds[holdout, arm]
-        if kind is ArmKind.BASELINE:
-            writer.writerow((holdout, arm, kind, Attribution.SEED, "fill", tally[Attribution.SEED]))
-            rows += 1
-            continue
-        writer.writerows((holdout, arm, kind, each, "field", tally[each]) for each in Attribution)
-        rows += len(Attribution)
+    for key, tally in counts.items():
+        found = _fill_rows(*key, kinds[key], tally)
+        writer.writerows(found)
+        rows += len(found)
     text = out.getvalue()
     logger.info(
         "attribution rows=%d sha256=%s files=%d",
@@ -258,6 +253,30 @@ def attribution(
         len(traces),
     )
     return text
+
+
+def _fill_rows(
+    holdout: int, arm: str, kind: ArmKind, tally: Mapping[Attribution, int]
+) -> list[tuple[object, ...]]:
+    """One fill's CSV rows.
+
+    A record arm's fill writes one row per class, zeros included, in the unit `field`, but
+    `donor-mean` only for an arm whose `DrawSpec` sets `microaggregate`, so every other fill keeps
+    its bytes; a baseline's fill writes one `method-seed` row in the unit `fill`.
+
+    Raises:
+        EvaluationError: If the fill counts a `donor-mean` field but its arm sets no
+            `microaggregate`.
+    """
+    if kind is ArmKind.BASELINE:
+        return [(holdout, arm, kind, Attribution.SEED, "fill", tally[Attribution.SEED])]
+    spec = DIRECT_ARMS.get(base(arm))
+    averages = spec is not None and spec.microaggregate is not None
+    if tally[Attribution.MEAN] and not averages:
+        msg = f"holdout {holdout}'s {arm} fill has {tally[Attribution.MEAN]} donor-mean fields"
+        raise EvaluationError(msg + ", but its arm sets no microaggregate")
+    classes = [each for each in Attribution if each is not Attribution.MEAN or averages]
+    return [(holdout, arm, kind, each, "field", tally[each]) for each in classes]
 
 
 def _text(raw: bytes, path: Path, number: int) -> str:
