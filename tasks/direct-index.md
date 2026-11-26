@@ -28,16 +28,20 @@ unit's `milestone` is `direct-method-research`, the
    [`slm-lora-day-budget`](slm-lora-day-budget.md),
    [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) and
    [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md).
-4. After the results: [`paper-novelty`](paper-novelty.md) waits for the data and results of this
-   batch's units and the later ones, so its claim is framed against what the runs show.
+4. After the results: [`paper-novelty`](paper-novelty.md), whose edges in the graph name the
+   results units it waits for.
 
 Landing-order constraints that are not dependencies:
 
-- A unit that adds `RUNS` entries inserts them before `p1-id`.
+- A unit that adds `RUNS` entries inserts them before `p1-id`, except
+  `evaluate-p1-partial-replicas`, which inserts its two entries between `p1-ood` and `p2`.
 - `gaps-share-based-quota` lands before `evaluate-p1-partial-replicas`: both add an `Experiment`
   field.
 - `privacy-value-microaggregation` lands before `datasets-generalised-cell-axes`: both edit
   `src/bko/generate/direct.py`.
+- `evaluate-removed-truth-reading` lands before `gaps-share-based-quota`: it moves the reader
+  handlers out of `src/bko/evaluate/__main__.py` into `src/bko/evaluate/reader_commands.py`, which
+  makes room in `__main__.py` for the quota unit's subcommand.
 - `gaps-share-based-quota`'s `expected_size` reads the second cell axis by position, which
   `datasets-generalised-cell-axes` must keep.
 
@@ -93,7 +97,7 @@ Landing-order constraints that are not dependencies:
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`ontology-auto-mapping`](ontology-auto-mapping.md) | ready | -- | direct-method-research |
+| [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | paper-controls | direct-method-research |
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-day-budget`](slm-lora-day-budget.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-day-budget | direct-method-research |
@@ -109,18 +113,16 @@ Check the [official call](https://icml.cc/Conferences/2027/CallForPapers) before
 read on 2026-11-26, the call suggests creating the OpenReview account by Dec 31, 2026, and it
 carries an AI disclosure statement that the submission must follow.
 
-The chain to `paper-manuscript` runs from `paper-controls` through `paper-control-results`,
-`paper-baselines`, `paper-scarcity` and `paper-scarcity-results`, and from the composite chain
-(`evaluate-composite-arm`, `evaluate-composite-dev-results`, `evaluate-confirmatory-registration`,
-`evaluate-confirmatory-results`) into `paper-scarcity` and `paper-scarcity-results`.
+The graph below holds the chain to `paper-manuscript`, from `paper-controls` and from the
+composite chain.
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`paper-novelty`](paper-novelty.md) | blocked | paper-control-results | direct-method-research |
+| [`paper-novelty`](paper-novelty.md) | blocked | evaluate-diabetes-control-results, evaluate-quota-sweep-results, evaluate-tableshift-results, evaluate-variant-dev-results, ontology-auto-mapping-results, paper-control-results | direct-method-research |
 | [`paper-controls`](paper-controls.md) | ready | -- | direct-method-research |
 | [`paper-control-results`](paper-control-results.md) | blocked | evaluate-removed-truth-reading, paper-controls | direct-method-research |
 | [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
-| [`paper-scarcity`](paper-scarcity.md) | blocked | paper-baselines, evaluate-confirmatory-registration | direct-method-research |
+| [`paper-scarcity`](paper-scarcity.md) | blocked | evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines | direct-method-research |
 | [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity, evaluate-confirmatory-results | direct-method-research |
 | [`paper-manuscript`](paper-manuscript.md) | blocked | paper-novelty, paper-scarcity-results | direct-method-research |
 
@@ -156,6 +158,13 @@ flowchart LR
     p2[paper-control-results] --> u30[evaluate-confirmatory-registration]
     p2[paper-control-results] --> p0[paper-novelty]
     u57[evaluate-removed-truth-reading] --> p2[paper-control-results]
+    p1[paper-controls] --> u32[ontology-auto-mapping]
+    u32[ontology-auto-mapping] --> p4[paper-scarcity]
+    u7[evaluate-diabetes-control-results] --> p0[paper-novelty]
+    u19[evaluate-variant-dev-results] --> p0[paper-novelty]
+    u21[evaluate-quota-sweep-results] --> p0[paper-novelty]
+    u55[evaluate-tableshift-results] --> p0[paper-novelty]
+    u33[ontology-auto-mapping-results] --> p0[paper-novelty]
 ```
 
 ## What every unit relies on

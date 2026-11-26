@@ -1,9 +1,9 @@
 ---
 id: ontology-auto-mapping
 title: Build mapping rows automatically from a codebook and a pinned release, with no paid model
-status: ready
-depends_on: --
-blocks: ontology-auto-mapping-results
+status: blocked
+depends_on: paper-controls
+blocks: ontology-auto-mapping-results, paper-scarcity
 parallel_safe: true
 milestone: direct-method-research
 paid: false

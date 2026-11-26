@@ -3,7 +3,7 @@ id: evaluate-diabetes-control-results
 title: Run the Diabetes 130 control family and read each contrast's branch
 status: ready
 depends_on: --
-blocks: evaluate-confirmatory-registration, evaluate-quota-sweep-results
+blocks: evaluate-confirmatory-registration, evaluate-quota-sweep-results, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false

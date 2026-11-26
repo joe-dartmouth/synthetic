@@ -3,7 +3,7 @@ id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
 depends_on: privacy-value-microaggregation
-blocks: evaluate-composite-arm
+blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false

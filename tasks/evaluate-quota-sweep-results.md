@@ -3,7 +3,7 @@ id: evaluate-quota-sweep-results
 title: Run the quota sweep and read representativeness and recall per count
 status: blocked
 depends_on: evaluate-diabetes-control-results, gaps-share-based-quota
-blocks: evaluate-composite-arm
+blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false

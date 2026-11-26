@@ -3,7 +3,7 @@ id: ontology-auto-mapping-results
 title: Run the automatic mappings against the hand mapping on the development frames
 status: blocked
 depends_on: ontology-auto-mapping
-blocks: --
+blocks: paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false

@@ -3,7 +3,7 @@ id: evaluate-tableshift-results
 title: Run the TableShift readmission runs and read them beside its Table 7
 status: blocked
 depends_on: evaluate-p1-partial-replicas
-blocks: --
+blocks: paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false

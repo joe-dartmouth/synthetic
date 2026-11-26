@@ -2,7 +2,7 @@
 id: paper-scarcity
 title: Register a paired support-removal and knowledge-quality sweep
 status: blocked
-depends_on: paper-baselines, evaluate-confirmatory-registration
+depends_on: evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines
 blocks: paper-scarcity-results
 parallel_safe: false
 milestone: direct-method-research

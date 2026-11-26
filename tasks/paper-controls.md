@@ -3,7 +3,7 @@ id: paper-controls
 title: Isolate the contribution of external knowledge
 status: ready
 depends_on: --
-blocks: paper-control-results
+blocks: ontology-auto-mapping, paper-control-results
 parallel_safe: false
 milestone: direct-method-research
 paid: false
