@@ -5,6 +5,8 @@ ADR `research/sampler-donor-limits` fixes the rule each test reads.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections import Counter
 from collections.abc import Mapping
@@ -231,6 +233,25 @@ def test_the_capped_draw_is_deterministic_per_seed():
     quota = {YOUNG_WOMEN_1: 6, YOUNG_WOMEN_0: 6}
     assert draw(train, quota, CAPPED, seed=7) == draw(train, quota, CAPPED, seed=7)
     assert draw(train, quota, CAPPED, seed=7) != draw(train, quota, CAPPED, seed=8)
+
+
+CAPPED_DIGEST: Final = "9fcabb3b3fe2eef086e1712594d01afe52cd7facb0d90f935541cd256994e5ce"
+"""The sha256 of seeds 0-4's `bko-capped` draws on `varied()`, computed before `microaggregate`
+joined the spec; it guards `bko-capped`'s draw."""
+
+
+def test_the_capped_draw_is_pinned_by_digest():
+    train = varied()
+    quota = {YOUNG_WOMEN_1: 6, YOUNG_WOMEN_0: 6}
+    draws = [
+        [
+            [dict(d.record), sorted(d.concepts), sorted(d.closed), sorted(d.fallback), d.sources]
+            for d in draw(train, quota, CAPPED, seed=seed)
+        ]
+        for seed in range(5)
+    ]
+    found = hashlib.sha256(json.dumps(draws, sort_keys=True, default=dict).encode()).hexdigest()
+    assert found == CAPPED_DIGEST
 
 
 def test_each_cells_limits_line_carries_its_own_counts(caplog):
