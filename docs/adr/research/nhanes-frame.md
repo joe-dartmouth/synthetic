@@ -177,9 +177,10 @@ edges=frame.edges).train`, as this command does:
 
     uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, open_https; from bko.datasets.frames import digest; from bko.datasets.split import split; from bko.ontology.catalog import CATALOG; records, frame = CATALOG["nhanes"].read(default_data_dir(), open_url=open_https); train = split(records, seed=0, edges=frame.edges).train; print(len(records), int(records["target"].sum()), len(train), int(train["target"].sum()), round(float(train["target"].mean()), 4), digest(train))' </dev/null
 
-Its `cohort` line reads `demographics=11933 interviewed=11744 adults=7809 any_yes=937
-all_no=6832 left_out=40 records=7769 composite=937`: 11,744 respondents hold a medical-conditions
-record, 7,809 of them are 20 and over, and 40 adults are left out with no yes and an unknown
+Run at `31b8c6f`, the loader's `cohort` line reads `demographics=11933 with_conditions=11744
+adults=7809 any_yes=937 all_no=6832 left_out=40 records=7769 composite=937 measured_BPXOSY=5839
+measured_BPXODI=5839 measured_LBXGH=5744 measured_LBXTC=5476 measured_LBDHDD=5476
+measured_BMXBMI=5946`: 11,744 respondents hold a medical-conditions record, 7,809 of them are 20 and over, and 40 adults are left out with no yes and an unknown
 answer. The adult frame holds 7,769 records, 937 with the composite, inside the 402 to 1,444 the
 selection ADR bounds. The training split holds 6,215 records, 750 of them with the composite, a
 rate of 0.1207, digest `9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The
@@ -187,27 +188,28 @@ split is above the 5,000 records condition 5 asks. The readings below are record
 after the count's. These are commits of pull request #137, kept at `refs/pull/137/head` after its
 squash merge.
 
-**The readings, at `db2cc4f`, after the count.** `uv run --no-sync python -m bko.ontology check`
-exited 0, its log ending `checked 614 rows: 0 disagree`. The gap listing is run `d1-6`, `uv run
---no-sync python -m bko.gaps nhanes` into `runs/d1-6/gaps-nhanes.csv` and
-`runs/d1-6/gaps-nhanes.log`, exit 0, closing `gaps rows=63
+**The readings, at `31b8c6f`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0 at `db2cc4f`, its log ending `checked 614 rows: 0 disagree`. The gap listing is run
+`d1-7`, `uv run --no-sync python -m bko.gaps nhanes` into `runs/d1-7/gaps-nhanes.csv` and
+`runs/d1-7/gaps-nhanes.log`, exit 0, closing `gaps rows=63
 sha256=9e86c72e13a9a51081505de299539f102cdd7da48e48d65a89aa9a8e934b1979`: per-subgroup 11 gaps in
 one cell, `<40/female/1`, whose 10 records hold one of the five mapped concepts; population-level
 none; frequency-aware 50 in 7 cells; and two cells below the count threshold of 20,
 `<40/female/1` with 10 records and `<40/male/1` with 9. Its csv sha256 is
 `9e86c72e13a9a51081505de299539f102cdd7da48e48d65a89aa9a8e934b1979` and its log sha256
-`deb05751e22d68052d84d3ec8b02dffc75fef833afa3b8ee37f2997845f4f3d1`; its `data` line gives the
+`51c17cf09f58a40c5e657b7fcd4e10f357d69753678d68f154979a7f2c5b8648`; its `data` line gives the
 7,769 records' digest `602b6ed761f5afe22b0ce58d95c3c987a75d6d0834dbabdba268bace5b3e11ad` and its
 `split` line the test fingerprint
-`66905e31f88bee07a0ee5586d12b50b6d3876fe05ac29136e9b20bb0a81bd510`. The census is run `d2-6`,
+`66905e31f88bee07a0ee5586d12b50b6d3876fe05ac29136e9b20bb0a81bd510`. The census is run `d2-7`,
 `uv run --no-sync python -m bko.evaluate contradictions --dataset nhanes` into
-`runs/d2-6/contradictions.csv` and `runs/d2-6/contradictions.log`, exit 0: every `census kind=`
+`runs/d2-7/contradictions.csv` and `runs/d2-7/contradictions.log`, exit 0: every `census kind=`
 count is 0 (`narrow-without-broad`, `child-share-above-parent`, `empty-cell`, `all-show`,
 `code-overlap`), over 12 of 12 cells and 5 rows, with no `is_a` pair among the mapped concepts.
 Its csv sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header
-alone) and its log sha256 `1606a1e55ee3aa1de8142600d0d32949da7e6e6853cfe14a91ba613f66d59efb`.
-Both read the seven pinned files and HPO `hp/releases/2026-09-01`; the census's `versions` line
-reads `dirty=true`, the tree holding one untracked file, the pinned test this commit adds.
+alone) and its log sha256 `de0e62bdc35e7aeaac96cee9b322402f64a82d09532e681c699adc3ad9be150c`.
+Both read the seven pinned files and HPO `hp/releases/2026-09-01`, and each log's `versions` line
+reads `dirty=false`. Each csv is byte for byte the one runs `d1-6` and `d2-6` wrote at `db2cc4f`
+from a tree holding one untracked file; [`EVIDENCE.md`](../../EVIDENCE.md) keeps their rows.
 `tests/test_datasets_nhanes_pinned.py` passes with `--releases`.
 
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
