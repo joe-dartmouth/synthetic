@@ -9,8 +9,6 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) is the mechanism reading
-   `paper-control-results` needs;
    [`privacy-value-microaggregation`](privacy-value-microaggregation.md) unblocks the variant runs;
    [`gaps-share-based-quota`](gaps-share-based-quota.md) unblocks the quota sweep;
    [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) gates the registration;
@@ -38,9 +36,6 @@ Landing-order constraints that are not dependencies:
   field.
 - `privacy-value-microaggregation` lands before `datasets-generalised-cell-axes`: both edit
   `src/bko/generate/direct.py`.
-- `evaluate-removed-truth-reading` lands before `gaps-share-based-quota`: it moves the reader
-  handlers out of `src/bko/evaluate/__main__.py` into `src/bko/evaluate/reader_commands.py`, which
-  makes room in `__main__.py` for the quota unit's subcommand.
 - `gaps-share-based-quota`'s `expected_size` reads the second cell axis by position, which
   `datasets-generalised-cell-axes` must keep.
 
@@ -57,7 +52,6 @@ Landing-order constraints that are not dependencies:
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) | ready | -- | direct-method-research |
 | [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | ready | -- | direct-method-research |
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | privacy-value-microaggregation | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
@@ -120,7 +114,7 @@ composite chain.
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`paper-novelty`](paper-novelty.md) | blocked | evaluate-diabetes-control-results, evaluate-quota-sweep-results, evaluate-tableshift-results, evaluate-variant-dev-results, ontology-auto-mapping-results, paper-control-results | direct-method-research |
-| [`paper-control-results`](paper-control-results.md) | blocked | evaluate-removed-truth-reading | direct-method-research |
+| [`paper-control-results`](paper-control-results.md) | ready | -- | direct-method-research |
 | [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
 | [`paper-scarcity`](paper-scarcity.md) | blocked | evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines | direct-method-research |
 | [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity, evaluate-confirmatory-results | direct-method-research |
@@ -156,7 +150,6 @@ flowchart LR
     u7[evaluate-diabetes-control-results] --> u21[evaluate-quota-sweep-results]
     p2[paper-control-results] --> u30[evaluate-confirmatory-registration]
     p2[paper-control-results] --> p0[paper-novelty]
-    u57[evaluate-removed-truth-reading] --> p2[paper-control-results]
     u32[ontology-auto-mapping] --> p4[paper-scarcity]
     u7[evaluate-diabetes-control-results] --> p0[paper-novelty]
     u19[evaluate-variant-dev-results] --> p0[paper-novelty]

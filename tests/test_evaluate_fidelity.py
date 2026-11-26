@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pandas as pd
 import pytest
 from sdmetrics.reports import QualityReport
 
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.fidelity import MEASURES, fidelity, metadata, quality_report
+from bko.evaluate.fidelity import MEASURES, fidelity, metadata, quality_report, report_scores
 from bko.evaluate.scores import Measure
 from tests._baselines_fixtures import full_records
 
@@ -76,3 +78,32 @@ def test_a_small_table_scores_as_sdmetrics_own_report():
     ours = quality_report(FRAME, synthetic, frame=UCI_FRAME)
     assert ours.get_score() == plain.get_score()
     assert ours.get_properties().equals(plain.get_properties())
+
+
+def test_report_scores_read_both_properties_and_each_column_shape():
+    shifted = FRAME.assign(chol=FRAME["chol"] + 1000)
+    report = quality_report(FRAME, shifted, frame=UCI_FRAME)
+    found = report_scores(report, columns=("chol", "age"))
+    properties = report.get_properties().set_index("Property")["Score"]
+    assert found.shapes == properties["Column Shapes"]
+    assert found.pair_trends == properties["Column Pair Trends"]
+    assert found.columns == pytest.approx({"chol": 0.0, "age": 1.0})
+
+
+class _Partial:
+    """A report whose properties lack column pair trends and whose details lack `chol`."""
+
+    def get_properties(self) -> pd.DataFrame:
+        return pd.DataFrame({"Property": ["Column Shapes"], "Score": [0.5]})
+
+    def get_details(self, name: str) -> pd.DataFrame:
+        assert name == "Column Shapes"
+        return pd.DataFrame({"Column": ["age"], "Score": [0.25]})
+
+
+def test_a_missing_property_or_column_reads_nan():
+    found = report_scores(_Partial(), columns=("age", "chol"))  # ty: ignore[invalid-argument-type]
+    assert found.shapes == pytest.approx(0.5)
+    assert math.isnan(found.pair_trends)
+    assert found.columns["age"] == pytest.approx(0.25)
+    assert math.isnan(found.columns["chol"])

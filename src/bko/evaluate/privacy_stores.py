@@ -1,4 +1,4 @@
-"""The `rows` stores a privacy or added-rows reading reads, each read back, checked and bound.
+"""The `rows` stores a privacy, added-rows or truth reading reads, each read back, checked, bound.
 
 `read` returns the store that holds each holdout of a run, refusing stores of another run, a
 folder outside the runs directory, overlapping or missing holdouts, and fills that are not the
@@ -45,7 +45,7 @@ def read(
     experiment: Experiment,
     runs: Mapping[str, NamedRun],
     root: Path,
-    verb: Literal["privacy", "added"] = "privacy",
+    verb: Literal["privacy", "added", "truth"] = "privacy",
 ) -> dict[int, Store]:
     """Read and check each store; return the store that holds each of `run`'s holdouts.
 
@@ -54,8 +54,8 @@ def read(
     `log_sha256` and one fill line per `arm` line), and the stores' holdouts partition `run`'s.
     Each holdout's fills are the experiment's arms' and their replicas'. Each bound store logs
     `<verb> store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
-    bytes it was parsed from, `verb` the reading's: `privacy` or `added`. An error echoes at most
-    `SHOWN` characters of a header value.
+    bytes it was parsed from, `verb` the reading's: `privacy`, `added` or `truth`. An error
+    echoes at most `SHOWN` characters of a header value.
 
     Raises:
         OSError: If a store or folder cannot be read.

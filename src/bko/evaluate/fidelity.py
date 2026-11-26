@@ -9,7 +9,9 @@ requires.
 from __future__ import annotations
 
 import copy
-from collections.abc import Sequence
+import math
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, Final
 
 import pandas as pd
@@ -74,14 +76,43 @@ def _every_row(report: QualityReport) -> None:
     pairs._configure_single_table_property = every_row
 
 
+@dataclass(frozen=True, slots=True)
+class ReportScores:
+    """A quality report's two properties and the column shapes it read.
+
+    Attributes:
+        shapes: The column shapes score.
+        pair_trends: The column pair trends score.
+        columns: Each requested column's shape, in the requested order.
+    """
+
+    shapes: float
+    pair_trends: float
+    columns: Mapping[str, float]
+
+
+def report_scores(report: QualityReport, *, columns: Sequence[str]) -> ReportScores:
+    """`report`'s column shapes and pair trends scores, and each of `columns`' shape.
+
+    A property the report's properties lack, or a column its column-shapes details lack, reads NaN.
+    """
+    properties = report.get_properties().set_index("Property")["Score"]
+    details = report.get_details("Column Shapes").set_index("Column")["Score"]
+    return ReportScores(
+        float(properties.get("Column Shapes", math.nan)),
+        float(properties.get("Column Pair Trends", math.nan)),
+        {name: float(details.get(name, math.nan)) for name in columns},
+    )
+
+
 def fidelity(
     reference: pd.DataFrame, synthetic: pd.DataFrame, *, frame: FrameSpec
 ) -> dict[Measure, float]:
     """The quality score and its two properties for `synthetic` against `reference`."""
     report = quality_report(reference, synthetic, frame=frame)
-    properties = report.get_properties().set_index("Property")["Score"]
+    found = report_scores(report, columns=())
     return {
         Measure.QUALITY: float(report.get_score()),
-        Measure.COLUMN_SHAPES: float(properties["Column Shapes"]),
-        Measure.COLUMN_PAIR_TRENDS: float(properties["Column Pair Trends"]),
+        Measure.COLUMN_SHAPES: found.shapes,
+        Measure.COLUMN_PAIR_TRENDS: found.pair_trends,
     }

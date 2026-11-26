@@ -1,8 +1,8 @@
 ---
 id: paper-control-results
 title: Read the matched development contrasts
-status: blocked
-depends_on: evaluate-removed-truth-reading
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration, paper-baselines, paper-novelty
 parallel_safe: false
 milestone: direct-method-research
@@ -49,9 +49,17 @@ Relate findings to E9 and the existing
 - Once E12 has run (unit
   [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md)), it checks that
   E19's `bko-direct`, `none` and `real` scores equal E12's per holdout.
-- It reads E6's removed-truth reading, over the E6 `rows` stores unit
-  [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) reads, beside the
-  downstream contrasts.
+- It reads E6's removed-truth reading beside the downstream contrasts: each arm's added rows in
+  the removed cell scored against the removal's dropped records (ADR
+  [`research/removed-truth-reading`](../docs/adr/research/removed-truth-reading.md)). E6's
+  readings are `runs/e6-52` (`e6-thin`, stores `runs/e6-25-rows` to `runs/e6-34-rows`, tag
+  `run/e6-52`) and `runs/e6-53` (`e6-empty`, stores `runs/e6-35-rows` to `runs/e6-44-rows`, tag
+  `run/e6-53`), in E6's Runs row
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
+  [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) holds the reader's command; run
+  from a worktree detached at a `run/<id>` tag, it passes the main checkout's `runs` and `data`
+  as `--runs-dir` and `--data-dir`, as without `--runs-dir` it looks for run folders under the
+  worktree.
 - The decision is recorded in E19's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md).
 
 ## Acceptance

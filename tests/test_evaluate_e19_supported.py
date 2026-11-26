@@ -18,7 +18,7 @@ from typing import Final
 import pytest
 
 from bko.datasets.split import held_out_count, split
-from bko.evaluate.__main__ import _named, main
+from bko.evaluate.__main__ import main
 from bko.evaluate.attribution import Attribution
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, frame, load
@@ -29,6 +29,7 @@ from bko.evaluate.holdout_candidates import KEPT, read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.prepare import prepared
 from bko.evaluate.run import method_arms
+from bko.evaluate.run_context import named as named_run
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.runs_direct import E19_SUPPORTED_ARMS, E19_SUPPORTED_THIN
 from bko.evaluate.scores import Source, parse
@@ -135,7 +136,7 @@ def test_a_kb_fill_traces_to_knowledge_and_seed_alone(scored, tmp_path, caplog):
 
 def test_privacys_redraw_of_a_kb_fill_names_no_donor(scored):
     data_root = scored.parent / "data"
-    named = _named("e19-toy", _context())
+    named = named_run("e19-toy", _context())
     data = load(named.dataset, data_root, named)
     concepts = {row.concept for row in data.field_rows}
     ontologies, _ = load_scope(

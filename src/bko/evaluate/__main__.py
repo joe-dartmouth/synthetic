@@ -1,6 +1,6 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`,
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`, `truth`,
 `likelihood`, `contradictions`, `trace`, `attribution`, `syntheval`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
@@ -29,6 +29,8 @@ with calibration, from the store at PATH that `rows` wrote, to stdout (`bko.eval
 `privacy RUN --rows PATH...` reads the membership attack, NNDR and DCR of RUN's stores, one per
 slice, whose folders sit under the runs root, to stdout, and logs the reading rule
 (`bko.evaluate.membership`).
+`truth RUN --rows PATH...` reads each arm's gap fill rows in RUN's removed cell against the
+records the removal took, from the same stores, to stdout (`bko.evaluate.truth`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -71,12 +73,13 @@ directory does not, paid arms with no `--log` or `--candidates`, a direct arm wi
 paid or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a
-run, a `privacy` run with no reference arm or removed cell, a `contradictions` run without
-`--rows`, a `syntheval` run with no `make syntheval-env` environment or whose script fails or
-runs past its timeout, a `trace` of a holdout, arm or record the folder does not hold or over a
-call log line it cannot read, and scores whose validity cannot be read;
+run, a `privacy` run with no reference arm or removed cell, a `truth` run with no removal, a
+`contradictions` run without `--rows`, a `syntheval` run with no `make syntheval-env`
+environment or whose script fails or runs past its timeout, a `trace` of a holdout, arm or
+record the folder does not hold or over a call log line it cannot read, and scores whose
+validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
-contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`,
+contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`, `truth`,
 `syntheval` or `trace` run folder or store fails an identity check, a `trace` re-draw
 included, or a `contradictions --rows` store does.
 """
@@ -88,7 +91,6 @@ import hashlib
 import logging
 import sys
 from collections.abc import Iterator, Sequence
-from dataclasses import replace
 from pathlib import Path
 from typing import TextIO
 
@@ -98,34 +100,34 @@ from bko.bkb.errors import BKBError
 from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.run_folders import RUN_ID
-from bko.evaluate.added_contradictions import run_added
 from bko.evaluate.arguments import parser
 from bko.evaluate.attribution import run_attribution
 from bko.evaluate.compare import compare
 from bko.evaluate.context import Context
-from bko.evaluate.contradictions import run as census
-from bko.evaluate.data import Dataset, dataset_releases, load
-from bko.evaluate.donor_attacks import DONOR_ARMS
+from bko.evaluate.data import load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import PAID_ARMS
 from bko.evaluate.holdout_candidates import HoldoutCandidates
 from bko.evaluate.launch import launch
 from bko.evaluate.likelihood import candidates_file, likelihood
-from bko.evaluate.membership import privacy
 from bko.evaluate.merge import merge
-from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun, sliced
-from bko.evaluate.panel import panel
+from bko.evaluate.named_runs import NamedRun, sliced
 from bko.evaluate.provenance import log_experiment, log_versions
+from bko.evaluate.reader_commands import (
+    _contradictions,
+    _panel,
+    _privacy,
+    _rows,
+    _shared,
+    _truth,
+)
 from bko.evaluate.resumes import resumable
-from bko.evaluate.rows import creatable, store
-from bko.evaluate.rows_read import read_rows
-from bko.evaluate.run_folder import read_folder
+from bko.evaluate.run_context import named as named_run
+from bko.evaluate.run_context import runs_root
 from bko.evaluate.scoring import data_dir, score
-from bko.evaluate.shared import rescore
 from bko.evaluate.supervise import supervise
 from bko.evaluate.syntheval_reading import run_syntheval
 from bko.evaluate.trace import run_trace
-from bko.gaps.scope import load_scope
 from bko.generate.api import HTTP_LOGGERS
 from bko.generate.errors import GenerationError
 from bko.generate.resume_guard import Ceiling
@@ -161,7 +163,7 @@ def main(
     try:
         if args.command != "score":
             return _other(args, context, sink)
-        text = score(args, _named(args.run, context))
+        text = score(args, named_run(args.run, context))
     except (EvaluationError, BaselineError, DatasetError, GenerationError, BKBError) as exc:
         # The message is the diagnosis; a traceback would read as a crash.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -181,7 +183,7 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_launch(args, context))
     elif args.command == "merge":
         log_versions()
-        sink.write(merge(_named(args.run, context).experiment.holdout_seeds, args.scores))
+        sink.write(merge(named_run(args.run, context).experiment.holdout_seeds, args.scores))
     elif args.command == "likelihood":
         _likelihood(args, context, sink)
     elif args.command == "shared":
@@ -192,14 +194,16 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_panel(args, context))
     elif args.command == "privacy":
         sink.write(_privacy(args, context))
+    elif args.command == "truth":
+        sink.write(_truth(args, context))
     elif args.command == "contradictions":
         sink.write(_contradictions(args, context))
     elif args.command == "trace":
-        sink.write(run_trace(args, _named(args.run, context)))
+        sink.write(run_trace(args, named_run(args.run, context)))
     elif args.command == "attribution":
-        sink.write(run_attribution(args, _named(args.run, context)))
+        sink.write(run_attribution(args, named_run(args.run, context)))
     elif args.command == "syntheval":
-        sink.write(run_syntheval(args, _named(args.run, context)))
+        sink.write(run_syntheval(args, named_run(args.run, context)))
     else:
         _compare(args, context, sink)
     return 0
@@ -220,7 +224,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
         msg = f"{args.run_id!r} is not a run id of record, such as e1-4"
         raise EvaluationError(msg)
     name = args.run or match["entry"]
-    context = _named(name, context)
+    context = named_run(name, context)
     if not set(context.experiment.arms) & PAID_ARMS:
         msg = f"the run {name!r} has no paid arm, so it spends nothing to launch"
         raise EvaluationError(msg)
@@ -235,7 +239,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
     found = launch(
         args.run_id,
         name,
-        root=_runs_root(args, context),
+        root=runs_root(args, context),
         data_dir=args.data_dir,
         dry_run=args.dry_run,
         rehearse=args.rehearse,
@@ -252,7 +256,7 @@ def _launch(args: argparse.Namespace, context: Context) -> str:
 
 def _supervise(args: argparse.Namespace, context: Context) -> int:
     """Run the launched run's segments; return the last one's exit code."""
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     return supervise(
         args.run_id,
         args.run,
@@ -274,7 +278,7 @@ def _supervise(args: argparse.Namespace, context: Context) -> int:
 def _compare(args: argparse.Namespace, context: Context, sink: TextIO) -> None:
     """Judge the scores of the run `args.run` and write the table to `sink`."""
     log_versions()
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     compare(
         named.experiment,
         args.candidate,
@@ -301,7 +305,7 @@ def _likelihood(args: argparse.Namespace, context: Context, sink: TextIO) -> Non
             schema-2, schema-3 or schema-4 file's data digest is not the run's data's.
         CandidatesFormatError: If a file is not a candidates file.
     """
-    named = _named(args.run, context)
+    named = named_run(args.run, context)
     paths: list[Path] = args.candidates
     single = len(paths) == 1
     pending = [candidates_file(paths[0], args.run, named.dataset, single=single)]
@@ -345,148 +349,6 @@ def _slice(name: str, run: str, whole: Context) -> None:
     if part is None or not sliced(part, NamedRun(whole.experiment, whole.settings, whole.dataset)):
         msg = f"the candidates file is run {name!r}'s, which is not a slice of {run!r}"
         raise EvaluationError(msg)
-
-
-def _shared(args: argparse.Namespace, context: Context) -> str:
-    """Rescore the folder's run less every `--with` folder's copies; read every file first."""
-    named = _named(args.run, context)
-    folder, others = read_folder(args.folder), [read_folder(path) for path in args.others]
-    data = load(named.dataset, data_dir(args), named)
-    uci = named.dataset is Dataset.UCI
-    return rescore(
-        folder,
-        others,
-        run=args.run,
-        experiment=named.experiment,
-        data=data,
-        arms=named.arms,
-        models=named.models,
-        uci=uci,
-    )
-
-
-def _rows(args: argparse.Namespace, context: Context) -> str:
-    """Rescore the folder's run and store every checked holdout's fills at `--rows`.
-
-    A `--rows` path that exists, or whose directory does not, is refused before any file is read.
-    """
-    creatable(args.rows)
-    named = _named(args.run, context)
-    folder = read_folder(args.folder)
-    data = load(named.dataset, data_dir(args), named)
-    return store(
-        folder,
-        args.rows,
-        run=args.run,
-        experiment=named.experiment,
-        data=data,
-        arms=named.arms,
-        models=named.models,
-        uci=named.dataset is Dataset.UCI,
-    )
-
-
-def _panel(args: argparse.Namespace, context: Context) -> str:
-    """Score the folder's run under the context's panel from its `--rows` store."""
-    named = _named(args.run, context)
-    folder, rows = read_folder(args.folder), read_rows(args.rows)
-    data = load(named.dataset, data_dir(args), named)
-    return panel(
-        folder,
-        rows,
-        store=args.rows,
-        run=args.run,
-        experiment=named.experiment,
-        data=data,
-        arms=named.arms,
-        models=named.panel,
-        uci=named.dataset is Dataset.UCI,
-    )
-
-
-def _privacy(args: argparse.Namespace, context: Context) -> str:
-    """Read the run's privacy from its `--rows` stores, whose folders sit under the runs root.
-
-    A run with an arm of `DONOR_ARMS` loads the pinned releases of the data's mapped concepts,
-    which its fills are re-drawn under.
-    """
-    log_versions()
-    named = _named(args.run, context)
-    root = data_dir(args)
-    data = load(named.dataset, root, named)
-    ontologies = None
-    if DONOR_ARMS & set(named.experiment.arms):
-        concepts = {row.concept for row in data.field_rows}
-        releases = dataset_releases(named.dataset, named)
-        ontologies, _ = load_scope(concepts, root, releases=releases, open_url=named.open_url)
-    return privacy(
-        args.run,
-        args.stores,
-        experiment=named.experiment,
-        data=data,
-        runs=named.runs,
-        root=_runs_root(args, context),
-        ontologies=ontologies,
-    )
-
-
-def _contradictions(args: argparse.Namespace, context: Context) -> str:
-    """The census, or with `--rows` the named run's added rows, loading its data's releases.
-
-    Raises:
-        EvaluationError: If a run comes with `--dataset`, or a run or `--runs-dir` without
-            `--rows`.
-    """
-    if args.datasets is not None and args.run is not None:
-        msg = (
-            f"contradictions --dataset reads the census of the named frames, which takes no run, "
-            f"not {args.run!r}; a run's added rows are read with --rows"
-        )
-        raise EvaluationError(msg)
-    if args.stores is None:
-        if args.run is not None or args.runs_dir is not None:
-            msg = "contradictions reads a run's added rows from its stores, so it needs --rows"
-            raise EvaluationError(msg)
-        return census(data_dir(args), context, args.datasets)
-    log_versions()
-    run = args.run or DEFAULT_RUN
-    named = _named(run, context)
-    root = data_dir(args)
-    data = load(named.dataset, root, named)
-    concepts = {row.concept for row in data.field_rows}
-    releases = dataset_releases(named.dataset, named)
-    ontologies, _ = load_scope(concepts, root, releases=releases, open_url=named.open_url)
-    return run_added(
-        run,
-        args.stores,
-        data=data,
-        ontologies=ontologies,
-        experiment=named.experiment,
-        runs=named.runs,
-        root=_runs_root(args, context),
-    )
-
-
-def _runs_root(args: argparse.Namespace, context: Context) -> Path:
-    """The run folders' root: `--runs-dir` when given, else the context's."""
-    return args.runs_dir if args.runs_dir is not None else context.runs_root()
-
-
-def _named(name: str, context: Context) -> Context:
-    """`context` with the experiment, settings and dataset of the run `name`.
-
-    `e1` is the context's own experiment, settings and dataset, so a test can stand in for it.
-
-    Raises:
-        EvaluationError: If no run has that name.
-    """
-    if name == DEFAULT_RUN:
-        return context
-    run = context.runs.get(name)
-    if run is None:
-        msg = f"no run named {name!r}; the runs are {', '.join(sorted(context.runs))}"
-        raise EvaluationError(msg)
-    return replace(context, experiment=run.experiment, settings=run.settings, dataset=run.dataset)
 
 
 def configure_logging() -> None:

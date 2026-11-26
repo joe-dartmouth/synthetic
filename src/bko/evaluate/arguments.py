@@ -20,6 +20,7 @@ from bko.evaluate.rows import add_parser as add_rows
 from bko.evaluate.shared import add_parser
 from bko.evaluate.syntheval_reading import add_parser as add_syntheval
 from bko.evaluate.trace import add_parser as add_trace
+from bko.evaluate.truth import add_parser as add_truth
 from bko.generate.flight import IN_FLIGHT
 
 
@@ -155,6 +156,7 @@ def parser(description: str | None) -> argparse.ArgumentParser:
         add_rows,
         add_panel,
         add_privacy,
+        add_truth,
         add_contradictions,
         add_trace,
         add_attribution,
