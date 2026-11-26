@@ -110,8 +110,10 @@ robustness and theory Dec 19-Jan 3, writing, novelty and coauthor review Jan 4-1
 checks Jan 14-22. Submission opens Jan 8, abstract due Jan 14, paper due Jan 22.
 First-stage decisions are due Feb 23 and final decisions May 3. Conference July 31-Aug 6.
 Check the [official call](https://icml.cc/Conferences/2027/CallForPapers) before submission. As
-read on 2026-11-26, the call suggests creating the OpenReview account by Dec 31, 2026, and it
-carries an AI disclosure statement that the submission must follow.
+read on 2026-11-26, the call lists contribution types, not tracks, "Datasets, Evaluations and
+Benchmarks" among them; limits the main paper to 8 pages; gives a "Suggested OpenReview account
+creation deadline: December 31, 2026 AOE"; states "All submissions must include an AI Disclosure
+Statement."; and has each submission designate one author as a reciprocal reviewer.
 
 The graph below holds the chain to `paper-manuscript`, from `paper-controls` and from the
 composite chain.
