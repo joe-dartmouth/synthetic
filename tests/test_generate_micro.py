@@ -6,6 +6,7 @@ ADR `research/sampler-donor-limits` fixes the rule each test reads.
 from __future__ import annotations
 
 import logging
+import math
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Final
@@ -20,7 +21,7 @@ from bko.generate.direct import Draw, sample
 from bko.generate.donors import _Limits, _Source
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
-from bko.generate.micro import pick_mean
+from bko.generate.micro import Means
 from bko.ontology.mapping import FIELD_MAPPINGS
 from bko.ontology.schema import AtLeast
 from tests._validate_fixtures import planted
@@ -72,18 +73,9 @@ def mean(
     limits: _Limits | None = None,
     seed: int = 0,
 ) -> tuple[_Source, bool, tuple[int, ...]]:
-    """`pick_mean` on `own` and `other` at `MICRO`'s limits unless `limits` is given."""
-    return pick_mean(
-        YOUNG_WOMEN_1,
-        fields,
-        own,
-        other,
-        np.random.default_rng(seed),
-        k=k,
-        limits=_Limits(2, 1, k) if limits is None else limits,
-        frame=UCI_FRAME,
-        clauses=CLAUSES,
-    )
+    """`Means.pick` on `own` and `other` at `MICRO`'s limits unless `limits` is given."""
+    means = Means(k, CLAUSES, UCI_FRAME, _Limits(2, 1, k) if limits is None else limits)
+    return means.pick(YOUNG_WOMEN_1, fields, own, other, np.random.default_rng(seed))
 
 
 def young_women(values: Sequence[Mapping[str, object]], men: int = 0) -> pd.DataFrame:
@@ -138,19 +130,19 @@ def test_a_mean_only_donor_counts_one_kth():
     assert (sorted(ids), fell) == ([4, 5, 6], True)
 
 
-def test_a_donor_used_twice_in_means_is_refused_as_a_primary():
+def test_a_donor_already_in_a_mean_is_refused_as_a_primary_of_a_coded_unit():
     fields = ("oldpeak", "slope")
     own = sources("oldpeak", [0.5, 0.6, 0.7, 0.8])
     entered = []
     for seed in range(20):
         limits = _Limits(2, 1, 3)
-        limits.used[fields, 1] = 2
+        limits.used[fields, 1] = 1
         (source, _), _, ids = mean(own, fields=fields, limits=limits, seed=seed)
         assert source != 1
         assert limits.used[fields, source] == 3, "a primary of a coded unit weighs k"
         if 1 in ids:
             entered.append(seed)
-            assert limits.used[fields, 1] == 3, "a mean-only donor weighs 1"
+            assert limits.used[fields, 1] == 2, "a mean-only donor weighs 1"
     assert entered, "donor 1 never entered a mean as a non-primary donor"
 
 
@@ -201,6 +193,46 @@ def test_a_fractional_mean_rounds_to_the_frames_digits():
     assert repr(chosen["oldpeak"]) == "0.2"
 
 
+def test_a_fractional_mean_at_a_half_rounds_to_the_even_digit():
+    (_, chosen), _, _ = mean(sources("oldpeak", [0.3, 0.4]), fields=("oldpeak", "slope"), k=2)
+    assert repr(chosen["oldpeak"]) == "0.4"
+
+
+def test_a_mean_rounded_to_zero_is_never_negative_zero():
+    own = sources("oldpeak", [-0.1, 0.0, 0.0])
+    (_, chosen), _, _ = mean(own, fields=("oldpeak", "slope"))
+    assert repr(chosen["oldpeak"]) == "0.0"
+
+
+def test_a_means_donors_share_the_side_of_a_numeric_cutoff():
+    chol = dict(enumerate([200, 201, 202, 300, 301, 302], start=1))
+    sides = set()
+    for seed in range(20):
+        _, fell, ids = mean(sources("chol", list(chol.values())), seed=seed)
+        assert not fell
+        (side,) = {chol[i] >= 240 for i in ids}
+        sides.add(side)
+    assert sides == {True, False}
+
+
+def test_a_means_donors_share_the_units_coded_values():
+    own = [(1 + i, {"oldpeak": 0.1 * i, "slope": 1 + i // 3}) for i in range(6)]
+    slope = {source: values["slope"] for source, values in own}
+    slopes = set()
+    for seed in range(20):
+        _, fell, ids = mean(own, fields=("oldpeak", "slope"), seed=seed)
+        assert not fell
+        (shared,) = {slope[i] for i in ids}
+        slopes.add(shared)
+    assert slopes == {1, 2}
+
+
+def test_a_missing_averaged_value_is_refused_naming_its_field():
+    own = sources("chol", [200, math.nan, 210, 220])
+    with pytest.raises(SamplingError, match="record 2 holds no chol value to average"):
+        mean(own)
+
+
 def test_no_donor_class_anywhere_is_refused():
     own = sources("chol", [1, 2])
     other = [*own, *sources("chol", [250, 260], start=3)]
@@ -208,18 +240,89 @@ def test_no_donor_class_anywhere_is_refused():
         mean(own, other)
 
 
-def test_the_micro_field_line_counts_equal_and_primary(caplog):
+def micro_draw(value: float, ids: tuple[int, ...]) -> Draw:
+    """A draw whose `chol` is `value`, averaged over `ids`, the first its primary."""
+    record = {"chol": value}
+    return Draw(
+        YOUNG_WOMEN_1,
+        record,
+        frozenset(),
+        frozenset(),
+        frozenset(),
+        {"chol": ids[0]},
+        {"chol": ids},
+    )
+
+
+def test_the_micro_field_line_counts_equal_and_primary_over_two_classes(caplog):
     caplog.set_level(logging.INFO)
-    train = young_women([{"chol": 1}, {"chol": 2}, {"chol": 2}])
-    (found,) = draw(train, {YOUNG_WOMEN_1: 1})
-    assert found.record["chol"] == 2
-    primary = int(train.loc[found.sources["chol"], "chol"] == 2)
+    records = sources("chol", [200, 210, 230, 250, 250, 250])
+    draws = [micro_draw(213, (1, 2, 3)), micro_draw(250, (4, 5, 6))]
+    Means(3, CLAUSES, UCI_FRAME, _Limits(2, 1, 3)).log(0, "gap", YOUNG_WOMEN_1, draws, records)
     assert (
-        f"micro-field holdout=0 fill=gap key=<55/female/1 field=chol values=1 equal=1"
-        f" primary={primary} sse=0.666667 sst=0.666667"
+        "micro-field holdout=0 fill=gap key=<55/female/1 field=chol floor=3 values=2 equal=1"
+        " primary=1 under=0 classless=0 sse=466.667 sst=2483.33"
     ) in caplog.messages
+
+
+def test_each_averaged_field_has_a_micro_field_line_in_column_order(caplog):
+    caplog.set_level(logging.INFO)
+    Means(4, CLAUSES, UCI_FRAME, _Limits(5, 1, 4)).log(1, "gap", YOUNG_WOMEN_1, (), ())
+    assert caplog.messages == [
+        f"micro-field holdout=1 fill=gap key=<55/female/1 field={name} floor=5 values=0"
+        " equal=0 primary=0 under=0 classless=0 sse=0 sst=0"
+        for name in ("trestbps", "chol", "thalach", "oldpeak")
+    ]
+    caplog.clear()
+    draw(young_women([{} for _ in range(6)]), {YOUNG_WOMEN_1: 1})
     fields = [m.split(" field=")[1].split()[0] for m in caplog.messages if "micro-field" in m]
     assert fields == ["trestbps", "chol", "thalach", "oldpeak"]
+
+
+def tallied(own: Sequence[_Source], other: Sequence[_Source], **used: int) -> Means:
+    """A `Means` after one `chol` pick on `own` and `other`, `used` seeding record ids' counts."""
+    means = Means(3, CLAUSES, UCI_FRAME, _Limits(2, 1, 3))
+    for source, count in used.items():
+        means.limits.used[("chol",), int(source.removeprefix("r"))] = count
+    means.pick(YOUNG_WOMEN_1, ("chol",), own, other, np.random.default_rng(0))
+    return means
+
+
+def test_an_own_pool_under_the_floor_counts_a_redirect_and_under(caplog):
+    caplog.set_level(logging.INFO)
+    own = sources("chol", [200, 201])
+    means = tallied(own, [*own, *sources("chol", [202, 203, 204], start=3)])
+    assert (means.limits.tally.redirects, means.limits.tally.skips) == (1, 0)
+    means.log(0, "gap", YOUNG_WOMEN_1, (), ())
+    (line,) = [m for m in caplog.messages if " field=chol " in m]
+    assert " floor=3 " in line
+    assert " under=1 classless=0 " in line
+
+
+def test_an_own_pool_with_no_class_of_k_counts_classless(caplog):
+    caplog.set_level(logging.INFO)
+    own = sources("chol", [200, 250, 260])
+    means = tallied(own, [*own, *sources("chol", [270, 280], start=4)])
+    assert (means.limits.tally.redirects, means.limits.tally.skips) == (0, 0)
+    means.log(0, "gap", YOUNG_WOMEN_1, (), ())
+    (line,) = [m for m in caplog.messages if " field=chol " in m]
+    assert " under=0 classless=1 " in line
+    caplog.clear()
+    means.log(0, "gap", YOUNG_WOMEN_1, (), ())
+    (line,) = [m for m in caplog.messages if " field=chol " in m]
+    assert " under=0 classless=0 " in line, "each log restarts the counts"
+
+
+def test_a_cap_skip_is_counted_at_the_picks_own_weight():
+    fields = ("oldpeak", "slope")
+    limits = _Limits(2, 1, 3)
+    limits.used[fields, 1] = 1
+    mean(sources("oldpeak", [0.5, 0.6, 0.7, 0.8]), fields=fields, limits=limits)
+    assert limits.tally.skips == 1, "donor 1 is free for a mean, not as a primary of weight 3"
+    limits = _Limits(2, 1, 3)
+    limits.used[("chol",), 1] = 2
+    mean(sources("chol", [200, 201, 202, 203]), limits=limits)
+    assert limits.tally.skips == 0, "donor 1 is free at a numeric unit's weight of 1"
 
 
 def test_microaggregate_logs_only_when_set(caplog):
@@ -231,6 +334,23 @@ def test_microaggregate_logs_only_when_set(caplog):
     for found in draw(varied(), {YOUNG_WOMEN_1: 6}, CAPPED):
         assert found.averaged == {}
     assert not any(m.startswith("micro-field ") for m in caplog.messages)
+
+
+def test_microaggregate_alone_draws_every_averaged_field():
+    drawn = draw(varied(), {YOUNG_WOMEN_1: 6}, DrawSpec(microaggregate=3))
+    assert len(drawn) == 6
+    for found in drawn:
+        assert set(found.averaged) == AVERAGED
+        assert all(len(set(ids)) == 3 for ids in found.averaged.values())
+
+
+def test_a_fill_with_no_class_of_k_anywhere_names_its_holdout_and_fill():
+    message = (
+        f"{NAME} frame=uci holdout=0 fill=gap cannot draw: <55/female/1 cannot draw"
+        " trestbps: no class of 3 donors is left"
+    )
+    with pytest.raises(SamplingError, match=f"^{message}"):
+        draw(young_women([{}, {}]), {YOUNG_WOMEN_1: 1})
 
 
 def test_microaggregate_below_2_is_refused():

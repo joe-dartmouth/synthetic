@@ -39,7 +39,6 @@ from bko.gaps.shares import GROUP_WEIGHT, label_only, nested, shares
 from bko.generate.donors import (
     _Group,
     _label_groups,
-    _Limits,
     _observe_group,  # ruff: ignore[unused-import]  (re-exported)
     _pick,
     _pick_pooled,
@@ -53,6 +52,7 @@ from bko.generate.draws import (
     Record,  # ruff: ignore[unused-import]  (re-exported)
     draw_line,  # ruff: ignore[unused-import]  (re-exported)
 )
+from bko.generate.errors import SamplingError
 from bko.generate.fields import (
     FieldGroup,
     field_groups,
@@ -61,7 +61,7 @@ from bko.generate.fields import (
 from bko.generate.hierarchy import Hierarchy, PairPart, log_pairs
 from bko.generate.knowledge_draw import kb_sample
 from bko.generate.logic import Component, components, logic_assignment
-from bko.generate.micro import at_least, averaged_fields, log_fields, pick_mean
+from bko.generate.micro import MeanError, averaged_fields, fill_limits
 from bko.generate.pooling import pooled_for
 from bko.generate.presence import Presence
 from bko.generate.tree import column_trees, leaf_concept
@@ -131,7 +131,7 @@ def sample(
             `hier` line per cell counts the pairs and the clamped complements. At
             `Presence.POOLED`, the draw reads `rows` only for `bko.generate.pooling.pooled_for`.
             At `microaggregate`, a unit holding a numeric field but `age` is averaged over that
-            many donors (`bko.generate.micro.pick_mean`), and a `micro-field` line per cell and
+            many donors (`bko.generate.micro.Means.pick`), and a `micro-field` line per cell and
             averaged field follows the `limits` line.
 
     Returns:
@@ -141,7 +141,8 @@ def sample(
         SamplingError: If a field group has no record matching a draw in the cell or its label
             group, a free field has no record to read from, or a tree field no leaf of positive
             share; under a floor or a cap, if a unit's pool is empty once the records it bars or
-            holds at the cap are left out.
+            holds at the cap are left out; at `microaggregate`, if neither pool holds a class of k
+            donors, naming the dataset, the frame, the holdout and the fill.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, as
             `bko.generate.logic.components`, for a component too large to enumerate, or as
@@ -196,7 +197,11 @@ def sample(
         log_trees(holdout, fill, cell, sources.trees)
         if plan.hierarchy is not None:
             log_pairs(holdout, fill, cell, sources.pairs)
-        draws = tuple(plan.draw(sources, rng) for _ in range(count))
+        try:
+            draws = tuple(plan.draw(sources, rng) for _ in range(count))
+        except MeanError as exc:
+            msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
+            raise SamplingError(msg) from exc
         if plan.limits is not None:
             logger.info(
                 "limits holdout=%d fill=%s key=%s floor_redirects=%d cap_skips=%d",
@@ -205,8 +210,8 @@ def sample(
                 cell_key(cell),
                 *plan.limits.taken(),
             )
-        if spec.microaggregate is not None:
-            log_fields(holdout, fill, cell, draws, sources.group)
+        if plan.means is not None:
+            plan.means.log(holdout, fill, cell, draws, sources.group)
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
                 "fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s",
@@ -292,11 +297,7 @@ class _Plan:
         """`spec` is the draw's; `pooled` holds the units the pooled rule copies."""
         self._frame = frame
         self._spec = spec
-        self._k = spec.microaggregate
-        limited = spec.limited or self._k is not None
-        self.limits = _Limits(spec.min_donors, spec.reuse_cap, self._k or 1) if limited else None
-        self._clauses = at_least(rows)
-        self._averaged: dict[str, tuple[int, ...]] = {}
+        self.limits, self.means = fill_limits(spec, rows, frame)
         self.trees = column_trees(rows, frame, ontologies) if spec.tree else {}
         self.tree_draw = TreeDraw(self.trees)
         rows = tuple(r for r in rows if not any(c.field in self.trees for c in r.when))
@@ -352,53 +353,56 @@ class _Plan:
         Each pick reads the plan's `limits` when its spec sets any (`_choose`).
         """
         present = self._concepts(sources, rng)
-        self._averaged = {}
+        averaged: dict[str, tuple[int, ...]] = {}
         record: dict[str, int | float] = {}
         fallback: set[str] = set()
         read: dict[str, int] = {}
         shown: set[str] = set()
-        cell = sources.cell
         for column in self._frame.columns:
             if column == "age":
-                (source, chosen), fell = self._choose(
-                    cell, (column,), sources.own, sources.banded, rng
+                picked, fell, ids = self._choose(
+                    sources.cell, (column,), sources.own, sources.banded, rng
                 )
                 fields: tuple[str, ...] = (column,)
             elif column == "sex":
-                record[column] = next(code for code, sex in SEXES.items() if sex == cell[1])
+                record[column] = next(code for code, sex in SEXES.items() if sex == sources.cell[1])
                 continue
             elif column == self._frame.label:
-                record[column] = int(cell[2])
+                record[column] = int(sources.cell[2])
                 continue
             elif column in self.trees:
                 fields = (column,)
-                own, other = _showing(sources.trees[column], cell, rng, shown)
-                (source, chosen), fell = self._choose(cell, fields, own, other, rng)
+                own, other = _showing(sources.trees[column], sources.cell, rng, shown)
+                picked, fell, ids = self._choose(sources.cell, fields, own, other, rng)
             elif column in self._pooled:
                 fields, own, other = self._pooled[column], sources.own, sources.group
-                (source, chosen), fell = _pick_pooled(
-                    cell, fields, own, other, rng, weight=GROUP_WEIGHT
+                picked, fell = _pick_pooled(
+                    sources.cell, fields, own, other, rng, weight=GROUP_WEIGHT
                 )
+                ids = ()
             elif column in self._first:
                 fields = self._first[column].fields
                 shows = self._pattern(self._first[column], present)
                 own = [r for r in sources.own if shows(r[1])]
                 other = [r for r in sources.group if shows(r[1])]
-                (source, chosen), fell = self._choose(cell, fields, own, other, rng)
+                picked, fell, ids = self._choose(sources.cell, fields, own, other, rng)
             elif column in self._free:
                 fields = (column,)
-                (source, chosen), fell = self._choose(cell, fields, sources.own, sources.group, rng)
+                picked, fell, ids = self._choose(
+                    sources.cell, fields, sources.own, sources.group, rng
+                )
             else:
                 continue
-            for name in fields:
-                record[name] = self._value(name, chosen)
-                read[name] = source
+            record.update({name: self._value(name, picked[1]) for name in fields})
+            read.update(dict.fromkeys(fields, picked[0]))
             if fell:
                 fallback.update(fields)
+            if ids:
+                averaged.update(dict.fromkeys(averaged_fields(fields, self._frame), ids))
         record = {column: record[column] for column in self._frame.columns}
         concepts = frozenset(present | shown)
-        closed = self._closure(concepts)
-        return Draw(cell, record, concepts, closed, frozenset(fallback), read, self._averaged)
+        closure = self._closure(concepts)
+        return Draw(sources.cell, record, concepts, closure, frozenset(fallback), read, averaged)
 
     def _choose(
         self,
@@ -407,19 +411,13 @@ class _Plan:
         own: Sequence[_Source],
         other: Sequence[_Source],
         rng: np.random.Generator,
-    ) -> tuple[_Source, bool]:
-        """`_pick`, `_Limits.pick` under a floor or a cap, or `pick_mean` for an averaged unit."""
+    ) -> tuple[_Source, bool, tuple[int, ...]]:
+        """`_pick`, `_Limits.pick` or, for an averaged unit, `Means.pick`, with its donor ids."""
         if self.limits is None:
-            return _pick(cell, fields, own, other, rng)
-        numeric = averaged_fields(fields, self._frame)
-        if self._k is None or not numeric:
-            return self.limits.pick(cell, fields, own, other, rng)
-        limits, frame, clauses = self.limits, self._frame, self._clauses
-        chosen, fell, ids = pick_mean(
-            cell, fields, own, other, rng, k=self._k, limits=limits, frame=frame, clauses=clauses
-        )
-        self._averaged.update(dict.fromkeys(numeric, ids))
-        return chosen, fell
+            return *_pick(cell, fields, own, other, rng), ()
+        if self.means is None or not averaged_fields(fields, self._frame):
+            return *self.limits.pick(cell, fields, own, other, rng), ()
+        return self.means.pick(cell, fields, own, other, rng)
 
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share.
