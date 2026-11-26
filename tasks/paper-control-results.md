@@ -1,8 +1,8 @@
 ---
 id: paper-control-results
 title: Read the matched development contrasts
-status: blocked
-depends_on: evaluate-removed-truth-reading
+status: ready
+depends_on: --
 blocks: evaluate-confirmatory-registration, paper-baselines, paper-novelty
 parallel_safe: false
 milestone: direct-method-research
@@ -49,9 +49,19 @@ Relate findings to E9 and the existing
 - Once E12 has run (unit
   [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md)), it checks that
   E19's `bko-direct`, `none` and `real` scores equal E12's per holdout.
-- It reads E6's removed-truth reading, over the E6 `rows` stores unit
-  [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) reads, beside the
-  downstream contrasts.
+- It reads E6's removed-truth reading beside the downstream contrasts: each arm's added rows in
+  the removed cell scored against the removal's dropped records (ADR
+  [`research/removed-truth-reading`](../docs/adr/research/removed-truth-reading.md)). E6's
+  readings are `runs/e6-52` (`e6-thin`, stores `runs/e6-25-rows` to `runs/e6-34-rows`) and
+  `runs/e6-53` (`e6-empty`, stores `runs/e6-35-rows` to `runs/e6-44-rows`), in E6's Runs rows
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)). The reader's
+  command, from the main checkout with a worktree detached at a `run/<id>` tag (`--runs-dir`
+  and `--data-dir` name the main checkout's folders; without `--runs-dir` the reader looks for
+  run folders under the worktree):
+
+  ```
+  mkdir -p runs/<run-id> && test ! -e runs/<run-id>/truth.csv && test ! -e runs/<run-id>/truth.log && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONPATH=<worktree>/src .venv/bin/python -m bko.evaluate truth <run> --runs-dir runs --data-dir data $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/truth.csv 2> runs/<run-id>/truth.log </dev/null
+  ```
 - The decision is recorded in E19's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md).
 
 ## Acceptance
