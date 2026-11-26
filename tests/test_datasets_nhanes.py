@@ -25,7 +25,6 @@ from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS
 from bko.ontology.schema import shown
 from tests._datasets_fixtures import pin, plant
 from tests._nhanes_fixtures import (
-    QUESTIONS,
     REAL_COLUMNS,
     REAL_ROWS,
     Respondent,
@@ -155,10 +154,26 @@ def test_the_cohort_line_accounts_for_every_filter(caplog) -> None:
     ]
 
 
+def test_the_angina_item_does_not_make_label_1() -> None:
+    angina = {"MCQ_L": {"MCQ160D": 1.0}}
+    records = _records([Respondent(1, extra=angina), Respondent(2, answers=(1.0, 2.0, 2.0, 2.0))])
+    assert records["target"].to_dict() == {1: 0, 2: 1}
+
+
+@pytest.mark.parametrize("unknown", [7.0, 9.0, None], ids=["refused", "dont-know", "missing"])
+def test_an_unknown_angina_answer_with_four_noes_is_not_left_out(unknown) -> None:
+    unsure = {"MCQ_L": {"MCQ160D": unknown}}
+    records = _records([Respondent(1, extra=unsure), Respondent(2, answers=(1.0,) * 4)])
+    assert records["target"].to_dict() == {1: 0, 2: 1}
+
+
 def test_the_four_questions_never_enter_the_frame() -> None:
     records = _records(mixed())
     frame = nhanes_frame(records)
-    excluded = {*QUESTIONS, "MCQ160D", "WTINT2YR", "WTMEC2YR", "WTPH2YR", "SEQN"}
+    excluded = {
+        *("MCQ160B", "MCQ160C", "MCQ160D", "MCQ160E", "MCQ160F"),
+        *("WTINT2YR", "WTMEC2YR", "WTPH2YR", "SEQN"),
+    }
     assert excluded.isdisjoint(records.columns)
     assert excluded.isdisjoint(frame.columns)
 

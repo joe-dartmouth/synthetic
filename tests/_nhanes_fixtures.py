@@ -242,18 +242,36 @@ def mixed() -> list[Respondent]:
     """Twelve respondents across the age bands, both sexes, both labels and missing values.
 
     Three are left out: one aged 19, one with no yes and a don't-know, one not asked the items.
+    The items beside the four, such as `MCQ160A` and the angina item `MCQ160D`, vary too, so a
+    label that read one of them would move.
     """
     return [
         Respondent(130378),
         Respondent(130379, age=19.0, answers=(1.0, 2.0, 2.0, 2.0)),
         Respondent(130380, age=20.0, sex=2.0, answers=(2.0, 1.0, 2.0, 2.0)),
-        Respondent(130381, age=35.0, sex=2.0, hba1c=6.5, hdl=39.0),
+        Respondent(
+            130381, age=35.0, sex=2.0, hba1c=6.5, hdl=39.0, extra={"MCQ_L": {"MCQ160D": 1.0}}
+        ),
         Respondent(130382, age=45.0, answers=(2.0, 2.0, 9.0, 2.0)),
         Respondent(130383, age=52.0, sex=2.0, answers=(9.0, 2.0, 1.0, 2.0), cholesterol=None),
         Respondent(130384, age=61.0, answers=(2.0, 2.0, 2.0, 1.0), examined=False),
-        Respondent(130385, age=70.0, sex=2.0, systolic=(128.0, 130.0, None), bmi=None),
+        Respondent(
+            130385,
+            age=70.0,
+            sex=2.0,
+            systolic=(128.0, 130.0, None),
+            bmi=None,
+            extra={"MCQ_L": {"MCQ160A": 2.0, "MCQ160D": 9.0}},
+        ),
         Respondent(130386, age=80.0, answers=(1.0, 1.0, 1.0, 1.0), hba1c=5.7),
         Respondent(130387, age=66.0, sex=2.0, answers=(None, None, None, None)),
         Respondent(130388, age=58.0, systolic=(None, None, None), diastolic=(80.0, 79.0, 81.0)),
-        Respondent(130389, age=29.0, sex=2.0, hdl=40.0, cholesterol=240.0),
+        Respondent(
+            130389,
+            age=29.0,
+            sex=2.0,
+            hdl=40.0,
+            cholesterol=240.0,
+            extra={"MCQ_L": {"MCQ160A": 9.0, "MCQ160D": 7.0}},
+        ),
     ]
