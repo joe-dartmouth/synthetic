@@ -169,6 +169,22 @@ diagnosed, and the file holds one.
 
 ## Consequences
 
+**The order, by commit.** The rows are at `be72ef5` (Add the NHANES loader, frame, field rows and
+catalog entry). The training split's count is recorded in the commit after it, before any gap
+listing or census ran: `CATALOG["nhanes"].read` on the data root, then `split(records, seed=0,
+edges=frame.edges).train`, as this command does:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, open_https; from bko.datasets.frames import digest; from bko.datasets.split import split; from bko.ontology.catalog import CATALOG; records, frame = CATALOG["nhanes"].read(default_data_dir(), open_url=open_https); train = split(records, seed=0, edges=frame.edges).train; print(len(records), int(records["target"].sum()), len(train), int(train["target"].sum()), round(float(train["target"].mean()), 4), digest(train))' </dev/null
+
+Its `cohort` line reads `demographics=11933 interviewed=11744 adults=7809 any_yes=937
+all_no=6832 left_out=40 records=7769 composite=937`: 11,744 respondents hold a medical-conditions
+record, 7,809 of them are 20 and over, and 40 adults are left out with no yes and an unknown
+answer. The adult frame holds 7,769 records, 937 with the composite, inside the 402 to 1,444 the
+selection ADR bounds. The training split holds 6,215 records, 750 of them with the composite, a
+rate of 0.1207, digest `9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The
+split is above the 5,000 records condition 5 asks. These are commits of pull request #137, kept
+at `refs/pull/137/head` after its squash merge.
+
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline
 originals stay unread; a re-read that differs from its reproduction would change a row. The
