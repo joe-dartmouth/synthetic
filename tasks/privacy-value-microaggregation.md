@@ -17,8 +17,8 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 With donor limits (arm `bko-capped`, ADR
-[`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md)), a numeric value is
-still a verbatim copy of one record's. Averaging over several pattern-matched donors yields a
+[`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md)), a numeric value
+is still a verbatim copy of one record's. Averaging over several pattern-matched donors yields a
 value no single record holds when the donors' values differ.
 
 ## Scope
@@ -37,13 +37,15 @@ value no single record holds when the donors' values differ.
   `AtLeast` clause on its numeric fields and each numeric field's missingness, so a mean stays on
   its concept's side of the cutoff. An averaged pick with fewer than k free donors of a class
   counts that class as empty; with no class left it falls back to the label group, as an empty
-  pool does, and logs a fallback.
+  pool does. It logs through the existing `fallback` line (`src/bko/generate/direct.py`,
+  `fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s`), one line per averaged
+  field, with no new format.
 - Coded fields come from the primary donor. A numeric field is the k donors' mean, rounded
   half-even to a whole number for an integer field and to `frame.fraction_digits` otherwise.
 - The weighted cap: counts are kept in k-ths, and a pick of weight `w` is admitted when
   `used + w <= reuse_cap * k`. The primary of a unit holding a coded field weighs k; a donor
-  entering only a mean counts one k-th against the cap (k = 3 for `bko-micro`); in a unit of numeric fields only, each
-  of its k donors weighs 1.
+  entering only a mean counts one k-th against the cap (k = 3 for `bko-micro`); in a unit of
+  numeric fields only, each of its k donors weighs 1.
 - `Draw.averaged`, default empty, naming every donor id of an averaged field: `trace` writes it
   only when non-empty, `privacy`'s donor reuse counts every id, and `attribution` attributes an
   averaged field `donor-mean`.
@@ -54,11 +56,11 @@ value no single record holds when the donors' values differ.
   what the mean does not protect, and how the arm differs from SMOTE; ADR
   [`research/record-explainability`](../docs/adr/research/record-explainability.md) gains the
   `donor-mean` attribution.
-- Runs `e20-thin` and `e20-empty`, `E9_THIN` and `E9_EMPTY` with arms `none`, `real`, `bko-direct`,
-  `bko-capped` and `bko-micro`, candidate `bko-micro`, comparators `bko-direct`, `bko-capped` and
-  `none`, `REFERENCE` `bko-direct`; the [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry E20's
-  Configuration with status `not yet run`, its primary contrast `bko-micro` minus `bko-capped`
-  on `bko-capped`'s target measure.
+- Runs `e20-thin` and `e20-empty`, each sliced in ten, `E9_THIN` and `E9_EMPTY` with arms
+  `none`, `real`, `bko-direct`, `bko-capped` and `bko-micro`, candidate `bko-micro`, comparators
+  `bko-direct`, `bko-capped` and `none`, `REFERENCE` `bko-direct`; the
+  [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry E20's Configuration with status `not yet run`,
+  its primary contrast `bko-micro` minus `bko-capped` on `bko-capped`'s target measure.
 
 **Out.**
 
@@ -95,6 +97,7 @@ value no single record holds when the donors' values differ.
 - `RUNS` holds `e20-thin` and `e20-empty`: `tests/test_evaluate_micro_runs.py` and
   `tests/test_named_runs_slices.py` pass, its `KEYS` gaining the new names immediately before
   `"p1-id"` and its slice parametrize list gaining `e20`.
-- One real slice fills for free: `python -m bko.evaluate score e20-thina` into `scratchpad/`
-  exits 0 with `micro-field` lines for the eight count fields and no `refused` line.
+- One real slice fills for free, as evidence recorded in the PR body rather than a gate check:
+  `python -m bko.evaluate score e20-thina` into `scratchpad/` exits 0 with `micro-field` lines
+  for the eight count fields and no `refused` line.
 - `make check` passes.

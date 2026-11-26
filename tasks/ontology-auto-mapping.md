@@ -54,7 +54,9 @@ relations, and it links to no standard ontology.
   `auto_lexical_diabetes_rows.py`, `auto_lexical_codes_rows.py`, `auto_local_diabetes_rows.py`
   and `auto_local_codes_rows.py`, each split in two by field if over 500 lines. Each module's
   rows sha256 is stated in the ADR, and its rows pass the structural check
-  `bko.ontology.check.check` against the pinned releases.
+  `bko.ontology.check.check` against the pinned releases. Their doc homes: an `AGENTS.md`
+  Commands entry for each, and `docs/DEVELOPMENT.md`'s Ontologies section for the first and its
+  Local models paragraph for the second.
 - Precision and recall over (field, code, concept) atoms against the hand table, exact curie,
   each `None` on an empty denominator.
 - The permuted control: the hand rows with their concept labels permuted at a seed
@@ -66,12 +68,12 @@ relations, and it links to no standard ontology.
   row-swap variants. `run_direct`'s pre-run check
   also builds the hierarchy for a conditional spec and the column trees for a tree spec,
   refusing with `EvaluationError` before any arm fits.
-- E22's `RUNS` entries, eight families each thin and empty, sliced, `REFERENCE` `bko-direct`,
-  candidate `bko-direct`, comparators `bko-nomap` and `none`: on E6's frame, `e22-hand-*`,
-  `e22-auto-lexical-*`, `e22-auto-local-*` and `e22-permuted-*` with `none`, `real`,
-  `bko-direct`, `bko-nomap` and `bko-hier-w`; on `diabetes-codes`, `e22-codes-hand-*`,
-  `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and `e22-codes-permuted-*` with `none`,
-  `real`, `bko-direct`, `bko-nomap` and `bko-tree` (ADR
+- E22's `RUNS` entries, eight families, each in a thin and an empty run (16 runs), sliced,
+  `REFERENCE` `bko-direct`, candidate `bko-direct`, comparators `bko-nomap` and `none`: on E6's
+  frame, `e22-hand-*`, `e22-auto-lexical-*`, `e22-auto-local-*` and `e22-permuted-*` with
+  `none`, `real`, `bko-direct`, `bko-nomap` and `bko-hier-w`; on `diabetes-codes`,
+  `e22-codes-hand-*`, `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and
+  `e22-codes-permuted-*` with `none`, `real`, `bko-direct`, `bko-nomap` and `bko-tree` (ADR
   [`research/ancestor-shrunk-shares`](../docs/adr/research/ancestor-shrunk-shares.md)). The
   permuted control is scored on `bko-hier-w` (E6's frame) and `bko-tree` (`diabetes-codes`). A
   variant whose rows cannot build a hierarchy or trees is registered without `bko-hier-w` or
@@ -123,7 +125,7 @@ relations, and it links to no standard ontology.
 - `RUNS` holds E22: `tests/test_evaluate_auto_runs.py` and `tests/test_named_runs_slices.py`
   pass, its `KEYS` gaining the new names immediately before `"p1-id"` and its slice parametrize
   list gaining each of the eight families.
-- One real slice scores for free: `python -m bko.evaluate score e22-auto-lexical-thina` into
-  `scratchpad/` exits 0 with a `mapping dataset=diabetes-auto-lexical` line and no `refused`
-  line.
+- One real slice scores for free, as evidence recorded in the PR body rather than a gate check:
+  `python -m bko.evaluate score e22-auto-lexical-thina` into `scratchpad/` exits 0 with a
+  `mapping dataset=diabetes-auto-lexical` line and no `refused` line.
 - `make check` passes.

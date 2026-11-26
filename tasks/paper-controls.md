@@ -132,8 +132,8 @@ also change predictive utility.
 - The pooled direct arms score and trace end to end:
   `tests/test_generate_pooled.py` and `tests/test_evaluate_pooled_arms.py` pass, with the digest
   literals of `tests/test_generate_direct.py` and `tests/test_evaluate_direct.py` untouched.
-- One real slice of each dataset fills for free: `python -m bko.evaluate score e19-thina` and
-  `score e19-supported-thina` into `scratchpad/` exit 0, logging one `arm` line per arm and
-  holdout, a `pool-random holdout=` line per holdout in the first, and no `refused` or
-  `contract` line.
+- One real slice of each dataset fills for free, as evidence recorded in the PR body rather than
+  a gate check: `python -m bko.evaluate score e19-thina` and `score e19-supported-thina` into
+  `scratchpad/` exit 0, logging one `arm` line per arm and holdout, a `pool-random holdout=` line
+  per holdout in the first, and no `refused` or `contract` line.
 - `make check` passes.

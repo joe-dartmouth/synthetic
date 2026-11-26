@@ -45,14 +45,17 @@ the fused shares and the neighbouring cells says how many rows a cell needs to b
 - `gap_request` takes the data's field rows and dataset name; a non-default rule with no rows is
   refused. Its five callers pass both: `run`, `membership`, `shared`, `trace` and
   `added_contradictions` under `src/bko/evaluate/`.
-- A `quota-rule holdout=%d stratum=%s rule=%s count=%d coverage=%d expected=%d asked=%d` line per
-  cell under a non-default rule.
-- The representativeness reading, `python -m bko.evaluate representativeness <run> --rows <store>...`,
-  its subcommand in `src/bko/evaluate/reader_commands.py` and `src/bko/evaluate/__main__.py`,
-  writing `representativeness.csv` and `representativeness.log`: per holdout, arm and flagged
-  cell, the largest absolute gap between the added rows' concept shares and the fused shares,
-  and the cell's share of the arm's training set beside `real`'s. Removed-cell recall is
-  reported beside it.
+- A `quota-rule holdout=%d fill=%s key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`
+  line per cell under a non-default rule, `fill` and `key` as the direct arms' lines name them.
+- The representativeness reading,
+  `python -m bko.evaluate representativeness <run> --rows <store>...`, its subcommand in
+  `src/bko/evaluate/reader_commands.py` and `src/bko/evaluate/__main__.py`, writing
+  `representativeness.csv` and `representativeness.log`: per holdout, arm and flagged cell, the
+  largest absolute gap between the added rows' concept shares and the fused shares, and the
+  cell's share of the arm's training set beside `real`'s. Removed-cell recall is reported beside
+  it. Its doc homes: an `AGENTS.md` Commands entry, the `docs/DEVELOPMENT.md`
+  Runs table rows and Evaluation paragraph, its entries in `ROLES` (`src/bko/app/runs.py`) and
+  `tests/test_run_folders.py`.
 - A new ADR under `docs/adr/research/` that records the rule, notes that `bko.evaluate.quotas` is
   a different thing, and states that on E6's cell `expected-size` and `recommended` ask within 30
   rows of the fixed fill; one sentence in ADR

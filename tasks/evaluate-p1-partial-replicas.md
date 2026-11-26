@@ -59,7 +59,8 @@ rule runs under new run names.
 - The re-draw `rows` makes of a partial replica goes through `fill_arm`, the helper the draw
   uses, so its sha256 matches the `arm` line's and it logs the same `shortfall` lines the draw
   logged. `trace` re-draws no baseline (`src/bko/evaluate/trace.py:20`): for a partial baseline
-  replica it writes the method, the seed and the `arm` line's `short` params, without a re-draw.
+  replica it writes the method, the seed and the `arm` line's `short` params, without a re-draw,
+  and logs an INFO line `trace replica-short holdout=%d arm=%s short=%s`.
   `panel`, `privacy` and `syntheval` read the fill from the `rows` store and read the shortfall
   from the `arm` line's params, logging no `shortfall` line, as `panel` reads a partial gap fill
   now. `shared` refuses a folder whose replica `arm` line holds `short`, as it refuses a partial
@@ -114,7 +115,8 @@ rule runs under new run names.
 - `rows`, re-drawing a partial replica, reproduces the `arm` line's sha256 and logs the draw's
   `shortfall` lines; `panel` over the `rows` store logs the replica in its `partial=` count and no
   `shortfall` line; `trace` of a partial baseline replica writes its method, seed and the `arm`
-  line's shortfall without a re-draw; `shared` refuses a partial replica:
+  line's shortfall without a re-draw and logs its `trace replica-short` line; `shared` refuses a
+  partial replica:
   `test_rows_reproduces_a_partial_replicas_sha256_and_shortfall_lines`,
   `test_panel_counts_the_replica_in_partial`,
   `test_trace_writes_a_partial_baseline_replicas_shortfall` and
@@ -122,6 +124,9 @@ rule runs under new run names.
 - `score --replay` and `score --rehearse` of a partial replica log its `shortfall` lines as the
   run did:
   `tests/test_evaluate_partial_replica_readers.py::test_replay_and_rehearse_log_the_shortfall_lines`.
+- Every test above that reads a `shortfall` line asserts the `partial_fill` key set (`holdout`,
+  `arm`, `attempt`, `cell`, `short`, `quota`), so a `give_up` line cannot pass
+  (`cleanup:evaluate/shortfall-line-two-formats` in [`CLEANUP.md`](CLEANUP.md)).
 - `P1_PARTIAL`'s `experiment` line emits the field, and an older line reads at the assumed
   default: `tests/test_evaluate_partial_replica.py::test_the_experiment_line_names_partial_replica_only_when_set`
   and `test_an_older_experiment_line_reads_at_the_assumed_partial_replica`; the field without
