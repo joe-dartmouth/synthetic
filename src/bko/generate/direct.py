@@ -61,6 +61,7 @@ from bko.generate.fields import (
 from bko.generate.hierarchy import Hierarchy, PairPart, log_pairs
 from bko.generate.knowledge_draw import kb_sample
 from bko.generate.logic import Component, components, logic_assignment
+from bko.generate.micro import at_least, averaged_fields, log_fields, pick_mean
 from bko.generate.pooling import pooled_for
 from bko.generate.presence import Presence
 from bko.generate.tree import column_trees, leaf_concept
@@ -129,6 +130,9 @@ def sample(
             a pair's broad concept at its `bko.generate.hierarchy.PairPart` chance; a
             `hier` line per cell counts the pairs and the clamped complements. At
             `Presence.POOLED`, the draw reads `rows` only for `bko.generate.pooling.pooled_for`.
+            At `microaggregate`, a unit holding a numeric field but `age` is averaged over that
+            many donors (`bko.generate.micro.pick_mean`), and a `micro-field` line per cell and
+            averaged field follows the `limits` line.
 
     Returns:
         Each cell's draws, in quota order.
@@ -201,6 +205,8 @@ def sample(
                 cell_key(cell),
                 *plan.limits.taken(),
             )
+        if spec.microaggregate is not None:
+            log_fields(holdout, fill, cell, draws, sources.group)
         for field, times in sorted(Counter(f for d in draws for f in d.fallback).items()):
             logger.info(
                 "fallback holdout=%d fill=%s key=%s field=%s draws=%d%s presence=%s",
@@ -286,7 +292,11 @@ class _Plan:
         """`spec` is the draw's; `pooled` holds the units the pooled rule copies."""
         self._frame = frame
         self._spec = spec
-        self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
+        self._k = spec.microaggregate
+        limited = spec.limited or self._k is not None
+        self.limits = _Limits(spec.min_donors, spec.reuse_cap, self._k or 1) if limited else None
+        self._clauses = at_least(rows)
+        self._averaged: dict[str, tuple[int, ...]] = {}
         self.trees = column_trees(rows, frame, ontologies) if spec.tree else {}
         self.tree_draw = TreeDraw(self.trees)
         rows = tuple(r for r in rows if not any(c.field in self.trees for c in r.when))
@@ -342,6 +352,7 @@ class _Plan:
         Each pick reads the plan's `limits` when its spec sets any (`_choose`).
         """
         present = self._concepts(sources, rng)
+        self._averaged = {}
         record: dict[str, int | float] = {}
         fallback: set[str] = set()
         read: dict[str, int] = {}
@@ -384,9 +395,10 @@ class _Plan:
                 read[name] = source
             if fell:
                 fallback.update(fields)
-        ordered = {column: record[column] for column in self._frame.columns}
+        record = {column: record[column] for column in self._frame.columns}
         concepts = frozenset(present | shown)
-        return Draw(cell, ordered, concepts, self._closure(concepts), frozenset(fallback), read)
+        closed = self._closure(concepts)
+        return Draw(cell, record, concepts, closed, frozenset(fallback), read, self._averaged)
 
     def _choose(
         self,
@@ -396,10 +408,18 @@ class _Plan:
         other: Sequence[_Source],
         rng: np.random.Generator,
     ) -> tuple[_Source, bool]:
-        """`_pick`, or `_Limits.pick` when the spec sets a floor or a cap."""
+        """`_pick`, `_Limits.pick` under a floor or a cap, or `pick_mean` for an averaged unit."""
         if self.limits is None:
             return _pick(cell, fields, own, other, rng)
-        return self.limits.pick(cell, fields, own, other, rng)
+        numeric = averaged_fields(fields, self._frame)
+        if self._k is None or not numeric:
+            return self.limits.pick(cell, fields, own, other, rng)
+        limits, frame, clauses = self.limits, self._frame, self._clauses
+        chosen, fell, ids = pick_mean(
+            cell, fields, own, other, rng, k=self._k, limits=limits, frame=frame, clauses=clauses
+        )
+        self._averaged.update(dict.fromkeys(numeric, ids))
+        return chosen, fell
 
     def _concepts(self, sources: _Sources, rng: np.random.Generator) -> set[str]:
         """The concepts drawn present: label-only ones by the label, each other at its share.

@@ -97,6 +97,7 @@ def _pick_limited(
     cap: int | None,
     used: _Used,
     tally: _Tally | None = None,
+    scale: int = 1,
 ) -> tuple[_Source, bool]:
     """A record drawn as `_pick` draws, under a donor floor and a reuse cap, and its fallback.
 
@@ -105,7 +106,8 @@ def _pick_limited(
     cap, and less `own`'s records when the floor fails. One uniform draw picks from the pool, and
     the pick counts one donation in `used`. `tally`, when given, counts a floor redirect when
     `own` holds at least one but fewer than `floor` records, and a cap skip when the first pool
-    held a donor at the cap.
+    held a donor at the cap. Counts are kept in `scale`-ths: the pick is one whole donation,
+    weighing `scale`, and a donor is at the cap when `scale` more would pass `cap * scale`.
 
     Raises:
         SamplingError: If the pool is empty.
@@ -116,11 +118,11 @@ def _pick_limited(
         first = [r for r in other if r[0] not in barred]
     else:
         first = list(own)
-    pool = _below_cap(first, fields, cap, used)
+    pool = _below_cap(first, fields, cap, used, scale, scale)
     skipped = len(pool) < len(first)
     fell = under or not pool
     if fell and not under:
-        pool = _below_cap(other, fields, cap, used)
+        pool = _below_cap(other, fields, cap, used, scale, scale)
     if tally is not None:
         if under and own:
             tally.redirects += 1
@@ -131,14 +133,20 @@ def _pick_limited(
         msg += f" min_donors={floor} reuse_cap={cap}"
         raise SamplingError(msg)
     chosen = pool[int(rng.integers(len(pool)))]
-    used[fields, chosen[0]] += 1
+    used[fields, chosen[0]] += scale
     return chosen, fell
 
 
 def _below_cap(
-    pool: Sequence[_Source], fields: tuple[str, ...], cap: int | None, used: _Used
+    pool: Sequence[_Source],
+    fields: tuple[str, ...],
+    cap: int | None,
+    used: _Used,
+    weight: int = 1,
+    scale: int = 1,
 ) -> list[_Source]:
-    return [r for r in pool if cap is None or used[fields, r[0]] < cap]
+    """The records of `pool` a pick of `weight` admits: `used + weight <= cap * scale`."""
+    return [r for r in pool if cap is None or used[fields, r[0]] + weight <= cap * scale]
 
 
 @dataclass(slots=True, eq=False)
@@ -161,12 +169,15 @@ class _Limits:
     Attributes:
         floor: The spec's `min_donors`.
         cap: The spec's `reuse_cap`.
-        used: Each (unit, record id)'s donations so far.
+        scale: What one donation counts in `used`: the spec's `microaggregate`, else 1, so a
+            whole donation weighs `scale` and a mean-only donor's 1 (`bko.generate.micro`).
+        used: Each (unit, record id)'s donations so far, in `scale`-ths.
         tally: The redirects and skips `_pick_limited` counted since the last `taken`.
     """
 
     floor: int
     cap: int | None
+    scale: int = 1
     used: _Used = field(default_factory=Counter)
     tally: _Tally = field(default_factory=_Tally)
 
@@ -184,7 +195,7 @@ class _Limits:
         other: Sequence[_Source],
         rng: np.random.Generator,
     ) -> tuple[_Source, bool]:
-        """`_pick_limited` at these limits, counting into `tally`."""
+        """`_pick_limited` at these limits, one whole donation, counting into `tally`."""
         return _pick_limited(
             cell,
             fields,
@@ -195,6 +206,7 @@ class _Limits:
             cap=self.cap,
             used=self.used,
             tally=self.tally,
+            scale=self.scale,
         )
 
 

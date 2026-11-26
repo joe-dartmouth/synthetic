@@ -33,7 +33,9 @@ class Draw:
             record matching the draw, or, for a pooled unit, by the pooled rule's label-group
             branch (`bko.generate.donors._pick_pooled`).
         sources: The training record id each copied field was read from; `sex` and the label
-            follow the cell and have none.
+            follow the cell and have none. An averaged field's is its primary donor's.
+        averaged: Each averaged field's donor ids, the primary's first, under a spec that sets
+            `microaggregate` (`bko.generate.micro`); empty otherwise.
     """
 
     cell: Cell
@@ -42,10 +44,14 @@ class Draw:
     closed: frozenset[str]
     fallback: frozenset[str]
     sources: Mapping[str, int] = dataclasses.field(default_factory=lambda: MappingProxyType({}))
+    averaged: Mapping[str, tuple[int, ...]] = dataclasses.field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "record", MappingProxyType(dict(self.record)))
         object.__setattr__(self, "sources", MappingProxyType(dict(self.sources)))
+        object.__setattr__(self, "averaged", MappingProxyType(dict(self.averaged)))
 
 
 def draw_line(call: int, position: int, draw: Draw) -> str:

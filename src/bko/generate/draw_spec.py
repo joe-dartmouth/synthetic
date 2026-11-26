@@ -56,6 +56,8 @@ class DrawSpec:
         donors: Whether the draw copies fields from training records; false draws every field
             from the mapping table and the codebook alone (`bko.generate.knowledge_draw`) and
             needs `Presence.LOGIC`.
+        microaggregate: How many distinct donors of one key class each numeric field but `age`
+            is averaged over (`bko.generate.micro`); None copies it from one donor.
     """
 
     presence: Presence = Presence.SHARES
@@ -67,6 +69,7 @@ class DrawSpec:
     closed: bool = False
     pool: Pool = Pool.MAPPED
     donors: bool = True
+    microaggregate: int | None = None
 
     def __post_init__(self) -> None:
         """Refuse a field combination the draw cannot read.
@@ -74,11 +77,12 @@ class DrawSpec:
         Raises:
             ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false (pooled
                 reads rows through `pool` alone, so it keeps `mapped` true); if a limit
-                is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
-                `closed`; if `tree` is set beside `hierarchy` or `closed`; if a field of
-                `_VARIANTS` is off its default without the mapping table or at a presence other
-                than shares; if `pool` is off its default at a presence other than pooled; or if
-                `donors` is false at a presence other than logic.
+                is below 1, or `microaggregate` below 2; if `hierarchy` is not a finite
+                non-negative float, or is set beside `closed`; if `tree` is set beside
+                `hierarchy` or `closed`; if a field of `_VARIANTS` is off its default without the
+                mapping table or at a presence other than shares; if `pool` is off its default at
+                a presence other than pooled; or if `donors` is false at a presence other than
+                logic.
         """
         if self.presence is Presence.POOLED and not self.mapped:
             msg = "presence pooled keeps mapped true: pool, not mapped, says which rows it reads"
@@ -90,6 +94,9 @@ class DrawSpec:
             if value is not None and value < 1:
                 msg = f"{name} {value} must be at least 1"
                 raise ValueError(msg)
+        if self.microaggregate is not None and self.microaggregate < 2:
+            msg = f"microaggregate {self.microaggregate} must be at least 2"
+            raise ValueError(msg)
         pseudo = self.hierarchy
         if pseudo is not None and (
             type(pseudo) is not float or not math.isfinite(pseudo) or pseudo < 0
@@ -155,7 +162,7 @@ class DrawSpec:
         ]
 
 
-_VARIANTS: Final = ("min_donors", "reuse_cap", "tree", "hierarchy", "closed")
+_VARIANTS: Final = ("min_donors", "reuse_cap", "tree", "hierarchy", "closed", "microaggregate")
 """The fields that need `mapped=True` and `Presence.SHARES` off their defaults."""
 
 
