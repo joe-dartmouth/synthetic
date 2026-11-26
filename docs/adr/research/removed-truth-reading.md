@@ -78,8 +78,13 @@ read close to the removed records without having seen them.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/prepare.py`, `src/bko/evaluate/fidelity.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/evaluate/truth.py` (`truth_scores`, `truth`), `src/bko/evaluate/prepare.py`,
+  `src/bko/evaluate/fidelity.py`, `src/bko/evaluate/privacy_stores.py` (`read`)
+- Pinned by: `tests/test_evaluate_truth.py` (identical rows score 1, a shifted two-code column
+  reads the complement of its total variation distance, fewer than two rows read NaN, the
+  reference is each holdout's removed records and the arm's rows lie in the removed cell, a run
+  with no removal refused, a store of another run refused, `real` left out and the CSV and log
+  lines)
 
 ## Reversal Conditions
 

@@ -1,6 +1,6 @@
 """The evaluation's command line: `python -m bko.evaluate` and its subcommands.
 
-The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`,
+The subcommands are `score`, `compare`, `merge`, `shared`, `rows`, `panel`, `privacy`, `truth`,
 `likelihood`, `contradictions`, `trace`, `attribution`, `syntheval`, `launch` and `supervise`.
 
 `score` loads the named run's dataset (`bko.evaluate.data`; for UCI it fetches UCI Heart Disease
@@ -29,6 +29,8 @@ with calibration, from the store at PATH that `rows` wrote, to stdout (`bko.eval
 `privacy RUN --rows PATH...` reads the membership attack, NNDR and DCR of RUN's stores, one per
 slice, whose folders sit under the runs root, to stdout, and logs the reading rule
 (`bko.evaluate.membership`).
+`truth RUN --rows PATH...` reads each arm's gap fill rows in RUN's removed cell against the
+records the removal took, from the same stores, to stdout (`bko.evaluate.truth`).
 `merge RUN SCORES...` joins the scores files of holdout slices into the bytes one run of RUN writes,
 to stdout (`bko.evaluate.merge`); it refuses files that share a holdout, whose holdouts are not
 RUN's, whose columns differ, whose holdouts hold different scores' keys, or whose sibling
@@ -71,12 +73,13 @@ directory does not, paid arms with no `--log` or `--candidates`, a direct arm wi
 paid or direct arm, one path for both files, more than one of `--replay`, `--resume` and
 `--rehearse`, a call with no response, a failed gap query, a run whose spend reached the
 ceiling, projects to it or stalled, a `launch` on battery power or into a folder that holds a
-run, a `privacy` run with no reference arm or removed cell, a `contradictions` run without
-`--rows`, a `syntheval` run with no `make syntheval-env` environment or whose script fails or
-runs past its timeout, a `trace` of a holdout, arm or record the folder does not hold or over a
-call log line it cannot read, and scores whose validity cannot be read;
+run, a `privacy` run with no reference arm or removed cell, a `truth` run with no removal, a
+`contradictions` run without `--rows`, a `syntheval` run with no `make syntheval-env`
+environment or whose script fails or runs past its timeout, a `trace` of a holdout, arm or
+record the folder does not hold or over a call log line it cannot read, and scores whose
+validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
-contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`,
+contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`, `truth`,
 `syntheval` or `trace` run folder or store fails an identity check, a `trace` re-draw
 included, or a `contradictions --rows` store does.
 """
@@ -118,6 +121,7 @@ from bko.evaluate.reader_commands import (
     _rows,
     _runs_root,
     _shared,
+    _truth,
 )
 from bko.evaluate.resumes import resumable
 from bko.evaluate.scoring import data_dir, score
@@ -190,6 +194,8 @@ def _other(args: argparse.Namespace, context: Context, sink: TextIO) -> int:
         sink.write(_panel(args, context))
     elif args.command == "privacy":
         sink.write(_privacy(args, context))
+    elif args.command == "truth":
+        sink.write(_truth(args, context))
     elif args.command == "contradictions":
         sink.write(_contradictions(args, context))
     elif args.command == "trace":

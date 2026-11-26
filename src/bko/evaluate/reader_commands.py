@@ -1,7 +1,8 @@
 """The reader subcommands of `python -m bko.evaluate`: each reads a recorded run's files.
 
-`bko.evaluate.__main__` dispatches `shared`, `rows`, `panel`, `privacy` and `contradictions` to
-the handlers here; `_named` and `_runs_root` are the helpers every subcommand shares.
+`bko.evaluate.__main__` dispatches `shared`, `rows`, `panel`, `privacy`, `truth` and
+`contradictions` to the handlers here; `_named` and `_runs_root` are the helpers every
+subcommand shares.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from bko.evaluate.rows_read import read_rows
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir
 from bko.evaluate.shared import rescore
+from bko.evaluate.truth import truth
 from bko.gaps.scope import load_scope
 
 
@@ -108,6 +110,21 @@ def _privacy(args: argparse.Namespace, context: Context) -> str:
         runs=named.runs,
         root=_runs_root(args, context),
         ontologies=ontologies,
+    )
+
+
+def _truth(args: argparse.Namespace, context: Context) -> str:
+    """Read the run's fills against its removed records from its `--rows` stores."""
+    log_versions()
+    named = _named(args.run, context)
+    data = load(named.dataset, data_dir(args), named)
+    return truth(
+        args.run,
+        args.stores,
+        experiment=named.experiment,
+        data=data,
+        runs=named.runs,
+        root=_runs_root(args, context),
     )
 
 

@@ -2290,6 +2290,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `likelihood.log` | its stderr |
 | `privacy.csv` | `python -m bko.evaluate privacy`'s stdout |
 | `privacy.log` | its stderr |
+| `truth.csv` | `python -m bko.evaluate truth`'s stdout |
+| `truth.log` | its stderr |
 | `syntheval.csv` | `python -m bko.evaluate syntheval`'s stdout |
 | `syntheval.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
