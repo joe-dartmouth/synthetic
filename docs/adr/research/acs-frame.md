@@ -168,8 +168,14 @@ no surveyed column beyond occupation is mapped; the income label is unadjusted.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/occupations.py`
-- Pinned by: `tests/test_ontology_occupation_codes.py::test_a_detailed_soc_code_maps_to_its_onet_00_class`,
+- Owner: `src/bko/ontology/acs_rows.py`
+- Pinned by: `tests/test_datasets_acs.py::test_the_label_is_income_strictly_above_50000`,
+  `tests/test_datasets_acs.py::test_the_frame_holds_exactly_the_named_fields`,
+  `tests/test_datasets_acs.py::test_occp_keeps_its_leading_zeros`,
+  `tests/test_evaluate_acs.py::test_every_occp_code_is_in_exactly_one_row`,
+  `tests/test_evaluate_acs.py::test_each_disability_item_with_an_exact_hpo_term_maps_to_it`,
+  `tests/test_evaluate_acs.py::test_acs_reads_its_own_releases`,
+  `tests/test_ontology_occupation_codes.py::test_a_detailed_soc_code_maps_to_its_onet_00_class`,
   `tests/test_ontology_occupation_codes.py::test_a_five_digit_aggregate_maps_to_its_broad_class`,
   `tests/test_ontology_occupation_codes.py::test_a_shorter_aggregate_maps_to_its_minor_class`,
   `tests/test_ontology_occupations.py::test_an_occupation_row_whose_soc_id_differs_fails_the_check`,

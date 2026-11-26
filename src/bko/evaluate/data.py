@@ -21,6 +21,7 @@ from typing import Protocol, assert_never
 
 import pandas as pd
 
+from bko.datasets.acs import ACS_NAME
 from bko.datasets.diabetes import load_diabetes
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, check_records, digest, digested, log_data
@@ -65,6 +66,7 @@ class Dataset(StrEnum):
     TABLESHIFT_ID = "tableshift-id"
     TABLESHIFT_OOD = "tableshift-ood"
     SUPPORT2 = SUPPORT2_NAME
+    ACS = ACS_NAME
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -196,6 +198,7 @@ def frame(dataset: Dataset) -> FrameSpec:
             | Dataset.TABLESHIFT_ID
             | Dataset.TABLESHIFT_OOD
             | Dataset.SUPPORT2
+            | Dataset.ACS
         ):
             msg = f"the {dataset} frame is built from its records; load them"
             raise ValueError(msg)
@@ -222,7 +225,7 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             return DIABETES_CODES_FIELD_ROWS
         case Dataset.TABLESHIFT_ID | Dataset.TABLESHIFT_OOD:
             return LAB_FIELD_ROWS
-        case Dataset.SUPPORT2:
+        case Dataset.SUPPORT2 | Dataset.ACS:
             return context.catalog[dataset.value].rows
         case _:
             assert_never(dataset)
@@ -245,7 +248,7 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
             | Dataset.TABLESHIFT_OOD
         ):
             return context.releases
-        case Dataset.SUPPORT2:
+        case Dataset.SUPPORT2 | Dataset.ACS:
             return context.catalog[dataset.value].resolved_releases(context.releases)
         case _:
             assert_never(dataset)
@@ -318,7 +321,7 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             records, held, spec = load_tableshift(data_dir, source=source, domain=domain)
             check_records(records, spec)
             data = Data(records, spec, rows, source.name, source.agreement, held=held)
-        case Dataset.SUPPORT2:
+        case Dataset.SUPPORT2 | Dataset.ACS:
             entry = context.catalog[dataset.value]
             records, spec = entry.read(data_dir, open_url=context.open_url)
             data = Data(records, spec, rows, entry.name, entry.agreement)

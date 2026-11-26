@@ -31,7 +31,7 @@ def _refusing_opener(url: str, timeout: float) -> BinaryIO:
 
 
 def test_the_catalog_holds_support2() -> None:
-    assert list(CATALOG) == ["support2"]
+    assert list(CATALOG) == ["support2", "acs"]
     entry = CATALOG["support2"]
     assert entry.name == "support2"
     assert entry.sources == (SUPPORT2,)

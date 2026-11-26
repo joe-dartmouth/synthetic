@@ -86,12 +86,21 @@ def test_a_dataset_beside_a_run_exits_2_naming_both(tmp_path: Path, monkeypatch,
 
 
 def test_every_catalog_name_is_a_dataset() -> None:
-    assert {name: Dataset(name) for name in CATALOG} == {"support2": Dataset.SUPPORT2}
+    assert {name: Dataset(name) for name in CATALOG} == {
+        "support2": Dataset.SUPPORT2,
+        "acs": Dataset.ACS,
+    }
 
 
 def test_the_choices_are_the_census_and_the_catalog() -> None:
-    assert CHOICES == (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES, Dataset.SUPPORT2)
-    assert tuple(CATALOG) == ("support2",)
+    assert CHOICES == (
+        Dataset.UCI,
+        Dataset.SYNTHEA,
+        Dataset.DIABETES,
+        Dataset.SUPPORT2,
+        Dataset.ACS,
+    )
+    assert tuple(CATALOG) == ("support2", "acs")
 
 
 @pytest.mark.parametrize(

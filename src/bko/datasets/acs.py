@@ -1,11 +1,13 @@
 """ACS PUMS: one frame record per Massachusetts person of the 2024 file in Folktables' cohort.
 
-`read_kept` reads `psam_p25.csv` from the verified `acs-ma-2024` snapshot without extracting it and
-returns the rows Folktables' ACSIncome filters keep, as text: every column is read as a string, so
-`OCCP` keeps its leading zeros, and no value is read as missing. The header must be the published
-286 names and every row must hold 286 fields. `occupation_pairs` gives each kept `OCCP` code's
-`SOCP` code and refuses a file where one `OCCP` code carries two. ADR `research/acs-frame` records
-the frame.
+`load_acs` reads the frame records through `read_kept`, which reads `psam_p25.csv` from the verified
+`acs-ma-2024` snapshot without extracting it and returns the rows Folktables' ACSIncome filters
+keep, as text: every column is read as a string, so `OCCP` keeps its leading zeros, and no value is
+read as missing. The header must be the published 286 names and every row must hold 286 fields.
+`occupation_pairs` gives each kept `OCCP` code's `SOCP` code and refuses a file where one `OCCP`
+code carries two. A record holds `age` (`AGEP`), `sex` (`SEX` 1 to 1, 2 to 0), the other features as
+the file codes them, and `LABEL`, 1 when the unadjusted `PINCP` is above `THRESHOLD`. ADR
+`research/acs-frame` records the frame.
 """
 
 from __future__ import annotations
@@ -13,7 +15,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -21,6 +23,7 @@ from typing import Final
 import pandas as pd
 
 from bko.datasets.archive import member_text
+from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
@@ -84,6 +87,12 @@ FEATURES_READ: Final = (
 """The columns that become features, in record order: Folktables' ACSIncome features with
 `RELSHIPP` for `RELP`, then the six disability items."""
 
+FEATURES: Final = ("age", "sex", *FEATURES_READ[2:])
+"""The frame's features, in record order: `AGEP` as `age`, `SEX` as `sex`, then the rest."""
+
+SEX_CODES: Final[Mapping[str, int]] = MappingProxyType({"2": 0, "1": 1})
+"""Each `SEX` code and its frame code (`bko.datasets.cells.SEXES`)."""
+
 DISABILITY: Final = ("DEAR", "DEYE", "DREM", "DPHY", "DDRS", "DOUT")
 """The six disability items, each 1 yes and 2 no."""
 
@@ -110,19 +119,132 @@ FILTER_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
 )
 """What every row's filter columns must look like: `PINCP` and `WKHP` may be blank."""
 
-CODES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+_COW: Final[Mapping[int, str]] = MappingProxyType(
     {
-        "SEX": frozenset({"1", "2"}),
-        "COW": frozenset(str(code) for code in range(1, 10)),
-        "SCHL": frozenset(f"{code:02d}" for code in range(1, 25)),
-        "MAR": frozenset(str(code) for code in range(1, 6)),
-        "RAC1P": frozenset(str(code) for code in range(1, 10)),
-        "RELSHIPP": frozenset(str(code) for code in range(20, 39)),
-        **dict.fromkeys(DISABILITY, frozenset({"1", "2"})),
+        1: (
+            "Employee of a private for-profit company or business, or of an individual, for "
+            "wages, salary, or commissions"
+        ),
+        2: "Employee of a private not-for-profit, tax-exempt, or charitable organization",
+        3: "Local government employee (city, county, etc.)",
+        4: "State government employee",
+        5: "Federal government employee",
+        6: "Self-employed in own not incorporated business, professional practice, or farm",
+        7: "Self-employed in own incorporated business, professional practice or farm",
+        8: "Working without pay in family business or farm",
+        9: "Unemployed and last worked 5 years ago or earlier or never worked",
     }
 )
-"""The 2024 data dictionary's codes of each coded column a kept row reads, its N/A blank left
-out."""
+
+_SCHL: Final[Mapping[int, str]] = MappingProxyType(
+    {
+        1: "No schooling completed",
+        2: "Nursery school, preschool",
+        3: "Kindergarten",
+        4: "Grade 1",
+        5: "Grade 2",
+        6: "Grade 3",
+        7: "Grade 4",
+        8: "Grade 5",
+        9: "Grade 6",
+        10: "Grade 7",
+        11: "Grade 8",
+        12: "Grade 9",
+        13: "Grade 10",
+        14: "Grade 11",
+        15: "12th grade - no diploma",
+        16: "Regular high school diploma",
+        17: "GED or alternative credential",
+        18: "Some college, but less than 1 year",
+        19: "1 or more years of college credit, no degree",
+        20: "Associate's degree",
+        21: "Bachelor's degree",
+        22: "Master's degree",
+        23: "Professional degree beyond a bachelor's degree",
+        24: "Doctorate degree",
+    }
+)
+
+_MAR: Final[Mapping[int, str]] = MappingProxyType(
+    {
+        1: "Married",
+        2: "Widowed",
+        3: "Divorced",
+        4: "Separated",
+        5: "Never married or under 15 years old",
+    }
+)
+
+_RAC1P: Final[Mapping[int, str]] = MappingProxyType(
+    {
+        1: "White alone",
+        2: "Black or African American alone",
+        3: "American Indian alone",
+        4: "Alaska Native alone",
+        5: (
+            "American Indian and Alaska Native tribes specified; or American Indian or "
+            "Alaska Native, not specified and no other races"
+        ),
+        6: "Asian alone",
+        7: "Native Hawaiian and Other Pacific Islander alone",
+        8: "Some Other Race alone",
+        9: "Two or More Races",
+    }
+)
+
+_RELSHIPP: Final[Mapping[int, str]] = MappingProxyType(
+    {
+        20: "Reference person",
+        21: "Opposite-sex husband/wife/spouse",
+        22: "Opposite-sex unmarried partner",
+        23: "Same-sex husband/wife/spouse",
+        24: "Same-sex unmarried partner",
+        25: "Biological son or daughter",
+        26: "Adopted son or daughter",
+        27: "Stepson or stepdaughter",
+        28: "Brother or sister",
+        29: "Father or mother",
+        30: "Grandchild",
+        31: "Parent-in-law",
+        32: "Son-in-law or daughter-in-law",
+        33: "Other relative",
+        34: "Roommate or housemate",
+        35: "Foster child",
+        36: "Other nonrelative",
+        37: "Institutionalized group quarters population",
+        38: "Noninstitutionalized group quarters population",
+    }
+)
+
+DISABILITY_LABELS: Final[Mapping[int, str]] = MappingProxyType({1: "Yes", 2: "No"})
+"""Each disability item's codes and meanings."""
+
+CODEBOOK: Final[Mapping[str, Mapping[int, str]]] = MappingProxyType(
+    {
+        "COW": _COW,
+        "SCHL": _SCHL,
+        "MAR": _MAR,
+        "RAC1P": _RAC1P,
+        "RELSHIPP": _RELSHIPP,
+        **dict.fromkeys(DISABILITY, DISABILITY_LABELS),
+    }
+)
+"""The 2024 data dictionary's codes and meanings of each coded feature it fixes, its N/A blank
+left out; `sex`, `OCCP` and `POBP` are coded apart."""
+
+_WIDTHS: Final[Mapping[str, int]] = MappingProxyType({"SCHL": 2})
+"""The columns whose codes the file writes zero-padded, and their width."""
+
+CODES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        "SEX": frozenset(SEX_CODES),
+        **{
+            name: frozenset(f"{code:0{_WIDTHS.get(name, 1)}d}" for code in codes)
+            for name, codes in CODEBOOK.items()
+        },
+    }
+)
+"""Each coded column a kept row reads and the codes the file may write in it."""
 
 KEPT_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -233,3 +355,59 @@ def read_kept(data_dir: Path, source: Source) -> tuple[pd.DataFrame, tuple[int, 
             holds more than `bko.datasets.archive.MEMBER_LIMIT` bytes.
     """
     return kept_rows(parse_acs(member_text(read_verified(source, data_dir), MEMBER, source)))
+
+
+def frame_records(rows: pd.DataFrame, counts: Sequence[int]) -> pd.DataFrame:
+    """Return the frame records of `rows`, the kept rows `kept_rows` returns with `counts`.
+
+    Logs one `cohort` line with the row count before the filters and after each, the records and
+    those above `THRESHOLD`.
+
+    Returns:
+        `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
+    """
+    columns: dict[str, pd.Series] = {
+        "age": rows["AGEP"],
+        "sex": rows["SEX"].map(SEX_CODES),
+        **{name: rows[name] for name in FEATURES_READ[2:]},
+        LABEL: pd.to_numeric(rows["PINCP"]) > THRESHOLD,
+    }
+    records = pd.DataFrame(columns).astype("int64")
+    records.index.name = "record_id"
+    logger.info(
+        "cohort dataset=%s rows=%d age_over_16=%d income_over_100=%d hours_over_0=%d "
+        "weight_at_least_1=%d records=%d income_over_50000=%d",
+        ACS_NAME,
+        *counts,
+        len(records),
+        int(records[LABEL].sum()),
+    )
+    return records
+
+
+def load_acs(data_dir: Path, *, sources: Sequence[Source]) -> pd.DataFrame:
+    """Load the frame records from the verified snapshot of the one source in `sources`.
+
+    This never fetches; `bko.datasets.fetch.ensure` does. Nothing is extracted: the member is read
+    from the archive's bytes once they match the pin.
+
+    Raises:
+        ValueError: If `sources` holds other than one source.
+        UnavailableError: If the snapshot is absent.
+        ContractError: As `read_kept` and `occupation_pairs`, or if the cohort holds no record or
+            no income above `THRESHOLD`.
+    """
+    if len(sources) != 1:
+        msg = f"ACS reads one archive, not {len(sources)}"
+        raise ValueError(msg)
+    [source] = sources
+    rows, counts = read_kept(data_dir, source)
+    occupation_pairs(rows)
+    records = frame_records(rows, counts)
+    if records.empty:
+        msg = f"{source.name}: the cohort holds no records"
+        raise ContractError(msg)
+    if not records[LABEL].any():
+        msg = f"{source.name}: the cohort holds no income above {THRESHOLD}"
+        raise ContractError(msg)
+    return records
