@@ -224,7 +224,22 @@ def test_a_blank_chronic_item_codes_every_flag_not_recorded_and_is_counted(caplo
     assert records.loc[[34001], list(FLAGS)].to_numpy().tolist()[0] == [2] * len(FLAGS)
     assert records.loc[[34002], ["CHF", "HTN", "ASTHMA"]].to_numpy().tolist()[0] == [1, 1, 0]
     assert records.loc[[34003], list(FLAGS)].to_numpy().tolist()[0] == [0] * len(FLAGS)
-    assert caplog.messages == ["cohort dataset=nhamcs rows=3 records=3 admitted=1 chronic_blank=1"]
+    assert caplog.messages == [
+        "cohort dataset=nhamcs records=3 admitted=1 chronic_blank=1 first_blank=0 not_icd=0"
+    ]
+
+
+def test_the_cohort_line_counts_blank_first_diagnoses_and_nchs_tokens(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.nhamcs"):
+        _records(
+            line(1, DIAG1="-9  ", DIAG2="I509"),
+            line(2, DIAG1="-9  ", DIAG3="ZZZ2", DIAG5="ZZZ5"),
+            line(3, DIAG4="ZZZ0"),
+            line(4, ADMITHOS="1", DIAG2="-9  "),
+        )
+    assert caplog.messages == [
+        "cohort dataset=nhamcs records=4 admitted=1 chronic_blank=0 first_blank=2 not_icd=2"
+    ]
 
 
 def test_frame_bytes_do_not_depend_on_file_order() -> None:

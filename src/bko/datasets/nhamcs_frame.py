@@ -16,7 +16,7 @@ import pandas as pd
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.frames import FrameSpec, RangeConstraint
 from bko.datasets.icd10_tokens import BLANK, UNKNOWN, token_text
-from bko.datasets.nhamcs import DIAGNOSES, FEATURES, FLAG_CODES, FLAGS, NHAMCS_NAME
+from bko.datasets.nhamcs import DIAGNOSES, FEATURES, FLAG_CODES, FLAGS, NHAMCS_NAME, ORDINALS
 
 
 _FLAG_ITEMS: Final[Mapping[str, str]] = {
@@ -43,8 +43,11 @@ _FLAG_ITEMS: Final[Mapping[str, str]] = {
     "OSTPRSIS": "osteoporosis",
     "SUBSTAB": "substance abuse or dependence",
 }
+"""Each chronic item's condition, keyed and ordered as `FLAGS`."""
 
-_POSITIONS: Final = ("first", "second", "third", "fourth", "fifth")
+if tuple(_FLAG_ITEMS) != FLAGS:
+    msg = f"the chronic item descriptions name {tuple(_FLAG_ITEMS)}, not FLAGS {FLAGS}"
+    raise RuntimeError(msg)
 
 _DESCRIPTIONS: Final[Mapping[str, str]] = {
     "age": "age in whole years at the visit (94 = 94 and over)",
@@ -54,7 +57,7 @@ _DESCRIPTIONS: Final[Mapping[str, str]] = {
             f"ICD-10-CM code of the visit's {position} diagnosis, cut to four characters "
             f"({BLANK.strip()} = none recorded)"
         )
-        for name, position in zip(DIAGNOSES, _POSITIONS, strict=True)
+        for name, position in zip(DIAGNOSES, ORDINALS, strict=True)
     },
     **{
         name: f"the patient has {item} (not recorded = the whole chronic item left blank)"

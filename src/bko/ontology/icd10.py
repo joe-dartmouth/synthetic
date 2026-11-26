@@ -14,16 +14,19 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
 from typing import Final
 
 from bko.datasets.icd10_tokens import BLANK, NOT_ICD, is_token, token_number
-from bko.ontology.codes import _holders, _name, _spanning, _unmapped, render_rows
+from bko.ontology.codes import (
+    concept_name,
+    exact_holders,
+    render_rows,
+    spanning_holder,
+    unmapped_reason,
+)
+from bko.ontology.icd10_row import PREFIX, Icd10Code
 from bko.ontology.terms import Ontology
 
-
-PREFIX: Final = "ICD10CM:"
-"""The prefix of MONDO's ICD-10-CM cross-references."""
 
 REASONS: Final = (
     "no live xref",
@@ -35,34 +38,6 @@ REASONS: Final = (
 )
 """Why a token stays unmapped, in the order `generate_icd10` counts them: the first five as
 `bko.ontology.codes.REASONS` reads them, then NCHS's own `ZZZ` tokens."""
-
-
-@dataclass(frozen=True, slots=True)
-class Icd10Code:
-    """An ICD-10-CM id an NHAMCS token reads as and the one MONDO concept equated with it.
-
-    Attributes:
-        code: The id as MONDO's xrefs write it, such as `I50.9` or the category `A00`.
-        concept: The MONDO curie.
-        label: The concept's name in its pinned release, verbatim.
-        holders: Every live concept in the pinned release that carries `xref` under `EXACT`,
-            `concept` among them.
-    """
-
-    code: str
-    concept: str
-    label: str
-    holders: frozenset[str]
-
-    @property
-    def xref(self) -> str:
-        """The `ICD10CM:` xref id the concept carries."""
-        return f"{PREFIX}{self.code}"
-
-    @property
-    def token(self) -> str:
-        """The four-character token the ED file writes for `code`."""
-        return self.code.replace(".", "").ljust(4, "-")
 
 
 def icd10cm_id(token: str) -> str | None:
@@ -96,7 +71,7 @@ def generate_icd10(
     Raises:
         ValueError: If a token is not a diagnosis token, or a chosen concept has no name.
     """
-    exact, weaker, dead = _holders(mondo, PREFIX)
+    exact, weaker, dead = exact_holders(mondo, PREFIX)
     rows: list[Icd10Code] = []
     unmapped: Counter[str] = Counter(dict.fromkeys(REASONS, 0))
     for token in sorted({t for t in tokens if t != BLANK}, key=token_number):
@@ -107,13 +82,13 @@ def generate_icd10(
         code = xref.removeprefix(PREFIX)
         holders = exact.get(code, ())
         if not holders:
-            unmapped[_unmapped(code, weaker, dead)] += 1
+            unmapped[unmapped_reason(code, weaker, dead)] += 1
             continue
-        concept = _spanning(mondo, holders)
+        concept = spanning_holder(mondo, holders)
         if concept is None:
             unmapped["holders not nested"] += 1
             continue
-        rows.append(Icd10Code(code, concept, _name(mondo, concept), frozenset(holders)))
+        rows.append(Icd10Code(code, concept, concept_name(mondo, concept), frozenset(holders)))
     return rows, unmapped
 
 

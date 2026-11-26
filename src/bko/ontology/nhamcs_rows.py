@@ -12,8 +12,8 @@ from __future__ import annotations
 from typing import Final
 
 from bko.datasets.icd10_tokens import token_number
-from bko.datasets.nhamcs import DIAGNOSES
-from bko.ontology.icd10 import Icd10Code
+from bko.datasets.nhamcs import DIAGNOSES, ORDINALS
+from bko.ontology.icd10_row import Icd10Code
 from bko.ontology.icd10cm_codes import ICD10CM_CODES
 from bko.ontology.schema import Codes, FieldMapping
 
@@ -83,9 +83,7 @@ FLAG_ROWS: Final[tuple[FieldMapping, ...]] = (
 """The chronic items with a concept, in file order; `ETOHAB`, `CAD`, `HPE` and `SUBSTAB` map
 nothing."""
 
-_POSITIONS: Final = dict(
-    zip(DIAGNOSES, ("first", "second", "third", "fourth", "fifth"), strict=True)
-)
+_POSITIONS: Final = dict(zip(DIAGNOSES, ORDINALS, strict=True))
 
 
 def _diagnosis(row: Icd10Code, column: str) -> FieldMapping:

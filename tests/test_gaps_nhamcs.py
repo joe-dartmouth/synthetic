@@ -100,7 +100,7 @@ def test_gaps_nhamcs_logs_its_records_and_its_split_once(tmp_path: Path, caplog)
     assert found == [
         (
             "bko.datasets.nhamcs",
-            "cohort dataset=nhamcs rows=41 records=41 admitted=1 chronic_blank=0",
+            "cohort dataset=nhamcs records=41 admitted=1 chronic_blank=0 first_blank=0 not_icd=0",
         ),
         ("bko.gaps", "data dataset=nhamcs frame=nhamcs records=41"),
         ("bko.datasets", "split seed=0 train=33 test=8"),

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Final, Literal, assert_never
 
 from bko.ontology.icd9 import EXACT, Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
-from bko.ontology.icd10 import Icd10Code
+from bko.ontology.icd10_row import Icd10Code
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,

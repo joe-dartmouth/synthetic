@@ -26,7 +26,7 @@ from bko.datasets.archive import member_text
 from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
-from bko.datasets.icd10_tokens import is_token, token_number
+from bko.datasets.icd10_tokens import BLANK, NOT_ICD, is_token, token_number
 from bko.datasets.sources import Source
 
 
@@ -43,6 +43,9 @@ WIDTH: Final = 2382
 
 DIAGNOSES: Final = ("DIAG1", "DIAG2", "DIAG3", "DIAG4", "DIAG5")
 """The diagnosis items, in the order the visit lists them."""
+
+ORDINALS: Final = ("first", "second", "third", "fourth", "fifth")
+"""Each diagnosis item's position in the visit's list, in `DIAGNOSES` order."""
 
 FLAGS: Final = (
     *("ETOHAB", "ALZHD", "ASTHMA", "CANCER", "CEBVD", "CKD", "COPD", "CHF", "CAD", "DEPRN"),
@@ -133,7 +136,8 @@ def checked(raw: pd.DataFrame) -> pd.DataFrame:
 
     Raises:
         ContractError: If an item holds a value outside its codes, or `NOCHRON` contradicts the
-            flags (0 with none set, 1 or 2 with one set), naming the first record in record order.
+            flags (0 with none set, 1 or 2 with one set). Checks run item by item in file order,
+            and the first that fails names its first failing record in record order.
     """
     rows = raw.sort_index(kind="stable")
     ages = rows["AGE"].where(rows["AGE"].str.fullmatch(_THREE_DIGITS.pattern), "999")
@@ -161,8 +165,9 @@ def checked(raw: pd.DataFrame) -> pd.DataFrame:
 def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
     """Return the frame records of `raw`, in record order, after checking every row.
 
-    Logs one `cohort` line with the records, the admissions and the visits whose chronic item is
-    blank.
+    Logs one `cohort` line with the records, the admissions, the visits whose chronic item is
+    blank, the visits whose first diagnosis is blank, and the visits holding one of NCHS's own
+    `ZZZ` tokens.
 
     Args:
         raw: The output of `parse_nhamcs`.
@@ -185,12 +190,13 @@ def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
     logger.info(
-        "cohort dataset=%s rows=%d records=%d admitted=%d chronic_blank=%d",
+        "cohort dataset=%s records=%d admitted=%d chronic_blank=%d first_blank=%d not_icd=%d",
         NHAMCS_NAME,
-        len(rows),
         len(records),
         int(records[LABEL].sum()),
         int(blank.sum()),
+        int((rows["DIAG1"] == BLANK).sum()),
+        int(rows[list(DIAGNOSES)].isin(NOT_ICD).any(axis=1).sum()),
     )
     return records
 
