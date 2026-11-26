@@ -66,8 +66,11 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
   `bko.datasets.fetch.ensure` for the commands that read them. Releases are held per dataset:
   the evaluate stage alone reads a dataset's releases through
-  `bko.evaluate.data.dataset_releases(dataset, context)`, and every current dataset reads
-  `context.releases`, so its map stays HP and MONDO. The app, `gaps`, `generate`, `fusion` and
+  `bko.evaluate.data.dataset_releases(dataset, context)`. A dataset may hold its own release map:
+  a catalog entry's `releases`, which ACS's uses to add the Occupation Ontology, OccO, beside HP
+  (ADR [`research/acs-frame`](acs-frame.md)); every other dataset reads `context.releases`, HP and
+  MONDO. The `ontology check` command loads each prefix its rows name, from its own `RELEASES`
+  or, for a prefix those lack, a catalog entry's map. The app, `gaps`, `generate`, `fusion` and
   `ontology` commands each serve one dataset per run and read their `Context.releases`. A
   command that reads several datasets loads one release per prefix, and the contradiction census
   refuses two datasets that pin one prefix to different releases. An OWL-only release is a
@@ -254,6 +257,7 @@ term's `def:` whose xref is written `Pathbase: Curation`).
 | A Python OWL parser for an OWL-only release | A second OWL reader beside the OWL API ROBOT runs; ROBOT already converts OWL to OBO | 2026-11-24 |
 | Pinning a converted OBO by its own sha256 | ROBOT's serialisation is not known to be byte-stable across JDKs; the OWL and the jar are pinned, and each load logs the OBO's digest | 2026-11-24 |
 | A second, tolerant OBO reader for converted files | A third reader beside pronto and `read_hierarchy`; a converted file pronto refuses is refused as any release is | 2026-11-24 |
+| The check loading only its own HP and MONDO releases | ACS's occupation rows name OccO, which only ACS's catalog entry pins | 2026-11-25 |
 
 ## Enforcement
 
