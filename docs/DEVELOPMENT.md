@@ -1642,11 +1642,11 @@ commands, inside `.venv`:
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
 - **What `support2` and `acs` do**: each catalogued dataset (`bko.ontology.catalog`) has its own
-  command, `support2` and `acs` among them: it fetches the dataset's archive and the releases its field rows name
-  into the data root if absent, splits the records at `SPLIT_SEED` under the frame's age bands,
-  and lists the training split's gaps in `uci`'s columns, logging as `uci` does (ADR
-  `research/support2-frame`; ACS's releases are HP and OccO, ADR `research/acs-frame`). Before the
-  listing's lines it logs the loader's `cohort` line, one
+  command, `support2` and `acs` among them: it fetches the dataset's archive and the releases its
+  field rows name into the data root if absent, splits the records at `SPLIT_SEED` under the
+  frame's age bands, and lists the training split's gaps in `uci`'s columns, logging as `uci` does
+  (ADR `research/support2-frame`; ACS's releases are HP and OccO, ADR `research/acs-frame`).
+  Before the listing's lines it logs the loader's `cohort` line, one
   `data dataset=<name> frame=<name> records=<n> digest=<sha256> agreement=<a>` line for the
   loaded records, the line `score` logs for them, and one `split seed=<s> train=<n> test=<n>
   fingerprint=<sha256>` line, the line `uci_split` logs.

@@ -39,8 +39,8 @@ only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
 - The NIST CRC ACS excerpts pinned as a `Source`, their terms quoted from the archive.
 - A frame over the excerpt's own 24 fields that shares the ACS frame's rows for the four
   disability items it holds, `DEAR`, `DEYE`, `DREM` and `DPHY` (ADR
-  [`research/acs-frame`](../docs/adr/research/acs-frame.md)), with its label and the request: a replica of the
-  training split's cells at the excerpt's row count.
+  [`research/acs-frame`](../docs/adr/research/acs-frame.md)), with its label and the request: a
+  replica of the training split's cells at the excerpt's row count.
 - A check that each excerpt carries every field that frame reads, refusing one that does not.
 - Named runs writing one `bko-direct` file per excerpt.
 - The SDNist report command as its README gives it:
