@@ -1698,17 +1698,18 @@ commands, inside `.venv`:
   any removal, blank when never), `cell_removed` (the cell's removed cases at `first_flag`, blank
   when never), `reversals` (how often the detector stops listing it as cases go) and
   `flagged_at_all`.
-- **What it logs**: stderr gets the data root and the pandas and scipy versions, each input's
-  identity (the split or the population, the parser and each release), each ontology fragment's
-  size, how many records show each mapped concept, each cell's record count, held-concept count
-  and assumed concepts, each concept the frequency-aware definition flags with its counts and
-  posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts
-  and the count-based cells with the threshold, for `synthea` each ablation, each definition's gap
-  counts before and after the removal and its listed rows, and each detector's recovery (truth,
-  eligible, recovered, outside the truth, new outside the truth, and vanished) and its sensitivity
-  and specificity (`n/a` with no denominator), with a warning when
-  per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
-  removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What it logs**: stderr gets the `versions` line (commit, dirty tree and library versions), the
+  data root and the pandas and scipy versions, each input's identity (the split or the population,
+  the parser and each release), each ontology fragment's size, how many records show each mapped
+  concept, each cell's record count, held-concept count and assumed concepts, each concept the
+  frequency-aware definition flags with its counts and posterior mass, each fused BKB's size and
+  name, for `uci` each definition's gap and cell counts and the count-based cells with the
+  threshold, for `synthea` each ablation, each definition's gap counts before and after the removal
+  and its listed rows, and each detector's recovery (truth, eligible, recovered, outside the truth,
+  new outside the truth, and vanished) and its sensitivity and specificity (`n/a` with no
+  denominator), with a warning when per-subgroup or the count-based detector puts a gap new outside
+  the truth or loses one, which removing whole patients cannot cause, and last the row count and
+  sha256 of stdout.
 - **What the sweep logs**: `synthea` and `uci` also read each grounding count and level of
   `bko.gaps.sweep` ([D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level)), to
   stderr only, so stdout is the same bytes as without it. A setting is per-subgroup or
@@ -1726,18 +1727,17 @@ commands, inside `.venv`:
   reaches it. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name>
   detector=<d> grounding=<k> credibility=<level> gaps=<n> cells=<c>` line per setting, `<n>`
   being the setting's gap count and `<c>` the cells holding them.
-- **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
-  `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
-  partial ablation it passes over; for each whole ablation a header,
-  `first-flag ablation=<name> cases=<n> truth per-subgroup=<k> population-level=<k>
-  frequency-aware=<k> count=<k>`, giving its truth item counts, so an ablation with no truth still
-  logs; then one line per detector and truth cell, `first-flag ablation=<name> detector=<d>
-  cell=<key> cases=<n> items=<k> flagged=<k> first=<r> last=<r>`, `first` and `last` being the
-  earliest and latest first flag among the cell's items and `n/a` when none is flagged; and last
-  the `gaps rows=<k> sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The
-  scan's per-state fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING
-  while it runs and restores it after, so `synthea`, `uci` and the fusion reproduction keep
-  theirs.
+- **What `first-flag` logs**: the `versions` line, the data root, versions, input identities and
+  observed concepts as `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>`
+  line for each partial ablation it passes over; for each whole ablation a header, `first-flag
+  ablation=<name> cases=<n> truth per-subgroup=<k> population-level=<k> frequency-aware=<k>
+  count=<k>`, giving its truth item counts, so an ablation with no truth still logs; then one line
+  per detector and truth cell, `first-flag ablation=<name> detector=<d> cell=<key> cases=<n>
+  items=<k> flagged=<k> first=<r> last=<r>`, `first` and `last` being the earliest and latest first
+  flag among the cell's items and `n/a` when none is flagged; and last the `gaps rows=<k>
+  sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The scan's per-state
+  fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING while it runs and
+  restores it after, so `synthea`, `uci` and the fusion reproduction keep theirs.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks and a BKB the fragments
   cannot ground, fuse or query (`bko.bkb.errors.BKBError`); 3 the data or a release contradicts

@@ -19,6 +19,8 @@ input's identity, each cell's records, each flagged concept, each list's length,
 recovery and the report's digest go to stderr through logging, and `synthea` and `uci` also log
 D1's sweep there (`bko.gaps.sweep`): a `sweep` line per setting and, for `synthea`, a `chosen`
 line naming the level its rule picks.
+Every command first logs the `versions` line (`bko.evaluate.provenance.log_versions`): the commit,
+whether its tree is dirty, and the libraries' versions.
 `docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
 Exit codes: 0 the report is written; 1 an unexpected error, with its traceback; 2 the command could
@@ -53,6 +55,7 @@ from bko.datasets.split import SPLIT_SEED, log_split, split
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.provenance import log_versions
 from bko.gaps.definitions import Definition
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
 from bko.gaps.listing import listed, log_cells, log_observed
@@ -139,6 +142,7 @@ def main(
     """
     context = Context() if context is None else context
     args = _parser(context.catalog).parse_args(argv)
+    log_versions()
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         fixed = dict(zip(FIXED_COMMANDS, (_uci, _synthea, _first_flag), strict=True))

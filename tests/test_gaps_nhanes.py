@@ -6,6 +6,7 @@ from __future__ import annotations
 import dataclasses
 import io
 import logging
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -112,6 +113,14 @@ def test_gaps_nhanes_logs_its_records_and_its_split_once(tmp_path: Path, caplog)
         ("bko.gaps", "data dataset=nhanes frame=nhanes records=41"),
         ("bko.datasets", "split seed=0 train=33 test=8"),
     ]
+
+
+def test_gaps_logs_its_commit_and_dirty_flag_first(tmp_path: Path, caplog) -> None:
+    caplog.set_level(logging.INFO)
+    assert run(tmp_path, make_context())[0] == 0
+    first = caplog.records[0]
+    assert first.name == "bko.evaluate"
+    assert re.fullmatch(r"versions commit=\S+ dirty=(true|false|unknown) \{.*\}", first.message)
 
 
 def test_a_second_run_writes_the_same_bytes_and_fetches_nothing(tmp_path: Path) -> None:
