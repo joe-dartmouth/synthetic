@@ -40,10 +40,9 @@ as a hidden partial file renamed into place, and ROBOT's stderr, kept only when 
 fails. Each download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, SUPPORT2, the ACS
 Massachusetts file, the NHANES component files, the NHAMCS 2022 ED file, the PhysioNet 2012
 files, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL file, and the OWL files and
-ROBOT jar the `elk` command reads) is
-pinned by size and sha256 in `bko.datasets.sources`. A download that differs from its pin is
-refused; the commands delete and fetch again a snapshot on disk that fails its pin, and the UCI and
-Diabetes loaders refuse one. A generated population is checked against its own `run.json`: the
+ROBOT jar the `elk` command reads) is pinned by size and sha256 in `bko.datasets.sources`. A
+download that differs from its pin is refused; the commands delete and fetch again a snapshot on
+disk that fails its pin, and the UCI and Diabetes loaders refuse one. A generated population is checked against its own `run.json`: the
 commands regenerate one whose CSVs or recorded settings differ.
 
 Both commands run inside the project's virtual environment (`.venv`, built by `make setup`), write
@@ -218,7 +217,7 @@ root or to see the module's own code, run it directly:
   `bko.ontology.physionet2012_rows` holds its field rows, so `score`, `gaps physionet2012` and
   `contradictions --dataset physionet2012` read it through its catalog entry.
   `tests/test_datasets_physionet2012_pinned.py` checks the six files' sha256s, the fixture's real
-  stay against the archive, and the counts ADR `research/physionet2012-frame` records; the gate
+  stays against the archive, and the counts ADR `research/physionet2012-frame` records; the gate
   skips it, and `--releases` runs it:
 
       uv run --no-sync pytest tests/test_datasets_physionet2012_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null

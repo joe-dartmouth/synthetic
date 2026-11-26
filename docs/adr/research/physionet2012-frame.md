@@ -93,9 +93,10 @@ exactly one line per stay of that set: a stay with no outcome line and an outcom
 stay are refused. A stay must be ASCII text, end in a newline, start with the header, and hold
 three fields per line, a time from `00:00` to `48:00`, and a finite decimal number: digits with an
 optional fraction, or the exponent form the files hold, such as `1.213e+04`. `RecordID`, `Age`,
-`Gender`, `Height` and `ICUType` each appear once, at `00:00`; `Age` must be whole, `Gender` 0, 1 or -1, `ICUType`
-1 to 4, and each `MechVent` value 0, 1 or -1. A `Parameter` that is none of the six descriptors and 37 time series is refused, except
-an empty one, which names no variable: its line is skipped and counted.
+`Gender`, `Height` and `ICUType` each appear once, at `00:00`; `Age` must be whole, `Gender` 0,
+1 or -1, `ICUType` 1 to 4, and each `MechVent` value 0, 1 or -1. A `Parameter` that is none of
+the six descriptors and 37 time series is refused, except an empty one, which names no variable:
+its line is skipped and counted.
 
 **3. The label and the cohort.** `target` is `In-hospital_death`, 0 or 1. A stay whose `Age` or
 `Gender` is -1 is left out and counted. `age` is `Age`; `sex` is `Gender`, 0 female and 1 male.
@@ -243,7 +244,16 @@ and the pinned test passed with `--releases`.
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
 of, so a single spurious reading can show a finding; a recorded 0 is a valid value by the
 page's own rule, so a `Temp` of 0 shows Hypothermia and a `MAP` of 0 Hypotension. A `GCS` below 15
-under sedation reads as Reduced consciousness, as SOFA reads it.
+under sedation reads as Reduced consciousness, as SOFA reads it. Reading `MAP` and `NIMAP` only
+where `MAP` is absent has a cost. Of the 11,988 records, 7,049 hold values of both at or above 0:
+653 of them have a lowest `MAP` of 70 or more but a lowest `NIMAP` below 70, so show no
+Hypotension though a cuff reading crossed the cutoff; 67 have a lowest `MAP` of 0, likely an
+arterial-line artifact, while their lowest `NIMAP` is above 0, so show Hypotension from that 0.
+This command counted them:
+
+    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/[0-9]+\.txt"), s)]; both = [(min(s.values["MAP"]), min(s.values["NIMAP"])) for s in stays if -1.0 not in (s.age, s.gender) and s.values["MAP"] and s.values["NIMAP"]]; print(len(both), sum(m >= 70 > n for m, n in both), sum(m == 0 < n for m, n in both))' </dev/null
+
+It printed `7049 653 67` at `4c0f6c5`.
 
 ## Ruled Out
 
@@ -256,6 +266,7 @@ under sedation reads as Reduced consciousness, as SOFA reads it.
 | Set A alone, the only set with outcomes during the challenge | The page now serves every set's outcomes, and the selection ADR chose the 12,000 stays | 2026-11-25 |
 | A row on `mechvent` | It records a treatment, not a phenotype, and no cited cutoff applies | 2026-11-25 |
 | The SIRS alternatives PaCO2 below 32 and over 10% immature bands, and SOFA's PaO2/FiO2 | The frame names neither `PaCO2` nor a ratio; band counts are no variable of the files | 2026-11-25 |
+| The minimum over `MAP` and `NIMAP` together | It would show Hypotension in the 653 stays whose cuff alone crossed 70, but let an artifact of either line show it too; the arterial line is the direct reading (Rationale), and Consequences give the counts | 2026-11-25 |
 | Refusing the empty-`Parameter` lines of set C | They are part of the published bytes; refusing them would refuse the set; they are skipped and counted | 2026-11-25 |
 
 ## Enforcement

@@ -128,8 +128,7 @@ import it (ADR `tooling/agent-config-single-home`).
   `uv run --no-sync python -m bko.gaps nhamcs`, `uv run --no-sync python -m bko.gaps physionet2012`
   or `uv run --no-sync python -m bko.gaps synthea`: list the gaps under each BKO gap definition and
   the count-based gaps of the UCI, SUPPORT2, ACS, NHANES, NHAMCS or PhysioNet 2012 training split,
-  or of the Synthea
-  population before and after each of E2's ablations
+  or of the Synthea population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.gaps first-flag`: remove each whole E2 ablation's cases one at a
   time in its seed's draw order and list, per detector and truth item, the removed count at which
@@ -138,8 +137,7 @@ import it (ADR `tooling/agent-config-single-home`).
   list where each mapped frame's training split contradicts its ontology, in the five kinds of ADR
   `research/data-contradiction-handling`: UCI's, Synthea's and Diabetes 130's frames, or those
   `--dataset` names, such as `support2`, `acs`, `nhanes`, `nhamcs` or `physionet2012`. It makes no
-  API call
-  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
+  API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   count those kinds and the three Diabetes coherence rules' breaks in each fill's added rows of a
   run's `rows` stores, `--rows` once per slice's store. It makes no API call
