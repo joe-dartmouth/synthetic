@@ -29,7 +29,8 @@ dataset's records, frame and rows as they are, and its logs name the dataset.
 1. **A variant is a dataset name.** A mapping change or a field projection of an existing dataset
    is a new `Dataset` value, held in `VARIANTS`, a read-only map from each variant to its
    `Variant`: its `base`, its `rows` (None keeps the base's) and whether it is `supported`,
-   projected onto `supported_frame`.
+   projected onto `supported_frame`. `frame`, `field_rows`, `dataset_releases` and `load` read a
+   variant through its `VARIANTS` entry alone, so its match case in each holds no rule of its own.
 2. **Records, releases and source name are the base's.** Loading a variant reads its base's
    records, then swaps the rows or projects the records; `Data.name` stays the base's source name,
    and `dataset_releases` of a variant is its base's.
@@ -54,7 +55,8 @@ identity checks working as they do for every other dataset.
 
 **Gained**: a projection or a mapping change runs under the existing run, split and logging code;
 existing datasets and their runs stay as they are.
-**Accepted**: each variant is a `Dataset` member and a `VARIANTS` entry; a variant's digest differs
+**Accepted**: each variant is a `Dataset` member, a `VARIANTS` entry and a case in each reader's
+match that defers to the entry; a variant's digest differs
 from its base's whenever its records do, so its folders never merge with the base's.
 
 ## Ruled Out
@@ -70,7 +72,8 @@ from its base's whenever its records do, so its folders never merge with the bas
 - Owner: `src/bko/evaluate/data.py`
 - Pinned by: `tests/test_evaluate_variants.py` (the supported frame's fields and its one object,
   the base's field rows, the base split, the `data` line naming the variant, the base's source
-  name and releases, no base line when a variant loads)
+  name and releases, no base line when a variant loads, and a row swap's base frame and own rows
+  through a patched `VARIANTS` entry)
 
 ## Reversal Conditions
 

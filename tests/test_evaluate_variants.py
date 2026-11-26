@@ -141,3 +141,27 @@ def test_loading_the_base_logs_its_line_unchanged(tmp_path: Path, caplog):
         f"digest={digest(data.records)} agreement=none"
     )
     assert [m for m in caplog.messages if m.startswith("data ")] == [line]
+
+
+def test_a_row_swap_variant_reads_its_bases_frame_and_its_own_rows(
+    tmp_path: Path, monkeypatch, caplog
+):
+    rows = DIABETES_FIELD_ROWS[:3]
+    swapped = {Dataset.DIABETES_SUPPORTED: Variant(Dataset.DIABETES, rows=rows)}
+    monkeypatch.setattr("bko.evaluate.data.VARIANTS", swapped)
+    context = _context()
+    assert frame(Dataset.DIABETES_SUPPORTED) is DIABETES_FRAME
+    assert field_rows(Dataset.DIABETES_SUPPORTED, context) == rows
+    assert dataset_releases(Dataset.DIABETES_SUPPORTED, context) == context.releases
+    base = load(Dataset.DIABETES, tmp_path, context)
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        data = load(Dataset.DIABETES_SUPPORTED, tmp_path, context)
+    assert data.frame is DIABETES_FRAME
+    assert data.field_rows == rows
+    assert data.records.equals(base.records)
+    assert (data.name, data.digest) == (base.name, base.digest)
+    line = (
+        f"data dataset=diabetes-supported frame=diabetes records={len(data.records)} "
+        f"digest={data.digest} agreement=none"
+    )
+    assert [m for m in caplog.messages if m.startswith("data ")] == [line]

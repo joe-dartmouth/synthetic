@@ -249,7 +249,9 @@ def records_split(
 def frame(dataset: Dataset) -> FrameSpec:
     """The frame `load` gives `dataset`'s records, read with no data loaded.
 
-    A supported variant's is its one module-level frame; a row-swap variant's is its base's.
+    A variant's is read through its `VARIANTS` entry: a supported variant's is its one
+    module-level frame, its base's projected (`supported_frame`); a row-swap variant's is its
+    base's.
 
     Raises:
         ValueError: For `diabetes-codes`, the TableShift datasets and the catalogued datasets,
@@ -263,7 +265,8 @@ def frame(dataset: Dataset) -> FrameSpec:
         case Dataset.DIABETES:
             return DIABETES_FRAME
         case Dataset.DIABETES_SUPPORTED:
-            return _SUPPORTED_FRAMES[dataset]
+            variant = VARIANTS[dataset]
+            return _SUPPORTED_FRAMES[dataset] if variant.supported else frame(variant.base)
         case (
             Dataset.DIABETES_CODES
             | Dataset.TABLESHIFT_ID
