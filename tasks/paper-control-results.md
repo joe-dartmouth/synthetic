@@ -3,7 +3,7 @@ id: paper-control-results
 title: Read the matched development contrasts
 status: blocked
 depends_on: paper-controls
-blocks: paper-baselines, paper-scarcity
+blocks: paper-baselines
 parallel_safe: false
 milestone: direct-method-research
 paid: false

@@ -77,15 +77,16 @@ Check the [official call](https://icml.cc/Conferences/2027/CallForPapers) before
 | [`paper-controls`](paper-controls.md) | ready | -- | direct-method-research |
 | [`paper-control-results`](paper-control-results.md) | blocked | paper-controls | direct-method-research |
 | [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
-| [`paper-scarcity`](paper-scarcity.md) | blocked | paper-control-results, paper-baselines | direct-method-research |
-| [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity | direct-method-research |
+| [`paper-scarcity`](paper-scarcity.md) | blocked | paper-baselines, evaluate-confirmatory-registration | direct-method-research |
+| [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity, evaluate-confirmatory-results | direct-method-research |
 | [`paper-manuscript`](paper-manuscript.md) | blocked | paper-novelty, paper-scarcity-results | direct-method-research |
 
 ```mermaid
 flowchart LR
     p1[paper-controls] --> p2[paper-control-results]
     p2[paper-control-results] --> p3[paper-baselines]
-    p2[paper-control-results] --> p4[paper-scarcity]
+    u30[evaluate-confirmatory-registration] --> p4[paper-scarcity]
+    u31[evaluate-confirmatory-results] --> p5[paper-scarcity-results]
     p3[paper-baselines] --> p4[paper-scarcity]
     p4[paper-scarcity] --> p5[paper-scarcity-results]
     p0[paper-novelty] --> p6[paper-manuscript]

@@ -24,4 +24,4 @@ Reuse TabDDPM. Pin TabSyn and ReTabSyn implementations and weights. Add TabPFN t
 
 ## Acceptance
 
-A small common-split fixture exercises each comparator. Register named development runs, score prediction and correlation fidelity separately, and document unsupported frames and short fills.
+A small common-split fixture exercises each comparator. Register named development runs and specify separate prediction and correlation-fidelity readings, and document unsupported frames and short fills.

@@ -20,7 +20,7 @@ E9, E12, E13 and E15 supply related controls. A change in donor selection or fie
 
 ## Scope
 
-Audit their actual draws against a matched design. Keep split, quota, seed, field grouping, donor eligibility and classifier fixed wherever compatible. Pair BKO-direct with the identical sampler using empirical weights alone. Include conditional row resampling, independent empirical marginals, empirical Bayes shrinkage, and a hierarchical Bayesian partial-pooling baseline fitted on retained training cells. Add subgroup reassignment of positive donors with other fields fixed as a diagnostic, without a causal interpretation.
+Audit their actual draws against a matched design. Keep split, quota, seed, field grouping, donor eligibility and classifier fixed wherever compatible. Document which weights already come from training counts. Pair BKO-direct with a control that forms its donor pools from retained data alone. Match the draw and field grouping where possible, identify any grouping supplied by the mapping, and record which eligibility decisions differ. Include conditional row resampling, independent empirical marginals, empirical Bayes shrinkage, and a hierarchical Bayesian partial-pooling baseline fitted on retained training cells. Add subgroup reassignment of positive donors with other fields fixed as a diagnostic, without a causal interpretation.
 
 ## Acceptance
 
