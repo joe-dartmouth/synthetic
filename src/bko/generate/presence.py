@@ -1,7 +1,8 @@
 """How the direct draw decides each concept's presence: a light module the run table imports.
 
 `bko.generate.direct.sample` takes a `DrawSpec` whose `presence` field is one;
-`bko.generate.logic` holds the logic-only draw.
+`bko.generate.logic` holds the logic-only draw, and `bko.generate.pooling` the pooled draw's
+fields.
 """
 
 from __future__ import annotations
@@ -18,3 +19,7 @@ class Presence(enum.StrEnum):
     LOGIC = "logic"
     """Uniformly over its component's consistent assignments, with no prior
     (`bko.generate.logic`)."""
+
+    POOLED = "pooled"
+    """None: no concept is drawn, and a pooled set of fields is copied by the pooled rule
+    (`bko.generate.pooling`; ADR `research/matched-knowledge-controls`)."""

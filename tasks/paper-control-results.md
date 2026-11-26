@@ -2,7 +2,7 @@
 id: paper-control-results
 title: Read the matched development contrasts
 status: blocked
-depends_on: evaluate-removed-truth-reading, paper-controls
+depends_on: evaluate-removed-truth-reading
 blocks: evaluate-confirmatory-registration, paper-baselines, paper-novelty
 parallel_safe: false
 milestone: direct-method-research
@@ -27,10 +27,21 @@ Relate findings to E9 and the existing
 
 **Findings from planning.**
 
-- The runs are E19's families, which unit [`paper-controls`](paper-controls.md) registers:
-  `e19-thin`, `e19-empty`, `e19-supported-thin` and `e19-supported-empty`, each sliced in ten.
-- It reads the primary and secondary contrasts as unit [`paper-controls`](paper-controls.md)
-  fixes them (and E19's Configuration once written), and no K contrast at full removal (ADR
+- The runs are entry E19's
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal)),
+  in `RUNS`: `e19-thin` and `e19-empty` on `diabetes`, slices `e19-thina` to `e19-thinj` and
+  `e19-emptya` to `e19-emptyj`; `e19-supported-thin` and `e19-supported-empty` on
+  `diabetes-supported`, slices `e19-supported-thina` to `e19-supported-thinj` and
+  `e19-supported-emptya` to `e19-supported-emptyj`. Their logs hold a
+  `pool-random holdout=%d fill=%s fields=%s` line per `bko-pool-random` fill attempt, an
+  `eb holdout=%d fill=%s kappa=%s` line per `eb-marginals` fill and an
+  `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
+  `hb-marginals` label and modelled column, and a
+  `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d` line per pooled method's or
+  `hb-marginals`' cell.
+- It reads the primary and secondary contrasts as RESEARCH section 11's
+  [matched-control reading](../docs/RESEARCH.md#matched-control-reading) and E19's
+  Configuration fix them, and no K contrast at full removal (ADR
   [`research/no-mapping-ablation`](../docs/adr/research/no-mapping-ablation.md),
   Consequences).
 - It first reads `real` minus `none` on the supported runs; where that contrast is below the

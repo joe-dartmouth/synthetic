@@ -14,9 +14,13 @@ from bko.evaluate.__main__ import main
 from bko.evaluate.direct_arms import (
     CAPPED_ARM,
     COHERENT_ARM,
+    DONOR_ARM,
     HIER_0_ARM,
     HIER_CLOSED_ARM,
     HIER_W_ARM,
+    KB_ARM,
+    POOL_ALL_ARM,
+    POOL_RANDOM_ARM,
     TREE_ARM,
 )
 from bko.evaluate.experiment import (
@@ -31,7 +35,7 @@ from bko.evaluate.holdout_candidates import read
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.run_folder import BKO
 from bko.evaluate.scoring import _arms
-from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec, Pool
 from bko.generate.presence import Presence
 from bko.ontology.schema import Codes
 from tests._gaps_fixtures import ANGINA
@@ -62,6 +66,10 @@ def test_the_direct_arms_draw_at_their_specs():
         HIER_W_ARM: DrawSpec(hierarchy=20.0),
         HIER_CLOSED_ARM: DrawSpec(closed=True),
         COHERENT_ARM: DEFAULT_SPEC,
+        DONOR_ARM: DrawSpec(presence=Presence.POOLED),
+        POOL_RANDOM_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.RANDOM),
+        POOL_ALL_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.ALL),
+        KB_ARM: DrawSpec(presence=Presence.LOGIC, donors=False),
     }
 
 
@@ -148,3 +156,18 @@ def test_field_rows_nested_in_a_chain_refuse_the_direct_arms_before_any_download
         "HP:9000000 lies inside 2 concepts" in caplog.text
     )
     assert not (tmp_path / "data").exists()
+
+
+def test_the_nested_refusal_names_no_pooled_arm(tmp_path, caplog):
+    ctx, _ = g2_context()
+    chain = tuple(
+        dataclasses.replace(ANGINA, concept=f"HP:900000{index}", when=(Codes("cp", codes),))
+        for index, codes in enumerate((frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})))
+    )
+    arms = ("none", DIRECT_ARM, DONOR_ARM, POOL_ALL_ARM)
+    run = dataclasses.replace(BOTH, arms=arms, candidate=DONOR_ARM, comparators=("none",))
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(run)}, field_rows=chain)
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    argv = ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert f"the direct arms {[DIRECT_ARM]} cannot draw dataset uci's rows: " in caplog.text

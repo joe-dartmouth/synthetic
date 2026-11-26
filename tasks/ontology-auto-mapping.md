@@ -1,8 +1,8 @@
 ---
 id: ontology-auto-mapping
 title: Build mapping rows automatically from a codebook and a pinned release, with no paid model
-status: blocked
-depends_on: paper-controls
+status: ready
+depends_on: --
 blocks: ontology-auto-mapping-results, paper-scarcity
 parallel_safe: true
 milestone: direct-method-research
@@ -63,8 +63,8 @@ relations, and it links to no standard ontology.
   (`permuted(rows, seed=...)`), every field state kept.
 - Six dataset variants in `VARIANTS`, `diabetes-auto-lexical`, `diabetes-auto-local`,
   `diabetes-permuted`, `diabetes-codes-auto-lexical`, `diabetes-codes-auto-local` and
-  `diabetes-codes-permuted`, each logging `mapping dataset=%s rows=%d sha256=%s`; the ADR on
-  dataset variants that unit `paper-controls` writes, revised in place for
+  `diabetes-codes-permuted`, each logging `mapping dataset=%s rows=%d sha256=%s`; ADR
+  [`research/dataset-variants`](../docs/adr/research/dataset-variants.md) revised in place for
   row-swap variants. `run_direct`'s pre-run check
   also builds the hierarchy for a conditional spec and the column trees for a tree spec,
   refusing with `EvaluationError` before any arm fits.

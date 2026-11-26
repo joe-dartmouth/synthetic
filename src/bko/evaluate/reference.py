@@ -27,6 +27,10 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     | {"e17-thin": DIRECT_ARM, "e17-empty": DIRECT_ARM}
     | {f"e18-{share}": DIRECT_ARM for share in E18_SHARES}
     | {
+        f"e19-{family}": REAL_ARM
+        for family in ("thin", "empty", "supported-thin", "supported-empty")
+    }
+    | {
         f"e10-{family}-{cell}": DIRECT_ARM
         for family in ("pilot", "pram")
         for cell in ("thin", "empty")

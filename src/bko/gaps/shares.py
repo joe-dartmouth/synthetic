@@ -26,6 +26,15 @@ GROUP_WEIGHT: Final = UNDERREPRESENTED_BELOW
 """The label group's weight in a share, in records: a cell this small weighs as its group does."""
 
 
+def cell_weight(count: int, kappa: float) -> float:
+    """The pooled rule's chance a donor is one of a cell's own `count` records: n/(n + kappa).
+
+    The one home of the weight `bko.generate.donors._pick_pooled` and
+    `bko.baselines.pooling.pooled_donor` draw their coin at; 0 for a cell of no record.
+    """
+    return count / (count + kappa)
+
+
 @dataclass(frozen=True, slots=True)
 class SharePart:
     """What one concept's share in a cell is composed of.

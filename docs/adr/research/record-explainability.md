@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # A record's explanation is the stored or re-derivable facts that determine it
 
@@ -36,10 +36,18 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      `bko.ontology.fragments.INDIVIDUAL`; tail `(__Source__[concept], <source>)`); per field, the
      source training record id; the fallback fields; the closure; and the validation outcome.
    * `bko-logic`: as `bko-direct`, drawn with presence `LOGIC`; its concepts are the closed draw
-     (`bko.generate.direct.Draw.closed`), not share priors.
+     (`bko.generate.draws.Draw.closed`), not share priors.
    * `bko-nomap`: as `bko-direct`, drawn with an empty mapping table (ADR
      `research/no-mapping-ablation`); its `concepts` and `closed` are empty, and each copied
      column names its source training record id.
+   * `bko-donor`, `bko-pool-random` and `bko-pool-all`: as `bko-nomap`, with a pooled set of
+     fields copied by the pooled rule (ADR `research/matched-knowledge-controls`); their `concepts`
+     and `closed` are empty, each copied column names its source training record id, and a pooled
+     field read from the label group's branch of the rule is a fallback field.
+   * `bko-kb`: as `bko-logic`, its concepts the closed draw, with no donor (ADR
+     `research/matched-knowledge-controls`): each mapping group's codes are drawn uniformly over
+     the codebook tuples showing the drawn pattern and `age` uniformly inside the cell's band and
+     the training split's age range, so its `sources` and fallback fields are empty.
    * `bko-capped`: as `bko-direct`, drawn under a donor floor and a reuse cap (ADR
      `research/sampler-donor-limits`); a field read from outside the cell below the floor is a
      fallback field.
@@ -92,8 +100,11 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    in this precedence: knowledge fact, training donor id, prompt section only, method and seed
    only.
    * Direct: a field a mapping row's `when` clause reads (the label aside), under an arm whose
-     `DrawSpec` reads the mapping table, is a knowledge fact; else a field with a source id is a
-     donor; else (`sex`, the label) it is method and seed.
+     `DrawSpec` reads the mapping table at a presence other than `POOLED`, is a knowledge fact;
+     else a field with a source id is a donor, a pooled field among them, since the mapping chose
+     only which fields pool and the value is a donor's; else (`sex`, the label, and `bko-kb`'s
+     `age`, drawn from its band and range by the seed) it is method and seed. A `bko-kb` mapped
+     field is a knowledge fact, its value drawn from the mapping table and the codebook alone.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
      rewrite arm, method and seed only under PRAM, and a training donor id under `bko-coherent`,
      whose leaf donor it names, a mapped field among them, since its value is no longer the drawn
@@ -145,7 +156,7 @@ folder.
 - Owner: `src/bko/evaluate/trace.py`, with the trace lines in `src/bko/evaluate/trace_lines.py`,
   the direct arms' in `src/bko/evaluate/trace_direct.py`, the perturbation arms' in
   `src/bko/evaluate/trace_perturb.py`, the call log's reading in
-  `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
+  `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/draws.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
   `src/bko/evaluate/holdout_candidates.py`; decision 7's reading in

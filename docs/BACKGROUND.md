@@ -325,6 +325,15 @@ The plan's arms differ in what decides a new record's content.
   [`research/baseline-augmentation-design`](adr/research/baseline-augmentation-design.md)).
 - **Interpolation within a stratum.** SMOTE and ADASYN interpolate between a stratum's own
   records, so a stratum of fewer than two records gets no rows from them.
+- **Knowledge alone.** `bko-kb` copies no training value. It draws which mapped concepts a record
+  shows uniformly over the combinations the ontology allows, then each mapped field's codes from
+  the codebook values showing that draw; only `age` reads the training split, for its range (ADR
+  [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)).
+- **A fitted multilevel model per column.** `hb-marginals` fits each column's categories to the
+  age band, sex and label, every pairing of them and each cell, with the strength of pooling
+  across cells chosen by the data; it draws a category from the cell's prediction, so an emptied
+  cell is predicted from its margins (ADR
+  [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)).
 - **A model's prior.** The Messages arms ask a model for each cell's records a chunk at a time
   (ADRs [`research/record-generation-design`](adr/research/record-generation-design.md) and
   [`research/cllm-arm-design`](adr/research/cllm-arm-design.md)), so what the data support and

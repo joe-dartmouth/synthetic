@@ -258,7 +258,7 @@ set from the training split `bko.datasets` computes (ADR
 command per method, inside `.venv`:
 
     uv run --no-sync python -m bko.baselines <none|class-weight> [--data-dir <dir>]
-    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|tabddpm|gaussian-copula|cart|bayes-net|label-bootstrap> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
+    uv run --no-sync python -m bko.baselines <smote|adasyn|ctgan|tvae|tabddpm|gaussian-copula|cart|bayes-net|label-bootstrap|row-resample|marginals|eb-marginals|hb-marginals> --rows <n> [--strata cell|label] [--seed <s>] [--data-dir <dir>]
 
 - **What it does**: it fetches UCI Heart Disease if the data root lacks it, splits it with
   `SPLIT_SEED`, water-fills `--rows` over the strata (cells unless `--strata label`), runs the
@@ -270,8 +270,14 @@ command per method, inside `.venv`:
   row counts and the output's sha256, the fit and fill lines of CTGAN, TVAE, TabDDPM, the
   Bayesian network, the Gaussian copula and sequential CART
   (`fit holdout=<h> fill=<kind> method=<name> seconds=<s>`, each method's own name, and
-  `holdout=-1 fill=none` outside a harness fill), and the method's parameters (the label
-  bootstrap's are each stratum's pool size). An experiment copies them into its configuration in
+  `holdout=-1 fill=none` outside a harness fill), the pooled methods'
+  `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d` line per cell, `hb-marginals`
+  among them, `eb-marginals`' `eb holdout=%d fill=%s kappa=%s` line and `hb-marginals`'
+  `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
+  fit, one per label and modelled column, and the method's parameters (the label bootstrap's are
+  each stratum's pool size).
+  `row-resample`, `marginals`, `eb-marginals` and `hb-marginals` refuse `--strata label` with
+  exit 2. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library
   versions.
 - **Exit codes**: as in [Data](#data), with 2 also for a request a method cannot fill and 3 for a
@@ -279,7 +285,10 @@ command per method, inside `.venv`:
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN, TVAE
   and TabDDPM promise no more, so the logged sha256 is the record. The Gaussian copula gives the
   same rows at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian
-  network's rows follow the seed alone, as the label bootstrap's do.
+  network's rows follow the seed alone, as the label bootstrap's do. `row-resample`, `marginals`,
+  `eb-marginals` and `hb-marginals` each read one generator of their own stream at the seed, so
+  their rows follow it alone; `eb-marginals`' `kappa` and `hb-marginals`' fits read the training
+  split alone, and the fits give the same scales on one machine with the same lock.
 
 ## Evaluation
 
@@ -397,6 +406,40 @@ line's params add `"perturb": "coherent"`. Like `bko-direct-pram`, it logs
 per fill with the rows it redrew, and the `perturb shapes`, `perturb columns` and
 `perturb summary` lines the perturbation runs' paragraph below lists; each of its candidates
 lines' `perturb` is `changed` or `unchanged`.
+
+The pooled direct arms `bko-donor`, `bko-pool-random` and `bko-pool-all` draw `bko-nomap`'s
+record with a set of fields drawn by the pooled rule: a unit's donor is a uniform cell record with
+probability n/(n+`GROUP_WEIGHT`), else a uniform record of the whole label group (ADR
+[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)).
+`bko-donor` pools each mapping group whole, `bko-pool-random` as many fields as the mapping's
+groups hold, drawn at random once per fill, and `bko-pool-all` every feature but `age` and `sex`;
+the run `e19-thin` and its slices hold all three. Their `direct` and `fallback` lines read
+` presence=pooled`, ` pool=random presence=pooled` and ` pool=all presence=pooled`, their `arm`
+lines' params add `"presence": "pooled"` and, for the last two, `"pool": "random"` or
+`"pool": "all"`, and their `direct arm=` lines end in `fallback_draws=%d`, a pooled field read
+from the label group's branch of the rule counting as fallen back. `bko-pool-random` writes one
+`pool-random holdout=%d fill=%s fields=%s` line per fill attempt, before its `direct` lines,
+naming the fields it drew at the attempt's seed, comma-joined in column order.
+
+The knowledge-only direct arm `bko-kb` copies no training value: presence per logic component is
+uniform over what the ontology allows, each mapping group's coded fields uniform over the codebook
+tuples showing the drawn pattern, and `age` uniform inside the cell's band and the training
+split's age range (ADR
+[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). The runs
+`e19-supported-thin` and `e19-supported-empty` hold it on `diabetes-supported` (ADR
+[`research/dataset-variants`](adr/research/dataset-variants.md)); its `arm` line's params add
+`"presence": "logic"` and `"donors": false`, its `direct` lines end in
+`records=0 group_records=0 donors=false presence=logic`, it writes no `fallback` line, and its
+`direct arm=` line ends in `fallback_draws=0`. A frame with a free field, or a mapping clause on a
+numeric field or on `sex`, exits 2 before any arm fits.
+
+The retained-data methods `row-resample`, `marginals` and `eb-marginals` fill a cell by the pooled
+rule inside the cell's band: a whole row from one donor, each column from its own donor, or each
+column at one empirical-Bayes weight `kappa`; `hb-marginals` draws each column from a multilevel
+multinomial logit fitted per column (ADR
+[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). `e19-thin`
+holds all four, `e19-empty` `marginals` and `hb-marginals`, and the supported runs `hb-marginals`;
+[Baselines](#baselines) lists their lines.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -1150,8 +1193,15 @@ start or the supervisor cannot run.
   and 1 of each cell's training rows replaced by each arm's fill, `E6_CELL` flagged by name, no
   replica, the ceiling inert) and their slices `e18-twoa` to `e18-allj`, sliced as E6's are;
   `docs/EVIDENCE.md`, E18, describes them (ADR
-  [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). `RUNS` also
-  holds P1's runs,
+  [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). `RUNS` holds
+  the matched knowledge controls, `e19-thin` and `e19-empty` on `diabetes` and
+  `e19-supported-thin` and `e19-supported-empty` on `diabetes-supported`
+  (`bko.evaluate.runs_direct.E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN` and
+  `E19_SUPPORTED_EMPTY`: E12's runs with the arms ADR
+  [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md) lists per
+  family, the candidate `bko-direct`, no replica, the ceiling inert) and their slices
+  `e19-thina` to `e19-supported-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E19, describes
+  them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1387,15 +1437,17 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
 Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`, `bko-capped`,
-`bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`) re-draws at its `arm`
-line's seed with that arm's draw spec and no extra random draw; a `bko-logic` record's concepts are
-its closed draw, not share priors, a `bko-nomap` record names no concept, and a `bko-tree` record's
-concepts end in one entry per tree field: its `field`, `leaf`, `concept` and `label`, and `parts`,
-each level's node from the top's child down to the leaf with both counts at the node and its parent,
-the weight, the conditional and the share. A `bko-hier` record's broad concepts add `hierarchy`
-beside their share facts: the narrow concept `given`, the weighted counts `both` and `narrow`, the
-`pseudo`-count (null when closed), the `conditional`, the `complement` (null when the narrow
-concept's share is within one float of 1) and whether it was `clamped`. `bko-direct-pram`,
+`bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`, `bko-donor`,
+`bko-pool-random`, `bko-pool-all`, `bko-kb`) re-draws at its `arm` line's seed with that arm's
+draw spec and no extra random draw; a `bko-logic` or `bko-kb` record's concepts are its closed
+draw, not share priors, a `bko-nomap` record names no concept, nor does a pooled direct arm's,
+and a `bko-tree` record's concepts end in one entry per tree field: its `field`, `leaf`, `concept`
+and `label`, and `parts`, each level's node from the top's child down to the leaf with both counts
+at the node and its parent, the weight, the conditional and the share. A `bko-hier` record's
+broad concepts add `hierarchy` beside their share facts: the narrow concept `given`, the weighted
+counts `both` and `narrow`, the `pseudo`-count (null when closed), the `conditional`, the
+`complement` (null when the narrow concept's share is within one float of 1) and whether it was
+`clamped`. `bko-direct-pram`,
 `bko-direct-perturbed` and `bko-coherent` rebuild their rows from their candidate lines and re-draw
 underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
 `perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
@@ -1428,19 +1480,22 @@ named run, `<h>` the holdout and `<arm>` the arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and
+  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`, `pool`, `donors`) differ
+  from its arm's, and
   a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt is not one
   line per draw, or whose unperturbed columns differ from the re-draw, or a `bko-coherent` fill
   whose change re-run does not give its lines' records. A `bko-logic` trace over an ontology whose logic
-  components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
-  are not its pinned ones, exit 2.
+  components cannot be enumerated, a `bko-kb` trace over a frame `bko-kb` refuses, and a
+  perturbation trace over a frame whose unmapped fields are not its pinned ones, exit 2.
 
 **`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),
 decision 7): `knowledge`, a field a mapping row of `<run>`'s dataset reads under an arm whose draw
 reads the mapping table; `donor`, a field with a source training record id, a field
 `bko-coherent` changed among them; `prompt`, a Messages record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
-of an `untraced` record among them. It reads an arm's kind from each line, reads no data and
+of an `untraced` record among them. A pooled field of `bko-donor`, `bko-pool-random` or
+`bko-pool-all` is `donor`, and a `bko-kb` record's mapped fields are `knowledge` and its `age`
+`method-seed`. It reads an arm's kind from each line, reads no data and
 makes no API call. Each record arm's fill gets one row per class, zeros included, in the unit
 `field`; a baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
 record. `<run>` names the dataset whose field rows and frame columns are read, and `--trace`

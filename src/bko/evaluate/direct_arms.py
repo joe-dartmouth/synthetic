@@ -12,7 +12,7 @@ from types import MappingProxyType
 from typing import Final
 
 from bko.gaps.shares import GROUP_WEIGHT
-from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec, Pool
 from bko.generate.presence import Presence
 
 
@@ -55,6 +55,24 @@ COHERENT_ARM: Final = "bko-coherent"
 given the cell, the label and the mapped fields (`bko.evaluate.coherent`; ADR
 `research/free-field-synthesis`)."""
 
+DONOR_ARM: Final = "bko-donor"
+"""The free arm that draws `NOMAP_ARM`'s record with each mapping group copied whole by the pooled
+rule: a cell record with probability n/(n + `GROUP_WEIGHT`), else a label-group record (ADR
+`research/matched-knowledge-controls`)."""
+
+POOL_RANDOM_ARM: Final = "bko-pool-random"
+"""As `DONOR_ARM`, the pooled rule on as many fields as the mapping's groups hold, drawn at random
+once per fill: the arm `DIRECT_ARM` is read against for the mapping's choice of fields."""
+
+POOL_ALL_ARM: Final = "bko-pool-all"
+"""As `DONOR_ARM`, the pooled rule on every feature but `age` and `sex`."""
+
+KB_ARM: Final = "bko-kb"
+"""The free arm that draws from K alone, copying no training value: presence as `LOGIC_ARM` draws
+it, each mapping group's codes uniform over the codebook tuples showing the drawn pattern, and
+`age` inside the training split's range (`bko.generate.knowledge_draw`; ADR
+`research/matched-knowledge-controls`)."""
+
 DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
     {
         DIRECT_ARM: DEFAULT_SPEC,
@@ -67,6 +85,10 @@ DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
         HIER_W_ARM: DrawSpec(hierarchy=float(GROUP_WEIGHT)),
         HIER_CLOSED_ARM: DrawSpec(closed=True),
         COHERENT_ARM: DEFAULT_SPEC,
+        DONOR_ARM: DrawSpec(presence=Presence.POOLED),
+        POOL_RANDOM_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.RANDOM),
+        POOL_ALL_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.ALL),
+        KB_ARM: DrawSpec(presence=Presence.LOGIC, donors=False),
     }
 )
 """Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""

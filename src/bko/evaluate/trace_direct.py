@@ -33,6 +33,7 @@ from bko.evaluate.run_folder import fields
 from bko.evaluate.trace_lines import Fill, Trace, drawn_trace, kept_lines, log_arm, ordered
 from bko.generate.direct import Draw, logic_components, plan_hierarchy
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.knowledge_draw import kb_check
 from bko.generate.presence import Presence
 from bko.ontology.terms import Ontology
 
@@ -53,8 +54,8 @@ def trace_direct(
     concepts are its share facts (`bko.evaluate.redraw.Shares`); a `Presence.LOGIC` record's are
     its closed draw (`closed_facts`), since a logic-only draw reads no share; a tree draw's are
     `TreeShares`'; a conditional `is_a` draw's are its share facts with each broad concept's
-    pair parts (`bko.generate.hierarchy.PairPart`); a record drawn without the mapping table has
-    none.
+    pair parts (`bko.generate.hierarchy.PairPart`); a record drawn without the mapping table, or
+    at `Presence.POOLED`, has none.
 
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object or a spec field it logs
@@ -82,7 +83,7 @@ def trace_direct(
         msg = f"holdout {fill.holdout}'s {fill.arm} re-drawn records are not its kept lines"
         raise IdentityError(msg)
     concepts: Callable[[Draw], tuple[Json, ...]]
-    if not spec.mapped:
+    if not spec.reads_concepts:
         concepts = _no_concepts
     elif spec.tree:
         concepts = TreeShares(train, seeded.quota, data=data, ontologies=ontologies).concepts
@@ -119,7 +120,9 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object, or name another value
             of a spec field, a value of another type included (JSON `0` is not `false`).
-        EvaluationError: If a logic-only arm's components cannot be enumerated.
+        EvaluationError: If a logic-only arm's components cannot be enumerated, or a
+            knowledge-only arm's frame holds a value K cannot give
+            (`bko.generate.knowledge_draw.kb_check`).
     """
     spec = DIRECT_ARMS[fill.name]
     params = fields(fill.line)["params"]
@@ -140,6 +143,8 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
             raise IdentityError(msg)
     if spec.presence is Presence.LOGIC:
         try:
+            if not spec.donors:
+                kb_check(data.field_rows, data.frame)
             logic_components(data.field_rows, ontologies, data.frame)
         except ValueError as exc:
             msg = f"{fill.name} cannot draw dataset {data.name} on frame {data.frame.name}: {exc}"
@@ -148,7 +153,7 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
 
 
 def _no_concepts(draw: Draw) -> tuple[Json, ...]:
-    """A draw without the mapping table names no concept."""
+    """A draw without the mapping table, or a pooled one, names no concept."""
     del draw
     return ()
 

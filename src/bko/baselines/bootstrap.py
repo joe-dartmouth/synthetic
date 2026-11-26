@@ -14,9 +14,9 @@ import numpy as np
 import pandas as pd
 
 from bko.baselines.errors import BaselineError
-from bko.baselines.records import Baseline, derived_seed, no_rows, number, unit_weights
+from bko.baselines.records import Baseline, cell_rows, derived_seed, joined, unit_weights
 from bko.baselines.request import Request
-from bko.datasets.cells import LABEL, SEXES, cell_keys
+from bko.datasets.cells import LABEL, cell_keys
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,6 @@ def label_bootstrap(train: pd.DataFrame, request: Request) -> Baseline:
     """
     frame = request.frame
     cells = cell_keys(train, edges=frame.edges)
-    codes = {name: code for code, name in SEXES.items()}
     parts: list[pd.DataFrame] = []
     pools: dict[str, int] = {}
     for stratum, rows in request.quota.items():
@@ -48,10 +47,9 @@ def label_bootstrap(train: pd.DataFrame, request: Request) -> Baseline:
         logger.info("label-bootstrap stratum=%s pool=%d rows=%d", name, len(held), rows)
         rng = np.random.default_rng(derived_seed(request.seed, "label-bootstrap", *stratum))
         drawn = held.iloc[rng.integers(len(held), size=rows)].reset_index(drop=True)
-        if "sex" in keys:
-            drawn["sex"] = codes[str(keys["sex"])]
-        parts.append(drawn.astype(dict(frame.dtypes)))
-    added = number(pd.concat(parts)) if parts else no_rows(frame)
+        sex = str(keys["sex"]) if "sex" in keys else None
+        parts.append(cell_rows(drawn, frame, sex=sex))
+    added = joined(parts, frame)
     return Baseline(added=added, weights=unit_weights(train), params={"pool": pools})
 
 

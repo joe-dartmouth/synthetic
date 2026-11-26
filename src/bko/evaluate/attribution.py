@@ -118,8 +118,10 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     """Each field of `line`'s record with its class; empty for a baseline's line.
 
     `mapped` holds the fields a mapping row's `when` clause reads, the label aside. A direct
-    arm's field in it is a knowledge fact when the arm's `DrawSpec` reads the mapping table;
-    else a field with a source id is a donor's, and any other the method and seed's. A
+    arm's field in it is a knowledge fact when the arm's `DrawSpec` reads the mapping table at a
+    presence other than pooled, `bko-kb`'s drawn from the mapping table and the codebook alone;
+    else a field with a source id is a donor's, a pooled field among them, and any other the
+    method and seed's, `bko-kb`'s `age` among them. A
     perturbation arm's changed field is the prompt's under the rewrite arm, the method and seed's
     under PRAM and a donor's under `bko-coherent` (`CHANGED_CLASS`), its other fields read as a
     direct arm's over `bko-direct`'s spec. A
@@ -147,11 +149,12 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     perturb = cast("Mapping[str, list[str]] | None", line.get("perturb"))
     changed = set(perturb["fields"]) if perturb is not None else set()
     rewritten = CHANGED_CLASS.get(name, Attribution.PROMPT)
+    knowledge = spec.reads_concepts
     found = {}
     for field in map(str, record):
         if field in changed:
             found[field] = rewritten
-        elif spec.mapped and field in mapped:
+        elif knowledge and field in mapped:
             found[field] = Attribution.KNOWLEDGE
         elif field in donated:
             found[field] = Attribution.DONOR

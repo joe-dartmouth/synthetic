@@ -12,7 +12,9 @@ from bko.baselines.controls import no_augmentation
 from bko.baselines.diffusion import tabddpm
 from bko.baselines.errors import BaselineError, OutputContractError
 from bko.baselines.methods import METHODS, augment
+from bko.baselines.multilevel import hb_marginals
 from bko.baselines.oversample import adasyn, smote
+from bko.baselines.pooling import eb_marginals, marginals, row_resample
 from bko.baselines.records import unit_weights
 from bko.baselines.request import Method, Request, Strata
 from bko.baselines.synthesizers import ctgan, tvae
@@ -98,3 +100,7 @@ def test_each_name_runs_its_own_method():
     assert METHODS[Method.TVAE] is tvae
     assert METHODS[Method.TABDDPM] is tabddpm
     assert METHODS[Method.LABEL_BOOTSTRAP] is label_bootstrap
+    assert METHODS[Method.ROW_RESAMPLE] is row_resample
+    assert METHODS[Method.MARGINALS] is marginals
+    assert METHODS[Method.EB_MARGINALS] is eb_marginals
+    assert METHODS[Method.HB_MARGINALS] is hb_marginals
