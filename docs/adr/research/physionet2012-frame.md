@@ -93,7 +93,7 @@ exactly one line per stay of that set: a stay with no outcome line and an outcom
 stay are refused. A stay must end in a newline, start with the header, and hold three fields per
 line, a time from `00:00` to `48:00`, and a finite number. `RecordID`, `Age`, `Gender`, `Height`
 and `ICUType` each appear once, at `00:00`; `Age` must be whole, `Gender` 0, 1 or -1, `ICUType`
-1 to 4. A `Parameter` that is none of the six descriptors and 37 time series is refused, except
+1 to 4, and each `MechVent` value 0, 1 or -1. A `Parameter` that is none of the six descriptors and 37 time series is refused, except
 an empty one, which names no variable: its line is skipped and counted.
 
 **3. The label and the cohort.** `target` is `In-hospital_death`, 0 or 1. A stay whose `Age` or
