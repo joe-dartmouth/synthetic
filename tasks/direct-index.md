@@ -62,8 +62,34 @@ unit's `milestone` is `direct-method-research`, the
 | [`slm-lora-day-budget`](slm-lora-day-budget.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-day-budget | direct-method-research |
 
+
+### Paper readiness
+
+Proposed ICML 2027 work windows: novelty and matched controls by Dec 4, broader comparisons
+Dec 5-18, robustness and theory Dec 19-Jan 3, writing and coauthor review Jan 4-13,
+and final checks Jan 14-22. Submission opens Jan 8, abstract due Jan 14, paper due Jan 22.
+First-stage decisions are due Feb 23 and final decisions May 3. Conference July 31-Aug 6.
+Check the [official call](https://icml.cc/Conferences/2027/CallForPapers) before submission.
+
+| Unit | Status | Depends on | Milestone |
+|---|---|---|---|
+| [`paper-novelty`](paper-novelty.md) | ready | -- | direct-method-research |
+| [`paper-controls`](paper-controls.md) | ready | -- | direct-method-research |
+| [`paper-control-results`](paper-control-results.md) | blocked | paper-controls | direct-method-research |
+| [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
+| [`paper-scarcity`](paper-scarcity.md) | blocked | paper-control-results, paper-baselines | direct-method-research |
+| [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity | direct-method-research |
+| [`paper-manuscript`](paper-manuscript.md) | blocked | paper-novelty, paper-scarcity-results | direct-method-research |
+
 ```mermaid
 flowchart LR
+    p1[paper-controls] --> p2[paper-control-results]
+    p2[paper-control-results] --> p3[paper-baselines]
+    p2[paper-control-results] --> p4[paper-scarcity]
+    p3[paper-baselines] --> p4[paper-scarcity]
+    p4[paper-scarcity] --> p5[paper-scarcity-results]
+    p0[paper-novelty] --> p6[paper-manuscript]
+    p5[paper-scarcity-results] --> p6[paper-manuscript]
     u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u50[datasets-generalised-cell-axes] --> u52[datasets-nvd-frame]
