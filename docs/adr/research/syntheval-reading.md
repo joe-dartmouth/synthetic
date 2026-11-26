@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-25
 ---
 # UCI Heart Disease fills scored under SynthEval's metrics, outside the lock
 
@@ -51,8 +51,9 @@ checked against the run's log.
 4. **The seed.** SynthEval 1.7.3's membership-inference metric draws its splits and samples from
    NumPy's global random state, unseeded. The script seeds Python's and NumPy's global state with
    the fill's holdout seed before scoring, so one store gives one `syntheval.csv`.
-5. **The reference split.** E1's holdouts. Regenerating Lautrup et al.'s numbers on their own
-   242 and 61 rows is the results unit's (`tasks/evaluate-syntheval-results.md`).
+5. **The reference split.** E1's holdouts. Lautrup et al.'s numbers, regenerated on their own
+   242 and 61 rows, sit in [P2](../../EVIDENCE.md#p2-uci-heart-disease-scored-by-syntheval)'s
+   Runs, Result and Read against, beside the CSVs their repository publishes.
 6. **The `hd` mapping.** `bko.datasets.hd.from_hd` reads their files as records of the UCI
    frame. A match of every row of theirs to the pinned `processed.cleveland.data` on age, sex,
    `trestbps`, `chol`, `thalach` and `oldpeak` (2026-11-24; the key is unique among UCI's 303
