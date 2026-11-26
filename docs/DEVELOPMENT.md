@@ -177,6 +177,13 @@ root or to see the module's own code, run it directly:
   `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
   `bko.ontology.nhanes_rows` holds its field rows, so `score`, `gaps nhanes` and
   `contradictions --dataset nhanes` read it through its catalog entry.
+  `tests/test_datasets_nhanes_pinned.py` checks each file's sha256, the adult frame, the
+  composite against the bounds ADR `research/confirmatory-dataset-selection` sets, the training
+  split and the tertile cutoffs; the gate skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_nhanes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `gaps nhanes` fetches them.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's

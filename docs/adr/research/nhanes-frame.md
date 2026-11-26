@@ -182,8 +182,32 @@ record, 7,809 of them are 20 and over, and 40 adults are left out with no yes an
 answer. The adult frame holds 7,769 records, 937 with the composite, inside the 402 to 1,444 the
 selection ADR bounds. The training split holds 6,215 records, 750 of them with the composite, a
 rate of 0.1207, digest `9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The
-split is above the 5,000 records condition 5 asks. These are commits of pull request #137, kept
-at `refs/pull/137/head` after its squash merge.
+split is above the 5,000 records condition 5 asks. The readings below are recorded in the commit
+after the count's. These are commits of pull request #137, kept at `refs/pull/137/head` after its
+squash merge.
+
+**The readings, at `db2cc4f`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0, its log ending `checked 614 rows: 0 disagree`. The gap listing is run `d1-6`, `uv run
+--no-sync python -m bko.gaps nhanes` into `runs/d1-6/gaps-nhanes.csv` and
+`runs/d1-6/gaps-nhanes.log`, exit 0, closing `gaps rows=63
+sha256=9e86c72e13a9a51081505de299539f102cdd7da48e48d65a89aa9a8e934b1979`: per-subgroup 11 gaps in
+one cell, `<40/female/1`, whose 10 records hold one of the five mapped concepts; population-level
+none; frequency-aware 50 in 7 cells; and two cells below the count threshold of 20,
+`<40/female/1` with 10 records and `<40/male/1` with 9. Its csv sha256 is
+`9e86c72e13a9a51081505de299539f102cdd7da48e48d65a89aa9a8e934b1979` and its log sha256
+`deb05751e22d68052d84d3ec8b02dffc75fef833afa3b8ee37f2997845f4f3d1`; its `data` line gives the
+7,769 records' digest `602b6ed761f5afe22b0ce58d95c3c987a75d6d0834dbabdba268bace5b3e11ad` and its
+`split` line the test fingerprint
+`66905e31f88bee07a0ee5586d12b50b6d3876fe05ac29136e9b20bb0a81bd510`. The census is run `d2-6`,
+`uv run --no-sync python -m bko.evaluate contradictions --dataset nhanes` into
+`runs/d2-6/contradictions.csv` and `runs/d2-6/contradictions.log`, exit 0: every `census kind=`
+count is 0 (`narrow-without-broad`, `child-share-above-parent`, `empty-cell`, `all-show`,
+`code-overlap`), over 12 of 12 cells and 5 rows, with no `is_a` pair among the mapped concepts.
+Its csv sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header
+alone) and its log sha256 `1606a1e55ee3aa1de8142600d0d32949da7e6e6853cfe14a91ba613f66d59efb`.
+Both read the seven pinned files and HPO `hp/releases/2026-09-01`; the census's `versions` line
+reads `dirty=true`, the tree holding one untracked file, the pinned test this commit adds.
+`tests/test_datasets_nhanes_pinned.py` passes with `--releases`.
 
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline
@@ -215,7 +239,8 @@ label leaves out adults whose answers cannot settle it. Age 80 means 80 and over
   `tests/test_datasets_nhanes.py::test_each_cited_field_is_coded_at_its_cutoffs`,
   `tests/test_datasets_nhanes.py::test_a_missing_value_shows_no_concept`,
   `tests/test_evaluate_nhanes.py::test_the_rows_map_these_bands_to_these_concepts`,
-  `tests/test_evaluate_nhanes.py::test_every_cutoff_row_cites_a_registered_source_and_names_its_original`
+  `tests/test_evaluate_nhanes.py::test_every_cutoff_row_cites_a_registered_source_and_names_its_original`,
+  `tests/test_datasets_nhanes_pinned.py` (with `--releases`)
 
 ## Reversal Conditions
 
