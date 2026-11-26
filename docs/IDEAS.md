@@ -328,7 +328,8 @@ Conflict, defence and procurement:
   USAspending contract awards (single bid, `NumberOfOffersReceived` of 1; agency by award band;
   NAICS and Product or Service Code), EU TED CSV 2006 to 2023 (`NUMBER_OFFERS` of 1 or
   `CANCELLED`; country by contract type; CPV, whose old and new versions match many-to-many).
-  Terms not yet read; row counts UNVERIFIED. Fit: gen.
+  UCDP's terms not yet read; USAspending's and TED's were read on 2026-11-25 by the ADR named
+  below; row counts UNVERIFIED. Fit: gen.
 - ACLED, the Global Terrorism Database, SIPRI arms transfers, ICEWS and Correlates of War: the
   research pass read terms that exclude or weaken them (on its reading, ACLED forbids training
   use without written consent, GTD forbids redistribution, SIPRI needs a licence for commercial
@@ -338,20 +339,24 @@ Conflict, defence and procurement:
 
 Product safety and justice:
 
-- NEISS 2024: 361,672 rows by 25 columns; outcome disposition 4, treated and admitted for
-  hospitalisation, 10.5%; cells `Age` by `Sex`; flat product list with diagnosis and body-part
-  codes. Terms not yet read; the research pass's reading of the data.gov entry is public domain.
-  Fit: as is.
+- NEISS 2024: 361,672 rows by 25 columns and 10.5% admitted, both UNVERIFIED; outcome
+  disposition 4, treated and admitted for hospitalisation; cells `Age` by `Sex`; flat product list
+  with diagnosis and body-part codes. Its data.gov record carries the U.S. government public
+  domain label, read on 2026-11-25 by the ADR named below. Fit: as is.
 - Stanford Open Policing (88 jurisdictions, 229,860,452 stops; arrest or search; driver age by
   sex; violation text without a code system), COMPAS two-year (7,214 by 51; `two_year_recid`,
   45.1%; `age` by `sex`; the research pass read the repository as having no licence) and NIBRS
-  (UNVERIFIED). Terms not yet read. Fit: as is, with a weak hierarchy or a licence risk.
+  (UNVERIFIED). NIBRS's data.gov record carries the U.S. government public domain label, read on
+  2026-11-25 by the ADR named below; the others' terms not yet read. Fit: as is, with a weak
+  hierarchy or a licence risk.
 
 Finance, labour, technology, education:
 
 - SBA 7(a) and 504 FOIA loans (charged off; status codes UNVERIFIED; state by term band; NAICS),
   CFPB Consumer Complaint Database (19,371,701 rows; monetary relief, rate UNVERIFIED; product by
-  state; product, sub-product and issue hierarchies). Terms not yet read. Fit: gen.
+  state; product, sub-product and issue hierarchies). SBA's data.gov record carries the U.S.
+  government public domain label, read on 2026-11-25 by the ADR named below; CFPB's terms not
+  yet read; CFPB's row count UNVERIFIED. Fit: gen.
 - UCI Default of Credit Card Clients (30,000 by 23; default; age by sex; no hierarchy), the
   Polish and Taiwanese bankruptcy sets and FDIC failed banks (weak), FIBO, SEC EDGAR with
   US-GAAP XBRL, HMDA, Lending Club and Kaggle sets (a knowledge source, or not checked). Terms not
@@ -369,17 +374,22 @@ Finance, labour, technology, education:
 **Ranked.** ADR
 [`research/non-health-dataset-selection`](adr/research/non-health-dataset-selection.md) fixes the
 rule a non-health frame meets and ranks every candidate here under it. It chooses NVD CVE records
-with the KEV label over CWE, and the VERIS Community Database, which have left this entry; TED over
-CPV and SBA 7(a) and 504 are its runners-up. It re-read FARS, CRSS, SBA 7(a) and 504, NIBRS,
-USAspending, TED, NEISS and GDELT from their primary pages on 2026-11-25, and its quotes and
-verdicts govern where this entry says terms not yet read, UNVERIFIED or a fit.
+with the KEV label over CWE, and the VERIS Community Database over the VERIS schema, which have
+left this entry; SBA 7(a) and 504 and TED over CPV are its runners-up. UCI Census-Income KDD, a
+runner-up of ADR
+[`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md), is
+excluded under its condition 1, since its income label is a threshold on an amount. It re-read
+FARS, CRSS, SBA 7(a) and 504, NIBRS, USAspending, TED, NEISS and GDELT from their own pages on
+2026-11-25 and 2026-11-26, and its quotes and verdicts govern where this entry says terms not yet
+read, UNVERIFIED or a fit.
 
 **What the search did not reach.** AGROVOC, UNSPSC, GeoNames, COICOP, ISIC and HS, legal
 ontologies, NCES public-use files, OSHA and FEMA claims.
 
 **Why it is not in the plan.** The study's non-health families are ACS PUMS and the two frames
-that ADR chooses ([RESEARCH.md](RESEARCH.md)). Every candidate left here is a runner-up or
-excluded under its rule; a runner-up joins the plan when a re-read quotes what it lacks.
+that ADR chooses ([RESEARCH.md](RESEARCH.md)). Every candidate listed above, outside What the
+search did not reach, is a runner-up or excluded under its rule; a runner-up joins the plan when
+a re-read quotes what it lacks. What the search did not reach is unranked.
 
 **Sources.** [`fars-nd`][fars-nd] and [`gdelt-nd`][gdelt-nd], each read from its primary page on
 2026-11-22; none in the brief or the 2-pager.

@@ -21,8 +21,9 @@ ADR
 chooses NVD CVE records with the CISA KEV label, over the CWE hierarchy, as an exploratory
 non-health family. Its record is a vulnerability, not a person, so the frame names its own cell
 axes, which unit [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) makes
-possible. The NVD API holds over 400,000 CVE records, so the frame fixes its snapshot before any
-gap is read.
+possible. The CVE API reported 432,554 records, 1,805 of them in KEV, on 2026-11-25 local
+(2026-11-26 UTC; `services.nvd.nist.gov/rest/json/cves/2.0` with `resultsPerPage=1` and with
+`hasKev`), so the frame fixes its snapshot before any gap is read.
 
 ## Scope
 
@@ -30,15 +31,17 @@ gap is read.
 
 - A pinned snapshot of the NVD CVE API 2.0's records, with its sha256, and the frame over it, as
   that ADR records:
-  - the label: KEV membership, `cisaExploitAdd` present on the record;
-  - the cells: CVSS v3.1 `baseSeverity` by `attackVector`, read from one stated metric per
-    record, and the rule for a record with no such metric;
+  - the label: KEV membership, 1 when `cisaExploitAdd` is present on the record and 0 when it is
+    absent;
+  - the cells: `baseSeverity` by `attackVector` of the record's `cvssMetricV31` entry whose
+    `type` is `Primary`, and the rule for a record with no such entry;
   - each record's CWE ids from `weaknesses` mapped to a pinned CWE release, converted from its
     XML so the ontology loader reads the ChildOf hierarchy;
   - any sampling of the snapshot, fixed before any gap is read;
   - a `python -m bko.gaps nvd` subcommand.
-- The `Source` pin carries `agreement=None`, and the frame shows the NVD API's attribution
-  notice wherever it displays the data.
+- The `Source` pin carries `agreement=None`, and the frame shows the NVD's attribution notice
+  wherever it displays the data. Generated rows are modified content, so nothing attributes them
+  to the NVD.
 - A new ADR under `docs/adr/research/` that records the frame, the CWE release and the snapshot.
 
 **Out.**
