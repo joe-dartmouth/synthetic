@@ -57,8 +57,9 @@ the fused shares and the neighbouring cells says how many rows a cell needs to b
   Runs table rows and Evaluation paragraph, its entries in `ROLES` (`src/bko/app/runs.py`) and
   `tests/test_run_folders.py`.
 - A new ADR under `docs/adr/research/` that records the rule, notes that `bko.evaluate.quotas` is
-  a different thing, and states that on E6's cell `expected-size` and `recommended` ask within 30
-  rows of the fixed fill; one sentence in ADR
+  a different thing, and states that on E6's cell, computed on holdout 0, `expected-size` and
+  `recommended` ask within 30 rows of the fixed fill and `coverage` and its multiples more than 30
+  rows away from it; one sentence in ADR
   [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md).
 - E21's sweep: E12's `e12-thin` and `e12-empty` with `quota_rule` set to each of the six
   non-default rules, sliced in ten, `REFERENCE` `real`. Every E12 arm is free, so the sweep makes

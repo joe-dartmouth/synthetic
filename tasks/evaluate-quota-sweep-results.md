@@ -35,9 +35,9 @@ sweep; this unit runs it.
 
 **Findings from planning.**
 
-- On E6's cell, computed on holdout 0 (the unit's first step recomputes the counts with
-  `bko.gaps.quota`, which unit `gaps-share-based-quota` adds), only `coverage` and its multiples
-  ask more than 30 rows away from the fixed fill; `expected-size` and `recommended` ask within 30 rows of it.
+- The unit's first step recomputes E6's counts with `bko.gaps.quota`, which unit
+  [`gaps-share-based-quota`](gaps-share-based-quota.md) adds; how far each count sits from the
+  fixed fill is that unit's ADR's to state.
 
 ## Acceptance
 

@@ -42,12 +42,6 @@ Whether the differences between generators survive in a fine-tuned language mode
 
 - A claim that the language model beats the tabular classifiers.
 
-**Findings from planning.**
-
-- "The controls" are the controls E12 registers
-  ([E12](../docs/EVIDENCE.md#e12-control-arms-on-the-diabetes-130-removal)): `label-bootstrap`,
-  `bko-nomap` and `prior-shift`.
-
 ## Acceptance
 
 - The entry is `complete`, with the controls and the power limit stated.

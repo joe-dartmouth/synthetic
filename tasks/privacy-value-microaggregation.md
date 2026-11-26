@@ -52,8 +52,9 @@ value no single record holds when the donors' values differ.
 - One `micro-field holdout=%d fill=%s key=%s field=%s values=%d equal=%d primary=%d sse=%s sst=%s`
   line per cell and averaged field when the spec is set.
 - ADR [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md) revised in
-  place, stating that a mean of 3 leaves a count field about one third of its donors' variance,
-  what the mean does not protect, and how the arm differs from SMOTE; ADR
+  place, stating that a mean of 3 leaves a count field about one third of its donors' variance
+  (measured over 20,000 label-group triples per field), what the mean does not protect, and how
+  the arm differs from SMOTE; ADR
   [`research/record-explainability`](../docs/adr/research/record-explainability.md) gains the
   `donor-mean` attribution.
 - Runs `e20-thin` and `e20-empty`, each sliced in ten, `E9_THIN` and `E9_EMPTY` with arms
