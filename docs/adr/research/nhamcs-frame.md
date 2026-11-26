@@ -1,0 +1,210 @@
+---
+status: accepted
+topic: research
+created: 2026-11-25
+updated: 2026-11-25
+---
+# NHAMCS 2022 ED's frame: hospital admission as the label, ICD-10-CM diagnoses and chronic flags on MONDO
+
+## Context
+
+ADR [`research/confirmatory-dataset-selection`](confirmatory-dataset-selection.md) chose NHAMCS
+2022 ED as a health dataset whose concepts come from coded diagnoses. It quotes the ED
+documentation ([`nhamcs-nd`](../../literature.md#datasets)): "Each record on the ED file
+represents one visit in the sample of 16,025 visits."; `ADMITHOS` is "Admit to this hospital";
+`AGE` is in years, top-coded at "94 = 94 years or older"; `SEX` is coded 1 female, 2 male. It
+records the NCHS terms the file falls under and, in its point 5, the team's reading of the clause
+on assessing disclosure methods: the privacy readings score the rows a method writes, measure that
+method's disclosure, and identify no person, so they lie outside the clause.
+
+NCHS serves the public-use file as `ed2022.zip` from
+`https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHAMCS/`, with the Stata dictionary
+`eddict2022.dct` and the documentation `doc22-ed-508.pdf` under
+`https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/`, all read
+2026-11-25. The archive holds one member, `ed2022`: fixed-width ASCII, one visit per line, 2,382
+characters and a CRLF per line. The dictionary gives each item's columns (1-based, inclusive), and
+the documentation's item list gives the same columns:
+
+| Item | Columns | Codes |
+|---|---|---|
+| `AGE` | 16-18 | 0 under 1 year, 1 to 93, 94 "94 years or older" |
+| `SEX` | 25 | 1 Female, 2 Male |
+| `DIAG1` to `DIAG5` | 122-125, 126-129, 130-133, 134-137, 138-141 | ICD-10-CM, four characters |
+| `ETOHAB` to `SUBSTAB` | 152 to 173, one column each | 0 No, 1 Yes |
+| `NOCHRON` | 174 | 0 No, 1 Yes, 2 "Entire item blank including “None” box" |
+| `ADMITHOS` | 499 | 0 No, 1 Yes |
+| `HOSPCODE` | 544-546 | "A unique code assigned to all the records from a particular hospital." |
+| `PATCODE` | 547-549 | "A number assigned to identify each individual record from a particular hospital." |
+
+The documentation describes the diagnosis fields: "For the NHAMCS ED public use file, only the
+first four digits of the diagnosis codes are included. There is an implied decimal between the
+third and fourth digits and inapplicable 4th digits are dash-filled." Its examples are `F321`,
+F32.1, and `I10-`, I10. Beside the codes, `-9` is "Field is blank (in contrast to an actual entry
+of “Blank”)", written `-9` and two spaces, and `ZZZ0`, `ZZZ2` to `ZZZ5` are NCHS's own codes for
+an entry that is no diagnosis, such as "Noncodable diagnosis, insufficient information for coding,
+illegible diagnosis".
+
+The chronic items sit under "DOES PATIENT HAVE:", one checkbox per condition, in this order:
+`ETOHAB` "Alcohol misuse, abuse, or dependence", `ALZHD` "Alzheimer’s disease/dementia", `ASTHMA`
+"Asthma", `CANCER` "Cancer", `CEBVD` "Cerebrovascular disease/history of stroke (CVA) or transient
+ischemic attack (TIA)", `CKD` "Chronic kidney disease (CKD)", `COPD` "Chronic obstructive pulmonary
+disease (COPD)", `CHF` "Congestive heart failure", `CAD` "Coronary artery disease (CAD), ischemic
+heart disease (IHD), or history of myocardial infarction (MI)", `DEPRN` "Depression", `DIABTYP1`
+"Diabetes mellitus (DM) – Type I", `DIABTYP2` "Diabetes mellitus (DM) – Type II", `DIABTYP0`
+"Diabetes mellitus (DM) – Type unspecified", `ESRD` "End-stage renal disease (ESRD)", `HPE`
+"History of pulmonary embolism (PE) or deep vein thrombosis (DVT), or venous thromboembolism
+(VTE)", `EDHIV` "HIV infection/AIDS", `HYPLIPID` "Hyperlipidemia", `HTN` "Hypertension", `OBESITY`
+"Obesity (BMI >= 30)", `OSA` "Obstructive sleep apnea (OSA)", `OSTPRSIS` "Osteoporosis" and
+`SUBSTAB` "Substance abuse or dependence". `NOCHRON` is "None of the above". A quotation is the
+documentation's text as `pdftotext -layout` reads it, whitespace runs collapsed to one space.
+
+The diagnosis rows follow ADR [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md),
+which maps Diabetes 130's ICD-9 codes to MONDO through exact cross-references only.
+
+## Decision Drivers
+
+* **Must fix the label and every row before any count is read**, so no figure picks them.
+* **Must map a diagnosis only where MONDO's curators state equivalence**, as the ICD-9 rows do.
+* **Must let an unanswered chronic item show no concept**, so a visit whose item is blank shows
+  neither a condition nor its absence.
+* **Must keep the visit's outcome out of the fields**: nothing recorded at or after the
+  disposition enters.
+
+## Decision
+
+The pin is one `bko.datasets.sources` entry, the archive as NCHS serves it, `agreement=None`, as
+ADR `research/confirmatory-dataset-selection` point 4 fixes; its size equals the host's
+content-length, 1,666,841 bytes, and its sha256 is measured from the bytes served.
+
+**1. The records.** Every line of `ed2022` is one record; a line other than 2,382 characters is
+refused, naming its line. `record_id` is `HOSPCODE` x 1000 + `PATCODE`, so a record's id does not
+depend on its line; a repeated id is refused. Every visit enters: all ages, no filter.
+
+**2. The label.** `target` is `ADMITHOS`, 1 admitted to this hospital, 0 otherwise. `age` is
+`AGE` as published, top-coded at 94, so 94 means 94 and over; `sex` is `SEX`, 1 to 0 (female) and
+2 to 1 (male). Age bands split at 18, 45 and 65.
+
+**3. The diagnosis fields.** `DIAG1` to `DIAG5` each hold the four-character token as an integer:
+blank (`-9`) is 0, and any other token is its value as a four-digit base-37 number over the
+digits `-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ`, so `-` is digit 0 and the encoding is reversible.
+`A00-` and `A000` are different numbers. A token that is not blank, not `ZZZ0` and `ZZZ2` to
+`ZZZ5`, and not a letter, a digit, then two characters of digits and letters with a dash allowed
+last, is refused. The codebook is built from the loaded records' tokens.
+
+**4. Matching a diagnosis.** A token reads as an ICD-10-CM id by restoring the implied decimal:
+`I509` is `ICD10CM:I50.9`, and a dash-filled `A00-` is the category `ICD10CM:A00`. Blank and the
+`ZZZ` tokens read as no id. The id maps to the MONDO concept that carries it under the qualifier
+`source="MONDO:equivalentTo"`, as Decisions 3 and 4 of ADR `research/diabetes-diagnosis-codes` do
+for ICD-9: an xref under any other qualifier maps nothing; obsolete holders are ignored; with
+several live exact holders, the one every other descends from by `is_a` maps, else none. There
+are no curated rows. A four-character token stands for every code below its truncation, so a
+token maps only to the concept MONDO equates with that truncated id, never to a longer code's.
+`python -m bko.ontology codes --system icd10cm` writes the rows from the loaded records' tokens,
+committed as a generated module and regenerated, never edited; the unmapped tokens are counted by
+reason.
+
+**5. The diagnosis rows.** One row per (mapped token, diagnosis column), each
+`Codes(DIAGk, {number})`, so each column's rows partition its mapped tokens and a token maps the
+same concept in any position.
+
+**6. The chronic flags.** The 22 items enter as fields: 0 no, 1 yes, and 2 not recorded where
+`NOCHRON` is 2, the entire item blank. A record whose `NOCHRON` contradicts its flags, 0 with no
+flag, 1 or 2 with a flag, is refused. A flag maps, on code 1, to the live MONDO concept whose
+name or exact synonym is the condition its item names, matched ignoring case and the item's
+abbreviation; where MONDO holds none, to HPO's. An item naming several conditions maps to the one
+every other descends from by `is_a` in MONDO, and is dropped where there is none. The rows, labels
+the pinned releases' names:
+
+| Item | Concept | Read through |
+|---|---|---|
+| `ALZHD` | MONDO:0001627 dementia | Alzheimer disease descends from dementia |
+| `ASTHMA` | MONDO:0004979 asthma | name |
+| `CANCER` | MONDO:0004992 cancer | name |
+| `CEBVD` | MONDO:0011057 cerebrovascular disorder | exact synonym; stroke disorder and transient ischemic attack descend from it |
+| `CKD` | MONDO:0005300 chronic kidney disease | name |
+| `COPD` | MONDO:0005002 chronic obstructive pulmonary disease | name |
+| `CHF` | MONDO:0005009 congestive heart failure | name |
+| `DEPRN` | MONDO:0002050 depressive disorder | exact synonym depression |
+| `DIABTYP1` | MONDO:0005147 type 1 diabetes mellitus | exact synonym type I diabetes mellitus |
+| `DIABTYP2` | MONDO:0005148 type 2 diabetes mellitus | exact synonym type II diabetes mellitus |
+| `DIABTYP0` | MONDO:0005015 diabetes mellitus | name; the type is unspecified |
+| `ESRD` | MONDO:0004375 end stage renal failure | exact synonym end stage renal disease |
+| `EDHIV` | MONDO:0005109 HIV infectious disease | exact synonym HIV infection; AIDS descends from it |
+| `HYPLIPID` | MONDO:0021187 hyperlipidemia | name |
+| `HTN` | HP:0000822 Hypertension | HPO's name; MONDO holds no exact term |
+| `OBESITY` | MONDO:0011122 obesity disorder | exact synonym obesity |
+| `OSA` | MONDO:0007147 obstructive sleep apnea syndrome | exact synonym obstructive sleep apnea |
+| `OSTPRSIS` | MONDO:0005298 osteoporosis | name |
+
+`ETOHAB`, `CAD`, `HPE` and `SUBSTAB` enter as fields and map nothing (Ruled Out).
+
+**7. What never enters.** The disposition block, columns 487 to 502, but `ADMITHOS`; `ADMIT`,
+columns 503-504, through `BOARDED`, columns 2379-2382, every item recorded once the patient is
+admitted or leaves; `PATWT` and every other weight. No item the frame does not name enters.
+
+**8. The order.** The rows are committed; then the training split (`split(records, seed=0,
+edges=frame.edges).train`) is counted, its record count, its admissions and their rate; then the
+gap listing and the census are read. Consequences record each step's commit. A training split
+below 5,000 records excludes the frame until ADR `research/confirmatory-dataset-selection` is
+revised.
+
+**9. Every reading.** The NCHS reading of ADR `research/confirmatory-dataset-selection` (points 4
+and 5) lets every reading run on this frame, the `bko` arm and the privacy readings included.
+This frame fits and scores nothing; a later unit runs them.
+
+## Rationale
+
+The label is one checkbox of the visit's own record, so the frame reduces nothing to make it.
+Admission follows the visit's diagnoses, which the provider writes before the disposition; every
+item recorded at or after the disposition stays out, so no field restates the label.
+
+The diagnosis rule is the ICD-9 rule because its reasons hold unchanged: an exact cross-reference
+is the only one with a direction that lets a record holding the code show the concept. The file's
+truncation only shortens the codes: the id a token reads as is a real ICD-10-CM category or
+subcategory, and MONDO's xrefs name such ids. Keying the base-37 number on the dash keeps a
+category and its first subcategory apart, so `A00-` never stands for `A00.0`.
+
+Coding a blank chronic item as its own state keeps "no" meaning the box was left unticked on a
+form whose item was answered. The flag rows take a term whose name or exact synonym is the item's
+words, and the broader of nested conditions, so a row never asserts more than the box says.
+
+## Consequences
+
+**Gained**: a health frame whose concepts come from coded diagnoses and a chronic-condition
+checklist, reaching MONDO through curator-stated equivalence. **Accepted**: diagnoses MONDO links
+only weakly, and the four-character truncation of longer codes, leave tokens unmapped; they stay
+free fields. Age 94 means 94 and over.
+
+## Ruled Out
+
+| Idea | Why ruled out | When |
+|------|---------------|------|
+| Mapping a token to the concept of a longer code it may stand for | The file keeps four characters; a truncated code covers every code below it, and the record does not say which | 2026-11-25 |
+| Mapping a diagnosis through a `MONDO:relatedTo` or unreviewed xref | Neither states equivalence, as ADR `research/diabetes-diagnosis-codes` records for ICD-9 | 2026-11-25 |
+| `ETOHAB` on alcohol abuse or alcohol dependence | MONDO holds no term for misuse, and alcohol abuse and alcohol dependence do not nest | 2026-11-25 |
+| `CAD` on coronary artery disorder | The item also names ischemic heart disease and myocardial infarction; MONDO nests none of the three under another | 2026-11-25 |
+| `HPE` on venous thromboembolism | MONDO holds no exact term for deep vein thrombosis, and pulmonary embolism does not descend from venous thromboembolism there | 2026-11-25 |
+| `SUBSTAB` on substance abuse or substance dependence | The two do not nest in MONDO | 2026-11-25 |
+| `HTN` on MONDO's hypertensive disorder | Its name and exact synonyms do not include hypertension; HPO's Hypertension is the item's word | 2026-11-25 |
+| Reading a blank chronic item as no | It would put visits whose form left the item unanswered among those without the condition | 2026-11-25 |
+| The line number as `record_id` | It changes with the file's order; `HOSPCODE` and `PATCODE` identify the visit | 2026-11-25 |
+| Weighting records by `PATWT` | The frame scores records, not national estimates | 2026-11-25 |
+
+## Enforcement
+
+- Owner: `src/bko/ontology/catalog.py`
+- Pinned by: nothing -- convention only
+
+## Reversal Conditions
+
+**NCHS re-issues `ed2022.zip`** with other bytes. **MONDO adds or drops an exact ICD-10-CM
+cross-reference** on a token the records hold, which the regenerated rows would show. **The
+training split falls below 5,000 records**, which ADR `research/confirmatory-dataset-selection`
+would then revise.
+
+## Related
+
+- [Confirmatory datasets are chosen by a fixed rule before any record is loaded, and each choice's terms are quoted from its primary page](confirmatory-dataset-selection.md)
+- [The diabetes-codes dataset keeps each ICD-9 diagnosis code and maps it through MONDO's equivalentTo xrefs](diabetes-diagnosis-codes.md)
+- [SUPPORT2's frame: in-hospital death as the label, physiology coded at SIRS and SOFA cutoffs](support2-frame.md)
+- [NHANES's frame: adults 20 and over, a cardiovascular composite label, labs coded at cited cutoffs](nhanes-frame.md)
