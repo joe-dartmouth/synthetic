@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # NHANES's frame: adults 20 and over, a cardiovascular composite label, labs coded at cited cutoffs
 
@@ -112,14 +112,18 @@ the number of "at or above" cutoffs at or below the value, every one an "at or a
 | `LBXGH` | `LBXGH` | 5.7, 6.5 | `ada-2026` |
 | `LBXTC` | `LBXTC` | 240 | `ncep-2001`, read in `nhlbi-2001` |
 | `LBDHDD` | `LBDHDD` | 40 | `ncep-2001`, read in `nhlbi-2001` |
-| `BMXBMI` | `BMXBMI` | the file's tertiles | none (below) |
+| `BMXBMI` | `BMXBMI` | the kept records' tertiles | none (below) |
 
 A blood pressure is the mean of the readings present; with none it is not measured. Each value,
 and each mean, is read at 2 decimals before it is coded. `BMXBMI` has no cited cutoff here, so it
-is coded at the tertiles of its measured values over every record of BMX_L, each rounded to 2
-decimals, and maps nothing: 23.4 and 29.6, each an "at or above" cutoff. BMX_L's codebook gives
-`BMXBMI` from age 2, so children's values enter the tertiles. This command derived them from the
-pinned file in the data root:
+is coded at the tertiles of its measured values over the records the frame keeps, the adults of
+20 and over whose answers settle the label, each rounded to 2 decimals, and maps nothing, each
+tertile an "at or above" cutoff. BMX_L's codebook gives `BMXBMI` from age 2, and its children's
+values stay out of the tertiles. `bko.datasets.nhanes.tertile_base` returns the kept records'
+measured `BMXBMI` values, and the loader logs one `tertile dataset=nhanes field=BMXBMI low=<c>
+high=<c> base=<n>` line before its `cohort` line, `base` the kept records measured in it. Over
+every record of BMX_L the tertiles are 23.4 and 29.6; this command derived those from the pinned
+file in the data root:
 
     uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.nhanes import DECIMALS, TERTILES, measured, read_component; from bko.datasets.sources import NHANES_BMX_L; from bko.datasets.states import tertiles; raw = read_component(read_verified(NHANES_BMX_L, default_data_dir()), "BMX_L"); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
 
@@ -167,6 +171,10 @@ originals. Averaging the readings present follows Muntner et al.'s reading of NH
 row on both upper states keeps the row a finding, not a diagnosis: the ADA asks for two abnormal
 results before diabetes is diagnosed, and the file holds one.
 
+Taking `BMXBMI`'s tertiles over the records the frame keeps cuts it where the coded adults' values
+fall, so each tertile state holds a third of the records it codes; over every record of BMX_L,
+children's lower values would pull both cuts down.
+
 ## Consequences
 
 **The order, by commit.** The rows are at `be72ef5` (Add the NHANES loader, frame, field rows and
@@ -210,6 +218,11 @@ Both read the seven pinned files and HPO `hp/releases/2026-09-01`, and each log'
 reads `dirty=false`. Each csv is byte for byte the one runs `d1-6` and `d2-6` wrote at `db2cc4f`
 from a tree holding one untracked file; [`EVIDENCE.md`](../../EVIDENCE.md) keeps their rows.
 
+**The kept-record tertiles change the frame under its own name**, `nhanes`, because no
+`bko.evaluate.named_runs.RUNS` entry reads it, so no scored run folder is re-read under the
+frame's identity checks. The `d1` and `d2` readings above are of the frame before the change, and
+the readings after it are recorded beside the `run/<id>` tag at which it changed.
+
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline
 originals stay unread; a re-read that differs from its reproduction would change a row. The
@@ -226,6 +239,7 @@ label leaves out adults whose answers cannot settle it. Age 80 means 80 and over
 | Mapping `LBXGH` 5.7 to 6.4 to MONDO's prediabetes syndrome | One result, as for diabetes; Elevated hemoglobin A1c names the finding | 2026-11-25 |
 | Hypertension, `HP:0000822`, on either blood-pressure field | HPO defines it as chronic increased pressure, which one visit's readings do not show | 2026-11-25 |
 | `BMXBMI` at a cited obesity cutoff | No registered source for a BMI cutoff is read here; it is coded at tertiles and maps nothing | 2026-11-25 |
+| `BMXBMI`'s tertiles over every record of BMX_L | Children's values, from age 2, and adults the frame leaves out would set the cuts of a field coded only on kept adults (Rationale) | 2026-11-26 |
 | Weighting records by the survey weights | The frame scores records, not population estimates; the unit leaves weights out | 2026-11-25 |
 | The fasting-subsample laboratory files | No field of the frame reads them | 2026-11-25 |
 
@@ -239,6 +253,7 @@ label leaves out adults whose answers cannot settle it. Age 80 means 80 and over
   `tests/test_datasets_nhanes.py::test_the_frame_holds_exactly_the_named_fields`,
   `tests/test_datasets_nhanes.py::test_each_cited_field_is_coded_at_its_cutoffs`,
   `tests/test_datasets_nhanes.py::test_a_missing_value_shows_no_concept`,
+  `tests/test_datasets_nhanes.py::test_bmi_tertile_base_is_the_kept_adults`,
   `tests/test_evaluate_nhanes.py::test_the_rows_map_these_bands_to_these_concepts`,
   `tests/test_evaluate_nhanes.py::test_every_cutoff_row_cites_a_registered_source_and_names_its_original`,
   `tests/test_datasets_nhanes_pinned.py` (with `--releases`)

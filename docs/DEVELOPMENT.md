@@ -131,8 +131,10 @@ root or to see the module's own code, run it directly:
   row number; the label is `hospdead`, in-hospital death; a record whose `scoma` is missing is
   dropped and counted in the `cohort` line. `age` is floored to whole years; `race` and `income`
   hold code 0 for not recorded; each lab or vital is a coded state, 0 for not measured, then its
-  band at the SIRS or SOFA cutoffs, or at the published file's tertiles for the unmapped ones.
-  The columns the publisher warns against and those known only at or after the outcome never
+  band at the SIRS or SOFA cutoffs, or at the kept records' tertiles for the unmapped ones. A 0 in
+  a field of `IMPLAUSIBLE_ZERO` is not measured, and the tertiles are taken once those zeros are
+  masked (`tertile_base`); before the `cohort` line the loader logs a `zeros` line per listed
+  field and a `tertile` line per tertile field with its cuts and base count. The columns the publisher warns against and those known only at or after the outcome never
   enter. `bko.datasets.support2_frame` builds its frame from the records, band edges 50, 65 and
   80, and `bko.ontology.support2_rows` holds its field rows; it is the first entry of
   `bko.ontology.catalog`, so `score`, `gaps support2` and `contradictions --dataset support2`
@@ -173,8 +175,9 @@ root or to see the module's own code, run it directly:
   heart-attack and stroke items is yes and 0 when all four are no, and any other adult is left out,
   counted in the `cohort` line with each coded field's measured records. `age` is as published,
   top-coded at 80. Blood pressure is the mean of the readings present; it, glycohemoglobin, total
-  and HDL cholesterol are coded at their cited cutoffs and body mass index at the published file's
-  tertiles. `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
+  and HDL cholesterol are coded at their cited cutoffs and body mass index at the kept records'
+  tertiles (`tertile_base`), logged in a `tertile` line with its cuts and base count before the
+  `cohort` line. `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
   `bko.ontology.nhanes_rows` holds its field rows, so `score`, `gaps nhanes` and `contradictions
   --dataset nhanes` read it through its catalog entry. `tests/test_datasets_nhanes_pinned.py` checks
   each file's sha256, the fixture writer's layout against each file, the adult frame's, composite's
@@ -212,7 +215,10 @@ root or to see the module's own code, run it directly:
   its `RecordID` the id; each set's outcomes file must hold one line per stay of the set, and the
   label is in-hospital death. A stay whose age or sex is -1 is left out, and a line with an empty
   parameter name is skipped; the `cohort` line counts both. Each variable is reduced over the 48
-  hours, over values at or above 0, to its minimum and maximum, coded at its SIRS or SOFA cutoff.
+  hours, over values at or above 0, to its minimum and maximum, coded at its SIRS or SOFA cutoff; a
+  0 of a variable of `IMPLAUSIBLE_ZERO` is no reading, counted in a `zeros` line per listed
+  variable before the `cohort` line, and `map_min` is the minimum over `MAP` and `NIMAP` readings
+  together.
   `bko.datasets.physionet2012_frame` builds its frame, band edges 50, 65 and 80, and
   `bko.ontology.physionet2012_rows` holds its field rows, so `score`, `gaps physionet2012` and
   `contradictions --dataset physionet2012` read it through its catalog entry.
@@ -1969,6 +1975,14 @@ commands, inside `.venv`:
   sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The scan's per-state
   fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING while it runs and
   restores it after, so `synthea`, `uci` and the fusion reproduction keep theirs.
+- **A listing of record after a frame change**: a change to a frame's coding is named by a
+  `run/<id>` tag, and its listing runs from a detached worktree at that tag
+  (`git worktree add --detach <worktree> run/<id>`) into the main checkout's `runs/`, with the
+  main checkout's environment and data root, `M` the main checkout. For `support2`, the other
+  catalogued datasets' files named as [Runs](#runs) names them:
+
+      mkdir -p $M/runs/<run-id> && test ! -e $M/runs/<run-id>/gaps-support2.csv && test ! -e $M/runs/<run-id>/gaps-support2.log && env PYTHONPATH=<worktree>/src $M/.venv/bin/python -m bko.gaps support2 --data-dir $M/data > $M/runs/<run-id>/gaps-support2.csv 2> $M/runs/<run-id>/gaps-support2.log </dev/null
+
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks and a BKB the fragments
   cannot ground, fuse or query (`bko.bkb.errors.BKBError`); 3 the data or a release contradicts

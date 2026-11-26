@@ -156,8 +156,13 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   a `Codes` clause on the abnormal states and a missing value shows no concept. A cutoff read as
   "at or above" puts the value at it in the upper state; one read as "above" keeps it in the
   lower. A numeric field with missing values and no cited cutoff is coded the same way at the
-  tertiles of its measured values over the published file and maps no concept (ADR
-  [`research/support2-frame`](support2-frame.md)).
+  tertiles of its measured values over the records the frame keeps and maps no concept (ADR
+  [`research/support2-frame`](support2-frame.md)). A physiologically implausible recorded 0, in a
+  heart rate, a blood pressure, a temperature, a white cell count or a field like them, codes as
+  not measured, and a field coded at tertiles takes them once those zeros are masked; each frame
+  ADR lists its fields, a field whose 0 is plausible left out (ADRs
+  [`research/support2-frame`](support2-frame.md) and
+  [`research/physionet2012-frame`](physionet2012-frame.md)).
 - **The catalog**: a frame added after Diabetes 130 joins `bko.ontology.catalog.CATALOG`, an
   entry naming its pins, its loader, its frame builder, its field rows and, when its rows name
   another ontology, its own release map. `bko.evaluate.data` reaches it through its context's
@@ -290,6 +295,8 @@ term's `def:` whose xref is written `Pathbase: Curation`).
 | A cutoff row read only in its original work | Some originals cannot be read; see Rationale | 2026-11-26 |
 | Matching a dataset item to a live term's name alone | It leaves ACS's `DPHY` unmapped, which only an exact synonym names (ADR [`research/acs-frame`](acs-frame.md)) | 2026-11-26 |
 | Leaving out an item whose only naming term is obsolete | The release names the live successor in `replaced_by`; see Rationale | 2026-11-26 |
+| Tertiles over every record of the published file | They take in records the frame drops and values it does not code, so the cuts are not those of the records they code | 2026-11-26 |
+| Reading a physiologically implausible recorded 0 as measured | It shows a finding, such as Hypotension from a mean arterial pressure of 0, from no measurement | 2026-11-26 |
 
 ## Enforcement
 

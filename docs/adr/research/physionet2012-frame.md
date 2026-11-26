@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # PhysioNet/CinC Challenge 2012's frame: in-hospital death as the label, each stay's 48 hours reduced to its minimum and maximum
 
@@ -106,8 +106,14 @@ Age bands start at 50, 65 and 80.
 or above 0: the minimum and the maximum. A value below 0, -1 or another, is not a reading; of the
 variables the frame reads, the lines of -1 are counted as missing and the lines of another value
 below 0 apart. Only `MechVent`'s values are checked against codes; no value is checked against a
-range. A stay with no value at or above 0 of a
-variable did not measure it.
+range. A 0 of `HR`, `Temp`, `WBC`, `MAP`, `NIMAP`, `Creatinine`, `Bilirubin`, `Platelets` or
+`GCS`, whose scale runs from 3, is physiologically implausible and is not a reading either:
+`parse_stay` does not append it and counts it in `Stay.zeros`, and the loader logs one `zeros
+dataset=physionet2012 field=<variable> readings=<n> records=<n>` line per listed variable before
+its `cohort` line, a variable with no zero logging 0. These variables are
+`bko.datasets.physionet2012.IMPLAUSIBLE_ZERO`. A 0 of `RespRate` stays a reading, since a patient
+on a ventilator can record no breath of their own, and `MechVent` is a flag. A stay with no
+reading of a variable did not measure it.
 
 **5. The fields.** `age`, `sex`, `ICUType` (its four codes, as the page gives them), then these
 coded states (`bko.datasets.states.coded`, `0` = not measured), each cutoff as Singer et al.
@@ -121,7 +127,7 @@ reproduce it, then `mechvent`:
 | `temp_min` | `Temp`, minimum | below 36 | the same |
 | `wbc_max` | `WBC`, maximum | above 12 | Box 1 (SIRS): "White blood cell count >12 000/mm 3 or <4000/mm 3 or >10% immature bands" |
 | `wbc_min` | `WBC`, minimum | below 4 | the same |
-| `map_min` | `MAP`, minimum; `NIMAP`'s where the stay has no `MAP` | below 70 | Table 1 (SOFA cardiovascular, score 1): "MAP <70 mm Hg" |
+| `map_min` | `MAP` and `NIMAP` together, minimum | below 70 | Table 1 (SOFA cardiovascular, score 1): "MAP <70 mm Hg" |
 | `creatinine_max` | `Creatinine`, maximum | 1.2 and above | Table 1 (SOFA renal, score 1): "1.2–1.9 (110–170)" mg/dL |
 | `bilirubin_max` | `Bilirubin`, maximum | 1.2 and above | Table 1 (SOFA liver, score 1): "1.2–1.9 (20–32)" mg/dL |
 | `platelets_min` | `Platelets`, minimum | below 150 | Table 1 (SOFA coagulation, score 1): "<150" |
@@ -163,10 +169,15 @@ decide whether any reading crossed, so the reduction keeps each row's meaning th
 asks nothing of when or how often a variable was measured. Taking both over the whole 48 hours
 uses every stay's full window, which the page guarantees, since stays under 48 hours were
 excluded. Reading only values at or above 0 follows the page: -1 is missing, and no valid value is
-negative, so `Temp`'s -17.8 is not a reading.
+negative, so `Temp`'s -17.8 is not a reading. No living patient has a heart rate, a temperature, a
+white cell or platelet count, a mean arterial pressure, a creatinine or a bilirubin of 0, and the
+Glasgow scale starts at 3, so a 0 there is no reading; read as one, a `Temp` of 0 would show
+Hypothermia and a `MAP` of 0 Hypotension from no measurement.
 
-`map_min` prefers the invasive `MAP` because the page lists both readings of one quantity and the
-arterial line is the direct one; a stay with no arterial line still shows its cuff pressure.
+`map_min` reads `MAP` and `NIMAP` together because the page lists both as readings of one
+quantity, and "MAP <70 mm Hg" holds for a stay when any of its readings is below 70, as every
+other field takes its minimum over all its readings. Reading `NIMAP` only where the stay has no
+`MAP` would leave a stay without Hypotension though its cuff pressure fell below 70.
 `mechvent` keeps the page's own variable as a free field: the files record only 1, so its absence
 means no ventilation was recorded, not a reading of 0. The empty-`Parameter` lines name no
 variable the page lists, so no field could hold them; counting them keeps the skip visible.
@@ -191,10 +202,11 @@ of them in-hospital deaths, an in-hospital death rate of 0.1422, beside the chal
 "The overall mortality rate was 14.2%." over all 12,000 stays (`silva-2012b`). The split is above
 the 5,000 records condition 5 of ADR `research/confirmatory-dataset-selection` asks.
 
-A recorded 0 is a reading (Decision 4). Over the 11,988 records, 102 stays have a lowest `Temp`
-of 0, so show Hypothermia; 108 a lowest mean arterial pressure of 0, so show Hypotension; one a
-lowest `WBC` of 0, so shows Decreased total leukocyte count; one a highest `Bilirubin` of 0; and
-none a highest `HR` or `RespRate` of 0. This command counted them:
+The frame these first readings read took a recorded 0 as a reading. Over its 11,988 records, 102
+stays had a lowest `Temp` of 0, so showed Hypothermia; 108 a lowest mean arterial pressure of 0,
+so showed Hypotension; one a lowest `WBC` of 0, so showed Decreased total leukocyte count; one a
+highest `Bilirubin` of 0; and none a highest `HR` or `RespRate` of 0. This command counted them on
+that frame's code, where `Stay.reduced` took one variable's name:
 
     uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/\d+\.txt"), s)]; kept = [s for s in stays if -1.0 not in (s.age, s.gender)]; [print(v, h, sum(s.reduced(v, h) == 0 for s in kept)) for v, h in (("Temp", "min"), ("MAP", "min"), ("HR", "max"), ("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max"))]' </dev/null
 
@@ -240,16 +252,24 @@ as A and C do, and 3,406 of the 11,988 records read `map_min` from `NIMAP`. At `
 --no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0 disagree`,
 and the pinned test passed with `--releases`.
 
+**The zero rule and `map_min` over both readings change the frame under its own name**,
+`physionet2012`, because no `bko.evaluate.named_runs.RUNS` entry reads it, so no scored run
+folder is re-read under the frame's identity checks. The `d1` and `d2` readings above are of the
+frame before the change, and the readings after it are recorded beside the `run/<id>` tag at
+which it changed. The loader's `cohort` line counts, in place of `map_from_nimap`, the records
+whose `map_min` is a `NIMAP` reading with no `MAP` reading (`map_min_nimap`), the records holding
+both whose lowest `NIMAP` is the lower (`map_min_nimap_lower`) and the records with no `MAP` or
+`NIMAP` reading (`map_unmeasured`).
+
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
-of, so a single spurious reading can show a finding; a recorded 0 is a valid value by the
-page's own rule, so a `Temp` of 0 shows Hypothermia and a `MAP` of 0 Hypotension. A `GCS` below 15
-under sedation reads as Reduced consciousness, as SOFA reads it. Reading `MAP` and `NIMAP` only
-where `MAP` is absent has a cost. Of the 11,988 records, 7,049 hold values of both at or above 0:
-653 of them have a lowest `MAP` of 70 or more but a lowest `NIMAP` below 70, so show no
-Hypotension though a cuff reading crossed the cutoff; 67 have a lowest `MAP` of 0, likely an
-arterial-line artifact, while their lowest `NIMAP` is above 0, so show Hypotension from that 0.
-This command counted them:
+of, so a single spurious reading can show a finding, and an artifact of either pressure line
+above 0 can show Hypotension. A `GCS` below 15 under sedation reads as Reduced consciousness, as
+SOFA reads it. Of the 11,988 records, 7,049 hold values of both `MAP` and `NIMAP` at or above 0:
+653 of them have a lowest `MAP` of 70 or more but a lowest `NIMAP` below 70, which `map_min` over
+both readings shows as Hypotension; 67 have a lowest `MAP` of 0, likely an arterial-line
+artifact, which the zero rule reads as no reading. This command counted them over values at or
+above 0:
 
     uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/[0-9]+\.txt"), s)]; both = [(min(s.values["MAP"]), min(s.values["NIMAP"])) for s in stays if -1.0 not in (s.age, s.gender) and s.values["MAP"] and s.values["NIMAP"]]; print(len(both), sum(m >= 70 > n for m, n in both), sum(m == 0 < n for m, n in both))' </dev/null
 
@@ -266,8 +286,9 @@ It printed `7049 653 67` at `4c0f6c5`.
 | Set A alone, the only set with outcomes during the challenge | The page now serves every set's outcomes, and the selection ADR chose the 12,000 stays | 2026-11-25 |
 | A row on `mechvent` | It records a treatment, not a phenotype, and no cited cutoff applies | 2026-11-25 |
 | The SIRS alternatives PaCO2 below 32 and over 10% immature bands, and SOFA's PaO2/FiO2 | The frame names neither `PaCO2` nor a ratio; band counts are no variable of the files | 2026-11-25 |
-| The minimum over `MAP` and `NIMAP` together | It would show Hypotension in the 653 stays whose cuff alone crossed 70, but let an artifact of either line show it too; the arterial line is the direct reading (Rationale), and Consequences give the counts | 2026-11-25 |
 | Refusing the empty-`Parameter` lines of set C | They are part of the published bytes; refusing them would refuse the set; they are skipped and counted | 2026-11-25 |
+| Reading a recorded 0 as a valid value | A 0 of a listed variable is no physiological reading, and it would show Hypothermia or Hypotension from no measurement (Rationale) | 2026-11-26 |
+| Reading `NIMAP` only where the stay has no `MAP` | It leaves 653 stays without Hypotension though a cuff reading fell below 70; the criterion holds when any reading crosses it (Rationale) | 2026-11-26 |
 
 ## Enforcement
 
@@ -275,7 +296,9 @@ It printed `7049 653 67` at `4c0f6c5`.
 - Pinned by: `tests/test_datasets_physionet2012.py::test_each_variable_is_reduced_to_its_minimum_and_maximum`,
   `tests/test_datasets_physionet2012.py::test_each_coded_field_is_at_its_cutoffs`,
   `tests/test_datasets_physionet2012.py::test_minus_1_is_missing`,
-  `tests/test_datasets_physionet2012.py::test_map_falls_back_to_the_non_invasive_reading`,
+  `tests/test_datasets_physionet2012.py::test_map_min_reads_map_and_nimap_together`,
+  `tests/test_datasets_physionet2012.py::test_a_zero_in_each_listed_field_codes_not_measured`,
+  `tests/test_datasets_physionet2012.py::test_a_stay_whose_only_reading_is_zero_is_not_measured`,
   `tests/test_datasets_physionet2012.py::test_mechvent_is_any_1`,
   `tests/test_datasets_physionet2012.py::test_a_stay_with_unknown_age_or_gender_is_left_out_and_counted`,
   `tests/test_datasets_physionet2012.py::test_the_severity_scores_never_enter_the_frame`,
