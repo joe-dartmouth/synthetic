@@ -17,13 +17,14 @@ import pytest
 
 from bko.datasets.archive import members, tar_members
 from bko.datasets.fetch import default_data_dir, read_verified
-from bko.datasets.frames import FrameSpec
+from bko.datasets.frames import FrameSpec, digest
 from bko.datasets.sources import (
     PHYSIONET2012,
     PHYSIONET2012_OUTCOMES_A,
     PHYSIONET2012_SET_A,
     PHYSIONET2012_SET_C,
 )
+from bko.datasets.split import split
 from bko.ontology.catalog import CATALOG
 from tests._physionet2012_fixtures import REAL_ID, REAL_OUTCOME, REAL_STAY
 
@@ -93,3 +94,14 @@ def test_the_real_stay_loads_as_its_record() -> None:
         "mechvent": 1,
         "target": 0,
     }
+
+
+def test_the_records_and_the_training_splits_death_rate() -> None:
+    records, frame = _loaded()
+    assert len(records) == 11988
+    assert int(records["target"].sum()) == 1706
+    assert int((records["mechvent"] == 1).sum()) == 7576
+    train = split(records, seed=0, edges=frame.edges).train
+    assert (len(train), int(train["target"].sum())) == (9590, 1364)
+    assert f"{train['target'].mean():.4f}" == "0.1422"
+    assert digest(train) == "b99bf9acdc084ad965060ed868b24db828fe216bc08260c45544536a203b72e2"

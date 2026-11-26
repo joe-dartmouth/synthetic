@@ -169,6 +169,31 @@ variable the page lists, so no field could hold them; counting them keeps the sk
 
 ## Consequences
 
+**The order, by commit.** The reduction rule and the rows are fixed in `ce0f090` (Record the
+PhysioNet 2012 frame ADR and its reduction rule) and coded at `9aef4a3` (Add the PhysioNet 2012
+loader, frame, field rows and catalog entry). The training split's count is recorded in the
+commit after `9aef4a3`, before any gap listing or census ran: `CATALOG["physionet2012"].read` on
+the data root, then `split(records, seed=0, edges=frame.edges).train`, as this command does:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, open_https; from bko.datasets.frames import digest; from bko.datasets.split import split; from bko.ontology.catalog import CATALOG; records, frame = CATALOG["physionet2012"].read(default_data_dir(), open_url=open_https); train = split(records, seed=0, edges=frame.edges).train; print(len(records), int(records["target"].sum()), len(train), int(train["target"].sum()), round(float(train["target"].mean()), 4), digest(train))' </dev/null
+
+Run at `9aef4a3`, it printed `11988 1706 9590 1364 0.1422
+b99bf9acdc084ad965060ed868b24db828fe216bc08260c45544536a203b72e2`. The loader's `cohort` line
+reads `stays=12000 unknown_age=0 unknown_sex=12 left_out=12 records=11988 died=1706 unnamed=2403
+below_zero=59`: the 12 stays of unknown `Gender` leave the cohort, the 2,403 empty-`Parameter`
+lines of set C are skipped, and the 59 `Temp` values below 0 are no readings. The cohort holds
+11,988 records, 1,706 of them in-hospital deaths. The training split holds 9,590 records, 1,364
+of them in-hospital deaths, an in-hospital death rate of 0.1422, beside the challenge paper's
+"The overall mortality rate was 14.2%." over all 12,000 stays (`silva-2012b`). The split is above
+the 5,000 records condition 5 of ADR `research/confirmatory-dataset-selection` asks.
+
+A recorded 0 is a reading (Decision 4). Over the 11,988 records, 102 stays have a lowest `Temp`
+of 0, so show Hypothermia; 108 a lowest mean arterial pressure of 0, so show Hypotension; one a
+lowest `WBC` of 0, so shows Decreased total leukocyte count; one a highest `Bilirubin` of 0; and
+none a highest `HR` or `RespRate` of 0. This command counted them:
+
+    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/\d+\.txt"), s)]; kept = [s for s in stays if -1.0 not in (s.age, s.gender)]; [print(v, h, sum(s.reduced(v, h) == 0 for s in kept)) for v, h in (("Temp", "min"), ("MAP", "min"), ("HR", "max"), ("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max"))]' </dev/null
+
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
 of, so a single spurious reading can show a finding; a recorded 0 is a valid value by the
